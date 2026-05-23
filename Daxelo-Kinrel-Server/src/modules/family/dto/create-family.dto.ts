@@ -1,0 +1,35 @@
+import {
+  IsString,
+  IsOptional,
+  MinLength,
+  MaxLength,
+  IsNotEmpty,
+} from 'class-validator';
+
+export class CreateFamilyDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Family name is required' })
+  @MinLength(1, { message: 'Family name must not be empty' })
+  @MaxLength(200, { message: 'Family name must not exceed 200 characters' })
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000, { message: 'Description must not exceed 1000 characters' })
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10, { message: 'Language code must not exceed 10 characters' })
+  primaryLanguage?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100, { message: 'Gotra must not exceed 100 characters' })
+  gotra?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200, { message: 'Origin village must not exceed 200 characters' })
+  originVillage?: string;
+}

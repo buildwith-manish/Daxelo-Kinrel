@@ -8,8 +8,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ── Core Models ──────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ model Subscription {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  tickets     SupportTicket[]
+  tickets     SupportTicket[] @relation("SupportTicketSubscription")
 
   @@index([userId, status])
   @@index([supportTier])
@@ -95,7 +95,7 @@ model SupportAgent {
   email           String
   phone           String?
 
-  // Agent configuration (stored as JSON strings for SQLite)
+  // Agent configuration (stored as JSON strings for PostgreSQL)
   status          String   @default("offline") // online, busy, offline, break
   queues          String   @default("[]") // JSON array: ["billing","technical","critical"]
   minTier         Int      @default(1) // Minimum tier weight this agent handles
@@ -151,7 +151,7 @@ model SupportTicket {
   resolutionType  String?  // resolved, wont_fix, duplicate, no_response, out_of_scope
 
   // Subscription reference
-  subscription    Subscription?  @relation(fields: [userId], references: [userId])
+  subscription    Subscription?  @relation("SupportTicketSubscription", fields: [userId], references: [userId], map: "SupportTicket_subscription_userId_fkey")
 
   // Assignment
   assignedAgentId String?
@@ -386,7 +386,7 @@ model KBArticle {
   subcategory     String?
   sortOrder       Int      @default(0)
 
-  // Content (localized JSON strings for SQLite)
+  // Content (localized JSON strings for PostgreSQL)
   title           String   @default("{}") // JSON: {"en": "...", "hi": "..."}
   content         String   @default("{}") // JSON: {"en": "...", "hi": "..."}
   excerpt         String   @default("{}") // JSON: {"en": "...", "hi": "..."}
