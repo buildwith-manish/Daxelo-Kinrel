@@ -1,0 +1,120 @@
+name: kinrel
+description: DAXELO KINREL — Indian Family Relationship Intelligence
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.8.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Icons
+  cupertino_icons: ^1.0.8
+
+  # State Management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+  
+  # Navigation
+  go_router: ^14.8.1
+  
+  # Networking
+  dio: ^5.8.0+1
+  
+  # Supabase
+  supabase_flutter: ^2.8.4
+  
+  # Storage
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  flutter_secure_storage: ^9.2.4
+  
+  # Serialization
+  freezed_annotation: ^3.0.0
+  json_annotation: ^4.9.0
+  
+  # Localization
+  intl: ^0.20.2
+  
+  # Responsive
+  responsive_framework: ^1.5.1
+  
+  # Animation
+  flutter_animate: ^4.5.2
+  lottie: ^3.3.1
+  
+  # Images
+  cached_network_image: ^3.4.1
+  
+  # UI Utilities
+  shimmer: ^3.0.0
+  flutter_svg: ^2.1.0+1
+  
+  # Utilities
+  uuid: ^4.5.1
+  logger: ^2.6.0
+  path_provider: ^2.1.5
+  connectivity_plus: ^6.1.4
+  url_launcher: ^6.3.1
+  share_plus: ^10.1.4
+  package_info_plus: ^8.3.0
+  
+  # Math/Graph
+  collection: ^1.19.1
+  flutter_dotenv: ^6.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  
+  # Code Generation
+  build_runner: ^2.4.14
+  freezed: ^3.0.6
+  json_serializable: ^6.9.4
+  riverpod_generator: ^2.6.3
+  
+  # Linting
+  flutter_lints: ^5.0.0
+  custom_lint: ^0.7.1
+  riverpod_lint: ^2.6.3
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - .env
+    - assets/data/
+    - assets/icons/
+    - assets/images/
+    - assets/fonts/
+  
+  fonts:
+    - family: Outfit
+      fonts:
+        - asset: assets/fonts/Outfit-Regular.ttf
+        - asset: assets/fonts/Outfit-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Outfit-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Outfit-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Outfit-ExtraBold.ttf
+          weight: 800
+    - family: DMSans
+      fonts:
+        - asset: assets/fonts/DMSans-Regular.ttf
+        - asset: assets/fonts/DMSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/DMSans-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/DMSans-Bold.ttf
+          weight: 700
+    - family: DMMono
+      fonts:
+        - asset: assets/fonts/DMMono-Regular.ttf
+        - asset: assets/fonts/DMMono-Medium.ttf
+          weight: 500

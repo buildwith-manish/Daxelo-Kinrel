@@ -1,0 +1,13 @@
+:81 {
+	@transform_port_query {
+		query XTransformPort=*
+	}
+
+	handle @transform_port_query {
+		reverse_proxy 127.0.0.1:{query.XTransformPort}
+	}
+
+	handle {
+		reverse_proxy [::1]:3002
+	}
+}

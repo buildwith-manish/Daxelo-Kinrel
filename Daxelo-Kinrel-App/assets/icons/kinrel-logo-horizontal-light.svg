@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="64" viewBox="0 0 220 64" fill="none">
+  <title>Kinrel Logo — Horizontal Light</title>
+  <desc>Kinrel horizontal logo lockup for light backgrounds. K-graph icon left, KINREL wordmark right in dark text.</desc>
+
+  <defs>
+    <radialGradient id="rbg-hl" cx="35%" cy="50%" r="65%">
+      <stop offset="0%" stop-color="#FFF0E8"/>
+      <stop offset="100%" stop-color="#FFFFFF"/>
+    </radialGradient>
+    <linearGradient id="grad-hl" x1="20%" y1="10%" x2="80%" y2="90%">
+      <stop offset="0%" stop-color="#C44A18"/>
+      <stop offset="100%" stop-color="#D9700F"/>
+    </linearGradient>
+    <clipPath id="clip-hl">
+      <rect width="64" height="64" rx="14" ry="14"/>
+    </clipPath>
+  </defs>
+
+  <!-- Icon background -->
+  <rect width="64" height="64" rx="14" ry="14" fill="url(#rbg-hl)"/>
+
+  <!-- Orbit ring -->
+  <circle cx="31" cy="32" r="24" stroke="#C44A18" stroke-width="0.5" stroke-opacity="0.18" stroke-dasharray="4 6" fill="none"/>
+
+  <g clip-path="url(#clip-hl)">
+    <line x1="17.9" y1="14.1" x2="17.9" y2="32"   stroke="#C44A18" stroke-width="1.0" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="17.9" y1="32"   x2="17.9" y2="49.9" stroke="#C44A18" stroke-width="1.0" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="17.9" y1="32"   x2="32"   y2="21.8" stroke="#D9700F" stroke-width="0.9" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="32"   y1="21.8" x2="44.8" y2="10.9" stroke="#D9700F" stroke-width="0.9" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="17.9" y1="32"   x2="32"   y2="42.2" stroke="#A83A10" stroke-width="0.9" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="32"   y1="42.2" x2="44.8" y2="53.1" stroke="#A83A10" stroke-width="0.9" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="32" y1="21.8" x2="32" y2="42.2" stroke="#C44A18" stroke-width="0.5" stroke-opacity="0.35" stroke-dasharray="2,2" stroke-linecap="round"/>
+    <line x1="17.9" y1="14.1" x2="32" y2="21.8" stroke="#D9700F" stroke-width="0.45" stroke-opacity="0.35" stroke-dasharray="1.3,2.6" stroke-linecap="round"/>
+    <line x1="17.9" y1="49.9" x2="32" y2="42.2" stroke="#A83A10" stroke-width="0.45" stroke-opacity="0.35" stroke-dasharray="1.3,2.6" stroke-linecap="round"/>
+
+    <circle cx="17.9" cy="14.1" r="2.9" fill="#C44A18"/>
+    <circle cx="17.9" cy="32"   r="3.8" fill="#C44A18"/>
+    <circle cx="17.9" cy="49.9" r="2.9" fill="#C44A18"/>
+    <circle cx="44.8" cy="10.9" r="2.6" fill="#D9700F"/>
+    <circle cx="44.8" cy="53.1" r="2.6" fill="#D9700F"/>
+    <circle cx="32"   cy="21.8" r="1.9" fill="#A83A10"/>
+    <circle cx="32"   cy="42.2" r="1.9" fill="#A83A10"/>
+
+    <circle cx="17.2" cy="13.4" r="1.0" fill="white" fill-opacity="0.55"/>
+    <circle cx="16.9" cy="31.0" r="1.3" fill="white" fill-opacity="0.55"/>
+    <circle cx="17.2" cy="49.2" r="1.0" fill="white" fill-opacity="0.55"/>
+
+    <circle cx="17.9" cy="32" r="5.8" stroke="url(#grad-hl)" stroke-width="0.8" fill="none" stroke-opacity="0.55"/>
+  </g>
+
+  <!-- Wordmark (dark text for light bg) -->
+  <text x="80" y="38"
+    font-family="'Outfit', 'DM Sans', system-ui, sans-serif"
+    font-size="28" font-weight="800"
+    letter-spacing="4"
+    fill="#1A0A00">KINREL</text>
+
+  <text x="82" y="52"
+    font-family="'DM Sans', system-ui, sans-serif"
+    font-size="9" font-weight="400"
+    letter-spacing="3.5"
+    fill="#7A5040">by Daxelo</text>
+</svg>

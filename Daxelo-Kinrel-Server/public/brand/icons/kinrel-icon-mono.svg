@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" fill="none">
+  <title>Kinrel Icon — Monochrome</title>
+  <desc>Kinrel K-graph icon, monochrome greyscale variant. For use on neutral backgrounds or where colour is not available.</desc>
+
+  <defs>
+    <radialGradient id="rbg-mono" cx="35%" cy="50%" r="65%">
+      <stop offset="0%" stop-color="#1F2937"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </radialGradient>
+    <clipPath id="clip-mono">
+      <rect width="100" height="100" rx="22" ry="22"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="100" height="100" rx="22" ry="22" fill="url(#rbg-mono)"/>
+
+  <g clip-path="url(#clip-mono)">
+    <!-- Solid edges -->
+    <line x1="28" y1="22" x2="28" y2="50" stroke="#F9FAFB" stroke-width="1.6" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="28" y1="50" x2="28" y2="78" stroke="#F9FAFB" stroke-width="1.6" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="28" y1="50" x2="50" y2="34" stroke="#9CA3AF" stroke-width="1.4" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="50" y1="34" x2="70" y2="17" stroke="#9CA3AF" stroke-width="1.4" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="28" y1="50" x2="50" y2="66" stroke="#6B7280" stroke-width="1.4" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="50" y1="66" x2="70" y2="83" stroke="#6B7280" stroke-width="1.4" stroke-opacity="0.75" stroke-linecap="round"/>
+    <!-- Dashed lattice -->
+    <line x1="50" y1="34" x2="50" y2="66" stroke="#F9FAFB" stroke-width="0.8" stroke-opacity="0.35" stroke-dasharray="3,3" stroke-linecap="round"/>
+    <line x1="28" y1="22" x2="50" y2="34" stroke="#9CA3AF" stroke-width="0.7" stroke-opacity="0.35" stroke-dasharray="2,4" stroke-linecap="round"/>
+    <line x1="28" y1="78" x2="50" y2="66" stroke="#6B7280" stroke-width="0.7" stroke-opacity="0.35" stroke-dasharray="2,4" stroke-linecap="round"/>
+
+    <!-- Nodes -->
+    <circle cx="28" cy="22" r="4.5" fill="#F9FAFB"/>
+    <circle cx="28" cy="50" r="6"   fill="#F9FAFB"/>
+    <circle cx="28" cy="78" r="4.5" fill="#F9FAFB"/>
+    <circle cx="70" cy="17" r="4"   fill="#9CA3AF"/>
+    <circle cx="70" cy="83" r="4"   fill="#9CA3AF"/>
+    <circle cx="50" cy="34" r="3"   fill="#6B7280"/>
+    <circle cx="50" cy="66" r="3"   fill="#6B7280"/>
+  </g>
+</svg>

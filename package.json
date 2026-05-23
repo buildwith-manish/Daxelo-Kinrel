@@ -1,0 +1,13 @@
+{
+  "name": "daxelo-kinrel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DAXELO KINREL — Indian Family Relationship Intelligence Platform (Monorepo)",
+  "scripts": {
+    "dev": "cd Daxelo-Kinrel-Server && DATABASE_URL=\"file:./db/custom.db\" ./node_modules/.bin/next dev --turbopack -p 3000",
+    "dev:server": "cd Daxelo-Kinrel-Server && DATABASE_URL=\"file:./db/custom.db\" ./node_modules/.bin/next dev --turbopack -p 3000",
+    "lint": "cd Daxelo-Kinrel-Server && ./node_modules/.bin/eslint .",
+    "db:push": "cd Daxelo-Kinrel-Server && DATABASE_URL=\"file:./db/custom.db\" ./node_modules/.bin/prisma db push",
+    "db:generate": "cd Daxelo-Kinrel-Server && ./node_modules/.bin/prisma generate"
+  }
+}

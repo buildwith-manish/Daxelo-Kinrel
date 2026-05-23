@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <title>Kinrel — Family Relationship Intelligence by Daxelo</title>
+  <desc>Open Graph image for Kinrel app. Dark background with orange K-graph icon, KINREL wordmark, and tagline.</desc>
+
+  <defs>
+    <!-- Background radial gradient -->
+    <radialGradient id="bg-glow" cx="50%" cy="45%" r="55%">
+      <stop offset="0%"   stop-color="#2A1810" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#13141E" stop-opacity="1"/>
+    </radialGradient>
+
+    <!-- Orange glow behind icon -->
+    <radialGradient id="icon-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#E8612A" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#E8612A" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Icon internal gradients -->
+    <radialGradient id="icon-rbg" cx="35%" cy="50%" r="65%">
+      <stop offset="0%"   stop-color="#23263E"/>
+      <stop offset="100%" stop-color="#191B2C"/>
+    </radialGradient>
+    <linearGradient id="icon-grad" x1="20%" y1="10%" x2="80%" y2="90%">
+      <stop offset="0%"   stop-color="#E8612A"/>
+      <stop offset="100%" stop-color="#F59240"/>
+    </linearGradient>
+    <clipPath id="icon-clip">
+      <rect x="490" y="148" width="220" height="220" rx="48" ry="48"/>
+    </clipPath>
+
+    <!-- Wordmark gradient -->
+    <linearGradient id="text-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#F5F0EE"/>
+      <stop offset="100%" stop-color="#E8612A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ── Background ──────────────────────────────────────────────────────────── -->
+  <rect width="1200" height="630" fill="url(#bg-glow)"/>
+
+  <!-- Subtle grid texture lines -->
+  <line x1="0"    y1="315" x2="1200" y2="315" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+  <line x1="600"  y1="0"   x2="600"  y2="630" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+
+  <!-- ── Orange glow radial blob ─────────────────────────────────────────────── -->
+  <ellipse cx="600" cy="280" rx="280" ry="200" fill="url(#icon-glow)"/>
+
+  <!-- ── K-graph icon at 220×220, centered at (600,258) ─────────────────────── -->
+  <!-- Icon background -->
+  <rect x="490" y="148" width="220" height="220" rx="48" ry="48" fill="url(#icon-rbg)"/>
+
+  <!-- Orbit ring -->
+  <circle cx="598" cy="258" r="83.6" stroke="#E8612A" stroke-width="1.1"
+    stroke-opacity="0.18" stroke-dasharray="8.8 13.2" fill="none"/>
+
+  <g clip-path="url(#icon-clip)">
+    <!-- Solid edges (coords scaled 2.2× from 100-unit SVG space, offset to icon center) -->
+    <!-- spine -->
+    <line x1="552" y1="196" x2="552" y2="258" stroke="#E8612A" stroke-width="3.5" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="552" y1="258" x2="552" y2="320" stroke="#E8612A" stroke-width="3.5" stroke-opacity="0.75" stroke-linecap="round"/>
+    <!-- upper arm -->
+    <line x1="552" y1="258" x2="596" y2="231" stroke="#F59240" stroke-width="3.1" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="596" y1="231" x2="640" y2="185" stroke="#F59240" stroke-width="3.1" stroke-opacity="0.75" stroke-linecap="round"/>
+    <!-- lower arm -->
+    <line x1="552" y1="258" x2="596" y2="285" stroke="#C44A18" stroke-width="3.1" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="596" y1="285" x2="640" y2="331" stroke="#C44A18" stroke-width="3.1" stroke-opacity="0.75" stroke-linecap="round"/>
+    <!-- dashed lattice -->
+    <line x1="596" y1="231" x2="596" y2="285" stroke="#E8612A" stroke-width="1.8" stroke-opacity="0.35" stroke-dasharray="6.6,6.6" stroke-linecap="round"/>
+    <line x1="552" y1="196" x2="596" y2="231" stroke="#F59240" stroke-width="1.5" stroke-opacity="0.35" stroke-dasharray="4.4,8.8" stroke-linecap="round"/>
+    <line x1="552" y1="320" x2="596" y2="285" stroke="#C44A18" stroke-width="1.5" stroke-opacity="0.35" stroke-dasharray="4.4,8.8" stroke-linecap="round"/>
+
+    <!-- Node glows -->
+    <circle cx="552" cy="196" r="17.6" fill="#E8612A" fill-opacity="0.12"/>
+    <circle cx="552" cy="258" r="20.9" fill="#E8612A" fill-opacity="0.12"/>
+    <circle cx="552" cy="320" r="17.6" fill="#E8612A" fill-opacity="0.12"/>
+    <circle cx="640" cy="185" r="16.5" fill="#F59240" fill-opacity="0.12"/>
+    <circle cx="640" cy="331" r="16.5" fill="#F59240" fill-opacity="0.12"/>
+    <circle cx="596" cy="231" r="14.3" fill="#C44A18" fill-opacity="0.12"/>
+    <circle cx="596" cy="285" r="14.3" fill="#C44A18" fill-opacity="0.12"/>
+
+    <!-- Nodes -->
+    <circle cx="552" cy="196" r="9.9"  fill="#E8612A"/>
+    <circle cx="552" cy="258" r="13.2" fill="#E8612A"/>
+    <circle cx="552" cy="320" r="9.9"  fill="#E8612A"/>
+    <circle cx="640" cy="185" r="8.8"  fill="#F59240"/>
+    <circle cx="640" cy="331" r="8.8"  fill="#F59240"/>
+    <circle cx="596" cy="231" r="6.6"  fill="#C44A18"/>
+    <circle cx="596" cy="285" r="6.6"  fill="#C44A18"/>
+
+    <!-- Specular highlights -->
+    <circle cx="549.6" cy="193.6" r="3.5" fill="white" fill-opacity="0.38"/>
+    <circle cx="548.9" cy="255.7" r="4.6" fill="white" fill-opacity="0.38"/>
+    <circle cx="549.6" cy="317.6" r="3.5" fill="white" fill-opacity="0.38"/>
+    <circle cx="637.8" cy="182.8" r="3.1" fill="white" fill-opacity="0.38"/>
+    <circle cx="637.8" cy="328.8" r="3.1" fill="white" fill-opacity="0.38"/>
+    <circle cx="594.4" cy="229.3" r="2.3" fill="white" fill-opacity="0.38"/>
+    <circle cx="594.4" cy="283.3" r="2.3" fill="white" fill-opacity="0.38"/>
+
+    <!-- Center hub orbit ring -->
+    <circle cx="552" cy="258" r="19.8" stroke="url(#icon-grad)" stroke-width="2.6" fill="none" stroke-opacity="0.55"/>
+  </g>
+
+  <!-- ── KINREL wordmark ──────────────────────────────────────────────────────── -->
+  <!-- Rendered as SVG text with gradient fill -->
+  <text
+    x="600" y="430"
+    text-anchor="middle"
+    font-family="'Outfit', 'DM Sans', system-ui, sans-serif"
+    font-size="72"
+    font-weight="800"
+    letter-spacing="10"
+    fill="url(#text-grad)"
+  >KINREL</text>
+
+  <!-- ── Tagline ──────────────────────────────────────────────────────────────── -->
+  <text
+    x="600" y="478"
+    text-anchor="middle"
+    font-family="'DM Sans', system-ui, sans-serif"
+    font-size="20"
+    font-weight="300"
+    letter-spacing="1.5"
+    fill="#C9B4A8"
+    fill-opacity="0.8"
+  >Family Relationship Intelligence  ·  by Daxelo</text>
+
+  <!-- ── Domain watermark (bottom-right) ─────────────────────────────────────── -->
+  <text
+    x="1164" y="596"
+    text-anchor="end"
+    font-family="'DM Mono', 'Courier New', monospace"
+    font-size="15"
+    font-weight="400"
+    letter-spacing="0.5"
+    fill="#8A7A72"
+  >daxelokinrel.com</text>
+
+  <!-- ── Subtle bottom border line ───────────────────────────────────────────── -->
+  <line x1="100" y1="614" x2="1100" y2="614"
+    stroke="#E8612A" stroke-width="1.5" stroke-opacity="0.20"/>
+</svg>

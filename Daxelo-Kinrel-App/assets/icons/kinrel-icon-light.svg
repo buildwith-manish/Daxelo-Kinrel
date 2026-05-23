@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" fill="none">
+  <title>Kinrel Icon — Light Mode</title>
+  <desc>Kinrel K-graph icon, light mode variant. Orange tones on warm white background for use on light surfaces.</desc>
+
+  <defs>
+    <radialGradient id="rbg-light" cx="35%" cy="50%" r="65%">
+      <stop offset="0%" stop-color="#FFF0E8"/>
+      <stop offset="100%" stop-color="#FFFFFF"/>
+    </radialGradient>
+    <linearGradient id="grad-light" x1="20%" y1="10%" x2="80%" y2="90%">
+      <stop offset="0%" stop-color="#C44A18"/>
+      <stop offset="100%" stop-color="#D9700F"/>
+    </linearGradient>
+    <clipPath id="clip-light">
+      <rect width="100" height="100" rx="22" ry="22"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="100" height="100" rx="22" ry="22" fill="url(#rbg-light)"/>
+
+  <!-- Orbit ring (glow) -->
+  <circle cx="49" cy="50" r="38" stroke="#C44A18" stroke-width="0.5" stroke-opacity="0.18" stroke-dasharray="4 6" fill="none"/>
+
+  <g clip-path="url(#clip-light)">
+    <!-- Solid edges -->
+    <line x1="28" y1="22" x2="28" y2="50" stroke="#C44A18" stroke-width="1.6" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="28" y1="50" x2="28" y2="78" stroke="#C44A18" stroke-width="1.6" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="28" y1="50" x2="50" y2="34" stroke="#D9700F" stroke-width="1.4" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="50" y1="34" x2="70" y2="17" stroke="#D9700F" stroke-width="1.4" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="28" y1="50" x2="50" y2="66" stroke="#A83A10" stroke-width="1.4" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="50" y1="66" x2="70" y2="83" stroke="#A83A10" stroke-width="1.4" stroke-opacity="0.75" stroke-linecap="round"/>
+    <!-- Dashed lattice -->
+    <line x1="50" y1="34" x2="50" y2="66" stroke="#C44A18" stroke-width="0.8" stroke-opacity="0.35" stroke-dasharray="3,3" stroke-linecap="round"/>
+    <line x1="28" y1="22" x2="50" y2="34" stroke="#D9700F" stroke-width="0.7" stroke-opacity="0.35" stroke-dasharray="2,4" stroke-linecap="round"/>
+    <line x1="28" y1="78" x2="50" y2="66" stroke="#A83A10" stroke-width="0.7" stroke-opacity="0.35" stroke-dasharray="2,4" stroke-linecap="round"/>
+
+    <!-- Node glows -->
+    <circle cx="28" cy="22" r="8"   fill="#C44A18" fill-opacity="0.10"/>
+    <circle cx="28" cy="50" r="9.5" fill="#C44A18" fill-opacity="0.10"/>
+    <circle cx="28" cy="78" r="8"   fill="#C44A18" fill-opacity="0.10"/>
+    <circle cx="70" cy="17" r="7.5" fill="#D9700F" fill-opacity="0.10"/>
+    <circle cx="70" cy="83" r="7.5" fill="#D9700F" fill-opacity="0.10"/>
+    <circle cx="50" cy="34" r="6.5" fill="#A83A10" fill-opacity="0.10"/>
+    <circle cx="50" cy="66" r="6.5" fill="#A83A10" fill-opacity="0.10"/>
+
+    <!-- Nodes -->
+    <circle cx="28" cy="22" r="4.5" fill="#C44A18"/>
+    <circle cx="28" cy="50" r="6"   fill="#C44A18"/>
+    <circle cx="28" cy="78" r="4.5" fill="#C44A18"/>
+    <circle cx="70" cy="17" r="4"   fill="#D9700F"/>
+    <circle cx="70" cy="83" r="4"   fill="#D9700F"/>
+    <circle cx="50" cy="34" r="3"   fill="#A83A10"/>
+    <circle cx="50" cy="66" r="3"   fill="#A83A10"/>
+
+    <!-- Specular highlights -->
+    <circle cx="26.9" cy="20.9" r="1.6" fill="white" fill-opacity="0.55"/>
+    <circle cx="26.5" cy="48.5" r="2.1" fill="white" fill-opacity="0.55"/>
+    <circle cx="26.9" cy="76.9" r="1.6" fill="white" fill-opacity="0.55"/>
+    <circle cx="69"   cy="16"   r="1.4" fill="white" fill-opacity="0.55"/>
+    <circle cx="69"   cy="82"   r="1.4" fill="white" fill-opacity="0.55"/>
+    <circle cx="49.3" cy="33.3" r="1.1" fill="white" fill-opacity="0.55"/>
+    <circle cx="49.3" cy="65.3" r="1.1" fill="white" fill-opacity="0.55"/>
+
+    <!-- Center hub orbit ring -->
+    <circle cx="28" cy="50" r="9" stroke="url(#grad-light)" stroke-width="1.2" fill="none" stroke-opacity="0.55"/>
+  </g>
+</svg>

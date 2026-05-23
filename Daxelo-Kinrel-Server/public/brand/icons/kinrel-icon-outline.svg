@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" fill="none">
+  <title>Kinrel Icon — Outline</title>
+  <desc>Kinrel K-graph icon, outline wireframe variant. Transparent background with stroked nodes and edges. For use on any coloured surface.</desc>
+
+  <defs>
+    <clipPath id="clip-outline">
+      <rect width="100" height="100" rx="22" ry="22"/>
+    </clipPath>
+  </defs>
+
+  <!-- Outline border -->
+  <rect width="100" height="100" rx="22" ry="22" stroke="#E8612A" stroke-width="2" fill="transparent"/>
+
+  <g clip-path="url(#clip-outline)">
+    <!-- Solid edges -->
+    <line x1="28" y1="22" x2="28" y2="50" stroke="#E8612A" stroke-width="1.6" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="28" y1="50" x2="28" y2="78" stroke="#E8612A" stroke-width="1.6" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="28" y1="50" x2="50" y2="34" stroke="#F59240" stroke-width="1.4" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="50" y1="34" x2="70" y2="17" stroke="#F59240" stroke-width="1.4" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="28" y1="50" x2="50" y2="66" stroke="#C44A18" stroke-width="1.4" stroke-opacity="0.75" stroke-linecap="round"/>
+    <line x1="50" y1="66" x2="70" y2="83" stroke="#C44A18" stroke-width="1.4" stroke-opacity="0.75" stroke-linecap="round"/>
+    <!-- Dashed lattice -->
+    <line x1="50" y1="34" x2="50" y2="66" stroke="#E8612A" stroke-width="0.8" stroke-opacity="0.35" stroke-dasharray="3,3" stroke-linecap="round"/>
+    <line x1="28" y1="22" x2="50" y2="34" stroke="#F59240" stroke-width="0.7" stroke-opacity="0.35" stroke-dasharray="2,4" stroke-linecap="round"/>
+    <line x1="28" y1="78" x2="50" y2="66" stroke="#C44A18" stroke-width="0.7" stroke-opacity="0.35" stroke-dasharray="2,4" stroke-linecap="round"/>
+
+    <!-- Nodes (outlined, transparent fill) -->
+    <circle cx="28" cy="22" r="4.5" fill="transparent" stroke="#E8612A" stroke-width="1.5"/>
+    <circle cx="28" cy="50" r="6"   fill="transparent" stroke="#E8612A" stroke-width="1.5"/>
+    <circle cx="28" cy="78" r="4.5" fill="transparent" stroke="#E8612A" stroke-width="1.5"/>
+    <circle cx="70" cy="17" r="4"   fill="transparent" stroke="#F59240" stroke-width="1.5"/>
+    <circle cx="70" cy="83" r="4"   fill="transparent" stroke="#F59240" stroke-width="1.5"/>
+    <circle cx="50" cy="34" r="3"   fill="transparent" stroke="#C44A18" stroke-width="1.5"/>
+    <circle cx="50" cy="66" r="3"   fill="transparent" stroke="#C44A18" stroke-width="1.5"/>
+  </g>
+</svg>

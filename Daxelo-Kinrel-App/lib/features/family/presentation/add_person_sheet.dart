@@ -1,0 +1,520 @@
+import 'dart:math' as math;
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/constants/brand_colors.dart';
+import '../../../core/constants/brand_typography.dart';
+import '../../../core/constants/brand_spacing.dart';
+import '../../../core/extensions/context_extensions.dart';
+import '../../../core/family/family_provider.dart';
+import 'relationship_picker_sheet.dart';
+
+class AddPersonSheet extends ConsumerStatefulWidget {
+  final String familyId;
+  final Person? existingPerson;
+
+  const AddPersonSheet({
+    super.key,
+    required this.familyId,
+    this.existingPerson,
+  });
+
+  /// Show as bottom sheet
+  static Future<void> show(
+    BuildContext context, {
+    required String familyId,
+    Person? existingPerson,
+  }) {
+    return showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
+        ),
+      ),
+      builder: (_) => AddPersonSheet(
+        familyId: familyId,
+        existingPerson: existingPerson,
+      ),
+    );
+  }
+
+  @override
+  ConsumerState<AddPersonSheet> createState() => _AddPersonSheetState();
+}
+
+class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _dobController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _gotraController = TextEditingController();
+
+  String? _selectedRelationshipKey;
+  String? _selectedRelationshipLabel;
+  String _selectedGender = 'male';
+  bool _isDeceased = false;
+  bool _isSubmitting = false;
+  DateTime? _selectedDob;
+
+  bool get _isEditMode => widget.existingPerson != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEditMode) {
+      final p = widget.existingPerson!;
+      _nameController.text = p.name;
+      _selectedRelationshipKey = p.relationshipKey;
+      _selectedRelationshipLabel = p.relationshipKey?.snakeToTitle;
+      _selectedGender = p.gender ?? 'male';
+      _dobController.text = p.dateOfBirth ?? '';
+      _cityController.text = p.city ?? '';
+      _gotraController.text = p.gotra ?? '';
+      _isDeceased = p.isDeceased;
+
+      if (p.dateOfBirth != null && p.dateOfBirth!.isNotEmpty) {
+        try {
+          _selectedDob = DateTime.parse(p.dateOfBirth!);
+        } catch (_) {}
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _dobController.dispose();
+    _cityController.dispose();
+    _gotraController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDob ?? DateTime(now.year - 30),
+      firstDate: DateTime(1900),
+      lastDate: now,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: KinrelColors.orange,
+              surface: KinrelColors.darkElevated,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedDob = picked;
+        _dobController.text = picked.toIso8601String().split('T').first;
+      });
+    }
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSubmitting = true);
+
+    Person? result;
+
+    if (_isEditMode) {
+      result = await updatePerson(
+        ref: ref,
+        personId: widget.existingPerson!.id,
+        familyId: widget.familyId,
+        name: _nameController.text.trim(),
+        relationshipKey: _selectedRelationshipKey,
+        gender: _selectedGender,
+        dateOfBirth: _dobController.text.trim().isEmpty
+            ? null
+            : _dobController.text.trim(),
+        city: _cityController.text.trim().isEmpty
+            ? null
+            : _cityController.text.trim(),
+        gotra: _gotraController.text.trim().isEmpty
+            ? null
+            : _gotraController.text.trim(),
+        isDeceased: _isDeceased,
+      );
+    } else {
+      result = await createPerson(
+        ref: ref,
+        familyId: widget.familyId,
+        name: _nameController.text.trim(),
+        relationshipKey: _selectedRelationshipKey,
+        gender: _selectedGender,
+        dateOfBirth: _dobController.text.trim().isEmpty
+            ? null
+            : _dobController.text.trim(),
+        city: _cityController.text.trim().isEmpty
+            ? null
+            : _cityController.text.trim(),
+        gotra: _gotraController.text.trim().isEmpty
+            ? null
+            : _gotraController.text.trim(),
+        isDeceased: _isDeceased,
+      );
+    }
+
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+
+    if (result != null) {
+      context.showSnackBar(
+        _isEditMode
+            ? 'Person updated successfully'
+            : '${result.name} added to family',
+      );
+      Navigator.of(context).pop();
+    } else {
+      context.showSnackBar(
+        _isEditMode ? 'Failed to update person' : 'Failed to add person',
+        isError: true,
+      );
+    }
+  }
+
+  Future<void> _pickRelationship() async {
+    final result = await RelationshipPickerSheet.show(context);
+    if (result != null) {
+      setState(() {
+        _selectedRelationshipKey = result.relationshipKey;
+        _selectedRelationshipLabel = result.englishTerm;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: KinrelSpacing.base,
+        right: KinrelSpacing.base,
+        top: KinrelSpacing.xl,
+        bottom: math.max(bottomInset, KinrelSpacing.xl),
+      ),
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Handle bar
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: KinrelColors.darkSurface,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Title
+              Text(
+                _isEditMode ? 'Edit Person' : 'Add Family Member',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Name
+              _Label('Name *'),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _nameController,
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'Name is required' : null,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 15,
+                  color: KinrelColors.textWhite,
+                ),
+                decoration: _inputDecoration('Full name'),
+              ),
+              const SizedBox(height: 16),
+
+              // Relationship Type
+              _Label('Relationship Type'),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: _pickRelationship,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: KinrelColors.darkElevated,
+                    borderRadius:
+                        BorderRadius.circular(KinrelSpacing.radiusSm),
+                    border: Border.all(
+                      color: KinrelColors.darkSurface.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _selectedRelationshipLabel ?? 'Search relationship...',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 15,
+                            color: _selectedRelationshipLabel != null
+                                ? KinrelColors.textWhite
+                                : KinrelColors.textDim,
+                          ),
+                        ),
+                      ),
+                      Icon(Icons.search, color: KinrelColors.orange, size: 20),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Gender
+              _Label('Gender'),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  _GenderChip(
+                    label: 'Male',
+                    selected: _selectedGender == 'male',
+                    onTap: () => setState(() => _selectedGender = 'male'),
+                  ),
+                  const SizedBox(width: 8),
+                  _GenderChip(
+                    label: 'Female',
+                    selected: _selectedGender == 'female',
+                    onTap: () => setState(() => _selectedGender = 'female'),
+                  ),
+                  const SizedBox(width: 8),
+                  _GenderChip(
+                    label: 'Other',
+                    selected: _selectedGender == 'other',
+                    onTap: () => setState(() => _selectedGender = 'other'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Date of Birth
+              _Label('Date of Birth'),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: _pickDate,
+                child: AbsorbPointer(
+                  child: TextFormField(
+                    controller: _dobController,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 15,
+                      color: KinrelColors.textWhite,
+                    ),
+                    decoration: _inputDecoration('YYYY-MM-DD').copyWith(
+                      suffixIcon: Icon(
+                        Icons.calendar_today,
+                        color: KinrelColors.textDim,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // City/Village
+              _Label('City / Village'),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _cityController,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 15,
+                  color: KinrelColors.textWhite,
+                ),
+                decoration: _inputDecoration('City or village name'),
+              ),
+              const SizedBox(height: 16),
+
+              // Gotra
+              _Label('Gotra'),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _gotraController,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 15,
+                  color: KinrelColors.textWhite,
+                ),
+                decoration: _inputDecoration('Gotra'),
+              ),
+              const SizedBox(height: 16),
+
+              // Alive / Deceased toggle
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Deceased',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 15,
+                        color: KinrelColors.textSilver,
+                      ),
+                    ),
+                  ),
+                  Switch.adaptive(
+                    value: _isDeceased,
+                    onChanged: (v) => setState(() => _isDeceased = v),
+                    activeColor: KinrelColors.orange,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 28),
+
+              // Submit
+              FilledButton(
+                onPressed: _isSubmitting ? null : _submit,
+                style: FilledButton.styleFrom(
+                  backgroundColor: KinrelColors.orange,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor:
+                      KinrelColors.orange.withValues(alpha: 0.4),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(KinrelSpacing.radiusSm),
+                  ),
+                ),
+                child: _isSubmitting
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        _isEditMode ? 'Save Changes' : 'Add Member',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: KinrelColors.textDim),
+      filled: true,
+      fillColor: KinrelColors.darkElevated,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+        borderSide: BorderSide(
+            color: KinrelColors.darkSurface.withValues(alpha: 0.3)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+        borderSide: const BorderSide(color: KinrelColors.orange),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+        borderSide: const BorderSide(color: KinrelColors.error),
+      ),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    );
+  }
+}
+
+class _Label extends StatelessWidget {
+  final String text;
+  const _Label(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontFamily: KinrelTypography.bodyFont,
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: KinrelColors.textSilver,
+      ),
+    );
+  }
+}
+
+class _GenderChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _GenderChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? KinrelColors.orange.withValues(alpha: 0.15)
+              : KinrelColors.darkElevated,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color:
+                selected ? KinrelColors.orange : KinrelColors.darkSurface,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: selected ? KinrelColors.orange : KinrelColors.textSilver,
+          ),
+        ),
+      ),
+    );
+  }
+}

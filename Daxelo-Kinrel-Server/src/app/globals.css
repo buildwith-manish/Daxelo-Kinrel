@@ -1,0 +1,234 @@
+@import "../styles/brand-tokens.css";
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-dm-sans);
+  --font-display: var(--font-outfit);
+  --font-mono: var(--font-dm-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* ── KINREL Brand Colors — mapped from brand-tokens.css ──────── */
+  --color-kinrel-orange: var(--kinrel-orange);
+  --color-kinrel-amber: var(--kinrel-amber);
+  --color-kinrel-ember: var(--kinrel-ember);
+  --color-kinrel-white: var(--kinrel-white);
+  --color-kinrel-silver: var(--kinrel-silver);
+  --color-kinrel-dim: var(--kinrel-dim);
+  --color-kinrel-bg: var(--kinrel-bg);
+  --color-kinrel-card: var(--kinrel-card);
+  --color-kinrel-elevated: var(--kinrel-elevated);
+  --color-kinrel-error: var(--kinrel-error);
+  --color-kinrel-success: var(--kinrel-success);
+  --color-kinrel-warning: var(--kinrel-warning);
+  --color-kinrel-info: var(--kinrel-info);
+
+  /* ── KINREL Legacy Brand Aliases ─────────────────────────────── */
+  --color-brand-primary: var(--kinrel-orange);
+  --color-brand-secondary: var(--kinrel-ember);
+  --color-brand-accent: var(--kinrel-amber);
+  --color-brand-success: var(--kinrel-success);
+  --color-brand-warning: var(--kinrel-warning);
+  --color-brand-error: var(--kinrel-error);
+  --color-brand-info: var(--kinrel-info);
+
+  /* ── KINREL Surface Colors ───────────────────────── */
+  --color-surface-container-low: var(--surface-container-low);
+  --color-surface-container: var(--surface-container);
+  --color-surface-container-high: var(--surface-container-high);
+
+  /* ── KINREL Tree Visualization ───────────────────── */
+  --color-tree-node-bg: var(--tree-node-bg);
+  --color-tree-node-border: var(--tree-node-border);
+  --color-tree-line-parent: var(--tree-line-parent);
+  --color-tree-line-spouse: var(--tree-line-spouse);
+  --color-tree-line-sibling: var(--tree-line-sibling);
+}
+
+:root {
+  /* ── Base Radius ────────────────────────────────────── */
+  --radius: 0.625rem; /* 10px — Kinrel brand rx-md */
+
+  /* ── KINREL Surface Colors — Dark-first ─────────────── */
+  --surface-container-low: #191B2C;
+  --surface-container: #202338;
+  --surface-container-high: #282B48;
+  --tree-node-bg: #191B2C;
+  --tree-node-border: rgba(255, 255, 255, 0.10);
+  --tree-line-parent: #E8612A;
+  --tree-line-spouse: #F59240;
+  --tree-line-sibling: #4CAF7A;
+
+  /* ── M3 ColorScheme — Dark (default, Kinrel is dark-first) ── */
+  --background: #13141E;
+  --foreground: #F5F0EE;
+  --card: #191B2C;
+  --card-foreground: #F5F0EE;
+  --popover: #191B2C;
+  --popover-foreground: #F5F0EE;
+  --primary: #E8612A;              /* Kinrel Orange */
+  --primary-foreground: #F5F0EE;   /* White */
+  --secondary: #C44A18;            /* Kinrel Ember */
+  --secondary-foreground: #F5F0EE;
+  --muted: #202338;
+  --muted-foreground: #C9B4A8;     /* Kinrel Silver */
+  --accent: #F59240;               /* Kinrel Amber */
+  --accent-foreground: #13141E;
+  --destructive: #F04E2A;          /* Kinrel Error */
+  --border: rgba(255, 255, 255, 0.10);
+  --input: rgba(255, 255, 255, 0.10);
+  --ring: #E8612A;                 /* Matches primary */
+  --chart-1: #E8612A;             /* Orange */
+  --chart-2: #F59240;             /* Amber */
+  --chart-3: #4CAF7A;             /* Success Green */
+  --chart-4: #60A5FA;             /* Info Blue */
+  --chart-5: #C44A18;             /* Ember */
+  --sidebar: #191B2C;
+  --sidebar-foreground: #F5F0EE;
+  --sidebar-primary: #E8612A;
+  --sidebar-primary-foreground: #F5F0EE;
+  --sidebar-accent: #202338;
+  --sidebar-accent-foreground: #F5F0EE;
+  --sidebar-border: rgba(255, 255, 255, 0.10);
+  --sidebar-ring: #E8612A;
+}
+
+/* ── Light mode ─────────────────────────────────────────── */
+.kinrel-light,
+:root:not(.dark):where(.kinrel-light) {
+  --surface-container-low: #FFFAF8;
+  --surface-container: #F5EDE8;
+  --surface-container-high: #EDE0D8;
+  --tree-node-bg: #FFFAF8;
+  --tree-node-border: rgba(0, 0, 0, 0.08);
+  --tree-line-parent: #C44A18;
+  --tree-line-spouse: #D9700F;
+  --tree-line-sibling: #3D8A5A;
+
+  --background: #FFFAF8;
+  --foreground: #1A0A00;
+  --card: #FFFFFF;
+  --card-foreground: #1A0A00;
+  --popover: #FFFFFF;
+  --popover-foreground: #1A0A00;
+  --primary: #C44A18;
+  --primary-foreground: #F5F0EE;
+  --secondary: #7A5040;
+  --secondary-foreground: #F5F0EE;
+  --muted: #F5EDE8;
+  --muted-foreground: #7A5040;
+  --accent: #D9700F;
+  --accent-foreground: #FFFAF8;
+  --destructive: #D43114;
+  --border: rgba(0, 0, 0, 0.08);
+  --input: rgba(0, 0, 0, 0.08);
+  --ring: #C44A18;
+  --chart-1: #C44A18;
+  --chart-2: #D9700F;
+  --chart-3: #3D8A5A;
+  --chart-4: #4A85D9;
+  --chart-5: #7A5040;
+  --sidebar: #FFFAF8;
+  --sidebar-foreground: #1A0A00;
+  --sidebar-primary: #C44A18;
+  --sidebar-primary-foreground: #F5F0EE;
+  --sidebar-accent: #F5EDE8;
+  --sidebar-accent-foreground: #1A0A00;
+  --sidebar-border: rgba(0, 0, 0, 0.08);
+  --sidebar-ring: #C44A18;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    background-color: var(--kinrel-bg);
+    color: var(--kinrel-white);
+    font-family: var(--kinrel-font-body);
+  }
+}
+
+/* ── Custom Scrollbar ──────────────────────────────────────────────── */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--kinrel-border) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: var(--kinrel-border);
+    border-radius: 9999px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: var(--kinrel-silver);
+  }
+}
+
+/* ── Focus Ring Token (Accessibility) ──────────────────────────────── */
+@layer utilities {
+  .focus-ring {
+    outline: 3px solid var(--kinrel-orange);
+    outline-offset: 2px;
+  }
+
+  .focus-ring-high-contrast {
+    outline: 3px solid #FFFF00;
+    outline-offset: 2px;
+  }
+}
+
+/* ── Reduced Motion ────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

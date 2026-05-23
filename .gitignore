@@ -1,0 +1,104 @@
+# =============================================================================
+# DAXELO KINREL — Root .gitignore
+# =============================================================================
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+
+# Next.js build
+.next/
+out/
+
+# Flutter build
+build/
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.pem
+
+# Debug & Logs
+npm-debug.log*
+yarn-debug.log*
+.pnpm-debug.log*
+*.log
+dev.log
+dev.out.log
+server.log
+
+# TypeScript
+*.tsbuildinfo
+
+# Vercel
+.vercel
+
+# Database (do not commit .db files)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# =============================================================================
+# Flutter App (Daxelo-Kinrel-App)
+# =============================================================================
+Daxelo-Kinrel-App/.dart_tool/
+Daxelo-Kinrel-App/.packages
+Daxelo-Kinrel-App/.pub-cache/
+Daxelo-Kinrel-App/.pub/
+Daxelo-Kinrel-App/.flutter-plugins
+Daxelo-Kinrel-App/.flutter-plugins-dependencies
+Daxelo-Kinrel-App/ios/Pods/
+Daxelo-Kinrel-App/ios/.symlinks/
+Daxelo-Kinrel-App/android/.gradle/
+Daxelo-Kinrel-App/android/app/build/
+Daxelo-Kinrel-App/lib/**/*.g.dart
+Daxelo-Kinrel-App/lib/**/*.freezed.dart
+
+# =============================================================================
+# NestJS Backend
+# =============================================================================
+backend/dist/
+backend/node_modules/
+
+# =============================================================================
+# Dev Platform / AI Context (NOT part of the app)
+# =============================================================================
+.zscripts/
+agent-ctx/
+skills/
+upload/
+download/
+examples/
+docs/runbooks/
+style_dictionary/
+.claude
+.z-ai-config
+worklog.md
+worklog_new.md
+local-*
+
+# =============================================================================
+# Legacy directories (removed during restructuring - only ignore at root level)
+# =============================================================================
+/flutter_app/
+/src/
+/prisma/
+/public/
+/mini-services/
+/db/

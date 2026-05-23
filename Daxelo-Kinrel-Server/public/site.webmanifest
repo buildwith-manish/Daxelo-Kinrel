@@ -1,0 +1,26 @@
+{
+  "name": "Kinrel — Family Relationship Intelligence",
+  "short_name": "Kinrel",
+  "description": "Map every family connection with AI-powered kinship names across 14 Indian languages.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#13141E",
+  "theme_color": "#E8612A",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/brand/icons/kinrel-icon-primary.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/icons/kinrel-icon-mini.svg",
+      "sizes": "16x16 24x24",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["lifestyle", "social", "education"],
+  "lang": "en-IN"
+}
