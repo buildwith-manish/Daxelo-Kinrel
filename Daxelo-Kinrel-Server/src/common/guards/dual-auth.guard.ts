@@ -5,12 +5,11 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../prisma/prisma.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
 import { ApiKeyGuard } from './api-key.guard';
 import { SCOPES_KEY } from '../decorators/scopes.decorator';
-import { createHash } from 'crypto';
 
 /**
  * DualAuthGuard — Accepts either JWT session auth OR API key auth.
@@ -30,6 +29,7 @@ export class DualAuthGuard implements CanActivate {
   constructor(
     private readonly prisma: PrismaService,
     private readonly reflector: Reflector,
+    private readonly jwtAuthGuard: JwtAuthGuard,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -52,7 +52,7 @@ export class DualAuthGuard implements CanActivate {
 
     // Try JWT auth
     try {
-      return await this.tryJwtAuth(context);
+      return (await this.jwtAuthGuard.canActivate(context)) as boolean;
     } catch {
       // JWT auth failed
       this.logger.debug('JWT auth failed');
@@ -70,25 +70,6 @@ export class DualAuthGuard implements CanActivate {
     throw new UnauthorizedException(
       'Invalid or expired authentication token',
     );
-  }
-
-  /**
-   * Try JWT authentication using Passport's jwt strategy
-   */
-  private async tryJwtAuth(
-    context: ExecutionContext,
-  ): Promise<boolean> {
-    const jwtGuard = new (class extends AuthGuard('jwt') {
-      handleRequest<TUser = any>(err: any, user: TUser): TUser {
-        if (err || !user) {
-          throw err || new UnauthorizedException('Invalid JWT token');
-        }
-        return user;
-      }
-    })();
-
-    const result = await jwtGuard.canActivate(context);
-    return result as boolean;
   }
 
   /**

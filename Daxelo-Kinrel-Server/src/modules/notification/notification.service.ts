@@ -148,6 +148,10 @@ const templateResolvers: Record<NotificationEventType, TemplateResolver> = {
     title: 'New Comment 💬',
     body: `${String(e.payload.commentedByName ?? 'Someone')} commented on your post: "${String(e.payload.preview ?? '')}"`,
   }),
+  'community.festival_greeting': (e) => ({
+    title: `${String(e.payload.festivalName ?? 'Festival')} ${String(e.payload.emoji ?? '🎉')}`,
+    body: String(e.payload.greeting ?? `Happy ${String(e.payload.festivalName ?? 'Festival')}!`),
+  }),
 };
 
 // ═════════════════════════════════════════════════════════════════════
@@ -359,7 +363,7 @@ export class NotificationService {
 
     // ── Dedup check ────────────────────────────────────────────────
     const now = Date.now();
-    const dedupKey = `notif:dedup:${type}:${targetUserId}:${familyId ?? ''}:${personId ?? ''}:${now}`;
+    const dedupKey = `notif:dedup:${type}:${targetUserId}:${familyId ?? ''}:${personId ?? ''}`;
     const existingDedup = dedupCache.get(dedupKey);
     if (existingDedup && now - existingDedup < DEDUP_TTL_MS) {
       this.logger.log(
@@ -677,7 +681,7 @@ export class NotificationService {
         for (const user of users) {
           try {
             await this.createNotification({
-              type: 'system.maintenance' as any, // Reuse system event type for festivals
+              type: 'community.festival_greeting' as NotificationEventType,
               actorUserId: 'system',
               targetUserId: user.id,
               payload: {

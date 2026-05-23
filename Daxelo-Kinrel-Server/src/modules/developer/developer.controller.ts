@@ -5,10 +5,12 @@ import {
   Delete,
   Body,
   Req,
+  UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { ApiKeyGuard } from '@/common/guards/api-key.guard';
 import { DeveloperService } from './developer.service';
 import { CreateKeyDto, RevokeKeyDto } from './dto/create-key.dto';
 
@@ -21,6 +23,7 @@ import { CreateKeyDto, RevokeKeyDto } from './dto/create-key.dto';
  * - DELETE /api/v1/developer/keys  — Revoke key
  */
 @Controller('v1/developer')
+@UseGuards(ApiKeyGuard)
 export class DeveloperController {
   constructor(private readonly developerService: DeveloperService) {}
 

@@ -43,6 +43,7 @@ export const NOTIFICATION_EVENT_TYPES = [
   'system.maintenance',
   'community.mention',
   'community.comment',
+  'community.festival_greeting',
 ] as const;
 
 export type NotificationEventType =

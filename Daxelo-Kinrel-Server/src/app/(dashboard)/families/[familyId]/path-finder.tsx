@@ -64,7 +64,7 @@ export function PathFinder({ familyId, locale = 'en' }: PathFinderProps) {
         if (res.ok) {
           const data = await res.json()
           setPersons(
-            (data.persons || []).map((p: Record<string, unknown>) => ({
+            (data.data || []).map((p: Record<string, unknown>) => ({
               id: p.id as string,
               name: p.name as string,
               relationship: (p.relationship as string) || null,

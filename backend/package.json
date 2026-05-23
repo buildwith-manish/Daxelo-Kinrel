@@ -9,8 +9,8 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "db:generate": "prisma generate --schema=../Daxelo-Kinrel-Server/prisma/schema.prisma",
-    "db:push": "prisma db push --schema=../Daxelo-Kinrel-Server/prisma/schema.prisma"
+    "db:generate": "prisma generate --schema=prisma/schema.prisma",
+    "db:push": "prisma db push --schema=prisma/schema.prisma"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.21",

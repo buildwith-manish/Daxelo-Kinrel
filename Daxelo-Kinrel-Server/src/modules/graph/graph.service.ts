@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '@/common/prisma/prisma.service';
@@ -272,8 +273,10 @@ export class GraphService {
         relationshipDescription: pathResult.relationshipDescription,
         localizedDescription: pathResult.localizedDescription,
       };
-    } catch {
-      throw new Error('Failed to find path');
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to find path', {
+        cause: error,
+      });
     }
   }
 
@@ -663,8 +666,10 @@ export class GraphService {
         localizedDescription: localizedDesc || pathResult.localizedDescription,
         locale,
       };
-    } catch {
-      throw new Error('Failed to find path');
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to find path', {
+        cause: error,
+      });
     }
   }
 
@@ -793,7 +798,6 @@ export class GraphService {
 
   private filterDeceased(node: TreeNode): TreeNode | null {
     if (
-      !node.person.isDeceased === false &&
       node.person.isDeceased &&
       node.children.length === 0
     ) {

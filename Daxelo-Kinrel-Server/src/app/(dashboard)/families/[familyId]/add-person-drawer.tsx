@@ -165,7 +165,7 @@ export function AddPersonDrawer({ familyId, open, onOpenChange, onSuccess }: Add
       })
       setErrors({})
       onOpenChange(false)
-      onSuccess(data.person || data)
+      onSuccess(data.data || data)
       router.refresh()
     } catch {
       toast({

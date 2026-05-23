@@ -6,10 +6,13 @@ import {
   Patch,
   Body,
   Query,
+  UseGuards,
   HttpCode,
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { DualAuthGuard } from '@/common/guards/dual-auth.guard';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { NotificationService } from './notification.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { UpdatePreferenceDto } from './dto/update-preference.dto';
@@ -25,6 +28,7 @@ import { MarkReadDto } from './dto/mark-read.dto';
  * - POST   /api/notifications      — Create notification
  */
 @Controller('notifications')
+@UseGuards(DualAuthGuard)
 export class NotificationController {
   private readonly logger = new Logger(NotificationController.name);
 
@@ -33,7 +37,7 @@ export class NotificationController {
   // ── GET /api/notifications ───────────────────────────────────────
   @Get()
   async listNotifications(
-    @Query('userId') userId?: string,
+    @CurrentUser('id') userId?: string,
     @Query('read') read?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,

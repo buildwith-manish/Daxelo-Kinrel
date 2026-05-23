@@ -7,7 +7,6 @@ import {
   OnGatewayInit,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type {
   ServerEvent,
@@ -44,7 +43,7 @@ import type {
  */
 @WebSocketGateway({
   cors: {
-    origin: '*', // Configured via CORS_ORIGINS in production
+    origin: process.env.CORS_ORIGINS?.split(',').map((s) => s.trim()) ?? '*',
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -66,7 +65,6 @@ export class WebSocketGatewayService
   private readonly userSockets = new Map<string, Set<string>>();
 
   constructor(
-    private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
   ) {}
 
@@ -99,7 +97,7 @@ export class WebSocketGatewayService
 
       // Verify JWT
       const secret =
-        this.configService.get<string>('JWT_ACCESS_SECRET') ??
+        process.env.JWT_ACCESS_SECRET ??
         'fallback-dev-secret';
 
       let payload: { sub: string; email: string; type: string };

@@ -6,10 +6,12 @@ import {
   Body,
   Query,
   Req,
+  UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { ApiKeyGuard } from '@/common/guards/api-key.guard';
 import { DeveloperService } from './developer.service';
 import { CreateWebhookDto } from './dto/create-webhook.dto';
 
@@ -22,6 +24,7 @@ import { CreateWebhookDto } from './dto/create-webhook.dto';
  * - GET  /api/v1/webhooks/:webhookId/deliveries   — List deliveries
  */
 @Controller('v1/webhooks')
+@UseGuards(ApiKeyGuard)
 export class WebhookController {
   constructor(private readonly developerService: DeveloperService) {}
 

@@ -180,7 +180,7 @@ export function EditPersonDrawer({ familyId, person, open, onOpenChange, onSucce
       })
 
       onOpenChange(false)
-      onSuccess(data.person || data)
+      onSuccess(data.data || data)
       router.refresh()
     } catch {
       toast({

@@ -5,10 +5,12 @@ import {
   Param,
   Body,
   Query,
-  Headers,
+  UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { DualAuthGuard } from '@/common/guards/dual-auth.guard';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { SupportService } from './support.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
@@ -26,6 +28,7 @@ import { CsatDto } from './dto/csat.dto';
  * - POST   /api/support/tickets/:ticketId/csat      — Submit CSAT
  */
 @Controller('support/tickets')
+@UseGuards(DualAuthGuard)
 export class SupportController {
   constructor(private readonly supportService: SupportService) {}
 
@@ -33,12 +36,9 @@ export class SupportController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async createTicket(
-    @Headers('X-User-Id') userId: string,
+    @CurrentUser('id') userId: string,
     @Body() dto: CreateTicketDto,
   ) {
-    if (!userId) {
-      return { error: 'Unauthorized — X-User-Id header required' };
-    }
     return this.supportService.createTicket(userId, dto);
   }
 
@@ -60,14 +60,11 @@ export class SupportController {
   // IMPORTANT: This must come before the :ticketId param route
   @Get('my')
   async myTickets(
-    @Headers('X-User-Id') userId: string,
+    @CurrentUser('id') userId: string,
     @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    if (!userId) {
-      return { error: 'Unauthorized — X-User-Id header required' };
-    }
     return this.supportService.myTickets(userId, {
       status: status || undefined,
       page: page ? parseInt(page, 10) : undefined,
@@ -79,25 +76,19 @@ export class SupportController {
   @Post(':ticketId/messages')
   @HttpCode(HttpStatus.CREATED)
   async addMessage(
-    @Headers('X-User-Id') userId: string,
+    @CurrentUser('id') userId: string,
     @Param('ticketId') ticketId: string,
     @Body() dto: CreateMessageDto,
   ) {
-    if (!userId) {
-      return { error: 'Unauthorized' };
-    }
     return this.supportService.addMessage(userId, ticketId, dto);
   }
 
   // ── GET /api/support/tickets/:ticketId/messages ───────────────────
   @Get(':ticketId/messages')
   async getMessages(
-    @Headers('X-User-Id') userId: string,
+    @CurrentUser('id') userId: string,
     @Param('ticketId') ticketId: string,
   ) {
-    if (!userId) {
-      return { error: 'Unauthorized' };
-    }
     return this.supportService.getMessages(userId, ticketId);
   }
 
@@ -105,13 +96,10 @@ export class SupportController {
   @Post(':ticketId/csat')
   @HttpCode(HttpStatus.CREATED)
   async submitCsat(
-    @Headers('X-User-Id') userId: string,
+    @CurrentUser('id') userId: string,
     @Param('ticketId') ticketId: string,
     @Body() dto: CsatDto,
   ) {
-    if (!userId) {
-      return { error: 'Unauthorized' };
-    }
     return this.supportService.submitCsat(userId, ticketId, dto);
   }
 }

@@ -17,28 +17,28 @@ import { validateAndNormalizeKey } from '@/lib/kinship-validator';
 // ── Inverse Relationship Map ────────────────────────────────────────────
 
 const INVERSE_RELATIONSHIP_MAP: Record<string, string> = {
-  father: 'son',
-  mother: 'son',
-  son: 'father',
-  daughter: 'mother',
+  father: 'child',
+  mother: 'child',
+  son: 'parent',
+  daughter: 'parent',
   husband: 'wife',
   wife: 'husband',
-  elder_brother: 'younger_brother',
-  younger_brother: 'elder_brother',
-  elder_sister: 'younger_sister',
-  younger_sister: 'elder_sister',
-  brother: 'brother',
-  sister: 'sister',
-  paternal_grandfather: 'grandson',
-  paternal_grandmother: 'grandson',
-  maternal_grandfather: 'grandson',
-  maternal_grandmother: 'grandson',
-  husbands_father: 'sons_wife',
-  husbands_mother: 'sons_wife',
-  wives_father: 'daughters_husband',
-  wives_mother: 'daughters_husband',
-  sons_wife: 'husbands_father',
-  daughters_husband: 'wives_father',
+  elder_brother: 'younger_sibling',
+  younger_brother: 'elder_sibling',
+  elder_sister: 'younger_sibling',
+  younger_sister: 'elder_sibling',
+  brother: 'sibling',
+  sister: 'sibling',
+  paternal_grandfather: 'grandchild',
+  paternal_grandmother: 'grandchild',
+  maternal_grandfather: 'grandchild',
+  maternal_grandmother: 'grandchild',
+  husbands_father: 'daughters_in_law',
+  husbands_mother: 'daughters_in_law',
+  wives_father: 'sons_in_law',
+  wives_mother: 'sons_in_law',
+  sons_wife: 'fathers_in_law',
+  daughters_husband: 'mothers_in_law',
 };
 
 export function getInverseRelationship(type: string): string {
@@ -793,7 +793,7 @@ export class FamilyService {
     const deceasedCount = persons.filter((p) => p.isDeceased).length;
 
     // Gender distribution using kinship terms
-    const { getByGender } = require('@/lib/kinship') as typeof import('@/lib/kinship');
+    const { getByGender } = await import('@/lib/kinship');
     const maleKeys = new Set(getByGender('male').map((r: any) => r.relationshipKey));
     const femaleKeys = new Set(getByGender('female').map((r: any) => r.relationshipKey));
 
@@ -902,7 +902,7 @@ export class FamilyService {
     ]);
 
     // Get level info
-    const { getLevel } = require('@/lib/community/contribution-tracker') as typeof import('@/lib/community/contribution-tracker');
+    const { getLevel } = await import('@/lib/community/contribution-tracker');
 
     const leaderboard = contributions.map((c, index) => {
       const levelInfo = getLevel(c.totalPoints);
@@ -1160,7 +1160,7 @@ export class FamilyService {
 
     // Record contribution
     try {
-      const { recordContribution } = require('@/lib/community/contribution-tracker') as typeof import('@/lib/community/contribution-tracker');
+      const { recordContribution } = await import('@/lib/community/contribution-tracker');
       await recordContribution(userId, familyId, 'eventCreated');
     } catch {
       // Contribution tracker might not be available; ignore silently

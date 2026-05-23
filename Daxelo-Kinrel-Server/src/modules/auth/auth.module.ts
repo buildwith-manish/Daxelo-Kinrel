@@ -16,6 +16,7 @@ import { GoogleStrategy } from './strategies/google.strategy';
 /**
  * Conditionally provide GoogleStrategy only when OAuth credentials are configured.
  * This prevents the OAuth2Strategy from throwing "requires a clientID" at startup.
+ * When credentials are missing, we provide a no-op placeholder to avoid DI errors.
  */
 const googleStrategyProvider: Provider = {
   provide: GoogleStrategy,
@@ -24,8 +25,13 @@ const googleStrategyProvider: Provider = {
     const clientSecret = config.get<string>('GOOGLE_CLIENT_SECRET');
 
     if (!clientId || !clientSecret) {
-      // Google OAuth not configured — skip registration
-      return null;
+      // Google OAuth not configured — provide a no-op placeholder
+      class NoOpGoogleStrategy {
+        validate(): never {
+          throw new Error('Google OAuth is not configured');
+        }
+      }
+      return new NoOpGoogleStrategy() as unknown as GoogleStrategy;
     }
 
     return new GoogleStrategy(config);

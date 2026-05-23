@@ -5,12 +5,14 @@ import {
   Param,
   Body,
   Query,
-  Headers,
   Res,
+  UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { DualAuthGuard } from '@/common/guards/dual-auth.guard';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { ShareService } from './share.service';
 import { CreateShareDto } from './dto/create-share.dto';
 
@@ -28,14 +30,12 @@ export class ShareController {
 
   // ── POST /api/share ──────────────────────────────────────────────
   @Post()
+  @UseGuards(DualAuthGuard)
   @HttpCode(HttpStatus.CREATED)
   async createShareLink(
-    @Headers('X-User-Id') userId: string,
+    @CurrentUser('id') userId: string,
     @Body() dto: CreateShareDto,
   ) {
-    if (!userId) {
-      return { error: 'Unauthorized — X-User-Id header required' };
-    }
     return this.shareService.createShareLink(userId, dto);
   }
 

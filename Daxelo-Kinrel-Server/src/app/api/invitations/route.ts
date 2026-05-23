@@ -258,3 +258,48 @@ export async function PATCH(request: NextRequest) {
     )
   }
 }
+
+// ── DELETE: Cancel an Invitation ─────────────────────────────────
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'id query parameter is required' },
+        { status: 400 },
+      )
+    }
+
+    const invitation = await db.invitation.findUnique({ where: { id } })
+
+    if (!invitation) {
+      return NextResponse.json(
+        { error: 'Invitation not found' },
+        { status: 404 },
+      )
+    }
+
+    if (invitation.status !== 'pending') {
+      return NextResponse.json(
+        { error: `Cannot cancel invitation that is already ${invitation.status}` },
+        { status: 400 },
+      )
+    }
+
+    await db.invitation.update({
+      where: { id },
+      data: { status: 'cancelled' },
+    })
+
+    return NextResponse.json({ success: true }, { status: 200 })
+  } catch (error) {
+    console.error('[Invitations DELETE] Error:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 },
+    )
+  }
+}

@@ -232,3 +232,10 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Safe Area (iOS notch/home indicator) ────────────────────────────── */
+@layer utilities {
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
