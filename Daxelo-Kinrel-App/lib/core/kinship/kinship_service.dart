@@ -5,7 +5,7 @@ import 'legacy_key_map.dart';
 import 'language_code_map.dart';
 
 /// High-performance Indian kinship lookup service
-/// Loads 523 relationships × 13 languages at startup
+/// Loads 5359 relationships × 15 languages at startup
 /// Provides O(1) lookups, indexed search, and multilingual support
 class KinshipService {
   KinshipData? _data;

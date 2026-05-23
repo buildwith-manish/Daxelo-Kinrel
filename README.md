@@ -1,98 +1,86 @@
 # DAXELO KINREL
+### Indian Family Relationship Intelligence Platform
 
-**Indian Family Relationship Intelligence Platform**
+## Architecture
 
-A comprehensive platform for mapping, visualizing, and navigating Indian family relationships with support for 523 kinship terms across 13 Indian languages.
+| Part | Technology | Purpose |
+|------|-----------|---------|
+| Mobile App | Flutter 3.x / Dart | Android + iOS |
+| API Server | NestJS 11.x | REST API + WebSocket |
+| Database | PostgreSQL + Prisma | Data persistence |
+| Auth | JWT + Google OAuth | Authentication |
+| Realtime | Socket.io | Live graph updates |
 
-## 🏗️ Monorepo Structure
+## Repository Structure
 
 ```
-Daxelo-Kinrel/
-├── Daxelo-Kinrel-App/       # Flutter Mobile & Web App
-├── Daxelo-Kinrel-Server/    # Next.js API Server & Web Dashboard
-├── Daxelo-Kinrel-Services/  # Micro-services & Database
-└── Caddyfile                # Reverse proxy / gateway config
+Daxelo-Kinrel-App/      Flutter mobile application
+Daxelo-Kinrel-Server/   NestJS API server
 ```
 
-## 📱 Daxelo-Kinrel-App (Flutter)
+## Quick Start
 
-Cross-platform Flutter app with Supabase auth, family tree visualization, kinship search, and path finder.
-
-**Key Features:**
-- 🔐 Supabase Authentication
-- 👨‍👩‍👧‍👦 Interactive Family Tree
-- 🔍 Kinship Path Finder
-- 🇮🇳 523 Kinship Terms (13 Languages)
-- 🎨 Kinrel Brand Design System
-
-→ [See App README](./Daxelo-Kinrel-App/README.md)
-
-## 🖥️ Daxelo-Kinrel-Server (Next.js)
-
-Backend API server with 60+ endpoints for auth, families, kinship, graph traversal, communities, and more.
-
-**Key Features:**
-- 📡 60+ REST API endpoints
-- 🔐 NextAuth.js authentication
-- 🗄️ Prisma ORM (SQLite dev / PostgreSQL prod)
-- 🌳 Graph traversal for family trees
-- 📊 Dashboard & admin interfaces
-
-→ [See Server README](./Daxelo-Kinrel-Server/README.md)
-
-## ⚙️ Daxelo-Kinrel-Services (Micro-services)
-
-Supporting micro-services and database management.
-
-- 🌐 Flutter Web Server (SPA serving)
-- 🗄️ SQLite Database (development)
-
-→ [See Services README](./Daxelo-Kinrel-Services/README.md)
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Flutter SDK 3.8+
-- Bun runtime (or Node.js 18+)
-- Supabase project (for auth & database)
-
-### 1. Server Setup
+### API Server
 ```bash
 cd Daxelo-Kinrel-Server
-cp .env.example .env    # Fill in your credentials
-bun install
-bun run db:push
-bun run dev
+cp .env.example .env
+# Fill in DATABASE_URL, JWT secrets, etc.
+npm install
+npm run db:generate
+npm run db:push
+npm run start:dev
 ```
 
-### 2. App Setup
+### Flutter App
 ```bash
 cd Daxelo-Kinrel-App
-cp .env.example .env    # Fill in your Supabase credentials
+cp .env.example .env
 flutter pub get
 flutter run
 ```
 
-### 3. Services Setup
-```bash
-cd Daxelo-Kinrel-Services/mini-services/flutter-web-server
-bun install
-bun run dev
+## API Endpoints
+
+Base URL: `http://localhost:3001/api`
+
+```
+Auth:         POST /api/auth/register
+              POST /api/auth/login
+              POST /api/auth/refresh
+              GET  /api/auth/google
+
+Family:       GET  /api/v1/families
+              POST /api/v1/families
+              GET  /api/v1/families/:id
+
+Kinship:      GET  /api/v1/kinship
+              GET  /api/v1/kinship?key=fathers_brother
+              GET  /api/v1/kinship?q=chacha
+              GET  /api/v1/kinship?category=in_laws
+
+Graph:        GET  /api/v1/graph/:familyId
+              GET  /api/v1/graph/:familyId/tree
+              GET  /api/v1/graph/:familyId/path
+
+Health:       GET  /api/health
 ```
 
-## 🎨 Brand
+## Kinship Database
 
-| Token | Color | Usage |
-|-------|-------|-------|
-| Kinrel Orange | `#E8612A` | Primary |
-| Amber | `#F59240` | Accent |
-| Ember | `#C44A18` | Dark accent |
-| Dark BG | `#13141E` | Background |
-| Card BG | `#191B2C` | Cards |
-| Elevated | `#202338` | Elevated surfaces |
+| Language | Relationships | Dialects | Version |
+|----------|--------------|---------|---------|
+| Indian   | 5,359        | 15 langs | v4.1.0 |
+| Chinese  | 5,358        | 7 dialects | v3.2.1 |
+| Japanese | 4,509        | 6 dialects | v1.0.1 |
+| Korean   | 4,913        | 6 dialects | v1.0.0 |
 
-**Fonts:** Outfit (display) · DM Sans (body) · DM Mono (mono)
+**Indian Kinship v4.1.0 Languages:** Hindi, Bengali, Telugu, Marathi, Tamil,
+Urdu, Gujarati, Kannada, Malayalam, Odia, Punjabi, Assamese, Sanskrit,
+Sindhi, English
 
-## 📄 License
+## Environment Variables
 
-Proprietary — © Daxelo Kinrel
+See `Daxelo-Kinrel-Server/.env.example` for all required environment variables.
+
+## License
+Proprietary — All rights reserved.

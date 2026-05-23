@@ -13,6 +13,7 @@ const Map<String, String> languageCodeToName = {
   'as': 'assamese',
   'ur': 'urdu',
   'sa': 'sanskrit',
+  'sd': 'sindhi',
   'en': 'english',
 };
 

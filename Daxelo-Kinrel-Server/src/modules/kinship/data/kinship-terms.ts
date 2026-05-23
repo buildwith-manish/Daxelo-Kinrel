@@ -1,14 +1,15 @@
 /**
- * KINREL — Kinship Terms Dataset
+ * KINREL — Kinship Terms Dataset v4.1.0
  *
- * Comprehensive Indian kinship terminology across 13 languages.
- * Covers the most important 200+ relationship terms used in Indian family structures.
+ * Comprehensive Indian kinship terminology across 15 languages.
+ * Covers 5,359 relationship terms used in Indian family structures.
  *
  * Languages: Hindi, Bengali, Telugu, Marathi, Tamil, Gujarati, Kannada,
- *            Malayalam, Odia, Punjabi, Assamese, Urdu, Sanskrit
+ *            Malayalam, Odia, Punjabi, Assamese, Urdu, Sanskrit,
+ *            Sindhi, English
  *
  * Categories: paternal, maternal, sibling, spouse, in-law, cousin,
- *             grandparent, offspring, extended
+ *             grandparent, offspring, extended, step, ceremonial
  */
 
 export interface KinshipTranslation {
@@ -43,8 +44,17 @@ export const LANGUAGE_MAP: Record<string, string> = {
   as: 'assamese',
   ur: 'urdu',
   sa: 'sanskrit',
+  sd: 'sindhi',
   en: 'english',
 };
+
+export const KINSHIP_DATA_VERSION = '4.1.0';
+
+export const SUPPORTED_LANGUAGES = [
+  'hindi', 'bengali', 'telugu', 'marathi', 'tamil',
+  'gujarati', 'kannada', 'malayalam', 'odia', 'punjabi',
+  'assamese', 'urdu', 'sanskrit', 'sindhi', 'english',
+];
 
 // Helper to create a translation entry
 function t(native: string, latin: string): KinshipTranslation {

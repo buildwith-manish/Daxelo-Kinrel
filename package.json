@@ -2,12 +2,18 @@
   "name": "daxelo-kinrel",
   "version": "1.0.0",
   "private": true,
-  "description": "DAXELO KINREL — Indian Family Relationship Intelligence Platform (Monorepo)",
+  "description": "DAXELO KINREL — Family Relationship Intelligence Platform",
   "scripts": {
-    "dev": "cd Daxelo-Kinrel-Server && DATABASE_URL=\"file:./db/custom.db\" ./node_modules/.bin/next dev --turbopack -p 3000",
-    "dev:server": "cd Daxelo-Kinrel-Server && DATABASE_URL=\"file:./db/custom.db\" ./node_modules/.bin/next dev --turbopack -p 3000",
-    "lint": "cd Daxelo-Kinrel-Server && ./node_modules/.bin/eslint .",
-    "db:push": "cd Daxelo-Kinrel-Server && DATABASE_URL=\"file:./db/custom.db\" ./node_modules/.bin/prisma db push",
-    "db:generate": "cd Daxelo-Kinrel-Server && ./node_modules/.bin/prisma generate"
+    "dev": "cd Daxelo-Kinrel-Server && npm run start:dev",
+    "build": "cd Daxelo-Kinrel-Server && npm run build",
+    "start": "cd Daxelo-Kinrel-Server && npm run start:prod",
+    "lint": "cd Daxelo-Kinrel-Server && npm run lint",
+    "db:push": "cd Daxelo-Kinrel-Server && npm run db:push",
+    "db:generate": "cd Daxelo-Kinrel-Server && npm run db:generate",
+    "db:migrate": "cd Daxelo-Kinrel-Server && npm run db:migrate",
+    "flutter:build:android": "cd Daxelo-Kinrel-App && flutter build apk --release",
+    "flutter:build:ios": "cd Daxelo-Kinrel-App && flutter build ios --release",
+    "flutter:run": "cd Daxelo-Kinrel-App && flutter run",
+    "flutter:pub": "cd Daxelo-Kinrel-App && flutter pub get"
   }
 }

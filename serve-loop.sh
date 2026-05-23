@@ -1,14 +1,27 @@
 #!/bin/bash
-# KINREL Mirror - Auto-restart production server with signal trapping
-cd /home/z/my-project
-export DATABASE_URL="file:./db/custom.db"
+# DAXELO KINREL — Production NestJS auto-restart
 
-# Trap all possible signals
-trap 'echo "[$(date +%T)] Received signal, ignoring..." >> /home/z/my-project/dev.log' SIGHUP SIGINT SIGTERM SIGUSR1 SIGUSR2
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/Daxelo-Kinrel-Server"
+
+# Load .env
+if [ -f .env ]; then
+  export $(cat .env | grep -v '^#' | xargs)
+fi
+
+# Trap signals — keep running
+trap 'echo "[$(date +%T)] Signal received, continuing..."' \
+  SIGHUP SIGINT SIGTERM SIGUSR1 SIGUSR2
+
+# Build first if dist/ doesn't exist
+if [ ! -d "dist" ]; then
+  echo "[$(date +%T)] Building NestJS app..."
+  npm run build
+fi
 
 while true; do
-  echo "[$(date +%T)] Starting KINREL Mirror..." >> /home/z/my-project/dev.log
-  node ./node_modules/.bin/next start -p 3000 >> /home/z/my-project/dev.log 2>&1
-  echo "[$(date +%T)] Server exited with code $?, restarting in 3s..." >> /home/z/my-project/dev.log
+  echo "[$(date +%T)] Starting KINREL NestJS Server..."
+  node dist/main.js
+  echo "[$(date +%T)] Server exited ($?), restarting in 3s..."
   sleep 3
 done

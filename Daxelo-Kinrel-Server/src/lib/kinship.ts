@@ -2,7 +2,7 @@
  * KINREL — Kinship Module
  *
  * Single source of truth for all Indian kinship term lookups.
- * Backed by indian-kinship.json (523 relationships, 13 languages, v2.1.0).
+ * Backed by indian-kinship.json (5,359 relationships, 15 languages, v4.1.0).
  *
  * IMPORTANT: This module is SERVER-ONLY. Never import the JSON directly
  * in a 'use client' component — use /api/v1/kinship fetches instead.
@@ -15,10 +15,10 @@ import kinshipData from './data/indian-kinship.json'
 export type SupportedLanguage =
   | 'hindi' | 'bengali' | 'telugu' | 'marathi' | 'tamil'
   | 'urdu' | 'gujarati' | 'kannada' | 'malayalam' | 'odia'
-  | 'punjabi' | 'assamese' | 'sanskrit'
+  | 'punjabi' | 'assamese' | 'sanskrit' | 'sindhi' | 'english'
 
 /** Locale codes used in the app's LocaleProvider (e.g. 'hi', 'ta') */
-export type LocaleCode = 'hi' | 'bn' | 'te' | 'mr' | 'ta' | 'ur' | 'gu' | 'kn' | 'ml' | 'or' | 'pa' | 'as' | 'sa' | 'en'
+export type LocaleCode = 'hi' | 'bn' | 'te' | 'mr' | 'ta' | 'ur' | 'gu' | 'kn' | 'ml' | 'or' | 'pa' | 'as' | 'sa' | 'sd' | 'en'
 
 export interface KinshipTranslation {
   native: string
@@ -71,7 +71,8 @@ export const LANGUAGE_CODE_MAP: Record<LocaleCode, SupportedLanguage | null> = {
   pa: 'punjabi',
   as: 'assamese',
   sa: 'sanskrit',
-  en: null,  // English has no entry in the JSON — fallback to englishTerm
+  sd: 'sindhi',
+  en: 'english',
 }
 
 /** Reverse map: JSON language name → app locale code */
@@ -89,6 +90,8 @@ export const LANGUAGE_NAME_TO_CODE: Record<SupportedLanguage, LocaleCode> = {
   punjabi: 'pa',
   assamese: 'as',
   sanskrit: 'sa',
+  sindhi: 'sd',
+  english: 'en',
 }
 
 // ── Legacy Key Map ───────────────────────────────────────────────────
@@ -266,10 +269,10 @@ export function resolvePathToKey(path: string[]): KinshipRelationship | undefine
 
 // ── Exports ──────────────────────────────────────────────────────────
 
-/** All 13 supported languages from the JSON */
+/** All 15 supported languages from the JSON */
 export const SUPPORTED_LANGUAGES = data.supportedLanguages
 
-/** All 523 relationship keys */
+/** All 5,359 relationship keys */
 export const ALL_RELATIONSHIP_KEYS = data.relationships.map(r => r.relationshipKey)
 
 /** Total number of relationships */
