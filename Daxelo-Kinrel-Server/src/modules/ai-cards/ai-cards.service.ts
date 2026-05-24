@@ -1,8 +1,8 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { KinshipService } from '../kinship/kinship.service';
-import { ZAI } from 'z-ai-web-dev-sdk';
+import ZAI from 'z-ai-web-dev-sdk';
 
-interface FestivalTemplate {
+export interface FestivalTemplate {
   name: string;
   icon: string;
   colorTheme: string;
@@ -12,7 +12,8 @@ interface FestivalTemplate {
 @Injectable()
 export class AiCardsService {
   private readonly logger = new Logger(AiCardsService.name);
-  private readonly zai = ZAI.create();
+  private zai: ZAI | null = null;
+  private initializationPromise: Promise<void> | null = null;
 
   private readonly festivalTemplates: FestivalTemplate[] = [
     {
@@ -117,7 +118,29 @@ export class AiCardsService {
     },
   ];
 
-  constructor(private readonly kinshipService: KinshipService) {}
+  constructor(private readonly kinshipService: KinshipService) {
+    this.initializationPromise = this.initializeZai();
+  }
+
+  private async initializeZai(): Promise<void> {
+    try {
+      this.zai = await ZAI.create();
+      this.logger.log('ZAI SDK initialized successfully');
+    } catch (error) {
+      this.logger.error('Failed to initialize ZAI SDK', error);
+      throw error;
+    }
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    if (this.zai) return;
+    if (this.initializationPromise) {
+      await this.initializationPromise;
+      return;
+    }
+    this.initializationPromise = this.initializeZai();
+    await this.initializationPromise;
+  }
 
   /**
    * Generate a festival greeting card image using AI.
@@ -128,6 +151,7 @@ export class AiCardsService {
     language: string;
     style: string;
   }) {
+    await this.ensureInitialized();
     const { festival, kinshipTerm, language = 'en', style = 'traditional' } = options;
 
     // Find the matching template for additional context
@@ -153,12 +177,12 @@ export class AiCardsService {
     this.logger.log(`Generating festival card for ${festivalName} with term "${kinshipTerm}"`);
 
     try {
-      const result = await this.zai.images.generations.create({
+      const result = await this.zai!.images.generations.create({
         prompt,
         size: '768x1344',
       });
 
-      const imageBase64 = result.data?.[0]?.b64_json ?? '';
+      const imageBase64 = result.data?.[0]?.base64 ?? '';
 
       return {
         imageBase64,
@@ -180,6 +204,7 @@ export class AiCardsService {
     language: string;
     style: string;
   }) {
+    await this.ensureInitialized();
     const { relationshipKey, language = 'en', style = 'traditional' } = options;
 
     // Look up kinship term using KinshipService
@@ -214,12 +239,12 @@ export class AiCardsService {
     this.logger.log(`Generating kinship card for "${relationshipKey}" (${nativeTerm})`);
 
     try {
-      const result = await this.zai.images.generations.create({
+      const result = await this.zai!.images.generations.create({
         prompt,
         size: '768x1344',
       });
 
-      const imageBase64 = result.data?.[0]?.b64_json ?? '';
+      const imageBase64 = result.data?.[0]?.base64 ?? '';
 
       return {
         imageBase64,

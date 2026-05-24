@@ -6,7 +6,6 @@ import {
   ALL_LINEAGES,
   SUPPORTED_LANGUAGES,
   KINSHIP_DATA_VERSION,
-  KINSHIP_GENERATED_AT,
   type KinshipTerm,
   type KinshipTranslation,
 } from './data/kinship-terms';

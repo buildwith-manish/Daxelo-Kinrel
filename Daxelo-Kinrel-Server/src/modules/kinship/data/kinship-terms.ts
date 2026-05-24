@@ -1650,25 +1650,4 @@ export const ALL_CATEGORIES = [...new Set(KINSHIP_TERMS.map((t) => t.category))]
 /** All unique lineages */
 export const ALL_LINEAGES = [...new Set(KINSHIP_TERMS.map((t) => t.lineage))];
 
-/** All supported languages (13 Indian languages + English) */
-export const SUPPORTED_LANGUAGES = [
-  'hindi',
-  'bengali',
-  'telugu',
-  'marathi',
-  'tamil',
-  'gujarati',
-  'kannada',
-  'malayalam',
-  'odia',
-  'punjabi',
-  'assamese',
-  'urdu',
-  'sanskrit',
-];
 
-/** Dataset version */
-export const KINSHIP_DATA_VERSION = '2.1.0';
-
-/** Dataset generated timestamp */
-export const KINSHIP_GENERATED_AT = new Date().toISOString();

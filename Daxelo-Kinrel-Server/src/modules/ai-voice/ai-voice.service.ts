@@ -1,22 +1,46 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { KinshipService } from '../kinship/kinship.service';
-import { ZAI } from 'z-ai-web-dev-sdk';
+import ZAI from 'z-ai-web-dev-sdk';
 
 @Injectable()
 export class AiVoiceService {
   private readonly logger = new Logger(AiVoiceService.name);
-  private readonly zai = ZAI.create();
+  private zai: ZAI | null = null;
+  private initializationPromise: Promise<void> | null = null;
 
-  constructor(private readonly kinshipService: KinshipService) {}
+  constructor(private readonly kinshipService: KinshipService) {
+    this.initializationPromise = this.initializeZai();
+  }
+
+  private async initializeZai(): Promise<void> {
+    try {
+      this.zai = await ZAI.create();
+      this.logger.log('ZAI SDK initialized successfully');
+    } catch (error) {
+      this.logger.error('Failed to initialize ZAI SDK', error);
+      throw error;
+    }
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    if (this.zai) return;
+    if (this.initializationPromise) {
+      await this.initializationPromise;
+      return;
+    }
+    this.initializationPromise = this.initializeZai();
+    await this.initializationPromise;
+  }
 
   /**
    * Transcribe base64 audio to text and search kinship data.
    */
   async transcribeAndSearch(base64Audio: string, language?: string) {
+    await this.ensureInitialized();
     // Step 1: Transcribe audio using ASR
     let transcription: string;
     try {
-      const asrResult = await this.zai.audio.asr.create({
+      const asrResult = await this.zai!.audio.asr.create({
         file_base64: base64Audio,
       });
       transcription = asrResult.text;
@@ -44,10 +68,11 @@ export class AiVoiceService {
    * Transcribe base64 audio and perform an exact kinship lookup.
    */
   async quickLookup(base64Audio: string, language: string) {
+    await this.ensureInitialized();
     // Step 1: Transcribe audio using ASR
     let transcription: string;
     try {
-      const asrResult = await this.zai.audio.asr.create({
+      const asrResult = await this.zai!.audio.asr.create({
         file_base64: base64Audio,
       });
       transcription = asrResult.text;

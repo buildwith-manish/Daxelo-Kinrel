@@ -6,9 +6,10 @@ import {
   GraphPathController,
 } from './graph.controller';
 import { KinshipModule } from '@/modules/kinship/kinship.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [KinshipModule],
+  imports: [KinshipModule, AuthModule],
   controllers: [GraphController, GraphTreeController, GraphPathController],
   providers: [GraphService],
   exports: [GraphService],

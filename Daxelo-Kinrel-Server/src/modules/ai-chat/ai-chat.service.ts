@@ -18,7 +18,7 @@ interface KinshipResult {
   translations: Record<string, { native: string; latin: string }>;
 }
 
-interface ChatResponse {
+export interface ChatResponse {
   response: string;
   kinshipData?: KinshipResult[];
   suggestions?: string[];

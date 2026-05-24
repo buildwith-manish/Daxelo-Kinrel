@@ -10,7 +10,7 @@ import { kinshipData } from '@/lib/kinship';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
-interface QuizQuestion {
+export interface QuizQuestion {
   id: string;
   type: 'term_to_language' | 'native_to_relationship' | 'native_to_english';
   question: string;
@@ -35,7 +35,7 @@ interface QuizSession {
   submitted: boolean;
 }
 
-interface QuizResult {
+export interface QuizResult {
   quizId: string;
   score: number;
   totalQuestions: number;
@@ -58,7 +58,7 @@ interface LeaderboardEntry {
   avatar: string;
 }
 
-interface DailyChallenge {
+export interface DailyChallenge {
   date: string;
   questions: QuizQuestion[];
   totalParticipants: number;

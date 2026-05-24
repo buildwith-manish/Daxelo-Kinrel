@@ -12,6 +12,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 /**
  * Conditionally provide GoogleStrategy only when OAuth credentials are configured.
@@ -54,8 +55,8 @@ const googleStrategyProvider: Provider = {
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, googleStrategyProvider],
-  exports: [AuthService, JwtModule],
+  providers: [AuthService, JwtStrategy, JwtAuthGuard, googleStrategyProvider],
+  exports: [AuthService, JwtModule, JwtAuthGuard],
 })
 export class AuthModule implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AuthModule.name);
