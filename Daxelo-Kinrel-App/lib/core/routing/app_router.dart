@@ -15,6 +15,11 @@ import '../../features/family/presentation/create_family_screen.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/ai_chat/presentation/ai_chat_screen.dart';
+import '../../features/voice_search/presentation/voice_search_screen.dart';
+import '../../features/festival_cards/presentation/festival_cards_screen.dart';
+import '../../features/quiz/presentation/quiz_screen.dart';
+import '../../features/referral/presentation/referral_screen.dart';
 import '../services/supabase_service.dart';
 
 /// Router provider
@@ -105,6 +110,30 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile',
         builder: (context, state) => const ProfileScreen(),
+      ),
+
+      // ── AI-Powered Features ─────────────────────────────────────
+      GoRoute(
+        path: '/ai-chat',
+        builder: (context, state) => const AiChatScreen(),
+      ),
+      GoRoute(
+        path: '/voice-search',
+        builder: (context, state) => const VoiceSearchScreen(),
+      ),
+      GoRoute(
+        path: '/festival-cards',
+        builder: (context, state) => const FestivalCardsScreen(),
+      ),
+
+      // ── Growth & Engagement ─────────────────────────────────────
+      GoRoute(
+        path: '/quiz',
+        builder: (context, state) => const QuizScreen(),
+      ),
+      GoRoute(
+        path: '/referral',
+        builder: (context, state) => const ReferralScreen(),
       ),
     ],
   );

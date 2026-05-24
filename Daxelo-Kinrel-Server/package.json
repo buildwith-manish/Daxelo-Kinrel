@@ -36,21 +36,22 @@
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.0",
     "uuid": "^11.1.0",
+    "z-ai-web-dev-sdk": "^0.0.18",
     "zod": "^4.0.2"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
-    "@types/express": "^5.0.0",
-    "@types/passport-jwt": "^4.0.1",
-    "@types/passport-google-oauth20": "^2.0.16",
     "@types/bcryptjs": "^2.4.6",
     "@types/crypto-js": "^4.2.2",
+    "@types/express": "^5.0.0",
+    "@types/passport-google-oauth20": "^2.0.16",
+    "@types/passport-jwt": "^4.0.1",
     "@types/uuid": "^10.0.0",
-    "prisma": "^6.11.1",
-    "typescript": "^5.7.0",
-    "ts-node": "^10.9.2",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
-    "@typescript-eslint/parser": "^8.0.0"
+    "@typescript-eslint/parser": "^8.0.0",
+    "prisma": "^6.11.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.0"
   }
 }
