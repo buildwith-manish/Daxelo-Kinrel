@@ -96,3 +96,4 @@ local-*
 /mini-services/
 /db/
 .next/
+.env
