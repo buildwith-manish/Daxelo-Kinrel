@@ -5,36 +5,21 @@ import '../../../core/config/env_config.dart';
 // ── Models ──────────────────────────────────────────────────────────
 
 class ChatMessage {
-  final String content;
-  final bool isUser;
-  final DateTime timestamp;
-  final List<KinshipCardData>? kinshipData;
-
   const ChatMessage({
     required this.content,
     required this.isUser,
     required this.timestamp,
     this.kinshipData,
   });
+
+  final String content;
+  final bool isUser;
+  final DateTime timestamp;
+  final List<KinshipCardData>? kinshipData;
+
 }
 
 class KinshipCardData {
-  final String relationshipKey;
-  final String englishTerm;
-  final String gender;
-  final String lineage;
-  final String relationshipCategory;
-  final Map<String, TranslationEntry> translations;
-
-  const KinshipCardData({
-    required this.relationshipKey,
-    required this.englishTerm,
-    required this.gender,
-    required this.lineage,
-    required this.relationshipCategory,
-    required this.translations,
-  });
-
   factory KinshipCardData.fromJson(Map<String, dynamic> json) {
     final rawTranslations = json['translations'] as Map<String, dynamic>? ?? {};
     final parsedTranslations = <String, TranslationEntry>{};
@@ -56,13 +41,31 @@ class KinshipCardData {
       translations: parsedTranslations,
     );
   }
+
+  final String relationshipKey;
+  final String englishTerm;
+  final String gender;
+  final String lineage;
+  final String relationshipCategory;
+  final Map<String, TranslationEntry> translations;
+
+  const KinshipCardData({
+    required this.relationshipKey,
+    required this.englishTerm,
+    required this.gender,
+    required this.lineage,
+    required this.relationshipCategory,
+    required this.translations,
+  });
+
 }
 
 class TranslationEntry {
+  const TranslationEntry({required this.native, required this.latin});
+
   final String native;
   final String latin;
 
-  const TranslationEntry({required this.native, required this.latin});
 }
 
 // ── State Providers ─────────────────────────────────────────────────
