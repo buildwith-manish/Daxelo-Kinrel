@@ -1,10 +1,11 @@
 /// Custom exceptions for the application
 class AppException implements Exception {
+  const AppException({required this.message, this.statusCode, this.originalError});
+
   final String message;
   final int? statusCode;
   final dynamic originalError;
 
-  const AppException({required this.message, this.statusCode, this.originalError});
 
   @override
   String toString() => 'AppException: $message';
