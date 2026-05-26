@@ -5,10 +5,10 @@ import '../services/supabase_service.dart';
 import '../graph/graph_service.dart';
 
 // ── Table name constants (matching Prisma schema PascalCase) ────────
-const _kFamilyTable = 'Family';
-const _kPersonTable = 'Person';
-const _kRelationshipTable = 'Relationship';
-const _kFamilyMemberTable = 'FamilyMember';
+_kFamilyTable = 'Family';
+_kPersonTable = 'Person';
+_kRelationshipTable = 'Relationship';
+_kFamilyMemberTable = 'FamilyMember';
 
 /// Generate a CUID-like ID for database inserts.
 /// Since we use Supabase client directly (not Prisma), we must generate IDs ourselves.
@@ -69,7 +69,7 @@ class Family {
   final int generationCount;
   final DateTime? lastActivityAt;
 
-  const Family({
+  Family({
     required this.id,
     required this.name,
     this.description,
@@ -138,7 +138,7 @@ class Person {
   final bool isAnchor;
   final String? photoUrl;
 
-  const Person({
+  Person({
     required this.id,
     required this.familyId,
     required this.name,
@@ -201,7 +201,7 @@ class FamilyRelationship {
   final String? label;
   final DateTime? createdAt;
 
-  const FamilyRelationship({
+  FamilyRelationship({
     required this.id,
     required this.familyId,
     required this.fromPersonId,
@@ -220,7 +220,7 @@ class FamilyRelationship {
 }
 
 class FamilyDetail {
-  const FamilyDetail({
+  FamilyDetail({
     required this.family,
     required this.members,
     required this.relationships,
@@ -616,7 +616,7 @@ Future<FamilyRelationship> createRelationship({
 
 /// Inverse relationship mapping for creating bidirectional links.
 /// When "A is father of B", we also need "B is child of A".
-const Map<String, String> _relationshipInverseMap = {
+Map<String, String> _relationshipInverseMap = {
   'father': 'child',
   'mother': 'child',
   'parent': 'child',
@@ -757,7 +757,7 @@ List<String> getSuggestedRelationships(
 
   final suggestions = <String>[];
 
-  const commonRelationships = [
+  commonRelationships = [
     'father',
     'mother',
     'brother',

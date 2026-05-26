@@ -28,7 +28,7 @@ import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../shared/widgets/dk_components.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
-  const HomeScreen({super.key});
+  HomeScreen({super.key});
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
@@ -139,7 +139,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           const SizedBox(height: 24),
           _Header(user: user),
-          const SizedBox(height: 48),
+          SizedBox(height: 48),
           DKEmptyState(
             icon: Icons.family_restroom_outlined,
             title: 'No Families Yet',
@@ -153,7 +153,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const SizedBox(height: 16),
           TextButton(
             onPressed: () => _showJoinFamilyDialog(context),
-            child: const Text(
+            child: Text(
               'Or join an existing family with a code',
               style: const TextStyle(
                 color: KinrelColors.purple,
@@ -232,7 +232,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 .fadeIn(duration: 350.ms, delay: 250.ms)
                 .slideY(begin: 0.05, end: 0),
 
-            const SizedBox(height: 100),
+            SizedBox(height: 100),
           ],
         ),
       ),
@@ -266,7 +266,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 color: DKColors.textSecondary(context),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             TextField(
               controller: codeController,
               style: TextStyle(
@@ -296,13 +296,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onPressed: () {
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Join family coming soon!')),
+                SnackBar(content: Text('Join family coming soon!')),
               );
             },
             style: FilledButton.styleFrom(
               backgroundColor: KinrelColors.purple,
             ),
-            child: const Text('Join'),
+            child: Text('Join'),
           ),
         ],
       ),
@@ -324,7 +324,7 @@ class _Header extends StatelessWidget {
           horizontal: KinrelSpacing.base, vertical: KinrelSpacing.md),
       child: Row(children: [
         const KinrelIcon(size: 36),
-        const SizedBox(width: 12),
+        SizedBox(width: 12),
         Expanded(
           child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -375,7 +375,7 @@ class _FamilyStoriesRow extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
         itemCount: families.length + 1, // +1 for "Add" button
-        separatorBuilder: (_, __) => const SizedBox(width: 14),
+        separatorBuilder: (_, __) => SizedBox(width: 14),
         itemBuilder: (context, index) {
           if (index == 0) {
             return _AddFamilyStory(onTap: () => context.push('/families/create'));
@@ -419,7 +419,7 @@ class _AddFamilyStory extends StatelessWidget {
               size: 24,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             'Add',
             style: TextStyle(
@@ -472,7 +472,7 @@ class _FamilyStoryAvatar extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: DKColors.cardColor(context),
               ),
-              padding: const EdgeInsets.all(2),
+              padding: EdgeInsets.all(2),
               child: Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -536,7 +536,7 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLight = DKColors.isLight(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+      padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       child: GestureDetector(
         onTap: () => context.push('/family/${family.id}'),
         child: Container(
@@ -567,7 +567,7 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
                         ? LinearGradient(
                             colors: [
                               DKColors.brandPurple.withValues(alpha: 0.15),
-                          const     DKColors.brandViolet.withValues(alpha: 0.08),
+                          DKColors.brandViolet.withValues(alpha: 0.08),
                             ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
@@ -636,7 +636,7 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
                                   color: DKColors.textPrimary(context),
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              SizedBox(height: 4),
                               // Stats row
                               detailAsync.when(
                                 data: (detail) {
@@ -651,19 +651,16 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
                                         label: 'Members',
                                         color: DKColors.brandPurple,
                                       ),
-                                      const SizedBox(width: 12),
+                                      SizedBox(width: 12),
                                       DKStatChip(
                                         icon: Icons.link_rounded,
                                         value: '${relationships.length}',
                                         label: 'Links',
                                         color: const DKColors.brandViolet,
                                       ),
-                                    ],const 
-                                  );const 
-                                },
+                                    ],);const },
                                 loading: () => SizedBox(
-                                  height: 28,const 
-                                  child: Center(
+                                  height: 28,const child: Center(
                                     child: SizedBox(
                                       width: 20,
                                       height: 20,
@@ -680,7 +677,7 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
                           ),
                         ),
 
-                        const Spacer(),
+                        Spacer(),
 
                         // View Full Graph CTA button with gradient
                         DKButton(
@@ -720,7 +717,7 @@ class _QuickActions extends StatelessWidget {
         Expanded(
           child: _GradientBorderCard(
             isLight: isLight,
-            gradientColors: const [DKColors.brandPurple, DKColors.brandViolet],
+            gradientColors: [DKColors.brandPurple, DKColors.brandViolet],
             onTap: () => context.push('/family/$familyId/add-person'),
             icon: Icons.person_add_rounded,
             iconColor: DKColors.brandPurple,
@@ -737,7 +734,7 @@ class _QuickActions extends StatelessWidget {
             gradientColors: const [DKColors.brandGold, DKColors.brandBrightGold],
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Share coming soon!')),
+                SnackBar(content: Text('Share coming soon!')),
               );
             },
             icon: Icons.share_rounded,
@@ -752,7 +749,7 @@ class _QuickActions extends StatelessWidget {
         Expanded(
           child: _GradientBorderCard(
             isLight: isLight,
-            gradientColors: const [DKColors.brandCoral, DKColors.brandViolet],
+            gradientColors: [DKColors.brandCoral, DKColors.brandViolet],
             onTap: () => context.push('/family/$familyId/path-finder'),
             icon: Icons.route_rounded,
             iconColor: DKColors.brandCoral,
@@ -850,7 +847,7 @@ class _RecentActivitySection extends StatelessWidget {
   final String familyId;
 
   // Static recent activity data for demo
-  static const _activities = [
+  static _activities = [
     (
       icon: Icons.person_add_rounded,
       iconColor: DKColors.brandPurple,
@@ -891,7 +888,7 @@ class _RecentActivitySection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+          padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
           child: Row(
             children: [
               Text('Recent Activity',
@@ -979,7 +976,7 @@ class _YourFamiliesSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+          padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -992,7 +989,7 @@ class _YourFamiliesSection extends StatelessWidget {
                   const SizedBox(width: 8),
                   Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
                       color: DKColors.brandPurple.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
@@ -1000,8 +997,8 @@ class _YourFamiliesSection extends StatelessWidget {
                     child: Text('${families.length}',
                         style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
-                       const    fontSize: 11,
-                          fconst ontWeight: FontWeight.w600,
+                       fontSize: 11,
+                          fontWeight: FontWeight.w600,
                           color: DKColors.brandPurple,
                         )),
                   ),
@@ -1028,7 +1025,7 @@ class _YourFamiliesSection extends StatelessWidget {
             padding:
                 const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
             itemCount: families.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            separatorBuilder: (_, __) => SizedBox(width: 10),
             itemBuilder: (context, index) {
               final family = families[index];
               return _FamilyScrollCard(
@@ -1044,7 +1041,7 @@ class _YourFamiliesSection extends StatelessWidget {
 }
 
 class _FamilyScrollCard extends StatelessWidget {
-  const _FamilyScrollCard({
+  _FamilyScrollCard({
     required this.family,
     required this.onTap,
   });
@@ -1083,7 +1080,7 @@ class _FamilyScrollCard extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   color: DKColors.textPrimary(context),
                 )),
-            const SizedBox(height: 2),
+            SizedBox(height: 2),
             Text('Family',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,

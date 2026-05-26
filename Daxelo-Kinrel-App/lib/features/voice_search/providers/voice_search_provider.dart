@@ -68,7 +68,7 @@ class KinshipVoiceResult {
   final List<String> searchKeywords;
   final Map<String, dynamic> translations;
 
-  const KinshipVoiceResult({
+  KinshipVoiceResult({
     required this.relationshipKey,
     required this.englishTerm,
     required this.gender,
@@ -120,7 +120,7 @@ class VoiceSearchNotifier extends StateNotifier<VoiceSearchState> {
 
   /// Clear current results
   void clearResults() {
-    state = const VoiceSearchState();
+    state = VoiceSearchState();
   }
 
   /// Transcribe audio and search kinship terms

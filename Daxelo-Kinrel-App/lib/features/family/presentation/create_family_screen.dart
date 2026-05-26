@@ -21,7 +21,7 @@ class CreateFamilyScreen extends ConsumerStatefulWidget {
 class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
   final _pageController = PageController();
   int _currentStep = 0;
-  static const int _totalSteps = 3;
+  static int _totalSteps = 3;
   bool _isSubmitting = false;
 
   final _nameController = TextEditingController();
@@ -66,7 +66,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
 
   String _generateCodeSuffix() {
     final random = Random();
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
     return String.fromCharCodes(
       Iterable.generate(4, (_) => chars.codeUnitAt(random.nextInt(chars.length))),
     );
@@ -95,7 +95,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
   void _prevStep() {
     if (_currentStep > 0) {
       _pageController.previousPage(
-        duration: const Duration(milliseconds: 400),
+        duration: Duration(milliseconds: 400),
         curve: Curves.easeOutCubic,
       );
       setState(() => _currentStep--    );
@@ -169,7 +169,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: _prevStep,
         ),
-        title: const Text(
+        title: Text(
           'Create Family',
           style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -294,7 +294,7 @@ class _StepIndicator extends StatelessWidget {
             ),
             child: Center(
               child: isCompleted
-                  ? const Icon(Icons.check_rounded,
+                  ? Icon(Icons.check_rounded,
                       size: 16, color: Colors.white)
                   : Text(
                       '${stepIndex + 1}',
@@ -366,8 +366,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
                 border: Border.all(
                   color: DKColors.brandPurple.withValues(alpha: 0.2),
                   width: 2,
-                ),const 
-              ),
+                ),),
               child: Icon(
                 Icons.family_restroom_rounded,
                 size: 36,
@@ -383,7 +382,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
                 duration: 400.ms,
                 curve: Curves.easeOutBack,
               ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
 
           // Section header
           Text(
@@ -395,7 +394,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
               color: DKColors.textPrimary(context),
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             'Give your family a name and choose your settings',
             style: TextStyle(
@@ -405,7 +404,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
               height: 1.5,
             ),
           ),
-          const SizedBox(height: 32),
+          SizedBox(height: 32),
 
           // Family Name
           Text(
@@ -417,7 +416,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
               color: DKColors.textSecondary(context),
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           TextField(
             controller: nameController,
             style: TextStyle(
@@ -446,7 +445,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
             ),
             autofocus: true,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           // Family Code
           Row(
@@ -460,10 +459,10 @@ class _Step1FamilyIdentity extends StatelessWidget {
                   color: DKColors.textSecondary(context),
                 ),
               ),
-              const Spacer(),
-              GestureDeconst tector(
+              Spacer(),
+              GestureDetector(
                 onTap: onEditCode,
-                child: Teconst xt(
+                child: Text(
                   'Edit',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -483,7 +482,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
               children: [
                 Icon(Icons.link_rounded,
                     size: 16, color: DKColors.textSecondary(context)),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     fullFamilyCode.isEmpty ? 'kinrel.co/f/' : fullFamilyCode,
@@ -499,7 +498,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
 
           // Language Selector
           Text(
@@ -516,7 +515,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
             selectedLanguage: selectedLanguage,
             onChanged: onLanguageChanged,
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
 
           // Region Dropdown
           Text(
@@ -558,7 +557,7 @@ class _Step2PrivacySetup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
+      padding: EdgeInsets.all(KinrelSpacing.base),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -571,7 +570,7 @@ class _Step2PrivacySetup extends StatelessWidget {
               color: DKColors.textPrimary(context),
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             'Control who can see and join your family',
             style: TextStyle(
@@ -581,7 +580,7 @@ class _Step2PrivacySetup extends StatelessWidget {
               height: 1.5,
             ),
           ),
-          const SizedBox(height: 32),
+          SizedBox(height: 32),
 
           Text(
             'Privacy Mode',
@@ -592,7 +591,7 @@ class _Step2PrivacySetup extends StatelessWidget {
               color: DKColors.textSecondary(context),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
           _PrivacyCard(
             icon: Icons.lock_outline_rounded,
@@ -602,7 +601,7 @@ class _Step2PrivacySetup extends StatelessWidget {
             selectedMode: privacyMode,
             onTap: () => onPrivacyChanged(_PrivacyMode.private),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           _PrivacyCard(
             icon: Icons.mail_outline_rounded,
             title: 'Invite-Only',
@@ -612,7 +611,7 @@ class _Step2PrivacySetup extends StatelessWidget {
             selectedMode: privacyMode,
             onTap: () => onPrivacyChanged(_PrivacyMode.inviteOnly),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           _PrivacyCard(
             icon: Icons.link_rounded,
             title: 'Link-Sharing',
@@ -623,7 +622,7 @@ class _Step2PrivacySetup extends StatelessWidget {
             onTap: () => onPrivacyChanged(_PrivacyMode.linkSharing),
           ),
 
-          const SizedBox(height: 32),
+          SizedBox(height: 32),
 
           // Avatar picker
           Text(
@@ -635,7 +634,7 @@ class _Step2PrivacySetup extends StatelessWidget {
               color: DKColors.textSecondary(context),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Center(
             child: DKAvatar(
               initials: familyName.isNotEmpty ? familyName[0].toUpperCase() : '',
@@ -644,7 +643,7 @@ class _Step2PrivacySetup extends StatelessWidget {
               backgroundColor: DKColors.brandPurple,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Center(
             child: Text(
               'Uses initials by default',
@@ -664,7 +663,7 @@ class _Step2PrivacySetup extends StatelessWidget {
 // ── Step 3: Add Yourself ─────────────────────────────────────────
 
 class _Step3AddYourself extends StatelessWidget {
-  const _Step3AddYourself({
+  _Step3AddYourself({
     required this.nameController,
     required this.birthYearController,
     required this.selectedGender,
@@ -684,7 +683,7 @@ class _Step3AddYourself extends StatelessWidget {
     final genders = ['Male', 'Female', 'Non-Binary', 'Prefer not to say'];
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
+      padding: EdgeInsets.all(KinrelSpacing.base),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -697,7 +696,7 @@ class _Step3AddYourself extends StatelessWidget {
               color: DKColors.textPrimary(context),
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             'You are the anchor of this family tree',
             style: TextStyle(
@@ -707,7 +706,7 @@ class _Step3AddYourself extends StatelessWidget {
               height: 1.5,
             ),
           ),
-          const SizedBox(height: 32),
+          SizedBox(height: 32),
 
           // Person icon with purple glow
           Center(
@@ -721,7 +720,7 @@ class _Step3AddYourself extends StatelessWidget {
               borderColor: DKColors.brandGold,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Center(
             child: Text(
               'Who are you in this family?',
@@ -732,7 +731,7 @@ class _Step3AddYourself extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 28),
+          SizedBox(height: 28),
 
           // Name
           Text(
@@ -744,7 +743,7 @@ class _Step3AddYourself extends StatelessWidget {
               color: DKColors.textSecondary(context),
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           TextField(
             controller: nameController,
             style: TextStyle(
@@ -772,7 +771,7 @@ class _Step3AddYourself extends StatelessWidget {
             ),
             autofocus: true,
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
 
           // Birth Year
           Text(
@@ -784,7 +783,7 @@ class _Step3AddYourself extends StatelessWidget {
               color: DKColors.textSecondary(context),
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           TextField(
             controller: birthYearController,
             keyboardType: TextInputType.number,
@@ -809,7 +808,7 @@ class _Step3AddYourself extends StatelessWidget {
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
 
           // Gender chips
           Text(
@@ -864,7 +863,7 @@ class _BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
+      padding: EdgeInsets.all(KinrelSpacing.base),
       decoration: BoxDecoration(
         color: DKColors.cardColor(context),
         border: Border(
@@ -884,7 +883,7 @@ class _BottomNav extends StatelessWidget {
                   size: DKButtonSize.md,
                 ),
               ),
-            if (currentStep > 0) const SizedBox(width: 12),
+            if (currentStep > 0) SizedBox(width: 12),
             Expanded(
               flex: 2,
               child: DKButton(
@@ -978,7 +977,7 @@ class _PrivacyCard extends StatelessWidget {
                     fontSize: 12,
                     color: DKColors.textSecondary(context),
                     height: 1.4,
-            const       ),
+            ),
                 ),
               ],
             ),
@@ -1007,7 +1006,7 @@ class _LanguageDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: DKColors.elevatedColor(context),
         borderRadius: BorderRadius.circular(KinrelRadius.input),
@@ -1015,7 +1014,7 @@ class _LanguageDropdown extends StatelessWidget {
             color: DKColors.brandPurple.withValues(alpha: 0.1)),
       ),
       child: DropdownButtonHideUnderline(
-        child: Dconst ropdownButton<SupportedLanguage>(
+        child: DropdownButton<SupportedLanguage>(
           value: selectedLanguage,
           hint: Text(
             'Select language',
@@ -1036,7 +1035,7 @@ class _LanguageDropdown extends StatelessWidget {
                       fontFamily: KinrelTypography.bodyFont,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text(
                     '(${lang.name})',
                     style: TextStyle(
@@ -1067,7 +1066,7 @@ class _RegionDropdown extends StatelessWidget {
   final String selectedRegion;
   final ValueChanged<String> onChanged;
 
-  static const _regions = [
+  static _regions = [
     'North India',
     'South India',
     'East India',
@@ -1084,7 +1083,7 @@ class _RegionDropdown extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: DKColors.elevatedColor(context),
-        borderRaconst dius: BorderRadius.circular(KinrelRadius.input),
+        borderRadius: BorderRadius.circular(KinrelRadius.input),
         border: Border.all(
             color: DKColors.brandPurple.withValues(alpha: 0.1)),
       ),

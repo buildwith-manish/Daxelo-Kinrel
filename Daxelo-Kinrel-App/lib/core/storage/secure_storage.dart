@@ -11,12 +11,12 @@ class SecureStorageService {
   final impl.SecureStorageBackend _backend = impl.createBackend();
 
   // Keys
-  static const _keyAccessToken = 'access_token';
-  static const _keyRefreshToken = 'refresh_token';
-  static const _keyUserId = 'user_id';
-  static const _keyUserEmail = 'user_email';
-  static const _keyPreferredLanguage = 'preferred_language';
-  static const _keyOnboardingComplete = 'onboarding_complete';
+  static _keyAccessToken = 'access_token';
+  static _keyRefreshToken = 'refresh_token';
+  static _keyUserId = 'user_id';
+  static _keyUserEmail = 'user_email';
+  static _keyPreferredLanguage = 'preferred_language';
+  static _keyOnboardingComplete = 'onboarding_complete';
 
   // ── Auth ────────────────────────────────────────────────────
   Future<void> saveAuthTokens({

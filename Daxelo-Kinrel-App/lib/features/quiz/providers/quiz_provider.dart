@@ -27,7 +27,7 @@ class QuizQuestion {
   final String explanation;
   final Map<String, dynamic> kinshipData;
 
-  const QuizQuestion({
+  QuizQuestion({
     required this.id,
     required this.type,
     required this.question,
@@ -61,7 +61,7 @@ class QuizSession {
   final String difficulty;
   final String language;
 
-  const QuizSession({
+  QuizSession({
     required this.quizId,
     required this.questions,
     required this.totalQuestions,
@@ -96,7 +96,7 @@ class QuizResult {
   final int streak;
   final List<QuestionResult> results;
 
-  const QuizResult({
+  QuizResult({
     required this.quizId,
     required this.score,
     required this.totalQuestions,
@@ -123,7 +123,7 @@ class QuestionResult {
   final int yourAnswer;
   final int correctAnswer;
 
-  const QuestionResult({
+  QuestionResult({
     required this.questionIndex,
     required this.correct,
     required this.yourAnswer,
@@ -149,7 +149,7 @@ class LeaderboardEntry {
   final int streak;
   final String avatar;
 
-  const LeaderboardEntry({
+  LeaderboardEntry({
     required this.rank,
     required this.name,
     required this.score,
@@ -243,7 +243,7 @@ final quizStateProvider =
 });
 
 class QuizStateNotifier extends StateNotifier<QuizStateData> {
-  QuizStateNotifier(this._ref) : super(const QuizStateData());
+  QuizStateNotifier(this._ref) : super(QuizStateData());
 
   final Ref _ref;
 
@@ -381,7 +381,7 @@ class QuizStateNotifier extends StateNotifier<QuizStateData> {
   }
 
   void resetQuiz() {
-    state = const QuizStateData();
+    state = QuizStateData();
   }
 
   void goToQuestion(int index) {

@@ -14,7 +14,7 @@ class VisTreeNode {
   const VisTreeNode({
     required this.person,
     this.spouse,
-    this.children = const [],
+    this.children = [],
     this.lineage = '',
   });
 
@@ -32,7 +32,7 @@ enum NodeLineage { paternal, maternal, marital, self, none }
 
 class GraphFilters {
   const GraphFilters({
-    this.visibleGenerations = const {1, 2, 3, 4, 5},
+    this.visibleGenerations = {1, 2, 3, 4, 5},
     this.branch = 'all',
     this.showDeceased = true,
     this.showMaritalLinks = true,
@@ -108,7 +108,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
   static const double nodeWidth = 160.0;
   static const double nodeHeight = 72.0;
   static const double horizontalGap = 24.0;
-  static const double verticalGap = 90.0;
+  static double verticalGap = 90.0;
 
   @override
   Widget build(BuildContext context) {
@@ -245,9 +245,8 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
               },
               filters: _filters,
             ),
-          const ),
-const 
-        // Empty state
+          ),
+// Empty state
         if (activeMembers.isEmpty)
           Center(
             child: DKEmptyState(
@@ -262,7 +261,7 @@ const
 
   void _fitToScreen() {
     setState(() {
-      _offset = const Offset(40, 40);
+      _offset = Offset(40, 40);
       _scale = 1.0;
     });
   }
@@ -487,8 +486,7 @@ class _LanguageSelectorButton extends StatelessWidget {
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
-        ],const 
-      ),
+        ],),
       child: IconButton(
         padding: EdgeInsets.zero,
         icon: Icon(Icons.language, color: DKColors.brandPurple, size: 18),
@@ -627,7 +625,7 @@ class _TreePainter extends CustomPainter {
   static const double horizontalGap = 24.0;
   static const double verticalGap = 90.0;
   static const double avatarSize = 32.0;
-  static const double radius = 12.0;
+  static double radius = 12.0;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -746,7 +744,7 @@ class _TreePainter extends CustomPainter {
         // Heart emoji in center
         final centerX = (startX + endX) / 2;
         final heartText = TextPainter(
-          text: const TextSpan(text: '💜', style: TextStyle(fontSize: 8)),
+          text: TextSpan(text: '💜', style: TextStyle(fontSize: 8)),
           textDirection: TextDirection.ltr,
         );
         heartText.layout();
@@ -923,7 +921,7 @@ class _TreePainter extends CustomPainter {
     // Avatar initial or dove
     if (isDeceased) {
       final dovePainter = TextPainter(
-        text: const TextSpan(text: '🕊️', style: TextStyle(fontSize: 14)),
+        text: TextSpan(text: '🕊️', style: TextStyle(fontSize: 14)),
         textDirection: TextDirection.ltr,
       );
       dovePainter.layout();
@@ -940,7 +938,7 @@ class _TreePainter extends CustomPainter {
       final initialPainter = TextPainter(
         text: TextSpan(
           text: initial,
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 14,
             fontWeight: FontWeight.w700,
@@ -981,7 +979,7 @@ class _TreePainter extends CustomPainter {
       Offset(rect.right - 16, rect.top + 6),
     );
 
-    // Name texconst t
+    // Name text
     final textStartX = avatarRect.right + 8;
     final textMaxWidth = rect.right - textStartX - 24;
 
@@ -1083,7 +1081,7 @@ class _TreePainter extends CustomPainter {
         return DKColors.brandViolet.withValues(alpha: 0.4);
       case NodeLineage.self:
         return DKColors.brandPurple.withValues(alpha: 0.6);
-      case Noconst deLineage.none:
+      case NodeLineage.none:
         return DKColors.brandPurple.withValues(alpha: 0.15);
     }
   }
@@ -1108,17 +1106,17 @@ class _TreePainter extends CustomPainter {
         return const LinearGradient(
             colors: [DKColors.brandPurple, DKColors.brandViolet]);
       case NodeLineage.none:
-        return const LinearGradient(
+        return LinearGradient(
             colors: [DKColors.brandPurple, DKColors.brandDeepPurple]);
     }
   }
 
   String _genderFromRelationship(String? rel) {
     if (rel == null) return 'other';
-    const maleTerms = [
+    maleTerms = [
       'father', 'brother', 'son', 'husband', 'uncle', 'grandfather', 'nephew',
     ];
-    const femaleTerms = [
+    femaleTerms = [
       'mother', 'sister', 'daughter', 'wife', 'aunt', 'grandmother', 'niece',
     ];
     final lower = rel.toLowerCase();
@@ -1248,7 +1246,7 @@ class _FilterBar extends StatelessWidget {
           children: [
             for (int gen = 1; gen <= 5; gen++)
               Padding(
-                padding: const EdgeInsets.only(right: 4),
+                padding: EdgeInsets.only(right: 4),
                 child: DKSuggestionChip(
                   label: 'G$gen',
                   isSelected: filters.visibleGenerations.contains(gen),
@@ -1273,7 +1271,7 @@ class _FilterBar extends StatelessWidget {
               height: 20,
               color: DKColors.brandPurple.withValues(alpha: 0.15),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
 
             DKSuggestionChip(
               label: 'All',
@@ -1300,7 +1298,7 @@ class _FilterBar extends StatelessWidget {
               height: 20,
               color: DKColors.brandPurple.withValues(alpha: 0.15),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
 
             DKSuggestionChip(
               label: 'Deceased',

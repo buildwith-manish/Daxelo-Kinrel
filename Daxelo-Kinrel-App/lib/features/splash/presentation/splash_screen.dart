@@ -28,7 +28,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     super.initState();
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3000),
+      duration: Duration(milliseconds: 3000),
     )..repeat(reverse: true);
     _initialize();
   }
@@ -168,7 +168,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       curve: Curves.elasticOut,
                     ),
 
-                const SizedBox(height: 32),
+                SizedBox(height: 32),
 
                 // ── Brand text "KinRel" ────────────────────────────────
                 Text(

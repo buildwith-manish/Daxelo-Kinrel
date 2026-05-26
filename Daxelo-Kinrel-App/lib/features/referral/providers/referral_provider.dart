@@ -16,7 +16,7 @@ class ReferralCode {
   final String shareUrl;
   final String shareText;
 
-  const ReferralCode({
+  ReferralCode({
     required this.code,
     required this.shareUrl,
     required this.shareText,
@@ -37,7 +37,7 @@ class ReferralApplication {
   final String referrerId;
   final String reward;
 
-  const ReferralApplication({
+  ReferralApplication({
     required this.success,
     required this.referrerId,
     required this.reward,
@@ -67,7 +67,7 @@ class ReferralStats {
   final List<String> rewards;
   final List<RecentReferral> recentReferrals;
 
-  const ReferralStats({
+  ReferralStats({
     required this.code,
     required this.totalReferrals,
     required this.rewards,
@@ -87,7 +87,7 @@ class RecentReferral {
   final String name;
   final String date;
 
-  const RecentReferral({
+  RecentReferral({
     required this.name,
     required this.date,
   });
@@ -109,7 +109,7 @@ class RewardTier {
   final String? badge;
   final String description;
 
-  const RewardTier({
+  RewardTier({
     required this.referrals,
     required this.reward,
     this.badge,
@@ -177,7 +177,7 @@ final referralProvider =
 });
 
 class ReferralNotifier extends StateNotifier<ReferralState> {
-  ReferralNotifier(this._ref) : super(const ReferralState());
+  ReferralNotifier(this._ref) : super(ReferralState());
 
   final Ref _ref;
 

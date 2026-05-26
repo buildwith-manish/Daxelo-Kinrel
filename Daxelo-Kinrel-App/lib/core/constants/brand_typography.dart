@@ -8,9 +8,9 @@ class KinrelTypography {
   KinrelTypography._();
 
   // ── Font Families ───────────────────────────────────────────
-  static const String displayFont = 'Outfit';
-  static const String bodyFont = 'DMSans';
-  static const String monoFont = 'DMMono';
+  static String displayFont = 'Outfit';
+  static String bodyFont = 'DMSans';
+  static String monoFont = 'DMMono';
 
   // ── Type Scale (Material 3 compatible) ──────────────────────
   static const TextStyle displayHero = TextStyle(

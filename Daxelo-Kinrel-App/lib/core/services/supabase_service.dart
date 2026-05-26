@@ -9,8 +9,8 @@ import '../config/app_config.dart';
 final _log = Logger(printer: PrettyPrinter(methodCount: 0));
 
 // Hardcoded fallback credentials (anon key is safe for client-side use)
-const String _hardcodedSupabaseUrl = 'https://promxswvsnvilplmrtsj.supabase.co';
-const String _hardcodedSupabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY';
+String _hardcodedSupabaseUrl = 'https://promxswvsnvilplmrtsj.supabase.co';
+String _hardcodedSupabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY';
 
 bool _supabaseInitialized = false;
 bool get isSupabaseInitialized => _supabaseInitialized;
@@ -34,7 +34,7 @@ Future<bool> _warmUpSupabase(String url) async {
   try {
     _log.i('🔧 Warming up Supabase server...');
     final client = HttpClient();
-    client.connectionTimeout = const Duration(seconds: 45);
+    client.connectionTimeout = Duration(seconds: 45);
     final request = await client.getUrl(Uri.parse('$url/rest/v1/'));
     request.headers.set('apikey', _resolveSupabaseAnonKey());
     request.headers.set('Authorization', 'Bearer ${_resolveSupabaseAnonKey()}');
@@ -108,7 +108,7 @@ Future<bool> initSupabase() async {
         url: url,
         anonKey: anonKey,
         debug: false,
-        authOptions: const FlutterAuthClientOptions(
+        authOptions: FlutterAuthClientOptions(
           authFlowType: AuthFlowType.pkce,
         ),
       );
@@ -133,7 +133,7 @@ Future<bool> initSupabase() async {
 /// Supabase free tier can take 10-30+ seconds to wake from paused state.
 Future<T> withRetry<T>(Future<T> Function() fn, {
   int maxAttempts = 5,
-  Duration initialDelay = const Duration(seconds: 3),
+  Duration initialDelay = Duration(seconds: 3),
   String operationName = 'operation',
 }) async {
   int attempt = 0;
@@ -169,12 +169,12 @@ Future<T> withRetry<T>(Future<T> Function() fn, {
 }
 
 final authStateProvider = StreamProvider<AuthState>((ref) {
-  if (!_supabaseInitialized) return const Stream.empty();
+  if (!_supabaseInitialized) return Stream.empty();
   try {
     return Supabase.instance.client.auth.onAuthStateChange;
   } catch (e) {
     _log.w('Auth state stream unavailable: $e');
-    return const Stream.empty();
+    return Stream.empty();
   }
 });
 
@@ -205,7 +205,7 @@ class AuthService {
     String? name,
   }) async {
     final client = _client;
-    if (clieconst nt == null) {
+    if (client == null) {
       throw AuthException(
         'Authentication service is not available. Please restart the app and try again.',
       );
@@ -226,7 +226,7 @@ class AuthService {
     required String password,
   }) async {
     final client = _client;
-    if (clieconst nt == null) {
+    if (client == null) {
       throw AuthException(
         'Authentication service is not available. Please restart the app and try again.',
       );
@@ -248,7 +248,7 @@ class AuthService {
 
   Future<void> resetPassword(String email) async {
     final client = _client;
-    if (clieconst nt == null) {
+    if (client == null) {
       throw AuthException('Authentication service is not available.');
     }
     await withRetry(
@@ -259,7 +259,7 @@ class AuthService {
 
   Future<void> updatePassword(String newPassword) async {
     final client = _client;
-    if (clieconst nt == null) {
+    if (client == null) {
       throw AuthException('Authentication service is not available.');
     }
     await client.auth.updateUser(UserAttributes(password: newPassword));
@@ -283,7 +283,7 @@ final authServiceProvider = Provider<AuthService>((ref) {
 
 // ── Route Persistence (for app resume) ──────────────────────────────
 
-const _lastRouteKey = 'kinrel_last_route';
+_lastRouteKey = 'kinrel_last_route';
 
 /// Save the current route so we can restore it on app restart.
 Future<void> saveLastRoute(String route) async {

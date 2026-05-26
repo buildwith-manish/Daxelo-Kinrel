@@ -4,17 +4,17 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class AppConfig {
   AppConfig._();
 
-  static const String appName = 'KINREL';
-  static const String appTagline = 'Indian Family Relationship Intelligence';
-  static const String appNameByDaxelo = 'Daxelo KINREL';
-  static const String version = '1.0.0';
+  static String appName = 'KINREL';
+  static String appTagline = 'Indian Family Relationship Intelligence';
+  static String appNameByDaxelo = 'Daxelo KINREL';
+  static String version = '1.0.0';
 
   // Hardcoded fallbacks — Supabase anon key is safe for client-side use
   // (only service_role key is secret). These ensure the app ALWAYS has
   // valid credentials even when .env is missing or env vars are empty.
-  static const String _fallbackSupabaseUrl = 'https://promxswvsnvilplmrtsj.supabase.co';
-  static const String _fallbackSupabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY';
-  static const String _fallbackApiBaseUrl = 'https://daxelo-kinrel-server.onrender.com';
+  static String _fallbackSupabaseUrl = 'https://promxswvsnvilplmrtsj.supabase.co';
+  static String _fallbackSupabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY';
+  static String _fallbackApiBaseUrl = 'https://daxelo-kinrel-server.onrender.com';
 
   // Supabase — reads from .env file (loaded via flutter_dotenv)
   // Falls back to --dart-define, then hardcoded defaults
@@ -22,20 +22,20 @@ class AppConfig {
   static String get supabaseUrl {
     final env = dotenv.env['SUPABASE_URL'];
     if (env != null && env.isNotEmpty) return env;
-    return const String.fromEnvironment('SUPABASE_URL', defaultValue: _fallbackSupabaseUrl);
+    return String.fromEnvironment('SUPABASE_URL', defaultValue: _fallbackSupabaseUrl);
   }
 
   static String get supabaseAnonKey {
     final env = dotenv.env['SUPABASE_ANON_KEY'];
     if (env != null && env.isNotEmpty) return env;
-    return const String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: _fallbackSupabaseAnonKey);
+    return String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: _fallbackSupabaseAnonKey);
   }
 
   // Backend API
   static String get apiBaseUrl {
     final env = dotenv.env['API_BASE_URL'];
     if (env != null && env.isNotEmpty) return env;
-    return const String.fromEnvironment('API_BASE_URL', defaultValue: _fallbackApiBaseUrl);
+    return String.fromEnvironment('API_BASE_URL', defaultValue: _fallbackApiBaseUrl);
   }
 
   /// Check if Supabase is properly configured

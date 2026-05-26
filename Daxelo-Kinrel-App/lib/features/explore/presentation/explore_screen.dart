@@ -146,7 +146,7 @@ class _SearchResultItem {
 }
 
 // ── Trending Kinship Terms (static data for the default view) ───
-const _trendingTerms = [
+_trendingTerms = [
   ('Mother', 'माँ', 'Immediate', DKColors.brandPurple),
   ('Father', 'पिता', 'Immediate', DKColors.brandViolet),
   ('Elder Brother', 'बड़ा भाई', 'Sibling', DKColors.brandBlue),
@@ -158,12 +158,12 @@ const _trendingTerms = [
 ];
 
 /// Languages for the quick access chips
-const _languages = ['Hindi', 'Tamil', 'Telugu', 'Bengali', 'Marathi', 'Gujarati', 'Kannada', 'Punjabi'];
+_languages = ['Hindi', 'Tamil', 'Telugu', 'Bengali', 'Marathi', 'Gujarati', 'Kannada', 'Punjabi'];
 
 // ── Explore Screen ───────────────────────────────────────────────
 
 class ExploreScreen extends ConsumerStatefulWidget {
-  const ExploreScreen({super.key});
+  ExploreScreen({super.key});
 
   @override
   ConsumerState<ExploreScreen> createState() => _ExploreScreenState();
@@ -247,7 +247,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     Icon(Icons.search_off_rounded,
                         size: 48,
                         color: DKColors.textSecondary(context).withValues(alpha: 0.4)),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16),
                     Text(
                       'No results found',
                       style: TextStyle(
@@ -257,7 +257,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                         color: DKColors.textPrimary(context),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Text(
                       'Try searching for a family member, family name, or kinship term',
                       style: TextStyle(
@@ -282,14 +282,14 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 count: kinshipResults.length,
                 onSeeAll: () => context.push('/kinship-search'),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               ...kinshipResults.take(5).map((result) => _KinshipResultCard(
                     result: result,
                     onTap: () => context.push('/kinship/${result.relationship.relationshipKey}'),
                   )),
               if (kinshipResults.length > 5)
                 Padding(
-                  padding: const EdgeInsets.symmetric(
+                  padding: EdgeInsets.symmetric(
                       horizontal: KinrelSpacing.base, vertical: 8),
                   child: DKButton(
                     label: 'View all ${kinshipResults.length} kinship terms →',
@@ -305,7 +305,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             // Members section
             if (results.members.isNotEmpty) ...[
               Padding(
-                padding: const EdgeInsets.symmetric(
+                padding: EdgeInsets.symmetric(
                     horizontal: KinrelSpacing.base),
                 child: Text(
                   'Members',
@@ -314,7 +314,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               ...results.members.map((item) => _SearchResultCard(
                     item: item,
                     onTap: () => context.push('/family/${item.familyId}'),
@@ -325,7 +325,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             // Families section
             if (results.families.isNotEmpty) ...[
               Padding(
-                padding: const EdgeInsets.symmetric(
+                padding: EdgeInsets.symmetric(
                     horizontal: KinrelSpacing.base),
                 child: Text(
                   'Families',
@@ -334,19 +334,16 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               ...results.families.map((item) => _SearchResultCard(
                     item: item,
                     onTap: () => context.push('/family/${item.familyId}'),
                   )),
             ],
-          ]),const 
-        );const 
-      },const 
-      loading: () => SliverToBoxAdapter(
-        child: Centconst er(
+          ]),);const },const loading: () => SliverToBoxAdapter(
+        child: Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 40),
+            padding: EdgeInsets.symmetric(vertical: 40),
             child: DKLoadingShimmer(width: 200, height: 16),
           ),
         ),
@@ -369,7 +366,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             .fadeIn(duration: 350.ms)
             .slideY(begin: 0.05, end: 0),
       ),
-      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+      SliverToBoxAdapter(child: SizedBox(height: 24)),
 
       // Kinship Dictionary card
       SliverToBoxAdapter(
@@ -399,7 +396,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             .animate()
             .fadeIn(duration: 350.ms, delay: 200.ms),
       ),
-      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+      SliverToBoxAdapter(child: SizedBox(height: 24)),
 
       // Families quick links
       SliverToBoxAdapter(
@@ -438,7 +435,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 color: DKColors.textSecondary(context),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             TextField(
               controller: codeController,
               style: TextStyle(
@@ -469,13 +466,13 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             onPressed: () {
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
+                SnackBar(
                     content: Text('Join family coming soon!')),
               );
             },
             style: FilledButton.styleFrom(
                 backgroundColor: KinrelColors.purple),
-            child: const Text('Join'),
+            child: Text('Join'),
           ),
         ],
       ),
@@ -511,7 +508,7 @@ class _GradientSearchSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -528,7 +525,7 @@ class _GradientSearchSection extends StatelessWidget {
                   onTap: () => focusNode.requestFocus(),
                   child: Container(
                     padding: const EdgeInsets.all(8),
-                    decoratconst ion: BoxDecoration(
+                    decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: DKColors.brandPurple.withValues(alpha: 0.1),
                     ),
@@ -539,7 +536,7 @@ class _GradientSearchSection extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           // Search bar with gradient in dark mode
           DKSearchField(
             controller: controller,
@@ -581,7 +578,7 @@ class _SectionHeader extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
               color: DKColors.brandPurple.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
@@ -595,9 +592,8 @@ class _SectionHeader extends StatelessWidget {
                 color: DKColors.brandPurple,
               ),
             ),
-          ),const 
-          const Spacer(),
-          if (onSeeAll const != null)
+          ),const Spacer(),
+          if (onSeeAll != null)
             GestureDetector(
               onTap: onSeeAll,
               child: Text(
@@ -626,7 +622,7 @@ class _TrendingSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+          padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
           child: Row(
             children: [
               Text('Trending Kinship Terms',
@@ -651,7 +647,7 @@ class _TrendingSection extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
           child: GridView.count(
             shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
+            physics: NeverScrollableScrollPhysics(),
             crossAxisCount: 2,
             mainAxisSpacing: 8,
             crossAxisSpacing: 8,
@@ -788,7 +784,7 @@ class _KinshipDictionaryCard extends StatelessWidget {
               child: const Icon(Icons.translate_rounded,
                   color: DKColors.brandPurple, size: 24),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -800,7 +796,7 @@ class _KinshipDictionaryCard extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         color: DKColors.textPrimary(context),
                       )),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text('5,300+ terms in 15 languages',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -878,7 +874,7 @@ class _JoinFamilyBanner extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Join a Family',
                           style: TextStyle(
                             fontFamily: KinrelTypography.displayFont,
@@ -887,7 +883,7 @@ class _JoinFamilyBanner extends StatelessWidget {
                             color: Colors.white,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        SizedBox(height: 4),
                         Text(
                           'Enter a code to join an existing family tree',
                           style: TextStyle(
@@ -927,7 +923,7 @@ class _LanguageChips extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+          padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
           child: Row(
             children: [
               Text('Quick Access Languages',
@@ -984,7 +980,7 @@ class _FamiliesQuickLinks extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(
+              padding: EdgeInsets.symmetric(
                   horizontal: KinrelSpacing.base),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -997,7 +993,7 @@ class _FamiliesQuickLinks extends ConsumerWidget {
                           )),
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
                           color: DKColors.brandPurple.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(10),
@@ -1006,8 +1002,8 @@ class _FamiliesQuickLinks extends ConsumerWidget {
                             style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 11,
-                           const    fontWeight: FontWeight.w600,
-                              cconst olor: DKColors.brandPurple,
+                           fontWeight: FontWeight.w600,
+                              color: DKColors.brandPurple,
                             )),
                       ),
                     ],
@@ -1027,7 +1023,7 @@ class _FamiliesQuickLinks extends ConsumerWidget {
             ),
             const SizedBox(height: 10),
             ...families.take(4).map((family) => Padding(
-                  padding: const EdgeInsets.symmetric(
+                  padding: EdgeInsets.symmetric(
                       horizontal: KinrelSpacing.base, vertical: 4),
                   child: _FamilyQuickLink(
                     family: family,
@@ -1044,7 +1040,7 @@ class _FamiliesQuickLinks extends ConsumerWidget {
 }
 
 class _FamilyQuickLink extends ConsumerWidget {
-  const _FamilyQuickLink({
+  _FamilyQuickLink({
     required this.family,
     required this.onTap,
   });
@@ -1073,7 +1069,7 @@ class _FamilyQuickLink extends ConsumerWidget {
                 ? DKColors.brandPurple
                 : DKColors.brandPurple,
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1101,8 +1097,7 @@ class _FamilyQuickLink extends ConsumerWidget {
                   error: (_, __) => Text('...',
                       style: TextStyle(color: DKColors.textSecondary(context))),
                 ),
-              ],const 
-            ),
+              ],),
           ),
           Container(
             padding: const EdgeInsets.all(4),
@@ -1134,7 +1129,7 @@ class _SearchResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(
+      padding: EdgeInsets.symmetric(
           horizontal: KinrelSpacing.base, vertical: 4),
       child: DKCard(
         onTap: onTap,
@@ -1203,7 +1198,7 @@ class _KinshipResultCard extends ConsumerWidget {
     ));
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
+      padding: EdgeInsets.symmetric(
           horizontal: KinrelSpacing.base, vertical: 4),
       child: DKCard(
         onTap: onTap,
@@ -1235,7 +1230,7 @@ class _KinshipResultCard extends ConsumerWidget {
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: DKColors.brandPurple.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(4),
@@ -1252,7 +1247,7 @@ class _KinshipResultCard extends ConsumerWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2),
                   termAsync.when(
                     data: (term) => Text(
                       term?.native ?? '',

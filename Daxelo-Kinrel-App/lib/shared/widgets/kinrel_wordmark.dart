@@ -40,7 +40,7 @@ enum WordmarkVariant {
 /// letter-spacing that varies by size (tighter at small sizes,
 /// wider at larger sizes per brand spec).
 class KinrelWordmark extends StatelessWidget {
-  const KinrelWordmark({
+  KinrelWordmark({
     super.key,
     this.fontSize = 24,
     this.variant = WordmarkVariant.gradient,
@@ -106,7 +106,7 @@ class KinrelWordmark extends StatelessWidget {
       WordmarkVariant.solidPurple => KinrelColors.purple,
       WordmarkVariant.solidWhite => KinrelColors.textPrimary,
       WordmarkVariant.solidDark => const Color(0xFF1A0A00),
-      WordmarkVariant.mono => const Color(0xFFF9FAFB),
+      WordmarkVariant.mono => Color(0xFFF9FAFB),
       WordmarkVariant.gradient => KinrelColors.purple, // fallback
     };
 
@@ -123,7 +123,7 @@ class KinrelWordmark extends StatelessWidget {
       WordmarkVariant.solidPurple => KinrelColors.textSecondary,
       WordmarkVariant.solidWhite => KinrelColors.textSecondary,
       WordmarkVariant.solidDark => const Color(0xFF7A5040),
-      WordmarkVariant.mono => const Color(0xFF9CA3AF),
+      WordmarkVariant.mono => Color(0xFF9CA3AF),
     };
 
     final bylineFontSize = fontSize * 0.32;

@@ -33,8 +33,8 @@ class SettingsScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(KinrelSpacing.base),
         children: [
           // ── Account Section ──────────────────────────────────────
-          const _SectionHeader(title: 'Account', index: 0),
-          const SizedBox(height: 8),
+          _SectionHeader(title: 'Account', index: 0),
+          SizedBox(height: 8),
 
           DKCard(
             borderColor: DKColors.brandPurple.withValues(alpha: 0.08),
@@ -61,8 +61,8 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // ── Preferences Section ──────────────────────────────────
-          const _SectionHeader(title: 'Preferences', index: 1),
-          const SizedBox(height: 8),
+          _SectionHeader(title: 'Preferences', index: 1),
+          SizedBox(height: 8),
 
           DKCard(
             borderColor: DKColors.brandPurple.withValues(alpha: 0.08),
@@ -112,7 +112,7 @@ class SettingsScreen extends ConsumerWidget {
                               : 'Extra Large',
                   color: DKColors.brandPurple,
                   trailing: SegmentedButton<double>(
-                    segments: const [
+                    segments: [
                       ButtonSegment(value: 0.85, label: Text('S')),
                       ButtonSegment(value: 1.0, label: Text('M')),
                       ButtonSegment(value: 1.15, label: Text('L')),
@@ -134,8 +134,8 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // ── Privacy Section ─────────────────────────────────────
-          const _SectionHeader(title: 'Privacy', index: 2),
-          const SizedBox(height: 8),
+          _SectionHeader(title: 'Privacy', index: 2),
+          SizedBox(height: 8),
 
           DKCard(
             borderColor: DKColors.brandPurple.withValues(alpha: 0.08),
@@ -165,7 +165,7 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // ── About Section ───────────────────────────────────────
-          const _SectionHeader(title: 'About', index: 3),
+          _SectionHeader(title: 'About', index: 3),
           const SizedBox(height: 8),
 
           DKCard(
@@ -173,7 +173,7 @@ class SettingsScreen extends ConsumerWidget {
             padding: 0,
             child: Column(
               children: [
-                const _SettingsTile(
+                _SettingsTile(
                   icon: Icons.info_outline,
                   title: 'App Version',
                   subtitle: '1.0.0',
@@ -197,7 +197,7 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
 
-          const SizedBox(height: 32),
+          SizedBox(height: 32),
 
           // Sign Out
           DKButton(
@@ -220,7 +220,7 @@ class SettingsScreen extends ConsumerWidget {
             },
           ),
 
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
 
           // Footer
           Center(
@@ -235,7 +235,7 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
 
-          const SizedBox(height: 48),
+          SizedBox(height: 48),
         ],
       ),
     );
@@ -296,7 +296,7 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                 ),
                 trailing: isSelected
-                    ? const Icon(Icons.check_circle, color: DKColors.brandPurple)
+                    ? Icon(Icons.check_circle, color: DKColors.brandPurple)
                     : null,
                 onTap: () {
                   ref.read(selectedLanguageProvider.notifier).state = lang;
@@ -363,7 +363,7 @@ class SettingsScreen extends ConsumerWidget {
                 validator: (v) =>
                     v == null || v.isEmpty ? 'Required' : null,
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               TextFormField(
                 controller: newController,
                 obscureText: true,
@@ -383,7 +383,7 @@ class SettingsScreen extends ConsumerWidget {
                 validator: (v) =>
                     v == null || v.length < 6 ? 'Min 6 characters' : null,
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               TextFormField(
                 controller: confirmController,
                 obscureText: true,
@@ -461,7 +461,7 @@ class _SectionHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Text(
-        title.tconst oUpperCase(),
+        title.toUpperCase(),
         style: TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 12,

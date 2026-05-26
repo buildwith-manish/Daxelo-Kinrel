@@ -20,7 +20,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _controller = PageController();
   int _currentPage = 0;
 
-  final _pages = const [
+  final _pages = [
     _OnboardingPageData(
       icon: Icons.account_tree_rounded,
       title: 'Discover Your Roots',
@@ -50,7 +50,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   void _onNext() {
     if (_currentPage < _pages.length - 1) {
       _controller.nextPage(
-        duration: const Duration(milliseconds: 400),
+        duration: Duration(milliseconds: 400),
         curve: Curves.easeOutCubic,
       );
     } else {
@@ -95,7 +95,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             child: ShaderMask(
               shaderCallback: (bounds) =>
                   KinrelGradients.wordmarkGradient.createShader(bounds),
-              child: const Text(
+              child: Text(
                 'KINREL',
                 style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
@@ -157,7 +157,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
 
                 // Get Started / Next button
                 DKButton(

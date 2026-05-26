@@ -131,7 +131,7 @@ class DKColors {
   static Color borderColor(BuildContext context) =>
       isLight(context)
           ? const Color(0xFFE5E7EB)
-          : const Color(0xFF3A3A4A);
+          : Color(0xFF3A3A4A);
 
   /// Returns the primary brand color for the current theme.
   static Color primary(BuildContext context) =>
@@ -152,7 +152,7 @@ class DKColors {
 /// )
 /// ```
 class DKScaffold extends StatelessWidget {
-  const DKScaffold({
+  DKScaffold({
     super.key,
     this.gradient,
     this.backgroundColor,
@@ -231,7 +231,7 @@ class DKScaffold extends StatelessWidget {
 /// )
 /// ```
 class DKCard extends StatelessWidget {
-  const DKCard({
+  DKCard({
     super.key,
     required this.child,
     this.padding = 16,
@@ -522,7 +522,7 @@ class _DKButtonState extends State<DKButton> {
         rowChildren.add(
           Icon(widget.icon, size: _fontSize + 2, color: fg),
         );
-        rowChildren.add(const SizedBox(width: 8));
+        rowChildren.add(SizedBox(width: 8));
       }
       rowChildren.add(
         Text(
@@ -647,7 +647,7 @@ class DKAvatar extends StatelessWidget {
             ? DKColors.brandPurple.withValues(alpha: 0.1)
             : DKColors.brandDeepPurple.withValues(alpha: 0.3));
     final border = borderColor ??
-        (isLight ? Colors.transparent : const Color(0xFF3A3A4A));
+        (isLight ? Colors.transparent : Color(0xFF3A3A4A));
     final fg = isLight ? DKColors.brandPurple : Colors.white;
 
     Widget avatar = Container(
@@ -804,7 +804,7 @@ class DKSearchField extends StatelessWidget {
           borderRadius: BorderRadius.circular(KinrelRadius.xl),
           borderSide: useGradient
               ? BorderSide(color: Colors.white.withValues(alpha: 0.4), width: 1.5)
-              : const BorderSide(color: DKColors.brandPurple, width: 1.5),
+              : BorderSide(color: DKColors.brandPurple, width: 1.5),
         ),
       ),
     );
@@ -840,7 +840,7 @@ class DKSearchField extends StatelessWidget {
 /// )
 /// ```
 class DKGlassCard extends StatelessWidget {
-  const DKGlassCard({
+  DKGlassCard({
     super.key,
     required this.child,
     this.padding = 16,
@@ -1090,7 +1090,7 @@ class _DKNavItemWidget extends StatelessWidget {
                 ),
               ),
               if (isSelected) ...[
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Container(
                   width: 16,
                   height: 2,
@@ -1277,7 +1277,7 @@ class DKBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (count <= 0) return const SizedBox.shrink();
+    if (count <= 0) return SizedBox.shrink();
 
     final display = count > 99 ? '99+' : '$count';
 
@@ -1353,7 +1353,7 @@ class DKSuggestionChip extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: KinrelMotion.fast,
-        padding: const EdgeInsets.symmetric(
+        padding: EdgeInsets.symmetric(
           horizontal: KinrelSpacing.md,
           vertical: KinrelSpacing.sm,
         ),
@@ -1434,7 +1434,7 @@ class DKTabToggle extends StatelessWidget {
             onTap: () => onChanged(index),
             child: AnimatedContainer(
               duration: KinrelMotion.fast,
-              padding: const EdgeInsets.symmetric(
+              padding: EdgeInsets.symmetric(
                 horizontal: KinrelSpacing.lg,
                 vertical: KinrelSpacing.sm,
               ),
@@ -1523,7 +1523,7 @@ class DKTimelineNode extends StatelessWidget {
           ),
         ),
         if (label != null) ...[
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             label!,
             style: TextStyle(
@@ -1605,7 +1605,7 @@ class DKStatChip extends StatelessWidget {
               height: 1.2,
             ),
           ),
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
           Text(
             label,
             style: TextStyle(
@@ -1783,7 +1783,7 @@ class DKLoadingShimmer extends StatelessWidget {
       highlightColor: isLight
           ? const Color(0xFFF5F5F5)
           : DKColors.darkSurface,
-      period: const Duration(milliseconds: 1500),
+      period: Duration(milliseconds: 1500),
       child: Container(
         width: width,
         height: height,
@@ -1860,7 +1860,7 @@ class DKErrorState extends StatelessWidget {
           )
               .animate()
               .fadeIn(duration: 300.ms, delay: 100.ms),
-          const SizedBox(height: KinrelSpacing.xl),
+          SizedBox(height: KinrelSpacing.xl),
           DKButton(
             label: 'Try Again',
             variant: DKButtonVariant.secondary,

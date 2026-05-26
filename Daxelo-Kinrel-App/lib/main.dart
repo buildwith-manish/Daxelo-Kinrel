@@ -15,7 +15,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Set initial system UI overlay style — will be updated by theme
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+  SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
     statusBarBrightness: Brightness.dark,
@@ -72,7 +72,7 @@ void main() async {
 }
 
 class KinrelApp extends ConsumerStatefulWidget {
-  const KinrelApp({super.key});
+  KinrelApp({super.key});
 
   @override
   ConsumerState<KinrelApp> createState() => _KinrelAppState();
