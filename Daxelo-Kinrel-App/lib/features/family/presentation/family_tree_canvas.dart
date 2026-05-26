@@ -11,17 +11,18 @@ import '../../../shared/widgets/dk_components.dart';
 
 /// Extended tree node with layout metadata
 class VisTreeNode {
-  final GraphPerson person;
-  final GraphPerson? spouse;
-  final List<VisTreeNode> children;
-  final String lineage;
-
   const VisTreeNode({
     required this.person,
     this.spouse,
     this.children = const [],
     this.lineage = '',
   });
+
+  final GraphPerson person;
+  final GraphPerson? spouse;
+  final List<VisTreeNode> children;
+  final String lineage;
+
 }
 
 /// Lineage color coding for node backgrounds
@@ -30,17 +31,18 @@ enum NodeLineage { paternal, maternal, marital, self, none }
 // ── Filter state ───────────────────────────────────────────────────
 
 class GraphFilters {
-  final Set<int> visibleGenerations;
-  final String branch;
-  final bool showDeceased;
-  final bool showMaritalLinks;
-
   const GraphFilters({
     this.visibleGenerations = const {1, 2, 3, 4, 5},
     this.branch = 'all',
     this.showDeceased = true,
     this.showMaritalLinks = true,
   });
+
+  final Set<int> visibleGenerations;
+  final String branch;
+  final bool showDeceased;
+  final bool showMaritalLinks;
+
 
   GraphFilters copyWith({
     Set<int>? visibleGenerations,
@@ -60,15 +62,16 @@ class GraphFilters {
 // ── Layout result ──────────────────────────────────────────────────
 
 class LayoutResult {
-  final Map<String, Rect> positions;
-  final Map<String, VisTreeNode> nodes;
-  final Map<String, String> nodeLineages;
-
   const LayoutResult({
     required this.positions,
     required this.nodes,
     required this.nodeLineages,
   });
+
+  final Map<String, Rect> positions;
+  final Map<String, VisTreeNode> nodes;
+  final Map<String, String> nodeLineages;
+
 }
 
 // ── Main canvas widget ─────────────────────────────────────────────
@@ -76,12 +79,6 @@ class LayoutResult {
 /// Canvas-based interactive family tree view with zoom/pan,
 /// curved purple connectors, circular nodes, and floating controls.
 class FamilyTreeCanvas extends StatefulWidget {
-  final List<Person> members;
-  final List<FamilyRelationship> relationships;
-  final String? anchorPersonId;
-  final ValueChanged<Person>? onNodeTap;
-  final void Function(Person person)? onNodeLongPress;
-
   const FamilyTreeCanvas({
     super.key,
     required this.members,
@@ -90,6 +87,13 @@ class FamilyTreeCanvas extends StatefulWidget {
     this.onNodeTap,
     this.onNodeLongPress,
   });
+
+  final List<Person> members;
+  final List<FamilyRelationship> relationships;
+  final String? anchorPersonId;
+  final ValueChanged<Person>? onNodeTap;
+  final void Function(Person person)? onNodeLongPress;
+
 
   @override
   State<FamilyTreeCanvas> createState() => _FamilyTreeCanvasState();
@@ -241,8 +245,8 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
               },
               filters: _filters,
             ),
-          ),
-
+          const ),
+const 
         // Empty state
         if (activeMembers.isEmpty)
           Center(
@@ -483,7 +487,7 @@ class _LanguageSelectorButton extends StatelessWidget {
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
-        ],
+        ],const 
       ),
       child: IconButton(
         padding: EdgeInsets.zero,
@@ -500,17 +504,18 @@ class _LanguageSelectorButton extends StatelessWidget {
 // ── Floating Zoom Controls ──────────────────────────────────────
 
 class _ZoomControls extends StatelessWidget {
-  final double scale;
-  final VoidCallback onZoomIn;
-  final VoidCallback onZoomOut;
-  final VoidCallback onFit;
-
   const _ZoomControls({
     required this.scale,
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onFit,
   });
+
+  final double scale;
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onFit;
+
 
   @override
   Widget build(BuildContext context) {
@@ -570,15 +575,16 @@ class _ZoomControls extends StatelessWidget {
 }
 
 class _ZoomButton extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
   const _ZoomButton({
     required this.icon,
     required this.color,
     required this.onTap,
   });
+
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
 
   @override
   Widget build(BuildContext context) {
@@ -597,14 +603,6 @@ class _ZoomButton extends StatelessWidget {
 // ── Custom painter ─────────────────────────────────────────────────
 
 class _TreePainter extends CustomPainter {
-  final List<VisTreeNode> roots;
-  final Offset offset;
-  final double scale;
-  final String? selectedNodeId;
-  final String? anchorPersonId;
-  final List<Person> members;
-  final GraphFilters filters;
-
   _TreePainter({
     required this.roots,
     required this.offset,
@@ -614,6 +612,15 @@ class _TreePainter extends CustomPainter {
     required this.members,
     required this.filters,
   });
+
+  final List<VisTreeNode> roots;
+  final Offset offset;
+  final double scale;
+  final String? selectedNodeId;
+  final String? anchorPersonId;
+  final List<Person> members;
+  final GraphFilters filters;
+
 
   static const double nodeWidth = 160.0;
   static const double nodeHeight = 72.0;
@@ -974,7 +981,7 @@ class _TreePainter extends CustomPainter {
       Offset(rect.right - 16, rect.top + 6),
     );
 
-    // Name text
+    // Name texconst t
     final textStartX = avatarRect.right + 8;
     final textMaxWidth = rect.right - textStartX - 24;
 
@@ -1076,7 +1083,7 @@ class _TreePainter extends CustomPainter {
         return DKColors.brandViolet.withValues(alpha: 0.4);
       case NodeLineage.self:
         return DKColors.brandPurple.withValues(alpha: 0.6);
-      case NodeLineage.none:
+      case Noconst deLineage.none:
         return DKColors.brandPurple.withValues(alpha: 0.15);
     }
   }
@@ -1209,13 +1216,14 @@ class _TreePainter extends CustomPainter {
 // ── Filter bar ─────────────────────────────────────────────────────
 
 class _FilterBar extends StatelessWidget {
-  final GraphFilters filters;
-  final ValueChanged<GraphFilters> onFiltersChanged;
-
   const _FilterBar({
     required this.filters,
     required this.onFiltersChanged,
   });
+
+  final GraphFilters filters;
+  final ValueChanged<GraphFilters> onFiltersChanged;
+
 
   @override
   Widget build(BuildContext context) {
@@ -1319,13 +1327,6 @@ class _FilterBar extends StatelessWidget {
 // ── Minimap ────────────────────────────────────────────────────────
 
 class _Minimap extends StatelessWidget {
-  final List<VisTreeNode> roots;
-  final Offset offset;
-  final double scale;
-  final Size canvasSize;
-  final ValueChanged<Offset> onTap;
-  final GraphFilters filters;
-
   const _Minimap({
     required this.roots,
     required this.offset,
@@ -1334,6 +1335,14 @@ class _Minimap extends StatelessWidget {
     required this.onTap,
     required this.filters,
   });
+
+  final List<VisTreeNode> roots;
+  final Offset offset;
+  final double scale;
+  final Size canvasSize;
+  final ValueChanged<Offset> onTap;
+  final GraphFilters filters;
+
 
   @override
   Widget build(BuildContext context) {
@@ -1434,12 +1443,6 @@ class _Minimap extends StatelessWidget {
 }
 
 class _MinimapPainter extends CustomPainter {
-  final List<VisTreeNode> roots;
-  final Offset offset;
-  final double scale;
-  final Size canvasSize;
-  final GraphFilters filters;
-
   _MinimapPainter({
     required this.roots,
     required this.offset,
@@ -1447,6 +1450,13 @@ class _MinimapPainter extends CustomPainter {
     required this.canvasSize,
     required this.filters,
   });
+
+  final List<VisTreeNode> roots;
+  final Offset offset;
+  final double scale;
+  final Size canvasSize;
+  final GraphFilters filters;
+
 
   @override
   void paint(Canvas canvas, Size size) {

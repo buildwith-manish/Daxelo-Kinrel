@@ -380,7 +380,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
           const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 11,
               color: KinrelColors.textDim,
@@ -452,7 +452,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                                 color: KinrelColors.success, size: 20)
                             : Text(
                                 '${tier.referrals}',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontFamily: KinrelTypography.bodyFont,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
@@ -505,7 +505,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                           const SizedBox(height: 2),
                           Text(
                             tier.description,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 11,
                               color: KinrelColors.textDim,
@@ -535,7 +535,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                   children: [
                     Text(
                       '$totalReferrals / ${tier.referrals} referrals',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 10,
                         color: KinrelColors.textDim,
@@ -564,20 +564,20 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
   Widget _buildRewardTiersFallback(ReferralState state) {
     // Fallback with hardcoded tiers if API is unavailable
     final tiers = [
-      RewardTier(
+      const RewardTier(
           referrals: 5,
           reward: 'Premium 1 month free',
           description: 'Unlock Premium features for 1 month'),
-      RewardTier(
+      const RewardTier(
           referrals: 10,
           reward: 'Premium 3 months free',
           description: 'Unlock Premium features for 3 months'),
-      RewardTier(
+      const RewardTier(
           referrals: 25,
           reward: 'Premium 1 year free',
           badge: 'Family Champion',
           description: '1 year of Premium + exclusive badge'),
-      RewardTier(
+      const RewardTier(
           referrals: 50,
           reward: 'Lifetime Premium',
           badge: 'Kinrel Ambassador',
@@ -602,9 +602,9 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
           border: Border.all(
               color: KinrelColors.darkSurface.withValues(alpha: 0.6)),
         ),
-        child: Column(
+        child: const Column(
           children: [
-            Icon(Icons.group_add_outlined,
+            const Icon(Icons.group_add_outlined,
                 color: KinrelColors.textDim, size: 32),
             const SizedBox(height: 12),
             const Text(
@@ -671,7 +671,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                       ),
                       Text(
                         _formatDate(ref.date),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 11,
                           color: KinrelColors.textDim,
@@ -733,15 +733,16 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
 // ── Animation wrapper ────────────────────────────────────────────────
 
 class _AnimSection extends StatelessWidget {
-  final Animation<double> fade;
-  final Animation<Offset> slide;
-  final Widget child;
-
   const _AnimSection({
     required this.fade,
     required this.slide,
     required this.child,
   });
+
+  final Animation<double> fade;
+  final Animation<Offset> slide;
+  final Widget child;
+
 
   @override
   Widget build(BuildContext context) => FadeTransition(
@@ -751,10 +752,11 @@ class _AnimSection extends StatelessWidget {
 // ── PressDown feedback ───────────────────────────────────────────────
 
 class _PressDown extends StatefulWidget {
+  const _PressDown({required this.child, required this.onTap});
+
   final Widget child;
   final VoidCallback onTap;
 
-  const _PressDown({required this.child, required this.onTap});
 
   @override
   State<_PressDown> createState() => _PressDownState();

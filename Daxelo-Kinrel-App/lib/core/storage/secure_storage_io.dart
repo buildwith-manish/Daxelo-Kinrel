@@ -1,6 +1,7 @@
 /// Native (mobile/desktop) backend for SecureStorageService
 /// Uses flutter_secure_storage (encrypted keystore on Android, Keychain on iOS)
 /// This file is used when dart.library.io IS available (i.e., native platforms)
+library;
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 

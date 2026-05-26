@@ -17,12 +17,38 @@ String _generateId() {
   final random = List.generate(16, (_) =>
     (DateTime.now().microsecond * 31 + 7) % 36
   ).map((v) => v.toRadixString(36)).join();
-  return 'c${timestamp}${random}'.substring(0, 25);
+  return 'c$timestamp$random'.substring(0, 25);
 }
 
 // ── Data Models ────────────────────────────────────────────────
 
 class Family {
+  factory Family.fromJson(Map<String, dynamic> json) {
+    return Family(
+      id: json['id']?.toString() ?? '',
+      name: json['name'] as String? ?? 'Unnamed Family',
+      description: json['description'] as String?,
+      primaryLanguage: json['primaryLanguage'] as String?,
+      gotra: json['gotra'] as String?,
+      originVillage: json['originVillage'] as String?,
+      createdBy: json['createdBy'] as String?,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : null,
+      familyCode: json['familyCode'] as String?,
+      avatarUrl: json['avatarUrl'] as String?,
+      region: json['region'] as String?,
+      privacyMode: json['privacyMode'] as String?,
+      isOnboarded: json['isOnboarded'] as bool? ?? false,
+      anchorPersonId: json['anchorPersonId'] as String?,
+      memberCount: json['memberCount'] as int? ?? 0,
+      generationCount: json['generationCount'] as int? ?? 1,
+      lastActivityAt: json['lastActivityAt'] != null
+          ? DateTime.tryParse(json['lastActivityAt'].toString())
+          : null,
+    );
+  }
+
   final String id;
   final String name;
   final String? description;
@@ -63,34 +89,34 @@ class Family {
     this.lastActivityAt,
   });
 
-  factory Family.fromJson(Map<String, dynamic> json) {
-    return Family(
-      id: json['id']?.toString() ?? '',
-      name: json['name'] as String? ?? 'Unnamed Family',
-      description: json['description'] as String?,
-      primaryLanguage: json['primaryLanguage'] as String?,
-      gotra: json['gotra'] as String?,
-      originVillage: json['originVillage'] as String?,
-      createdBy: json['createdBy'] as String?,
-      createdAt: json['createdAt'] != null
-          ? DateTime.tryParse(json['createdAt'].toString())
-          : null,
-      familyCode: json['familyCode'] as String?,
-      avatarUrl: json['avatarUrl'] as String?,
-      region: json['region'] as String?,
-      privacyMode: json['privacyMode'] as String?,
-      isOnboarded: json['isOnboarded'] as bool? ?? false,
-      anchorPersonId: json['anchorPersonId'] as String?,
-      memberCount: json['memberCount'] as int? ?? 0,
-      generationCount: json['generationCount'] as int? ?? 1,
-      lastActivityAt: json['lastActivityAt'] != null
-          ? DateTime.tryParse(json['lastActivityAt'].toString())
-          : null,
-    );
-  }
 }
 
 class Person {
+  factory Person.fromJson(Map<String, dynamic> json) {
+    return Person(
+      id: json['id']?.toString() ?? '',
+      familyId: json['familyId']?.toString() ?? '',
+      name: json['name'] as String? ?? 'Unknown',
+      gender: json['gender'] as String?,
+      dateOfBirth: json['dateOfBirth']?.toString(),
+      city: json['city'] as String?,
+      gotra: json['gotra'] as String?,
+      isDeceased: json['isDeceased'] as bool? ?? false,
+      deletedAt: json['deletedAt']?.toString(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : null,
+      birthYear: json['birthYear'] as int?,
+      occupation: json['occupation'] as String?,
+      privacyLevel: json['privacyLevel'] as String?,
+      notes: json['notes'] as String?,
+      sideOfFamily: json['sideOfFamily'] as String?,
+      generationIndex: json['generationIndex'] as int? ?? 0,
+      isAnchor: json['isAnchor'] as bool? ?? false,
+      photoUrl: json['photoUrl'] as String?,
+    );
+  }
+
   final String id;
   final String familyId;
   final String name;
@@ -133,30 +159,6 @@ class Person {
     this.photoUrl,
   });
 
-  factory Person.fromJson(Map<String, dynamic> json) {
-    return Person(
-      id: json['id']?.toString() ?? '',
-      familyId: json['familyId']?.toString() ?? '',
-      name: json['name'] as String? ?? 'Unknown',
-      gender: json['gender'] as String?,
-      dateOfBirth: json['dateOfBirth']?.toString(),
-      city: json['city'] as String?,
-      gotra: json['gotra'] as String?,
-      isDeceased: json['isDeceased'] as bool? ?? false,
-      deletedAt: json['deletedAt']?.toString(),
-      createdAt: json['createdAt'] != null
-          ? DateTime.tryParse(json['createdAt'].toString())
-          : null,
-      birthYear: json['birthYear'] as int?,
-      occupation: json['occupation'] as String?,
-      privacyLevel: json['privacyLevel'] as String?,
-      notes: json['notes'] as String?,
-      sideOfFamily: json['sideOfFamily'] as String?,
-      generationIndex: json['generationIndex'] as int? ?? 0,
-      isAnchor: json['isAnchor'] as bool? ?? false,
-      photoUrl: json['photoUrl'] as String?,
-    );
-  }
 
   /// Convert to GraphPerson for graph visualization.
   /// Uses the first relationship as the relationship label.
@@ -173,6 +175,22 @@ class Person {
 }
 
 class FamilyRelationship {
+  factory FamilyRelationship.fromJson(Map<String, dynamic> json) {
+    return FamilyRelationship(
+      id: json['id']?.toString() ?? '',
+      familyId: json['familyId']?.toString() ?? '',
+      fromPersonId: json['fromPersonId']?.toString() ?? '',
+      toPersonId: json['toPersonId']?.toString() ?? '',
+      relationshipKey: json['relationshipKey'] as String? ?? '',
+      direction: json['direction'] as String? ?? 'from',
+      isActive: json['isActive'] as bool? ?? true,
+      label: json['label'] as String?,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : null,
+    );
+  }
+
   final String id;
   final String familyId;
   final String fromPersonId;
@@ -195,21 +213,6 @@ class FamilyRelationship {
     this.createdAt,
   });
 
-  factory FamilyRelationship.fromJson(Map<String, dynamic> json) {
-    return FamilyRelationship(
-      id: json['id']?.toString() ?? '',
-      familyId: json['familyId']?.toString() ?? '',
-      fromPersonId: json['fromPersonId']?.toString() ?? '',
-      toPersonId: json['toPersonId']?.toString() ?? '',
-      relationshipKey: json['relationshipKey'] as String? ?? '',
-      direction: json['direction'] as String? ?? 'from',
-      isActive: json['isActive'] as bool? ?? true,
-      label: json['label'] as String?,
-      createdAt: json['createdAt'] != null
-          ? DateTime.tryParse(json['createdAt'].toString())
-          : null,
-    );
-  }
 
   ({String fromId, String toId, String type}) toGraphEdge() {
     return (fromId: fromPersonId, toId: toPersonId, type: relationshipKey);
@@ -217,15 +220,16 @@ class FamilyRelationship {
 }
 
 class FamilyDetail {
-  final Family family;
-  final List<Person> members;
-  final List<FamilyRelationship> relationships;
-
   const FamilyDetail({
     required this.family,
     required this.members,
     required this.relationships,
   });
+
+  final Family family;
+  final List<Person> members;
+  final List<FamilyRelationship> relationships;
+
 }
 
 // ── Providers ──────────────────────────────────────────────────

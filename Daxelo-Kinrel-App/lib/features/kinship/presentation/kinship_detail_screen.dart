@@ -12,12 +12,13 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../shared/widgets/dk_components.dart';
 
 class KinshipDetailScreen extends ConsumerWidget {
-  final String relationshipKey;
-
   const KinshipDetailScreen({
     super.key,
     required this.relationshipKey,
   });
+
+  final String relationshipKey;
+
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -79,7 +80,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                           child: Text(
                             rel.relationshipCategory
                                 .replaceAll('_', ' ')
-                                .toUpperCase(),
+                                .toconst UpperCase(),
                             style: TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 11,
@@ -347,7 +348,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Tap to view',
+                              'Tap toconst  view',
                               style: TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 11,
@@ -369,15 +370,15 @@ class KinshipDetailScreen extends ConsumerWidget {
         },
         loading: () => ListView(
           padding: const EdgeInsets.all(KinrelSpacing.base),
-          children: [
+          chconst ildren: [
             DKLoadingShimmer(width: 200, height: 32),
             const SizedBox(height: 12),
             DKLoadingShimmer(width: double.infinity, height: 60, radius: KinrelRadius.card),
             const SizedBox(height: 12),
             ...List.generate(
-              6,
+              6,const 
               (_) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                paddingconst : const EdgeInsets.only(bottom: 8),
                 child: DKLoadingShimmer(
                     width: double.infinity, height: 50, radius: KinrelRadius.md),
               ),
@@ -410,9 +411,10 @@ class KinshipDetailScreen extends ConsumerWidget {
 }
 
 class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.icon, required this.label});
+
   final IconData icon;
   final String label;
-  const _MetaChip({required this.icon, required this.label});
 
   @override
   Widget build(BuildContext context) {

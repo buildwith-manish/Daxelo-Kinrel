@@ -2,13 +2,6 @@ import '../kinship/kinship_service.dart';
 
 /// Person node in the family graph
 class GraphPerson {
-  final String id;
-  final String name;
-  final String? relationship;
-  final int generation;
-  final bool isDeceased;
-  final String? deletedAt;
-
   const GraphPerson({
     required this.id,
     required this.name,
@@ -17,58 +10,70 @@ class GraphPerson {
     this.isDeceased = false,
     this.deletedAt,
   });
+
+  final String id;
+  final String name;
+  final String? relationship;
+  final int generation;
+  final bool isDeceased;
+  final String? deletedAt;
+
 }
 
 /// Tree node for hierarchical family display
 class TreeNode {
-  final GraphPerson person;
-  final GraphPerson? spouse;
-  final List<TreeNode> children;
-
   const TreeNode({
     required this.person,
     this.spouse,
     this.children = const [],
   });
+
+  final GraphPerson person;
+  final GraphPerson? spouse;
+  final List<TreeNode> children;
+
 }
 
 /// Path step in a relationship path
 class PathStep {
-  final String personId;
-  final String personName;
-  final String type;
-  final String direction;
-
   const PathStep({
     required this.personId,
     required this.personName,
     required this.type,
     required this.direction,
   });
+
+  final String personId;
+  final String personName;
+  final String type;
+  final String direction;
+
 }
 
 /// Result of a path search
 class PathResult {
-  final List<PathStep> path;
-  final int length;
-  final String relationshipDescription;
-  final String? localizedDescription;
-
   const PathResult({
     required this.path,
     required this.length,
     required this.relationshipDescription,
     this.localizedDescription,
   });
+
+  final List<PathStep> path;
+  final int length;
+  final String relationshipDescription;
+  final String? localizedDescription;
+
 }
 
 /// Edge in the adjacency list
 class _Edge {
+  const _Edge(this.targetId, this.type, this.direction);
+
   final String targetId;
   final String type;
   final String direction;
 
-  const _Edge(this.targetId, this.type, this.direction);
 }
 
 /// Inverse relationship type mapping
@@ -105,9 +110,10 @@ const Map<String, String> inverseTypeMap = {
 
 /// Family graph traversal service
 class GraphService {
+  GraphService(this._kinshipService);
+
   final KinshipService _kinshipService;
 
-  GraphService(this._kinshipService);
 
   /// Get inverse relationship type
   String inverseType(String type) => inverseTypeMap[type] ?? type;
@@ -133,7 +139,9 @@ class GraphService {
       if (!activePersonIds.contains(rel.fromId) ||
           !activePersonIds.contains(rel.toId)) continue;
 
+          {
       adjacency[rel.fromId]?.add(_Edge(rel.toId, rel.type, 'from'));
+          }
       adjacency[rel.toId]?.add(_Edge(rel.fromId, inverseType(rel.type), 'to'));
     }
 
@@ -155,9 +163,9 @@ class GraphService {
 
     // BFS
     final visited = <String>{};
-    final queue = <_BFSNode>[];
+    final queue = <BFSNode>[];
     visited.add(fromPersonId);
-    queue.add(_BFSNode(fromPersonId, []));
+    queue.add(BFSNode(fromPersonId, []));
 
     while (queue.isNotEmpty) {
       final current = queue.removeAt(0);
@@ -179,7 +187,7 @@ class GraphService {
           return _buildPathResult(newPath, locale);
         }
 
-        queue.add(_BFSNode(edge.targetId, newPath));
+        queue.add(BFSNode(edge.targetId, newPath));
       }
     }
 
@@ -270,9 +278,10 @@ class GraphService {
 }
 
 /// Helper for BFS path tracking
-class _BFSNode {
-  final String personId;
+class BFSNode {
   final List<PathStep> path;
 
-  const _BFSNode(this.personId, this.path);
+  final String personId;
+
+  const BFSNode(this.personId, this.path);
 }

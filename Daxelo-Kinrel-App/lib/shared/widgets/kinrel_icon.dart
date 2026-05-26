@@ -26,6 +26,15 @@ export '../painters/kinrel_icon_painter.dart' show KinrelIconPalette;
 ///
 /// Supports 4 palettes, optional animation, and tap handling.
 class KinrelIcon extends StatelessWidget {
+  const KinrelIcon({
+    super.key,
+    this.size = 48,
+    this.palette = KinrelIconPalette.purple,
+    this.animated = false,
+    this.onTap,
+    this.semanticLabel,
+  });
+
   /// Icon size in logical pixels. Default 48.
   final double size;
 
@@ -41,14 +50,6 @@ class KinrelIcon extends StatelessWidget {
   /// Optional semantic label for accessibility.
   final String? semanticLabel;
 
-  const KinrelIcon({
-    super.key,
-    this.size = 48,
-    this.palette = KinrelIconPalette.purple,
-    this.animated = false,
-    this.onTap,
-    this.semanticLabel,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -74,13 +75,14 @@ class KinrelIcon extends StatelessWidget {
 
 /// Animated variant that drives a repeating ripple on the center hub node.
 class _AnimatedKinrelIcon extends StatefulWidget {
-  final double size;
-  final KinrelIconPalette palette;
-
   const _AnimatedKinrelIcon({
     required this.size,
     required this.palette,
   });
+
+  final double size;
+  final KinrelIconPalette palette;
+
 
   @override
   State<_AnimatedKinrelIcon> createState() => _AnimatedKinrelIconState();

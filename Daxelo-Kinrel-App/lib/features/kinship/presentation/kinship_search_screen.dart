@@ -147,9 +147,9 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
                 padding: const EdgeInsets.all(KinrelSpacing.base),
                 children: List.generate(
                   5,
-                  (_) => Padding(
+                  (_) => const Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: DKLoadingShimmer(
+                    child: const DKLoadingShimmer(
                         width: double.infinity, height: 80, radius: KinrelRadius.card),
                   ),
                 ),
@@ -167,17 +167,18 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
 }
 
 class _KinshipTermCard extends ConsumerWidget {
-  final KinshipSearchResult result;
-  final SupportedLanguage language;
-  final int index;
-  final VoidCallback onTap;
-
   const _KinshipTermCard({
     required this.result,
     required this.language,
     required this.index,
     required this.onTap,
   });
+
+  final KinshipSearchResult result;
+  final SupportedLanguage language;
+  final int index;
+  final VoidCallback onTap;
+
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -203,7 +204,7 @@ class _KinshipTermCard extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  rel.relationshipCategory.replaceAll('_', ' ').toUpperCase(),
+                  rel.relconst ationshipCategory.replaceAll('_', ' ').toUpperCase(),
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 10,
@@ -223,7 +224,7 @@ class _KinshipTermCard extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  rel.relationshipKey.replaceAll('_', ' '),
+                  rel.relconst ationshipKey.replaceAll('_', ' '),
                   style: TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 9,
@@ -313,8 +314,9 @@ class _KinshipTermCard extends ConsumerWidget {
 }
 
 class _TagChip extends StatelessWidget {
-  final String label;
   const _TagChip({required this.label});
+
+  final String label;
 
   @override
   Widget build(BuildContext context) {

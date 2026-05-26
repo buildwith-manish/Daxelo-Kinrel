@@ -200,14 +200,6 @@ class ProfileScreen extends ConsumerWidget {
 // ── Menu Card ────────────────────────────────────────────────────
 
 class _MenuCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String? subtitle;
-  final Color color;
-  final Widget? trailing;
-  final VoidCallback onTap;
-  final int index;
-
   const _MenuCard({
     required this.icon,
     required this.label,
@@ -217,6 +209,15 @@ class _MenuCard extends StatelessWidget {
     required this.onTap,
     required this.index,
   });
+
+  final IconData icon;
+  final String label;
+  final String? subtitle;
+  final Color color;
+  final Widget? trailing;
+  final VoidCallback onTap;
+  final int index;
+
 
   @override
   Widget build(BuildContext context) {

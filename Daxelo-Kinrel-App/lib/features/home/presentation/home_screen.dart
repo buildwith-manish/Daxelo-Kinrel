@@ -67,21 +67,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           const SizedBox(height: 24),
           // Header shimmer
-          Row(
+          const Row(
             children: [
               const KinrelIcon(size: 36),
               const SizedBox(width: 12),
-              Expanded(
-                child: Column(
+              const Expanded(
+                child: const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    DKLoadingShimmer(width: 80, height: 12),
+                    const DKLoadingShimmer(width: 80, height: 12),
                     const SizedBox(height: 6),
-                    DKLoadingShimmer(width: 140, height: 18),
+                    const DKLoadingShimmer(width: 140, height: 18),
                   ],
                 ),
               ),
-              DKLoadingShimmer(width: 40, height: 40, radius: 20),
+              const DKLoadingShimmer(width: 40, height: 40, radius: 20),
             ],
           ),
           const SizedBox(height: 24),
@@ -91,38 +91,38 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: Row(
               children: List.generate(
                 5,
-                (_) => Padding(
+                (_) => const Padding(
                   padding: const EdgeInsets.only(right: 14),
-                  child: DKLoadingShimmer(width: 56, height: 72, radius: 28),
+                  child: const DKLoadingShimmer(width: 56, height: 72, radius: 28),
                 ),
               ),
             ),
           ),
           const SizedBox(height: 24),
           // Hero card shimmer
-          DKLoadingShimmer(width: double.infinity, height: 220, radius: 20),
+          const DKLoadingShimmer(width: double.infinity, height: 220, radius: 20),
           const SizedBox(height: 20),
           // Quick actions shimmer
           Row(
             children: List.generate(
               3,
-              (_) => Expanded(
-                child: Padding(
+              (_) => const Expanded(
+                child: const Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 5),
-                  child: DKLoadingShimmer(width: double.infinity, height: 100, radius: 16),
+                  child: const DKLoadingShimmer(width: double.infinity, height: 100, radius: 16),
                 ),
               ),
             ),
           ),
           const SizedBox(height: 20),
           // Recent activity shimmer
-          DKLoadingShimmer(width: 120, height: 18),
+          const DKLoadingShimmer(width: 120, height: 18),
           const SizedBox(height: 12),
           ...List.generate(
             3,
-            (_) => Padding(
+            (_) => const Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: DKLoadingShimmer(width: double.infinity, height: 64, radius: 14),
+              child: const DKLoadingShimmer(width: double.infinity, height: 64, radius: 14),
             ),
           ),
         ],
@@ -153,9 +153,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const SizedBox(height: 16),
           TextButton(
             onPressed: () => _showJoinFamilyDialog(context),
-            child: Text(
+            child: const Text(
               'Or join an existing family with a code',
-              style: TextStyle(
+              style: const TextStyle(
                 color: KinrelColors.purple,
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
@@ -312,8 +312,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
 // ── Header ───────────────────────────────────────────────────────
 class _Header extends StatelessWidget {
-  final dynamic user;
   const _Header({required this.user});
+
+  final dynamic user;
 
   @override
   Widget build(BuildContext context) {
@@ -362,8 +363,9 @@ class _Header extends StatelessWidget {
 
 // ── Story-style Family Avatars ───────────────────────────────────
 class _FamilyStoriesRow extends StatelessWidget {
-  final List<Family> families;
   const _FamilyStoriesRow({required this.families});
+
+  final List<Family> families;
 
   @override
   Widget build(BuildContext context) {
@@ -390,8 +392,9 @@ class _FamilyStoriesRow extends StatelessWidget {
 }
 
 class _AddFamilyStory extends StatelessWidget {
-  final VoidCallback onTap;
   const _AddFamilyStory({required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -433,9 +436,10 @@ class _AddFamilyStory extends StatelessWidget {
 }
 
 class _FamilyStoryAvatar extends StatelessWidget {
+  const _FamilyStoryAvatar({required this.family, required this.onTap});
+
   final Family family;
   final VoidCallback onTap;
-  const _FamilyStoryAvatar({required this.family, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -519,13 +523,14 @@ class _FamilyStoryAvatar extends StatelessWidget {
 
 // ── Primary Family Hero Card ─────────────────────────────────────
 class _PrimaryFamilyHeroCard extends StatelessWidget {
-  final Family family;
-  final AsyncValue<FamilyDetail?> detailAsync;
-
   const _PrimaryFamilyHeroCard({
     required this.family,
     required this.detailAsync,
   });
+
+  final Family family;
+  final AsyncValue<FamilyDetail?> detailAsync;
+
 
   @override
   Widget build(BuildContext context) {
@@ -562,7 +567,7 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
                         ? LinearGradient(
                             colors: [
                               DKColors.brandPurple.withValues(alpha: 0.15),
-                              DKColors.brandViolet.withValues(alpha: 0.08),
+                          const     DKColors.brandViolet.withValues(alpha: 0.08),
                             ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
@@ -651,13 +656,13 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
                                         icon: Icons.link_rounded,
                                         value: '${relationships.length}',
                                         label: 'Links',
-                                        color: DKColors.brandViolet,
+                                        color: const DKColors.brandViolet,
                                       ),
-                                    ],
-                                  );
+                                    ],const 
+                                  );const 
                                 },
                                 loading: () => SizedBox(
-                                  height: 28,
+                                  height: 28,const 
                                   child: Center(
                                     child: SizedBox(
                                       width: 20,
@@ -700,8 +705,9 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
 
 // ── Quick Actions ────────────────────────────────────────────────
 class _QuickActions extends StatelessWidget {
-  final String familyId;
   const _QuickActions({required this.familyId});
+
+  final String familyId;
 
   @override
   Widget build(BuildContext context) {
@@ -762,15 +768,6 @@ class _QuickActions extends StatelessWidget {
 
 /// Quick Action card with gradient border effect
 class _GradientBorderCard extends StatelessWidget {
-  final bool isLight;
-  final List<Color> gradientColors;
-  final VoidCallback onTap;
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBgColor;
-  final String title;
-  final String subtitle;
-
   const _GradientBorderCard({
     required this.isLight,
     required this.gradientColors,
@@ -781,6 +778,16 @@ class _GradientBorderCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
   });
+
+  final bool isLight;
+  final List<Color> gradientColors;
+  final VoidCallback onTap;
+  final IconData icon;
+  final Color iconColor;
+  final Color iconBgColor;
+  final String title;
+  final String subtitle;
+
 
   @override
   Widget build(BuildContext context) {
@@ -838,8 +845,9 @@ class _GradientBorderCard extends StatelessWidget {
 
 // ── Recent Activity Section ──────────────────────────────────────
 class _RecentActivitySection extends StatelessWidget {
-  final String familyId;
   const _RecentActivitySection({required this.familyId});
+
+  final String familyId;
 
   // Static recent activity data for demo
   static const _activities = [
@@ -961,8 +969,9 @@ class _RecentActivitySection extends StatelessWidget {
 
 // ── Your Families Section ────────────────────────────────────────
 class _YourFamiliesSection extends StatelessWidget {
-  final List<Family> families;
   const _YourFamiliesSection({required this.families});
+
+  final List<Family> families;
 
   @override
   Widget build(BuildContext context) {
@@ -991,8 +1000,8 @@ class _YourFamiliesSection extends StatelessWidget {
                     child: Text('${families.length}',
                         style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                       const    fontSize: 11,
+                          fconst ontWeight: FontWeight.w600,
                           color: DKColors.brandPurple,
                         )),
                   ),
@@ -1035,13 +1044,14 @@ class _YourFamiliesSection extends StatelessWidget {
 }
 
 class _FamilyScrollCard extends StatelessWidget {
-  final Family family;
-  final VoidCallback onTap;
-
   const _FamilyScrollCard({
     required this.family,
     required this.onTap,
   });
+
+  final Family family;
+  final VoidCallback onTap;
+
 
   @override
   Widget build(BuildContext context) {

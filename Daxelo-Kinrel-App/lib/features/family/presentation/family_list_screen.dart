@@ -119,19 +119,19 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
       padding: const EdgeInsets.all(KinrelSpacing.base),
       children: [
         const SizedBox(height: 60),
-        Row(
+        const Row(
           children: [
-            DKLoadingShimmer(width: 160, height: 28),
+            const DKLoadingShimmer(width: 160, height: 28),
             const SizedBox(width: 10),
-            DKLoadingShimmer(width: 36, height: 24, radius: 12),
+            const DKLoadingShimmer(width: 36, height: 24, radius: 12),
           ],
         ),
         const SizedBox(height: 20),
-        DKLoadingShimmer(width: double.infinity, height: 72, radius: KinrelRadius.card),
+        const DKLoadingShimmer(width: double.infinity, height: 72, radius: KinrelRadius.card),
         const SizedBox(height: 12),
-        DKLoadingShimmer(width: double.infinity, height: 72, radius: KinrelRadius.card),
+        const DKLoadingShimmer(width: double.infinity, height: 72, radius: KinrelRadius.card),
         const SizedBox(height: 12),
-        DKLoadingShimmer(width: double.infinity, height: 72, radius: KinrelRadius.card),
+        const DKLoadingShimmer(width: double.infinity, height: 72, radius: KinrelRadius.card),
       ],
     );
   }
@@ -155,7 +155,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
                 shape: BoxShape.circle,
                 color: DKColors.brandPurple.withValues(alpha: 0.15),
               ),
-              child: Icon(Icons.link_rounded,
+              child: const Icon(Icons.link_rounded,
                   color: DKColors.brandPurple, size: 20),
             ),
             const SizedBox(width: 12),
@@ -230,8 +230,9 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
 // ── Header ───────────────────────────────────────────────────────
 
 class _Header extends StatelessWidget {
-  final int familyCount;
   const _Header({required this.familyCount});
+
+  final int familyCount;
 
   @override
   Widget build(BuildContext context) {
@@ -259,7 +260,7 @@ class _Header extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              '$familyCount',
+              '$familconst yCount',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 13,
@@ -280,8 +281,9 @@ class _Header extends StatelessWidget {
 // ── Join Family Card ─────────────────────────────────────────────
 
 class _JoinFamilyCard extends StatelessWidget {
-  final VoidCallback onJoin;
   const _JoinFamilyCard({required this.onJoin});
+
+  final VoidCallback onJoin;
 
   @override
   Widget build(BuildContext context) {
@@ -297,7 +299,7 @@ class _JoinFamilyCard extends StatelessWidget {
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: DKColors.brandGold.withValues(alpha: 0.15),
+                colorconst : DKColors.brandGold.withValues(alpha: 0.15),
               ),
               child: Icon(Icons.mail_outline_rounded,
                   color: DKColors.brandGold, size: 20),
@@ -326,7 +328,7 @@ class _JoinFamilyCard extends StatelessWidget {
                     ),
                   ),
                 ],
-              ),
+            const   ),
             ),
             Icon(Icons.arrow_forward_ios_rounded,
                 size: 16, color: DKColors.brandGold),
@@ -342,15 +344,16 @@ class _JoinFamilyCard extends StatelessWidget {
 // ── Family Card ──────────────────────────────────────────────────
 
 class _FamilyCard extends ConsumerWidget {
-  final Family family;
-  final int index;
-  final VoidCallback onTap;
-
   const _FamilyCard({
     required this.family,
     required this.index,
     required this.onTap,
   });
+
+  final Family family;
+  final int index;
+  final VoidCallback onTap;
+
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

@@ -67,25 +67,25 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),
-        title: Row(
+        title: const Row(
           children: [
             const KinrelIcon(size: 28),
             const SizedBox(width: 10),
-            Column(
+            const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Kinrel AI',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: KinrelColors.textWhite,
                   ),
                 ),
-                Text(
+                const Text(
                   'Indian Kinship Expert',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 10,
                     color: KinrelColors.textDim,
@@ -175,8 +175,9 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
 // ── Empty State ──────────────────────────────────────────────────────
 
 class _EmptyState extends ConsumerWidget {
-  final void Function(String) onSuggestionTap;
   const _EmptyState({required this.onSuggestionTap});
+
+  final void Function(String) onSuggestionTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -209,7 +210,7 @@ class _EmptyState extends ConsumerWidget {
             const SizedBox(height: 20),
             Text(
               'Ask me about Indian\nkinship terms',
-              textAlign: TextAlign.center,
+              textAliconst gn: TextAlign.center,
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 22,
@@ -221,7 +222,7 @@ class _EmptyState extends ConsumerWidget {
             const SizedBox(height: 8),
             Text(
               'I can help you understand family\nrelationships in 15 Indian languages',
-              textAlign: TextAlign.center,
+              textAliconst gn: TextAlign.center,
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
@@ -256,13 +257,14 @@ class _EmptyState extends ConsumerWidget {
 // ── Suggestion Chips Row ─────────────────────────────────────────────
 
 class _SuggestionChips extends StatelessWidget {
-  final List<String> suggestions;
-  final void Function(String) onTap;
-
   const _SuggestionChips({
     required this.suggestions,
     required this.onTap,
   });
+
+  final List<String> suggestions;
+  final void Function(String) onTap;
+
 
   @override
   Widget build(BuildContext context) {
@@ -286,10 +288,11 @@ class _SuggestionChips extends StatelessWidget {
 }
 
 class _SuggestionChip extends StatelessWidget {
+  const _SuggestionChip({required this.text, required this.onTap});
+
   final String text;
   final VoidCallback onTap;
 
-  const _SuggestionChip({required this.text, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -303,7 +306,7 @@ class _SuggestionChip extends StatelessWidget {
           border: Border.all(
             color: KinrelColors.purple.withValues(alpha: 0.3),
           ),
-        ),
+        ),const 
         child: Text(
           text,
           style: TextStyle(
@@ -321,10 +324,11 @@ class _SuggestionChip extends StatelessWidget {
 // ── Chat Bubble ──────────────────────────────────────────────────────
 
 class _ChatBubble extends StatelessWidget {
+  const _ChatBubble({required this.message, required this.isUser});
+
   final ChatMessage message;
   final bool isUser;
 
-  const _ChatBubble({required this.message, required this.isUser});
 
   @override
   Widget build(BuildContext context) {
@@ -426,7 +430,7 @@ class _ChatBubble extends StatelessWidget {
             ),
 
           // Timestamp
-          Padding(
+          Padding(const 
             padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
             child: Text(
               _formatTime(message.timestamp),
@@ -452,9 +456,10 @@ class _ChatBubble extends StatelessWidget {
 // ── Kinship Card ─────────────────────────────────────────────────────
 
 class _KinshipCard extends StatelessWidget {
+  const _KinshipCard({required this.data});
+
   final KinshipCardData data;
 
-  const _KinshipCard({required this.data});
 
   @override
   Widget build(BuildContext context) {
@@ -495,7 +500,7 @@ class _KinshipCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Column(
+                child: Columnconst (
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -504,7 +509,7 @@ class _KinshipCard extends StatelessWidget {
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: KinrelColors.textWhite,
+                        colorconst : KinrelColors.textWhite,
                       ),
                     ),
                     Text(
@@ -563,9 +568,9 @@ class _KinshipCard extends StatelessWidget {
                 color: KinrelColors.ember,
               ),
             ],
-          ),
+          ),const 
 
-          // Translations
+          // Translatconst ions
           if (data.translations.isNotEmpty) ...[
             const SizedBox(height: 12),
             Text(
@@ -593,7 +598,7 @@ class _KinshipCard extends StatelessWidget {
                       color: KinrelColors.darkSurface.withValues(alpha: 0.6),
                     ),
                   ),
-                  child: Row(
+                  child: Row(const 
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
@@ -604,7 +609,7 @@ class _KinshipCard extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                           color: KinrelColors.purple,
                           letterSpacing: 0.3,
-                        ),
+                        ),const 
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -629,10 +634,11 @@ class _KinshipCard extends StatelessWidget {
 }
 
 class _InfoBadge extends StatelessWidget {
+  const _InfoBadge({required this.label, required this.color});
+
   final String label;
   final Color color;
 
-  const _InfoBadge({required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -754,17 +760,18 @@ class _TypingIndicatorState extends State<_TypingIndicator>
 // ── Input Bar ────────────────────────────────────────────────────────
 
 class _InputBar extends StatelessWidget {
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final VoidCallback onSend;
-  final bool isLoading;
-
   const _InputBar({
     required this.controller,
     required this.focusNode,
     required this.onSend,
     required this.isLoading,
   });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final VoidCallback onSend;
+  final bool isLoading;
+
 
   @override
   Widget build(BuildContext context) {
@@ -791,14 +798,14 @@ class _InputBar extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: KinrelColors.darkElevated,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
+                  border:const  Border.all(
                     color: KinrelColors.darkSurface.withValues(alpha: 0.6),
                   ),
                 ),
                 child: TextField(
-                  controller: controller,
+                  controller: const controller,
                   focusNode: focusNode,
-                  style: TextStyle(
+                  style: TextStconst yle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     color: KinrelColors.textWhite,
@@ -841,10 +848,10 @@ class _InputBar extends StatelessWidget {
                       : [
                           BoxShadow(
                             color: KinrelColors.purple
-                                .withValues(alpha: 0.3),
+                      const           .withValues(alpha: 0.3),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
-                          ),
+                          ),const 
                         ],
                 ),
                 child: isLoading

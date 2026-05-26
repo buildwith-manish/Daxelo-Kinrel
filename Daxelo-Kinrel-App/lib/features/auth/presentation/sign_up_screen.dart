@@ -42,7 +42,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     if (password.length < 12 &&
         !RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(password))
       return 'Medium';
+      {
     return 'Strong';
+      }
   }
 
   double _passwordStrengthValue(String? strength) {
@@ -345,7 +347,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           validator: (v) {
                             if (v == null || v.isEmpty)
                               return 'Email is required';
+                              {
                             if (!v.contains('@')) return 'Enter a valid email';
+                              }
                             return null;
                           },
                         ),
@@ -423,9 +427,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           validator: (v) {
                             if (v == null || v.isEmpty)
                               return 'Password is required';
+                              {
                             if (v.length < 8)
+                              }
                               return 'Password must be at least 8 characters';
+                              {
                             return null;
+                              }
                           },
                         ),
 
@@ -536,9 +544,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           validator: (v) {
                             if (v == null || v.isEmpty)
                               return 'Please confirm your password';
+                              {
                             if (v != _passwordController.text)
+                              }
                               return 'Passwords do not match';
+                              {
                             return null;
+                              }
                           },
                         ),
 
@@ -616,23 +628,23 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             child: ElevatedButton(
                               onPressed: _isLoading ? null : _signUp,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
+                                backconst groundColor: Colors.transparent,
                                 foregroundColor: Colors.white,
                                 disabledBackgroundColor: Colors.transparent,
                                 disabledForegroundColor:
-                                    Colors.white.withValues(alpha: 0.5),
+                                    Coloconst rs.white.withValues(alpha: 0.5),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(
                                       KinrelRadius.button),
-                                ),
+                                ),const 
                                 elevation: 0,
                               ),
                               child: _isLoading
                                   ? Row(
                                       mainAxisAlignment:
-                                          MainAxisAlignment.center,
+                                        const   MainAxisAlignment.center,
                                       children: [
-                                        SizedBox(
+                                        SizedBox(const 
                                           height: 20,
                                           width: 20,
                                           child:
@@ -641,9 +653,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                             color: Colors.white,
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
+                                    const     const SizedBox(width: 12),
                                         Text(
-                                          'Creating account...',
+                                          'Crconst eating account...',
                                           style: TextStyle(
                                             fontFamily:
                                                 KinrelTypography.displayFont,

@@ -26,15 +26,6 @@ enum KinrelIconPalette { purple, light, mono, outline }
 
 /// Resolved palette colors for painting.
 class _PaletteColors {
-  final Color bg;
-  final Color bgInner;
-  final Color primary;
-  final Color secondary;
-  final Color accent;
-  final bool showBg;
-  final bool showGlow;
-  final bool isOutline;
-
   const _PaletteColors({
     required this.bg,
     required this.bgInner,
@@ -45,6 +36,16 @@ class _PaletteColors {
     required this.showGlow,
     required this.isOutline,
   });
+
+  final Color bg;
+  final Color bgInner;
+  final Color primary;
+  final Color secondary;
+  final Color accent;
+  final bool showBg;
+  final bool showGlow;
+  final bool isOutline;
+
 }
 
 _PaletteColors _resolvePalette(KinrelIconPalette palette) {
@@ -106,15 +107,16 @@ _PaletteColors _resolvePalette(KinrelIconPalette palette) {
 /// )
 /// ```
 class KinrelIconPainter extends CustomPainter {
-  final KinrelIconPalette palette;
-  final bool animated;
-  final double animationValue;
-
   const KinrelIconPainter({
     this.palette = KinrelIconPalette.purple,
     this.animated = false,
     this.animationValue = 0,
   });
+
+  final KinrelIconPalette palette;
+  final bool animated;
+  final double animationValue;
+
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -457,20 +459,22 @@ class KinrelIconPainter extends CustomPainter {
 // ── Internal Data Classes ─────────────────────────────────────────────
 
 class _Node {
+  const _Node(this.x, this.y, this.r, this.color);
+
   final double x;
   final double y;
   final double r;
   final Color color;
 
-  const _Node(this.x, this.y, this.r, this.color);
 }
 
 class _Edge {
+  const _Edge(this.from, this.to, this.color, this.width, this.dashed);
+
   final int from;
   final int to;
   final Color color;
   final double width;
   final bool dashed;
 
-  const _Edge(this.from, this.to, this.color, this.width, this.dashed);
 }

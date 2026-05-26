@@ -1,10 +1,11 @@
 /// Base failure class for clean architecture error handling
 abstract class Failure {
+  const Failure({required this.message, this.code, this.originalError});
+
   final String message;
   final int? code;
   final dynamic originalError;
 
-  const Failure({required this.message, this.code, this.originalError});
 }
 
 class ServerFailure extends Failure {

@@ -15,9 +15,10 @@ import 'person_detail_sheet.dart';
 import 'relationship_builder_screen.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
+  const FamilyDetailScreen({super.key, required this.familyId});
+
   final String familyId;
 
-  const FamilyDetailScreen({super.key, required this.familyId});
 
   @override
   ConsumerState<FamilyDetailScreen> createState() =>
@@ -51,23 +52,23 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
-        title: detailAsync.when(
+        title: detailAsynconst c.when(
           loading: () => Text(
-            'Family Tree',
+            'Familyconst  Tree',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontWeight: FontWeight.w600,
             ),
-          ),
+          ),const 
           error: (_, __) => Text(
-            'Family Tree',
+            'Familyconst  Tree',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontWeight: FontWeight.w600,
             ),
           ),
           data: (detail) => Text(
-            detail?.family.name ?? 'Family Tree',
+            detail?const .family.name ?? 'Family Tree',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontWeight: FontWeight.w600,
@@ -91,12 +92,12 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           labelColor: primaryColor,
           unselectedLabelColor: DKColors.textSecondary(context),
           indicatorColor: primaryColor,
-          indicatorSize: TabBarIndicatorSize.label,
+          indicatorSizconst e: TabBarIndicatorSize.label,
           labelStyle: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             fontWeight: FontWeight.w600,
-          ),
+          ),const 
           unselectedLabelStyle: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
@@ -168,9 +169,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: List.generate(
-            3,
+            3,const 
             (_) => Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              paddingconst : const EdgeInsets.symmetric(horizontal: 8),
               child: DKLoadingShimmer(width: 100, height: 40, radius: 12),
             ),
           ),
@@ -178,9 +179,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         const SizedBox(height: 24),
         // Member cards shimmer
         ...List.generate(
-          4,
+          4,const 
           (_) => Padding(
-            padding: const EdgeInsets.only(bottom: 10),
+            paddingconst : const EdgeInsets.only(bottom: 10),
             child: DKLoadingShimmer(
                 width: double.infinity, height: 64, radius: KinrelRadius.card),
           ),
@@ -202,10 +203,11 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
 // ── Graph Tab ──────────────────────────────────────────────────────
 
 class _GraphTab extends ConsumerWidget {
+  const _GraphTab({required this.detail, required this.familyId});
+
   final FamilyDetail detail;
   final String familyId;
 
-  const _GraphTab({required this.detail, required this.familyId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -373,10 +375,11 @@ class _GraphTab extends ConsumerWidget {
 // ── Members Tab ────────────────────────────────────────────────────
 
 class _MembersTab extends ConsumerStatefulWidget {
+  const _MembersTab({required this.detail, required this.familyId});
+
   final FamilyDetail detail;
   final String familyId;
 
-  const _MembersTab({required this.detail, required this.familyId});
 
   @override
   ConsumerState<_MembersTab> createState() => _MembersTabState();
@@ -563,10 +566,11 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
 // ── Activity Tab ───────────────────────────────────────────────────
 
 class _ActivityTab extends StatelessWidget {
+  const _ActivityTab({required this.detail, required this.familyId});
+
   final FamilyDetail detail;
   final String familyId;
 
-  const _ActivityTab({required this.detail, required this.familyId});
 
   @override
   Widget build(BuildContext context) {
@@ -600,7 +604,7 @@ class _ActivityTab extends StatelessWidget {
       if (a.timestamp == null && b.timestamp == null) return 0;
       if (a.timestamp == null) return 1;
       if (b.timestamp == null) return -1;
-      return b.timestamp!.compareTo(a.timestamp!);
+      return const b.timestamp!.compareTo(a.timestamp!);
     });
 
     if (activities.isEmpty) {
@@ -629,15 +633,16 @@ class _ActivityTab extends StatelessWidget {
 // ── Bottom Action Bar ──────────────────────────────────────────────
 
 class _BottomActionBar extends StatelessWidget {
-  final String familyId;
-  final String familyName;
-  final int memberCount;
-
   const _BottomActionBar({
     required this.familyId,
     required this.familyName,
     required this.memberCount,
   });
+
+  final String familyId;
+  final String familyName;
+  final int memberCount;
+
 
   @override
   Widget build(BuildContext context) {
@@ -693,15 +698,16 @@ class _BottomActionBar extends StatelessWidget {
 // ── Shared sub-widgets ─────────────────────────────────────────────
 
 class _ToolbarButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
   const _ToolbarButton({
     required this.icon,
     required this.tooltip,
     required this.onTap,
   });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
 
   @override
   Widget build(BuildContext context) {
@@ -733,17 +739,18 @@ class _ToolbarButton extends StatelessWidget {
 }
 
 class _QuickActionTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isDestructive;
-  final VoidCallback onTap;
-
   const _QuickActionTile({
     required this.icon,
     required this.label,
     this.isDestructive = false,
     required this.onTap,
   });
+
+  final IconData icon;
+  final String label;
+  final bool isDestructive;
+  final VoidCallback onTap;
+
 
   @override
   Widget build(BuildContext context) {
@@ -767,12 +774,6 @@ class _QuickActionTile extends StatelessWidget {
 }
 
 class _MemberCard extends StatelessWidget {
-  final Person person;
-  final String familyId;
-  final List<FamilyRelationship> relationships;
-  final int index;
-  final VoidCallback onTap;
-
   const _MemberCard({
     required this.person,
     required this.familyId,
@@ -780,6 +781,13 @@ class _MemberCard extends StatelessWidget {
     required this.index,
     required this.onTap,
   });
+
+  final Person person;
+  final String familyId;
+  final List<FamilyRelationship> relationships;
+  final int index;
+  final VoidCallback onTap;
+
 
   @override
   Widget build(BuildContext context) {
@@ -821,7 +829,7 @@ class _MemberCard extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: person.isDeceased
-                        ? DKColors.textSecondary(context)
+                        ? Dconst KColors.textSecondary(context)
                         : DKColors.textPrimary(context),
                   ),
                 ),
@@ -895,22 +903,24 @@ class _MemberCard extends StatelessWidget {
 enum _ActivityType { memberAdded, link, edit }
 
 class _ActivityItem {
-  final _ActivityType type;
-  final String description;
-  final DateTime? timestamp;
-
   const _ActivityItem({
     required this.type,
     required this.description,
     this.timestamp,
   });
+
+  final _ActivityType type;
+  final String description;
+  final DateTime? timestamp;
+
 }
 
 class _ActivityTile extends StatelessWidget {
+  const _ActivityTile({required this.activity, required this.index});
+
   final _ActivityItem activity;
   final int index;
 
-  const _ActivityTile({required this.activity, required this.index});
 
   @override
   Widget build(BuildContext context) {

@@ -199,16 +199,17 @@ final routerProvider = Provider<GoRouter>((ref) {
 
 /// Full-screen wrapper for AddPersonSheet
 class _AddPersonScreen extends ConsumerWidget {
+  const _AddPersonScreen({required this.familyId});
+
   final String familyId;
 
-  const _AddPersonScreen({required this.familyId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: Aconst ppBar(
         title: Text(
-          'Add Family Member',
+          'Add Faconst mily Member',
           style: TextStyle(
             fontFamily: 'Outfit',
             fontWeight: FontWeight.w600,
@@ -231,9 +232,10 @@ class _AddPersonScreen extends ConsumerWidget {
 
 /// Inline form for add person (full screen version)
 class _AddPersonForm extends ConsumerStatefulWidget {
+  const _AddPersonForm({required this.familyId});
+
   final String familyId;
 
-  const _AddPersonForm({required this.familyId});
 
   @override
   ConsumerState<_AddPersonForm> createState() => _AddPersonFormState();
@@ -259,8 +261,9 @@ class _AddPersonFormState extends ConsumerState<_AddPersonForm> {
 
 /// Shell that persists route for app resume
 class RoutePersistenceShell extends StatefulWidget {
-  final Widget child;
   const RoutePersistenceShell({super.key, required this.child});
+
+  final Widget child;
 
   @override
   State<RoutePersistenceShell> createState() => _RoutePersistenceShellState();
@@ -303,8 +306,9 @@ class _RoutePersistenceShellState extends State<RoutePersistenceShell>
 
 /// Main shell with 5-tab bottom navigation using DKBottomNav
 class MainShell extends StatelessWidget {
-  final Widget child;
   const MainShell({super.key, required this.child});
+
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {

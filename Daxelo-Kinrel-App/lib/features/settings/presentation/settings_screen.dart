@@ -33,7 +33,7 @@ class SettingsScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(KinrelSpacing.base),
         children: [
           // ── Account Section ──────────────────────────────────────
-          _SectionHeader(title: 'Account', index: 0),
+          const _SectionHeader(title: 'Account', index: 0),
           const SizedBox(height: 8),
 
           DKCard(
@@ -61,7 +61,7 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // ── Preferences Section ──────────────────────────────────
-          _SectionHeader(title: 'Preferences', index: 1),
+          const _SectionHeader(title: 'Preferences', index: 1),
           const SizedBox(height: 8),
 
           DKCard(
@@ -134,7 +134,7 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // ── Privacy Section ─────────────────────────────────────
-          _SectionHeader(title: 'Privacy', index: 2),
+          const _SectionHeader(title: 'Privacy', index: 2),
           const SizedBox(height: 8),
 
           DKCard(
@@ -165,7 +165,7 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // ── About Section ───────────────────────────────────────
-          _SectionHeader(title: 'About', index: 3),
+          const _SectionHeader(title: 'About', index: 3),
           const SizedBox(height: 8),
 
           DKCard(
@@ -173,7 +173,7 @@ class SettingsScreen extends ConsumerWidget {
             padding: 0,
             child: Column(
               children: [
-                _SettingsTile(
+                const _SettingsTile(
                   icon: Icons.info_outline,
                   title: 'App Version',
                   subtitle: '1.0.0',
@@ -296,7 +296,7 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                 ),
                 trailing: isSelected
-                    ? Icon(Icons.check_circle, color: DKColors.brandPurple)
+                    ? const Icon(Icons.check_circle, color: DKColors.brandPurple)
                     : null,
                 onTap: () {
                   ref.read(selectedLanguageProvider.notifier).state = lang;
@@ -451,16 +451,17 @@ class SettingsScreen extends ConsumerWidget {
 // ── Section Header ────────────────────────────────────────────────
 
 class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, required this.index});
+
   final String title;
   final int index;
-  const _SectionHeader({required this.title, required this.index});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Text(
-        title.toUpperCase(),
+        title.tconst oUpperCase(),
         style: TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 12,
@@ -481,14 +482,6 @@ class _SectionHeader extends StatelessWidget {
 // ── Settings Tile ─────────────────────────────────────────────────
 
 class _SettingsTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final Color? titleColor;
-  final Color color;
-  final Widget? trailing;
-  final VoidCallback? onTap;
-
   const _SettingsTile({
     required this.icon,
     required this.title,
@@ -498,6 +491,15 @@ class _SettingsTile extends StatelessWidget {
     this.trailing,
     this.onTap,
   });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final Color? titleColor;
+  final Color color;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
 
   @override
   Widget build(BuildContext context) {

@@ -42,7 +42,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   Future<void> _initialize() async {
     // Preload kinship data in the background (5300+ terms, ~15MB JSON)
     // Don't await — let it load while splash shows
-    ref.read(kinshipInitializedProvider.future).catchError((_) {});
+    unawaited(ref.read(kinshipInitializedProvider.future).catchError((_) {});)
 
     // Shorter splash for better UX — 1.5s is enough for branding
     await Future.delayed(const Duration(milliseconds: 1500));
@@ -141,7 +141,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     boxShadow: [
-                      BoxShadow(
+                      const BoxShadow(
                         color: KinrelColors.purpleGlow,
                         blurRadius: 40,
                         spreadRadius: 8,
@@ -153,7 +153,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       ),
                     ],
                   ),
-                  child: KinrelIcon(
+                  child: const KinrelIcon(
                     size: 96,
                     palette: KinrelIconPalette.mono,
                     animated: true,
@@ -178,7 +178,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     color: KinrelColors.textWhite,
                     letterSpacing: -0.5,
                     shadows: [
-                      Shadow(
+                      const Shadow(
                         color: KinrelColors.purpleGlow,
                         blurRadius: 20,
                       ),
@@ -192,9 +192,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 const SizedBox(height: 12),
 
                 // ── Tagline ────────────────────────────────────────────
-                Text(
+                const Text(
                   AppConfig.appTagline,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     color: KinrelColors.textSilver,

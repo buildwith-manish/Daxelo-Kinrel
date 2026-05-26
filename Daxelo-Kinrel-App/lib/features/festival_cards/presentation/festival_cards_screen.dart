@@ -93,7 +93,7 @@ class _FestivalCardsScreenState extends ConsumerState<FestivalCardsScreen> {
                       cardsState.selectedFestival != null
                           ? cardsState.selectedFestival!.name
                           : 'Festival Cards',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
@@ -154,7 +154,7 @@ class _FestivalCardsScreenState extends ConsumerState<FestivalCardsScreen> {
                       Expanded(
                         child: Text(
                           cardsState.error!,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 13,
                             color: KinrelColors.error,
@@ -175,13 +175,14 @@ class _FestivalCardsScreenState extends ConsumerState<FestivalCardsScreen> {
 // ── Festival Grid ───────────────────────────────────────────────
 
 class _FestivalGrid extends StatelessWidget {
-  final AsyncValue<List<FestivalTemplate>> templatesAsync;
-  final Color Function(String) festivalColorProvider;
-
   const _FestivalGrid({
     required this.templatesAsync,
     required this.festivalColorProvider,
   });
+
+  final AsyncValue<List<FestivalTemplate>> templatesAsync;
+  final Color Function(String) festivalColorProvider;
+
 
   @override
   Widget build(BuildContext context) {
@@ -219,10 +220,10 @@ class _FestivalGrid extends StatelessWidget {
             borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
           ),
         ),
-      ),
-      error: (_, __) => Center(
+      ),const 
+      error: (_const , __) => Center(
         child: Text(
-          'Failed to load templates',
+          'Failedconst  to load templates',
           style: TextStyle(
             color: KinrelColors.textDim,
             fontFamily: KinrelTypography.bodyFont,
@@ -234,13 +235,14 @@ class _FestivalGrid extends StatelessWidget {
 }
 
 class _FestivalCard extends ConsumerWidget {
-  final FestivalTemplate template;
-  final Color festivalColor;
-
   const _FestivalCard({
     required this.template,
     required this.festivalColor,
   });
+
+  final FestivalTemplate template;
+  final Color festivalColor;
+
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -277,7 +279,7 @@ class _FestivalCard extends ConsumerWidget {
             const SizedBox(height: 12),
 
             // Festival name
-            Text(
+            Text(const 
               template.name,
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -308,15 +310,16 @@ class _FestivalCard extends ConsumerWidget {
 // ── Customization Form ──────────────────────────────────────────
 
 class _CustomizationForm extends ConsumerStatefulWidget {
-  final TextEditingController kinshipTermController;
-  final TextEditingController relationshipKeyController;
-  final Color festivalColor;
-
   const _CustomizationForm({
     required this.kinshipTermController,
     required this.relationshipKeyController,
     required this.festivalColor,
   });
+
+  final TextEditingController kinshipTermController;
+  final TextEditingController relationshipKeyController;
+  final Color festivalColor;
+
 
   @override
   ConsumerState<_CustomizationForm> createState() =>
@@ -359,12 +362,12 @@ class _CustomizationFormState extends ConsumerState<_CustomizationForm>
               borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
             ),
             indicatorSize: TabBarIndicatorSize.tab,
-            dividerColor: Colors.transparent,
+            dividerColorconst : Colors.transparent,
             labelColor: KinrelColors.textWhite,
             unselectedLabelColor: KinrelColors.textDim,
             labelStyle: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
-              fontSize: 13,
+              fontSize: 13,const 
               fontWeight: FontWeight.w600,
             ),
             unselectedLabelStyle: TextStyle(
@@ -403,13 +406,14 @@ class _CustomizationFormState extends ConsumerState<_CustomizationForm>
 }
 
 class _FestivalCardForm extends ConsumerWidget {
-  final TextEditingController kinshipTermController;
-  final Color festivalColor;
-
   const _FestivalCardForm({
     required this.kinshipTermController,
     required this.festivalColor,
   });
+
+  final TextEditingController kinshipTermController;
+  final Color festivalColor;
+
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -452,9 +456,9 @@ class _FestivalCardForm extends ConsumerWidget {
               ),
             ),
           ),
-
+const 
           const SizedBox(height: KinrelSpacing.xl),
-
+const 
           // Kinship term input
           Text(
             'Kinship Term',
@@ -467,7 +471,7 @@ class _FestivalCardForm extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           TextField(
-            controller: kinshipTermController,
+            controller: kconst inshipTermController,
             style: const TextStyle(color: KinrelColors.textWhite),
             decoration: InputDecoration(
               hintText: 'e.g., Chacha, Bua, Mami...',
@@ -484,9 +488,9 @@ class _FestivalCardForm extends ConsumerWidget {
             ),
             onChanged: (value) => notifier.setKinshipTermInput(value),
           ),
-
+const 
           const SizedBox(height: KinrelSpacing.lg),
-
+const 
           // Language picker
           Text(
             'Language',
@@ -502,9 +506,9 @@ class _FestivalCardForm extends ConsumerWidget {
             selectedLanguage: cardsState.selectedLanguage,
             onLanguageChanged: (lang) => notifier.setLanguage(lang),
           ),
-
+const 
           const SizedBox(height: KinrelSpacing.lg),
-
+const 
           // Style picker
           Text(
             'Card Style',
@@ -538,9 +542,9 @@ class _FestivalCardForm extends ConsumerWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius:
                       BorderRadius.circular(KinrelSpacing.radiusMd),
-                ),
+                ),const 
                 disabledBackgroundColor:
-                    festivalColor.withValues(alpha: 0.3),
+                    fesconst tivalColor.withValues(alpha: 0.3),
               ),
               child: Text(
                 'Generate Festival Card',
@@ -559,13 +563,14 @@ class _FestivalCardForm extends ConsumerWidget {
 }
 
 class _KinshipCardForm extends ConsumerWidget {
-  final TextEditingController relationshipKeyController;
-  final Color festivalColor;
-
   const _KinshipCardForm({
     required this.relationshipKeyController,
     required this.festivalColor,
   });
+
+  final TextEditingController relationshipKeyController;
+  final Color festivalColor;
+
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -586,10 +591,10 @@ class _KinshipCardForm extends ConsumerWidget {
               borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
               border: Border.all(
                   color: KinrelColors.darkSurface.withValues(alpha: 0.3)),
-            ),
-            child: Row(
+            ),const 
+            child: Row(const 
               children: [
-                Icon(Icons.info_outline, color: festivalColor, size: 20),
+                Icon(Icons.const info_outline, color: festivalColor, size: 20),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -604,9 +609,9 @@ class _KinshipCardForm extends ConsumerWidget {
                 ),
               ],
             ),
-          ),
+          const ),
 
-          const SizedBox(height: KinrelSpacing.xl),
+          const Sizconst edBox(height: KinrelSpacing.xl),
 
           // Relationship key input
           Text(
@@ -619,7 +624,7 @@ class _KinshipCardForm extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 8),
-          TextField(
+          TextField(const 
             controller: relationshipKeyController,
             style: const TextStyle(color: KinrelColors.textWhite),
             decoration: InputDecoration(
@@ -636,9 +641,9 @@ class _KinshipCardForm extends ConsumerWidget {
                   Icon(Icons.link, color: festivalColor, size: 20),
             ),
             onChanged: (value) => notifier.setRelationshipKeyInput(value),
-          ),
+          const ),
 
-          const SizedBox(height: KinrelSpacing.lg),
+          const Sizconst edBox(height: KinrelSpacing.lg),
 
           // Language picker
           Text(
@@ -654,9 +659,9 @@ class _KinshipCardForm extends ConsumerWidget {
           _LanguageDropdown(
             selectedLanguage: cardsState.selectedLanguage,
             onLanguageChanged: (lang) => notifier.setLanguage(lang),
-          ),
+          const ),
 
-          const SizedBox(height: KinrelSpacing.lg),
+          const Sizconst edBox(height: KinrelSpacing.lg),
 
           // Style picker
           Text(
@@ -690,9 +695,9 @@ class _KinshipCardForm extends ConsumerWidget {
                 foregroundColor: KinrelColors.darkBackground,
                 shape: RoundedRectangleBorder(
                   borderRadius:
-                      BorderRadius.circular(KinrelSpacing.radiusMd),
+                     const  BorderRadius.circular(KinrelSpacing.radiusMd),
                 ),
-                disabledBackgroundColor:
+                disableconst dBackgroundColor:
                     festivalColor.withValues(alpha: 0.3),
               ),
               child: Text(
@@ -714,13 +719,14 @@ class _KinshipCardForm extends ConsumerWidget {
 // ── Language Dropdown ───────────────────────────────────────────
 
 class _LanguageDropdown extends StatelessWidget {
-  final SupportedLanguage selectedLanguage;
-  final ValueChanged<SupportedLanguage> onLanguageChanged;
-
   const _LanguageDropdown({
     required this.selectedLanguage,
     required this.onLanguageChanged,
   });
+
+  final SupportedLanguage selectedLanguage;
+  final ValueChanged<SupportedLanguage> onLanguageChanged;
+
 
   @override
   Widget build(BuildContext context) {
@@ -730,7 +736,7 @@ class _LanguageDropdown extends StatelessWidget {
         color: KinrelColors.darkElevated,
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
       ),
-      child: DropdownButtonHideUnderline(
+      child: Dropconst downButtonHideUnderline(
         child: DropdownButton<SupportedLanguage>(
           value: selectedLanguage,
           isExpanded: true,
@@ -759,15 +765,16 @@ class _LanguageDropdown extends StatelessWidget {
 // ── Style Picker ────────────────────────────────────────────────
 
 class _StylePicker extends StatelessWidget {
-  final CardStyle selectedStyle;
-  final ValueChanged<CardStyle> onStyleChanged;
-  final Color festivalColor;
-
   const _StylePicker({
     required this.selectedStyle,
     required this.onStyleChanged,
     required this.festivalColor,
   });
+
+  final CardStyle selectedStyle;
+  final ValueChanged<CardStyle> onStyleChanged;
+  final Color festivalColor;
+
 
   @override
   Widget build(BuildContext context) {
@@ -817,9 +824,10 @@ class _StylePicker extends StatelessWidget {
 // ── Generating View ─────────────────────────────────────────────
 
 class _GeneratingView extends StatefulWidget {
+  const _GeneratingView({this.festival});
+
   final FestivalTemplate? festival;
 
-  const _GeneratingView({this.festival});
 
   @override
   State<_GeneratingView> createState() => _GeneratingViewState();
@@ -870,9 +878,9 @@ class _GeneratingViewState extends State<_GeneratingView>
           const SizedBox(
             width: 200,
             child: LinearProgressIndicator(
-              color: KinrelColors.purple,
+          const     color: KinrelColors.purple,
               backgroundColor: KinrelColors.darkSurface,
-              borderRadius: BorderRadius.all(Radius.circular(4)),
+              bordeconst rRadius: BorderRadius.all(Radius.circular(4)),
             ),
           ),
 
@@ -882,9 +890,9 @@ class _GeneratingViewState extends State<_GeneratingView>
             'Creating your card...',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
-              fontSize: 18,
+          const     fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: KinrelColors.textWhite,
+              colorconst : KinrelColors.textWhite,
             ),
           ),
 
@@ -907,11 +915,6 @@ class _GeneratingViewState extends State<_GeneratingView>
 // ── Card Preview View ───────────────────────────────────────────
 
 class _CardPreviewView extends StatelessWidget {
-  final String imageBase64;
-  final String? festival;
-  final String? kinshipTerm;
-  final VoidCallback onBack;
-
   const _CardPreviewView({
     required this.imageBase64,
     this.festival,
@@ -919,10 +922,16 @@ class _CardPreviewView extends StatelessWidget {
     required this.onBack,
   });
 
+  final String imageBase64;
+  final String? festival;
+  final String? kinshipTerm;
+  final VoidCallback onBack;
+
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
+      padding: cconst onst EdgeInsets.all(KinrelSpacing.base),
       child: Column(
         children: [
           // Card image
@@ -950,9 +959,9 @@ class _CardPreviewView extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: KinrelColors.darkCard,
                       borderRadius:
-                          BorderRadius.circular(KinrelSpacing.radiusLg),
+                        const   BorderRadius.circular(KinrelSpacing.radiusLg),
                     ),
-                    child: Column(
+                    child: Columnconst (
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.image,
@@ -962,7 +971,7 @@ class _CardPreviewView extends StatelessWidget {
                         Text(
                           'Card generated successfully',
                           style: TextStyle(
-                            fontFamily: KinrelTypography.bodyFont,
+                            fontFamconst ily: KinrelTypography.bodyFont,
                             fontSize: 16,
                             color: KinrelColors.textSilver,
                           ),
