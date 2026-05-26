@@ -260,7 +260,7 @@ class _Header extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              '$familconst yCount',
+              '$familyCount',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 13,
@@ -328,7 +328,7 @@ class _JoinFamilyCard extends StatelessWidget {
                     ),
                   ),
                 ],
-            const   ),
+            ,
             ),
             Icon(Icons.arrow_forward_ios_rounded,
                 size: 16, color: DKColors.brandGold),

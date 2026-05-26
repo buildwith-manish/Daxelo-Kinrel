@@ -366,8 +366,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
                 border: Border.all(
                   color: DKColors.brandPurple.withValues(alpha: 0.2),
                   width: 2,
-                ),const 
-              ),
+                ),),
               child: Icon(
                 Icons.family_restroom_rounded,
                 size: 36,
@@ -461,9 +460,9 @@ class _Step1FamilyIdentity extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              GestureDeconst tector(
+              GestureDetector(
                 onTap: onEditCode,
-                child: Teconst xt(
+                child: Text(
                   'Edit',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -978,7 +977,7 @@ class _PrivacyCard extends StatelessWidget {
                     fontSize: 12,
                     color: DKColors.textSecondary(context),
                     height: 1.4,
-            const       ),
+            ,
                 ),
               ],
             ),
@@ -1015,7 +1014,7 @@ class _LanguageDropdown extends StatelessWidget {
             color: DKColors.brandPurple.withValues(alpha: 0.1)),
       ),
       child: DropdownButtonHideUnderline(
-        child: Dconst ropdownButton<SupportedLanguage>(
+        child: DropdownButton<SupportedLanguage>(
           value: selectedLanguage,
           hint: Text(
             'Select language',
@@ -1084,7 +1083,7 @@ class _RegionDropdown extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: DKColors.elevatedColor(context),
-        borderRaconst dius: BorderRadius.circular(KinrelRadius.input),
+        borderRadius: BorderRadius.circular(KinrelRadius.input),
         border: Border.all(
             color: DKColors.brandPurple.withValues(alpha: 0.1)),
       ),

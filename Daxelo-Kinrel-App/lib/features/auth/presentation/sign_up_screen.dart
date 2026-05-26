@@ -628,24 +628,22 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             child: ElevatedButton(
                               onPressed: _isLoading ? null : _signUp,
                               style: ElevatedButton.styleFrom(
-                                backconst groundColor: Colors.transparent,
+                                backgroundColor: Colors.transparent,
                                 foregroundColor: Colors.white,
                                 disabledBackgroundColor: Colors.transparent,
                                 disabledForegroundColor:
-                                    Coloconst rs.white.withValues(alpha: 0.5),
+                                    Colors.white.withValues(alpha: 0.5),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(
                                       KinrelRadius.button),
-                                ),const 
-                                elevation: 0,
+                                ),const elevation: 0,
                               ),
                               child: _isLoading
                                   ? Row(
                                       mainAxisAlignment:
-                                        const   MainAxisAlignment.center,
+                                        const MainAxisAlignment.center,
                                       children: [
-                                        SizedBox(const 
-                                          height: 20,
+                                        SizedBox(const height: 20,
                                           width: 20,
                                           child:
                                               CircularProgressIndicator(
@@ -653,9 +651,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                             color: Colors.white,
                                           ),
                                         ),
-                                    const     const SizedBox(width: 12),
+                                    const const SizedBox(width: 12),
                                         Text(
-                                          'Crconst eating account...',
+                                          'Creating account...',
                                           style: TextStyle(
                                             fontFamily:
                                                 KinrelTypography.displayFont,

@@ -567,7 +567,7 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
                         ? LinearGradient(
                             colors: [
                               DKColors.brandPurple.withValues(alpha: 0.15),
-                          const     DKColors.brandViolet.withValues(alpha: 0.08),
+                          const DKColors.brandViolet.withValues(alpha: 0.08),
                             ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
@@ -658,12 +658,9 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
                                         label: 'Links',
                                         color: const DKColors.brandViolet,
                                       ),
-                                    ],const 
-                                  );const 
-                                },
+                                    ],);const },
                                 loading: () => SizedBox(
-                                  height: 28,const 
-                                  child: Center(
+                                  height: 28,const child: Center(
                                     child: SizedBox(
                                       width: 20,
                                       height: 20,
@@ -1000,8 +997,8 @@ class _YourFamiliesSection extends StatelessWidget {
                     child: Text('${families.length}',
                         style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
-                       const    fontSize: 11,
-                          fconst ontWeight: FontWeight.w600,
+                       const fontSize: 11,
+                          fontWeight: FontWeight.w600,
                           color: DKColors.brandPurple,
                         )),
                   ),

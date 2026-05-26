@@ -78,7 +78,7 @@ class PersonDetailSheet extends ConsumerWidget {
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              gradieconst nt: person.isDeceased
+              gradient: person.isDeceased
                   ? LinearGradient(
                       colors: [
                         KinrelColors.textDim,
@@ -90,7 +90,7 @@ class PersonDetailSheet extends ConsumerWidget {
             ),
             child: Center(
               child: Text(
-                person.const name.isNotEmpty ? person.name[0].toUpperCase() : '?',
+                person.name.isNotEmpty ? person.name[0].toUpperCase() : '?',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 28,
@@ -130,7 +130,7 @@ class PersonDetailSheet extends ConsumerWidget {
             if (nativeTranslation != null) ...[
               const SizedBox(height: 2),
               Text(
-                nativeTconst ranslation,
+                nativeTranslation,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
@@ -212,7 +212,7 @@ class PersonDetailSheet extends ConsumerWidget {
                   icon: const Icon(Icons.delete_outline, size: 18),
                   label: const Text('Delete'),
                   style: OutlinedButton.styleFrom(
-                    foregrconst oundColor: KinrelColors.error,
+                    foregroundColor: KinrelColors.error,
                     side: BorderSide(color: KinrelColors.error),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
@@ -240,14 +240,13 @@ class PersonDetailSheet extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: KinrelColors.darkElevated,
         title: Text(
-          'Deleteconst  ${person.name}?',
+          'Delete ${person.name}?',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             color: KinrelColors.textWhite,
           ),
-        ),const 
-        content: Text(
-          'This pconst erson will be removed from the family tree. This action cannot be undone.',
+        ),const content: Text(
+          'This person will be removed from the family tree. This action cannot be undone.',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             color: KinrelColors.textSilver,
@@ -255,9 +254,9 @@ class PersonDetailSheet extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-            onPressconst ed: () => Navigator.of(ctx).pop(),
+            onPressed: () => Navigator.of(ctx).pop(),
             child: Text(
-              'Cancelconst ',
+              'Cancel',
               style: TextStyle(color: KinrelColors.textSilver),
             ),
           ),
@@ -284,8 +283,7 @@ class PersonDetailSheet extends ConsumerWidget {
                   );
                 }
               }
-            },const 
-            child: Text(
+            },const child: Text(
               'Deleteconst ',
               style: TextStyle(color: KinrelColors.error),
             ),
@@ -322,8 +320,7 @@ class _DetailRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(const 
-                  label,
+                Text(const label,
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11,

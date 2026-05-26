@@ -245,9 +245,8 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
               },
               filters: _filters,
             ),
-          const ),
-const 
-        // Empty state
+          ,
+const // Empty state
         if (activeMembers.isEmpty)
           Center(
             child: DKEmptyState(
@@ -487,8 +486,7 @@ class _LanguageSelectorButton extends StatelessWidget {
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
-        ],const 
-      ),
+        ],),
       child: IconButton(
         padding: EdgeInsets.zero,
         icon: Icon(Icons.language, color: DKColors.brandPurple, size: 18),
@@ -1083,7 +1081,7 @@ class _TreePainter extends CustomPainter {
         return DKColors.brandViolet.withValues(alpha: 0.4);
       case NodeLineage.self:
         return DKColors.brandPurple.withValues(alpha: 0.6);
-      case Noconst deLineage.none:
+      case NodeLineage.none:
         return DKColors.brandPurple.withValues(alpha: 0.15);
     }
   }

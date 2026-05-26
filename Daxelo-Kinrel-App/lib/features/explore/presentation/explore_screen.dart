@@ -340,11 +340,8 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     onTap: () => context.push('/family/${item.familyId}'),
                   )),
             ],
-          ]),const 
-        );const 
-      },const 
-      loading: () => SliverToBoxAdapter(
-        child: Centconst er(
+          ]),);const },const loading: () => SliverToBoxAdapter(
+        child: Center(
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 40),
             child: DKLoadingShimmer(width: 200, height: 16),
@@ -528,7 +525,7 @@ class _GradientSearchSection extends StatelessWidget {
                   onTap: () => focusNode.requestFocus(),
                   child: Container(
                     padding: const EdgeInsets.all(8),
-                    decoratconst ion: BoxDecoration(
+                    decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: DKColors.brandPurple.withValues(alpha: 0.1),
                     ),
@@ -595,8 +592,7 @@ class _SectionHeader extends StatelessWidget {
                 color: DKColors.brandPurple,
               ),
             ),
-          ),const 
-          const Spacer(),
+          ),const const Spacer(),
           if (onSeeAll const != null)
             GestureDetector(
               onTap: onSeeAll,
@@ -1006,8 +1002,8 @@ class _FamiliesQuickLinks extends ConsumerWidget {
                             style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 11,
-                           const    fontWeight: FontWeight.w600,
-                              cconst olor: DKColors.brandPurple,
+                           const fontWeight: FontWeight.w600,
+                              color: DKColors.brandPurple,
                             )),
                       ),
                     ],
@@ -1101,8 +1097,7 @@ class _FamilyQuickLink extends ConsumerWidget {
                   error: (_, __) => Text('...',
                       style: TextStyle(color: DKColors.textSecondary(context))),
                 ),
-              ],const 
-            ),
+              ],),
           ),
           Container(
             padding: const EdgeInsets.all(4),

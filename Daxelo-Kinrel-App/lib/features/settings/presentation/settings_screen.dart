@@ -461,7 +461,7 @@ class _SectionHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Text(
-        title.tconst oUpperCase(),
+        title.toUpperCase(),
         style: TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 12,

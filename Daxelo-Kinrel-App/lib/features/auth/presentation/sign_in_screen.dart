@@ -362,19 +362,18 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                               disabledBackgroundColor:
                                   buttonColor.withValues(alpha: 0.5),
                               shape: RoundedRectangleBorder(
-                                boconst rderRadius: BorderRadius.circular(
+                                borderRadius: BorderRadius.circular(
                                     KinrelRadius.button),
                               ),
-                              elevatioconst n: 0,
+                              elevation: 0,
                             ),
                             child: _isLoading
-                                ? Row(const 
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                                ? Row(const mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       SizedBox(
                                         height: 20,
                                         width: 20,
-                                      const   child: CircularProgressIndicator(
+                                      const child: CircularProgressIndicator(
                                           strokeWidth: 2,
                                           colorconst : Colors.white,
                                         ),
@@ -385,10 +384,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                         style: TextStyle(
                                           fontFamily:
                                               KinrelTypography.displayFont,
-                                  const         fontWeight: FontWeight.w600,
+                                  const fontWeight: FontWeight.w600,
                                           fontSize: 16,
-                                        ),const 
-                                      ),
+                                        ),),
                                     ],
                                   )
                                 : Text(

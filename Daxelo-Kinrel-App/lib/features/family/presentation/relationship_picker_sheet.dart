@@ -198,7 +198,7 @@ class _RelationshipPickerSheetState
                     widget.personBName != null) ...[
                   const SizedBox(height: 4),
                   Text(
-                    'How isconst  ${widget.personBName} related to ${widget.personAName}?',
+                    'How is ${widget.personBName} related to ${widget.personAName}?',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
@@ -228,19 +228,19 @@ class _RelationshipPickerSheetState
             ),
             child: TextField(
               controller: _searchController,
-              onChangconst ed: (v) => setState(() => _query = v),
+              onChanged: (v) => setState(() => _query = v),
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 15,
                 color: KinrelColors.textWhite,
               ),
               decoration: InputDecoration(
-                hintText: 'const Search kinship terms...',
+                hintText: 'Search kinship terms...',
                 hintStyle: TextStyle(color: KinrelColors.textDim),
-                prefconst ixIcon:
+                prefixIcon:
                     Icon(Icons.search, color: KinrelColors.purple, size: 20),
                 suffixIcon: _query.isNotEmpty
-                    ? IconButtconst on(
+                    ? IconButton(
                         icon: Icon(Icons.clear,
                             color: KinrelColors.textDim, size: 18),
                         onPressed: () {
@@ -312,7 +312,7 @@ class _RelationshipPickerSheetState
       ),
       children: [
         // Common relationships section
-        ifconst  (availableQuickKeys.isNotEmpty) ...[
+        if (availableQuickKeys.isNotEmpty) ...[
           _SectionHeader(title: 'Common Relationships'),
           const SizedBox(height: 4),
           Wrap(
@@ -367,15 +367,14 @@ class _RelationshipPickerSheetState
     return searchAsync.when(
       loading: () => const Center(
         child: CircularProgressIndicator(color: KinrelColors.purple),
-      ),const 
-      error: (econst , _) => Center(
+      ),const error: (e, _) => Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          chconst ildren: [
+          children: [
             Icon(Icons.search_off, size: 48, color: KinrelColors.textDim),
             const SizedBox(height: 12),
             Text(
-              'Searchconst  failed',
+              'Search failed',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 color: KinrelColors.textDim,
@@ -389,11 +388,11 @@ class _RelationshipPickerSheetState
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
-              chconst ildren: [
+              children: [
                 Icon(Icons.search_off, size: 48, color: KinrelColors.textDim),
                 const SizedBox(height: 12),
                 Text(
-                  'No relconst ationships found for "$_query"',
+                  'No relationships found for "$_query"',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     color: KinrelColors.textDim,
@@ -471,7 +470,7 @@ class _QuickChip extends StatelessWidget {
               color: KinrelColors.purple.withValues(alpha: 0.3),
             ),
           ),
-          child: Teconst xt(
+          child: Text(
             label,
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -520,7 +519,7 @@ class _SuggestionChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(genderIcon, size: 14, color: KinrelColors.amber),
-              const Sizconst edBox(width: 6),
+              const SizedBox(width: 6),
               Text(
                 label,
                 style: TextStyle(
@@ -579,7 +578,7 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Paddconst ing(
+    return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 4),
       child: Text(
         title.toUpperCase(),
@@ -633,7 +632,7 @@ class _CategoryTile extends StatelessWidget {
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11,
-          const       color: KinrelColors.textDim,
+          const color: KinrelColors.textDim,
               ),
             ),
           ),
@@ -678,8 +677,7 @@ class _ContextualRelationshipTile extends StatelessWidget {
           color: _genderFgColor(relationship.gender),
           size: 20,
         ),
-      ),const 
-      title: Row(
+      ),const title: Row(
         children: [
           Expanded(
             child: Text(
@@ -709,15 +707,14 @@ class _ContextualRelationshipTile extends StatelessWidget {
                   letterSpacing: 0.3,
                 ),
               ),
-            ),const 
-        ],
+            ),const ],
       ),
       subtitle: nativeTranslation != null
           ? Text(
               nativeTranslation.native,
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
-                fontSconst ize: 12,
+                fontSize: 12,
                 color: KinrelColors.textDim,
               ),
             )

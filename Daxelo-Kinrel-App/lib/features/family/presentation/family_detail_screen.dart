@@ -52,16 +52,15 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
-        title: detailAsynconst c.when(
+        title: detailAsync.when(
           loading: () => Text(
-            'Familyconst  Tree',
+            'Family Tree',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontWeight: FontWeight.w600,
             ),
-          ),const 
-          error: (_, __) => Text(
-            'Familyconst  Tree',
+          ),const error: (_, __) => Text(
+            'Family Tree',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontWeight: FontWeight.w600,
@@ -92,13 +91,12 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           labelColor: primaryColor,
           unselectedLabelColor: DKColors.textSecondary(context),
           indicatorColor: primaryColor,
-          indicatorSizconst e: TabBarIndicatorSize.label,
+          indicatorSize: TabBarIndicatorSize.label,
           labelStyle: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             fontWeight: FontWeight.w600,
-          ),const 
-          unselectedLabelStyle: TextStyle(
+          ),const unselectedLabelStyle: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             fontWeight: FontWeight.w500,
@@ -169,8 +167,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: List.generate(
-            3,const 
-            (_) => Padding(
+            3,const (_) => Padding(
               paddingconst : const EdgeInsets.symmetric(horizontal: 8),
               child: DKLoadingShimmer(width: 100, height: 40, radius: 12),
             ),
@@ -179,8 +176,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         const SizedBox(height: 24),
         // Member cards shimmer
         ...List.generate(
-          4,const 
-          (_) => Padding(
+          4,const (_) => Padding(
             paddingconst : const EdgeInsets.only(bottom: 10),
             child: DKLoadingShimmer(
                 width: double.infinity, height: 64, radius: KinrelRadius.card),

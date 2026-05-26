@@ -210,7 +210,7 @@ class _EmptyState extends ConsumerWidget {
             const SizedBox(height: 20),
             Text(
               'Ask me about Indian\nkinship terms',
-              textAliconst gn: TextAlign.center,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 22,
@@ -222,7 +222,7 @@ class _EmptyState extends ConsumerWidget {
             const SizedBox(height: 8),
             Text(
               'I can help you understand family\nrelationships in 15 Indian languages',
-              textAliconst gn: TextAlign.center,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
@@ -306,8 +306,7 @@ class _SuggestionChip extends StatelessWidget {
           border: Border.all(
             color: KinrelColors.purple.withValues(alpha: 0.3),
           ),
-        ),const 
-        child: Text(
+        ),const child: Text(
           text,
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -430,8 +429,7 @@ class _ChatBubble extends StatelessWidget {
             ),
 
           // Timestamp
-          Padding(const 
-            padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+          Padding(const padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
             child: Text(
               _formatTime(message.timestamp),
               style: TextStyle(
@@ -500,7 +498,7 @@ class _KinshipCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Columnconst (
+                child: Column (
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -568,9 +566,7 @@ class _KinshipCard extends StatelessWidget {
                 color: KinrelColors.ember,
               ),
             ],
-          ),const 
-
-          // Translatconst ions
+          ),const // Translations
           if (data.translations.isNotEmpty) ...[
             const SizedBox(height: 12),
             Text(
@@ -598,8 +594,7 @@ class _KinshipCard extends StatelessWidget {
                       color: KinrelColors.darkSurface.withValues(alpha: 0.6),
                     ),
                   ),
-                  child: Row(const 
-                    mainAxisSize: MainAxisSize.min,
+                  child: Row(const mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         entry.key.toUpperCase(),
@@ -609,8 +604,7 @@ class _KinshipCard extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                           color: KinrelColors.purple,
                           letterSpacing: 0.3,
-                        ),const 
-                      ),
+                        ),),
                       const SizedBox(width: 6),
                       Text(
                         entry.value.native,
@@ -798,14 +792,14 @@ class _InputBar extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: KinrelColors.darkElevated,
                   borderRadius: BorderRadius.circular(24),
-                  border:const  Border.all(
+                  border: Border Border.all(
                     color: KinrelColors.darkSurface.withValues(alpha: 0.6),
                   ),
                 ),
                 child: TextField(
                   controller: const controller,
                   focusNode: focusNode,
-                  style: TextStconst yle(
+                  style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     color: KinrelColors.textWhite,
@@ -848,11 +842,10 @@ class _InputBar extends StatelessWidget {
                       : [
                           BoxShadow(
                             color: KinrelColors.purple
-                      const           .withValues(alpha: 0.3),
+                      const .withValues(alpha: 0.3),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
-                          ),const 
-                        ],
+                          ),const ],
                 ),
                 child: isLoading
                     ? SizedBox(

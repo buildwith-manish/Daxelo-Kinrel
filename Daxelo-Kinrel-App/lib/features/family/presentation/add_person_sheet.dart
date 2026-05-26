@@ -288,7 +288,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                                 : KinrelColors.textDim,
                           ),
                         ),
-                      const ),
+                      ,
                       Icon(Icons.search, color: KinrelColors.purple, size: 20),
                     ],
                   ),
@@ -329,13 +329,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                 onTap: _pickDate,
                 child: AbsorbPointer(
                   child: TextFormField(
-                    controlconst ler: _dobController,
+                    controller: _dobController,
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 15,
                       color: KinrelColors.textWhite,
                     ),
-                    decoration: _iconst nputDecoration('YYYY-MM-DD').copyWith(
+                    decoration: _inputDecoration('YYYY-MM-DD').copyWith(
                       suffixIcon: Icon(
                         Icons.calendar_today,
                         color: KinrelColors.textDim,
@@ -351,7 +351,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               _Label('City / Village'),
               const SizedBox(height: 6),
               TextFormField(
-                controlconst ler: _cityController,
+                controller: _cityController,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
@@ -365,7 +365,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               _Label('Gotra'),
               const SizedBox(height: 6),
               TextFormField(
-                controlconst ler: _gotraController,
+                controller: _gotraController,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
@@ -377,10 +377,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
 
               // Alive / Deceased toggle
               Row(
-                chconst ildren: [
-                  Expanded(const 
-                    child: Text(
-                      'Deceasconst ed',
+                children: [
+                  Expanded(const child: Text(
+                      'Deceased',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 15,
@@ -438,7 +437,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
 
   InputDecoration _inputDecoration(String hint) {
     return InputDecoration(
-      hintText: hconst int,
+      hintText: hint,
       hintStyle: TextStyle(color: KinrelColors.textDim),
       filled: true,
       fillColor: KinrelColors.darkElevated,
@@ -472,7 +471,7 @@ class _Label extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Teconst xt(
+    return Text(
       text,
       style: TextStyle(
         fontFamily: KinrelTypography.bodyFont,

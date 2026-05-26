@@ -79,8 +79,6 @@ class KinshipRelationship {
 
 /// Root JSON structure
 class KinshipData {
-  factory KinshipData.fromJson(Map<String, dynamic> json) {
-
   final String version;
   final String generatedAt;
   final int totalRelationships;
@@ -97,6 +95,7 @@ class KinshipData {
     required this.relationships,
   });
 
+  factory KinshipData.fromJson(Map<String, dynamic> json) {
     // Parse translations: { "fathers_sister": { "hindi": { "native": "...", "latin": "..." }, ... }, ... }
     final translationsRaw = json['translations'] as Map<String, dynamic>? ?? {};
     final translations = <String, Map<String, KinshipTranslation>>{};

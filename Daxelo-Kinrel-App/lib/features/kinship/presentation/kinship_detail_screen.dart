@@ -348,7 +348,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Tap toconst  view',
+                              'Tap to view',
                               style: TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 11,
@@ -370,14 +370,13 @@ class KinshipDetailScreen extends ConsumerWidget {
         },
         loading: () => ListView(
           padding: const EdgeInsets.all(KinrelSpacing.base),
-          chconst ildren: [
+          children: [
             DKLoadingShimmer(width: 200, height: 32),
             const SizedBox(height: 12),
             DKLoadingShimmer(width: double.infinity, height: 60, radius: KinrelRadius.card),
             const SizedBox(height: 12),
             ...List.generate(
-              6,const 
-              (_) => Padding(
+              6,const (_) => Padding(
                 paddingconst : const EdgeInsets.only(bottom: 8),
                 child: DKLoadingShimmer(
                     width: double.infinity, height: 50, radius: KinrelRadius.md),

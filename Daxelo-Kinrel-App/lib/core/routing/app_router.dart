@@ -207,9 +207,9 @@ class _AddPersonScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      appBar: Aconst ppBar(
+      appBar: AppBar(
         title: Text(
-          'Add Faconst mily Member',
+          'Add Family Member',
           style: TextStyle(
             fontFamily: 'Outfit',
             fontWeight: FontWeight.w600,

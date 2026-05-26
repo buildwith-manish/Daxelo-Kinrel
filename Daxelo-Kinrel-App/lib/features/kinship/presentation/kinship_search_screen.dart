@@ -204,7 +204,7 @@ class _KinshipTermCard extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  rel.relconst ationshipCategory.replaceAll('_', ' ').toUpperCase(),
+                  rel.relationshipCategory.replaceAll('_', ' ').toUpperCase(),
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 10,
@@ -224,7 +224,7 @@ class _KinshipTermCard extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  rel.relconst ationshipKey.replaceAll('_', ' '),
+                  rel.relationshipKey.replaceAll('_', ' '),
                   style: TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 9,

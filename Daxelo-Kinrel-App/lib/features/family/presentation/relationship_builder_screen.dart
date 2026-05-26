@@ -75,9 +75,9 @@ class _RelationshipBuilderScreenState
     final detailAsync = ref.watch(familyDetailProvider(widget.familyId));
 
     return Scaffold(
-      appBar: Aconst ppBar(
+      appBar: AppBar(
         title: Text(
-          'Link Mconst embers',
+          'Link Members',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
@@ -91,9 +91,9 @@ class _RelationshipBuilderScreenState
           if (_selectedPerson1Id != null || _selectedPerson2Id != null)
             TextButton.icon(
               onPressed: _clearSelection,
-              icon: cconst onst Icon(Icons.clear, size: 16),
+              icon: const Icon(Icons.clear, size: 16),
               label: Text(
-                'Clear'const ,
+                'Clear',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   color: KinrelColors.textSilver,
@@ -233,7 +233,7 @@ class _RelationshipBuilderScreenState
             ),
           ),
           // Selection indicators
-          ifconst  (_selectedPerson1Id != null)
+          if (_selectedPerson1Id != null)
             _SelectionBadge(
               label: '1st',
               color: KinrelColors.purple,
@@ -434,7 +434,7 @@ class _PersonCard extends StatelessWidget {
                 Container(
                   width: 40,
                   height: 40,
-                  decoraticonst on: BoxDecoration(
+                  decoration: BoxDecoration(
                     gradient: person.isDeceased
                         ? LinearGradient(
                             colors: [
@@ -443,7 +443,7 @@ class _PersonCard extends StatelessWidget {
                             ],
                           )
                         : isSelected1
-                            ? Kinrconst elGradients.igniteGradient
+                            ? KinrelGradients.igniteGradient
                             : isSelected2
                                 ? LinearGradient(
                                     colors: [
@@ -462,7 +462,7 @@ class _PersonCard extends StatelessWidget {
                           )
                         : Text(
                             person.name.isNotEmpty
-                                ? pconst erson.name[0].toUpperCase()
+                                ? person.name[0].toUpperCase()
                                 : '?',
                             style: TextStyle(
                               fontFamily: KinrelTypography.displayFont,
@@ -482,9 +482,9 @@ class _PersonCard extends StatelessWidget {
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: KinrelColors.purple,
-                      bordeconst rRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Teconst xt(
+                    child: Text(
                       '1st',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -500,9 +500,9 @@ class _PersonCard extends StatelessWidget {
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: KinrelColors.amber,
-                      bordeconst rRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Teconst xt(
+                    child: Text(
                       '2nd',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -547,8 +547,7 @@ class _PersonCard extends StatelessWidget {
             // Relationship key
             if (person.gender != null) ...[
               const SizedBox(height: 2),
-              Text(const 
-                person.gender!.toUpperCase(),
+              Text(const person.gender!.toUpperCase(),
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
@@ -573,7 +572,7 @@ class _PersonCard extends StatelessWidget {
                       color: KinrelColors.darkSurface.withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Teconst xt(
+                    child: Text(
                       tag.snakeToTitle,
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -605,8 +604,7 @@ class _SelectionBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(10),
-      ),const 
-      child: Text(
+      ),const child: Text(
         label,
         style: TextStyle(
           fontFamily: KinrelTypography.bodyFont,
@@ -648,20 +646,19 @@ class _EmptyState extends StatelessWidget {
                     size: 40,
                     color: KinrelColors.textDim,
                   ),
-            const     ),
+            ,
               ),
-            ),const 
-            const SizedBox(height: 24),
+            ),const const SizedBox(height: 24),
             Text(
               'Add Members First',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
-            const     color: KinrelColors.textWhite,
+            const color: KinrelColors.textWhite,
               ),
             ),
-            const Sizconst edBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               'Add family members, then link them here\nto build your family graph.',
               textAlign: TextAlign.center,
