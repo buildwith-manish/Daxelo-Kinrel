@@ -1,24 +1,38 @@
 workflows:
+
+  # ─────────────────────────────────────────────────────────────────
+  # ANDROID — triggers on every push to main or develop
+  # ─────────────────────────────────────────────────────────────────
   android-workflow:
     name: Android Build
     max_build_duration: 60
     instance_type: mac_mini_m4
     working_directory: Daxelo-Kinrel-App
+
     triggering:
       events:
         - push
+        - tag
       branch_patterns:
         - pattern: main
           include: true
+        - pattern: develop
+          include: true
+      tag_patterns:
+        - pattern: 'v*'
+          include: true
       cancel_previous_builds: true
+
     environment:
       flutter: stable
+      java: 17
       vars:
         SUPABASE_URL: $SUPABASE_URL
         SUPABASE_ANON_KEY: $SUPABASE_ANON_KEY
         API_BASE_URL: $API_BASE_URL
+
     scripts:
-      - name: Create .env file with fallback defaults
+      - name: Create .env file
         script: |
           DEFAULT_SUPABASE_URL="https://promxswvsnvilplmrtsj.supabase.co"
           DEFAULT_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY"
@@ -28,48 +42,94 @@ workflows:
           FINAL_SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-$DEFAULT_SUPABASE_ANON_KEY}"
           FINAL_API_BASE_URL="${API_BASE_URL:-$DEFAULT_API_BASE_URL}"
 
-          [ -z "$FINAL_SUPABASE_URL" ] && FINAL_SUPABASE_URL="$DEFAULT_SUPABASE_URL"
-          [ -z "$FINAL_SUPABASE_ANON_KEY" ] && FINAL_SUPABASE_ANON_KEY="$DEFAULT_SUPABASE_ANON_KEY"
-          [ -z "$FINAL_API_BASE_URL" ] && FINAL_API_BASE_URL="$DEFAULT_API_BASE_URL"
+          cat > .env <<EOF
+          SUPABASE_URL=$FINAL_SUPABASE_URL
+          SUPABASE_ANON_KEY=$FINAL_SUPABASE_ANON_KEY
+          API_BASE_URL=$FINAL_API_BASE_URL
+          EOF
 
-          echo "# Supabase Configuration" > .env
-          echo "SUPABASE_URL=$FINAL_SUPABASE_URL" >> .env
-          echo "SUPABASE_ANON_KEY=$FINAL_SUPABASE_ANON_KEY" >> .env
-          echo "" >> .env
-          echo "# API Base URL" >> .env
-          echo "API_BASE_URL=$FINAL_API_BASE_URL" >> .env
-
-          echo "✅ .env file created with valid values"
+          echo "✅ .env created"
           echo "   SUPABASE_URL=$FINAL_SUPABASE_URL"
-          echo "   SUPABASE_ANON_KEY=***MASKED*** (length: ${#FINAL_SUPABASE_ANON_KEY})"
           echo "   API_BASE_URL=$FINAL_API_BASE_URL"
+
       - name: Get Flutter packages
         script: flutter pub get
-      - name: Build APK
-        script: flutter build apk --release
-    artifacts:
-      - build/**/outputs/**/*.apk
 
+      - name: Analyze code
+        script: flutter analyze --no-fatal-warnings
+
+      - name: Run tests
+        script: flutter test --no-pub || true
+
+      - name: Build APK (release)
+        script: |
+          BUILD_NUMBER=${CM_BUILD_NUMBER:-1}
+          flutter build apk \
+            --release \
+            --build-number=$BUILD_NUMBER \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+            --dart-define=API_BASE_URL="$API_BASE_URL"
+
+      - name: Rename APK with build info
+        script: |
+          BUILD_NUMBER=${CM_BUILD_NUMBER:-1}
+          BRANCH=$(echo "${CM_BRANCH:-main}" | tr '/' '-')
+          APK_SRC="build/app/outputs/flutter-apk/app-release.apk"
+          APK_DST="build/app/outputs/flutter-apk/kinrel-${BRANCH}-${BUILD_NUMBER}.apk"
+          if [ -f "$APK_SRC" ]; then
+            cp "$APK_SRC" "$APK_DST"
+            echo "✅ APK renamed to: kinrel-${BRANCH}-${BUILD_NUMBER}.apk"
+          else
+            echo "⚠️  APK not found at $APK_SRC"
+            ls build/app/outputs/ || true
+          fi
+
+    artifacts:
+      - build/app/outputs/flutter-apk/*.apk
+
+    publishing:
+      email:
+        recipients:
+          - $CM_EMAIL
+        notify:
+          success: true
+          failure: true
+
+  # ─────────────────────────────────────────────────────────────────
+  # iOS — triggers on every push to main or develop
+  # ─────────────────────────────────────────────────────────────────
   ios-workflow:
     name: iOS Build
     max_build_duration: 60
     instance_type: mac_mini_m4
     working_directory: Daxelo-Kinrel-App
+
     triggering:
       events:
         - push
+        - tag
       branch_patterns:
         - pattern: main
           include: true
+        - pattern: develop
+          include: true
+      tag_patterns:
+        - pattern: 'v*'
+          include: true
       cancel_previous_builds: true
+
     environment:
       flutter: stable
+      xcode: latest
+      cocoapods: default
       vars:
         SUPABASE_URL: $SUPABASE_URL
         SUPABASE_ANON_KEY: $SUPABASE_ANON_KEY
         API_BASE_URL: $API_BASE_URL
+
     scripts:
-      - name: Create .env file with fallback defaults
+      - name: Create .env file
         script: |
           DEFAULT_SUPABASE_URL="https://promxswvsnvilplmrtsj.supabase.co"
           DEFAULT_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY"
@@ -79,22 +139,35 @@ workflows:
           FINAL_SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-$DEFAULT_SUPABASE_ANON_KEY}"
           FINAL_API_BASE_URL="${API_BASE_URL:-$DEFAULT_API_BASE_URL}"
 
-          [ -z "$FINAL_SUPABASE_URL" ] && FINAL_SUPABASE_URL="$DEFAULT_SUPABASE_URL"
-          [ -z "$FINAL_SUPABASE_ANON_KEY" ] && FINAL_SUPABASE_ANON_KEY="$DEFAULT_SUPABASE_ANON_KEY"
-          [ -z "$FINAL_API_BASE_URL" ] && FINAL_API_BASE_URL="$DEFAULT_API_BASE_URL"
+          cat > .env <<EOF
+          SUPABASE_URL=$FINAL_SUPABASE_URL
+          SUPABASE_ANON_KEY=$FINAL_SUPABASE_ANON_KEY
+          API_BASE_URL=$FINAL_API_BASE_URL
+          EOF
 
-          echo "# Supabase Configuration" > .env
-          echo "SUPABASE_URL=$FINAL_SUPABASE_URL" >> .env
-          echo "SUPABASE_ANON_KEY=$FINAL_SUPABASE_ANON_KEY" >> .env
-          echo "" >> .env
-          echo "# API Base URL" >> .env
-          echo "API_BASE_URL=$FINAL_API_BASE_URL" >> .env
+          echo "✅ .env created"
 
-          echo "✅ .env file created"
-          echo "   SUPABASE_ANON_KEY length: ${#FINAL_SUPABASE_ANON_KEY}"
       - name: Get Flutter packages
         script: flutter pub get
-      - name: Build iOS
-        script: flutter build ios --release --no-codesign
+
+      - name: Install CocoaPods
+        script: |
+          cd ios && pod install
+
+      - name: Analyze code
+        script: flutter analyze --no-fatal-warnings
+
+      - name: Build iOS (no code sign)
+        script: |
+          BUILD_NUMBER=${CM_BUILD_NUMBER:-1}
+          flutter build ios \
+            --release \
+            --no-codesign \
+            --build-number=$BUILD_NUMBER \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
+            --dart-define=API_BASE_URL="$API_BASE_URL"
+
     artifacts:
       - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
