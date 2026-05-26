@@ -988,11 +988,7 @@ class _QuickActionsRow extends StatelessWidget {
               iconColor: _cOrange,
               title: 'Share Family',
               subtitle: 'Invite family',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Share coming soon!')),
-                );
-              },
+              onTap: () => context.push('/family/$familyId/share'),
             ),
           ),
           const SizedBox(width: 10),

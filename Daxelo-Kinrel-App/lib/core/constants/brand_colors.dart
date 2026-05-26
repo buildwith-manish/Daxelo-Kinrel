@@ -257,7 +257,58 @@ class KinrelGradients {
     end: Alignment.centerRight,
   );
 
+  // ── Additional Brand Gradients (from KINREL Global Top 1 Prompt) ─
+  /// Sunrise — #C44A18 → #F59240 (135deg, warm glow)
+  static const LinearGradient sunriseGradient = LinearGradient(
+    colors: [Color(0xFFC44A18), Color(0xFFF59240)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  /// Deep Fire — #13141E → #202338 → #E8612A (hero backgrounds)
+  static const LinearGradient deepFireGradient = LinearGradient(
+    colors: [Color(0xFF13141E), Color(0xFF202338), Color(0xFFE8612A)],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomRight,
+  );
+
+  /// Glow Core — radial gradient (circle at 30% 30%, rgba(232,97,42,0.28), #13141E)
+  /// Note: RadialGradient can't be const with this pattern, use factory method.
+  static RadialGradient glowCoreGradient({double opacity = 0.28}) {
+    return RadialGradient(
+      center: Alignment(-0.4, -0.4), // 30% 30%
+      radius: 0.7,
+      colors: [
+        Color(0xFFE8612A).withValues(alpha: opacity),
+        Color(0xFF13141E),
+      ],
+    );
+  }
+
+  /// Chat sent message — subtle orange tint
+  static const LinearGradient chatSentGradient = LinearGradient(
+    colors: [Color(0xFF2A1A14), Color(0xFF1E1520)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  /// Timeline line — orange accent
+  static const LinearGradient timelineGradient = LinearGradient(
+    colors: [Color(0xFFE8612A), Color(0xFFF59240)],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+  );
+
+  /// Achievement badge — gold → amber
+  static const LinearGradient achievementGradient = LinearGradient(
+    colors: [Color(0xFFFFD700), Color(0xFFF59240), Color(0xFFE8612A)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
   // ── Backward Compat Aliases ─────────────────────────────────────
   static const LinearGradient ignite = igniteGradient;
   static const LinearGradient heritage = heritageGradient;
+  static const LinearGradient sunrise = sunriseGradient;
+  static const LinearGradient deepFire = deepFireGradient;
 }

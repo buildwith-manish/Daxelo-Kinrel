@@ -1,0 +1,109 @@
+{
+  "@@locale": "bn",
+
+  "appName": "Kinrel",
+
+  "appTagline": "AI দিয়ে আপনার পরিবারের মানচিত্র তৈরি করুন",
+
+  "homeTitle": "হোম",
+
+  "kinshipTitle": "সম্পর্ক",
+
+  "graphTitle": "গ্রাফ",
+
+  "alertsTitle": "সতর্কতা",
+
+  "profileTitle": "আমি",
+
+  "notificationsTitle": "বিজ্ঞপ্তি",
+
+  "eventsTitle": "অনুষ্ঠান ও উৎসব",
+
+  "memoriesTitle": "স্মৃতি ও সময়রেখা",
+
+  "chatTitle": "পারিবারিক চ্যাট",
+
+  "documentsTitle": "নথি ভল্ট",
+
+  "achievementsTitle": "অর্জন",
+
+  "shareTitle": "শেয়ার ও আমন্ত্রণ",
+
+  "settingsTitle": "সেটিংস",
+
+  "signInTitle": "সাইন ইন",
+
+  "signUpTitle": "সাইন আপ",
+
+  "onboardingTitle1": "আপনার পরিবার, আপনার গল্প",
+
+  "onboardingBody1": "Kinrel আপনার পরিবারের প্রতিটি সম্পর্ক ম্যাপ করে — আপনার দাদা-দাদি থেকে আপনার নাতি-নাতনি পর্যন্ত, যে ভাষায় আপনি বেড়ে উঠেছেন।",
+
+  "onboardingTitle2": "নাম যা বাড়ির মতো মনে হয়",
+
+  "onboardingBody2": "শুধু 'আঙ্কেল' এবং 'আন্টি' নয় — Kinrel আপনার কাকা, মামা, ফুফা এবং জ্যাঠার মধ্যে পার্থক্য জানে।",
+
+  "onboardingTitle3": "বড় ছবিটি দেখুন",
+
+  "onboardingBody3": "আপনার পুরো পরিবার একটি সুন্দর, ইন্টারেক্টিভ গ্রাফ হিসেবে। জুম ইন করুন, সংযোগ অন্বেষণ করুন, এমন সম্পর্ক আবিষ্কার করুন যা আপনি জানতেন না।",
+
+  "onboardingTitle4": "যেকোনো সম্পর্ক তৎক্ষণাৎ খুঁজুন",
+
+  "onboardingBody4": "পরিবারের যেকোনো দুজন সদস্য নির্বাচন করুন — Kinrel-এর AI আপনার ভাষায় সঠিক সম্পর্কের নাম গণনা করবে।",
+
+  "addMember": "সদস্য যোগ করুন",
+
+  "shareFamily": "পরিবার শেয়ার করুন",
+
+  "findPath": "পথ খুঁজুন",
+
+  "viewFullGraph": "সম্পূর্ণ গ্রাফ দেখুন",
+
+  "recentActivity": "সাম্প্রতিক কার্যকলাপ",
+
+  "familyInsights": "পরিবার একনজরে",
+
+  "noNotifications": "সব ঠিক আছে! কোনো নতুন বিজ্ঞপ্তি নেই।",
+
+  "noEvents": "এখনো কোনো অনুষ্ঠান নেই। আপনার পরিবারের জন্মদিন ও বার্ষিকী এখানে স্বয়ংক্রিয়ভাবে দেখা যাবে।",
+
+  "noMemories": "এখনো কোনো স্মৃতি নেই। আপনার প্রথম পারিবারিক স্মৃতি যোগ করে শুরু করুন।",
+
+  "noDocuments": "এখনো কোনো নথি নেই। আপনার পরিবারের গুরুত্বপূর্ণ নথি নিরাপদে সংরক্ষণ করুন।",
+
+  "createFamily": "পরিবার তৈরি করুন",
+
+  "joinFamily": "পরিবারে যোগ দিন",
+
+  "searchHint": "সম্পর্ক খুঁজুন",
+
+  "birthdayTomorrow": "{name}-এর জন্মদিন আগামীকাল!",
+
+  "anniversarySoon": "{name} ও {name2}-এর বার্ষিকী {days} দিনে!",
+
+  "sendWishes": "শুভেচ্ছা পাঠাবেন?",
+
+  "streakDays": "{count} দিনের ধারা",
+
+  "profileCompletion": "{percent}% সম্পন্ন",
+
+  "treeCompleteness": "আপনার গাছ {percent}% সম্পূর্ণ",
+
+  "encryptNotice": "AES-256 দিয়ে এনক্রিপ্টেড",
+
+  "generatedByKinrel": "Kinrel দ্বারা তৈরি",
+
+  "madeByDaxelo": "Daxelo-এর ভালোবাসায় তৈরি",
+
+  "welcomeBack": "ফিরে স্বাগতম",
+
+  "goodMorning": "সুপ্রভাত",
+
+  "goodAfternoon": "শুভ দুপুর",
+
+  "goodEvening": "শুভ সন্ধ্যা",
+
+  "goodNight": "শুভ রাত্রি",
+
+  "languageName": "বাংলা"
+}

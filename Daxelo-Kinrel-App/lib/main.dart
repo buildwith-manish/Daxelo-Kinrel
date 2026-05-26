@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -10,6 +11,9 @@ import 'core/routing/app_router.dart';
 import 'core/services/supabase_service.dart';
 import 'core/storage/local_cache.dart';
 import 'core/theme/theme_provider.dart';
+
+// Generated localization imports (flutter gen-l10n)
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -151,6 +155,15 @@ class _KinrelAppState extends ConsumerState<KinrelApp> with WidgetsBindingObserv
       darkTheme: darkTheme,
       themeMode: themeMode,
       routerConfig: router,
+      // Localization — 15 languages
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      locale: null, // Follows system locale; can be overridden by user preference
       builder: (context, child) {
         // Update system UI overlay when theme changes
         final brightness = MediaQuery.of(context).platformBrightness;

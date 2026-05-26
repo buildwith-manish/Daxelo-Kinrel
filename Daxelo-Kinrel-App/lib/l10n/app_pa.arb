@@ -1,0 +1,109 @@
+{
+  "@@locale": "pa",
+
+  "appName": "Kinrel",
+
+  "appTagline": "AI ਨਾਲ ਆਪਣੇ ਪਰਿਵਾਰ ਦਾ ਨਕਸ਼ਾ ਬਣਾਓ",
+
+  "homeTitle": "ਹੋਮ",
+
+  "kinshipTitle": "ਰਿਸ਼ਤੇ",
+
+  "graphTitle": "ਗ੍ਰਾਫ",
+
+  "alertsTitle": "ਅਲਰਟ",
+
+  "profileTitle": "ਮੈਂ",
+
+  "notificationsTitle": "ਸੂਚਨਾਵਾਂ",
+
+  "eventsTitle": "ਸਮਾਗਮ ਅਤੇ ਤਿਉਹਾਰ",
+
+  "memoriesTitle": "ਯਾਦਾਂ ਅਤੇ ਸਮਾਂਰੇਖਾ",
+
+  "chatTitle": "ਪਰਿਵਾਰਕ ਚੈਟ",
+
+  "documentsTitle": "ਦਸਤਾਵੇਜ਼ ਵਾਲਟ",
+
+  "achievementsTitle": "ਪ੍ਰਾਪਤੀਆਂ",
+
+  "shareTitle": "ਸਾਂਝਾ ਅਤੇ ਸੱਦਾ",
+
+  "settingsTitle": "ਸੈਟਿੰਗਜ਼",
+
+  "signInTitle": "ਸਾਈਨ ਇਨ",
+
+  "signUpTitle": "ਸਾਈਨ ਅੱਪ",
+
+  "onboardingTitle1": "ਤੁਹਾਡਾ ਪਰਿਵਾਰ, ਤੁਹਾਡੀ ਕਹਾਣੀ",
+
+  "onboardingBody1": "Kinrel ਤੁਹਾਡੇ ਪਰਿਵਾਰ ਦੇ ਹਰ ਰਿਸ਼ਤੇ ਨੂੰ ਮੈਪ ਕਰਦਾ ਹੈ — ਤੁਹਾਡੇ ਦਾਦਾ-ਦਾਦੀ ਤੋਂ ਲੈ ਕੇ ਤੁਹਾਡੇ ਪੋਤੇ-ਪੋਤੀਆਂ ਤੱਕ, ਉਸ ਭਾਸ਼ਾ ਵਿੱਚ ਜਿਸ ਵਿੱਚ ਤੁਸੀਂ ਵੱਡੇ ਹੋਏ।",
+
+  "onboardingTitle2": "ਨਾਮ ਜੋ ਘਰ ਵਰਗੇ ਲੱਗਣ",
+
+  "onboardingBody2": "ਸਿਰਫ 'ਅੰਕਲ' ਅਤੇ 'ਆਂਟੀ' ਨਹੀਂ — Kinrel ਤੁਹਾਡੇ ਚਾਚਾ, ਮਾਮਾ, ਫੁੱਫੜ ਅਤੇ ਤਾਇਆ ਵਿਚਕਾਰ ਦਾ ਫਰਕ ਜਾਣਦਾ ਹੈ।",
+
+  "onboardingTitle3": "ਵੱਡੀ ਤਸਵੀਰ ਦੇਖੋ",
+
+  "onboardingBody3": "ਤੁਹਾਡਾ ਪੂਰਾ ਪਰਿਵਾਰ ਇੱਕ ਸੁੰਦਰ, ਇੰਟਰਐਕਟਿਵ ਗ੍ਰਾਫ ਵਜੋਂ। ਜ਼ੂਮ ਇਨ ਕਰੋ, ਸੰਪਰਕਾਂ ਦੀ ਪੜਤਾਲ ਕਰੋ, ਅਜਿਹੇ ਰਿਸ਼ਤੇ ਲੱਭੋ ਜਿਨ੍ਹਾਂ ਬਾਰੇ ਤੁਸੀਂ ਨਹੀਂ ਜਾਣਦੇ ਸੀ।",
+
+  "onboardingTitle4": "ਕੋਈ ਵੀ ਰਿਸ਼ਤਾ ਤੁਰੰਤ ਲੱਭੋ",
+
+  "onboardingBody4": "ਪਰਿਵਾਰ ਦੇ ਕਿਸੇ ਵੀ ਦੋ ਮੈਂਬਰਾਂ ਦੀ ਚੋਣ ਕਰੋ — Kinrel AI ਤੁਹਾਡੀ ਭਾਸ਼ਾ ਵਿੱਚ ਸਹੀ ਰਿਸ਼ਤੇ ਦਾ ਨਾਮ ਗਣਨਾ ਕਰੇਗਾ।",
+
+  "addMember": "ਮੈਂਬਰ ਸ਼ਾਮਲ ਕਰੋ",
+
+  "shareFamily": "ਪਰਿਵਾਰ ਸਾਂਝਾ ਕਰੋ",
+
+  "findPath": "ਰਸਤਾ ਲੱਭੋ",
+
+  "viewFullGraph": "ਪੂਰਾ ਗ੍ਰਾਫ ਦੇਖੋ",
+
+  "recentActivity": "ਹਾਲੀਆ ਗਤੀਵਿਧੀ",
+
+  "familyInsights": "ਪਰਿਵਾਰ ਇੱਕ ਝਲਕ ਵਿੱਚ",
+
+  "noNotifications": "ਸਭ ਠੀਕ! ਕੋਈ ਨਵੀਂ ਸੂਚਨਾ ਨਹੀਂ।",
+
+  "noEvents": "ਹਾਲੇ ਕੋਈ ਸਮਾਗਮ ਨਹੀਂ। ਤੁਹਾਡੇ ਪਰਿਵਾਰ ਦੇ ਜਨਮਦਿਨ ਅਤੇ ਸਾਲਗਿਰਾਹ ਇੱਥੇ ਆਪਣੇ-ਆਪ ਦਿਖਾਈ ਦੇਣਗੇ।",
+
+  "noMemories": "ਹਾਲੇ ਕੋਈ ਯਾਦ ਨਹੀਂ। ਆਪਣੀ ਪਹਿਲੀ ਪਰਿਵਾਰਕ ਯਾਦ ਸ਼ਾਮਲ ਕਰਕੇ ਸ਼ੁਰੂਆਤ ਕਰੋ।",
+
+  "noDocuments": "ਹਾਲੇ ਕੋਈ ਦਸਤਾਵੇਜ਼ ਨਹੀਂ। ਆਪਣੇ ਪਰਿਵਾਰ ਦੇ ਮਹੱਤਵਪੂਰਨ ਦਸਤਾਵੇਜ਼ ਸੁਰੱਖਿਅਤ ਢੰਗ ਨਾਲ ਸਟੋਰ ਕਰੋ।",
+
+  "createFamily": "ਪਰਿਵਾਰ ਬਣਾਓ",
+
+  "joinFamily": "ਪਰਿਵਾਰ ਵਿੱਚ ਸ਼ਾਮਲ ਹੋਵੋ",
+
+  "searchHint": "ਰਿਸ਼ਤੇ ਖੋਜੋ",
+
+  "birthdayTomorrow": "{name} ਦਾ ਜਨਮਦਿਨ ਕੱਲ੍ਹ ਹੈ!",
+
+  "anniversarySoon": "{name} ਅਤੇ {name2} ਦੀ ਸਾਲਗਿਰਾਹ {days} ਦਿਨਾਂ ਵਿੱਚ!",
+
+  "sendWishes": "ਵਧਾਈਆਂ ਭੇਜਣੀਆਂ ਹਨ?",
+
+  "streakDays": "{count} ਦਿਨਾਂ ਦਾ ਸਿਲਸਿਲਾ",
+
+  "profileCompletion": "{percent}% ਮੁਕੰਮਲ",
+
+  "treeCompleteness": "ਤੁਹਾਡਾ ਦਰਖਤ {percent}% ਮੁਕੰਮਲ ਹੈ",
+
+  "encryptNotice": "AES-256 ਨਾਲ ਐਨਕ੍ਰਿਪਟਡ",
+
+  "generatedByKinrel": "Kinrel ਵੱਲੋਂ ਬਣਾਇਆ ਗਿਆ",
+
+  "madeByDaxelo": "Daxelo ਵੱਲੋਂ ਪਿਆਰ ਨਾਲ ਬਣਾਇਆ ਗਿਆ",
+
+  "welcomeBack": "ਮੁੜ ਸੁਆਗਤ ਹੈ",
+
+  "goodMorning": "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ",
+
+  "goodAfternoon": "ਸ਼ੁਭ ਦੁਪਹਿਰ",
+
+  "goodEvening": "ਸ਼ੁਭ ਸ਼ਾਮ",
+
+  "goodNight": "ਸ਼ੁਭ ਰਾਤ",
+
+  "languageName": "ਪੰਜਾਬੀ"
+}

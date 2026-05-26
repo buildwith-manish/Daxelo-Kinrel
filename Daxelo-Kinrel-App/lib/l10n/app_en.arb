@@ -1,0 +1,189 @@
+{
+  "@@locale": "en",
+
+  "appName": "Kinrel",
+  "@appName": { "description": "The application name" },
+
+  "appTagline": "Map your family with AI",
+  "@appTagline": { "description": "Short tagline displayed under the app name" },
+
+  "homeTitle": "Home",
+  "@homeTitle": { "description": "Bottom navigation tab label for Home" },
+
+  "kinshipTitle": "Kinship",
+  "@kinshipTitle": { "description": "Bottom navigation tab label for Kinship/Explore" },
+
+  "graphTitle": "Graph",
+  "@graphTitle": { "description": "Bottom navigation tab label for Family Graph" },
+
+  "alertsTitle": "Alerts",
+  "@alertsTitle": { "description": "Bottom navigation tab label for Alerts/Notifications" },
+
+  "profileTitle": "Me",
+  "@profileTitle": { "description": "Bottom navigation tab label for Profile" },
+
+  "notificationsTitle": "Notifications",
+  "@notificationsTitle": { "description": "Screen title for Notifications" },
+
+  "eventsTitle": "Events & Celebrations",
+  "@eventsTitle": { "description": "Screen title for Events & Celebrations" },
+
+  "memoriesTitle": "Memories & Timeline",
+  "@memoriesTitle": { "description": "Screen title for Memories & Timeline" },
+
+  "chatTitle": "Family Chat",
+  "@chatTitle": { "description": "Screen title for Family Chat" },
+
+  "documentsTitle": "Document Vault",
+  "@documentsTitle": { "description": "Screen title for Document Vault" },
+
+  "achievementsTitle": "Achievements",
+  "@achievementsTitle": { "description": "Screen title for Achievements" },
+
+  "shareTitle": "Share & Invite",
+  "@shareTitle": { "description": "Screen title for Share & Invite" },
+
+  "settingsTitle": "Settings",
+  "@settingsTitle": { "description": "Screen title for Settings" },
+
+  "signInTitle": "Sign In",
+  "@signInTitle": { "description": "Screen title for Sign In" },
+
+  "signUpTitle": "Sign Up",
+  "@signUpTitle": { "description": "Screen title for Sign Up" },
+
+  "onboardingTitle1": "Your Family, Your Story",
+  "@onboardingTitle1": { "description": "Onboarding page 1 title" },
+
+  "onboardingBody1": "Kinrel maps every relationship in your family — from your grandparents to your grandchildren, in the language you grew up with.",
+  "@onboardingBody1": { "description": "Onboarding page 1 body text" },
+
+  "onboardingTitle2": "Names That Feel Like Home",
+  "@onboardingTitle2": { "description": "Onboarding page 2 title" },
+
+  "onboardingBody2": "Not just 'uncle' and 'aunt' — Kinrel knows the difference between your Chacha, Mama, Fufa, and Tauji.",
+  "@onboardingBody2": { "description": "Onboarding page 2 body text" },
+
+  "onboardingTitle3": "See the Big Picture",
+  "@onboardingTitle3": { "description": "Onboarding page 3 title" },
+
+  "onboardingBody3": "Your entire family as a beautiful, interactive graph. Zoom in, explore connections, discover relationships you never knew existed.",
+  "@onboardingBody3": { "description": "Onboarding page 3 body text" },
+
+  "onboardingTitle4": "Find Any Relationship Instantly",
+  "@onboardingTitle4": { "description": "Onboarding page 4 title" },
+
+  "onboardingBody4": "Select any two family members — Kinrel's AI calculates the exact relationship name in your language.",
+  "@onboardingBody4": { "description": "Onboarding page 4 body text" },
+
+  "addMember": "Add Member",
+  "@addMember": { "description": "Button label to add a family member" },
+
+  "shareFamily": "Share Family",
+  "@shareFamily": { "description": "Button label to share the family tree" },
+
+  "findPath": "Find Path",
+  "@findPath": { "description": "Button label to find relationship path between two people" },
+
+  "viewFullGraph": "View Full Graph",
+  "@viewFullGraph": { "description": "Button label to view the complete family graph" },
+
+  "recentActivity": "Recent Activity",
+  "@recentActivity": { "description": "Section header for recent activity feed" },
+
+  "familyInsights": "Family at a Glance",
+  "@familyInsights": { "description": "Section header for family statistics/insights" },
+
+  "noNotifications": "All caught up! No new notifications.",
+  "@noNotifications": { "description": "Empty state message for notifications" },
+
+  "noEvents": "No events yet. Birthdays and anniversaries from your family will appear here automatically.",
+  "@noEvents": { "description": "Empty state message for events" },
+
+  "noMemories": "No memories yet. Add your first family memory to begin.",
+  "@noMemories": { "description": "Empty state message for memories" },
+
+  "noDocuments": "No documents yet. Securely store your family's important documents.",
+  "@noDocuments": { "description": "Empty state message for documents" },
+
+  "createFamily": "Create Family",
+  "@createFamily": { "description": "Button label to create a new family" },
+
+  "joinFamily": "Join Family",
+  "@joinFamily": { "description": "Button label to join an existing family" },
+
+  "searchHint": "Search relationships",
+  "@searchHint": { "description": "Placeholder text in search bar" },
+
+  "birthdayTomorrow": "{name}'s birthday is tomorrow!",
+  "@birthdayTomorrow": {
+    "description": "Notification text for birthday tomorrow",
+    "placeholders": {
+      "name": { "type": "String", "example": "Rajesh" }
+    }
+  },
+
+  "anniversarySoon": "{name} & {name2}'s anniversary is in {days} days!",
+  "@anniversarySoon": {
+    "description": "Notification text for upcoming anniversary",
+    "placeholders": {
+      "name": { "type": "String", "example": "Rajesh" },
+      "name2": { "type": "String", "example": "Meera" },
+      "days": { "type": "int", "example": "5" }
+    }
+  },
+
+  "sendWishes": "Send wishes?",
+  "@sendWishes": { "description": "Prompt to send birthday/anniversary wishes" },
+
+  "streakDays": "{count} Day Streak",
+  "@streakDays": {
+    "description": "Label showing consecutive days of activity",
+    "placeholders": {
+      "count": { "type": "int", "example": "7" }
+    }
+  },
+
+  "profileCompletion": "{percent}% Complete",
+  "@profileCompletion": {
+    "description": "Label showing profile completion percentage",
+    "placeholders": {
+      "percent": { "type": "int", "example": "85" }
+    }
+  },
+
+  "treeCompleteness": "Your tree is {percent}% complete",
+  "@treeCompleteness": {
+    "description": "Message showing family tree completion percentage",
+    "placeholders": {
+      "percent": { "type": "int", "example": "65" }
+    }
+  },
+
+  "encryptNotice": "Encrypted with AES-256",
+  "@encryptNotice": { "description": "Security notice about encryption" },
+
+  "generatedByKinrel": "Generated by Kinrel",
+  "@generatedByKinrel": { "description": "Branding text on shared cards" },
+
+  "madeByDaxelo": "Made with love by Daxelo",
+  "@madeByDaxelo": { "description": "Footer branding text" },
+
+  "welcomeBack": "Welcome back",
+  "@welcomeBack": { "description": "Greeting for returning user" },
+
+  "goodMorning": "Good morning",
+  "@goodMorning": { "description": "Time-based greeting for morning" },
+
+  "goodAfternoon": "Good afternoon",
+  "@goodAfternoon": { "description": "Time-based greeting for afternoon" },
+
+  "goodEvening": "Good evening",
+  "@goodEvening": { "description": "Time-based greeting for evening" },
+
+  "goodNight": "Good night",
+  "@goodNight": { "description": "Time-based greeting for night" },
+
+  "languageName": "English",
+  "@languageName": { "description": "Name of this language in its own script" }
+}

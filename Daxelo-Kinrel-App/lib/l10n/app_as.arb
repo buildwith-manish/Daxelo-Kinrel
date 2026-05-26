@@ -1,0 +1,109 @@
+{
+  "@@locale": "as",
+
+  "appName": "Kinrel",
+
+  "appTagline": "AI ৰ সৈতে আপোনাৰ পৰিয়ালৰ মানচিত্ৰ তৈয়াৰ কৰক",
+
+  "homeTitle": "হোম",
+
+  "kinshipTitle": "সম্পৰ্ক",
+
+  "graphTitle": "গ্ৰাফ",
+
+  "alertsTitle": "সতৰ্কতা",
+
+  "profileTitle": "মই",
+
+  "notificationsTitle": "জাননী",
+
+  "eventsTitle": "অনুষ্ঠান আৰু উৎসৱ",
+
+  "memoriesTitle": "স্মৃতি আৰু সময়ৰেখা",
+
+  "chatTitle": "পাৰিয়ালিক চেট",
+
+  "documentsTitle": "নথি ভল্ট",
+
+  "achievementsTitle": "সাফল্য",
+
+  "shareTitle": "শ্বেয়াৰ আৰু নিমন্ত্ৰণ",
+
+  "settingsTitle": "ছেটিংছ",
+
+  "signInTitle": "ছাইন ইন",
+
+  "signUpTitle": "ছাইন আপ",
+
+  "onboardingTitle1": "আপোনাৰ পৰিয়াল, আপোনাৰ কাহিনী",
+
+  "onboardingBody1": "Kinrel আপোনাৰ পৰিয়ালৰ প্ৰতিটো সম্পৰ্ক মেপ কৰে — আপোনাৰ ককাইদেউ-আইদেউৰ পৰা আপোনাৰ নাতি-নাতিনীলৈকে, যিটো ভাষাত আপুনি ডাঙৰ-দীঘল হৈছে।",
+
+  "onboardingTitle2": "নাম যিবোৰে ঘৰৰ দৰে অনুভৱ কৰায়",
+
+  "onboardingBody2": "কেৱল 'আংকল' আৰু 'আণ্টি' নহয় — Kinrel আপোনাৰ কাকাই, মামা, পেহী আৰু বৰদেউতাৰ মাজৰ পাৰ্থক্য জানে।",
+
+  "onboardingTitle3": "ডাঙৰ ছবিখন চাওক",
+
+  "onboardingBody3": "আপোনাৰ সম্পূৰ্ণ পৰিয়াল এটা সুন্দৰ, ইণ্টাৰেক্টিভ গ্ৰাফৰ দৰে। জুম ইন কৰক, সম্পৰ্কসমূহ অন্বেষণ কৰক, এনে সম্পৰ্ক আৱিষ্কাৰ কৰক যিবোৰ আপুনি নজানিছিল।",
+
+  "onboardingTitle4": "যিকোনো সম্পৰ্ক তৎক্ষণাৎ বিচাৰক",
+
+  "onboardingBody4": "পৰিয়ালৰ যিকোনো দুজন সদস্য বাছক — Kinrel ৰ AI আপোনাৰ ভাষাত সঠিক সম্পৰ্কৰ নাম গণনা কৰিব।",
+
+  "addMember": "সদস্য যোগ কৰক",
+
+  "shareFamily": "পৰিয়াল শ্বেয়াৰ কৰক",
+
+  "findPath": "পথ বিচাৰক",
+
+  "viewFullGraph": "সম্পূৰ্ণ গ্ৰাফ চাওক",
+
+  "recentActivity": "শেহতীয়া কাৰ্যকলাপ",
+
+  "familyInsights": "পৰিয়াল এক দৃষ্টিত",
+
+  "noNotifications": "সকলো ঠিক! কোনো নতুন জাননী নাই।",
+
+  "noEvents": "এতিয়ালৈকে কোনো অনুষ্ঠান নাই। আপোনাৰ পৰিয়ালৰ জন্মদিন আৰু বাৰ্ষিকী ইয়াত স্বয়ংক্ৰিয়ভাৱে দেখা যাব।",
+
+  "noMemories": "এতিয়ালৈকে কোনো স্মৃতি নাই। আপোনাৰ প্ৰথম পাৰিয়ালিক স্মৃতি যোগ কৰি আৰম্ভ কৰক।",
+
+  "noDocuments": "এতিয়ালৈকে কোনো নথি নাই। আপোনাৰ পৰিয়ালৰ গুৰুত্বপূৰ্ণ নথিসমূহ সুৰক্ষিতভাৱে সঞ্চয় কৰক।",
+
+  "createFamily": "পৰিয়াল সৃষ্টি কৰক",
+
+  "joinFamily": "পৰিয়ালত যোগদান কৰক",
+
+  "searchHint": "সম্পৰ্ক বিচাৰক",
+
+  "birthdayTomorrow": "{name}ৰ জন্মদিন কাইলৈ!",
+
+  "anniversarySoon": "{name} আৰু {name2}ৰ বাৰ্ষিকী {days} দিনত!",
+
+  "sendWishes": "শুভেচ্ছা পঠিয়াবনে?",
+
+  "streakDays": "{count} দিনৰ ধাৰাবাহিকতা",
+
+  "profileCompletion": "{percent}% সম্পূৰ্ণ",
+
+  "treeCompleteness": "আপোনাৰ গছ {percent}% সম্পূৰ্ণ",
+
+  "encryptNotice": "AES-256 ৰে এনক্ৰিপ্টেড",
+
+  "generatedByKinrel": "Kinrel দ্বাৰা সৃষ্টি",
+
+  "madeByDaxelo": "Daxeloৰ প্ৰেমেৰে নিৰ্মিত",
+
+  "welcomeBack": "পুনৰ স্বাগতম",
+
+  "goodMorning": "সুপ্ৰভাত",
+
+  "goodAfternoon": "শুভ দুপৰীয়া",
+
+  "goodEvening": "শুভ সন্ধিয়া",
+
+  "goodNight": "শুভ ৰাতি",
+
+  "languageName": "অসমীয়া"
+}

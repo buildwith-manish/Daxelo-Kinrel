@@ -189,12 +189,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
   }
 
   void _shareFamily(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Family sharing coming soon!'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    context.push('/family/$familyId/share');
   }
 }
 
@@ -665,14 +660,7 @@ class _BottomActionBar extends StatelessWidget {
             variant: DKButtonVariant.icon,
             icon: Icons.share,
             size: DKButtonSize.sm,
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Family sharing coming soon!'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
+            onPressed: () => context.push('/family/$familyId/share'),
           ),
           SizedBox(width: 8),
           // Path Finder

@@ -1,0 +1,109 @@
+{
+  "@@locale": "mr",
+
+  "appName": "Kinrel",
+
+  "appTagline": "AI सह तुमच्या कुटुंबाचे नकाशे तयार करा",
+
+  "homeTitle": "होम",
+
+  "kinshipTitle": "नाती",
+
+  "graphTitle": "ग्राफ",
+
+  "alertsTitle": "अलर्ट",
+
+  "profileTitle": "मी",
+
+  "notificationsTitle": "सूचना",
+
+  "eventsTitle": "कार्यक्रम आणि उत्सव",
+
+  "memoriesTitle": "आठवणी आणि वेळरेषा",
+
+  "chatTitle": "कौटुंबिक चॅट",
+
+  "documentsTitle": "दस्तावेज वॉल्ट",
+
+  "achievementsTitle": "यश",
+
+  "shareTitle": "शेअर आणि आमंत्रण",
+
+  "settingsTitle": "सेटिंग्ज",
+
+  "signInTitle": "साइन इन",
+
+  "signUpTitle": "साइन अप",
+
+  "onboardingTitle1": "तुमचे कुटुंब, तुमची कथा",
+
+  "onboardingBody1": "Kinrel तुमच्या कुटुंबातील प्रत्येक नाते मॅप करते — तुमच्या आजोबांपासून तुमच्या नातवांपर्यंत, ज्या भाषेत तुम्ही वाढलात त्या भाषेत।",
+
+  "onboardingTitle2": "नावे जी घरासारखी वाटतात",
+
+  "onboardingBody2": "फक्त 'अंकल' आणि 'आंटी' नाही — Kinrel तुमच्या काका, मामा, आत्या आणि दादांमधील फरक ओळखते।",
+
+  "onboardingTitle3": "मोठे चित्र पहा",
+
+  "onboardingBody3": "तुमचे संपूर्ण कुटुंब एका सुंदर, इंटरॅक्टिव्ह ग्राफसारखे। झूम इन करा, संबंध शोधा, अशी नाती शोधा ज्यांची तुम्हाला माहिती नव्हती।",
+
+  "onboardingTitle4": "कोणतेही नाते त्वरित शोधा",
+
+  "onboardingBody4": "कुटुंबातील कोणत्याही दोन सदस्यांची निवड करा — Kinrel चे AI तुमच्या भाषेत अचूक नात्याचे नाव मोजेल।",
+
+  "addMember": "सदस्य जोडा",
+
+  "shareFamily": "कुटुंब शेअर करा",
+
+  "findPath": "मार्ग शोधा",
+
+  "viewFullGraph": "संपूर्ण ग्राफ पहा",
+
+  "recentActivity": "अलीकडील क्रियाकलाप",
+
+  "familyInsights": "कुटुंब एका दृष्टीक्षेपात",
+
+  "noNotifications": "सर्व ठीक! नवीन सूचना नाहीत।",
+
+  "noEvents": "अजून कार्यक्रम नाहीत. तुमच्या कुटुंबातील वाढदिवस आणि वाढदिवस येथे आपोआप दिसतील।",
+
+  "noMemories": "अजून आठवणी नाहीत. तुमची पहिली कौटुंबिक आठवण जोडून सुरुवात करा।",
+
+  "noDocuments": "अजून दस्तावेज नाहीत. तुमच्या कुटुंबाची महत्त्वाची दस्तावेज सुरक्षितपणे साठवा।",
+
+  "createFamily": "कुटुंब तयार करा",
+
+  "joinFamily": "कुटुंबात सामील व्हा",
+
+  "searchHint": "नाती शोधा",
+
+  "birthdayTomorrow": "{name} यांचा वाढदिवस उद्या!",
+
+  "anniversarySoon": "{name} आणि {name2} यांचा वाढदिवस {days} दिवसांत!",
+
+  "sendWishes": "शुभेच्छा पाठवायच्या?",
+
+  "streakDays": "{count} दिवसांची सातत्यता",
+
+  "profileCompletion": "{percent}% पूर्ण",
+
+  "treeCompleteness": "तुमचे झाड {percent}% पूर्ण आहे",
+
+  "encryptNotice": "AES-256 ने एनक्रिप्टेड",
+
+  "generatedByKinrel": "Kinrel द्वारे तयार",
+
+  "madeByDaxelo": "Daxelo यांनी प्रेमाने तयार केले",
+
+  "welcomeBack": "पुन्हा स्वागत",
+
+  "goodMorning": "शुभ सकाळ",
+
+  "goodAfternoon": "शुभ दुपार",
+
+  "goodEvening": "शुभ संध्याकाळ",
+
+  "goodNight": "शुभ रात्री",
+
+  "languageName": "मराठी"
+}

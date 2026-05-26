@@ -6,9 +6,10 @@
 //   1. Home      → /home
 //   2. Kinship   → /kinship-search
 //   3. Graph     → /families
-//   4. Alerts    → /home (placeholder until alerts feature is built)
+//   4. Alerts    → /notifications
 //   5. Me        → /profile
 //
+// Additional deep-link routes for all features.
 // Uses DKBottomNav with semi-transparent background, orange active,
 // gold indicator, badge support on Alerts tab.
 
@@ -27,6 +28,7 @@ import '../../features/family/presentation/path_finder_screen.dart';
 import '../../features/family/presentation/create_family_screen.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_builder_screen.dart';
+import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/ai_chat/presentation/ai_chat_screen.dart';
@@ -36,6 +38,13 @@ import '../../features/quiz/presentation/quiz_screen.dart';
 import '../../features/referral/presentation/referral_screen.dart';
 import '../../features/kinship/presentation/kinship_search_screen.dart';
 import '../../features/kinship/presentation/kinship_detail_screen.dart';
+import '../../features/notifications/presentation/notifications_screen.dart';
+import '../../features/events/presentation/events_screen.dart';
+import '../../features/memories/presentation/memories_screen.dart';
+import '../../features/chat/presentation/chat_screen.dart';
+import '../../features/share/presentation/share_screen.dart';
+import '../../features/gamification/presentation/achievements_screen.dart';
+import '../../features/documents/presentation/documents_screen.dart';
 import '../services/supabase_service.dart';
 import '../../shared/widgets/dk_components.dart';
 
@@ -112,6 +121,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => FamilyListScreen(),
           ),
           GoRoute(
+            path: '/notifications',
+            builder: (context, state) => const NotificationsScreen(),
+          ),
+          GoRoute(
             path: '/explore',
             builder: (context, state) => ExploreScreen(),
           ),
@@ -162,6 +175,35 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
+      // ── Person Detail Screen ────────────────────────────────────
+      GoRoute(
+        path: '/member/:id',
+        builder: (context, state) => PersonDetailScreen(
+          memberId: state.pathParameters['id']!,
+        ),
+      ),
+
+      // ── Family Chat ─────────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/chat',
+        builder: (context, state) => ChatScreen(
+          familyId: state.pathParameters['id']!,
+          familyName: state.uri.queryParameters['name'] ?? 'Family',
+        ),
+      ),
+
+      // ── Events & Celebrations ──────────────────────────────────
+      GoRoute(
+        path: '/events',
+        builder: (context, state) => const EventsScreen(),
+      ),
+
+      // ── Memories & Timeline ─────────────────────────────────────
+      GoRoute(
+        path: '/memories',
+        builder: (context, state) => const MemoriesScreen(),
+      ),
+
       // ── AI-Powered Features ─────────────────────────────────────
       GoRoute(
         path: '/ai-chat',
@@ -192,6 +234,27 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/referral',
         builder: (context, state) => ReferralScreen(),
+      ),
+
+      // ── Share & Invite ──────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/share',
+        builder: (context, state) => ShareScreen(
+          familyId: state.pathParameters['id']!,
+          familyName: state.uri.queryParameters['name'] ?? 'Family',
+        ),
+      ),
+
+      // ── Gamification & Achievements ─────────────────────────────
+      GoRoute(
+        path: '/achievements',
+        builder: (context, state) => const AchievementsScreen(),
+      ),
+
+      // ── Document Vault ───────────────────────────────────────────
+      GoRoute(
+        path: '/documents',
+        builder: (context, state) => const DocumentsScreen(),
       ),
     ],
   );
@@ -369,15 +432,13 @@ class _BottomNav extends StatelessWidget {
   }
 
   /// Map current route to bottom nav index.
-  /// Alerts (index 3) is a placeholder — no dedicated route yet.
   int _currentIndex(String location) {
     if (location.startsWith('/home')) return 0;
     if (location.startsWith('/kinship-search')) return 1;
     if (location.startsWith('/families')) return 2;
-    // Alerts has no dedicated route yet; placeholder goes to /home
-    if (location.startsWith('/explore')) return 0; // Explore no longer a tab
+    if (location.startsWith('/notifications')) return 3;
+    if (location.startsWith('/explore')) return 0;
     if (location.startsWith('/profile')) return 4;
-    // /settings maps to home tab (backward compat)
     if (location.startsWith('/settings')) return 0;
     return 0;
   }
@@ -392,8 +453,7 @@ class _BottomNav extends StatelessWidget {
       case 2:
         context.go('/families');
       case 3:
-        // Alerts placeholder — navigates to /home until alerts feature is built
-        context.go('/home');
+        context.go('/notifications');
       case 4:
         context.go('/profile');
     }
