@@ -1,0 +1,80 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad-icon" x1="20%" y1="10%" x2="80%" y2="90%">
+      <stop offset="0%"   stop-color="#E8612A"/>
+      <stop offset="100%" stop-color="#F59240"/>
+    </linearGradient>
+    <radialGradient id="rbg-icon" cx="35%" cy="50%" r="65%">
+      <stop offset="0%"   stop-color="#23263E"/>
+      <stop offset="100%" stop-color="#191B2C"/>
+    </radialGradient>
+    <clipPath id="clip-icon">
+      <rect width="1024" height="1024" rx="226" ry="226"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="226" ry="226" fill="url(#rbg-icon)"/>
+
+  <!-- Orbit ring -->
+  <circle cx="502" cy="512" r="389" stroke="#E8612A" stroke-width="5.1" stroke-opacity="0.18" stroke-dasharray="41 61" fill="none"/>
+
+  <g clip-path="url(#clip-icon)">
+    <!-- Edges (lines connecting nodes) -->
+    <!-- Spine: top to center -->
+    <line x1="287" y1="225" x2="287" y2="512" stroke="#E8612A" stroke-width="16.4" stroke-opacity="0.75" stroke-linecap="round"/>
+    <!-- Spine: center to bottom -->
+    <line x1="287" y1="512" x2="287" y2="799" stroke="#E8612A" stroke-width="16.4" stroke-opacity="0.75" stroke-linecap="round"/>
+    <!-- Upper arm: center to junction -->
+    <line x1="287" y1="512" x2="512" y2="348" stroke="#F59240" stroke-width="14.3" stroke-opacity="0.75" stroke-linecap="round"/>
+    <!-- Upper arm: junction to end -->
+    <line x1="512" y1="348" x2="717" y2="174" stroke="#F59240" stroke-width="14.3" stroke-opacity="0.75" stroke-linecap="round"/>
+    <!-- Lower arm: center to junction -->
+    <line x1="287" y1="512" x2="512" y2="676" stroke="#C44A18" stroke-width="14.3" stroke-opacity="0.75" stroke-linecap="round"/>
+    <!-- Lower arm: junction to end -->
+    <line x1="512" y1="676" x2="717" y2="850" stroke="#C44A18" stroke-width="14.3" stroke-opacity="0.75" stroke-linecap="round"/>
+    <!-- Cross lattice: upper to lower -->
+    <line x1="512" y1="348" x2="512" y2="676" stroke="#E8612A" stroke-width="8.2" stroke-opacity="0.35" stroke-dasharray="31 31" stroke-linecap="round"/>
+    <!-- Lattice: top to upper junction -->
+    <line x1="287" y1="225" x2="512" y2="348" stroke="#F59240" stroke-width="7.2" stroke-opacity="0.35" stroke-dasharray="20 41" stroke-linecap="round"/>
+    <!-- Lattice: bottom to lower junction -->
+    <line x1="287" y1="799" x2="512" y2="676" stroke="#C44A18" stroke-width="7.2" stroke-opacity="0.35" stroke-dasharray="20 41" stroke-linecap="round"/>
+
+    <!-- Node glow halos -->
+    <circle cx="287" cy="225" r="82" fill="#E8612A" fill-opacity="0.12"/>
+    <circle cx="287" cy="512" r="97" fill="#E8612A" fill-opacity="0.12"/>
+    <circle cx="287" cy="799" r="82" fill="#E8612A" fill-opacity="0.12"/>
+    <circle cx="717" cy="174" r="77" fill="#F59240" fill-opacity="0.12"/>
+    <circle cx="717" cy="850" r="77" fill="#F59240" fill-opacity="0.12"/>
+    <circle cx="512" cy="348" r="67" fill="#C44A18" fill-opacity="0.12"/>
+    <circle cx="512" cy="676" r="67" fill="#C44A18" fill-opacity="0.12"/>
+
+    <!-- Nodes (circles) -->
+    <!-- Top node -->
+    <circle cx="287" cy="225" r="46" fill="#E8612A"/>
+    <!-- Center node (largest) -->
+    <circle cx="287" cy="512" r="61" fill="#E8612A"/>
+    <!-- Bottom node -->
+    <circle cx="287" cy="799" r="46" fill="#E8612A"/>
+    <!-- Upper right end -->
+    <circle cx="717" cy="174" r="41" fill="#F59240"/>
+    <!-- Lower right end -->
+    <circle cx="717" cy="850" r="41" fill="#F59240"/>
+    <!-- Upper junction -->
+    <circle cx="512" cy="348" r="31" fill="#C44A18"/>
+    <!-- Lower junction -->
+    <circle cx="512" cy="676" r="31" fill="#C44A18"/>
+
+    <!-- Node highlights (white specular) -->
+    <circle cx="275" cy="214" r="16" fill="white" fill-opacity="0.38"/>
+    <circle cx="272" cy="497" r="21" fill="white" fill-opacity="0.38"/>
+    <circle cx="275" cy="788" r="16" fill="white" fill-opacity="0.38"/>
+    <circle cx="707" cy="164" r="14" fill="white" fill-opacity="0.38"/>
+    <circle cx="707" cy="840" r="14" fill="white" fill-opacity="0.38"/>
+    <circle cx="504" cy="341" r="11" fill="white" fill-opacity="0.38"/>
+    <circle cx="504" cy="669" r="11" fill="white" fill-opacity="0.38"/>
+
+    <!-- Center node orbit ring -->
+    <circle cx="287" cy="512" r="92" stroke="url(#grad-icon)" stroke-width="12.3" fill="none" stroke-opacity="0.55"/>
+  </g>
+</svg>

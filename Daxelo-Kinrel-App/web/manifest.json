@@ -1,11 +1,11 @@
 {
-    "name": "kinrel",
-    "short_name": "kinrel",
+    "name": "KINREL — Relationship Intelligence",
+    "short_name": "KINREL",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#13141E",
+    "theme_color": "#E8612A",
+    "description": "India's family relationship graph — AI-powered kinship names, generational lineage mapping, and 50+ Indian relationship terms. By Daxelo.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
