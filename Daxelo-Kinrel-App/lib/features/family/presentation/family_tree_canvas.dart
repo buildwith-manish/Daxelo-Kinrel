@@ -107,8 +107,6 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
   static const double nodeHeight = 72.0;
   static const double horizontalGap = 24.0;
   static const double verticalGap = 90.0;
-  static const double avatarSize = 32.0;
-  static const double radius = 12.0;
 
   @override
   Widget build(BuildContext context) {

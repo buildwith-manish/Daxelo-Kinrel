@@ -341,7 +341,7 @@ class _CustomizationFormState extends ConsumerState<_CustomizationForm>
 
   @override
   Widget build(BuildContext context) {
-    final cardsState = ref.watch(festivalCardsProvider);
+    ref.watch(festivalCardsProvider);
 
     return Column(
       children: [

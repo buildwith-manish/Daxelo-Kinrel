@@ -20,8 +20,8 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
-  late Animation<double> _f1, _f2, _f3, _f4, _f5, _f6;
-  late Animation<Offset> _s1, _s2, _s3, _s4, _s5, _s6;
+  late Animation<double> _f1, _f2, _f3, _f4, _f5;
+  late Animation<Offset> _s1, _s2, _s3, _s4, _s5;
 
   @override
   void initState() {
@@ -38,8 +38,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _s4 = _slide(0.30, 0.60);
     _f5 = _fade(0.45, 0.75);
     _s5 = _slide(0.45, 0.75);
-    _f6 = _fade(0.60, 0.90);
-    _s6 = _slide(0.60, 0.90);
     _ctrl.forward();
   }
 
@@ -244,9 +242,10 @@ class _PressDownState extends State<_PressDown>
 
 // ── Shimmer ──────────────────────────────────────────────────────
 class _Shimmer extends StatefulWidget {
-  final double width, height, radius;
+  final double _width;
+  final double height, radius;
   const _Shimmer(
-      {this.width = double.infinity, required this.height, this.radius = 12});
+      {double width = double.infinity, required this.height, this.radius = 12}) : _width = width;
   @override
   State<_Shimmer> createState() => _ShimmerState();
 }
@@ -275,7 +274,7 @@ class _ShimmerState extends State<_Shimmer>
   Widget build(BuildContext context) => AnimatedBuilder(
         animation: _a,
         builder: (_, __) => Container(
-          width: widget.width,
+          width: widget._width,
           height: widget.height,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(widget.radius),

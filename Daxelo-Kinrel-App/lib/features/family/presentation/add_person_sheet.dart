@@ -52,7 +52,6 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
   final _cityController = TextEditingController();
   final _gotraController = TextEditingController();
 
-  String? _selectedRelationshipKey; // Kept for UI — used when creating a Relationship separately
   String? _selectedRelationshipLabel;
   String _selectedGender = 'male';
   bool _isDeceased = false;
@@ -193,7 +192,6 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
     );
     if (result != null) {
       setState(() {
-        _selectedRelationshipKey = result;
         _selectedRelationshipLabel = result.snakeToTitle;
       });
     }

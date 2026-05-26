@@ -73,7 +73,7 @@ final _exploreResultsProvider =
           matchingMembers.add(_SearchResultItem(
             id: member.id,
             title: member.name,
-            subtitle: '${family.name}',
+            subtitle: family.name,
             icon: Icons.person_outline_rounded,
             type: _ResultType.member,
             familyId: family.id,

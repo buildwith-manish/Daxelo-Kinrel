@@ -8,7 +8,6 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/kinship/kinship_models.dart';
 import '../../../core/kinship/kinship_service.dart';
 import '../../../core/kinship/kinship_provider.dart';
-import '../../../core/family/family_provider.dart';
 
 /// Contextual relationship picker that shows smart suggestions based on
 /// existing family structure. When linking Person A to Person B, the header

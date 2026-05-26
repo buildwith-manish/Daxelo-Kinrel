@@ -13,7 +13,6 @@ linter:
     avoid_print: true
     cancel_subscriptions: true
     close_sinks: true
-    prefer_typing_uninitialized_parameters: true
     require_trailing_commas: true
     sized_box_for_whitespace: true
     sort_constructors_first: true

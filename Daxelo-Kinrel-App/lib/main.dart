@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/app_config.dart';
 import 'core/routing/app_router.dart';
@@ -115,6 +116,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp> with WidgetsBindingObserv
             // Only refresh if we already have a session — don't try to restore
             client.auth.refreshSession().catchError((_) {
               // Ignore refresh errors — existing session is still valid locally
+              return client.auth.currentSession ?? AuthResponse();
             });
           }
         } catch (_) {}

@@ -335,7 +335,6 @@ class _FamilyGraphIllustration extends CustomPainter {
     final count = 6;
     final orbitRadius = size.width * 0.3;
     for (int i = 0; i < count; i++) {
-      final angle = (i / count) * 3.14159 * 2 - 1.5708;
       nodePositions.add(Offset(
         cx + orbitRadius * (i.isEven ? 0.8 : 1.0) * (i % 3 == 0 ? 1 : 0.7) *
             (i < 3 ? 1 : -1) *
@@ -350,14 +349,12 @@ class _FamilyGraphIllustration extends CustomPainter {
     // Inner ring: 2 nodes
     final innerR = size.width * 0.18;
     for (int i = 0; i < 2; i++) {
-      final angle = (i / 2) * 3.14159 * 2 - 1.5708 + 0.3;
       nodePositions.add(Offset(cx + innerR * (i == 0 ? -0.9 : 0.9),
           cy + innerR * (i == 0 ? -0.6 : -0.6)));
     }
     // Outer ring: 4 nodes
     final outerR = size.width * 0.35;
     for (int i = 0; i < 4; i++) {
-      final angle = (i / 4) * 3.14159 * 2 - 1.5708;
       nodePositions.add(Offset(
         cx + outerR * 0.9 * (i < 2 ? -1 : 1),
         cy + outerR * 0.7 * (i.isEven ? -1 : 1),
@@ -495,13 +492,6 @@ class _FamilyGraphIllustration extends CustomPainter {
   void _paintFamilyShare(
       Canvas canvas, Size size, double cx, double cy, double r) {
     // Central tree with sharing ripples
-    final treePaint = Paint()
-      ..shader = LinearGradient(
-        colors: gradient,
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-
     // Draw tree trunk
     final trunkPaint = Paint()
       ..color = gradient.first.withValues(alpha: 0.6)
@@ -567,13 +557,6 @@ class _FamilyGraphIllustration extends CustomPainter {
   }
 
   void _drawDashedLine(Canvas canvas, Offset start, Offset end, Paint paint) {
-    const dashLength = 6.0;
-    const gapLength = 4.0;
-    final dx = end.dx - start.dx;
-    final dy = end.dy - start.dy;
-    final distance = (dx * dx + dy * dy);
-    final totalLength = distance > 0 ? (distance as double) : 0.0;
-    // Simplified: just draw the line as-is for now
     canvas.drawLine(start, end, paint);
   }
 

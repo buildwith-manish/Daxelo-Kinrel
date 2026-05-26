@@ -17,8 +17,8 @@ class ReferralScreen extends ConsumerStatefulWidget {
 class _ReferralScreenState extends ConsumerState<ReferralScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _staggerCtrl;
-  late Animation<double> _f1, _f2, _f3, _f4, _f5;
-  late Animation<Offset> _s1, _s2, _s3, _s4, _s5;
+  late Animation<double> _f1, _f2, _f3, _f4;
+  late Animation<Offset> _s1, _s2, _s3, _s4;
 
   // Mock user ID — in production this would come from auth
   final String _userId = 'user_demo_001';
@@ -38,8 +38,6 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
     _s3 = _slide(0.20, 0.45);
     _f4 = _fade(0.30, 0.55);
     _s4 = _slide(0.30, 0.55);
-    _f5 = _fade(0.40, 0.65);
-    _s5 = _slide(0.40, 0.65);
     _staggerCtrl.forward();
 
     // Auto-generate referral code on init

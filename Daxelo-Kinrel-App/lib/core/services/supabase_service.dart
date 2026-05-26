@@ -203,13 +203,14 @@ class AuthService {
     required String password,
     String? name,
   }) async {
-    if (_client == null) {
+    final client = _client;
+    if (client == null) {
       throw AuthException(
         'Authentication service is not available. Please restart the app and try again.',
       );
     }
     return withRetry(
-      () => _client!.auth.signUp(
+      () => client.auth.signUp(
         email: email,
         password: password,
         data: {'name': name},
@@ -223,13 +224,14 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    if (_client == null) {
+    final client = _client;
+    if (client == null) {
       throw AuthException(
         'Authentication service is not available. Please restart the app and try again.',
       );
     }
     return withRetry(
-      () => _client!.auth.signInWithPassword(
+      () => client.auth.signInWithPassword(
         email: email,
         password: password,
       ),
@@ -238,33 +240,37 @@ class AuthService {
   }
 
   Future<void> signOut() async {
-    if (_client == null) return;
-    await _client!.auth.signOut();
+    final client = _client;
+    if (client == null) return;
+    await client.auth.signOut();
   }
 
   Future<void> resetPassword(String email) async {
-    if (_client == null) {
+    final client = _client;
+    if (client == null) {
       throw AuthException('Authentication service is not available.');
     }
     await withRetry(
-      () => _client!.auth.resetPasswordForEmail(email),
+      () => client.auth.resetPasswordForEmail(email),
       operationName: 'Reset password',
     );
   }
 
   Future<void> updatePassword(String newPassword) async {
-    if (_client == null) {
+    final client = _client;
+    if (client == null) {
       throw AuthException('Authentication service is not available.');
     }
-    await _client!.auth.updateUser(UserAttributes(password: newPassword));
+    await client.auth.updateUser(UserAttributes(password: newPassword));
   }
 
   Session? get session => _client?.auth.currentSession;
   User? get user => _client?.auth.currentUser;
 
   Future<Session?> refreshSession() async {
-    if (_client == null) return null;
-    final response = await _client!.auth.refreshSession();
+    final client = _client;
+    if (client == null) return null;
+    final response = await client.auth.refreshSession();
     return response.session;
   }
 }
