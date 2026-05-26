@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/storage/secure_storage.dart';
 import '../../../shared/widgets/kinrel_icon.dart';
@@ -28,6 +29,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _initialize() async {
+    // Preload kinship data in the background (5300+ terms, ~15MB JSON)
+    // Don't await — let it load while splash shows
+    ref.read(kinshipInitializedProvider.future).catchError((_) {});
+
     // Shorter splash for better UX — 1.5s is enough for branding
     await Future.delayed(const Duration(milliseconds: 1500));
 

@@ -20,6 +20,8 @@ import '../../features/voice_search/presentation/voice_search_screen.dart';
 import '../../features/festival_cards/presentation/festival_cards_screen.dart';
 import '../../features/quiz/presentation/quiz_screen.dart';
 import '../../features/referral/presentation/referral_screen.dart';
+import '../../features/kinship/presentation/kinship_search_screen.dart';
+import '../../features/kinship/presentation/kinship_detail_screen.dart';
 import '../services/supabase_service.dart';
 
 /// Key for accessing the router's navigator state
@@ -151,6 +153,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/festival-cards',
         builder: (context, state) => const FestivalCardsScreen(),
+      ),
+
+      // ── Kinship Dictionary ──────────────────────────────────────
+      GoRoute(
+        path: '/kinship-search',
+        builder: (context, state) => const KinshipSearchScreen(),
+      ),
+      GoRoute(
+        path: '/kinship/:key',
+        builder: (context, state) => KinshipDetailScreen(
+          relationshipKey: state.pathParameters['key']!,
+        ),
       ),
 
       // ── Growth & Engagement ─────────────────────────────────────

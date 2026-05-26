@@ -196,7 +196,7 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
                       return _KinshipTermCard(
                         result: result,
                         language: _selectedLanguage,
-                        onTap: () => context.go('/kinship/${result.relationship.relationshipKey}'),
+                        onTap: () => context.push('/kinship/${result.relationship.relationshipKey}'),
                       );
                     },
                   );

@@ -5,12 +5,24 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/constants/supported_languages.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/kinship/kinship_provider.dart';
+import '../../../core/kinship/kinship_models.dart';
 
 /// Search provider for the explore screen
 final _exploreSearchProvider = StateProvider<String>((ref) => '');
 
-/// Search results provider — searches across all family members and families
+/// Kinship search results for the explore screen
+final _exploreKinshipProvider = FutureProvider<List<KinshipSearchResult>>((ref) async {
+  final query = ref.watch(_exploreSearchProvider);
+  if (query.isEmpty) return [];
+  await ref.watch(kinshipInitializedProvider.future);
+  final service = ref.watch(kinshipServiceProvider);
+  return service.search(query);
+});
+
+/// Search results provider — searches across all family members, families, and kinship terms
 final _exploreResultsProvider =
     FutureProvider<_ExploreResults>((ref) async {
   final query = ref.watch(_exploreSearchProvider);
@@ -182,10 +194,15 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
 
   Widget _buildSearchResults() {
     final resultsAsync = ref.watch(_exploreResultsProvider);
+    final kinshipAsync = ref.watch(_exploreKinshipProvider);
 
     return resultsAsync.when(
       data: (results) {
-        if (results.isEmpty) {
+        final kinshipResults = kinshipAsync.whenOrNull(data: (data) => data) ?? [];
+
+        final hasNoResults = results.isEmpty && kinshipResults.isEmpty;
+
+        if (hasNoResults) {
           return SliverToBoxAdapter(
             child: Center(
               child: Padding(
@@ -208,7 +225,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Try searching for a family member or family name',
+                      'Try searching for a family member, family name, or kinship term',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 14,
@@ -224,6 +241,92 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
 
         return SliverList(
           delegate: SliverChildListDelegate([
+            // Kinship Terms section (shown first since it's the most relevant for this app)
+            if (kinshipResults.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: KinrelSpacing.base),
+                child: Row(
+                  children: [
+                    Text(
+                      'Kinship Terms',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: KinrelColors.orange.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${kinshipResults.length}',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: KinrelColors.orange,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () => context.push('/kinship-search'),
+                      child: Text(
+                        'See All',
+                        style: TextStyle(
+                          color: KinrelColors.orange,
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...kinshipResults.take(5).map((result) => _KinshipResultCard(
+                    result: result,
+                    onTap: () => context.push('/kinship/${result.relationship.relationshipKey}'),
+                  )),
+              if (kinshipResults.length > 5)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: KinrelSpacing.base, vertical: 8),
+                  child: GestureDetector(
+                    onTap: () => context.push('/kinship-search'),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: KinrelColors.darkCard,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: KinrelColors.orange.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'View all ${kinshipResults.length} kinship terms →',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: KinrelColors.orange,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 20),
+            ],
+
             // Members section
             if (results.members.isNotEmpty) ...[
               Padding(
@@ -298,6 +401,14 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
       // Recent section
       SliverToBoxAdapter(
         child: _RecentSection(familiesAsync: familiesAsync),
+      ),
+      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+      // Kinship Dictionary card
+      SliverToBoxAdapter(
+        child: _KinshipDictionaryCard(
+          onTap: () => context.push('/kinship-search'),
+        ),
       ),
       const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
@@ -971,6 +1082,230 @@ class _SearchResultCard extends StatelessWidget {
               ),
               Icon(Icons.chevron_right,
                   color: KinrelColors.textDim, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Kinship Result Card ──────────────────────────────────────────
+
+class _KinshipResultCard extends ConsumerWidget {
+  final KinshipSearchResult result;
+  final VoidCallback onTap;
+
+  const _KinshipResultCard({
+    required this.result,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rel = result.relationship;
+    final termAsync = ref.watch(kinshipTermProvider(
+      (key: rel.relationshipKey, language: SupportedLanguage.hindi.name),
+    ));
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: KinrelSpacing.base, vertical: 4),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkCard,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: KinrelColors.orange.withValues(alpha: 0.15),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: KinrelColors.orange.withValues(alpha: 0.12),
+                ),
+                child: const Icon(Icons.translate_rounded,
+                    size: 18, color: KinrelColors.orange),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          rel.englishTerm,
+                          style: const TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: KinrelColors.textWhite,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: KinrelColors.orange.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            rel.relationshipCategory.replaceAll('_', ' '),
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: KinrelColors.orange,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    termAsync.when(
+                      data: (translation) => Text(
+                        translation != null
+                            ? '${translation.native} (${translation.latin})'
+                            : rel.relationshipKey.replaceAll('_', ' '),
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 12,
+                          color: KinrelColors.textDim,
+                        ),
+                      ),
+                      loading: () => Text(
+                        rel.relationshipKey.replaceAll('_', ' '),
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 12,
+                          color: KinrelColors.textDim,
+                        ),
+                      ),
+                      error: (_, __) => Text(
+                        rel.relationshipKey.replaceAll('_', ' '),
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 12,
+                          color: KinrelColors.textDim,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right,
+                  color: KinrelColors.textDim, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Kinship Dictionary Card ──────────────────────────────────────
+
+class _KinshipDictionaryCard extends ConsumerWidget {
+  final VoidCallback onTap;
+  const _KinshipDictionaryCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final metaAsync = ref.watch(kinshipMetaProvider);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(KinrelRadius.card),
+            gradient: LinearGradient(
+              colors: [
+                KinrelColors.orange.withValues(alpha: 0.12),
+                KinrelColors.darkCard,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            border: Border.all(
+              color: KinrelColors.orange.withValues(alpha: 0.25)),
+            boxShadow: [
+              BoxShadow(
+                color: KinrelColors.orange.withValues(alpha: 0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: KinrelColors.orange.withValues(alpha: 0.15),
+                ),
+                child: const Icon(Icons.menu_book_rounded,
+                    color: KinrelColors.orange, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Kinship Dictionary',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    metaAsync.when(
+                      data: (meta) => Text(
+                        '${meta['totalRelationships'] ?? 5300}+ terms in 15 languages',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 13,
+                          color: KinrelColors.textDim,
+                          height: 1.4,
+                        ),
+                      ),
+                      loading: () => Text(
+                        '5300+ terms in 15 languages',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 13,
+                          color: KinrelColors.textDim,
+                          height: 1.4,
+                        ),
+                      ),
+                      error: (_, __) => Text(
+                        '5300+ terms in 15 languages',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 13,
+                          color: KinrelColors.textDim,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios_rounded,
+                  size: 16, color: KinrelColors.orange),
             ],
           ),
         ),
