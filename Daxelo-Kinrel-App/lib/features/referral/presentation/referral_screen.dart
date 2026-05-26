@@ -28,7 +28,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
     super.initState();
     _staggerCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: Duration(milliseconds: 900),
     );
     _f1 = _fade(0.00, 0.25);
     _s1 = _slide(0.00, 0.25);
@@ -51,7 +51,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
           parent: _staggerCtrl, curve: Interval(a, b, curve: Curves.easeOutCubic)));
 
   Animation<Offset> _slide(double a, double b) =>
-      Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero)
+      Tween<Offset>(begin: Offset(0, 0.15), end: Offset.zero)
           .animate(CurvedAnimation(
               parent: _staggerCtrl, curve: Interval(a, b, curve: Curves.easeOutCubic)));
 
@@ -85,7 +85,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
           ),
         ),
       ),
-      body: const SafeArea(
+      body: SafeArea(
         child: SingleChildScrollView(
           physics: BouncingScrollPhysics(),
           padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
@@ -176,7 +176,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
               border: Border.all(
                   color: KinrelColors.purple.withValues(alpha: 0.4)),
             ),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.card_giftcard_rounded,
@@ -224,7 +224,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                     onTap: () {
                       Clipboard.setData(ClipboardData(text: code));
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           content: Text('Code copied to clipboard!'),
                           duration: Duration(seconds: 2),
                           backgroundColor: KinrelColors.success,
@@ -239,7 +239,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                         border: Border.all(
                             color: KinrelColors.darkSurface.withValues(alpha: 0.6)),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.copy_rounded,
@@ -259,7 +259,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: _PressDown(
                     onTap: () {
@@ -267,7 +267,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                       // In production: use share_plus package
                       Clipboard.setData(ClipboardData(text: shareText));
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           content: Text('Share text copied!'),
                           duration: Duration(seconds: 2),
                           backgroundColor: KinrelColors.amber,
@@ -314,7 +314,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
     final totalReferrals = state.stats?.totalReferrals ?? 0;
     final rewardsCount = state.stats?.rewards.length ?? 0;
 
-    return const Row(
+    return Row(
       children: [
         Expanded(
           child: _buildStatCard(
@@ -360,15 +360,15 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(7),
+            padding: EdgeInsets.all(7),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: color.withValues(alpha: 0.12),
             ),
             child: Icon(icon, color: color, size: 18),
           ),
-          const SizedBox(height: 10),
-          const Text(
+          SizedBox(height: 10),
+          Text(
             value,
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -377,8 +377,8 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
               color: KinrelColors.textWhite,
             ),
           ),
-          const SizedBox(height: 2),
-          const Text(
+          SizedBox(height: 2),
+          Text(
             label,
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -394,7 +394,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
   // ── Section Header ────────────────────────────────────────────────
 
   Widget _buildSectionHeader(String title) {
-    return const Row(
+    return Row(
       children: [
         Text(
           title,
@@ -448,11 +448,11 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                       ),
                       child: Center(
                         child: isUnlocked
-                            ? const Icon(Icons.check_rounded,
+                            ? Icon(Icons.check_rounded,
                                 color: KinrelColors.success, size: 20)
                             : Text(
                                 '${tier.referrals}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontFamily: KinrelTypography.bodyFont,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
@@ -461,8 +461,8 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                               ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    const Expanded(
+                    SizedBox(width: 12),
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -542,7 +542,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                       ),
                     ),
                     if (isUnlocked)
-                      const Text(
+                      Text(
                         'Unlocked!',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
@@ -577,7 +577,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
           reward: 'Premium 1 year free',
           badge: 'Family Champion',
           description: '1 year of Premium + exclusive badge'),
-      const RewardTier(
+      RewardTier(
           referrals: 50,
           reward: 'Lifetime Premium',
           badge: 'Kinrel Ambassador',
@@ -602,7 +602,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
           border: Border.all(
               color: KinrelColors.darkSurface.withValues(alpha: 0.6)),
         ),
-        child: const Column(
+        child: Column(
           children: [
             Icon(Icons.group_add_outlined,
                 color: KinrelColors.textDim, size: 32),
@@ -652,7 +652,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                     shape: BoxShape.circle,
                     color: KinrelColors.purple.withValues(alpha: 0.12),
                   ),
-                  child: const Icon(Icons.person_rounded,
+                  child: Icon(Icons.person_rounded,
                       color: KinrelColors.purple, size: 18),
                 ),
                 const SizedBox(width: 12),
@@ -671,7 +671,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                       ),
                       Text(
                         _formatDate(ref.date),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 11,
                           color: KinrelColors.textDim,
@@ -680,7 +680,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                     ],
                   ),
                 ),
-                const Icon(Icons.check_circle_rounded,
+                Icon(Icons.check_circle_rounded,
                     color: KinrelColors.success, size: 18),
               ],
             ),
@@ -695,7 +695,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
   Widget _buildShimmerCard() {
     return Container(
       height: 80,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(14),
       ),

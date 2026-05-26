@@ -90,7 +90,7 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
           child: CircularProgressIndicator(color: KinrelColors.purple),
         ),
     error: (e, _) => Center(
-          child: const Text(
+          child: Text(
             'Failed to load members',
             style: TextStyle(color: KinrelColors.textDim),
           ),
@@ -154,7 +154,7 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
             }),
           ),
 
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
 
           // Find button
           FilledButton(
@@ -168,8 +168,8 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
               foregroundColor: Colors.white,
               disabledBackgroundColor:
                   KinrelColors.purple.withValues(alpha: 0.4),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: const RoundedRectangleBorder(
+              padding: EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
                 borderRadius:
                     BorderRadius.circular(KinrelSpacing.radiusSm),
               ),
@@ -183,7 +183,7 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
                       color: Colors.white,
                     ),
                   )
-                : const Text(
+                : Text(
                     'Find Relationship Path',
                     style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
@@ -246,7 +246,7 @@ class _EmptyState extends StatelessWidget {
               color: KinrelColors.textDim.withValues(alpha: 0.3),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'No Members Yet',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -255,8 +255,8 @@ class _EmptyState extends StatelessWidget {
                 color: KinrelColors.textWhite,
               ),
             ),
-            const SizedBox(height: 8),
-            const Text(
+            SizedBox(height: 8),
+            Text(
               'Add family members first to find relationship paths.',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -291,7 +291,7 @@ class _PersonSelector extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(label,
+        Text(label,
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
@@ -311,7 +311,7 @@ class _PersonSelector extends StatelessWidget {
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: selectedId,
-              hint: const Text(
+              hint: Text(
                 'Select person',
                 style: TextStyle(color: KinrelColors.textDim),
               ),
@@ -397,7 +397,7 @@ class _PathResultCard extends StatelessWidget {
                       child: Center(
                         child: Text(
                           '${result.path.indexOf(step) + 1}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: KinrelTypography.displayFont,
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -406,8 +406,8 @@ class _PathResultCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    const Expanded(
+                    SizedBox(width: 12),
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [

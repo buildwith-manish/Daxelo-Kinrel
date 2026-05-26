@@ -36,7 +36,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
               SliverToBoxAdapter(
                 child: _Header(familyCount: families.length),
               ),
-              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+              SliverToBoxAdapter(child: SizedBox(height: 16)),
 
               // Join Family card
               SliverToBoxAdapter(
@@ -44,7 +44,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
                   onJoin: () => _showJoinFamilyDialog(context),
                 ),
               ),
-              const SliverToBoxAdapter(child: SizedBox(height: 20)),
+              SliverToBoxAdapter(child: SizedBox(height: 20)),
 
               // Family cards or empty state
               if (families.isEmpty)
@@ -99,7 +99,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
         ),
         child: IconButton(
           onPressed: () => context.push('/families/create'),
-          icon: const Icon(Icons.add_rounded, size: 28),
+          icon: Icon(Icons.add_rounded, size: 28),
           color: DKColors.brandPurple,
         ),
       )
@@ -119,7 +119,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
       padding: const EdgeInsets.all(KinrelSpacing.base),
       children: [
         const SizedBox(height: 60),
-        const Row(
+        Row(
           children: [
             DKLoadingShimmer(width: 160, height: 28),
             SizedBox(width: 10),
@@ -155,7 +155,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
                 shape: BoxShape.circle,
                 color: DKColors.brandPurple.withValues(alpha: 0.15),
               ),
-              child: const Icon(Icons.link_rounded,
+              child: Icon(Icons.link_rounded,
                   color: DKColors.brandPurple, size: 20),
             ),
             const SizedBox(width: 12),
@@ -301,7 +301,7 @@ class _JoinFamilyCard extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: DKColors.brandGold.withValues(alpha: 0.15),
               ),
-              child: const Icon(Icons.mail_outline_rounded,
+              child: Icon(Icons.mail_outline_rounded,
                   color: DKColors.brandGold, size: 20),
             ),
             const SizedBox(width: 14),
@@ -330,7 +330,7 @@ class _JoinFamilyCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios_rounded,
+            Icon(Icons.arrow_forward_ios_rounded,
                 size: 16, color: DKColors.brandGold),
           ],
         ),

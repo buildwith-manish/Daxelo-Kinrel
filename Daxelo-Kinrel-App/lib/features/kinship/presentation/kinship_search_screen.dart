@@ -144,7 +144,7 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
                 );
               },
               loading: () => ListView(
-                padding: const EdgeInsets.all(KinrelSpacing.base),
+                padding: EdgeInsets.all(KinrelSpacing.base),
                 children: List.generate(
                   5,
                   (_) => Padding(
@@ -198,12 +198,12 @@ class _KinshipTermCard extends ConsumerWidget {
             children: [
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: DKColors.brandPurple.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Text(
+                child: Text(
                   rel.relationshipCategory.replaceAll('_', ' ').toUpperCase(),
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -214,16 +214,16 @@ class _KinshipTermCard extends ConsumerWidget {
                   ),
                 ),
               ),
-              const Spacer(),
+              Spacer(),
               // Relationship key
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: DKColors.brandGold.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: const Text(
+                child: Text(
                   rel.relationshipKey.replaceAll('_', ' '),
                   style: TextStyle(
                     fontFamily: KinrelTypography.monoFont,

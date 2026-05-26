@@ -422,12 +422,12 @@ OutlinedButtonThemeData _outlinedButtonTheme(Brightness brightness) {
       side: BorderSide(
         color: primaryColor.withValues(alpha: 0.5),
       ),
-      padding: const EdgeInsets.symmetric(
+      padding: EdgeInsets.symmetric(
         horizontal: KinrelSpacing.xl,
         vertical: KinrelSpacing.md,
       ),
-      minimumSize: const Size(0, 48),
-      shape: const RoundedRectangleBorder(
+      minimumSize: Size(0, 48),
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(KinrelRadius.button),
       ),
       textStyle: KinrelTypography.labelLarge,
@@ -527,8 +527,8 @@ InputDecorationTheme _inputDecorationTheme(Brightness brightness) {
 
 BottomNavigationBarThemeData _bottomNavigationBarTheme(Brightness brightness) {
   final bgColor = brightness == Brightness.dark
-      ? const Color(0xCC1E1E1E) // darkCard semi-transparent
-      : const Color(0xCCFFFFFF); // lightCard semi-transparent
+      ? Color(0xCC1E1E1E) // darkCard semi-transparent
+      : Color(0xCCFFFFFF); // lightCard semi-transparent
   final selectedItemColor = brightness == Brightness.dark
       ? KinrelColors.purple
       : KinrelColors.purple;
@@ -588,7 +588,7 @@ DialogThemeData _dialogTheme(Brightness brightness) {
     elevation: 4,
     shadowColor: Colors.black26,
     surfaceTintColor: Colors.transparent,
-    shape: const RoundedRectangleBorder(
+    shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(KinrelRadius.dialog),
       side: BorderSide(
         color: borderColor,
@@ -616,14 +616,14 @@ BottomSheetThemeData _bottomSheetTheme(Brightness brightness) {
     backgroundColor: cardColor,
     surfaceTintColor: Colors.transparent,
     elevation: 0,
-    shape: const RoundedRectangleBorder(
+    shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(
         top: Radius.circular(KinrelRadius.bottomSheet),
       ),
     ),
     showDragHandle: true,
     dragHandleColor: dragColor,
-    constraints: const BoxConstraints(maxWidth: 640),
+    constraints: BoxConstraints(maxWidth: 640),
   );
 }
 
@@ -657,10 +657,10 @@ ChipThemeData _chipTheme(Brightness brightness) {
     side: BorderSide(
       color: borderColor,
     ),
-    shape: const RoundedRectangleBorder(
+    shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(KinrelRadius.chip),
     ),
-    padding: const EdgeInsets.symmetric(
+    padding: EdgeInsets.symmetric(
       horizontal: KinrelSpacing.md,
       vertical: KinrelSpacing.xs,
     ),
@@ -678,7 +678,7 @@ FloatingActionButtonThemeData _fabTheme(Brightness brightness) {
     disabledElevation: 0,
     elevation: 2,
     highlightElevation: 4,
-    shape: const CircleBorder(),
+    shape: CircleBorder(),
     extendedTextStyle: KinrelTypography.labelLarge,
   );
 }
@@ -700,7 +700,7 @@ SnackBarThemeData _snackbarTheme(Brightness brightness) {
       color: textPrimary,
     ),
     actionTextColor: actionColor,
-    shape: const RoundedRectangleBorder(
+    shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(KinrelRadius.sm),
     ),
     behavior: SnackBarBehavior.floating,
@@ -809,7 +809,7 @@ KinrelThemeExtension _darkExtension() {
 }
 
 KinrelThemeExtension _lightExtension() {
-  return const KinrelThemeExtension(
+  return KinrelThemeExtension(
     brandOrange: KinrelColors.orange,
     brandAmber: KinrelColors.amber,
     brandEmber: KinrelColors.ember,
@@ -890,13 +890,13 @@ ThemeData getAppTheme(Brightness brightness) {
     ),
 
     listTileTheme: ListTileThemeData(
-      contentPadding: const EdgeInsets.symmetric(
+      contentPadding: EdgeInsets.symmetric(
         horizontal: KinrelSpacing.lg,
         vertical: KinrelSpacing.xs,
       ),
       textColor: isDark ? KinrelColors.textWhite : KinrelColors.textDark,
       iconColor: textSecondary,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(KinrelRadius.sm),
       ),
     ),
@@ -912,14 +912,14 @@ ThemeData getAppTheme(Brightness brightness) {
       textStyle: KinrelTypography.bodySmall.copyWith(
         color: isDark ? KinrelColors.textWhite : KinrelColors.textDark,
       ),
-      waitDuration: const Duration(milliseconds: 500),
+      waitDuration: Duration(milliseconds: 500),
     ),
 
     popupMenuTheme: PopupMenuThemeData(
       color: isDark ? KinrelColors.darkCard : KinrelColors.lightCard,
       surfaceTintColor: Colors.transparent,
       elevation: 4,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(KinrelRadius.md),
         side: BorderSide(
           color: isDark ? KinrelColors.border : KinrelColors.lightBorder,
@@ -952,8 +952,8 @@ ThemeData getAppTheme(Brightness brightness) {
 
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: isDark
-          ? const Color(0xCC1E1E1E) // semi-transparent dark
-          : const Color(0xCCFFFFFF), // semi-transparent light
+          ? Color(0xCC1E1E1E) // semi-transparent dark
+          : Color(0xCCFFFFFF), // semi-transparent light
       indicatorColor: primaryColor.withValues(alpha: 0.15),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
@@ -1003,7 +1003,7 @@ ThemeData getAppTheme(Brightness brightness) {
             .withValues(alpha: 0.5),
         width: 2,
       ),
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(KinrelRadius.xs),
       ),
     ),

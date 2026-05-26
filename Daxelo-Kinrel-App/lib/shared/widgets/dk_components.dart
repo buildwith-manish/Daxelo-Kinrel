@@ -231,7 +231,7 @@ class DKScaffold extends StatelessWidget {
 /// )
 /// ```
 class DKCard extends StatelessWidget {
-  const DKCard({
+  DKCard({
     super.key,
     required this.child,
     this.padding = 16,
@@ -286,7 +286,7 @@ class DKCard extends StatelessWidget {
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  offset: Offset(0, 2),
                 ),
               ]
             : null;
@@ -301,13 +301,13 @@ class DKCard extends StatelessWidget {
       boxShadow: shadow,
     );
 
-    final cardChild = const Padding(
+    final cardChild = Padding(
       padding: EdgeInsets.all(padding),
       child: child,
     );
 
     if (onTap != null) {
-      return const Material(
+      return Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
@@ -788,7 +788,7 @@ class DKSearchField extends StatelessWidget {
         prefixIcon: Icon(Icons.search_rounded, color: iconColor, size: 22),
         filled: true,
         fillColor: inputFillColor,
-        contentPadding: const EdgeInsets.symmetric(
+        contentPadding: EdgeInsets.symmetric(
           horizontal: KinrelSpacing.lg,
           vertical: KinrelSpacing.md,
         ),
@@ -840,7 +840,7 @@ class DKSearchField extends StatelessWidget {
 /// )
 /// ```
 class DKGlassCard extends StatelessWidget {
-  const DKGlassCard({
+  DKGlassCard({
     super.key,
     required this.child,
     this.padding = 16,
@@ -881,7 +881,7 @@ class DKGlassCard extends StatelessWidget {
           sigmaY: blurSigma,
         ),
         child: Container(
-          padding: const EdgeInsets.all(padding),
+          padding: EdgeInsets.all(padding),
           decoration: BoxDecoration(
             color: isLight
                 ? Colors.white.withValues(alpha: 0.6)
@@ -1434,7 +1434,7 @@ class DKTabToggle extends StatelessWidget {
             onTap: () => onChanged(index),
             child: AnimatedContainer(
               duration: KinrelMotion.fast,
-              padding: const EdgeInsets.symmetric(
+              padding: EdgeInsets.symmetric(
                 horizontal: KinrelSpacing.lg,
                 vertical: KinrelSpacing.sm,
               ),
@@ -1480,7 +1480,7 @@ class DKTabToggle extends StatelessWidget {
 /// )
 /// ```
 class DKTimelineNode extends StatelessWidget {
-  const DKTimelineNode({
+  DKTimelineNode({
     super.key,
     required this.icon,
     required this.color,
@@ -1516,7 +1516,7 @@ class DKTimelineNode extends StatelessWidget {
             color: color.withValues(alpha: isLight ? 0.1 : 0.15),
             border: Border.all(color: color, width: 2),
           ),
-          child: const Icon(
+          child: Icon(
             icon,
             color: color,
             size: size * 0.4,
@@ -1556,7 +1556,7 @@ class DKTimelineNode extends StatelessWidget {
 /// )
 /// ```
 class DKStatChip extends StatelessWidget {
-  const DKStatChip({
+  DKStatChip({
     super.key,
     required this.icon,
     required this.value,
@@ -1582,7 +1582,7 @@ class DKStatChip extends StatelessWidget {
     final isLight = DKColors.isLight(context);
 
     return Container(
-      padding: const EdgeInsets.symmetric(
+      padding: EdgeInsets.symmetric(
         horizontal: KinrelSpacing.md,
         vertical: KinrelSpacing.sm,
       ),
@@ -1590,7 +1590,7 @@ class DKStatChip extends StatelessWidget {
         color: color.withValues(alpha: isLight ? 0.08 : 0.12),
         borderRadius: BorderRadius.circular(KinrelRadius.md),
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16, color: color),
@@ -1639,7 +1639,7 @@ class DKStatChip extends StatelessWidget {
 /// )
 /// ```
 class DKEmptyState extends StatelessWidget {
-  const DKEmptyState({
+  DKEmptyState({
     super.key,
     required this.icon,
     required this.title,
@@ -1670,7 +1670,7 @@ class DKEmptyState extends StatelessWidget {
     final iconColor = isLight ? DKColors.brandPurple : DKColors.brandPurple;
 
     return Padding(
-      padding: const EdgeInsets.all(KinrelSpacing.xxl),
+      padding: EdgeInsets.all(KinrelSpacing.xxl),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -1681,7 +1681,7 @@ class DKEmptyState extends StatelessWidget {
               shape: BoxShape.circle,
               color: iconColor.withValues(alpha: isLight ? 0.1 : 0.15),
             ),
-            child: const Icon(
+            child: Icon(
               icon,
               size: 40,
               color: iconColor,

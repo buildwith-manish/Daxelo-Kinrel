@@ -164,7 +164,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         : KinrelColors.darkElevated.withValues(alpha: 0.6);
     final inputBorderColor = isLight
         ? KinrelColors.lightBorder
-        : const Color(0xFF3A3A4A);
+        : Color(0xFF3A3A4A);
     final textColor =
         isLight ? KinrelColors.textDark : KinrelColors.textWhite;
     final secondaryColor = isLight
@@ -175,7 +175,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     return Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(
-        child: const Center(
+        child: Center(
           child: SingleChildScrollView(
             padding: EdgeInsets.symmetric(
               horizontal: KinrelSpacing.xl,

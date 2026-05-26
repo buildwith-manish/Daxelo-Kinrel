@@ -30,7 +30,7 @@ class AddPersonSheet extends ConsumerStatefulWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: KinrelColors.darkCard,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.bottomSheet),
         ),
@@ -100,7 +100,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
+            colorScheme: ColorScheme.dark(
               primary: KinrelColors.purple,
               surface: KinrelColors.darkElevated,
             ),
@@ -202,7 +202,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
-    return const Padding(
+    return Padding(
       padding: EdgeInsets.only(
         left: KinrelSpacing.base,
         right: KinrelSpacing.base,
@@ -459,7 +459,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
         borderSide: BorderSide(color: KinrelColors.error),
       ),
       contentPadding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     );
   }
 }
@@ -471,7 +471,7 @@ class _Label extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Text(
+    return Text(
       text,
       style: TextStyle(
         fontFamily: KinrelTypography.bodyFont,
@@ -500,7 +500,7 @@ class _GenderChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: selected
               ? KinrelColors.purple.withValues(alpha: 0.15)
@@ -511,7 +511,7 @@ class _GenderChip extends StatelessWidget {
                 selected ? KinrelColors.purple : KinrelColors.darkSurface,
           ),
         ),
-        child: const Text(
+        child: Text(
           label,
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,

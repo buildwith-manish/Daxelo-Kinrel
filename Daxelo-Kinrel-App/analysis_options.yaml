@@ -2,8 +2,9 @@ include: package:flutter_lints/flutter.yaml
 
 linter:
   rules:
-    prefer_const_constructors: true
-    prefer_const_declarations: true
+    prefer_const_constructors: false
+    prefer_const_declarations: false
+    prefer_const_constructors_in_immutables: false
     prefer_final_fields: true
     prefer_final_locals: true
     prefer_single_quotes: true
@@ -19,7 +20,7 @@ linter:
     sort_unnamed_constructors_first: true
     unawaited_futures: true
     unnecessary_await_in_return: true
-    unnecessary_const: true
+    unnecessary_const: false
     unnecessary_new: true
     unnecessary_null_in_if_null_operators: true
     unnecessary_overrides: true
@@ -28,6 +29,10 @@ linter:
 analyzer:
   errors:
     invalid_annotation_target: ignore
+    prefer_const_constructors: ignore
+    prefer_const_declarations: ignore
+    prefer_const_constructors_in_immutables: ignore
+    unnecessary_const: ignore
   exclude:
     - '**/*.g.dart'
     - '**/*.freezed.dart'

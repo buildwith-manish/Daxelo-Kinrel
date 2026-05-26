@@ -59,7 +59,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   /// Loading state — DKLoadingShimmer placeholders
   Widget _buildLoadingState() {
-    return const SingleChildScrollView(
+    return SingleChildScrollView(
       physics: NeverScrollableScrollPhysics(),
       padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       child: Column(
@@ -133,7 +133,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// No families — show empty state with DKEmptyState
   Widget _buildNoFamiliesView(dynamic user) {
     return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
+      physics: BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       child: Column(
         children: [
@@ -150,10 +150,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               .animate()
               .fadeIn(duration: 400.ms)
               .slideY(begin: 0.1, end: 0),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           TextButton(
             onPressed: () => _showJoinFamilyDialog(context),
-            child: const Text(
+            child: Text(
               'Or join an existing family with a code',
               style: TextStyle(
                 color: KinrelColors.purple,
@@ -180,7 +180,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ref.invalidate(familyListProvider);
         ref.invalidate(familyDetailProvider(primaryFamily.id));
       },
-      child: const SingleChildScrollView(
+      child: SingleChildScrollView(
         physics: BouncingScrollPhysics(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -323,7 +323,7 @@ class _Header extends StatelessWidget {
       padding: const EdgeInsets.symmetric(
           horizontal: KinrelSpacing.base, vertical: KinrelSpacing.md),
       child: Row(children: [
-        const KinrelIcon(size: 36),
+        KinrelIcon(size: 36),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -413,7 +413,7 @@ class _AddFamilyStory extends StatelessWidget {
               ),
               color: DKColors.brandPurple.withValues(alpha: 0.1),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.add_rounded,
               color: DKColors.brandPurple,
               size: 24,
@@ -454,7 +454,7 @@ class _FamilyStoryAvatar extends StatelessWidget {
             padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 colors: [DKColors.brandPurple, DKColors.brandViolet, DKColors.brandCoral],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -472,7 +472,7 @@ class _FamilyStoryAvatar extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: DKColors.cardColor(context),
               ),
-              padding: const EdgeInsets.all(2),
+              padding: EdgeInsets.all(2),
               child: Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -483,7 +483,7 @@ class _FamilyStoryAvatar extends StatelessWidget {
                     ],
                   ),
                 ),
-                child: const Center(
+                child: Center(
                   child: Text(
                     family.name.isNotEmpty
                         ? family.name[0].toUpperCase()
@@ -536,7 +536,7 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLight = DKColors.isLight(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+      padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       child: GestureDetector(
         onTap: () => context.push('/family/${family.id}'),
         child: Container(
@@ -572,7 +572,7 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           )
-                        : const LinearGradient(
+                        : LinearGradient(
                             colors: [
                               DKColors.brandDeepPurple,
                               KinrelColors.darkSurface,
@@ -612,7 +612,7 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
                                     ),
                                   ],
                                 ),
-                                child: const Center(
+                                child: Center(
                                   child: Text(
                                     family.name.isNotEmpty
                                         ? family.name[0].toUpperCase()
@@ -660,7 +660,7 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
                                       ),
                                     ],);},
                                 loading: () => SizedBox(
-                                  height: 28,child: const Center(
+                                  height: 28,child: Center(
                                     child: SizedBox(
                                       width: 20,
                                       height: 20,
@@ -677,7 +677,7 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
                           ),
                         ),
 
-                        const Spacer(),
+                        Spacer(),
 
                         // View Full Graph CTA button with gradient
                         DKButton(
@@ -734,7 +734,7 @@ class _QuickActions extends StatelessWidget {
             gradientColors: const [DKColors.brandGold, DKColors.brandBrightGold],
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Share coming soon!')),
+                SnackBar(content: Text('Share coming soon!')),
               );
             },
             icon: Icons.share_rounded,
@@ -749,7 +749,7 @@ class _QuickActions extends StatelessWidget {
         Expanded(
           child: _GradientBorderCard(
             isLight: isLight,
-            gradientColors: const [DKColors.brandCoral, DKColors.brandViolet],
+            gradientColors: [DKColors.brandCoral, DKColors.brandViolet],
             onTap: () => context.push('/family/$familyId/path-finder'),
             icon: Icons.route_rounded,
             iconColor: DKColors.brandCoral,
@@ -791,8 +791,8 @@ class _GradientBorderCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(1.5), // border thickness
-        decoration: const BoxDecoration(
+        padding: EdgeInsets.all(1.5), // border thickness
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: gradientColors,
             begin: Alignment.topLeft,
@@ -1006,7 +1006,7 @@ class _YourFamiliesSection extends StatelessWidget {
               ),
               GestureDetector(
                 onTap: () => context.go('/families'),
-                child: const Text('See All',
+                child: Text('See All',
                     style: TextStyle(
                       color: KinrelColors.purple,
                       fontFamily: KinrelTypography.bodyFont,

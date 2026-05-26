@@ -211,7 +211,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
               isLight: isLight,
             ),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: 20)),
+          SliverToBoxAdapter(child: SizedBox(height: 20)),
 
           // Search results or default content
           if (_isSearching)
@@ -219,7 +219,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
           else
             ..._buildDefaultContent(familiesAsync),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+          SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ),
     );
@@ -332,7 +332,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               ...results.families.map((item) => _SearchResultCard(
                     item: item,
                     onTap: () => context.push('/family/${item.familyId}'),
@@ -342,7 +342,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
           );
         },
         loading: () => SliverToBoxAdapter(
-        child: const Center(
+        child: Center(
           child: Padding(
             padding: EdgeInsets.symmetric(vertical: 40),
             child: DKLoadingShimmer(width: 200, height: 16),
@@ -361,13 +361,13 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   List<Widget> _buildDefaultContent(AsyncValue<List<Family>> familiesAsync) {
     return [
       // Trending Kinship Terms
-      const SliverToBoxAdapter(
+      SliverToBoxAdapter(
         child: _TrendingSection()
             .animate()
             .fadeIn(duration: 350.ms)
             .slideY(begin: 0.05, end: 0),
       ),
-      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+      SliverToBoxAdapter(child: SizedBox(height: 24)),
 
       // Kinship Dictionary card
       SliverToBoxAdapter(
@@ -378,7 +378,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             .fadeIn(duration: 350.ms, delay: 100.ms)
             .slideY(begin: 0.05, end: 0),
       ),
-      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+      SliverToBoxAdapter(child: SizedBox(height: 24)),
 
       // CTA banner — Join a Family
       SliverToBoxAdapter(
@@ -389,18 +389,18 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             .fadeIn(duration: 350.ms, delay: 150.ms)
             .slideY(begin: 0.05, end: 0),
       ),
-      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+      SliverToBoxAdapter(child: SizedBox(height: 24)),
 
       // Quick access languages
-      const SliverToBoxAdapter(
+      SliverToBoxAdapter(
         child: _LanguageChips()
             .animate()
             .fadeIn(duration: 350.ms, delay: 200.ms),
       ),
-      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+      SliverToBoxAdapter(child: SizedBox(height: 24)),
 
       // Families quick links
-      const SliverToBoxAdapter(
+      SliverToBoxAdapter(
         child: _FamiliesQuickLinks(familiesAsync: familiesAsync)
             .animate()
             .fadeIn(duration: 350.ms, delay: 250.ms)
@@ -467,7 +467,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             onPressed: () {
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
+                SnackBar(
                     content: Text('Join family coming soon!')),
               );
             },
@@ -530,7 +530,7 @@ class _GradientSearchSection extends StatelessWidget {
                       shape: BoxShape.circle,
                       color: DKColors.brandPurple.withValues(alpha: 0.1),
                     ),
-                    child: const Icon(Icons.search_rounded,
+                    child: Icon(Icons.search_rounded,
                         size: 20,
                         color: DKColors.brandPurple),
                   ),
@@ -594,7 +594,7 @@ class _SectionHeader extends StatelessWidget {
               ),
             ),
           ),
-          const Spacer(),
+          Spacer(),
           if (onSeeAll != null)
             GestureDetector(
               onTap: onSeeAll,
@@ -638,7 +638,7 @@ class _TrendingSection extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                   color: DKColors.brandPurple.withValues(alpha: 0.12),
                 ),
-                child: const Icon(Icons.trending_up_rounded,
+                child: Icon(Icons.trending_up_rounded,
                     size: 14, color: DKColors.brandPurple),
               ),
             ],
@@ -649,7 +649,7 @@ class _TrendingSection extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
           child: GridView.count(
             shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
+            physics: NeverScrollableScrollPhysics(),
             crossAxisCount: 2,
             mainAxisSpacing: 8,
             crossAxisSpacing: 8,
@@ -666,7 +666,7 @@ class _TrendingSection extends StatelessWidget {
                     border: Border.all(
                       color: isLight
                           ? accentColor.withValues(alpha: 0.15)
-                          : const Color(0xFF3A3A4A),
+                          : Color(0xFF3A3A4A),
                       width: 1,
                     ),
                     boxShadow: isLight
@@ -674,7 +674,7 @@ class _TrendingSection extends StatelessWidget {
                             BoxShadow(
                               color: Colors.black.withValues(alpha: 0.04),
                               blurRadius: 8,
-                              offset: const Offset(0, 2),
+                              offset: Offset(0, 2),
                             ),
                           ]
                         : null,
@@ -688,7 +688,7 @@ class _TrendingSection extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                           color: accentColor.withValues(alpha: 0.12),
                         ),
-                        child: const Center(
+                        child: Center(
                           child: Text(
                             term.$2,
                             style: TextStyle(
@@ -783,7 +783,7 @@ class _KinshipDictionaryCard extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Icon(Icons.translate_rounded,
+              child: Icon(Icons.translate_rounded,
                   color: DKColors.brandPurple, size: 24),
             ),
             const SizedBox(width: 16),
@@ -815,7 +815,7 @@ class _KinshipDictionaryCard extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: DKColors.brandPurple.withValues(alpha: 0.12),
               ),
-              child: const Icon(Icons.arrow_forward_ios_rounded,
+              child: Icon(Icons.arrow_forward_ios_rounded,
                   size: 12, color: DKColors.brandPurple),
             ),
           ],
@@ -876,7 +876,7 @@ class _JoinFamilyBanner extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Join a Family',
                           style: TextStyle(
                             fontFamily: KinrelTypography.displayFont,
@@ -1012,7 +1012,7 @@ class _FamiliesQuickLinks extends ConsumerWidget {
                   ),
                   GestureDetector(
                     onTap: () => context.go('/families'),
-                    child: const Text('See All',
+                    child: Text('See All',
                         style: TextStyle(
                           color: KinrelColors.purple,
                           fontFamily: KinrelTypography.bodyFont,
@@ -1107,7 +1107,7 @@ class _FamilyQuickLink extends ConsumerWidget {
               shape: BoxShape.circle,
               color: DKColors.brandPurple.withValues(alpha: 0.08),
             ),
-            child: const Icon(Icons.chevron_right,
+            child: Icon(Icons.chevron_right,
                 color: DKColors.brandPurple, size: 18),
           ),
         ],
@@ -1230,14 +1230,14 @@ class _KinshipResultCard extends ConsumerWidget {
                           color: DKColors.textPrimary(context),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: DKColors.brandPurple.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: const Text(
+                        child: Text(
                           rel.relationshipCategory.replaceAll('_', ' '),
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,

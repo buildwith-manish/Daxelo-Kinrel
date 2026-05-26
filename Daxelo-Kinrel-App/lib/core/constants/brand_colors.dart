@@ -67,7 +67,7 @@ class KinrelColors {
   static const Color durgaPurple = Color(0xFF8B008B);
 
   // ── Backward Compat Aliases (dark mode defaults) ──────────────
-  static Color card = darkCard;
+  static const Color card = darkCard;
   static const Color bg = darkBackground;
   static const Color elevated = darkElevated;
   static const Color surface = darkSurface;

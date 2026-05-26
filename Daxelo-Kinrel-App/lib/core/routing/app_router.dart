@@ -216,11 +216,11 @@ class _AddPersonScreen extends ConsumerWidget {
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
       ),
-      body: const SingleChildScrollView(
+      body: SingleChildScrollView(
         child: Padding(
           padding: EdgeInsets.all(16),
           child: _AddPersonForm(familyId: familyId),

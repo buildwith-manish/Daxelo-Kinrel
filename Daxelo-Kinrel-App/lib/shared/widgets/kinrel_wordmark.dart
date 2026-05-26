@@ -40,7 +40,7 @@ enum WordmarkVariant {
 /// letter-spacing that varies by size (tighter at small sizes,
 /// wider at larger sizes per brand spec).
 class KinrelWordmark extends StatelessWidget {
-  const KinrelWordmark({
+  KinrelWordmark({
     super.key,
     this.fontSize = 24,
     this.variant = WordmarkVariant.gradient,
@@ -94,7 +94,7 @@ class KinrelWordmark extends StatelessWidget {
       return ShaderMask(
         shaderCallback: (bounds) =>
             KinrelGradients.wordmarkGradient.createShader(bounds),
-        child: const Text(
+        child: Text(
           'KINREL',
           style: style.copyWith(color: Colors.white),
           textAlign: TextAlign.center,
@@ -110,7 +110,7 @@ class KinrelWordmark extends StatelessWidget {
       WordmarkVariant.gradient => KinrelColors.purple, // fallback
     };
 
-    return const Text(
+    return Text(
       'KINREL',
       style: style.copyWith(color: color),
       textAlign: TextAlign.center,
@@ -128,7 +128,7 @@ class KinrelWordmark extends StatelessWidget {
 
     final bylineFontSize = fontSize * 0.32;
 
-    return const Text(
+    return Text(
       'by Daxelo',
       style: TextStyle(
         fontFamily: KinrelTypography.bodyFont,

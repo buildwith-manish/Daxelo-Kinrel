@@ -17,7 +17,7 @@ extension BuildContextExtensions on BuildContext {
 
   void showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(this).showSnackBar(
-      const SnackBar(
+      SnackBar(
         content: Text(message),
         backgroundColor: isError ? colorScheme.error : null,
         behavior: SnackBarBehavior.floating,

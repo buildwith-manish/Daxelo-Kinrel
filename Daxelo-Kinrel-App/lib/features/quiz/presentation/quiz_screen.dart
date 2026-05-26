@@ -62,7 +62,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
     super.initState();
     _staggerCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: Duration(milliseconds: 900),
     );
     _f1 = _fade(0.00, 0.25);
     _s1 = _slide(0.00, 0.25);
@@ -82,7 +82,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
           parent: _staggerCtrl, curve: Interval(a, b, curve: Curves.easeOutCubic)));
 
   Animation<Offset> _slide(double a, double b) =>
-      Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero)
+      Tween<Offset>(begin: Offset(0, 0.15), end: Offset.zero)
           .animate(CurvedAnimation(
               parent: _staggerCtrl, curve: Interval(a, b, curve: Curves.easeOutCubic)));
 
@@ -145,7 +145,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
   Widget _buildSelectionScreen() {
     final quizState = ref.watch(quizStateProvider);
 
-    return const SafeArea(
+    return SafeArea(
       child: SingleChildScrollView(
         physics: BouncingScrollPhysics(),
         padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
@@ -296,7 +296,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                         border: Border.all(
                             color: KinrelColors.purple.withValues(alpha: 0.4)),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.quiz_rounded,
@@ -314,8 +314,8 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
-                const Text(
+                SizedBox(height: 10),
+                Text(
                   'Test your knowledge\nof Indian kinship terms',
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
@@ -334,7 +334,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
   }
 
   Widget _buildSectionTitle(String title) {
-    return const Text(
+    return Text(
       title,
       style: TextStyle(
         fontFamily: KinrelTypography.displayFont,
@@ -367,8 +367,8 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
           return _PressDown(
             onTap: () => onSelect(value),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              duration: Duration(milliseconds: 200),
+              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: isSelected
                     ? accentColor.withValues(alpha: 0.18)
@@ -380,7 +380,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                       : KinrelColors.darkSurface.withValues(alpha: 0.6),
                 ),
               ),
-              child: const Text(
+              child: Text(
                 label,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -481,21 +481,21 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                   children: [
                     Text(
                       '${currentIndex + 1} of ${questions.length}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13,
                         color: KinrelColors.textDim,
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(
+                      padding: EdgeInsets.symmetric(
                           horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: _difficultyColor(quizState.session!.difficulty)
                             .withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Text(
+                      child: Text(
                         quizState.session!.difficulty.toUpperCase(),
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
@@ -526,7 +526,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
           // Question
           Expanded(
             child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
+              physics: BouncingScrollPhysics(),
               padding: const EdgeInsets.symmetric(
                   horizontal: KinrelSpacing.base, vertical: 16),
               child: Column(
@@ -655,7 +655,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                       BoxShadow(
                         color: KinrelColors.error.withValues(alpha: 0.2),
                         blurRadius: 12,
-                        offset: const Offset(0, 4),
+                        offset: Offset(0, 4),
                       ),
                     ]
                   : null,
@@ -684,8 +684,8 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                       ),
               ),
             ),
-            const SizedBox(width: 12),
-            const Expanded(
+            SizedBox(width: 12),
+            Expanded(
               child: Text(
                 text,
                 style: TextStyle(
@@ -706,7 +706,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
   Widget _buildExplanationCard(QuizQuestion question, QuizStateData quizState) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: KinrelColors.darkElevated,
         borderRadius: BorderRadius.circular(14),
@@ -717,7 +717,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
               .withValues(alpha: 0.3),
         ),
       ),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -780,7 +780,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
           ),
           elevation: 0,
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
@@ -815,7 +815,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
 
     return SafeArea(
       child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
+        physics: BouncingScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
         child: Column(
           children: [
@@ -908,7 +908,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.local_fire_department_rounded,
+                    Icon(Icons.local_fire_department_rounded,
                         color: KinrelColors.amber, size: 16),
                     const SizedBox(width: 4),
                     Text(
@@ -923,19 +923,19 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                   ],
                 ),
               ),
-            const SizedBox(height: 32),
+            SizedBox(height: 32),
 
             // Question-by-question results
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: KinrelColors.darkCard,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                     color: KinrelColors.darkSurface.withValues(alpha: 0.6)),
               ),
-              child: const Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -955,7 +955,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Row(
                         children: [
-                          const Icon(
+                          Icon(
                             r.correct
                                 ? Icons.check_circle_rounded
                                 : Icons.cancel_rounded,
@@ -1002,7 +1002,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                         border: Border.all(
                             color: KinrelColors.purple.withValues(alpha: 0.4)),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.refresh_rounded,

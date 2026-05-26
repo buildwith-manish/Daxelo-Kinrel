@@ -10,7 +10,7 @@ import '../../../core/kinship/kinship_service.dart';
 import 'add_person_sheet.dart';
 
 class PersonDetailSheet extends ConsumerWidget {
-  const PersonDetailSheet({
+  PersonDetailSheet({
     super.key,
     required this.person,
     required this.familyId,
@@ -33,7 +33,7 @@ class PersonDetailSheet extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: KinrelColors.darkCard,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.bottomSheet),
         ),
@@ -61,7 +61,7 @@ class PersonDetailSheet extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Handle bar
-          const Center(
+          Center(
             child: Container(
               width: 40,
               height: 4,
@@ -100,7 +100,7 @@ class PersonDetailSheet extends ConsumerWidget {
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           // Name
           Text(
@@ -114,11 +114,11 @@ class PersonDetailSheet extends ConsumerWidget {
                   : KinrelColors.textWhite,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
 
           // Gender
           if (person.gender != null) ...[
-            const Text(
+            Text(
               person.gender!.toUpperCase(),
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -128,8 +128,8 @@ class PersonDetailSheet extends ConsumerWidget {
               ),
             ),
             if (nativeTranslation != null) ...[
-              const SizedBox(height: 2),
-              const Text(
+              SizedBox(height: 2),
+              Text(
                 nativeTranslation,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -191,8 +191,8 @@ class PersonDetailSheet extends ConsumerWidget {
                       existingPerson: person,
                     );
                   },
-                  icon: const Icon(Icons.edit, size: 18),
-                  label: const Text('Edit'),
+                  icon: Icon(Icons.edit, size: 18),
+                  label: Text('Edit'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: KinrelColors.purple,
                     side: BorderSide(color: KinrelColors.purple),
@@ -209,8 +209,8 @@ class PersonDetailSheet extends ConsumerWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _confirmDelete(context, ref),
-                  icon: const Icon(Icons.delete_outline, size: 18),
-                  label: const Text('Delete'),
+                  icon: Icon(Icons.delete_outline, size: 18),
+                  label: Text('Delete'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: KinrelColors.error,
                     side: BorderSide(color: KinrelColors.error),
@@ -246,7 +246,7 @@ class PersonDetailSheet extends ConsumerWidget {
             color: KinrelColors.textWhite,
           ),
         ),
-        content: const Text(
+        content: Text(
           'This person will be removed from the family tree. This action cannot be undone.',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -256,7 +256,7 @@ class PersonDetailSheet extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
+            child: Text(
               'Cancel',
               style: TextStyle(color: KinrelColors.textSilver),
             ),
@@ -285,7 +285,7 @@ class PersonDetailSheet extends ConsumerWidget {
                 }
               }
             },
-            child: const Text(
+            child: Text(
               'Delete',
               style: TextStyle(color: KinrelColors.error),
             ),
@@ -312,7 +312,7 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
+    return Padding(
       padding: EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [

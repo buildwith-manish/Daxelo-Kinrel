@@ -85,7 +85,7 @@ class _RelationshipBuilderScreenState
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
@@ -163,7 +163,7 @@ class _RelationshipBuilderScreenState
         Expanded(
           child: GridView.builder(
             padding: const EdgeInsets.all(KinrelSpacing.base),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               mainAxisSpacing: KinrelSpacing.sm,
               crossAxisSpacing: KinrelSpacing.sm,
@@ -328,7 +328,7 @@ class _RelationshipBuilderScreenState
         );
 
         // Clear selection after a brief delay
-        await Future.delayed(const Duration(milliseconds: 600));
+        await Future.delayed(Duration(milliseconds: 600));
         if (mounted) {
           _clearSelection();
         }
@@ -424,8 +424,8 @@ class _PersonCard extends StatelessWidget {
         );
       },
       child: Padding(
-        padding: const EdgeInsets.all(KinrelSpacing.md),
-        child: const Column(
+        padding: EdgeInsets.all(KinrelSpacing.md),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Avatar row
@@ -573,7 +573,7 @@ class _PersonCard extends StatelessWidget {
                       color: KinrelColors.darkSurface.withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: const Text(
+                    child: Text(
                       tag.snakeToTitle,
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -652,7 +652,7 @@ class _EmptyState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'Add Members First',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
@@ -662,7 +662,7 @@ class _EmptyState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Add family members, then link them here\nto build your family graph.',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -675,14 +675,14 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 20),
             FilledButton.icon(
               onPressed: onAddMember,
-              icon: const Icon(Icons.person_add, size: 18),
-              label: const Text('Add First Member'),
+              icon: Icon(Icons.person_add, size: 18),
+              label: Text('Add First Member'),
               style: FilledButton.styleFrom(
                 backgroundColor: KinrelColors.purple,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
+                padding: EdgeInsets.symmetric(
                     horizontal: 24, vertical: 12),
-                shape: const RoundedRectangleBorder(
+                shape: RoundedRectangleBorder(
                   borderRadius:
                       BorderRadius.circular(KinrelSpacing.radiusSm),
                 ),
@@ -706,7 +706,7 @@ class _ErrorState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(KinrelSpacing.xxl),
+        padding: EdgeInsets.all(KinrelSpacing.xxl),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -715,8 +715,8 @@ class _ErrorState extends StatelessWidget {
               size: 64,
               color: KinrelColors.error.withValues(alpha: 0.5),
             ),
-            const SizedBox(height: 20),
-            const Text(
+            SizedBox(height: 20),
+            Text(
               message,
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,

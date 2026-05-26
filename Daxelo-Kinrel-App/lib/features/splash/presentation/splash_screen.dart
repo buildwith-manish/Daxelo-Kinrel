@@ -117,12 +117,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     Color(0xFF6A11CB),
                     Color(0xFF7C3AED),
                     pulse * 0.3,
-                  ),
+                  )!,
                   Color.lerp(
                     Color(0xFFFF6B6B),
                     Color(0xFFFF8A80),
                     pulse * 0.2,
-                  ),
+                  )!,
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -136,7 +136,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Spacer(flex: 3),
+                Spacer(flex: 3),
 
                 // ── Animated K-graph icon with glowing circle ──────────
                 Container(
@@ -155,7 +155,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       ),
                     ],
                   ),
-                  child: const KinrelIcon(
+                  child: KinrelIcon(
                     size: 96,
                     palette: KinrelIconPalette.mono,
                     animated: true,
@@ -165,15 +165,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     .fadeIn(duration: 600.ms)
                     .scale(
                       begin: const Offset(0.7, 0.7),
-                      end: const Offset(1.0, 1.0),
+                      end: Offset(1.0, 1.0),
                       duration: 800.ms,
                       curve: Curves.elasticOut,
                     ),
 
-                const SizedBox(height: 32),
+                SizedBox(height: 32),
 
                 // ── Brand text "KinRel" ────────────────────────────────
-                const Text(
+                Text(
                   'KinRel',
                   style: KinrelTypography.displayHero.copyWith(
                     fontSize: 42,
@@ -194,7 +194,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 const SizedBox(height: 12),
 
                 // ── Tagline ────────────────────────────────────────────
-                const Text(
+                Text(
                   AppConfig.appTagline,
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -207,7 +207,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     .fadeIn(duration: 600.ms, delay: 600.ms)
                     .slideY(begin: 0.1, end: 0, duration: 400.ms),
 
-                const Spacer(flex: 2),
+                Spacer(flex: 2),
 
                 // ── Loading indicator ──────────────────────────────────
                 SizedBox(

@@ -98,7 +98,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         : KinrelColors.darkElevated.withValues(alpha: 0.6);
     final inputBorderColor = isLight
         ? KinrelColors.lightBorder
-        : const Color(0xFF3A3A4A);
+        : Color(0xFF3A3A4A);
     final textColor = isLight ? KinrelColors.textDark : KinrelColors.textWhite;
     final secondaryColor = isLight
         ? KinrelColors.textSecondaryLight
@@ -108,7 +108,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
     return Scaffold(
       backgroundColor: bgColor,
-      body: const SafeArea(
+      body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
             padding: EdgeInsets.symmetric(

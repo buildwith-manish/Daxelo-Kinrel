@@ -294,7 +294,7 @@ class _StepIndicator extends StatelessWidget {
             ),
             child: Center(
               child: isCompleted
-                  ? const Icon(Icons.check_rounded,
+                  ? Icon(Icons.check_rounded,
                       size: 16, color: Colors.white)
                   : Text(
                       '${stepIndex + 1}',
@@ -367,7 +367,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
                   color: DKColors.brandPurple.withValues(alpha: 0.2),
                   width: 2,
                 ),),
-              child: const Icon(
+              child: Icon(
                 Icons.family_restroom_rounded,
                 size: 36,
                 color: DKColors.brandPurple,
@@ -459,7 +459,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
                   color: DKColors.textSecondary(context),
                 ),
               ),
-              const Spacer(),
+              Spacer(),
               GestureDetector(
                 onTap: onEditCode,
                 child: Text(
@@ -820,7 +820,7 @@ class _Step3AddYourself extends StatelessWidget {
               color: DKColors.textSecondary(context),
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -863,14 +863,14 @@ class _BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
+      padding: EdgeInsets.all(KinrelSpacing.base),
       decoration: BoxDecoration(
         color: DKColors.cardColor(context),
         border: Border(
           top: BorderSide(color: DKColors.borderColor(context), width: 1),
         ),
       ),
-      child: const SafeArea(
+      child: SafeArea(
         top: false,
         child: Row(
           children: [
@@ -983,7 +983,7 @@ class _PrivacyCard extends StatelessWidget {
             ),
           ),
           if (isSelected)
-            const Icon(Icons.check_circle_rounded,
+            Icon(Icons.check_circle_rounded,
                 color: DKColors.brandPurple, size: 22),
         ],
       ),

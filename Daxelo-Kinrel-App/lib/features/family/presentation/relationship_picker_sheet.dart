@@ -43,7 +43,7 @@ class RelationshipPickerSheet extends ConsumerStatefulWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: KinrelColors.darkCard,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.bottomSheet),
         ),
@@ -335,7 +335,7 @@ class _RelationshipPickerSheetState
 
         const // By category browse
         _SectionHeader(title: 'Browse by Category'),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         ..._buildCategoryTiles(kinshipService),
       ],
     );
@@ -369,7 +369,7 @@ class _RelationshipPickerSheetState
         child: CircularProgressIndicator(color: KinrelColors.purple),
       ),
     error: (e, _) => Center(
-        child: const Column(
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.search_off, size: 48, color: KinrelColors.textDim),
@@ -386,7 +386,7 @@ class _RelationshipPickerSheetState
       ),
       data: (results) {
         if (results.isEmpty) {
-          return const Center(
+          return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -426,7 +426,7 @@ class _RelationshipPickerSheetState
                   onTap: () =>
                       Navigator.of(context).pop(result.relationship.relationshipKey),
                 ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
             ],
           ],
         );
@@ -464,14 +464,14 @@ class _QuickChip extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: KinrelColors.purple.withValues(alpha: 0.3),
             ),
           ),
-          child: const Text(
+          child: Text(
             label,
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -509,7 +509,7 @@ class _SuggestionChip extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
             border: Border.all(
@@ -520,8 +520,8 @@ class _SuggestionChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(genderIcon, size: 14, color: KinrelColors.amber),
-              const SizedBox(width: 6),
-              const Text(
+              SizedBox(width: 6),
+              Text(
                 label,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -531,10 +531,10 @@ class _SuggestionChip extends StatelessWidget {
                 ),
               ),
               if (lineage != null && lineage!.isNotEmpty) ...[
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: _lineageColor(lineage!).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
@@ -579,7 +579,7 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
+    return Padding(
       padding: EdgeInsets.only(top: 8, bottom: 4),
       child: Text(
         title.toUpperCase(),
@@ -609,7 +609,7 @@ class _CategoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ListTile(
+    return ListTile(
       dense: true,
       title: Text(
         category.snakeToTitle,
@@ -664,7 +664,7 @@ class _ContextualRelationshipTile extends StatelessWidget {
     final nativeTranslation =
         kinshipService.getKinshipTerm(relationship.relationshipKey, 'hindi');
 
-    return const ListTile(
+    return ListTile(
       dense: true,
       leading: Container(
         width: 36,

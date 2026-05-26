@@ -79,7 +79,7 @@ class LayoutResult {
 /// Canvas-based interactive family tree view with zoom/pan,
 /// curved purple connectors, circular nodes, and floating controls.
 class FamilyTreeCanvas extends StatefulWidget {
-  const FamilyTreeCanvas({
+  FamilyTreeCanvas({
     super.key,
     required this.members,
     required this.relationships,
@@ -103,7 +103,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
   Offset _offset = Offset.zero;
   double _scale = 1.0;
   String? _selectedNodeId;
-  GraphFilters _filters = const GraphFilters();
+  GraphFilters _filters = GraphFilters();
 
   static const double nodeWidth = 160.0;
   static const double nodeHeight = 72.0;
@@ -192,7 +192,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
         ),
 
         // Language selector (top-left, globe icon)
-        const Positioned(
+        Positioned(
           top: 8,
           left: 8,
           child: _LanguageSelectorButton(),
@@ -245,10 +245,11 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
               },
               filters: _filters,
             ),
+          ),
 
         // Empty state
         if (activeMembers.isEmpty)
-          const Center(
+          Center(
             child: DKEmptyState(
               icon: Icons.account_tree_outlined,
               title: 'No Members Yet',
@@ -261,7 +262,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
 
   void _fitToScreen() {
     setState(() {
-      _offset = const Offset(40, 40);
+      _offset = Offset(40, 40);
       _scale = 1.0;
     });
   }
@@ -484,10 +485,10 @@ class _LanguageSelectorButton extends StatelessWidget {
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
-            offset: const Offset(0, 2),
+            offset: Offset(0, 2),
           ),
         ],),
-      child: const IconButton(
+      child: IconButton(
         padding: EdgeInsets.zero,
         icon: Icon(Icons.language, color: DKColors.brandPurple, size: 18),
         tooltip: 'Language',
@@ -520,7 +521,7 @@ class _ZoomControls extends StatelessWidget {
     final isLight = DKColors.isLight(context);
     final bgColor = isLight
         ? Colors.white.withValues(alpha: 0.95)
-        : const Color(0xFF1E1E2E);
+        : Color(0xFF1E1E2E);
     final iconColor = isLight ? DKColors.textDark : Colors.white;
 
     return Container(
@@ -534,7 +535,7 @@ class _ZoomControls extends StatelessWidget {
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.15),
             blurRadius: 12,
-            offset: const Offset(0, 4),
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -586,7 +587,7 @@ class _ZoomButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
+    return SizedBox(
       width: 40,
       height: 40,
       child: IconButton(
@@ -739,7 +740,7 @@ class _TreePainter extends CustomPainter {
           ..strokeWidth = 1.5
           ..style = PaintingStyle.stroke;
 
-        _drawDottedLine(canvas, const Offset(startX, y), Offset(endX, y), dotPaint);
+        _drawDottedLine(canvas, Offset(startX, y), Offset(endX, y), dotPaint);
 
         // Heart emoji in center
         final centerX = (startX + endX) / 2;
@@ -852,7 +853,7 @@ class _TreePainter extends CustomPainter {
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-            rect.inflate(8), const Radius.circular(radius + 4)),
+            rect.inflate(8), Radius.circular(radius + 4)),
         glowPaint,
       );
     }
@@ -864,7 +865,7 @@ class _TreePainter extends CustomPainter {
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-            rect.inflate(4), const Radius.circular(radius + 2)),
+            rect.inflate(4), Radius.circular(radius + 2)),
         glowPaint,
       );
     }
@@ -873,7 +874,7 @@ class _TreePainter extends CustomPainter {
     final bgColor = _lineageBgColor(nodeLineage);
     final bgPaint = Paint()..color = bgColor;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, const Radius.circular(radius)),
+      RRect.fromRectAndRadius(rect, Radius.circular(radius)),
       bgPaint,
     );
 
@@ -888,7 +889,7 @@ class _TreePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = isAnchor ? 2.5 : isSelected ? 2 : 1;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, const Radius.circular(radius)),
+      RRect.fromRectAndRadius(rect, Radius.circular(radius)),
       borderPaint,
     );
 
@@ -897,7 +898,7 @@ class _TreePainter extends CustomPainter {
       final deceasedPaint = Paint()
         ..color = Colors.white.withValues(alpha: 0.1);
       canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(radius)),
+        RRect.fromRectAndRadius(rect, Radius.circular(radius)),
         deceasedPaint,
       );
     }
@@ -914,7 +915,7 @@ class _TreePainter extends CustomPainter {
       ..shader = avatarGradient.createShader(avatarRect);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-          avatarRect, const Radius.circular(avatarSize / 2)),
+          avatarRect, Radius.circular(avatarSize / 2)),
       avatarPaint,
     );
 
@@ -998,7 +999,7 @@ class _TreePainter extends CustomPainter {
       ellipsis: '...',
     );
     namePainter.layout(maxWidth: textMaxWidth);
-    namePainter.paint(canvas, const Offset(textStartX, rect.top + 12));
+    namePainter.paint(canvas, Offset(textStartX, rect.top + 12));
 
     // Relationship label (purple accent)
     if (relationship != null && relationship.isNotEmpty) {
@@ -1018,7 +1019,7 @@ class _TreePainter extends CustomPainter {
         ellipsis: '...',
       );
       relPainter.layout(maxWidth: textMaxWidth);
-      relPainter.paint(canvas, const Offset(textStartX, rect.top + 34));
+      relPainter.paint(canvas, Offset(textStartX, rect.top + 34));
     }
 
     // Lineage tag
@@ -1026,7 +1027,7 @@ class _TreePainter extends CustomPainter {
       final tagPainter = TextPainter(
         text: TextSpan(
           text: lineage.split('_').map((w) => w[0].toUpperCase() + w.substring(1)).join(' '),
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 8,
             fontWeight: FontWeight.w700,
@@ -1037,7 +1038,7 @@ class _TreePainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       );
       tagPainter.layout();
-      tagPainter.paint(canvas, const Offset(textStartX, rect.top + 52));
+      tagPainter.paint(canvas, Offset(textStartX, rect.top + 52));
     }
   }
 
@@ -1106,7 +1107,7 @@ class _TreePainter extends CustomPainter {
         return const LinearGradient(
             colors: [DKColors.brandPurple, DKColors.brandViolet]);
       case NodeLineage.none:
-        return const LinearGradient(
+        return LinearGradient(
             colors: [DKColors.brandPurple, DKColors.brandDeepPurple]);
     }
   }
@@ -1227,7 +1228,7 @@ class _FilterBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLight = DKColors.isLight(context);
     return Container(
-      padding: const EdgeInsets.symmetric(
+      padding: EdgeInsets.symmetric(
         horizontal: KinrelSpacing.sm,
         vertical: KinrelSpacing.xs,
       ),
@@ -1240,7 +1241,7 @@ class _FilterBar extends StatelessWidget {
           color: DKColors.brandPurple.withValues(alpha: 0.15),
         ),
       ),
-      child: const SingleChildScrollView(
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
@@ -1361,7 +1362,7 @@ class _Minimap extends StatelessWidget {
         final worldX = minX + (localPos.dx / minimapW) * (maxX - minX);
         final worldY = minY + (localPos.dy / minimapH) * (maxY - minY);
 
-        onTap(const Offset(worldX, worldY));
+        onTap(Offset(worldX, worldY));
       },
       child: Container(
         width: 140,

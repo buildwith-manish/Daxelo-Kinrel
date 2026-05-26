@@ -49,7 +49,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
     return DKScaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
         title: detailAsync.when(
@@ -69,7 +69,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           ),
           data: (detail) => Text(
             detail?.family.name ?? 'Family Tree',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontWeight: FontWeight.w600,
             ),
@@ -77,11 +77,11 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.share_outlined),
+            icon: Icon(Icons.share_outlined),
             tooltip: 'Share Family',
             onPressed: () => _shareFamily(context),
           ),
-          const IconButton(
+          IconButton(
             icon: Icon(Icons.settings_outlined),
             tooltip: 'Settings',
             onPressed: () {},
@@ -171,7 +171,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           children: List.generate(
             3, (_) => Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: const DKLoadingShimmer(width: 100, height: 40, radius: 12),
+              child: DKLoadingShimmer(width: 100, height: 40, radius: 12),
             ),
           ),
         ),
@@ -180,7 +180,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         ...List.generate(
           4, (_) => Padding(
             padding: const EdgeInsets.only(bottom: 10),
-            child: const DKLoadingShimmer(
+            child: DKLoadingShimmer(
                 width: double.infinity, height: 64, radius: KinrelRadius.card),
           ),
         ),
@@ -257,7 +257,7 @@ class _GraphTab extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       backgroundColor: DKColors.cardColor(context),
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.bottomSheet),
         ),
@@ -606,7 +606,7 @@ class _ActivityTab extends StatelessWidget {
     });
 
     if (activities.isEmpty) {
-      return const DKEmptyState(
+      return DKEmptyState(
         icon: Icons.history_rounded,
         title: 'No Activity Yet',
         subtitle:
@@ -615,11 +615,11 @@ class _ActivityTab extends StatelessWidget {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
+      padding: EdgeInsets.all(KinrelSpacing.base),
       itemCount: activities.length,
       itemBuilder: (context, index) {
         final activity = activities[index];
-        return const Padding(
+        return Padding(
           padding: EdgeInsets.only(bottom: KinrelSpacing.sm),
           child: _ActivityTile(activity: activity, index: index),
         );
@@ -674,7 +674,7 @@ class _BottomActionBar extends StatelessWidget {
               );
             },
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           // Path Finder
           DKButton(
             label: 'Path',
@@ -723,11 +723,11 @@ class _ToolbarButton extends StatelessWidget {
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
-            offset: const Offset(0, 2),
+            offset: Offset(0, 2),
           ),
         ],
       ),
-      child: const IconButton(
+      child: IconButton(
         icon: Icon(icon, color: DKColors.brandPurple, size: 20),
         tooltip: tooltip,
         onPressed: onTap,
@@ -813,7 +813,7 @@ class _MemberCard extends StatelessWidget {
                 ? DKColors.textSecondary(context).withValues(alpha: 0.3)
                 : DKColors.brandPurple,
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
 
           // Name and relationship
           Expanded(
@@ -832,8 +832,8 @@ class _MemberCard extends StatelessWidget {
                   ),
                 ),
                 if (person.gender != null) ...[
-                  const SizedBox(height: 2),
-                  const Text(
+                  SizedBox(height: 2),
+                  Text(
                     person.gender!.toUpperCase(),
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -844,7 +844,7 @@ class _MemberCard extends StatelessWidget {
                   ),
                 ],
                 if (personRels.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Wrap(
                     spacing: 4,
                     runSpacing: 2,
@@ -936,7 +936,7 @@ class _ActivityTile extends StatelessWidget {
 
     final timeAgo = _formatTimeAgo(activity.timestamp);
 
-    return const DKCard(
+    return DKCard(
       padding: 12,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

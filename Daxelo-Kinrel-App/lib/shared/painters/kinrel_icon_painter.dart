@@ -107,7 +107,7 @@ _PaletteColors _resolvePalette(KinrelIconPalette palette) {
 /// )
 /// ```
 class KinrelIconPainter extends CustomPainter {
-  const KinrelIconPainter({
+  KinrelIconPainter({
     this.palette = KinrelIconPalette.purple,
     this.animated = false,
     this.animationValue = 0,
@@ -139,7 +139,7 @@ class KinrelIconPainter extends CustomPainter {
   void _paintMini(Canvas canvas, Size size, _PaletteColors pc) {
     final s = size.width;
     final r = s / 2;
-    final center = const Offset(r, r);
+    final center = Offset(r, r);
 
     // Background rounded rectangle
     if (pc.showBg) {
@@ -148,7 +148,7 @@ class KinrelIconPainter extends CustomPainter {
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromCenter(center: center, width: s, height: s),
-          const Radius.circular(rr),
+          Radius.circular(rr),
         ),
         bgPaint,
       );
@@ -190,7 +190,7 @@ class KinrelIconPainter extends CustomPainter {
   void _paintFull(Canvas canvas, Size size, _PaletteColors pc) {
     final s = size.width;
     final r = s / 2;
-    final center = const Offset(r, r);
+    final center = Offset(r, r);
 
     // Clip to rounded rectangle
     final clipRRect = RRect.fromRectAndRadius(
@@ -205,7 +205,7 @@ class KinrelIconPainter extends CustomPainter {
     if (pc.showBg) {
       // Radial gradient background
       final bgPaint = Paint()
-        ..shader = const RadialGradient(
+        ..shader = RadialGradient(
           center: Alignment(-0.3, 0.0),
           radius: 0.65,
           colors: [pc.bgInner, pc.bg],
@@ -315,7 +315,7 @@ class KinrelIconPainter extends CustomPainter {
       if (pc.showGlow) {
         final glowPaint = Paint()
           ..color = n.color.withValues(alpha: 0.12)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4);
         canvas.drawCircle(offset, n.r + s * 0.035, glowPaint);
       }
 
@@ -335,7 +335,7 @@ class KinrelIconPainter extends CustomPainter {
       if (pc.showGlow) {
         final highlightPaint = Paint()
           ..color = Colors.white.withValues(alpha: 0.38)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1);
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 1);
         canvas.drawCircle(
           Offset(n.x - n.r * 0.25, n.y - n.r * 0.25),
           n.r * 0.35,
@@ -391,7 +391,7 @@ class KinrelIconPainter extends CustomPainter {
     final totalLength = (dx * dx + dy * dy);
     if (totalLength == 0) return;
     // Calculate actual length
-    final actualLength = const Offset(dx, dy).distance;
+    final actualLength = Offset(dx, dy).distance;
     if (actualLength == 0) return;
 
     final unitDx = dx / actualLength;

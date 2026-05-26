@@ -12,7 +12,7 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../shared/widgets/dk_components.dart';
 
 class KinshipDetailScreen extends ConsumerWidget {
-  const KinshipDetailScreen({
+  KinshipDetailScreen({
     super.key,
     required this.relationshipKey,
   });
@@ -28,11 +28,11 @@ class KinshipDetailScreen extends ConsumerWidget {
     return DKScaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
         actions: [
-          const IconButton(
+          IconButton(
             icon: Icon(Icons.share),
             onPressed: () {
               Share.share('Check out this kinship term: $relationshipKey');
@@ -43,7 +43,7 @@ class KinshipDetailScreen extends ConsumerWidget {
       body: allTranslationsAsync.when(
         data: (translations) {
           if (translations == null) {
-            return const Center(child: Text('Relationship not found'));
+            return Center(child: Text('Relationship not found'));
           }
 
           final kinshipService = ref.read(kinshipServiceProvider);
@@ -54,7 +54,7 @@ class KinshipDetailScreen extends ConsumerWidget {
               // Hero section
               SliverToBoxAdapter(
                 child: Container(
-                  padding: const EdgeInsets.all(KinrelSpacing.xl),
+                  padding: EdgeInsets.all(KinrelSpacing.xl),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
@@ -71,13 +71,13 @@ class KinshipDetailScreen extends ConsumerWidget {
                       // Category badge
                       if (rel != null)
                         Container(
-                          padding: const EdgeInsets.symmetric(
+                          padding: EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: DKColors.brandPurple.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text(
+                          child: Text(
                             rel.relationshipCategory
                                 .replaceAll('_', ' ')
                                 .toUpperCase(),
@@ -152,7 +152,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                   ),
                 ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              SliverToBoxAdapter(child: SizedBox(height: 24)),
 
               // Relationship path
               if (rel != null && rel.relationshipPath.isNotEmpty)
@@ -206,7 +206,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                   ),
                 ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              SliverToBoxAdapter(child: SizedBox(height: 24)),
 
               // Translations header
               SliverToBoxAdapter(
@@ -225,7 +225,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                 ),
               ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 12)),
+              SliverToBoxAdapter(child: SizedBox(height: 12)),
 
               // Translations grid
               SliverPadding(
@@ -233,7 +233,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                     horizontal: KinrelSpacing.base),
                 sliver: SliverGrid(
                   gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
+                      SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     mainAxisSpacing: 8,
                     crossAxisSpacing: 8,
@@ -347,7 +347,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            const Text(
+                            Text(
                               'Tap to view',
                               style: TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
@@ -364,21 +364,21 @@ class KinshipDetailScreen extends ConsumerWidget {
                 ),
               ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+              SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           );
         },
         loading: () => ListView(
           padding: const EdgeInsets.all(KinrelSpacing.base),
           children: [
-            const DKLoadingShimmer(width: 200, height: 32),
+            DKLoadingShimmer(width: 200, height: 32),
             const SizedBox(height: 12),
             DKLoadingShimmer(width: double.infinity, height: 60, radius: KinrelRadius.card),
             const SizedBox(height: 12),
             ...List.generate(
               6, (_) => Padding(
                 padding:  const EdgeInsets.only(bottom: 8),
-                child: const DKLoadingShimmer(
+                child: DKLoadingShimmer(
                     width: double.infinity, height: 50, radius: KinrelRadius.md),
               ),
             ),

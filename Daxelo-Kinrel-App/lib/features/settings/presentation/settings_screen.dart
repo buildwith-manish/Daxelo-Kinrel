@@ -131,16 +131,16 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
 
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
 
           // ── Privacy Section ─────────────────────────────────────
           const _SectionHeader(title: 'Privacy', index: 2),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
 
           DKCard(
             borderColor: DKColors.brandPurple.withValues(alpha: 0.08),
             padding: 0,
-            child: const Column(
+            child: Column(
               children: [
                 _SettingsTile(
                   icon: Icons.shield_outlined,
@@ -162,16 +162,16 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
 
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
 
           // ── About Section ───────────────────────────────────────
           const _SectionHeader(title: 'About', index: 3),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
 
           DKCard(
             borderColor: DKColors.brandPurple.withValues(alpha: 0.08),
             padding: 0,
-            child: const Column(
+            child: Column(
               children: [
                 _SettingsTile(
                   icon: Icons.info_outline,
@@ -363,7 +363,7 @@ class SettingsScreen extends ConsumerWidget {
                 validator: (v) =>
                     v == null || v.isEmpty ? 'Required' : null,
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               TextFormField(
                 controller: newController,
                 obscureText: true,
@@ -383,7 +383,7 @@ class SettingsScreen extends ConsumerWidget {
                 validator: (v) =>
                     v == null || v.length < 6 ? 'Min 6 characters' : null,
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               TextFormField(
                 controller: confirmController,
                 obscureText: true,
@@ -458,7 +458,7 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
+    return Padding(
       padding: EdgeInsets.only(bottom: 4),
       child: Text(
         title.toUpperCase(),
@@ -538,9 +538,9 @@ class _SettingsTile extends StatelessWidget {
                   size: 20)
               : null),
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(
+      contentPadding: EdgeInsets.symmetric(
           horizontal: KinrelSpacing.md, vertical: 4),
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(KinrelRadius.sm),
       ),
     );
