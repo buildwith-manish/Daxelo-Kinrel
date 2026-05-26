@@ -52,6 +52,15 @@ enum LogoSize {
 /// Composes the brand icon and wordmark into a unified logo
 /// with correct proportions per the brand specification.
 class KinrelLogo extends StatelessWidget {
+  const KinrelLogo({
+    super.key,
+    this.size = LogoSize.md,
+    this.layout = LogoLayout.horizontal,
+    this.showByDaxelo = false,
+    this.palette = KinrelIconPalette.purple,
+    this.animated = false,
+  });
+
   /// Size preset. Default md.
   final LogoSize size;
 
@@ -67,14 +76,6 @@ class KinrelLogo extends StatelessWidget {
   /// Whether to animate the icon. Default false.
   final bool animated;
 
-  const KinrelLogo({
-    super.key,
-    this.size = LogoSize.md,
-    this.layout = LogoLayout.horizontal,
-    this.showByDaxelo = false,
-    this.palette = KinrelIconPalette.purple,
-    this.animated = false,
-  });
 
   // ── Size Mappings ─────────────────────────────────────────────────
 
