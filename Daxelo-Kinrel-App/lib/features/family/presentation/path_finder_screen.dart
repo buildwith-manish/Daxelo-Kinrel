@@ -10,9 +10,10 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
 
 class PathFinderScreen extends ConsumerStatefulWidget {
+  const PathFinderScreen({super.key, required this.familyId});
+
   final String familyId;
 
-  const PathFinderScreen({super.key, required this.familyId});
 
   @override
   ConsumerState<PathFinderScreen> createState() => _PathFinderScreenState();
@@ -75,9 +76,9 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
     final membersAsync = ref.watch(familyMembersProvider(widget.familyId));
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: Aconst ppBar(
         title: Text(
-          'Find Path',
+          'Find Pconst ath',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
@@ -87,10 +88,10 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
       body: membersAsync.when(
         loading: () => const Center(
           child: CircularProgressIndicator(color: KinrelColors.purple),
-        ),
-        error: (e, _) => Center(
+        ),const 
+        error: (econst , _) => Center(
           child: Text(
-            'Failed to load members',
+            'Failedconst  to load members',
             style: TextStyle(color: KinrelColors.textDim),
           ),
         ),
@@ -135,7 +136,7 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
                   _toPersonId = temp;
                   _pathResult = null;
                 });
-              },
+              },const 
               icon: Icon(Icons.swap_vert, color: KinrelColors.purple),
             ),
           ),
@@ -208,12 +209,12 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
                 color: KinrelColors.darkCard,
                 borderRadius:
                     BorderRadius.circular(KinrelSpacing.radiusMd),
-              ),
+              ),const 
               child: Column(
-                children: [
+                chconst ildren: [
                   Text(
                     'Tap "Find Relationship Path" to discover how these family members are connected.',
-                    textAlign: TextAlign.center,
+                    textAliconst gn: TextAlign.center,
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
@@ -246,7 +247,7 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              'No Members Yet',
+              'No Memconst bers Yet',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 20,
@@ -257,7 +258,7 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Add family members first to find relationship paths.',
-              textAlign: TextAlign.center,
+              textAliconst gn: TextAlign.center,
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
@@ -272,11 +273,6 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _PersonSelector extends StatelessWidget {
-  final String label;
-  final List<Person> members;
-  final String? selectedId;
-  final ValueChanged<String?> onChanged;
-
   const _PersonSelector({
     required this.label,
     required this.members,
@@ -284,12 +280,18 @@ class _PersonSelector extends StatelessWidget {
     required this.onChanged,
   });
 
+  final String label;
+  final List<Person> members;
+  final String? selectedId;
+  final ValueChanged<String?> onChanged;
+
+
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        Text(const 
           label,
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -308,12 +310,12 @@ class _PersonSelector extends StatelessWidget {
                 color: KinrelColors.darkSurface.withValues(alpha: 0.3)),
           ),
           child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
+            child: Dconst ropdownButton<String>(
               value: selectedId,
-              hint: Text(
+              hint: Texconst t(
                 'Select person',
                 style: TextStyle(color: KinrelColors.textDim),
-              ),
+              ),const 
               isExpanded: true,
               icon: Icon(Icons.arrow_drop_down, color: KinrelColors.purple),
               dropdownColor: KinrelColors.darkElevated,
@@ -323,7 +325,7 @@ class _PersonSelector extends StatelessWidget {
                     : '';
                 return DropdownMenuItem(
                   value: p.id,
-                  child: Text(
+                  child: Teconst xt(
                     '${p.name}$subtitle',
                     style: TextStyle(color: KinrelColors.textWhite),
                     overflow: TextOverflow.ellipsis,
@@ -340,13 +342,14 @@ class _PersonSelector extends StatelessWidget {
 }
 
 class _PathResultCard extends StatelessWidget {
-  final PathResult result;
-  final Map<String, Person> personMap;
-
   const _PathResultCard({
     required this.result,
     required this.personMap,
   });
+
+  final PathResult result;
+  final Map<String, Person> personMap;
+
 
   @override
   Widget build(BuildContext context) {
@@ -369,7 +372,7 @@ class _PathResultCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            result.path.isEmpty
+            result.const path.isEmpty
                 ? 'Same Person'
                 : 'Path Found (${result.length} step${result.length != 1 ? 's' : ''})',
             style: TextStyle(
@@ -386,14 +389,14 @@ class _PathResultCard extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
-                    Container(
+                    Container(const 
                       width: 32,
                       height: 32,
                       decoration: BoxDecoration(
                         color: KinrelColors.darkElevated,
                         shape: BoxShape.circle,
                       ),
-                      child: Center(
+                      child: Centconst er(
                         child: Text(
                           '${result.path.indexOf(step) + 1}',
                           style: TextStyle(
@@ -409,7 +412,7 @@ class _PathResultCard extends StatelessWidget {
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                        children: [const 
                           Text(
                             step.personName,
                             style: TextStyle(
@@ -418,7 +421,7 @@ class _PathResultCard extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                               color: KinrelColors.textWhite,
                             ),
-                          ),
+                          ),const 
                           Text(
                             step.type.snakeToTitle,
                             style: TextStyle(
@@ -445,7 +448,7 @@ class _PathResultCard extends StatelessWidget {
             ),
             child: Column(
               children: [
-                Text(
+                Text(const 
                   result.relationshipDescription,
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -456,7 +459,7 @@ class _PathResultCard extends StatelessWidget {
                 ),
                 if (result.localizedDescription != null) ...[
                   const SizedBox(height: 6),
-                  Text(
+                  Text(const 
                     result.localizedDescription!,
                     textAlign: TextAlign.center,
                     style: TextStyle(
