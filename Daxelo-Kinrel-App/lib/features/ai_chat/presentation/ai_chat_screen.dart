@@ -306,7 +306,8 @@ class _SuggestionChip extends StatelessWidget {
           border: Border.all(
             color: KinrelColors.purple.withValues(alpha: 0.3),
           ),
-        ),const child: Text(
+        ),
+        child: Text(
           text,
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -429,7 +430,7 @@ class _ChatBubble extends StatelessWidget {
             ),
 
           // Timestamp
-          Padding(const padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+          Padding(padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
             child: Text(
               _formatTime(message.timestamp),
               style: TextStyle(
@@ -507,7 +508,7 @@ class _KinshipCard extends StatelessWidget {
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        colorconst : KinrelColors.textWhite,
+                        color: KinrelColors.textWhite,
                       ),
                     ),
                     Text(
@@ -566,7 +567,8 @@ class _KinshipCard extends StatelessWidget {
                 color: KinrelColors.ember,
               ),
             ],
-          ),const // Translations
+          ),
+    // Translations
           if (data.translations.isNotEmpty) ...[
             const SizedBox(height: 12),
             Text(
@@ -594,7 +596,7 @@ class _KinshipCard extends StatelessWidget {
                       color: KinrelColors.darkSurface.withValues(alpha: 0.6),
                     ),
                   ),
-                  child: Row(const mainAxisSize: MainAxisSize.min,
+                  child: Row(mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         entry.key.toUpperCase(),
@@ -792,12 +794,12 @@ class _InputBar extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: KinrelColors.darkElevated,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border Border.all(
+                  border: Border.all(
                     color: KinrelColors.darkSurface.withValues(alpha: 0.6),
                   ),
                 ),
                 child: TextField(
-                  controller: const controller,
+                  controller: controller,
                   focusNode: focusNode,
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -842,10 +844,11 @@ class _InputBar extends StatelessWidget {
                       : [
                           BoxShadow(
                             color: KinrelColors.purple
-                      const .withValues(alpha: 0.3),
+                                .withValues(alpha: 0.3),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
-                          ),const ],
+                          ),
+                        ],
                 ),
                 child: isLoading
                     ? SizedBox(

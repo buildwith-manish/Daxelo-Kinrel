@@ -186,7 +186,7 @@ class _RelationshipPickerSheetState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _headerconst Title,
+                  _headerTitle,
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 18,
@@ -367,7 +367,8 @@ class _RelationshipPickerSheetState
     return searchAsync.when(
       loading: () => const Center(
         child: CircularProgressIndicator(color: KinrelColors.purple),
-      ),const error: (e, _) => Center(
+      ),
+    error: (e, _) => Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -607,7 +608,7 @@ class _CategoryTile extends StatelessWidget {
 
 
   @override
-  Widget build(const BuildContext context) {
+  Widget build(BuildContext context) {
     return ListTile(
       dense: true,
       title: Text(
@@ -632,7 +633,7 @@ class _CategoryTile extends StatelessWidget {
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11,
-          const color: KinrelColors.textDim,
+          color: KinrelColors.textDim,
               ),
             ),
           ),
@@ -677,7 +678,8 @@ class _ContextualRelationshipTile extends StatelessWidget {
           color: _genderFgColor(relationship.gender),
           size: 20,
         ),
-      ),const title: Row(
+      ),
+      title: Row(
         children: [
           Expanded(
             child: Text(
@@ -707,7 +709,8 @@ class _ContextualRelationshipTile extends StatelessWidget {
                   letterSpacing: 0.3,
                 ),
               ),
-            ),const ],
+            ),
+          ],
       ),
       subtitle: nativeTranslation != null
           ? Text(

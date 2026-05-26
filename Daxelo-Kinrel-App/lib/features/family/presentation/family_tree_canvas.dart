@@ -246,7 +246,8 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
               filters: _filters,
             ),
           ,
-const // Empty state
+
+        // Empty state
         if (activeMembers.isEmpty)
           Center(
             child: DKEmptyState(

@@ -660,7 +660,7 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
                                       ),
                                     ],);const },
                                 loading: () => SizedBox(
-                                  height: 28,const child: Center(
+                                  height: 28,child: Center(
                                     child: SizedBox(
                                       width: 20,
                                       height: 20,
@@ -997,7 +997,7 @@ class _YourFamiliesSection extends StatelessWidget {
                     child: Text('${families.length}',
                         style: const TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
-                       const fontSize: 11,
+                       fontSize: 11,
                           fontWeight: FontWeight.w600,
                           color: DKColors.brandPurple,
                         )),

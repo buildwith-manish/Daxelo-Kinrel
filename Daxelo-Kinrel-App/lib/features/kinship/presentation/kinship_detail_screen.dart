@@ -376,8 +376,8 @@ class KinshipDetailScreen extends ConsumerWidget {
             DKLoadingShimmer(width: double.infinity, height: 60, radius: KinrelRadius.card),
             const SizedBox(height: 12),
             ...List.generate(
-              6,const (_) => Padding(
-                paddingconst : const EdgeInsets.only(bottom: 8),
+              6, (_) => Padding(
+                padding:  const EdgeInsets.only(bottom: 8),
                 child: DKLoadingShimmer(
                     width: double.infinity, height: 50, radius: KinrelRadius.md),
               ),

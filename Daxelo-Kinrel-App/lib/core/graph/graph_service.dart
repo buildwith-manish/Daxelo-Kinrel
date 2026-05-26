@@ -67,8 +67,8 @@ class PathResult {
 }
 
 /// Edge in the adjacency list
-class _Edge {
-  const _Edge(this.targetId, this.type, this.direction);
+class Edge {
+  const Edge(this.targetId, this.type, this.direction);
 
   final String targetId;
   final String type;
@@ -119,7 +119,7 @@ class GraphService {
   String inverseType(String type) => inverseTypeMap[type] ?? type;
 
   /// Build adjacency list from relationships
-  Map<String, List<_Edge>> buildAdjacencyList(
+  Map<String, List<Edge>> buildAdjacencyList(
     List<GraphPerson> persons,
     List<({String fromId, String toId, String type})> relationships,
   ) {
@@ -137,12 +137,12 @@ class GraphService {
 
     for (final rel in relationships) {
       if (!activePersonIds.contains(rel.fromId) ||
-          !activePersonIds.contains(rel.toId)) continue;
+          !activePersonIds.contains(rel.toId)) {
+        continue;
+      }
 
-          {
-      adjacency[rel.fromId]?.add(_Edge(rel.toId, rel.type, 'from'));
-          }
-      adjacency[rel.toId]?.add(_Edge(rel.fromId, inverseType(rel.type), 'to'));
+      adjacency[rel.fromId]?.add(Edge(rel.toId, rel.type, 'from'));
+      adjacency[rel.toId]?.add(Edge(rel.fromId, inverseType(rel.type), 'to'));
     }
 
     return adjacency;

@@ -99,7 +99,7 @@ class _VoiceSearchScreenState extends ConsumerState<VoiceSearchScreen>
                     const SizedBox(width: 8),
                     const Text(
                       'Voice Search',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
@@ -194,7 +194,6 @@ class _IdleView extends StatelessWidget {
   final Animation<double> pulseAnimation;
   final VoidCallback onStart;
 
-
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -209,7 +208,8 @@ class _IdleView extends StatelessWidget {
                 scale: pulseAnimation.value,
                 child: Container(
                   width: 120,
-                  height: 120,const decoration: BoxDecoration(
+                  height: 120,
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: const LinearGradient(
                       colors: [KinrelColors.purple, KinrelColors.violet],
@@ -242,7 +242,7 @@ class _IdleView extends StatelessWidget {
           ),
 
           const SizedBox(height: 32),
-const Text(
+          Text(
             'Tap to search by voice',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -253,7 +253,7 @@ const Text(
           ),
 
           const SizedBox(height: 12),
-const Text(
+          Text(
             'Say any Indian kinship term\nlike "chacha", "bua", "mami"',
             textAlign: TextAlign.center,
             style: TextStyle(
@@ -275,7 +275,8 @@ const Text(
               borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
               border: Border.all(
                   color: KinrelColors.darkSurface.withValues(alpha: 0.3)),
-            ),const child: Column(
+            ),
+            child: Column(
               children: [
                 _TipRow(icon: Icons.search, text: 'Search for kinship terms'),
                 const SizedBox(height: 8),
@@ -301,14 +302,13 @@ class _TipRow extends StatelessWidget {
   final IconData icon;
   final String text;
 
-
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         Icon(icon, size: 16, color: KinrelColors.amber),
         const SizedBox(width: 10),
-        Text(const text,
+        Text(text,
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
@@ -330,7 +330,6 @@ class _RecordingView extends StatelessWidget {
 
   final AnimationController waveformController;
   final VoidCallback onStop;
-
 
   @override
   Widget build(BuildContext context) {
@@ -374,7 +373,7 @@ class _RecordingView extends StatelessWidget {
                   decoration: const BoxDecoration(
                     color: KinrelColors.error,
                     shape: BoxShape.circle,
-                ,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -416,8 +415,8 @@ class _RecordingView extends StatelessWidget {
               ),
             ),
           ),
-const const SizedBox(height: 16),
-const Text(
+          const SizedBox(height: 16),
+          Text(
             'Tap to stop',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -434,7 +433,7 @@ const Text(
 // ── Loading View ────────────────────────────────────────────────
 
 class _LoadingView extends StatelessWidget {
-  @override 
+  @override
   Widget build(BuildContext context) {
     return Center(
       child: Column(
@@ -442,7 +441,7 @@ class _LoadingView extends StatelessWidget {
         children: [
           const CircularProgressIndicator(
             color: KinrelColors.purple,
-          const strokeWidth: 3,
+            strokeWidth: 3,
           ),
           const SizedBox(height: 24),
           Text(
@@ -451,7 +450,7 @@ class _LoadingView extends StatelessWidget {
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 16,
               color: KinrelColors.textSilver,
-          ,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -480,7 +479,6 @@ class _ResultsView extends StatelessWidget {
   final String transcription;
   final List<KinshipVoiceResult> results;
   final VoidCallback onSearchAgain;
-
 
   @override
   Widget build(BuildContext context) {
@@ -526,7 +524,8 @@ class _ResultsView extends StatelessWidget {
                         color: KinrelColors.textDim,
                         fontWeight: FontWeight.w500,
                       ),
-                    ),const const SizedBox(height: 2),
+                    ),
+                    const SizedBox(height: 2),
                     Text(
                       '"$transcription"',
                       style: TextStyle(
@@ -573,9 +572,9 @@ class _ResultsView extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.search_off,
+                      Icon(Icons.search_off,
                           size: 48,
-                          colorconst : KinrelColors.textDim.withValues(alpha: 0.4)),
+                          color: KinrelColors.textDim.withValues(alpha: 0.4)),
                       const SizedBox(height: 16),
                       Text(
                         'No kinship terms found',
@@ -620,7 +619,6 @@ class _VoiceResultCard extends StatelessWidget {
 
   final KinshipVoiceResult result;
 
-
   @override
   Widget build(BuildContext context) {
     // Get the first available native translation
@@ -654,7 +652,8 @@ class _VoiceResultCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: KinrelColors.purple.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
-                ),const child: Text(
+                ),
+                child: Text(
                   result.relationshipCategory
                       .replaceAll('_', ' ')
                       .toUpperCase(),
@@ -663,7 +662,7 @@ class _VoiceResultCard extends StatelessWidget {
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                     color: KinrelColors.purple,
-              const letterSpacing: 0.5,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ),
@@ -698,7 +697,8 @@ class _VoiceResultCard extends StatelessWidget {
                     color: KinrelColors.amber,
                     fontWeight: FontWeight.w500,
                   ),
-                ), if (latinTerm != null) ...[
+                ),
+                if (latinTerm != null) ...[
                   const SizedBox(width: 8),
                   Text(
                     latinTerm,
@@ -736,7 +736,6 @@ class _MiniTag extends StatelessWidget {
 
   final String label;
 
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -768,20 +767,20 @@ class _LanguageSelector extends StatelessWidget {
   final SupportedLanguage selectedLanguage;
   final ValueChanged<SupportedLanguage> onLanguageChanged;
 
-
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color: KinrelColors.darkElevated,
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
-      ),const child: PopupMenuButton<SupportedLanguage>(
+      ),
+      child: PopupMenuButton<SupportedLanguage>(
         icon: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               selectedLanguage.code.toUpperCase(),
-            const style: TextStyle(
+              style: TextStyle(
                 color: KinrelColors.purple,
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 12,
@@ -813,7 +812,6 @@ class _WaveformPainter extends CustomPainter {
 
   final double animationValue;
   final Color color;
-
 
   @override
   void paint(Canvas canvas, Size size) {

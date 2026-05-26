@@ -119,7 +119,7 @@ class PersonDetailSheet extends ConsumerWidget {
           // Gender
           if (person.gender != null) ...[
             Text(
-              person.const gender!.toUpperCase(),
+              person.gender!.toUpperCase(),
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
@@ -245,7 +245,8 @@ class PersonDetailSheet extends ConsumerWidget {
             fontFamily: KinrelTypography.displayFont,
             color: KinrelColors.textWhite,
           ),
-        ),const content: Text(
+        ),
+        content: Text(
           'This person will be removed from the family tree. This action cannot be undone.',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -283,8 +284,9 @@ class PersonDetailSheet extends ConsumerWidget {
                   );
                 }
               }
-            },const child: Text(
-              'Deleteconst ',
+            },
+            child: Text(
+              'Delete',
               style: TextStyle(color: KinrelColors.error),
             ),
           ),
@@ -320,7 +322,7 @@ class _DetailRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(const label,
+                Text(label,
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11,

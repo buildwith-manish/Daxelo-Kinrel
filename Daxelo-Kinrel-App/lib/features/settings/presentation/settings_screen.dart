@@ -80,7 +80,7 @@ class SettingsScreen extends ConsumerWidget {
                       ref.read(themeModeProvider.notifier).state =
                           value ? ThemeMode.dark : ThemeMode.light;
                     },
-                    activeColor: DKColors.brandPurple,
+                    activeThumbColor: DKColors.brandPurple,
                     activeTrackColor:
                         DKColors.brandPurple.withValues(alpha: 0.5),
                   ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -320,7 +321,7 @@ class _RelationshipBuilderScreenState
           _glowingNode1 = person1.id;
           _glowingNode2 = person2.id;
         });
-        unawaited(_glowController.forward();)
+        unawaited(_glowController.forward());
 
         context.showSnackBar(
           'Linked: ${person2.name} is ${relationshipKey.snakeToTitle} of ${person1.name}',
@@ -547,7 +548,7 @@ class _PersonCard extends StatelessWidget {
             // Relationship key
             if (person.gender != null) ...[
               const SizedBox(height: 2),
-              Text(const person.gender!.toUpperCase(),
+              Text(person.gender!.toUpperCase(),
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
@@ -604,7 +605,8 @@ class _SelectionBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(10),
-      ),const child: Text(
+      ),
+      child: Text(
         label,
         style: TextStyle(
           fontFamily: KinrelTypography.bodyFont,
@@ -637,7 +639,7 @@ class _EmptyState extends StatelessWidget {
               painter: _DottedCirclePainter(
                 color: KinrelColors.textDim.withValues(alpha: 0.3),
               ),
-              child: const SizedBox(
+              child: SizedBox(
                 width: 120,
                 height: 120,
                 child: Center(
@@ -646,16 +648,17 @@ class _EmptyState extends StatelessWidget {
                     size: 40,
                     color: KinrelColors.textDim,
                   ),
-            ,
+                ),
               ),
-            ),const const SizedBox(height: 24),
+            ),
+            const SizedBox(height: 24),
             Text(
               'Add Members First',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
-            const color: KinrelColors.textWhite,
+                color: KinrelColors.textWhite,
               ),
             ),
             const SizedBox(height: 8),
@@ -710,7 +713,7 @@ class _ErrorState extends StatelessWidget {
             Icon(
               Icons.error_outline,
               size: 64,
-              color: const KinrelColors.error.withValues(alpha: 0.5),
+              color: KinrelColors.error.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 20),
             Text(

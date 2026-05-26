@@ -231,11 +231,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                             ),
                           ),
                           validator: (v) {
-                            if (v == null || v.isEmpty)
+                            if (v == null || v.isEmpty) {
                               return 'Email is required';
-                              {
+                            }
                             if (!v.contains('@')) return 'Enter a valid email';
-                              }
                             return null;
                           },
                         ),
@@ -310,15 +309,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                             ),
                           ),
                           validator: (v) {
-                            if (v == null || v.isEmpty)
+                            if (v == null || v.isEmpty) {
                               return 'Password is required';
-                              {
-                            if (v.length < 6)
-                              }
-                              return 'Password must be at least 6 characters';
-                              {
+                            }
+                            if (v.length < 6) return 'Password must be at least 6 characters';
                             return null;
-                              }
                           },
                         ),
 
@@ -368,14 +363,15 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                               elevation: 0,
                             ),
                             child: _isLoading
-                                ? Row(const mainAxisAlignment: MainAxisAlignment.center,
+                                ? Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       SizedBox(
                                         height: 20,
                                         width: 20,
-                                      const child: CircularProgressIndicator(
+                                        child: CircularProgressIndicator(
                                           strokeWidth: 2,
-                                          colorconst : Colors.white,
+                                          color: Colors.white,
                                         ),
                                       ),
                                       const SizedBox(width: 12),
@@ -384,9 +380,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                         style: TextStyle(
                                           fontFamily:
                                               KinrelTypography.displayFont,
-                                  const fontWeight: FontWeight.w600,
+                                          fontWeight: FontWeight.w600,
                                           fontSize: 16,
-                                        ),),
+                                        ),
+                                      ),
                                     ],
                                   )
                                 : Text(

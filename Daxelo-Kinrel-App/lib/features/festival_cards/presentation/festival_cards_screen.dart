@@ -220,7 +220,8 @@ class _FestivalGrid extends StatelessWidget {
             borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
           ),
         ),
-      ),const error: (_, __) => Center(
+      ),
+    error: (_, __) => Center(
         child: Text(
           'Failed to load templates',
           style: TextStyle(
@@ -365,7 +366,7 @@ class _CustomizationFormState extends ConsumerState<_CustomizationForm>
             unselectedLabelColor: KinrelColors.textDim,
             labelStyle: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
-              fontSize: 13,const fontWeight: FontWeight.w600,
+              fontSize: 13,fontWeight: FontWeight.w600,
             ),
             unselectedLabelStyle: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -453,7 +454,7 @@ class _FestivalCardForm extends ConsumerWidget {
               ),
             ),
           ),
-const const SizedBox(height: KinrelSpacing.xl),
+const SizedBox(height: KinrelSpacing.xl),
 const // Kinship term input
           Text(
             'Kinship Term',
@@ -483,7 +484,7 @@ const // Kinship term input
             ),
             onChanged: (value) => notifier.setKinshipTermInput(value),
           ),
-const const SizedBox(height: KinrelSpacing.lg),
+const SizedBox(height: KinrelSpacing.lg),
 const // Language picker
           Text(
             'Language',
@@ -499,7 +500,7 @@ const // Language picker
             selectedLanguage: cardsState.selectedLanguage,
             onLanguageChanged: (lang) => notifier.setLanguage(lang),
           ),
-const const SizedBox(height: KinrelSpacing.lg),
+const SizedBox(height: KinrelSpacing.lg),
 const // Style picker
           Text(
             'Card Style',
@@ -533,7 +534,8 @@ const // Style picker
                 shape: RoundedRectangleBorder(
                   borderRadius:
                       BorderRadius.circular(KinrelSpacing.radiusMd),
-                ),const disabledBackgroundColor:
+                ),
+    disabledBackgroundColor:
                     festivalColor.withValues(alpha: 0.3),
               ),
               child: Text(
@@ -581,8 +583,8 @@ class _KinshipCardForm extends ConsumerWidget {
               borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
               border: Border.all(
                   color: KinrelColors.darkSurface.withValues(alpha: 0.3)),
-            ),const child: Row(const children: [
-                Icon(Icons.const info_outline, color: festivalColor, size: 20),
+            ),child: Row(children: [
+                Icon(Icons.info_outline, color: festivalColor, size: 20),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -612,7 +614,7 @@ class _KinshipCardForm extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 8),
-          TextField(const controller: relationshipKeyController,
+          TextField(controller: relationshipKeyController,
             style: const TextStyle(color: KinrelColors.textWhite),
             decoration: InputDecoration(
               hintText: 'e.g., fathers_younger_brother, mothers_brother...',
@@ -865,7 +867,7 @@ class _GeneratingViewState extends State<_GeneratingView>
           const SizedBox(
             width: 200,
             child: LinearProgressIndicator(
-          const color: KinrelColors.purple,
+          color: KinrelColors.purple,
               backgroundColor: KinrelColors.darkSurface,
               borderRadius: BorderRadius.all(Radius.circular(4)),
             ),
@@ -877,9 +879,9 @@ class _GeneratingViewState extends State<_GeneratingView>
             'Creating your card...',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
-          const fontSize: 18,
+          fontSize: 18,
               fontWeight: FontWeight.w600,
-              colorconst : KinrelColors.textWhite,
+              color:  KinrelColors.textWhite,
             ),
           ),
 

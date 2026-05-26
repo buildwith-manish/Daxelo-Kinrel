@@ -42,9 +42,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     if (password.length < 12 &&
         !RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(password))
       return 'Medium';
-      {
     return 'Strong';
-      }
   }
 
   double _passwordStrengthValue(String? strength) {
@@ -345,11 +343,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             ),
                           ),
                           validator: (v) {
-                            if (v == null || v.isEmpty)
+                            if (v == null || v.isEmpty) {
                               return 'Email is required';
-                              {
+                            }
                             if (!v.contains('@')) return 'Enter a valid email';
-                              }
                             return null;
                           },
                         ),
@@ -425,15 +422,11 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           ),
                           onChanged: (_) => setState(() {}),
                           validator: (v) {
-                            if (v == null || v.isEmpty)
+                            if (v == null || v.isEmpty) {
                               return 'Password is required';
-                              {
-                            if (v.length < 8)
-                              }
-                              return 'Password must be at least 8 characters';
-                              {
+                            }
+                            if (v.length < 8) return 'Password must be at least 8 characters';
                             return null;
-                              }
                           },
                         ),
 
@@ -542,15 +535,11 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             ),
                           ),
                           validator: (v) {
-                            if (v == null || v.isEmpty)
+                            if (v == null || v.isEmpty) {
                               return 'Please confirm your password';
-                              {
-                            if (v != _passwordController.text)
-                              }
-                              return 'Passwords do not match';
-                              {
+                            }
+                            if (v != _passwordController.text) return 'Passwords do not match';
                             return null;
-                              }
                           },
                         ),
 
@@ -636,14 +625,16 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(
                                       KinrelRadius.button),
-                                ),const elevation: 0,
+                                ),
+                                elevation: 0,
                               ),
                               child: _isLoading
                                   ? Row(
                                       mainAxisAlignment:
-                                        const MainAxisAlignment.center,
+                                          MainAxisAlignment.center,
                                       children: [
-                                        SizedBox(const height: 20,
+                                        SizedBox(
+                                          height: 20,
                                           width: 20,
                                           child:
                                               CircularProgressIndicator(
@@ -651,7 +642,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                             color: Colors.white,
                                           ),
                                         ),
-                                    const const SizedBox(width: 12),
+                                        const SizedBox(width: 12),
                                         Text(
                                           'Creating account...',
                                           style: TextStyle(

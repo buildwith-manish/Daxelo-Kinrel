@@ -977,7 +977,7 @@ class _PrivacyCard extends StatelessWidget {
                     fontSize: 12,
                     color: DKColors.textSecondary(context),
                     height: 1.4,
-            ,
+                  ),
                 ),
               ],
             ),

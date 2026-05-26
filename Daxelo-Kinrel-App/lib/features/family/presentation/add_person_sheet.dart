@@ -231,7 +231,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
 
               // Title
               Text(
-                _isEditconst Mode ? 'Edit Person' : 'Add Family Member',
+                _isEditMode ? 'Edit Person' : 'Add Family Member',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 20,
@@ -247,7 +247,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               TextFormField(
                 controller: _nameController,
                 validator: (v) =>
-                    v =const = null || v.trim().isEmpty ? 'Name is required' : null,
+                    v == null || v.trim().isEmpty ? 'Name is required' : null,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
@@ -288,7 +288,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                                 : KinrelColors.textDim,
                           ),
                         ),
-                      ,
+                      ),
                       Icon(Icons.search, color: KinrelColors.purple, size: 20),
                     ],
                   ),
@@ -378,7 +378,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               // Alive / Deceased toggle
               Row(
                 children: [
-                  Expanded(const child: Text(
+                  Expanded(child: Text(
                       'Deceased',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -390,7 +390,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                   Switch.adaptive(
                     value: _isDeceased,
                     onChanged: (v) => setState(() => _isDeceased = v),
-                    activeColor: KinrelColors.purple,
+                    activeThumbColor: KinrelColors.purple,
                   ),
                 ],
               ),
@@ -420,7 +420,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                         ),
                       )
                     : Text(
-                        _isEditconst Mode ? 'Save Changes' : 'Add Member',
+                        _isEditMode ? 'Save Changes' : 'Add Member',
                         style: TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 16,

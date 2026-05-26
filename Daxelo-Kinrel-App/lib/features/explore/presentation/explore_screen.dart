@@ -109,17 +109,15 @@ final _exploreResultsProvider =
 });
 
 class _ExploreResults {
-      );
-
-  factory _ExploreResults.empty() => const _ExploreResults(
-        members: [],
-        families: [],
-
   final List<_SearchResultItem> members;
   final List<_SearchResultItem> families;
 
   const _ExploreResults({required this.members, required this.families});
 
+  factory _ExploreResults.empty() => const _ExploreResults(
+    members: [],
+    families: [],
+  );
 
   bool get isEmpty => members.isEmpty && families.isEmpty;
 }
@@ -340,7 +338,10 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     onTap: () => context.push('/family/${item.familyId}'),
                   )),
             ],
-          ]),);const },const loading: () => SliverToBoxAdapter(
+          ]),
+          );
+        },
+        loading: () => SliverToBoxAdapter(
         child: Center(
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 40),
@@ -592,8 +593,9 @@ class _SectionHeader extends StatelessWidget {
                 color: DKColors.brandPurple,
               ),
             ),
-          ),const const Spacer(),
-          if (onSeeAll const != null)
+          ),
+          const Spacer(),
+          if (onSeeAll != null)
             GestureDetector(
               onTap: onSeeAll,
               child: Text(
@@ -1002,7 +1004,7 @@ class _FamiliesQuickLinks extends ConsumerWidget {
                             style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 11,
-                           const fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w600,
                               color: DKColors.brandPurple,
                             )),
                       ),

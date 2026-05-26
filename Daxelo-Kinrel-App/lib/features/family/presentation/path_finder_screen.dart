@@ -88,7 +88,8 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
       body: membersAsync.when(
         loading: () => const Center(
           child: CircularProgressIndicator(color: KinrelColors.purple),
-        ),const error: (e, _) => Center(
+        ),
+    error: (e, _) => Center(
           child: Text(
             'Failed to load members',
             style: TextStyle(color: KinrelColors.textDim),
@@ -135,7 +136,8 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
                   _toPersonId = temp;
                   _pathResult = null;
                 });
-              },const icon: Icon(Icons.swap_vert, color: KinrelColors.purple),
+              },
+              icon: Icon(Icons.swap_vert, color: KinrelColors.purple),
             ),
           ),
 
@@ -207,7 +209,8 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
                 color: KinrelColors.darkCard,
                 borderRadius:
                     BorderRadius.circular(KinrelSpacing.radiusMd),
-              ),const child: Column(
+              ),
+              child: Column(
                 children: [
                   Text(
                     'Tap "Find Relationship Path" to discover how these family members are connected.',
@@ -288,7 +291,7 @@ class _PersonSelector extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(const label,
+        Text(label,
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
@@ -311,7 +314,8 @@ class _PersonSelector extends StatelessWidget {
               hint: Text(
                 'Select person',
                 style: TextStyle(color: KinrelColors.textDim),
-              ),const isExpanded: true,
+              ),
+              isExpanded: true,
               icon: Icon(Icons.arrow_drop_down, color: KinrelColors.purple),
               dropdownColor: KinrelColors.darkElevated,
               items: members.map((p) {
@@ -367,7 +371,7 @@ class _PathResultCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            result.const path.isEmpty
+            result.path.isEmpty
                 ? 'Same Person'
                 : 'Path Found (${result.length} step${result.length != 1 ? 's' : ''})',
             style: TextStyle(
@@ -384,7 +388,7 @@ class _PathResultCard extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
-                    Container(const width: 32,
+                    Container(width: 32,
                       height: 32,
                       decoration: BoxDecoration(
                         color: KinrelColors.darkElevated,
@@ -406,7 +410,8 @@ class _PathResultCard extends StatelessWidget {
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [const Text(
+                        children: [
+                          Text(
                             step.personName,
                             style: TextStyle(
                               fontFamily: KinrelTypography.displayFont,
@@ -414,7 +419,8 @@ class _PathResultCard extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                               color: KinrelColors.textWhite,
                             ),
-                          ),const Text(
+                          ),
+                          Text(
                             step.type.snakeToTitle,
                             style: TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
@@ -440,7 +446,7 @@ class _PathResultCard extends StatelessWidget {
             ),
             child: Column(
               children: [
-                Text(const result.relationshipDescription,
+                Text(result.relationshipDescription,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: KinrelTypography.monoFont,
@@ -450,7 +456,7 @@ class _PathResultCard extends StatelessWidget {
                 ),
                 if (result.localizedDescription != null) ...[
                   const SizedBox(height: 6),
-                  Text(const result.localizedDescription!,
+                  Text(result.localizedDescription!,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,

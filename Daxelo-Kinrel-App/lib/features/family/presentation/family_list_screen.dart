@@ -299,7 +299,7 @@ class _JoinFamilyCard extends StatelessWidget {
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                colorconst : DKColors.brandGold.withValues(alpha: 0.15),
+                color: DKColors.brandGold.withValues(alpha: 0.15),
               ),
               child: Icon(Icons.mail_outline_rounded,
                   color: DKColors.brandGold, size: 20),
@@ -328,7 +328,7 @@ class _JoinFamilyCard extends StatelessWidget {
                     ),
                   ),
                 ],
-            ,
+              ),
             ),
             Icon(Icons.arrow_forward_ios_rounded,
                 size: 16, color: DKColors.brandGold),

@@ -59,7 +59,8 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
               fontFamily: KinrelTypography.displayFont,
               fontWeight: FontWeight.w600,
             ),
-          ),const error: (_, __) => Text(
+          ),
+    error: (_, __) => Text(
             'Family Tree',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -67,7 +68,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
             ),
           ),
           data: (detail) => Text(
-            detail?const .family.name ?? 'Family Tree',
+            detail?.family.name ?? 'Family Tree',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontWeight: FontWeight.w600,
@@ -96,7 +97,8 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             fontWeight: FontWeight.w600,
-          ),const unselectedLabelStyle: TextStyle(
+          ),
+    unselectedLabelStyle: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             fontWeight: FontWeight.w500,
@@ -167,8 +169,8 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: List.generate(
-            3,const (_) => Padding(
-              paddingconst : const EdgeInsets.symmetric(horizontal: 8),
+            3, (_) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               child: DKLoadingShimmer(width: 100, height: 40, radius: 12),
             ),
           ),
@@ -176,8 +178,8 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         const SizedBox(height: 24),
         // Member cards shimmer
         ...List.generate(
-          4,const (_) => Padding(
-            paddingconst : const EdgeInsets.only(bottom: 10),
+          4, (_) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
             child: DKLoadingShimmer(
                 width: double.infinity, height: 64, radius: KinrelRadius.card),
           ),
@@ -825,7 +827,7 @@ class _MemberCard extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: person.isDeceased
-                        ? Dconst KColors.textSecondary(context)
+                        ? DKColors.textSecondary(context)
                         : DKColors.textPrimary(context),
                   ),
                 ),

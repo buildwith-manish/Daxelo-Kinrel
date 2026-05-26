@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -42,7 +43,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   Future<void> _initialize() async {
     // Preload kinship data in the background (5300+ terms, ~15MB JSON)
     // Don't await — let it load while splash shows
-    unawaited(ref.read(kinshipInitializedProvider.future).catchError((_) {});)
+    unawaited(ref.read(kinshipInitializedProvider.future).catchError((_) {}));
 
     // Shorter splash for better UX — 1.5s is enough for branding
     await Future.delayed(const Duration(milliseconds: 1500));
@@ -194,7 +195,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 // ── Tagline ────────────────────────────────────────────
                 const Text(
                   AppConfig.appTagline,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     color: KinrelColors.textSilver,

@@ -17,7 +17,6 @@ import 'package:flutter/material.dart';
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_spacing.dart';
 import '../../core/constants/brand_typography.dart';
-import '../../shared/painters/kinrel_icon_painter.dart';
 import 'kinrel_icon.dart';
 
 /// Logo layout direction.
