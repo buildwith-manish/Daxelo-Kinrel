@@ -119,7 +119,7 @@ class RewardTier {
 }
 
 class RewardsData {
-  const RewardsData({required this.tiers});
+  RewardsData({required this.tiers});
 
   factory RewardsData.fromJson(Map<String, dynamic> json) {
     return RewardsData(
@@ -177,7 +177,7 @@ final referralProvider =
 });
 
 class ReferralNotifier extends StateNotifier<ReferralState> {
-  ReferralNotifier(this._ref) : super(const ReferralState());
+  ReferralNotifier(this._ref) : super(ReferralState());
 
   final Ref _ref;
 

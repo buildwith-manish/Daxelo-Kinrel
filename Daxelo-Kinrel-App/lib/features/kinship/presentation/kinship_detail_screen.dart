@@ -33,7 +33,7 @@ class KinshipDetailScreen extends ConsumerWidget {
         ),
         actions: [
           const IconButton(
-            icon: const Icon(Icons.share),
+            icon: Icon(Icons.share),
             onPressed: () {
               Share.share('Check out this kinship term: $relationshipKey');
             },
@@ -75,13 +75,13 @@ class KinshipDetailScreen extends ConsumerWidget {
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: DKColors.brandPurple.withValues(alpha: 0.15),
-                            borderRadius: const BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(6),
                           ),
                           child: const Text(
                             rel.relationshipCategory
                                 .replaceAll('_', ' ')
                                 .toUpperCase(),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -262,9 +262,9 @@ class KinshipDetailScreen extends ConsumerWidget {
                               ),
                             ),
                             const SizedBox(height: 2),
-                            const Text(
+                            Text(
                               translation.native,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontFamily: lang.fontFamily,
                                 fontSize: 16,
                                 color: DKColors.brandPurple,
@@ -323,7 +323,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: KinrelSpacing.base),
                     itemCount: _getRelatedTerms(relationshipKey).length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    separatorBuilder: (_, __) => SizedBox(width: 8),
                     itemBuilder: (context, index) {
                       final term = _getRelatedTerms(relationshipKey)[index];
                       return SizedBox(
@@ -349,7 +349,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                             const SizedBox(height: 4),
                             const Text(
                               'Tap to view',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 11,
                                 color: DKColors.brandGold,
@@ -378,7 +378,7 @@ class KinshipDetailScreen extends ConsumerWidget {
             ...List.generate(
               6, (_) => Padding(
                 padding:  const EdgeInsets.only(bottom: 8),
-                child: DKLoadingShimmer(
+                child: const DKLoadingShimmer(
                     width: double.infinity, height: 50, radius: KinrelRadius.md),
               ),
             ),
@@ -421,7 +421,7 @@ class _MetaChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: DKColors.brandPurple.withValues(alpha: 0.06),
-        borderRadius: const BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: DKColors.brandPurple.withValues(alpha: 0.1),
           width: 0.5,
@@ -430,7 +430,7 @@ class _MetaChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(icon, size: 14, color: DKColors.brandPurple),
+          Icon(icon, size: 14, color: DKColors.brandPurple),
           const SizedBox(width: 4),
           Text(
             label,

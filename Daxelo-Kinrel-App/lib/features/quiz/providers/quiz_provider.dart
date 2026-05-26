@@ -243,7 +243,7 @@ final quizStateProvider =
 });
 
 class QuizStateNotifier extends StateNotifier<QuizStateData> {
-  QuizStateNotifier(this._ref) : super(const QuizStateData());
+  QuizStateNotifier(this._ref) : super(QuizStateData());
 
   final Ref _ref;
 
@@ -381,7 +381,7 @@ class QuizStateNotifier extends StateNotifier<QuizStateData> {
   }
 
   void resetQuiz() {
-    state = const QuizStateData();
+    state = QuizStateData();
   }
 
   void goToQuestion(int index) {

@@ -56,13 +56,13 @@ class KinrelIcon extends StatelessWidget {
     return Semantics(
       label: semanticLabel ?? 'KINREL icon',
       button: onTap != null,
-      child: const GestureDetector(
+      child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: animated
             ? _AnimatedKinrelIcon(size: size, palette: palette)
             : CustomPaint(
-                size: const Size(size, size),
+                size: Size(size, size),
                 painter: KinrelIconPainter(
                   palette: palette,
                   animated: false,

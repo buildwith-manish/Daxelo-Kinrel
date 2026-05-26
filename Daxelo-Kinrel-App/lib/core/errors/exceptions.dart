@@ -1,6 +1,6 @@
 /// Custom exceptions for the application
 class AppException implements Exception {
-  const AppException({required this.message, this.statusCode, this.originalError});
+  AppException({required this.message, this.statusCode, this.originalError});
 
   final String message;
   final int? statusCode;
@@ -12,25 +12,25 @@ class AppException implements Exception {
 }
 
 class ServerException extends AppException {
-  const ServerException({required super.message, super.statusCode, super.originalError});
+  ServerException({required super.message, super.statusCode, super.originalError});
 }
 
 class NetworkException extends AppException {
-  const NetworkException({required super.message, super.originalError});
+  NetworkException({required super.message, super.originalError});
 }
 
 class AuthException extends AppException {
-  const AuthException({required super.message, super.statusCode, super.originalError});
+  AuthException({required super.message, super.statusCode, super.originalError});
 }
 
 class CacheException extends AppException {
-  const CacheException({required super.message, super.originalError});
+  CacheException({required super.message, super.originalError});
 }
 
 class ValidationException extends AppException {
-  const ValidationException({required super.message, super.originalError});
+  ValidationException({required super.message, super.originalError});
 }
 
 class KinshipParseException extends AppException {
-  const KinshipParseException({required super.message, super.originalError});
+  KinshipParseException({required super.message, super.originalError});
 }

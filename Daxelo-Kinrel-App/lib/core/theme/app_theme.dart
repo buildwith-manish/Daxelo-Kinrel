@@ -172,26 +172,26 @@ class KinrelThemeExtension extends ThemeExtension<KinrelThemeExtension> {
   ) {
     if (other == null) return this;
     return KinrelThemeExtension(
-      brandOrange: const Color.lerp(brandOrange, other.brandOrange, t)!,
-      brandAmber: const Color.lerp(brandAmber, other.brandAmber, t)!,
-      brandEmber: const Color.lerp(brandEmber, other.brandEmber, t)!,
-      brandGlow: const Color.lerp(brandGlow, other.brandGlow, t)!,
-      brandPurple: const Color.lerp(brandPurple, other.brandPurple, t)!,
-      brandDeepPurple: const Color.lerp(brandDeepPurple, other.brandDeepPurple, t)!,
-      brandGold: const Color.lerp(brandGold, other.brandGold, t)!,
-      brandViolet: const Color.lerp(brandViolet, other.brandViolet, t)!,
-      brandCoral: const Color.lerp(brandCoral, other.brandCoral, t)!,
-      brandPurpleGlow: const Color.lerp(brandPurpleGlow, other.brandPurpleGlow, t)!,
-      brandGoldGlow: const Color.lerp(brandGoldGlow, other.brandGoldGlow, t)!,
+      brandOrange: Color.lerp(brandOrange, other.brandOrange, t)!,
+      brandAmber: Color.lerp(brandAmber, other.brandAmber, t)!,
+      brandEmber: Color.lerp(brandEmber, other.brandEmber, t)!,
+      brandGlow: Color.lerp(brandGlow, other.brandGlow, t)!,
+      brandPurple: Color.lerp(brandPurple, other.brandPurple, t)!,
+      brandDeepPurple: Color.lerp(brandDeepPurple, other.brandDeepPurple, t)!,
+      brandGold: Color.lerp(brandGold, other.brandGold, t)!,
+      brandViolet: Color.lerp(brandViolet, other.brandViolet, t)!,
+      brandCoral: Color.lerp(brandCoral, other.brandCoral, t)!,
+      brandPurpleGlow: Color.lerp(brandPurpleGlow, other.brandPurpleGlow, t)!,
+      brandGoldGlow: Color.lerp(brandGoldGlow, other.brandGoldGlow, t)!,
       brandTextPrimary:
-          const Color.lerp(brandTextPrimary, other.brandTextPrimary, t)!,
+          Color.lerp(brandTextPrimary, other.brandTextPrimary, t)!,
       brandTextSecondary:
-          const Color.lerp(brandTextSecondary, other.brandTextSecondary, t)!,
-      brandTextDim: const Color.lerp(brandTextDim, other.brandTextDim, t)!,
-      brandCardBg: const Color.lerp(brandCardBg, other.brandCardBg, t)!,
-      brandElevatedBg: const Color.lerp(brandElevatedBg, other.brandElevatedBg, t)!,
-      brandBorder: const Color.lerp(brandBorder, other.brandBorder, t)!,
-      brandBackground: const Color.lerp(brandBackground, other.brandBackground, t)!,
+          Color.lerp(brandTextSecondary, other.brandTextSecondary, t)!,
+      brandTextDim: Color.lerp(brandTextDim, other.brandTextDim, t)!,
+      brandCardBg: Color.lerp(brandCardBg, other.brandCardBg, t)!,
+      brandElevatedBg: Color.lerp(brandElevatedBg, other.brandElevatedBg, t)!,
+      brandBorder: Color.lerp(brandBorder, other.brandBorder, t)!,
+      brandBackground: Color.lerp(brandBackground, other.brandBackground, t)!,
       brandIgniteGradient: Gradient.lerp(
           brandIgniteGradient, other.brandIgniteGradient, t)!,
       brandHeritageGradient: Gradient.lerp(
@@ -339,7 +339,7 @@ AppBarTheme _appBarTheme(Brightness brightness) {
     scrolledUnderElevation: 0,
     backgroundColor: bgColor,
     foregroundColor: fgColor,
-    titleTextStyle: const TextStyle(
+    titleTextStyle: TextStyle(
       fontFamily: KinrelTypography.displayFont,
       fontSize: 16,
       fontWeight: FontWeight.w600,
@@ -362,8 +362,8 @@ CardThemeData _cardTheme(Brightness brightness) {
     color: cardColor,
     shadowColor: Colors.transparent,
     surfaceTintColor: Colors.transparent,
-    shape: const RoundedRectangleBorder(
-      borderRadius: const BorderRadius.circular(KinrelRadius.card),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(KinrelRadius.card),
       side: BorderSide(
         color: borderColor,
         width: 1,
@@ -386,7 +386,7 @@ ElevatedButtonThemeData _elevatedButtonTheme(Brightness brightness) {
       : KinrelColors.textSecondaryLight;
 
   return ElevatedButtonThemeData(
-    style: const ElevatedButton.styleFrom(
+    style: ElevatedButton.styleFrom(
       backgroundColor: primaryColor,
       foregroundColor: Colors.white,
       disabledBackgroundColor: disabledBg,
@@ -394,13 +394,13 @@ ElevatedButtonThemeData _elevatedButtonTheme(Brightness brightness) {
       elevation: 0,
       shadowColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
-      padding: const EdgeInsets.symmetric(
+      padding: EdgeInsets.symmetric(
         horizontal: KinrelSpacing.xl,
         vertical: KinrelSpacing.md,
       ),
-      minimumSize: const Size(0, 48),
-      shape: const RoundedRectangleBorder(
-        borderRadius: const BorderRadius.circular(KinrelRadius.button),
+      minimumSize: Size(0, 48),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(KinrelRadius.button),
       ),
       textStyle: KinrelTypography.labelLarge,
     ),
@@ -428,7 +428,7 @@ OutlinedButtonThemeData _outlinedButtonTheme(Brightness brightness) {
       ),
       minimumSize: const Size(0, 48),
       shape: const RoundedRectangleBorder(
-        borderRadius: const BorderRadius.circular(KinrelRadius.button),
+        borderRadius: BorderRadius.circular(KinrelRadius.button),
       ),
       textStyle: KinrelTypography.labelLarge,
     ),
@@ -444,16 +444,16 @@ TextButtonThemeData _textButtonTheme(Brightness brightness) {
       : KinrelColors.textSecondaryLight;
 
   return TextButtonThemeData(
-    style: const TextButton.styleFrom(
+    style: TextButton.styleFrom(
       foregroundColor: primaryColor,
       disabledForegroundColor: disabledFg,
-      padding: const EdgeInsets.symmetric(
+      padding: EdgeInsets.symmetric(
         horizontal: KinrelSpacing.lg,
         vertical: KinrelSpacing.sm,
       ),
-      minimumSize: const Size(0, 48),
-      shape: const RoundedRectangleBorder(
-        borderRadius: const BorderRadius.circular(KinrelRadius.button),
+      minimumSize: Size(0, 48),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(KinrelRadius.button),
       ),
       textStyle: KinrelTypography.labelLarge,
     ),
@@ -487,37 +487,37 @@ InputDecorationTheme _inputDecorationTheme(Brightness brightness) {
       horizontal: KinrelSpacing.lg,
       vertical: KinrelSpacing.md,
     ),
-    border: const OutlineInputBorder(
-      borderRadius: const BorderRadius.circular(KinrelRadius.input),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(KinrelRadius.input),
       borderSide: BorderSide(color: borderColor),
     ),
-    enabledBorder: const OutlineInputBorder(
-      borderRadius: const BorderRadius.circular(KinrelRadius.input),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(KinrelRadius.input),
       borderSide: BorderSide(color: enabledBorderColor),
     ),
-    focusedBorder: const OutlineInputBorder(
-      borderRadius: const BorderRadius.circular(KinrelRadius.input),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(KinrelRadius.input),
       borderSide: BorderSide(color: primaryColor, width: 2),
     ),
-    errorBorder: const OutlineInputBorder(
-      borderRadius: const BorderRadius.circular(KinrelRadius.input),
-      borderSide: const BorderSide(color: KinrelColors.error),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(KinrelRadius.input),
+      borderSide: BorderSide(color: KinrelColors.error),
     ),
-    focusedErrorBorder: const OutlineInputBorder(
-      borderRadius: const BorderRadius.circular(KinrelRadius.input),
-      borderSide: const BorderSide(color: KinrelColors.error, width: 2),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(KinrelRadius.input),
+      borderSide: BorderSide(color: KinrelColors.error, width: 2),
     ),
-    hintStyle: const TextStyle(
+    hintStyle: TextStyle(
       fontFamily: KinrelTypography.bodyFont,
       color: hintColor,
       fontSize: 14,
     ),
-    labelStyle: const TextStyle(
+    labelStyle: TextStyle(
       fontFamily: KinrelTypography.bodyFont,
       color: labelColor,
       fontSize: 14,
     ),
-    floatingLabelStyle: const TextStyle(
+    floatingLabelStyle: TextStyle(
       fontFamily: KinrelTypography.bodyFont,
       color: primaryColor,
       fontSize: 12,
@@ -589,7 +589,7 @@ DialogThemeData _dialogTheme(Brightness brightness) {
     shadowColor: Colors.black26,
     surfaceTintColor: Colors.transparent,
     shape: const RoundedRectangleBorder(
-      borderRadius: const BorderRadius.circular(KinrelRadius.dialog),
+      borderRadius: BorderRadius.circular(KinrelRadius.dialog),
       side: BorderSide(
         color: borderColor,
         width: 1,
@@ -617,8 +617,8 @@ BottomSheetThemeData _bottomSheetTheme(Brightness brightness) {
     surfaceTintColor: Colors.transparent,
     elevation: 0,
     shape: const RoundedRectangleBorder(
-      borderRadius: const BorderRadius.vertical(
-        top: const Radius.circular(KinrelRadius.bottomSheet),
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(KinrelRadius.bottomSheet),
       ),
     ),
     showDragHandle: true,
@@ -658,7 +658,7 @@ ChipThemeData _chipTheme(Brightness brightness) {
       color: borderColor,
     ),
     shape: const RoundedRectangleBorder(
-      borderRadius: const BorderRadius.circular(KinrelRadius.chip),
+      borderRadius: BorderRadius.circular(KinrelRadius.chip),
     ),
     padding: const EdgeInsets.symmetric(
       horizontal: KinrelSpacing.md,
@@ -701,7 +701,7 @@ SnackBarThemeData _snackbarTheme(Brightness brightness) {
     ),
     actionTextColor: actionColor,
     shape: const RoundedRectangleBorder(
-      borderRadius: const BorderRadius.circular(KinrelRadius.sm),
+      borderRadius: BorderRadius.circular(KinrelRadius.sm),
     ),
     behavior: SnackBarBehavior.floating,
     elevation: 2,
@@ -773,7 +773,7 @@ ProgressIndicatorThemeData _progressBarTheme(Brightness brightness) {
     linearTrackColor: trackColor,
     circularTrackColor: trackColor,
     linearMinHeight: 4,
-    borderRadius: const BorderRadius.circular(2),
+    borderRadius: BorderRadius.circular(2),
   );
 }
 
@@ -897,14 +897,14 @@ ThemeData getAppTheme(Brightness brightness) {
       textColor: isDark ? KinrelColors.textWhite : KinrelColors.textDark,
       iconColor: textSecondary,
       shape: const RoundedRectangleBorder(
-        borderRadius: const BorderRadius.circular(KinrelRadius.sm),
+        borderRadius: BorderRadius.circular(KinrelRadius.sm),
       ),
     ),
 
     tooltipTheme: TooltipThemeData(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: isDark ? KinrelColors.darkElevated : KinrelColors.lightElevated,
-        borderRadius: const BorderRadius.circular(KinrelRadius.sm),
+        borderRadius: BorderRadius.circular(KinrelRadius.sm),
         border: Border.all(
           color: isDark ? KinrelColors.border : KinrelColors.lightBorder,
         ),
@@ -920,7 +920,7 @@ ThemeData getAppTheme(Brightness brightness) {
       surfaceTintColor: Colors.transparent,
       elevation: 4,
       shape: const RoundedRectangleBorder(
-        borderRadius: const BorderRadius.circular(KinrelRadius.md),
+        borderRadius: BorderRadius.circular(KinrelRadius.md),
         side: BorderSide(
           color: isDark ? KinrelColors.border : KinrelColors.lightBorder,
         ),
@@ -1004,7 +1004,7 @@ ThemeData getAppTheme(Brightness brightness) {
         width: 2,
       ),
       shape: const RoundedRectangleBorder(
-        borderRadius: const BorderRadius.circular(KinrelRadius.xs),
+        borderRadius: BorderRadius.circular(KinrelRadius.xs),
       ),
     ),
 

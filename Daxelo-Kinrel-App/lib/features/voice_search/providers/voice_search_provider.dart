@@ -103,7 +103,7 @@ class VoiceLookupResult {
 
 /// Voice search state notifier
 class VoiceSearchNotifier extends StateNotifier<VoiceSearchState> {
-  VoiceSearchNotifier(this._dio) : super(const VoiceSearchState());
+  VoiceSearchNotifier(this._dio) : super(VoiceSearchState());
 
   final Dio _dio;
 
@@ -120,7 +120,7 @@ class VoiceSearchNotifier extends StateNotifier<VoiceSearchState> {
 
   /// Clear current results
   void clearResults() {
-    state = const VoiceSearchState();
+    state = VoiceSearchState();
   }
 
   /// Transcribe audio and search kinship terms

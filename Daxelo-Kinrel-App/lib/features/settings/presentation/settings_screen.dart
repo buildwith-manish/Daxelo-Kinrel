@@ -19,7 +19,7 @@ final selectedLanguageProvider = StateProvider<SupportedLanguage>(
 );
 
 class SettingsScreen extends ConsumerWidget {
-  const SettingsScreen({super.key});
+  SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -122,7 +122,7 @@ class SettingsScreen extends ConsumerWidget {
                     onSelectionChanged: (scales) =>
                         ref.read(fontScaleProvider.notifier).state =
                             scales.first,
-                    style: const ButtonStyle(
+                    style: ButtonStyle(
                       visualDensity: VisualDensity.compact,
                     ),
                   ),
@@ -173,7 +173,7 @@ class SettingsScreen extends ConsumerWidget {
             padding: 0,
             child: const Column(
               children: [
-                const _SettingsTile(
+                _SettingsTile(
                   icon: Icons.info_outline,
                   title: 'App Version',
                   subtitle: '1.0.0',
@@ -251,7 +251,7 @@ class SettingsScreen extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: DKColors.cardColor(context),
         shape: RoundedRectangleBorder(
-          borderRadius: const BorderRadius.circular(KinrelRadius.dialog),
+          borderRadius: BorderRadius.circular(KinrelRadius.dialog),
           side: BorderSide(color: DKColors.borderColor(context)),
         ),
         title: Text(
@@ -296,7 +296,7 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                 ),
                 trailing: isSelected
-                    ? const Icon(Icons.check_circle, color: DKColors.brandPurple)
+                    ? Icon(Icons.check_circle, color: DKColors.brandPurple)
                     : null,
                 onTap: () {
                   ref.read(selectedLanguageProvider.notifier).state = lang;
@@ -329,7 +329,7 @@ class SettingsScreen extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: DKColors.cardColor(context),
         shape: RoundedRectangleBorder(
-          borderRadius: const BorderRadius.circular(KinrelRadius.dialog),
+          borderRadius: BorderRadius.circular(KinrelRadius.dialog),
           side: BorderSide(color: DKColors.borderColor(context)),
         ),
         title: Text(
@@ -354,9 +354,9 @@ class SettingsScreen extends ConsumerWidget {
                       TextStyle(color: DKColors.textSecondary(context)),
                   filled: true,
                   fillColor: DKColors.elevatedColor(context),
-                  border: const OutlineInputBorder(
+                  border: OutlineInputBorder(
                     borderRadius:
-                        const BorderRadius.circular(KinrelRadius.input),
+                        BorderRadius.circular(KinrelRadius.input),
                     borderSide: BorderSide.none,
                   ),
                 ),
@@ -374,9 +374,9 @@ class SettingsScreen extends ConsumerWidget {
                       TextStyle(color: DKColors.textSecondary(context)),
                   filled: true,
                   fillColor: DKColors.elevatedColor(context),
-                  border: const OutlineInputBorder(
+                  border: OutlineInputBorder(
                     borderRadius:
-                        const BorderRadius.circular(KinrelRadius.input),
+                        BorderRadius.circular(KinrelRadius.input),
                     borderSide: BorderSide.none,
                   ),
                 ),
@@ -394,9 +394,9 @@ class SettingsScreen extends ConsumerWidget {
                       TextStyle(color: DKColors.textSecondary(context)),
                   filled: true,
                   fillColor: DKColors.elevatedColor(context),
-                  border: const OutlineInputBorder(
+                  border: OutlineInputBorder(
                     borderRadius:
-                        const BorderRadius.circular(KinrelRadius.input),
+                        BorderRadius.circular(KinrelRadius.input),
                     borderSide: BorderSide.none,
                   ),
                 ),
@@ -459,10 +459,10 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: const Text(
+      padding: EdgeInsets.only(bottom: 4),
+      child: Text(
         title.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 12,
           fontWeight: FontWeight.w700,
@@ -509,9 +509,9 @@ class _SettingsTile extends StatelessWidget {
         height: 36,
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
-          borderRadius: const BorderRadius.circular(KinrelRadius.sm),
+          borderRadius: BorderRadius.circular(KinrelRadius.sm),
         ),
-        child: const Icon(icon, color: color, size: 18),
+        child: Icon(icon, color: color, size: 18),
       ),
       title: Text(
         title,
@@ -541,7 +541,7 @@ class _SettingsTile extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(
           horizontal: KinrelSpacing.md, vertical: 4),
       shape: const RoundedRectangleBorder(
-        borderRadius: const BorderRadius.circular(KinrelRadius.sm),
+        borderRadius: BorderRadius.circular(KinrelRadius.sm),
       ),
     );
   }

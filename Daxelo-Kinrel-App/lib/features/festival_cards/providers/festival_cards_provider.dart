@@ -110,7 +110,7 @@ final festivalTemplatesProvider =
 
 /// Festival cards state notifier
 class FestivalCardsNotifier extends StateNotifier<FestivalCardsState> {
-  FestivalCardsNotifier(this._dio) : super(const FestivalCardsState());
+  FestivalCardsNotifier(this._dio) : super(FestivalCardsState());
 
   final Dio _dio;
 
@@ -228,7 +228,7 @@ class FestivalCardsNotifier extends StateNotifier<FestivalCardsState> {
 
   /// Reset to template selection
   void resetToTemplates() {
-    state = const FestivalCardsState();
+    state = FestivalCardsState();
   }
 }
 

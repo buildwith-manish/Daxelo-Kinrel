@@ -68,7 +68,7 @@ class PathResult {
 
 /// Edge in the adjacency list
 class Edge {
-  const Edge(this.targetId, this.type, this.direction);
+  Edge(this.targetId, this.type, this.direction);
 
   final String targetId;
   final String type;
@@ -279,7 +279,7 @@ class GraphService {
 
 /// Helper for BFS path tracking
 class BFSNode {
-  const BFSNode(this.personId, this.path);
+  BFSNode(this.personId, this.path);
 
   final List<PathStep> path;
 

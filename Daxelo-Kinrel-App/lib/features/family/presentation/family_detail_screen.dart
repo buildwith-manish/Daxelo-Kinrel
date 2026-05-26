@@ -15,7 +15,7 @@ import 'person_detail_sheet.dart';
 import 'relationship_builder_screen.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
-  const FamilyDetailScreen({super.key, required this.familyId});
+  FamilyDetailScreen({super.key, required this.familyId});
 
   final String familyId;
 
@@ -82,7 +82,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
             onPressed: () => _shareFamily(context),
           ),
           const IconButton(
-            icon: const Icon(Icons.settings_outlined),
+            icon: Icon(Icons.settings_outlined),
             tooltip: 'Settings',
             onPressed: () {},
           ),
@@ -180,7 +180,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         ...List.generate(
           4, (_) => Padding(
             padding: const EdgeInsets.only(bottom: 10),
-            child: DKLoadingShimmer(
+            child: const DKLoadingShimmer(
                 width: double.infinity, height: 64, radius: KinrelRadius.card),
           ),
         ),
@@ -258,8 +258,8 @@ class _GraphTab extends ConsumerWidget {
       context: context,
       backgroundColor: DKColors.cardColor(context),
       shape: const RoundedRectangleBorder(
-        borderRadius: const BorderRadius.vertical(
-          top: const Radius.circular(KinrelRadius.bottomSheet),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
         ),
       ),
       builder: (ctx) => SafeArea(
@@ -434,7 +434,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                 decoration: BoxDecoration(
                   color: DKColors.elevatedColor(context),
                   borderRadius:
-                      const BorderRadius.circular(KinrelSpacing.radiusMd),
+                      BorderRadius.circular(KinrelSpacing.radiusMd),
                 ),
                 child: PopupMenuButton<String>(
                   icon: Icon(Icons.sort,
@@ -520,7 +520,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
         // Member list
         Expanded(
           child: filtered.isEmpty
-              ? const DKEmptyState(
+              ? DKEmptyState(
                   icon: Icons.person_search_outlined,
                   title: _searchQuery.isEmpty ? 'No Members' : 'No Match',
                   subtitle: _searchQuery.isEmpty
@@ -620,7 +620,7 @@ class _ActivityTab extends StatelessWidget {
       itemBuilder: (context, index) {
         final activity = activities[index];
         return const Padding(
-          padding: const EdgeInsets.only(bottom: KinrelSpacing.sm),
+          padding: EdgeInsets.only(bottom: KinrelSpacing.sm),
           child: _ActivityTile(activity: activity, index: index),
         );
       },
@@ -715,7 +715,7 @@ class _ToolbarButton extends StatelessWidget {
         color: isLight
             ? Colors.white.withValues(alpha: 0.9)
             : DKColors.darkBg.withValues(alpha: 0.85),
-        borderRadius: const BorderRadius.circular(KinrelSpacing.radiusSm),
+        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
         border: Border.all(
           color: DKColors.brandPurple.withValues(alpha: 0.2),
         ),
@@ -728,7 +728,7 @@ class _ToolbarButton extends StatelessWidget {
         ],
       ),
       child: const IconButton(
-        icon: const Icon(icon, color: DKColors.brandPurple, size: 20),
+        icon: Icon(icon, color: DKColors.brandPurple, size: 20),
         tooltip: tooltip,
         onPressed: onTap,
       ),
@@ -755,7 +755,7 @@ class _QuickActionTile extends StatelessWidget {
     final color =
         isDestructive ? DKColors.brandCoral : DKColors.textSecondary(context);
     return ListTile(
-      leading: const Icon(icon, color: color, size: 20),
+      leading: Icon(icon, color: color, size: 20),
       title: Text(
         label,
         style: TextStyle(
@@ -835,7 +835,7 @@ class _MemberCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   const Text(
                     person.gender!.toUpperCase(),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: DKColors.brandPurple,
@@ -938,7 +938,7 @@ class _ActivityTile extends StatelessWidget {
 
     return const DKCard(
       padding: 12,
-      child: const Row(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Icon
@@ -947,7 +947,7 @@ class _ActivityTile extends StatelessWidget {
             color: iconColor,
             size: 36,
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
 
           // Content
           Expanded(
@@ -963,7 +963,7 @@ class _ActivityTile extends StatelessWidget {
                   ),
                 ),
                 if (timeAgo != null) ...[
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2),
                   Text(
                     timeAgo,
                     style: TextStyle(

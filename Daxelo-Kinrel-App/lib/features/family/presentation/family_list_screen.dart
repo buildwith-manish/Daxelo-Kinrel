@@ -10,7 +10,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
 
 class FamilyListScreen extends ConsumerStatefulWidget {
-  const FamilyListScreen({super.key});
+  FamilyListScreen({super.key});
 
   @override
   ConsumerState<FamilyListScreen> createState() => _FamilyListScreenState();
@@ -33,7 +33,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
             physics: const BouncingScrollPhysics(),
             slivers: [
               // Header
-              const SliverToBoxAdapter(
+              SliverToBoxAdapter(
                 child: _Header(familyCount: families.length),
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 16)),
@@ -127,11 +127,11 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
           ],
         ),
         const SizedBox(height: 20),
-        const DKLoadingShimmer(width: double.infinity, height: 72, radius: KinrelRadius.card),
+        DKLoadingShimmer(width: double.infinity, height: 72, radius: KinrelRadius.card),
         const SizedBox(height: 12),
-        const DKLoadingShimmer(width: double.infinity, height: 72, radius: KinrelRadius.card),
+        DKLoadingShimmer(width: double.infinity, height: 72, radius: KinrelRadius.card),
         const SizedBox(height: 12),
-        const DKLoadingShimmer(width: double.infinity, height: 72, radius: KinrelRadius.card),
+        DKLoadingShimmer(width: double.infinity, height: 72, radius: KinrelRadius.card),
       ],
     );
   }
@@ -144,7 +144,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: DKColors.cardColor(context),
         shape: RoundedRectangleBorder(
-          borderRadius: const BorderRadius.circular(KinrelRadius.dialog),
+          borderRadius: BorderRadius.circular(KinrelRadius.dialog),
           side: BorderSide(color: DKColors.borderColor(context)),
         ),
         title: Row(
@@ -196,8 +196,8 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
                 fillColor: DKColors.elevatedColor(context),
                 prefixIcon: Icon(Icons.search_rounded,
                     color: DKColors.textSecondary(context), size: 20),
-                border: const OutlineInputBorder(
-                  borderRadius: const BorderRadius.circular(KinrelRadius.input),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(KinrelRadius.input),
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -217,7 +217,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
             onPressed: () {
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Join family coming soon!')),
+                SnackBar(content: Text('Join family coming soon!')),
               );
             },
           ),
@@ -257,11 +257,11 @@ class _Header extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: DKColors.brandPurple.withValues(alpha: 0.15),
-              borderRadius: const BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: const Text(
+            child: Text(
               '$familyCount',
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
@@ -421,8 +421,8 @@ class _FamilyCard extends ConsumerWidget {
                         label: 'members',
                         color: DKColors.brandPurple,
                       ),
-                      loading: () => const SizedBox(width: 80, height: 20),
-                      error: (_, __) => const SizedBox(width: 80, height: 20),
+                      loading: () => SizedBox(width: 80, height: 20),
+                      error: (_, __) => SizedBox(width: 80, height: 20),
                     ),
                     const SizedBox(width: 10),
                     // Language

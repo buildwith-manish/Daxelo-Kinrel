@@ -7,7 +7,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../providers/quiz_provider.dart';
 
 class QuizScreen extends ConsumerStatefulWidget {
-  const QuizScreen({super.key});
+  QuizScreen({super.key});
 
   @override
   ConsumerState<QuizScreen> createState() => _QuizScreenState();
@@ -102,7 +102,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: KinrelColors.textWhite),
+          icon: Icon(Icons.arrow_back_rounded, color: KinrelColors.textWhite),
           onPressed: () {
             if (quizState.state == QuizState.playing) {
               ref.read(quizStateProvider.notifier).resetQuiz();
@@ -111,9 +111,9 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
             }
           },
         ),
-        title: const Text(
+        title: Text(
           _getAppBarTitle(quizState.state),
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -146,25 +146,25 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
     final quizState = ref.watch(quizStateProvider);
 
     return const SafeArea(
-      child: const SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
-        child: const Column(
+      child: SingleChildScrollView(
+        physics: BouncingScrollPhysics(),
+        padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             _AnimSection(
               fade: _f1,
               slide: _s1,
               child: _buildHeaderBanner(),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             _AnimSection(
               fade: _f2,
               slide: _s2,
               child: _buildSectionTitle('Category'),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             _AnimSection(
               fade: _f2,
               slide: _s2,
@@ -174,13 +174,13 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                 onSelect: (v) => setState(() => _selectedCategory = v),
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             _AnimSection(
               fade: _f3,
               slide: _s3,
               child: _buildSectionTitle('Difficulty'),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             _AnimSection(
               fade: _f3,
               slide: _s3,
@@ -195,13 +195,13 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                 },
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             _AnimSection(
               fade: _f4,
               slide: _s4,
               child: _buildSectionTitle('Language'),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             _AnimSection(
               fade: _f4,
               slide: _s4,
@@ -211,13 +211,13 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                 onSelect: (v) => setState(() => _selectedLanguage = v),
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             _AnimSection(
               fade: _f4,
               slide: _s4,
               child: _buildSectionTitle('Questions: $_questionCount'),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             _AnimSection(
               fade: _f4,
               slide: _s4,
@@ -231,13 +231,13 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                 onChanged: (v) => setState(() => _questionCount = v.round()),
               ),
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: 32),
             _AnimSection(
               fade: _f5,
               slide: _s5,
               child: _buildStartButton(quizState.isGenerating),
             ),
-            const SizedBox(height: 40),
+            SizedBox(height: 40),
           ],
         ),
       ),
@@ -248,7 +248,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
     return Container(
       height: 120,
       decoration: BoxDecoration(
-        borderRadius: const BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20),
         gradient: const LinearGradient(
           colors: [Color(0xFF1E1508), KinrelColors.darkCard],
         ),
@@ -291,7 +291,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        borderRadius: const BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(20),
                         color: KinrelColors.purple.withValues(alpha: 0.15),
                         border: Border.all(
                             color: KinrelColors.purple.withValues(alpha: 0.4)),
@@ -336,7 +336,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
   Widget _buildSectionTitle(String title) {
     return const Text(
       title,
-      style: const TextStyle(
+      style: TextStyle(
         fontFamily: KinrelTypography.displayFont,
         fontSize: 16,
         fontWeight: FontWeight.w600,
@@ -356,7 +356,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, __) => SizedBox(width: 8),
         itemBuilder: (context, index) {
           final item = items[index];
           final value = item['value']!;
@@ -373,7 +373,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                 color: isSelected
                     ? accentColor.withValues(alpha: 0.18)
                     : KinrelColors.darkCard,
-                borderRadius: const BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(22),
                 border: Border.all(
                   color: isSelected
                       ? accentColor.withValues(alpha: 0.6)
@@ -382,7 +382,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
               ),
               child: const Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -415,7 +415,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
         width: double.infinity,
         height: 56,
         decoration: BoxDecoration(
-          borderRadius: const BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(16),
           gradient: const LinearGradient(
               colors: [KinrelColors.purple, KinrelColors.amber]),
           boxShadow: [
@@ -426,9 +426,9 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
             ),
           ],
         ),
-        child: const Center(
+        child: Center(
           child: isGenerating
-              ? const SizedBox(
+              ? SizedBox(
                   width: 24,
                   height: 24,
                   child: CircularProgressIndicator(
@@ -436,7 +436,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                     strokeWidth: 2.5,
                   ),
                 )
-              : const Row(
+              : Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.play_arrow_rounded,
@@ -493,11 +493,11 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                       decoration: BoxDecoration(
                         color: _difficultyColor(quizState.session!.difficulty)
                             .withValues(alpha: 0.12),
-                        borderRadius: const BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(6),
                       ),
                       child: const Text(
                         quizState.session!.difficulty.toUpperCase(),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
@@ -510,12 +510,12 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                 ),
                 const SizedBox(height: 8),
                 ClipRRect(
-                  borderRadius: const BorderRadius.circular(4),
-                  child: const LinearProgressIndicator(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
                     value: progress,
                     backgroundColor: KinrelColors.darkSurface,
                     valueColor:
-                        const AlwaysStoppedAnimation<Color>(KinrelColors.purple),
+                        AlwaysStoppedAnimation<Color>(KinrelColors.purple),
                     minHeight: 6,
                   ),
                 ),
@@ -537,7 +537,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      borderRadius: const BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(12),
                       color: KinrelColors.amber.withValues(alpha: 0.12),
                       border: Border.all(
                           color: KinrelColors.amber.withValues(alpha: 0.3)),
@@ -555,9 +555,9 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                   const SizedBox(height: 16),
 
                   // Question text
-                  const Text(
+                  Text(
                     question.question,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
@@ -640,7 +640,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
           color: bgColor,
-          borderRadius: const BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: borderColor),
           boxShadow: hasAnswered && isCorrectOption
               ? [
@@ -670,12 +670,12 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                 color: borderColor.withValues(alpha: 0.15),
                 border: Border.all(color: borderColor),
               ),
-              child: const Center(
+              child: Center(
                 child: trailingIcon != null
-                    ? const Icon(trailingIcon, color: textColor, size: 16)
-                    : const Text(
+                    ? Icon(trailingIcon, color: textColor, size: 16)
+                    : Text(
                         String.fromCharCode(65 + optionIndex), // A, B, C, D
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -686,9 +686,9 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
             ),
             const SizedBox(width: 12),
             const Expanded(
-              child: const Text(
+              child: Text(
                 text,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
@@ -709,7 +709,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: KinrelColors.darkElevated,
-        borderRadius: const BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: (quizState.isCorrect == true
                   ? KinrelColors.success
@@ -720,9 +720,9 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              const Icon(
+              Icon(
                 quizState.isCorrect == true
                     ? Icons.lightbulb_rounded
                     : Icons.info_rounded,
@@ -731,10 +731,10 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                     : KinrelColors.error,
                 size: 18,
               ),
-              const SizedBox(width: 8),
-              const Text(
+              SizedBox(width: 8),
+              Text(
                 quizState.isCorrect == true ? 'Correct!' : 'Not quite',
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -745,10 +745,10 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          const Text(
+          SizedBox(height: 8),
+          Text(
             question.explanation,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               color: KinrelColors.textSilver,
@@ -772,28 +772,28 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
         onPressed: () {
           ref.read(quizStateProvider.notifier).nextQuestion();
         },
-        style: const ElevatedButton.styleFrom(
+        style: ElevatedButton.styleFrom(
           backgroundColor: KinrelColors.purple,
           foregroundColor: Colors.white,
-          shape: const RoundedRectangleBorder(
-            borderRadius: const BorderRadius.circular(14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
           ),
           elevation: 0,
         ),
         child: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               isLast ? 'See Results' : 'Next Question',
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
                 color: Colors.white,
               ),
             ),
-            const SizedBox(width: 8),
-            const Icon(
+            SizedBox(width: 8),
+            Icon(
               isLast ? Icons.emoji_events_rounded : Icons.arrow_forward_rounded,
               color: Colors.white,
               size: 20,
@@ -808,7 +808,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
 
   Widget _buildResultsScreen(QuizStateData quizState) {
     final result = quizState.result;
-    if (result == null) return const SizedBox.shrink();
+    if (result == null) return SizedBox.shrink();
 
     final isGreat = result.percentage >= 80;
     final isGood = result.percentage >= 60;
@@ -853,7 +853,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                   children: [
                     Text(
                       '${result.percentage}%',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 40,
                         fontWeight: FontWeight.w800,
@@ -879,13 +879,13 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
             const SizedBox(height: 24),
 
             // Score label
-            const Text(
+            Text(
               isGreat
                   ? 'Excellent! 🎉'
                   : isGood
                       ? 'Good job! 👍'
                       : 'Keep practicing! 💪',
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 24,
                 fontWeight: FontWeight.w700,
@@ -900,7 +900,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(20),
                   color: KinrelColors.amber.withValues(alpha: 0.12),
                   border: Border.all(
                       color: KinrelColors.amber.withValues(alpha: 0.4)),
@@ -931,14 +931,14 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: KinrelColors.darkCard,
-                borderRadius: const BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                     color: KinrelColors.darkSurface.withValues(alpha: 0.6)),
               ),
               child: const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Question Breakdown',
                     style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
@@ -947,7 +947,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                       color: KinrelColors.textWhite,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   ...List.generate(result.results.length, (i) {
                     final r = result.results[i];
                     final q = quizState.session?.questions[i];
@@ -997,7 +997,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                     child: Container(
                       height: 52,
                       decoration: BoxDecoration(
-                        borderRadius: const BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(14),
                         color: KinrelColors.darkCard,
                         border: Border.all(
                             color: KinrelColors.purple.withValues(alpha: 0.4)),
@@ -1007,7 +1007,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                         children: [
                           Icon(Icons.refresh_rounded,
                               color: KinrelColors.purple, size: 20),
-                          const SizedBox(width: 8),
+                          SizedBox(width: 8),
                           Text(
                             'Play Again',
                             style: TextStyle(
@@ -1023,24 +1023,24 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: _PressDown(
                     onTap: () {
                       // Share result
                     },
-                    child: const Container(
+                    child: Container(
                       height: 52,
-                      decoration: const BoxDecoration(
-                        borderRadius: const BorderRadius.circular(14),
-                        gradient: const LinearGradient(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        gradient: LinearGradient(
                             colors: [KinrelColors.purple, KinrelColors.amber]),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.share_rounded,
                               color: Colors.white, size: 20),
-                          const SizedBox(width: 8),
+                          SizedBox(width: 8),
                           Text(
                             'Share',
                             style: TextStyle(
@@ -1154,7 +1154,7 @@ class _PressDownState extends State<_PressDown>
         child: AnimatedBuilder(
           animation: _sc,
           builder: (_, child) =>
-              const Transform.scale(scale: _sc.value, child: child),
+              Transform.scale(scale: _sc.value, child: child),
           child: widget.child,
         ),
       );

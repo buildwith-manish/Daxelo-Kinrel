@@ -10,7 +10,7 @@ import '../../../core/storage/secure_storage.dart';
 import '../../../shared/widgets/dk_components.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
-  const OnboardingScreen({super.key});
+  OnboardingScreen({super.key});
 
   @override
   ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -151,7 +151,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         color: _currentPage == i
                             ? KinrelColors.textWhite
                             : KinrelColors.textWhite.withValues(alpha: 0.35),
-                        borderRadius: const BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     ),
                   ),
@@ -160,12 +160,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 const SizedBox(height: 24),
 
                 // Get Started / Next button
-                const DKButton(
+                DKButton(
                   label: _currentPage == _pages.length - 1
                       ? 'Get Started'
                       : 'Next',
                   variant: DKButtonVariant.gradient,
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     colors: [KinrelColors.purple, KinrelColors.coral],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -250,7 +250,7 @@ class _OnboardingPageContent extends StatelessWidget {
                   width: 1.5,
                 ),
               ),
-              child: const Icon(
+              child: Icon(
                 data.icon,
                 size: 64,
                 color: Colors.white,
@@ -269,10 +269,10 @@ class _OnboardingPageContent extends StatelessWidget {
           const SizedBox(height: 40),
 
           // ── Title ──────────────────────────────────────────────────
-          const Text(
+          Text(
             data.title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 28,
               fontWeight: FontWeight.w700,

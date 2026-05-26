@@ -31,8 +31,8 @@ class AddPersonSheet extends ConsumerStatefulWidget {
       isScrollControlled: true,
       backgroundColor: KinrelColors.darkCard,
       shape: const RoundedRectangleBorder(
-        borderRadius: const BorderRadius.vertical(
-          top: const Radius.circular(KinrelRadius.bottomSheet),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
         ),
       ),
       builder: (_) => AddPersonSheet(
@@ -203,7 +203,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return const Padding(
-      padding: const EdgeInsets.only(
+      padding: EdgeInsets.only(
         left: KinrelSpacing.base,
         right: KinrelSpacing.base,
         top: KinrelSpacing.xl,
@@ -211,76 +211,76 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
       ),
       child: Form(
         key: _formKey,
-        child: const SingleChildScrollView(
-          child: const Column(
+        child: SingleChildScrollView(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Handle bar
-              const Center(
-                child: const Container(
+              Center(
+                child: Container(
                   width: 40,
                   height: 4,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: KinrelColors.darkSurface,
-                    borderRadius: const BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
 
               // Title
-              const Text(
+              Text(
                 _isEditMode ? 'Edit Person' : 'Add Family Member',
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
                   color: KinrelColors.textWhite,
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
 
-              const // Name
+              // Name
               _Label('Name *'),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               TextFormField(
                 controller: _nameController,
                 validator: (v) =>
                     v == null || v.trim().isEmpty ? 'Name is required' : null,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
                   color: KinrelColors.textWhite,
                 ),
                 decoration: _inputDecoration('Full name'),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
 
-              const // Relationship Type
+              // Relationship Type
               _Label('Relationship Type'),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               GestureDetector(
                 onTap: _pickRelationship,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
+                  padding: EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
                     color: KinrelColors.darkElevated,
                     borderRadius:
-                        const BorderRadius.circular(KinrelSpacing.radiusSm),
+                        BorderRadius.circular(KinrelSpacing.radiusSm),
                     border: Border.all(
                       color: KinrelColors.darkSurface.withValues(alpha: 0.3),
                     ),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      const Expanded(
-                        child: const Text(
+                      Expanded(
+                        child: Text(
                           _selectedRelationshipLabel ?? 'Search relationship...',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 15,
                             color: _selectedRelationshipLabel != null
@@ -289,16 +289,16 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                           ),
                         ),
                       ),
-                      const Icon(Icons.search, color: KinrelColors.purple, size: 20),
+                      Icon(Icons.search, color: KinrelColors.purple, size: 20),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
 
-              const // Gender
+              // Gender
               _Label('Gender'),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               Row(
                 children: [
                   _GenderChip(
@@ -306,13 +306,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                     selected: _selectedGender == 'male',
                     onTap: () => setState(() => _selectedGender = 'male'),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   _GenderChip(
                     label: 'Female',
                     selected: _selectedGender == 'female',
                     onTap: () => setState(() => _selectedGender = 'female'),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   _GenderChip(
                     label: 'Other',
                     selected: _selectedGender == 'other',
@@ -320,23 +320,23 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
 
-              const // Date of Birth
+              // Date of Birth
               _Label('Date of Birth'),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               GestureDetector(
                 onTap: _pickDate,
                 child: AbsorbPointer(
                   child: TextFormField(
                     controller: _dobController,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 15,
                       color: KinrelColors.textWhite,
                     ),
                     decoration: _inputDecoration('YYYY-MM-DD').copyWith(
-                      suffixIcon: const Icon(
+                      suffixIcon: Icon(
                         Icons.calendar_today,
                         color: KinrelColors.textDim,
                         size: 18,
@@ -345,42 +345,42 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
 
-              const // City/Village
+              // City/Village
               _Label('City / Village'),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               TextFormField(
                 controller: _cityController,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
                   color: KinrelColors.textWhite,
                 ),
                 decoration: _inputDecoration('City or village name'),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
 
-              const // Gotra
+              // Gotra
               _Label('Gotra'),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               TextFormField(
                 controller: _gotraController,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
                   color: KinrelColors.textWhite,
                 ),
                 decoration: _inputDecoration('Gotra'),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
 
               // Alive / Deceased toggle
               Row(
                 children: [
-                  const Expanded(child: Text(
+                  Expanded(child: Text(
                       'Deceased',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 15,
                         color: KinrelColors.textSilver,
@@ -394,7 +394,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                   ),
                 ],
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
 
               // Submit
               FilledButton(
@@ -404,14 +404,14 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                   foregroundColor: Colors.white,
                   disabledBackgroundColor:
                       KinrelColors.purple.withValues(alpha: 0.4),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: const RoundedRectangleBorder(
+                  padding: EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
                     borderRadius:
-                        const BorderRadius.circular(KinrelSpacing.radiusSm),
+                        BorderRadius.circular(KinrelSpacing.radiusSm),
                   ),
                 ),
                 child: _isSubmitting
-                    ? const SizedBox(
+                    ? SizedBox(
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(
@@ -419,9 +419,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                           color: Colors.white,
                         ),
                       )
-                    : const Text(
+                    : Text(
                         _isEditMode ? 'Save Changes' : 'Add Member',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -438,25 +438,25 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
   InputDecoration _inputDecoration(String hint) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: KinrelColors.textDim),
+      hintStyle: TextStyle(color: KinrelColors.textDim),
       filled: true,
       fillColor: KinrelColors.darkElevated,
-      border: const OutlineInputBorder(
-        borderRadius: const BorderRadius.circular(KinrelSpacing.radiusSm),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: const BorderRadius.circular(KinrelSpacing.radiusSm),
+        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
         borderSide: BorderSide(
             color: KinrelColors.darkSurface.withValues(alpha: 0.3)),
       ),
-      focusedBorder: const OutlineInputBorder(
-        borderRadius: const BorderRadius.circular(KinrelSpacing.radiusSm),
-        borderSide: const BorderSide(color: KinrelColors.purple),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+        borderSide: BorderSide(color: KinrelColors.purple),
       ),
-      errorBorder: const OutlineInputBorder(
-        borderRadius: const BorderRadius.circular(KinrelSpacing.radiusSm),
-        borderSide: const BorderSide(color: KinrelColors.error),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+        borderSide: BorderSide(color: KinrelColors.error),
       ),
       contentPadding:
           const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -473,7 +473,7 @@ class _Label extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         fontFamily: KinrelTypography.bodyFont,
         fontSize: 13,
         fontWeight: FontWeight.w500,
@@ -505,7 +505,7 @@ class _GenderChip extends StatelessWidget {
           color: selected
               ? KinrelColors.purple.withValues(alpha: 0.15)
               : KinrelColors.darkElevated,
-          borderRadius: const BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color:
                 selected ? KinrelColors.purple : KinrelColors.darkSurface,
@@ -513,7 +513,7 @@ class _GenderChip extends StatelessWidget {
         ),
         child: const Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             fontWeight: FontWeight.w500,

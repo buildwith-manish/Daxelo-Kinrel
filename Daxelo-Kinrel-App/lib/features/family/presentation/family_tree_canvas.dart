@@ -249,7 +249,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
         // Empty state
         if (activeMembers.isEmpty)
           const Center(
-            child: const DKEmptyState(
+            child: DKEmptyState(
               icon: Icons.account_tree_outlined,
               title: 'No Members Yet',
               subtitle: 'Add family members to start building your tree.',
@@ -489,7 +489,7 @@ class _LanguageSelectorButton extends StatelessWidget {
         ],),
       child: const IconButton(
         padding: EdgeInsets.zero,
-        icon: const Icon(Icons.language, color: DKColors.brandPurple, size: 18),
+        icon: Icon(Icons.language, color: DKColors.brandPurple, size: 18),
         tooltip: 'Language',
         onPressed: () {
           // TODO: Show language picker
@@ -526,7 +526,7 @@ class _ZoomControls extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: const BorderRadius.circular(KinrelRadius.lg),
+        borderRadius: BorderRadius.circular(KinrelRadius.lg),
         border: Border.all(
           color: DKColors.brandPurple.withValues(alpha: 0.15),
         ),
@@ -589,9 +589,9 @@ class _ZoomButton extends StatelessWidget {
     return const SizedBox(
       width: 40,
       height: 40,
-      child: const IconButton(
+      child: IconButton(
         padding: EdgeInsets.zero,
-        icon: const Icon(icon, color: color, size: 20),
+        icon: Icon(icon, color: color, size: 20),
         onPressed: onTap,
       ),
     );
@@ -712,7 +712,7 @@ class _TreePainter extends CustomPainter {
       labelPainter.layout();
       labelPainter.paint(
         canvas,
-        const Offset(-offset.dx / scale - 180, y + nodeHeight / 2 - 6),
+        Offset(-offset.dx / scale - 180, y + nodeHeight / 2 - 6),
       );
     }
   }
@@ -744,20 +744,20 @@ class _TreePainter extends CustomPainter {
         // Heart emoji in center
         final centerX = (startX + endX) / 2;
         final heartText = TextPainter(
-          text: const TextSpan(text: '💜', style: TextStyle(fontSize: 8)),
+          text: TextSpan(text: '💜', style: TextStyle(fontSize: 8)),
           textDirection: TextDirection.ltr,
         );
         heartText.layout();
         heartText.paint(
           canvas,
-          const Offset(centerX - heartText.width / 2, y - heartText.height / 2),
+          Offset(centerX - heartText.width / 2, y - heartText.height / 2),
         );
       }
     }
 
     // Parent-child curved connections (purple, 50% opacity)
     if (node.children.isNotEmpty) {
-      final parentBottom = const Offset(
+      final parentBottom = Offset(
         parentRect.left + parentRect.width / 2,
         parentRect.bottom,
       );
@@ -766,7 +766,7 @@ class _TreePainter extends CustomPainter {
       for (final child in node.children) {
         final childRect = layout.positions[child.person.id];
         if (childRect == null) continue;
-        childPositions.add(const Offset(
+        childPositions.add(Offset(
           childRect.left + childRect.width / 2,
           childRect.top,
         ));
@@ -823,9 +823,9 @@ class _TreePainter extends CustomPainter {
       final endFraction =
           (i * (dashLength + gapLength) + dashLength) / distance;
       canvas.drawLine(
-        const Offset(start.dx + dx * startFraction,
+        Offset(start.dx + dx * startFraction,
             start.dy + dy * startFraction),
-        const Offset(start.dx + dx * endFraction,
+        Offset(start.dx + dx * endFraction,
             start.dy + dy * endFraction),
         paint,
       );
@@ -921,13 +921,13 @@ class _TreePainter extends CustomPainter {
     // Avatar initial or dove
     if (isDeceased) {
       final dovePainter = TextPainter(
-        text: const TextSpan(text: '🕊️', style: TextStyle(fontSize: 14)),
+        text: TextSpan(text: '🕊️', style: TextStyle(fontSize: 14)),
         textDirection: TextDirection.ltr,
       );
       dovePainter.layout();
       dovePainter.paint(
         canvas,
-        const Offset(
+        Offset(
           avatarRect.left + (avatarSize - dovePainter.width) / 2,
           avatarRect.top + (avatarSize - dovePainter.height) / 2,
         ),
@@ -936,9 +936,9 @@ class _TreePainter extends CustomPainter {
       final initial =
           personName.isNotEmpty ? personName[0].toUpperCase() : '?';
       final initialPainter = TextPainter(
-        text: const TextSpan(
+        text: TextSpan(
           text: initial,
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 14,
             fontWeight: FontWeight.w700,
@@ -950,7 +950,7 @@ class _TreePainter extends CustomPainter {
       initialPainter.layout();
       initialPainter.paint(
         canvas,
-        const Offset(
+        Offset(
           avatarRect.left + (avatarSize - initialPainter.width) / 2,
           avatarRect.top + (avatarSize - initialPainter.height) / 2,
         ),
@@ -967,16 +967,16 @@ class _TreePainter extends CustomPainter {
             ? DKColors.brandCoral
             : DKColors.textSecondaryLight;
     final genderPainter = TextPainter(
-      text: const TextSpan(
+      text: TextSpan(
         text: genderSymbol,
-        style: const TextStyle(fontSize: 10, color: genderColor),
+        style: TextStyle(fontSize: 10, color: genderColor),
       ),
       textDirection: TextDirection.ltr,
     );
     genderPainter.layout();
     genderPainter.paint(
       canvas,
-      const Offset(rect.right - 16, rect.top + 6),
+      Offset(rect.right - 16, rect.top + 6),
     );
 
     // Name text
@@ -984,9 +984,9 @@ class _TreePainter extends CustomPainter {
     final textMaxWidth = rect.right - textStartX - 24;
 
     final namePainter = TextPainter(
-      text: const TextSpan(
+      text: TextSpan(
         text: personName,
-        style: const TextStyle(
+        style: TextStyle(
           fontFamily: KinrelTypography.displayFont,
           fontSize: 14,
           fontWeight: FontWeight.w600,
@@ -1235,18 +1235,18 @@ class _FilterBar extends StatelessWidget {
         color: isLight
             ? Colors.white.withValues(alpha: 0.9)
             : DKColors.darkBg.withValues(alpha: 0.85),
-        borderRadius: const BorderRadius.circular(KinrelSpacing.radiusLg),
+        borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
         border: Border.all(
           color: DKColors.brandPurple.withValues(alpha: 0.15),
         ),
       ),
       child: const SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        child: const Row(
+        child: Row(
           children: [
             for (int gen = 1; gen <= 5; gen++)
-              const Padding(
-                padding: const EdgeInsets.only(right: 4),
+              Padding(
+                padding: EdgeInsets.only(right: 4),
                 child: DKSuggestionChip(
                   label: 'G$gen',
                   isSelected: filters.visibleGenerations.contains(gen),
@@ -1265,13 +1265,13 @@ class _FilterBar extends StatelessWidget {
                 ),
               ),
 
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Container(
               width: 1,
               height: 20,
               color: DKColors.brandPurple.withValues(alpha: 0.15),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
 
             DKSuggestionChip(
               label: 'All',
@@ -1292,13 +1292,13 @@ class _FilterBar extends StatelessWidget {
                   onFiltersChanged(filters.copyWith(branch: 'maternal')),
             ),
 
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Container(
               width: 1,
               height: 20,
               color: DKColors.brandPurple.withValues(alpha: 0.15),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
 
             DKSuggestionChip(
               label: 'Deceased',
@@ -1368,7 +1368,7 @@ class _Minimap extends StatelessWidget {
         height: 100,
         decoration: BoxDecoration(
           color: DKColors.cardColor(context),
-          borderRadius: const BorderRadius.circular(KinrelRadius.md),
+          borderRadius: BorderRadius.circular(KinrelRadius.md),
           border: Border.all(
             color: DKColors.brandPurple.withValues(alpha: 0.2),
           ),
@@ -1486,7 +1486,7 @@ class _MinimapPainter extends CustomPainter {
         rect.height * s,
       );
       canvas.drawRRect(
-        RRect.fromRectAndRadius(miniRect, const Radius.circular(3 * s)),
+        RRect.fromRectAndRadius(miniRect, Radius.circular(3 * s)),
         paint,
       );
     }

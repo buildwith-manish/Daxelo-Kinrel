@@ -1,6 +1,6 @@
 /// Base failure class for clean architecture error handling
 abstract class Failure {
-  const Failure({required this.message, this.code, this.originalError});
+  Failure({required this.message, this.code, this.originalError});
 
   final String message;
   final int? code;
@@ -9,33 +9,33 @@ abstract class Failure {
 }
 
 class ServerFailure extends Failure {
-  const ServerFailure({required super.message, super.code, super.originalError});
+  ServerFailure({required super.message, super.code, super.originalError});
 }
 
 class NetworkFailure extends Failure {
-  const NetworkFailure({required super.message, super.originalError});
+  NetworkFailure({required super.message, super.originalError});
 }
 
 class AuthFailure extends Failure {
-  const AuthFailure({required super.message, super.code, super.originalError});
+  AuthFailure({required super.message, super.code, super.originalError});
 }
 
 class CacheFailure extends Failure {
-  const CacheFailure({required super.message, super.originalError});
+  CacheFailure({required super.message, super.originalError});
 }
 
 class ValidationFailure extends Failure {
-  const ValidationFailure({required super.message, super.originalError});
+  ValidationFailure({required super.message, super.originalError});
 }
 
 class NotFoundFailure extends Failure {
-  const NotFoundFailure({required super.message, super.originalError});
+  NotFoundFailure({required super.message, super.originalError});
 }
 
 class PermissionFailure extends Failure {
-  const PermissionFailure({required super.message, super.originalError});
+  PermissionFailure({required super.message, super.originalError});
 }
 
 class KinshipFailure extends Failure {
-  const KinshipFailure({required super.message, super.originalError});
+  KinshipFailure({required super.message, super.originalError});
 }

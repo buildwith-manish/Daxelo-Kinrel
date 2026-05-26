@@ -100,21 +100,21 @@ class KinrelLogo extends StatelessWidget {
 
   Color get _textColor => switch (palette) {
         KinrelIconPalette.purple => KinrelColors.textPrimary,
-        KinrelIconPalette.light => const Color(0xFF1A0A00),
-        KinrelIconPalette.mono => const Color(0xFF1F2937),
+        KinrelIconPalette.light => Color(0xFF1A0A00),
+        KinrelIconPalette.mono => Color(0xFF1F2937),
         KinrelIconPalette.outline => KinrelColors.textPrimary,
       };
 
   Color get _subtitleColor => switch (palette) {
         KinrelIconPalette.purple => KinrelColors.textSecondary,
-        KinrelIconPalette.light => const Color(0xFF7A5040),
-        KinrelIconPalette.mono => const Color(0xFF6B7280),
+        KinrelIconPalette.light => Color(0xFF7A5040),
+        KinrelIconPalette.mono => Color(0xFF6B7280),
         KinrelIconPalette.outline => KinrelColors.textSecondary,
       };
 
   @override
   Widget build(BuildContext context) {
-    final icon = const KinrelIcon(
+    final icon = KinrelIcon(
       size: iconSize,
       palette: palette,
       animated: animated,
@@ -131,39 +131,39 @@ class KinrelLogo extends StatelessWidget {
 
     Widget logo;
     if (layout == LogoLayout.horizontal) {
-      logo = const Row(
+      logo = Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           icon,
-          const SizedBox(width: gap),
+          SizedBox(width: gap),
           wordmark,
         ],
       );
     } else {
-      logo = const Column(
+      logo = Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           icon,
-          const SizedBox(height: gap),
+          SizedBox(height: gap),
           wordmark,
         ],
       );
     }
 
     if (showByDaxelo) {
-      logo = const Column(
+      logo = Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: layout == LogoLayout.horizontal
             ? CrossAxisAlignment.start
             : CrossAxisAlignment.center,
         children: [
           logo,
-          const SizedBox(height: 4 * _scale),
-          const Text(
+          SizedBox(height: 4 * _scale),
+          Text(
             'by Daxelo',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 9 * _scale,
               fontWeight: FontWeight.w400,
@@ -183,19 +183,19 @@ class KinrelLogo extends StatelessWidget {
   }
 
   Widget _buildWordmark(double letterSpacing) {
-    return const Align(
+    return Align(
       alignment: layout == LogoLayout.horizontal
           ? Alignment.centerLeft
           : Alignment.center,
-      child: const Column(
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: layout == LogoLayout.horizontal
             ? CrossAxisAlignment.start
             : CrossAxisAlignment.center,
         children: [
-          const Text(
+          Text(
             'KINREL',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: wordmarkFontSize,
               fontWeight: FontWeight.w800,

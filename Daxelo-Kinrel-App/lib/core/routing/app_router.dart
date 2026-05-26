@@ -80,19 +80,19 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/splash',
-        builder: (context, state) => const SplashScreen(),
+        builder: (context, state) => SplashScreen(),
       ),
       GoRoute(
         path: '/onboarding',
-        builder: (context, state) => const OnboardingScreen(),
+        builder: (context, state) => OnboardingScreen(),
       ),
       GoRoute(
         path: '/sign-in',
-        builder: (context, state) => const SignInScreen(),
+        builder: (context, state) => SignInScreen(),
       ),
       GoRoute(
         path: '/sign-up',
-        builder: (context, state) => const SignUpScreen(),
+        builder: (context, state) => SignUpScreen(),
       ),
       // ── Shell routes (show bottom navigation) ───────────────────
       ShellRoute(
@@ -101,34 +101,34 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: '/home',
-            builder: (context, state) => const HomeScreen(),
+            builder: (context, state) => HomeScreen(),
           ),
           GoRoute(
             path: '/kinship-search',
-            builder: (context, state) => const KinshipSearchScreen(),
+            builder: (context, state) => KinshipSearchScreen(),
           ),
           GoRoute(
             path: '/families',
-            builder: (context, state) => const FamilyListScreen(),
+            builder: (context, state) => FamilyListScreen(),
           ),
           GoRoute(
             path: '/explore',
-            builder: (context, state) => const ExploreScreen(),
+            builder: (context, state) => ExploreScreen(),
           ),
           GoRoute(
             path: '/profile',
-            builder: (context, state) => const ProfileScreen(),
+            builder: (context, state) => ProfileScreen(),
           ),
           // Keep /settings in shell for backward compat
           GoRoute(
             path: '/settings',
-            builder: (context, state) => const SettingsScreen(),
+            builder: (context, state) => SettingsScreen(),
           ),
         ],
       ),
       GoRoute(
         path: '/families/create',
-        builder: (context, state) => const CreateFamilyScreen(),
+        builder: (context, state) => CreateFamilyScreen(),
       ),
       GoRoute(
         path: '/family/:id',
@@ -165,15 +165,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── AI-Powered Features ─────────────────────────────────────
       GoRoute(
         path: '/ai-chat',
-        builder: (context, state) => const AiChatScreen(),
+        builder: (context, state) => AiChatScreen(),
       ),
       GoRoute(
         path: '/voice-search',
-        builder: (context, state) => const VoiceSearchScreen(),
+        builder: (context, state) => VoiceSearchScreen(),
       ),
       GoRoute(
         path: '/festival-cards',
-        builder: (context, state) => const FestivalCardsScreen(),
+        builder: (context, state) => FestivalCardsScreen(),
       ),
 
       // ── Kinship Dictionary ──────────────────────────────────────
@@ -187,11 +187,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Growth & Engagement ─────────────────────────────────────
       GoRoute(
         path: '/quiz',
-        builder: (context, state) => const QuizScreen(),
+        builder: (context, state) => QuizScreen(),
       ),
       GoRoute(
         path: '/referral',
-        builder: (context, state) => const ReferralScreen(),
+        builder: (context, state) => ReferralScreen(),
       ),
     ],
   );
@@ -208,9 +208,9 @@ class _AddPersonScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Add Family Member',
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'Outfit',
             fontWeight: FontWeight.w600,
           ),
@@ -221,8 +221,8 @@ class _AddPersonScreen extends ConsumerWidget {
         ),
       ),
       body: const SingleChildScrollView(
-        child: const Padding(
-          padding: const EdgeInsets.all(16),
+        child: Padding(
+          padding: EdgeInsets.all(16),
           child: _AddPersonForm(familyId: familyId),
         ),
       ),
@@ -261,7 +261,7 @@ class _AddPersonFormState extends ConsumerState<_AddPersonForm> {
 
 /// Shell that persists route for app resume
 class RoutePersistenceShell extends StatefulWidget {
-  const RoutePersistenceShell({super.key, required this.child});
+  RoutePersistenceShell({super.key, required this.child});
 
   final Widget child;
 
@@ -306,7 +306,7 @@ class _RoutePersistenceShellState extends State<RoutePersistenceShell>
 
 /// Main shell with 5-tab bottom navigation using DKBottomNav
 class MainShell extends StatelessWidget {
-  const MainShell({super.key, required this.child});
+  MainShell({super.key, required this.child});
 
   final Widget child;
 

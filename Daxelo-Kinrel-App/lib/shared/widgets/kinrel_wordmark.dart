@@ -66,7 +66,7 @@ class KinrelWordmark extends StatelessWidget {
     // Brand spec: tighter tracking at small sizes
     final ls = letterSpacing ?? (fontSize < 20 ? 0.08 : 0.14);
 
-    final style = const TextStyle(
+    final style = TextStyle(
       fontFamily: KinrelTypography.displayFont,
       fontSize: fontSize,
       fontWeight: FontWeight.w800,
@@ -78,12 +78,12 @@ class KinrelWordmark extends StatelessWidget {
 
     if (!showSubtitle) return wordmark;
 
-    return const Column(
+    return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         wordmark,
-        const SizedBox(height: fontSize * 0.1),
+        SizedBox(height: fontSize * 0.1),
         _buildByline(),
       ],
     );
@@ -105,8 +105,8 @@ class KinrelWordmark extends StatelessWidget {
     final color = switch (variant) {
       WordmarkVariant.solidPurple => KinrelColors.purple,
       WordmarkVariant.solidWhite => KinrelColors.textPrimary,
-      WordmarkVariant.solidDark => const Color(0xFF1A0A00),
-      WordmarkVariant.mono => const Color(0xFFF9FAFB),
+      WordmarkVariant.solidDark => Color(0xFF1A0A00),
+      WordmarkVariant.mono => Color(0xFFF9FAFB),
       WordmarkVariant.gradient => KinrelColors.purple, // fallback
     };
 
@@ -122,15 +122,15 @@ class KinrelWordmark extends StatelessWidget {
       WordmarkVariant.gradient => KinrelColors.textSecondary,
       WordmarkVariant.solidPurple => KinrelColors.textSecondary,
       WordmarkVariant.solidWhite => KinrelColors.textSecondary,
-      WordmarkVariant.solidDark => const Color(0xFF7A5040),
-      WordmarkVariant.mono => const Color(0xFF9CA3AF),
+      WordmarkVariant.solidDark => Color(0xFF7A5040),
+      WordmarkVariant.mono => Color(0xFF9CA3AF),
     };
 
     final bylineFontSize = fontSize * 0.32;
 
     return const Text(
       'by Daxelo',
-      style: const TextStyle(
+      style: TextStyle(
         fontFamily: KinrelTypography.bodyFont,
         fontSize: bylineFontSize,
         fontWeight: FontWeight.w400,

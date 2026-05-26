@@ -206,7 +206,7 @@ class AuthService {
   }) async {
     final client = _client;
     if (client == null) {
-      throw AuthException(
+      throw const AuthException(
         'Authentication service is not available. Please restart the app and try again.',
       );
     }
@@ -227,7 +227,7 @@ class AuthService {
   }) async {
     final client = _client;
     if (client == null) {
-      throw AuthException(
+      throw const AuthException(
         'Authentication service is not available. Please restart the app and try again.',
       );
     }
@@ -249,7 +249,7 @@ class AuthService {
   Future<void> resetPassword(String email) async {
     final client = _client;
     if (client == null) {
-      throw AuthException('Authentication service is not available.');
+      throw const AuthException('Authentication service is not available.');
     }
     await withRetry(
       () => client.auth.resetPasswordForEmail(email),
@@ -260,7 +260,7 @@ class AuthService {
   Future<void> updatePassword(String newPassword) async {
     final client = _client;
     if (client == null) {
-      throw AuthException('Authentication service is not available.');
+      throw const AuthException('Authentication service is not available.');
     }
     await client.auth.updateUser(UserAttributes(password: newPassword));
   }

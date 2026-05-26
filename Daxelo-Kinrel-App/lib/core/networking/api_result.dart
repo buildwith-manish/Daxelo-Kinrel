@@ -6,13 +6,13 @@ sealed class ApiResult<T> {
 }
 
 class ApiSuccess<T> extends ApiResult<T> {
-  const ApiSuccess(this.data);
+  ApiSuccess(this.data);
 
   final T data;
 }
 
 class ApiError<T> extends ApiResult<T> {
-  const ApiError(this.failure);
+  ApiError(this.failure);
 
   final Failure failure;
 }

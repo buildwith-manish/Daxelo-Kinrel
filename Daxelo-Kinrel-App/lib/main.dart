@@ -72,7 +72,7 @@ void main() async {
 }
 
 class KinrelApp extends ConsumerStatefulWidget {
-  const KinrelApp({super.key});
+  KinrelApp({super.key});
 
   @override
   ConsumerState<KinrelApp> createState() => _KinrelAppState();
@@ -130,7 +130,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp> with WidgetsBindingObserv
       statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
       statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
       systemNavigationBarColor:
-          isDark ? const Color(0xFF121212) : const Color(0xFFF5F7FA),
+          isDark ? Color(0xFF121212) : Color(0xFFF5F7FA),
       systemNavigationBarIconBrightness:
           isDark ? Brightness.light : Brightness.dark,
     ));

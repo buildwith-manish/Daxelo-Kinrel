@@ -8,7 +8,7 @@ import '../../../shared/widgets/kinrel_icon.dart';
 import '../providers/ai_chat_provider.dart';
 
 class AiChatScreen extends ConsumerStatefulWidget {
-  const AiChatScreen({super.key});
+  AiChatScreen({super.key});
 
   @override
   ConsumerState<AiChatScreen> createState() => _AiChatScreenState();
@@ -67,7 +67,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),
-        title: const Row(
+        title: Row(
           children: [
             KinrelIcon(size: 28),
             SizedBox(width: 10),
@@ -127,8 +127,8 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
                   _scrollToBottom();
                 },
               ),
-              loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
+              loading: () => SizedBox.shrink(),
+              error: (_, __) => SizedBox.shrink(),
             ),
 
           // ── Messages List ────────────────────────────────────────
@@ -211,7 +211,7 @@ class _EmptyState extends ConsumerWidget {
             const Text(
               'Ask me about Indian\nkinship terms',
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
@@ -223,7 +223,7 @@ class _EmptyState extends ConsumerWidget {
             const Text(
               'I can help you understand family\nrelationships in 15 Indian languages',
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 color: KinrelColors.textDim,
@@ -244,8 +244,8 @@ class _EmptyState extends ConsumerWidget {
                         ))
                     .toList(),
               ),
-              loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
+              loading: () => SizedBox.shrink(),
+              error: (_, __) => SizedBox.shrink(),
             ),
           ],
         ),
@@ -275,7 +275,7 @@ class _SuggestionChips extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
         itemCount: suggestions.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, __) => SizedBox(width: 8),
         itemBuilder: (context, index) {
           return _SuggestionChip(
             text: suggestions[index],
@@ -302,14 +302,14 @@ class _SuggestionChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: KinrelColors.darkCard,
-          borderRadius: const BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: KinrelColors.purple.withValues(alpha: 0.3),
           ),
         ),
         child: const Text(
           text,
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 12,
             fontWeight: FontWeight.w500,
@@ -352,14 +352,14 @@ class _ChatBubble extends StatelessWidget {
                   ? KinrelColors.purple
                   : KinrelColors.darkCard,
               borderRadius: const BorderRadius.only(
-                topLeft: const Radius.circular(16),
-                topRight: const Radius.circular(16),
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
                 bottomLeft: isUser
-                    ? const Radius.circular(16)
-                    : const Radius.circular(4),
+                    ? Radius.circular(16)
+                    : Radius.circular(4),
                 bottomRight: isUser
-                    ? const Radius.circular(4)
-                    : const Radius.circular(16),
+                    ? Radius.circular(4)
+                    : Radius.circular(16),
               ),
               border: isUser
                   ? null
@@ -408,9 +408,9 @@ class _ChatBubble extends StatelessWidget {
                     ],
                   ),
                 if (!isUser) const SizedBox(height: 6),
-                const Text(
+                Text(
                   message.content,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
@@ -467,7 +467,7 @@ class _KinshipCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: KinrelColors.darkElevated,
-        borderRadius: const BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: KinrelColors.amber.withValues(alpha: 0.25),
         ),
@@ -499,21 +499,21 @@ class _KinshipCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               const Expanded(
-                child: const Column (
+                child: Column (
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       data.englishTerm,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                         color: KinrelColors.textWhite,
                       ),
                     ),
-                    const Text(
+                    Text(
                       data.relationshipKey.replaceAll('_', ' '),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
                         color: KinrelColors.textDim,
@@ -532,11 +532,11 @@ class _KinshipCard extends StatelessWidget {
                       : data.gender == 'female'
                           ? KinrelColors.holiPink.withValues(alpha: 0.12)
                           : KinrelColors.amber.withValues(alpha: 0.12),
-                  borderRadius: const BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Text(
                   data.gender.toUpperCase(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 9,
                     fontWeight: FontWeight.w600,
@@ -555,13 +555,13 @@ class _KinshipCard extends StatelessWidget {
           const SizedBox(height: 10),
 
           // Lineage & Category row
-          const Row(
+          Row(
             children: [
               _InfoBadge(
                 label: data.lineage,
                 color: KinrelColors.purple,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               _InfoBadge(
                 label: data.relationshipCategory.replaceAll('_', ' '),
                 color: KinrelColors.ember,
@@ -573,7 +573,7 @@ class _KinshipCard extends StatelessWidget {
             const SizedBox(height: 12),
             const Text(
               'TRANSLATIONS',
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 9,
                 fontWeight: FontWeight.w600,
@@ -591,26 +591,26 @@ class _KinshipCard extends StatelessWidget {
                       horizontal: 8, vertical: 5),
                   decoration: BoxDecoration(
                     color: KinrelColors.darkSurface.withValues(alpha: 0.5),
-                    borderRadius: const BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: KinrelColors.darkSurface.withValues(alpha: 0.6),
                     ),
                   ),
                   child: const Row(mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
+                      Text(
                         entry.key.toUpperCase(),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 9,
                           fontWeight: FontWeight.w600,
                           color: KinrelColors.purple,
                           letterSpacing: 0.3,
                         ),),
-                      const SizedBox(width: 6),
-                      const Text(
+                      SizedBox(width: 6),
+                      Text(
                         entry.value.native,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
@@ -642,12 +642,12 @@ class _InfoBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: const BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: const Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 10,
           fontWeight: FontWeight.w500,
@@ -702,7 +702,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
             ),
             decoration: BoxDecoration(
               color: KinrelColors.darkCard,
-              borderRadius: const BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: KinrelColors.darkSurface.withValues(alpha: 0.6),
               ),
@@ -793,7 +793,7 @@ class _InputBar extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
                   color: KinrelColors.darkElevated,
-                  borderRadius: const BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(24),
                   border: Border.all(
                     color: KinrelColors.darkSurface.withValues(alpha: 0.6),
                   ),
@@ -854,7 +854,7 @@ class _InputBar extends StatelessWidget {
                     ? const SizedBox(
                         width: 18,
                         height: 18,
-                        child: const CircularProgressIndicator(
+                        child: CircularProgressIndicator(
                           strokeWidth: 2,
                           color: KinrelColors.textDim,
                         ),

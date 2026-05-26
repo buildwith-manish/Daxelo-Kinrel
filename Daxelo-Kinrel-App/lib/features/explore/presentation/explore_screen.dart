@@ -161,7 +161,7 @@ const _languages = ['Hindi', 'Tamil', 'Telugu', 'Bengali', 'Marathi', 'Gujarati'
 // ── Explore Screen ───────────────────────────────────────────────
 
 class ExploreScreen extends ConsumerStatefulWidget {
-  const ExploreScreen({super.key});
+  ExploreScreen({super.key});
 
   @override
   ConsumerState<ExploreScreen> createState() => _ExploreScreenState();
@@ -343,9 +343,9 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
         },
         loading: () => SliverToBoxAdapter(
         child: const Center(
-          child: const Padding(
-            padding: const EdgeInsets.symmetric(vertical: 40),
-            child: const DKLoadingShimmer(width: 200, height: 16),
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: DKLoadingShimmer(width: 200, height: 16),
           ),
         ),
       ),
@@ -416,7 +416,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: DKColors.cardColor(context),
         shape: RoundedRectangleBorder(
-          borderRadius: const BorderRadius.circular(KinrelRadius.dialog),
+          borderRadius: BorderRadius.circular(KinrelRadius.dialog),
           side: BorderSide(color: DKColors.borderColor(context)),
         ),
         title: Text(
@@ -449,8 +449,8 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 hintStyle: TextStyle(color: DKColors.textSecondary(context)),
                 filled: true,
                 fillColor: DKColors.elevatedColor(context),
-                border: const OutlineInputBorder(
-                  borderRadius: const BorderRadius.circular(KinrelRadius.input),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(KinrelRadius.input),
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -582,11 +582,11 @@ class _SectionHeader extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
               color: DKColors.brandPurple.withValues(alpha: 0.15),
-              borderRadius: const BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: const Text(
+            child: Text(
               '$count',
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
@@ -596,11 +596,11 @@ class _SectionHeader extends StatelessWidget {
           ),
           const Spacer(),
           if (onSeeAll != null)
-            const GestureDetector(
+            GestureDetector(
               onTap: onSeeAll,
-              child: const Text(
+              child: Text(
                 'See All',
-                style: const TextStyle(
+                style: TextStyle(
                   color: KinrelColors.purple,
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
@@ -635,7 +635,7 @@ class _TrendingSection extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(8),
                   color: DKColors.brandPurple.withValues(alpha: 0.12),
                 ),
                 child: const Icon(Icons.trending_up_rounded,
@@ -662,7 +662,7 @@ class _TrendingSection extends StatelessWidget {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: DKColors.cardColor(context),
-                    borderRadius: const BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: isLight
                           ? accentColor.withValues(alpha: 0.15)
@@ -685,13 +685,13 @@ class _TrendingSection extends StatelessWidget {
                         width: 28,
                         height: 28,
                         decoration: BoxDecoration(
-                          borderRadius: const BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(8),
                           color: accentColor.withValues(alpha: 0.12),
                         ),
                         child: const Center(
-                          child: const Text(
+                          child: Text(
                             term.$2,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: accentColor,
@@ -773,7 +773,7 @@ class _KinshipDictionaryCard extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                borderRadius: const BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(14),
                 color: DKColors.brandPurple.withValues(alpha: 0.2),
                 boxShadow: [
                   BoxShadow(
@@ -840,7 +840,7 @@ class _JoinFamilyBanner extends StatelessWidget {
         onTap: onJoin,
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: const BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
                 color: DKColors.brandCoral.withValues(alpha: 0.2),
@@ -850,7 +850,7 @@ class _JoinFamilyBanner extends StatelessWidget {
             ],
           ),
           child: ClipRRect(
-            borderRadius: const BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16),
             child: Container(
               padding: const EdgeInsets.all(20),
               decoration: const BoxDecoration(
@@ -946,7 +946,7 @@ class _LanguageChips extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
             itemCount: _languages.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            separatorBuilder: (_, __) => SizedBox(width: 8),
             itemBuilder: (context, index) {
               final lang = _languages[index];
               return DKSuggestionChip(
@@ -976,7 +976,7 @@ class _FamiliesQuickLinks extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return familiesAsync.when(
       data: (families) {
-        if (families.isEmpty) return const SizedBox.shrink();
+        if (families.isEmpty) return SizedBox.shrink();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -998,7 +998,7 @@ class _FamiliesQuickLinks extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
                           color: DKColors.brandPurple.withValues(alpha: 0.15),
-                          borderRadius: const BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text('${families.length}',
                             style: const TextStyle(
@@ -1013,7 +1013,7 @@ class _FamiliesQuickLinks extends ConsumerWidget {
                   GestureDetector(
                     onTap: () => context.go('/families'),
                     child: const Text('See All',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: KinrelColors.purple,
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 13,
@@ -1035,8 +1035,8 @@ class _FamiliesQuickLinks extends ConsumerWidget {
           ],
         );
       },
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      loading: () => SizedBox.shrink(),
+      error: (_, __) => SizedBox.shrink(),
     );
   }
 }
@@ -1133,9 +1133,9 @@ class _SearchResultCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(
           horizontal: KinrelSpacing.base, vertical: 4),
-      child: const DKCard(
+      child: DKCard(
         onTap: onTap,
-        child: const Row(
+        child: Row(
           children: [
             DKAvatar(
               initials: item.title.isNotEmpty
@@ -1146,7 +1146,7 @@ class _SearchResultCard extends StatelessWidget {
                   ? DKColors.brandPurple
                   : DKColors.brandGold,
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1235,11 +1235,11 @@ class _KinshipResultCard extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: DKColors.brandPurple.withValues(alpha: 0.15),
-                          borderRadius: const BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(4),
                         ),
                         child: const Text(
                           rel.relationshipCategory.replaceAll('_', ' '),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 9,
                             fontWeight: FontWeight.w500,
@@ -1261,7 +1261,7 @@ class _KinshipResultCard extends ConsumerWidget {
                     ),
                     loading: () => Text('...',
                         style: TextStyle(color: DKColors.textSecondary(context))),
-                    error: (_, __) => const SizedBox.shrink(),
+                    error: (_, __) => SizedBox.shrink(),
                   ),
                 ],
               ),

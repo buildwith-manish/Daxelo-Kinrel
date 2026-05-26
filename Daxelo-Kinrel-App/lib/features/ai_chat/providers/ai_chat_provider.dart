@@ -61,7 +61,7 @@ class KinshipCardData {
 }
 
 class TranslationEntry {
-  const TranslationEntry({required this.native, required this.latin});
+  TranslationEntry({required this.native, required this.latin});
 
   final String native;
   final String latin;

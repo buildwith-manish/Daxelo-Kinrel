@@ -13,7 +13,7 @@ import '../../../core/storage/secure_storage.dart';
 import '../../../shared/widgets/kinrel_icon.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
-  const SplashScreen({super.key});
+  SplashScreen({super.key});
 
   @override
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
@@ -109,20 +109,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         builder: (context, child) {
           // Subtle gradient pulse: vary the color stops slightly
           final pulse = 0.5 + 0.5 * _pulseController.value;
-          return const Container(
-            decoration: const BoxDecoration(
-              gradient: const LinearGradient(
+          return Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
                 colors: [
-                  const Color.lerp(
-                    const Color(0xFF6A11CB),
-                    const Color(0xFF7C3AED),
+                  Color.lerp(
+                    Color(0xFF6A11CB),
+                    Color(0xFF7C3AED),
                     pulse * 0.3,
-                  )!,
-                  const Color.lerp(
-                    const Color(0xFFFF6B6B),
-                    const Color(0xFFFF8A80),
+                  ),
+                  Color.lerp(
+                    Color(0xFFFF6B6B),
+                    Color(0xFFFF8A80),
                     pulse * 0.2,
-                  )!,
+                  ),
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -180,7 +180,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     color: KinrelColors.textWhite,
                     letterSpacing: -0.5,
                     shadows: [
-                      const Shadow(
+                      Shadow(
                         color: KinrelColors.purpleGlow,
                         blurRadius: 20,
                       ),

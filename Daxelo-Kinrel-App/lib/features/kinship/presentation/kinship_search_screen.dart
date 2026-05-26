@@ -11,7 +11,7 @@ import '../../../core/kinship/kinship_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
 
 class KinshipSearchScreen extends ConsumerStatefulWidget {
-  const KinshipSearchScreen({super.key});
+  KinshipSearchScreen({super.key});
 
   @override
   ConsumerState<KinshipSearchScreen> createState() => _KinshipSearchScreenState();
@@ -60,7 +60,7 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
               itemCount: SupportedLanguage.values.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              separatorBuilder: (_, __) => SizedBox(width: 6),
               itemBuilder: (context, index) {
                 final lang = SupportedLanguage.values[index];
                 final isSelected = lang == _selectedLanguage;
@@ -82,7 +82,7 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: KinrelSpacing.base, vertical: 4),
                 itemCount: categories.length + 1,
-                separatorBuilder: (_, __) => const SizedBox(width: 6),
+                separatorBuilder: (_, __) => SizedBox(width: 6),
                 itemBuilder: (context, index) {
                   if (index == 0) {
                     return DKSuggestionChip(
@@ -102,8 +102,8 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
                 },
               ),
             ),
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
+            loading: () => SizedBox.shrink(),
+            error: (_, __) => SizedBox.shrink(),
           ),
 
           const SizedBox(height: 8),
@@ -130,7 +130,7 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
                     vertical: 8,
                   ),
                   itemCount: results.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  separatorBuilder: (_, __) => SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final result = results[index];
                     return _KinshipTermCard(
@@ -147,7 +147,7 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
                 padding: const EdgeInsets.all(KinrelSpacing.base),
                 children: List.generate(
                   5,
-                  (_) => const Padding(
+                  (_) => Padding(
                     padding: EdgeInsets.only(bottom: 8),
                     child: DKLoadingShimmer(
                         width: double.infinity, height: 80, radius: KinrelRadius.card),
@@ -201,11 +201,11 @@ class _KinshipTermCard extends ConsumerWidget {
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: DKColors.brandPurple.withValues(alpha: 0.12),
-                  borderRadius: const BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(6),
                 ),
                 child: const Text(
                   rel.relationshipCategory.replaceAll('_', ' ').toUpperCase(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
@@ -221,11 +221,11 @@ class _KinshipTermCard extends ConsumerWidget {
                     const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: DKColors.brandGold.withValues(alpha: 0.1),
-                  borderRadius: const BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Text(
                   rel.relationshipKey.replaceAll('_', ' '),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 9,
                     color: DKColors.brandGold,
@@ -259,9 +259,9 @@ class _KinshipTermCard extends ConsumerWidget {
                 padding: const EdgeInsets.only(top: 6),
                 child: Row(
                   children: [
-                    const Text(
+                    Text(
                       translation.native,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: language.fontFamily,
                         fontSize: 16,
                         color: DKColors.brandPurple,
@@ -282,8 +282,8 @@ class _KinshipTermCard extends ConsumerWidget {
                 ),
               );
             },
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
+            loading: () => SizedBox.shrink(),
+            error: (_, __) => SizedBox.shrink(),
           ),
 
           // Tags
@@ -324,7 +324,7 @@ class _TagChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: DKColors.brandPurple.withValues(alpha: 0.06),
-        borderRadius: const BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(4),
         border: Border.all(
           color: DKColors.brandPurple.withValues(alpha: 0.1),
           width: 0.5,

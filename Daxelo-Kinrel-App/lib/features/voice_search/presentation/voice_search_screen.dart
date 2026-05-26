@@ -9,7 +9,7 @@ import '../../../core/constants/supported_languages.dart';
 import '../providers/voice_search_provider.dart';
 
 class VoiceSearchScreen extends ConsumerStatefulWidget {
-  const VoiceSearchScreen({super.key});
+  VoiceSearchScreen({super.key});
 
   @override
   ConsumerState<VoiceSearchScreen> createState() => _VoiceSearchScreenState();
@@ -153,19 +153,19 @@ class _VoiceSearchScreenState extends ConsumerState<VoiceSearchScreen>
                   decoration: BoxDecoration(
                     color: KinrelColors.error.withValues(alpha: 0.15),
                     borderRadius:
-                        const BorderRadius.circular(KinrelSpacing.radiusMd),
+                        BorderRadius.circular(KinrelSpacing.radiusMd),
                     border: Border.all(
                         color: KinrelColors.error.withValues(alpha: 0.3)),
                   ),
                   child: const Row(
                     children: [
-                      const Icon(Icons.error_outline,
+                      Icon(Icons.error_outline,
                           color: KinrelColors.error, size: 20),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: const Text(
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
                           voiceState.error!,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 13,
                             color: KinrelColors.error,
@@ -204,32 +204,32 @@ class _IdleView extends StatelessWidget {
           AnimatedBuilder(
             animation: pulseAnimation,
             builder: (context, child) {
-              return const Transform.scale(
+              return Transform.scale(
                 scale: pulseAnimation.value,
-                child: const Container(
+                child: Container(
                   width: 120,
                   height: 120,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       colors: [KinrelColors.purple, KinrelColors.violet],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     boxShadow: [
-                      const BoxShadow(
+                      BoxShadow(
                         color: KinrelColors.purpleGlow,
                         blurRadius: 40,
                         spreadRadius: 10,
                       ),
                     ],
                   ),
-                  child: const Material(
+                  child: Material(
                     color: Colors.transparent,
-                    child: const InkWell(
-                      borderRadius: const BorderRadius.circular(60),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(60),
                       onTap: onStart,
-                      child: const Icon(
+                      child: Icon(
                         Icons.mic,
                         size: 48,
                         color: KinrelColors.textWhite,
@@ -244,7 +244,7 @@ class _IdleView extends StatelessWidget {
           const SizedBox(height: 32),
           const Text(
             'Tap to search by voice',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 20,
               fontWeight: FontWeight.w600,
@@ -256,7 +256,7 @@ class _IdleView extends StatelessWidget {
           const Text(
             'Say any Indian kinship term\nlike "chacha", "bua", "mami"',
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14,
               color: KinrelColors.textDim,
@@ -272,18 +272,18 @@ class _IdleView extends StatelessWidget {
             padding: const EdgeInsets.all(KinrelSpacing.md),
             decoration: BoxDecoration(
               color: KinrelColors.darkCard,
-              borderRadius: const BorderRadius.circular(KinrelSpacing.radiusMd),
+              borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
               border: Border.all(
                   color: KinrelColors.darkSurface.withValues(alpha: 0.3)),
             ),
             child: const Column(
               children: [
                 _TipRow(icon: Icons.search, text: 'Search for kinship terms'),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 _TipRow(
                     icon: Icons.translate,
                     text: 'Get translations in 14 languages'),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 _TipRow(
                     icon: Icons.record_voice_over,
                     text: 'Works with Hindi, Tamil, Bengali & more'),
@@ -306,10 +306,10 @@ class _TipRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Row(
       children: [
-        const Icon(icon, size: 16, color: KinrelColors.amber),
-        const SizedBox(width: 10),
-        const Text(text,
-          style: const TextStyle(
+        Icon(icon, size: 16, color: KinrelColors.amber),
+        SizedBox(width: 10),
+        Text(text,
+          style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             color: KinrelColors.textSilver,
@@ -362,23 +362,23 @@ class _RecordingView extends StatelessWidget {
                 const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             decoration: BoxDecoration(
               color: KinrelColors.error.withValues(alpha: 0.15),
-              borderRadius: const BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(20),
             ),
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Container(
+                Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: KinrelColors.error,
                     shape: BoxShape.circle,
                   ),
                 ),
-                const SizedBox(width: 8),
-                const Text(
+                SizedBox(width: 8),
+                Text(
                   'Listening...',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -418,7 +418,7 @@ class _RecordingView extends StatelessWidget {
           const SizedBox(height: 16),
           const Text(
             'Tap to stop',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14,
               color: KinrelColors.textDim,
@@ -436,26 +436,26 @@ class _LoadingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Center(
-      child: const Column(
+      child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const CircularProgressIndicator(
+          CircularProgressIndicator(
             color: KinrelColors.purple,
             strokeWidth: 3,
           ),
-          const SizedBox(height: 24),
-          const Text(
+          SizedBox(height: 24),
+          Text(
             'Processing your voice...',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 16,
               color: KinrelColors.textSilver,
             ),
           ),
-          const SizedBox(height: 8),
-          const Text(
+          SizedBox(height: 8),
+          Text(
             'Transcribing and searching kinship terms',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               color: KinrelColors.textDim,
@@ -493,7 +493,7 @@ class _ResultsView extends StatelessWidget {
           padding: const EdgeInsets.all(KinrelSpacing.md),
           decoration: BoxDecoration(
             color: KinrelColors.darkCard,
-            borderRadius: const BorderRadius.circular(KinrelSpacing.radiusMd),
+            borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
             border: Border.all(
                 color: KinrelColors.purple.withValues(alpha: 0.2)),
           ),
@@ -503,7 +503,7 @@ class _ResultsView extends StatelessWidget {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: KinrelColors.purple.withValues(alpha: 0.15),
-                  borderRadius: const BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
                   Icons.record_voice_over,
@@ -513,22 +513,22 @@ class _ResultsView extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               const Expanded(
-                child: const Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'You said:',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
                         color: KinrelColors.textDim,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    const Text(
+                    SizedBox(height: 2),
+                    Text(
                       '"$transcription"',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
@@ -544,19 +544,19 @@ class _ResultsView extends StatelessWidget {
 
         // Search again button
         const Padding(
-          padding: const EdgeInsets.symmetric(
+          padding: EdgeInsets.symmetric(
             horizontal: KinrelSpacing.base,
             vertical: KinrelSpacing.sm,
           ),
-          child: const Align(
+          child: Align(
             alignment: Alignment.centerLeft,
-            child: const TextButton.icon(
+            child: TextButton.icon(
               onPressed: onSearchAgain,
-              icon: const Icon(Icons.mic, size: 16),
-              label: const Text('Search again'),
-              style: const TextButton.styleFrom(
+              icon: Icon(Icons.mic, size: 16),
+              label: Text('Search again'),
+              style: TextButton.styleFrom(
                 foregroundColor: KinrelColors.purple,
-                textStyle: const TextStyle(
+                textStyle: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                 ),
@@ -578,7 +578,7 @@ class _ResultsView extends StatelessWidget {
                       const SizedBox(height: 16),
                       const Text(
                         'No kinship terms found',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 16,
                           color: KinrelColors.textDim,
@@ -602,7 +602,7 @@ class _ResultsView extends StatelessWidget {
                     vertical: 8,
                   ),
                   itemCount: results.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  separatorBuilder: (_, __) => SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final result = results[index];
                     return _VoiceResultCard(result: result);
@@ -636,7 +636,7 @@ class _VoiceResultCard extends StatelessWidget {
       padding: const EdgeInsets.all(KinrelSpacing.base),
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
-        borderRadius: const BorderRadius.circular(KinrelSpacing.radiusMd),
+        borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
         border: Border.all(
             color: KinrelColors.darkSurface.withValues(alpha: 0.3)),
       ),
@@ -651,13 +651,13 @@ class _VoiceResultCard extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: KinrelColors.purple.withValues(alpha: 0.15),
-                  borderRadius: const BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(6),
                 ),
                 child: const Text(
                   result.relationshipCategory
                       .replaceAll('_', ' ')
                       .toUpperCase(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
@@ -675,9 +675,9 @@ class _VoiceResultCard extends StatelessWidget {
           const SizedBox(height: 10),
 
           // English term
-          const Text(
+          Text(
             result.englishTerm,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -690,19 +690,19 @@ class _VoiceResultCard extends StatelessWidget {
             const SizedBox(height: 6),
             const Row(
               children: [
-                const Text(
+                Text(
                   nativeTerm,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     color: KinrelColors.amber,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 if (latinTerm != null) ...[
-                  const SizedBox(width: 8),
-                  const Text(
+                  SizedBox(width: 8),
+                  Text(
                     latinTerm,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
                       color: KinrelColors.textDim,
@@ -742,11 +742,11 @@ class _MiniTag extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: KinrelColors.darkSurface.withValues(alpha: 0.5),
-        borderRadius: const BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(4),
       ),
       child: const Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 10,
           color: KinrelColors.textSilver,
@@ -769,25 +769,25 @@ class _LanguageSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Container(
-      decoration: const BoxDecoration(
+    return Container(
+      decoration: BoxDecoration(
         color: KinrelColors.darkElevated,
-        borderRadius: const BorderRadius.circular(KinrelSpacing.radiusMd),
+        borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
       ),
       child: PopupMenuButton<SupportedLanguage>(
-        icon: const Row(
+        icon: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               selectedLanguage.code.toUpperCase(),
-              style: const TextStyle(
+              style: TextStyle(
                 color: KinrelColors.purple,
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const Icon(Icons.arrow_drop_down, color: KinrelColors.purple),
+            Icon(Icons.arrow_drop_down, color: KinrelColors.purple),
           ],
         ),
         onSelected: onLanguageChanged,

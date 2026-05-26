@@ -11,7 +11,7 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../shared/widgets/dk_components.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
-  const SignInScreen({super.key});
+  SignInScreen({super.key});
 
   @override
   ConsumerState<SignInScreen> createState() => _SignInScreenState();
@@ -111,7 +111,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       body: const SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
+            padding: EdgeInsets.symmetric(
               horizontal: KinrelSpacing.xl,
               vertical: KinrelSpacing.lg,
             ),
@@ -137,8 +137,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ),
 
                   // ── Welcome text ────────────────────────────────────
-                  const SizedBox(height: 32),
-                  const Text(
+                  SizedBox(height: 32),
+                  Text(
                     'Welcome Back!',
                     textAlign: TextAlign.center,
                     style: KinrelTypography.displayLarge.copyWith(
@@ -150,12 +150,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         duration: 500.ms,
                       ),
 
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
 
-                  const Text(
+                  Text(
                     'Sign in to continue to KinRel',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 15,
                       color: secondaryColor,
@@ -163,7 +163,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ),
                   ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
 
-                  const SizedBox(height: 32),
+                  SizedBox(height: 32),
 
                   // ── Card containing form fields ─────────────────────
                   DKCard(
@@ -178,14 +178,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
                           autocorrect: false,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: textColor,
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 15,
                           ),
                           decoration: InputDecoration(
                             labelText: 'Email',
-                            labelStyle: const TextStyle(
+                            labelStyle: TextStyle(
                               color: secondaryColor,
                               fontFamily: KinrelTypography.bodyFont,
                             ),
@@ -196,35 +196,35 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                             ),
                             filled: true,
                             fillColor: inputFillColor,
-                            contentPadding: const EdgeInsets.symmetric(
+                            contentPadding: EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 14,
                             ),
-                            border: const OutlineInputBorder(
-                              borderRadius: const BorderRadius.circular(
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
                                   KinrelRadius.input),
                               borderSide: BorderSide.none,
                             ),
-                            enabledBorder: const OutlineInputBorder(
-                              borderRadius: const BorderRadius.circular(
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
                                   KinrelRadius.input),
                               borderSide: BorderSide(
                                 color: inputBorderColor,
                                 width: 0.5,
                               ),
                             ),
-                            focusedBorder: const OutlineInputBorder(
-                              borderRadius: const BorderRadius.circular(
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
                                   KinrelRadius.input),
                               borderSide: BorderSide(
                                 color: accentColor,
                                 width: 1.5,
                               ),
                             ),
-                            errorBorder: const OutlineInputBorder(
-                              borderRadius: const BorderRadius.circular(
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
                                   KinrelRadius.input),
-                              borderSide: const BorderSide(
+                              borderSide: BorderSide(
                                 color: KinrelColors.error,
                                 width: 1,
                               ),
@@ -239,20 +239,20 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           },
                         ),
 
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16),
 
                         // ── Password input ───────────────────────────
                         TextFormField(
                           controller: _passwordController,
                           obscureText: _obscurePassword,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: textColor,
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 15,
                           ),
                           decoration: InputDecoration(
                             labelText: 'Password',
-                            labelStyle: const TextStyle(
+                            labelStyle: TextStyle(
                               color: secondaryColor,
                               fontFamily: KinrelTypography.bodyFont,
                             ),
@@ -262,7 +262,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                               size: 20,
                             ),
                             suffixIcon: IconButton(
-                              icon: const Icon(
+                              icon: Icon(
                                 _obscurePassword
                                     ? Icons.visibility_off_outlined
                                     : Icons.visibility_outlined,
@@ -274,35 +274,35 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                             ),
                             filled: true,
                             fillColor: inputFillColor,
-                            contentPadding: const EdgeInsets.symmetric(
+                            contentPadding: EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 14,
                             ),
-                            border: const OutlineInputBorder(
-                              borderRadius: const BorderRadius.circular(
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
                                   KinrelRadius.input),
                               borderSide: BorderSide.none,
                             ),
-                            enabledBorder: const OutlineInputBorder(
-                              borderRadius: const BorderRadius.circular(
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
                                   KinrelRadius.input),
                               borderSide: BorderSide(
                                 color: inputBorderColor,
                                 width: 0.5,
                               ),
                             ),
-                            focusedBorder: const OutlineInputBorder(
-                              borderRadius: const BorderRadius.circular(
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
                                   KinrelRadius.input),
                               borderSide: BorderSide(
                                 color: accentColor,
                                 width: 1.5,
                               ),
                             ),
-                            errorBorder: const OutlineInputBorder(
-                              borderRadius: const BorderRadius.circular(
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
                                   KinrelRadius.input),
-                              borderSide: const BorderSide(
+                              borderSide: BorderSide(
                                 color: KinrelColors.error,
                                 width: 1,
                               ),
@@ -317,24 +317,24 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           },
                         ),
 
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
 
                         // ── Forgot Password ──────────────────────────
-                        const Align(
+                        Align(
                           alignment: Alignment.centerRight,
-                          child: const TextButton(
+                          child: TextButton(
                             onPressed: () {
                               // TODO: Navigate to forgot password
                             },
-                            style: const TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.symmetric(
                                   horizontal: 4, vertical: 4),
                               minimumSize: Size.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
-                            child: const Text(
+                            child: Text(
                               'Forgot Password?',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: accentColor,
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 13,
@@ -344,7 +344,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           ),
                         ),
 
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16),
 
                         // ── Sign In button ───────────────────────────
                         SizedBox(
@@ -356,28 +356,28 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                               foregroundColor: Colors.white,
                               disabledBackgroundColor:
                                   buttonColor.withValues(alpha: 0.5),
-                              shape: const RoundedRectangleBorder(
-                                borderRadius: const BorderRadius.circular(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
                                     KinrelRadius.button),
                               ),
                               elevation: 0,
                             ),
                             child: _isLoading
-                                ? const Row(
+                                ? Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      const SizedBox(
+                                      SizedBox(
                                         height: 20,
                                         width: 20,
-                                        child: const CircularProgressIndicator(
+                                        child: CircularProgressIndicator(
                                           strokeWidth: 2,
                                           color: Colors.white,
                                         ),
                                       ),
-                                      const SizedBox(width: 12),
-                                      const Text(
+                                      SizedBox(width: 12),
+                                      Text(
                                         'Connecting...',
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontFamily:
                                               KinrelTypography.displayFont,
                                           fontWeight: FontWeight.w600,
@@ -386,9 +386,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                       ),
                                     ],
                                   )
-                                : const Text(
+                                : Text(
                                     'Sign In',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontFamily: KinrelTypography.displayFont,
                                       fontWeight: FontWeight.w600,
                                       fontSize: 16,
@@ -400,22 +400,22 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ),
                   ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
 
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24),
 
                   // ── "or" divider ───────────────────────────────────
-                  const Row(
+                  Row(
                     children: [
-                      const Expanded(
-                        child: const Container(
+                      Expanded(
+                        child: Container(
                           height: 1,
                           color: inputBorderColor,
                         ),
                       ),
-                      const Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: const Text(
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
                           'or',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: secondaryColor,
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 13,
@@ -423,8 +423,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           ),
                         ),
                       ),
-                      const Expanded(
-                        child: const Container(
+                      Expanded(
+                        child: Container(
                           height: 1,
                           color: inputBorderColor,
                         ),
@@ -432,14 +432,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ],
                   ).animate().fadeIn(duration: 300.ms, delay: 300.ms),
 
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24),
 
                   // ── Social login buttons ────────────────────────────
-                  const Row(
+                  Row(
                     children: [
                       // Google
-                      const Expanded(
-                        child: const DKButton(
+                      Expanded(
+                        child: DKButton(
                           label: 'Google',
                           variant: DKButtonVariant.secondary,
                           icon: Icons.g_mobiledata_rounded,
@@ -449,10 +449,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           },
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       // Apple
-                      const Expanded(
-                        child: const DKButton(
+                      Expanded(
+                        child: DKButton(
                           label: 'Apple',
                           variant: DKButtonVariant.secondary,
                           icon: Icons.apple,
@@ -465,10 +465,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ],
                   ).animate().fadeIn(duration: 300.ms, delay: 400.ms),
 
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
 
                   // ── Biometric options ──────────────────────────────
-                  const Row(
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       // Face ID
@@ -481,7 +481,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           // TODO: Biometric auth
                         },
                       ),
-                      const SizedBox(width: 24),
+                      SizedBox(width: 24),
                       // Fingerprint
                       _BiometricButton(
                         icon: Icons.fingerprint,
@@ -495,15 +495,15 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ],
                   ).animate().fadeIn(duration: 300.ms, delay: 500.ms),
 
-                  const SizedBox(height: 32),
+                  SizedBox(height: 32),
 
                   // ── Sign Up link ───────────────────────────────────
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
+                      Text(
                         "Don't have an account? ",
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: secondaryColor,
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 14,
@@ -511,14 +511,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       ),
                       TextButton(
                         onPressed: () => context.go('/sign-up'),
-                        style: const TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.symmetric(horizontal: 4),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
-                        child: const Text(
+                        child: Text(
                           'Sign Up',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: accentColor,
                             fontFamily: KinrelTypography.displayFont,
                             fontWeight: FontWeight.w600,
@@ -529,7 +529,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ],
                   ).animate().fadeIn(duration: 300.ms, delay: 600.ms),
 
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                 ],
               ),
             ),
@@ -558,25 +558,25 @@ class _BiometricButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const GestureDetector(
+    return GestureDetector(
       onTap: onPressed,
-      child: const Column(
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Container(
+          Container(
             width: 56,
             height: 56,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(color: borderColor, width: 1.5),
               color: Colors.transparent,
             ),
-            child: const Icon(icon, size: 28, color: textColor),
+            child: Icon(icon, size: 28, color: textColor),
           ),
-          const SizedBox(height: 6),
-          const Text(
+          SizedBox(height: 6),
+          Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 11,
               color: textColor,
