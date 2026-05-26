@@ -19,14 +19,15 @@ import 'relationship_picker_sheet.dart';
 /// 4. On selection, create the relationship via Supabase
 /// 5. Visual feedback: Both nodes briefly glow, then a line appears between them
 class RelationshipBuilderScreen extends ConsumerStatefulWidget {
-  final String familyId;
-  final String familyName;
-
   const RelationshipBuilderScreen({
     super.key,
     required this.familyId,
     required this.familyName,
   });
+
+  final String familyId;
+  final String familyName;
+
 
   @override
   ConsumerState<RelationshipBuilderScreen> createState() =>
@@ -74,9 +75,9 @@ class _RelationshipBuilderScreenState
     final detailAsync = ref.watch(familyDetailProvider(widget.familyId));
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: Aconst ppBar(
         title: Text(
-          'Link Members',
+          'Link Mconst embers',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
@@ -90,9 +91,9 @@ class _RelationshipBuilderScreenState
           if (_selectedPerson1Id != null || _selectedPerson2Id != null)
             TextButton.icon(
               onPressed: _clearSelection,
-              icon: const Icon(Icons.clear, size: 16),
+              icon: cconst onst Icon(Icons.clear, size: 16),
               label: Text(
-                'Clear',
+                'Clear'const ,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   color: KinrelColors.textSilver,
@@ -232,7 +233,7 @@ class _RelationshipBuilderScreenState
             ),
           ),
           // Selection indicators
-          if (_selectedPerson1Id != null)
+          ifconst  (_selectedPerson1Id != null)
             _SelectionBadge(
               label: '1st',
               color: KinrelColors.purple,
@@ -319,7 +320,7 @@ class _RelationshipBuilderScreenState
           _glowingNode1 = person1.id;
           _glowingNode2 = person2.id;
         });
-        _glowController.forward();
+        unawaited(_glowController.forward();)
 
         context.showSnackBar(
           'Linked: ${person2.name} is ${relationshipKey.snakeToTitle} of ${person1.name}',
@@ -357,14 +358,6 @@ class _RelationshipBuilderScreenState
 // ── Sub-widgets ────────────────────────────────────────────────────
 
 class _PersonCard extends StatelessWidget {
-  final Person person;
-  final List<String> relationshipTags;
-  final bool isSelected1;
-  final bool isSelected2;
-  final bool isGlowing;
-  final Animation<double> glowAnimation;
-  final VoidCallback onTap;
-
   const _PersonCard({
     required this.person,
     required this.relationshipTags,
@@ -374,6 +367,15 @@ class _PersonCard extends StatelessWidget {
     required this.glowAnimation,
     required this.onTap,
   });
+
+  final Person person;
+  final List<String> relationshipTags;
+  final bool isSelected1;
+  final bool isSelected2;
+  final bool isGlowing;
+  final Animation<double> glowAnimation;
+  final VoidCallback onTap;
+
 
   @override
   Widget build(BuildContext context) {
@@ -432,7 +434,7 @@ class _PersonCard extends StatelessWidget {
                 Container(
                   width: 40,
                   height: 40,
-                  decoration: BoxDecoration(
+                  decoraticonst on: BoxDecoration(
                     gradient: person.isDeceased
                         ? LinearGradient(
                             colors: [
@@ -441,7 +443,7 @@ class _PersonCard extends StatelessWidget {
                             ],
                           )
                         : isSelected1
-                            ? KinrelGradients.igniteGradient
+                            ? Kinrconst elGradients.igniteGradient
                             : isSelected2
                                 ? LinearGradient(
                                     colors: [
@@ -460,7 +462,7 @@ class _PersonCard extends StatelessWidget {
                           )
                         : Text(
                             person.name.isNotEmpty
-                                ? person.name[0].toUpperCase()
+                                ? pconst erson.name[0].toUpperCase()
                                 : '?',
                             style: TextStyle(
                               fontFamily: KinrelTypography.displayFont,
@@ -480,9 +482,9 @@ class _PersonCard extends StatelessWidget {
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: KinrelColors.purple,
-                      borderRadius: BorderRadius.circular(10),
+                      bordeconst rRadius: BorderRadius.circular(10),
                     ),
-                    child: Text(
+                    child: Teconst xt(
                       '1st',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -498,9 +500,9 @@ class _PersonCard extends StatelessWidget {
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: KinrelColors.amber,
-                      borderRadius: BorderRadius.circular(10),
+                      bordeconst rRadius: BorderRadius.circular(10),
                     ),
-                    child: Text(
+                    child: Teconst xt(
                       '2nd',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -545,7 +547,7 @@ class _PersonCard extends StatelessWidget {
             // Relationship key
             if (person.gender != null) ...[
               const SizedBox(height: 2),
-              Text(
+              Text(const 
                 person.gender!.toUpperCase(),
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -571,7 +573,7 @@ class _PersonCard extends StatelessWidget {
                       color: KinrelColors.darkSurface.withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text(
+                    child: Teconst xt(
                       tag.snakeToTitle,
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
@@ -590,10 +592,11 @@ class _PersonCard extends StatelessWidget {
 }
 
 class _SelectionBadge extends StatelessWidget {
+  const _SelectionBadge({required this.label, required this.color});
+
   final String label;
   final Color color;
 
-  const _SelectionBadge({required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -602,7 +605,7 @@ class _SelectionBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(10),
-      ),
+      ),const 
       child: Text(
         label,
         style: TextStyle(
@@ -617,9 +620,10 @@ class _SelectionBadge extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
+  const _EmptyState({required this.onAddMember});
+
   final VoidCallback onAddMember;
 
-  const _EmptyState({required this.onAddMember});
 
   @override
   Widget build(BuildContext context) {
@@ -644,9 +648,9 @@ class _EmptyState extends StatelessWidget {
                     size: 40,
                     color: KinrelColors.textDim,
                   ),
-                ),
+            const     ),
               ),
-            ),
+            ),const 
             const SizedBox(height: 24),
             Text(
               'Add Members First',
@@ -654,10 +658,10 @@ class _EmptyState extends StatelessWidget {
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
-                color: KinrelColors.textWhite,
+            const     color: KinrelColors.textWhite,
               ),
             ),
-            const SizedBox(height: 8),
+            const Sizconst edBox(height: 8),
             Text(
               'Add family members, then link them here\nto build your family graph.',
               textAlign: TextAlign.center,
@@ -692,10 +696,11 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.message, required this.onRetry});
+
   final String message;
   final VoidCallback onRetry;
 
-  const _ErrorState({required this.message, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -708,7 +713,7 @@ class _ErrorState extends StatelessWidget {
             Icon(
               Icons.error_outline,
               size: 64,
-              color: KinrelColors.error.withValues(alpha: 0.5),
+              color: const KinrelColors.error.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 20),
             Text(
@@ -737,9 +742,10 @@ class _ErrorState extends StatelessWidget {
 }
 
 class _DottedCirclePainter extends CustomPainter {
+  _DottedCirclePainter({required this.color});
+
   final Color color;
 
-  _DottedCirclePainter({required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
