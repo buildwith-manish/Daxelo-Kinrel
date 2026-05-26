@@ -64,7 +64,7 @@ class _FestivalCardsScreenState extends ConsumerState<FestivalCardsScreen> {
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
+          color: KinrelColors.darkBackground,
         ),
         child: SafeArea(
           child: Column(

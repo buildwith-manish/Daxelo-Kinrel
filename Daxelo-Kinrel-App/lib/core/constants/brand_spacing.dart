@@ -6,6 +6,8 @@
 // for the KINREL design system.
 //
 // Brand spec: stitch.zip design reference — Premium Purple & Gold
+//
+// 8 px grid system
 
 import 'package:flutter/material.dart';
 
@@ -13,21 +15,22 @@ import 'package:flutter/material.dart';
 class KinrelSpacing {
   KinrelSpacing._();
 
-  // ── Base Spacing ──────────────────────────────────────────────────
-  static const double xs = 4;
-  static const double sm = 8;
-  static const double md = 12;
-  static const double lg = 16;
-  static const double xl = 20;
-  static const double xxl = 24;
-  static const double xxxl = 32;
-  static const double huge = 48;
-  static const double base = lg; // Base screen padding (16)
+  // ── Base Spacing (8 px grid) ──────────────────────────────────────
+  static const double xs = 4.0;    // Tight padding, icon gaps
+  static const double sm = 8.0;    // Between related elements
+  static const double md = 12.0;   // Standard inner padding
+  static const double base = 16.0; // Default padding, margins
+  static const double lg = 20.0;   // Section inner padding
+  static const double xl = 24.0;   // Card padding
+  static const double xxl = 32.0;  // Section gaps (2xl)
+  static const double xxxl = 40.0; // Major section separation (3xl)
+  static const double huge = 48.0; // Page top/bottom padding (4xl)
+  static const double massive = 64.0; // Hero sections (5xl)
 
   // ── Semantic Spacing ──────────────────────────────────────────────
   static const double screenHorizontal = lg;
   static const double screenVertical = xl;
-  static const double cardPadding = lg;
+  static const double cardPadding = xl;
   static const double cardInnerGap = md;
   static const double sectionGap = xxl;
   static const double listItemGap = sm;
@@ -37,12 +40,12 @@ class KinrelSpacing {
   static const double avatarSizeLarge = 64;
   static const double iconButtonSize = 48;
 
-  // ── Radius Convenience Aliases ────────────────────────────────────
-  static const double radiusSm = 8;
-  static const double radiusMd = 12;
-  static const double radiusLg = 16;
-  static const double radiusXl = 20;
-  static const double radiusXXl = 24;
+  // ── Radius Convenience Aliases (mirrors KinrelRadius) ─────────────
+  static const double radiusSm = 6.0;
+  static const double radiusMd = 10.0;
+  static const double radiusLg = 14.0;
+  static const double radiusXl = 18.0;
+  static const double radiusXXl = 22.0;
 
   // ── Logo Sizes ────────────────────────────────────────────────────
   static const double logoXs = 28;
@@ -64,22 +67,22 @@ class KinrelRadius {
   KinrelRadius._();
 
   static const double none = 0;
-  static const double xs = 4;
-  static const double sm = 8;
-  static const double md = 12;
-  static const double lg = 16;
-  static const double xl = 20;
-  static const double xxl = 24;
-  static const double full = 9999;
+  static const double xs = 4.0;    // Tags, small chips
+  static const double sm = 6.0;    // Buttons, inputs (compact)
+  static const double md = 10.0;   // Standard cards, modals
+  static const double lg = 14.0;   // Feature cards, images
+  static const double xl = 18.0;   // Large cards, sheets
+  static const double xxl = 22.0;  // App icon shape, hero cards
+  static const double full = 9999.0; // Pills, avatars, FABs
 
-  // ── Semantic Radius ───────────────────────────────────────────────
-  static const double card = lg;      // 16
-  static const double button = md;    // 12 (was 8)
-  static const double input = md;     // 12 (was 8)
-  static const double dialog = xxl;   // 24 (was 28)
-  static const double bottomSheet = xxl; // 24 (was 28)
-  static const double chip = xs;      // 4
-  static const double fab = full;     // 9999
+  // ── Semantic Radius (backward compat) ────────────────────────────
+  static const double button = 12.0;      // (backward compat)
+  static const double card = 14.0;        // (backward compat)
+  static const double input = 10.0;       // (backward compat)
+  static const double chip = 9999.0;      // (backward compat)
+  static const double dialog = 18.0;      // (backward compat)
+  static const double bottomSheet = 22.0; // (backward compat)
+  static const double fab = full;         // 9999
 }
 
 /// ── Elevation Tokens ─────────────────────────────────────────────────

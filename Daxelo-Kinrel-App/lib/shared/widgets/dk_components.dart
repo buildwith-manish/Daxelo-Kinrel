@@ -31,6 +31,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/constants/brand_spacing.dart';
 
@@ -41,25 +42,30 @@ import '../../core/constants/brand_spacing.dart';
 /// Stitch.zip design color tokens used by DK* components.
 ///
 /// These extend the core KINREL brand colors with additional
-/// purple/gold/coral tones required by the stitch reference.
+/// orange/gold/coral tones required by the stitch reference.
+/// Updated to Orange K-Graph DNA palette (#E8612A / #F59240 / #C44A18).
 class DKColors {
   DKColors._();
 
   // ── Brand ────────────────────────────────────────────────────────
-  static const Color brandPurple = Color(0xFF5D5FEF);
-  static const Color brandDeepPurple = Color(0xFF4B3F8A);
-  static const Color brandViolet = Color(0xFF8A2BE2);
+  /// Kinrel Orange — #E8612A (backward-compat alias: brandPurple)
+  static const Color brandPurple = KinrelColors.orange;          // #E8612A
+  /// Burnt Ember — #C44A18 (backward-compat alias: brandDeepPurple)
+  static const Color brandDeepPurple = KinrelColors.ember;       // #C44A18
+  /// Warm Amber — #F59240 (backward-compat alias: brandViolet)
+  static const Color brandViolet = KinrelColors.amber;           // #F59240
   static const Color brandGold = Color(0xFFD4AF37);
   static const Color brandBrightGold = Color(0xFFFFD700);
   static const Color brandCoral = Color(0xFFFF6B6B);
-  static const Color brandOrange = Color(0xFFF97316);
+  /// Kinrel Orange — #E8612A (direct orange reference)
+  static const Color brandOrange = KinrelColors.orange;          // #E8612A
   static const Color brandBlue = Color(0xFF3B82F6);
 
   // ── Dark theme surfaces ──────────────────────────────────────────
-  static const Color darkBg = Color(0xFF121212);
-  static const Color darkCard = Color(0xFF1E1E1E);
-  static const Color darkElevated = Color(0xFF2A2A3E);
-  static const Color darkSurface = Color(0xFF2A1F4A);
+  static const Color darkBg = KinrelColors.darkBackground;       // #131416
+  static const Color darkCard = KinrelColors.darkCard;           // #191B2C
+  static const Color darkElevated = KinrelColors.darkElevated;   // #202338
+  static const Color darkSurface = KinrelColors.darkSurface;     // #13141E
 
   // ── Light theme surfaces ─────────────────────────────────────────
   static const Color lightBg = Color(0xFFF5F7FA);
@@ -78,20 +84,23 @@ class DKColors {
   static const Color warning = Color(0xFFF5A623);
 
   // ── Gradients ────────────────────────────────────────────────────
+  /// CTA gradient — orange → amber (was purple → violet)
   static const LinearGradient ctaGradient = LinearGradient(
-    colors: [brandPurple, brandViolet],
+    colors: [brandPurple, brandViolet],   // #E8612A → #F59240
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
+  /// Social gradient — blue → orange
   static const LinearGradient socialGradient = LinearGradient(
-    colors: [brandBlue, brandPurple],
+    colors: [brandBlue, brandPurple],     // #3B82F6 → #E8612A
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
+  /// Explore gradient — blue → amber
   static const LinearGradient exploreGradient = LinearGradient(
-    colors: [brandBlue, brandViolet],
+    colors: [brandBlue, brandViolet],     // #3B82F6 → #F59240
     begin: Alignment.centerLeft,
     end: Alignment.centerRight,
   );
@@ -134,8 +143,9 @@ class DKColors {
           : const Color(0xFF3A3A4A);
 
   /// Returns the primary brand color for the current theme.
+  /// Orange in light mode, ember in dark mode.
   static Color primary(BuildContext context) =>
-      isLight(context) ? brandPurple : brandDeepPurple;
+      isLight(context) ? brandOrange : brandDeepPurple;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -606,7 +616,7 @@ class DKAvatar extends StatelessWidget {
   /// Border color. Default matches theme; gold for premium users.
   final Color? borderColor;
 
-  /// Whether to show a purple glow effect. Default false.
+  /// Whether to show an orange glow effect. Default false.
   final bool showGlow;
 
   /// Background color when no image is provided.
@@ -738,7 +748,7 @@ class DKSearchField extends StatelessWidget {
   /// Optional text controller.
   final TextEditingController? controller;
 
-  /// Whether to use a blue-to-purple gradient background (dark explore screen).
+  /// Whether to use a blue-to-amber gradient background (dark explore screen).
   /// Default false.
   final bool useGradient;
 
@@ -925,9 +935,9 @@ class DKNavItem {
 
 /// 5-tab bottom navigation bar with theme-aware styling.
 ///
-/// Dark mode: semi-transparent background with blur, purple active,
+/// Dark mode: semi-transparent background with blur, orange active,
 /// gold highlight.
-/// Light mode: white background, purple active.
+/// Light mode: white background, orange active.
 /// Height: 64px, rounded top corners.
 ///
 /// ```dart
@@ -1007,8 +1017,8 @@ class DKBottomNav extends StatelessWidget {
         final item = items[index];
         final isSelected = index == currentIndex;
         final activeColor = isLight
-            ? DKColors.brandPurple
-            : DKColors.brandPurple;
+            ? DKColors.brandOrange       // #E8612A — orange active
+            : DKColors.brandOrange;      // #E8612A — orange active
         final inactiveColor = isLight
             ? DKColors.textSecondaryDark
             : DKColors.textSecondaryLight;
@@ -1095,7 +1105,7 @@ class _DKNavItemWidget extends StatelessWidget {
                   width: 16,
                   height: 2,
                   decoration: BoxDecoration(
-                    color: isLight ? DKColors.brandPurple : DKColors.brandGold,
+                    color: isLight ? DKColors.brandOrange : DKColors.brandGold,
                     borderRadius: BorderRadius.circular(1),
                   ),
                 ),
@@ -1114,9 +1124,9 @@ class _DKNavItemWidget extends StatelessWidget {
 
 /// Chat message bubble for user and AI messages.
 ///
-/// User (right): purple background, white text, rounded rect
+/// User (right): orange background, white text, rounded rect
 /// with bottom-right corner cut.
-/// AI (left): lavender background in light / dark with purple
+/// AI (left): warm background in light / dark with orange
 /// border in dark, with bottom-left corner cut.
 ///
 /// ```dart
@@ -1169,10 +1179,10 @@ class DKChatBubble extends StatelessWidget {
       );
     } else {
       bg = isLight
-          ? const Color(0xFFE6D5F5) // lavender
+          ? const Color(0xFFFDE8DB) // warm peach (was lavender)
           : const Color(0xFF2A2A2A);
       fg = isLight ? DKColors.textDark : Colors.white;
-      border = isLight ? null : DKColors.brandPurple.withValues(alpha: 0.3);
+      border = isLight ? null : DKColors.brandOrange.withValues(alpha: 0.3);
       borderRadius = const BorderRadius.only(
         topLeft: Radius.circular(KinrelRadius.lg),
         topRight: Radius.circular(KinrelRadius.lg),
@@ -1309,7 +1319,7 @@ class DKBadge extends StatelessWidget {
 
 /// Chat suggestion pill chip.
 ///
-/// Rounded pill with themed background, purple border when selected.
+/// Rounded pill with themed background, orange border when selected.
 ///
 /// ```dart
 /// DKSuggestionChip(
@@ -1386,7 +1396,7 @@ class DKSuggestionChip extends StatelessWidget {
 
 /// Pill-style tab selector for AI chat and similar contexts.
 ///
-/// Purple active pill with transparent inactive state.
+/// Orange active pill with transparent inactive state.
 ///
 /// ```dart
 /// DKTabToggle(

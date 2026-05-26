@@ -9,7 +9,7 @@
 //   4. Alerts    → /home (placeholder until alerts feature is built)
 //   5. Me        → /profile
 //
-// Uses DKBottomNav with semi-transparent background, purple active,
+// Uses DKBottomNav with semi-transparent background, orange active,
 // gold indicator, badge support on Alerts tab.
 
 import 'package:flutter/material.dart';

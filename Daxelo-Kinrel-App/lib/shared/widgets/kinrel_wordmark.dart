@@ -18,10 +18,10 @@ import '../../core/constants/brand_typography.dart';
 
 /// Wordmark variant styles.
 enum WordmarkVariant {
-  /// White → purple gradient (hero / splash screens)
+  /// White → orange → amber gradient (hero / splash screens)
   gradient,
 
-  /// Flat #5D5FEF purple
+  /// Flat #E8612A orange (backward-compat name)
   solidPurple,
 
   /// Flat white (#F5F0EE)

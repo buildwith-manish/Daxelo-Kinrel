@@ -97,7 +97,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
     final quizState = ref.watch(quizStateProvider);
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: KinrelColors.darkBackground,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,

@@ -7,7 +7,7 @@
 // Next.js KinrelIcon component.
 //
 // Features:
-//   - 4 palettes: purple, light, mono, outline
+//   - 4 palettes: purple (orange values), light, mono, outline
 //   - Mini mode (≤24px): simplified 3-stroke K
 //   - Gradient fills, glow halos, specular highlights
 //   - Optional animation support
@@ -22,6 +22,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/brand_colors.dart';
 
 /// Palette variants for the KINREL icon.
+/// The 'purple' palette uses orange (#E8612A) / amber (#F59240) / ember (#C44A18).
 enum KinrelIconPalette { purple, light, mono, outline }
 
 /// Resolved palette colors for painting.
@@ -54,9 +55,9 @@ _PaletteColors _resolvePalette(KinrelIconPalette palette) {
       return const _PaletteColors(
         bg: KinrelColors.card,
         bgInner: Color(0xFF23263E),
-        primary: KinrelColors.purple,
-        secondary: KinrelColors.amber,
-        accent: KinrelColors.ember,
+        primary: KinrelColors.orange,       // #E8612A — Kinrel Orange
+        secondary: KinrelColors.amber,      // #F59240 — Warm Amber
+        accent: KinrelColors.ember,         // #C44A18 — Burnt Ember
         showBg: true,
         showGlow: true,
         isOutline: false,
@@ -87,9 +88,9 @@ _PaletteColors _resolvePalette(KinrelIconPalette palette) {
       return const _PaletteColors(
         bg: Colors.transparent,
         bgInner: Colors.transparent,
-        primary: KinrelColors.purple,
-        secondary: KinrelColors.amber,
-        accent: KinrelColors.ember,
+        primary: KinrelColors.orange,       // #E8612A
+        secondary: KinrelColors.amber,      // #F59240
+        accent: KinrelColors.ember,         // #C44A18
         showBg: false,
         showGlow: false,
         isOutline: true,

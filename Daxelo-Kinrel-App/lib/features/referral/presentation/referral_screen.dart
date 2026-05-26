@@ -67,7 +67,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
     final rewardsAsync = ref.watch(rewardsProvider);
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: KinrelColors.darkBackground,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,

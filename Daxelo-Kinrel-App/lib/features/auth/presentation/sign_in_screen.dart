@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -8,7 +9,6 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/extensions/context_extensions.dart';
-import '../../../shared/widgets/dk_components.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
   SignInScreen({super.key});
@@ -23,6 +23,16 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+
+  // ── Design tokens (orange brand) ────────────────────────────────
+  static const _bgColor = Color(0xFF13141E);
+  static const _inputFill = Color(0xFF202338);
+  static const _hintColor = Color(0xFFC9B4A8);
+  static const _focusBorder = Color(0xFFE8612A);
+  static const _primaryText = Color(0xFFF5F0EE);
+  static const _secondaryText = Color(0xFFC9B4A8);
+  static const _errorColor = Color(0xFFF04E2A);
+  static const _socialBorder = Color(0x1AFFFFFF);
 
   @override
   void dispose() {
@@ -86,28 +96,58 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     }
   }
 
+  // ── Reusable input decoration ──────────────────────────────────
+  InputDecoration _inputDecoration({
+    required String hintText,
+    IconData? prefixIcon,
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      hintText: hintText,
+      hintStyle: TextStyle(
+        color: _hintColor,
+        fontFamily: KinrelTypography.bodyFont,
+        fontSize: 14,
+      ),
+      prefixIcon: prefixIcon != null
+          ? Icon(prefixIcon, color: _hintColor, size: 20)
+          : null,
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: _inputFill,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: _focusBorder, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: _errorColor, width: 1),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: _errorColor, width: 1.5),
+      ),
+      errorStyle: TextStyle(
+        color: _errorColor,
+        fontFamily: KinrelTypography.bodyFont,
+        fontSize: 12,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isLight = DKColors.isLight(context);
-
-    // Theme-aware colors
-    final bgColor = isLight ? KinrelColors.lightBackground : KinrelColors.darkBackground;
-    final cardColor = isLight ? KinrelColors.lightCard : KinrelColors.darkCard;
-    final inputFillColor = isLight
-        ? KinrelColors.lightElevated
-        : KinrelColors.darkElevated.withValues(alpha: 0.6);
-    final inputBorderColor = isLight
-        ? KinrelColors.lightBorder
-        : Color(0xFF3A3A4A);
-    final textColor = isLight ? KinrelColors.textDark : KinrelColors.textWhite;
-    final secondaryColor = isLight
-        ? KinrelColors.textSecondaryLight
-        : KinrelColors.textSilver;
-    final accentColor = isLight ? KinrelColors.purple : KinrelColors.coral;
-    final buttonColor = isLight ? KinrelColors.purple : KinrelColors.deepPurple;
-
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: _bgColor,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -121,342 +161,272 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ── Decorative top illustration (dark mode only) ────
-                  if (!isLight)
-                    Container(
-                      height: 120,
-                      decoration: BoxDecoration(
-                        gradient: KinrelGradients.splashGradient,
-                        borderRadius: BorderRadius.vertical(
-                          bottom: Radius.elliptical(
-                            MediaQuery.of(context).size.width,
-                            80,
+                  // ── K-graph icon + KINREL wordmark ───────────────
+                  Column(
+                    children: [
+                      SizedBox(
+                        width: KinrelSpacing.logoLg,
+                        height: KinrelSpacing.logoLg,
+                        child: SvgPicture.asset(
+                          'assets/icons/kinrel-icon-primary.svg',
+                          width: KinrelSpacing.logoLg,
+                          height: KinrelSpacing.logoLg,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ShaderMask(
+                        shaderCallback: (bounds) =>
+                            KinrelGradients.wordmarkGradient.createShader(bounds),
+                        child: Text(
+                          'KINREL',
+                          style: KinrelTypography.appName.copyWith(
+                            fontSize: 28,
+                            letterSpacing: 3.92, // 28 * 0.14
+                            color: Colors.white, // base for ShaderMask
                           ),
                         ),
                       ),
-                    ),
-
-                  // ── Welcome text ────────────────────────────────────
-                  SizedBox(height: 32),
-                  Text(
-                    'Welcome Back!',
-                    textAlign: TextAlign.center,
-                    style: KinrelTypography.displayLarge.copyWith(
-                      color: textColor,
-                    ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Welcome back',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 15,
+                          color: _secondaryText,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
                   ).animate().fadeIn(duration: 400.ms).slideY(
                         begin: 0.15,
                         end: 0,
                         duration: 500.ms,
                       ),
 
-                  SizedBox(height: 8),
+                  const SizedBox(height: 32),
 
-                  Text(
-                    'Sign in to continue to KinRel',
-                    textAlign: TextAlign.center,
+                  // ── Email / username field ───────────────────────
+                  TextFormField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    autocorrect: false,
+                    cursorColor: _focusBorder,
                     style: TextStyle(
+                      color: _primaryText,
                       fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 15,
-                      color: secondaryColor,
-                      height: 1.5,
+                      fontSize: 14,
                     ),
-                  ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
+                    decoration: _inputDecoration(
+                      hintText: 'Email or username',
+                      prefixIcon: Icons.email_outlined,
+                    ),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Email is required';
+                      if (!v.contains('@')) return 'Enter a valid email';
+                      return null;
+                    },
+                  ),
 
-                  SizedBox(height: 32),
+                  const SizedBox(height: 14),
 
-                  // ── Card containing form fields ─────────────────────
-                  DKCard(
-                    backgroundColor: cardColor,
-                    padding: KinrelSpacing.xl,
-                    radius: KinrelRadius.xxl,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // ── Email input ──────────────────────────────
-                        TextFormField(
-                          controller: _emailController,
-                          keyboardType: TextInputType.emailAddress,
-                          autocorrect: false,
-                          style: TextStyle(
-                            color: textColor,
-                            fontFamily: KinrelTypography.bodyFont,
-                            fontSize: 15,
-                          ),
-                          decoration: InputDecoration(
-                            labelText: 'Email',
-                            labelStyle: TextStyle(
-                              color: secondaryColor,
-                              fontFamily: KinrelTypography.bodyFont,
-                            ),
-                            prefixIcon: Icon(
-                              Icons.email_outlined,
-                              color: accentColor.withValues(alpha: 0.7),
-                              size: 20,
-                            ),
-                            filled: true,
-                            fillColor: inputFillColor,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                  KinrelRadius.input),
-                              borderSide: BorderSide.none,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                  KinrelRadius.input),
-                              borderSide: BorderSide(
-                                color: inputBorderColor,
-                                width: 0.5,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                  KinrelRadius.input),
-                              borderSide: BorderSide(
-                                color: accentColor,
-                                width: 1.5,
-                              ),
-                            ),
-                            errorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                  KinrelRadius.input),
-                              borderSide: BorderSide(
-                                color: KinrelColors.error,
-                                width: 1,
-                              ),
-                            ),
-                          ),
-                          validator: (v) {
-                            if (v == null || v.isEmpty) {
-                              return 'Email is required';
-                            }
-                            if (!v.contains('@')) return 'Enter a valid email';
-                            return null;
-                          },
+                  // ── Password field with show/hide toggle ─────────
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    cursorColor: _focusBorder,
+                    style: TextStyle(
+                      color: _primaryText,
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 14,
+                    ),
+                    decoration: _inputDecoration(
+                      hintText: 'Password',
+                      prefixIcon: Icons.lock_outline,
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          color: _hintColor,
+                          size: 20,
                         ),
+                        onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword),
+                      ),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Password is required';
+                      if (v.length < 6)
+                        return 'Password must be at least 6 characters';
+                      return null;
+                    },
+                  ),
 
-                        SizedBox(height: 16),
+                  const SizedBox(height: 8),
 
-                        // ── Password input ───────────────────────────
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: _obscurePassword,
-                          style: TextStyle(
-                            color: textColor,
-                            fontFamily: KinrelTypography.bodyFont,
-                            fontSize: 15,
-                          ),
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            labelStyle: TextStyle(
-                              color: secondaryColor,
-                              fontFamily: KinrelTypography.bodyFont,
-                            ),
-                            prefixIcon: Icon(
-                              Icons.lock_outline,
-                              color: accentColor.withValues(alpha: 0.7),
-                              size: 20,
-                            ),
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility_off_outlined
-                                    : Icons.visibility_outlined,
-                                color: secondaryColor,
-                                size: 20,
-                              ),
-                              onPressed: () => setState(
-                                  () => _obscurePassword = !_obscurePassword),
-                            ),
-                            filled: true,
-                            fillColor: inputFillColor,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                  KinrelRadius.input),
-                              borderSide: BorderSide.none,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                  KinrelRadius.input),
-                              borderSide: BorderSide(
-                                color: inputBorderColor,
-                                width: 0.5,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                  KinrelRadius.input),
-                              borderSide: BorderSide(
-                                color: accentColor,
-                                width: 1.5,
-                              ),
-                            ),
-                            errorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                  KinrelRadius.input),
-                              borderSide: BorderSide(
-                                color: KinrelColors.error,
-                                width: 1,
-                              ),
-                            ),
-                          ),
-                          validator: (v) {
-                            if (v == null || v.isEmpty) {
-                              return 'Password is required';
-                            }
-                            if (v.length < 6) return 'Password must be at least 6 characters';
-                            return null;
-                          },
+                  // ── Forgot Password link ─────────────────────────
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {
+                        // TODO: Navigate to forgot password
+                      },
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        'Forgot Password?',
+                        style: TextStyle(
+                          color: KinrelColors.orange,
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
                         ),
+                      ),
+                    ),
+                  ),
 
-                        SizedBox(height: 8),
+                  const SizedBox(height: 16),
 
-                        // ── Forgot Password ──────────────────────────
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () {
-                              // TODO: Navigate to forgot password
-                            },
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 4, vertical: 4),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: Text(
-                              'Forgot Password?',
-                              style: TextStyle(
-                                color: accentColor,
-                                fontFamily: KinrelTypography.bodyFont,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
+                  // ── Sign In button (Ignite gradient, 56px, pill) ─
+                  SizedBox(
+                    height: 56,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: _isLoading
+                            ? null
+                            : KinrelGradients.igniteGradient,
+                        color: _isLoading
+                            ? KinrelColors.orange.withValues(alpha: 0.5)
+                            : null,
+                        borderRadius:
+                            BorderRadius.circular(KinrelRadius.full),
+                        boxShadow: _isLoading
+                            ? null
+                            : [
+                                BoxShadow(
+                                  color: KinrelColors.orange
+                                      .withValues(alpha: 0.35),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                      ),
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _signIn,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: Colors.transparent,
+                          disabledForegroundColor:
+                              Colors.white.withValues(alpha: 0.6),
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(KinrelRadius.full),
                           ),
+                          elevation: 0,
                         ),
-
-                        SizedBox(height: 16),
-
-                        // ── Sign In button ───────────────────────────
-                        SizedBox(
-                          height: 52,
-                          child: ElevatedButton(
-                            onPressed: _isLoading ? null : _signIn,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: buttonColor,
-                              foregroundColor: Colors.white,
-                              disabledBackgroundColor:
-                                  buttonColor.withValues(alpha: 0.5),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                    KinrelRadius.button),
-                              ),
-                              elevation: 0,
-                            ),
-                            child: _isLoading
-                                ? Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      SizedBox(width: 12),
-                                      Text(
-                                        'Connecting...',
-                                        style: TextStyle(
-                                          fontFamily:
-                                              KinrelTypography.displayFont,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                : Text(
-                                    'Sign In',
-                                    style: TextStyle(
-                                      fontFamily: KinrelTypography.displayFont,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 16,
+                        child: _isLoading
+                            ? Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    height: 22,
+                                    width: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      color: Colors.white,
                                     ),
                                   ),
-                          ),
-                        ),
-                      ],
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Connecting...',
+                                    style: TextStyle(
+                                      fontFamily:
+                                          KinrelTypography.displayFont,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 16,
+                                      color: Colors.white
+                                          .withValues(alpha: 0.8),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Text(
+                                'Sign In',
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.displayFont,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
+                              ),
+                      ),
                     ),
                   ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
 
-                  SizedBox(height: 24),
+                  const SizedBox(height: 28),
 
-                  // ── "or" divider ───────────────────────────────────
+                  // ── "or continue with" divider ───────────────────
                   Row(
                     children: [
                       Expanded(
                         child: Container(
                           height: 1,
-                          color: inputBorderColor,
+                          color: const Color(0xFF2A2A3D),
                         ),
                       ),
                       Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
-                          'or',
+                          'or continue with',
                           style: TextStyle(
-                            color: secondaryColor,
+                            color: _secondaryText,
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 13,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w400,
                           ),
                         ),
                       ),
                       Expanded(
                         child: Container(
                           height: 1,
-                          color: inputBorderColor,
+                          color: const Color(0xFF2A2A3D),
                         ),
                       ),
                     ],
                   ).animate().fadeIn(duration: 300.ms, delay: 300.ms),
 
-                  SizedBox(height: 24),
+                  const SizedBox(height: 20),
 
-                  // ── Social login buttons ────────────────────────────
+                  // ── Google & Apple social auth buttons ────────────
                   Row(
                     children: [
                       // Google
                       Expanded(
-                        child: DKButton(
+                        child: _SocialAuthButton(
                           label: 'Google',
-                          variant: DKButtonVariant.secondary,
                           icon: Icons.g_mobiledata_rounded,
-                          size: DKButtonSize.md,
+                          borderColor: _socialBorder,
+                          fillColor: _inputFill,
+                          textColor: _primaryText,
                           onPressed: () {
                             // TODO: Google sign in
                           },
                         ),
                       ),
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       // Apple
                       Expanded(
-                        child: DKButton(
+                        child: _SocialAuthButton(
                           label: 'Apple',
-                          variant: DKButtonVariant.secondary,
                           icon: Icons.apple,
-                          size: DKButtonSize.md,
+                          borderColor: _socialBorder,
+                          fillColor: _inputFill,
+                          textColor: _primaryText,
                           onPressed: () {
                             // TODO: Apple sign in
                           },
@@ -465,46 +435,16 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ],
                   ).animate().fadeIn(duration: 300.ms, delay: 400.ms),
 
-                  SizedBox(height: 20),
+                  const SizedBox(height: 32),
 
-                  // ── Biometric options ──────────────────────────────
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Face ID
-                      _BiometricButton(
-                        icon: Icons.face_outlined,
-                        label: 'Face ID',
-                        borderColor: inputBorderColor,
-                        textColor: secondaryColor,
-                        onPressed: () {
-                          // TODO: Biometric auth
-                        },
-                      ),
-                      SizedBox(width: 24),
-                      // Fingerprint
-                      _BiometricButton(
-                        icon: Icons.fingerprint,
-                        label: 'Touch ID',
-                        borderColor: inputBorderColor,
-                        textColor: secondaryColor,
-                        onPressed: () {
-                          // TODO: Biometric auth
-                        },
-                      ),
-                    ],
-                  ).animate().fadeIn(duration: 300.ms, delay: 500.ms),
-
-                  SizedBox(height: 32),
-
-                  // ── Sign Up link ───────────────────────────────────
+                  // ── Don't have an account? Sign Up ───────────────
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         "Don't have an account? ",
                         style: TextStyle(
-                          color: secondaryColor,
+                          color: _secondaryText,
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 14,
                         ),
@@ -512,14 +452,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       TextButton(
                         onPressed: () => context.go('/sign-up'),
                         style: TextButton.styleFrom(
-                          padding: EdgeInsets.symmetric(horizontal: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         child: Text(
                           'Sign Up',
                           style: TextStyle(
-                            color: accentColor,
+                            color: KinrelColors.orange,
                             fontFamily: KinrelTypography.displayFont,
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
@@ -527,9 +467,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         ),
                       ),
                     ],
-                  ).animate().fadeIn(duration: 300.ms, delay: 600.ms),
+                  ).animate().fadeIn(duration: 300.ms, delay: 500.ms),
 
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
@@ -540,19 +480,21 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 }
 
-/// Circular biometric authentication button.
-class _BiometricButton extends StatelessWidget {
-  const _BiometricButton({
-    required this.icon,
+/// Social authentication button — #202338 bg, white 10% border, rounded.
+class _SocialAuthButton extends StatelessWidget {
+  const _SocialAuthButton({
     required this.label,
+    required this.icon,
     required this.borderColor,
+    required this.fillColor,
     required this.textColor,
     required this.onPressed,
   });
 
-  final IconData icon;
   final String label;
+  final IconData icon;
   final Color borderColor;
+  final Color fillColor;
   final Color textColor;
   final VoidCallback onPressed;
 
@@ -560,30 +502,29 @@ class _BiometricButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onPressed,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: borderColor, width: 1.5),
-              color: Colors.transparent,
+      child: Container(
+        height: 52,
+        decoration: BoxDecoration(
+          color: fillColor,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: borderColor, width: 1),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 22, color: textColor),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: textColor,
+              ),
             ),
-            child: Icon(icon, size: 28, color: textColor),
-          ),
-          SizedBox(height: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 11,
-              color: textColor,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

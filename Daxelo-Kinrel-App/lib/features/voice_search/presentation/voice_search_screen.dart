@@ -81,7 +81,7 @@ class _VoiceSearchScreenState extends ConsumerState<VoiceSearchScreen>
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
+          color: KinrelColors.darkBackground,
         ),
         child: SafeArea(
           child: Column(
@@ -211,11 +211,7 @@ class _IdleView extends StatelessWidget {
                   height: 120,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [KinrelColors.purple, KinrelColors.violet],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    gradient: KinrelGradients.igniteGradient,
                     boxShadow: [
                       BoxShadow(
                         color: KinrelColors.purpleGlow,

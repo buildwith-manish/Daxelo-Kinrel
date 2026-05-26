@@ -56,7 +56,7 @@ class KinrelLogo extends StatelessWidget {
     this.size = LogoSize.md,
     this.layout = LogoLayout.horizontal,
     this.showByDaxelo = false,
-    this.palette = KinrelIconPalette.purple,
+    this.palette = KinrelIconPalette.purple, // orange palette (backward-compat name)
     this.animated = false,
   });
 
@@ -69,7 +69,7 @@ class KinrelLogo extends StatelessWidget {
   /// Show "by Daxelo" subtitle below the wordmark. Default false.
   final bool showByDaxelo;
 
-  /// Icon palette variant. Default orange.
+  /// Icon palette variant. Default [KinrelIconPalette.purple] (orange values).
   final KinrelIconPalette palette;
 
   /// Whether to animate the icon. Default false.

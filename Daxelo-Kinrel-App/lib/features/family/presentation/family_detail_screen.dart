@@ -44,7 +44,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
   @override
   Widget build(BuildContext context) {
     final detailAsync = ref.watch(familyDetailProvider(widget.familyId));
-    const primaryColor = DKColors.brandPurple;
+    const primaryColor = KinrelColors.purple;
 
     return DKScaffold(
       appBar: AppBar(
@@ -90,7 +90,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         bottom: TabBar(
           controller: _tabController,
           labelColor: primaryColor,
-          unselectedLabelColor: DKColors.textSecondary(context),
+          unselectedLabelColor: KinrelColors.textSilver,
           indicatorColor: primaryColor,
           indicatorSize: TabBarIndicatorSize.label,
           labelStyle: const TextStyle(
@@ -256,7 +256,7 @@ class _GraphTab extends ConsumerWidget {
   void _showQuickActions(BuildContext context, WidgetRef ref, Person person) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: DKColors.cardColor(context),
+      backgroundColor: KinrelColors.darkCard,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.bottomSheet),
@@ -284,7 +284,7 @@ class _GraphTab extends ConsumerWidget {
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: DKColors.textPrimary(context),
+                        color: KinrelColors.textWhite,
                       ),
                     ),
                   ),
@@ -292,7 +292,7 @@ class _GraphTab extends ConsumerWidget {
               ),
             ),
             Divider(
-                color: DKColors.borderColor(context), height: 1),
+                color: KinrelColors.border, height: 1),
             _QuickActionTile(
               icon: Icons.edit_outlined,
               label: 'Edit',
@@ -432,13 +432,13 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
               const SizedBox(width: 8),
               Container(
                 decoration: BoxDecoration(
-                  color: DKColors.elevatedColor(context),
+                  color: KinrelColors.darkElevated,
                   borderRadius:
                       BorderRadius.circular(KinrelSpacing.radiusMd),
                 ),
                 child: PopupMenuButton<String>(
                   icon: Icon(Icons.sort,
-                      color: DKColors.textSecondary(context)),
+                      color: KinrelColors.textSilver),
                   onSelected: (value) => setState(() => _sortBy = value),
                   itemBuilder: (ctx) => [
                     PopupMenuItem(
@@ -448,16 +448,16 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                           Icon(Icons.sort_by_alpha,
                               size: 18,
                               color: _sortBy == 'name'
-                                  ? DKColors.brandPurple
-                                  : DKColors.textSecondary(context)),
+                                  ? KinrelColors.purple
+                                  : KinrelColors.textSilver),
                           const SizedBox(width: 8),
                           Text(
                             'Sort by Name',
                             style: TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               color: _sortBy == 'name'
-                                  ? DKColors.brandPurple
-                                  : DKColors.textPrimary(context),
+                                  ? KinrelColors.purple
+                                  : KinrelColors.textWhite,
                             ),
                           ),
                         ],
@@ -470,16 +470,16 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                           Icon(Icons.family_restroom,
                               size: 18,
                               color: _sortBy == 'generation'
-                                  ? DKColors.brandPurple
-                                  : DKColors.textSecondary(context)),
+                                  ? KinrelColors.purple
+                                  : KinrelColors.textSilver),
                           const SizedBox(width: 8),
                           Text(
                             'Sort by Relationship',
                             style: TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               color: _sortBy == 'generation'
-                                  ? DKColors.brandPurple
-                                  : DKColors.textPrimary(context),
+                                  ? KinrelColors.purple
+                                  : KinrelColors.textWhite,
                             ),
                           ),
                         ],
@@ -503,14 +503,14 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                 icon: Icons.people,
                 value: '${filtered.length}',
                 label: filtered.length == 1 ? 'member' : 'members',
-                color: DKColors.brandPurple,
+                color: KinrelColors.purple,
               ),
               const SizedBox(width: 10),
               DKStatChip(
                 icon: Icons.link,
                 value: '${widget.detail.relationships.length}',
                 label: widget.detail.relationships.length == 1 ? 'link' : 'links',
-                color: DKColors.brandGold,
+                color: KinrelColors.gold,
               ),
             ],
           ),
@@ -709,15 +709,12 @@ class _ToolbarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLight = DKColors.isLight(context);
     return Container(
       decoration: BoxDecoration(
-        color: isLight
-            ? Colors.white.withValues(alpha: 0.9)
-            : DKColors.darkBg.withValues(alpha: 0.85),
+        color: KinrelColors.darkBackground.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
         border: Border.all(
-          color: DKColors.brandPurple.withValues(alpha: 0.2),
+          color: KinrelColors.purple.withValues(alpha: 0.2),
         ),
         boxShadow: [
           BoxShadow(
@@ -728,7 +725,7 @@ class _ToolbarButton extends StatelessWidget {
         ],
       ),
       child: IconButton(
-        icon: Icon(icon, color: DKColors.brandPurple, size: 20),
+        icon: Icon(icon, color: KinrelColors.purple, size: 20),
         tooltip: tooltip,
         onPressed: onTap,
       ),
@@ -753,7 +750,7 @@ class _QuickActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color =
-        isDestructive ? DKColors.brandCoral : DKColors.textSecondary(context);
+        isDestructive ? KinrelColors.coral : KinrelColors.textSilver;
     return ListTile(
       leading: Icon(icon, color: color, size: 20),
       title: Text(
@@ -762,8 +759,8 @@ class _QuickActionTile extends StatelessWidget {
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 14,
           color: isDestructive
-              ? DKColors.brandCoral
-              : DKColors.textPrimary(context),
+              ? KinrelColors.coral
+              : KinrelColors.textWhite,
         ),
       ),
       onTap: onTap,
@@ -797,8 +794,8 @@ class _MemberCard extends StatelessWidget {
 
     return DKCard(
       borderColor: person.isDeceased
-          ? DKColors.borderColor(context)
-          : DKColors.brandPurple.withValues(alpha: 0.15),
+          ? KinrelColors.border
+          : KinrelColors.purple.withValues(alpha: 0.15),
       onTap: onTap,
       padding: 12,
       child: Row(
@@ -810,8 +807,8 @@ class _MemberCard extends StatelessWidget {
                 : '?',
             size: DKAvatarSize.md,
             backgroundColor: person.isDeceased
-                ? DKColors.textSecondary(context).withValues(alpha: 0.3)
-                : DKColors.brandPurple,
+                ? KinrelColors.textSilver.withValues(alpha: 0.3)
+                : KinrelColors.purple,
           ),
           SizedBox(width: 12),
 
@@ -827,8 +824,8 @@ class _MemberCard extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: person.isDeceased
-                        ? DKColors.textSecondary(context)
-                        : DKColors.textPrimary(context),
+                        ? KinrelColors.textSilver
+                        : KinrelColors.textWhite,
                   ),
                 ),
                 if (person.gender != null) ...[
@@ -838,7 +835,7 @@ class _MemberCard extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
-                      color: DKColors.brandPurple,
+                      color: KinrelColors.purple,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -871,7 +868,7 @@ class _MemberCard extends StatelessWidget {
                         ? Icons.male
                         : Icons.person,
                 size: 16,
-                color: DKColors.textSecondary(context),
+                color: KinrelColors.textSilver,
               ),
               if (person.isDeceased)
                 Text(
@@ -879,7 +876,7 @@ class _MemberCard extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 9,
-                    color: DKColors.textSecondary(context),
+                    color: KinrelColors.textSilver,
                   ),
                 ),
             ],
@@ -929,9 +926,9 @@ class _ActivityTile extends StatelessWidget {
     };
 
     final iconColor = switch (activity.type) {
-      _ActivityType.memberAdded => DKColors.brandPurple,
-      _ActivityType.link => DKColors.brandGold,
-      _ActivityType.edit => DKColors.brandViolet,
+      _ActivityType.memberAdded => KinrelColors.purple,
+      _ActivityType.link => KinrelColors.gold,
+      _ActivityType.edit => KinrelColors.brightViolet,
     };
 
     final timeAgo = _formatTimeAgo(activity.timestamp);
@@ -959,7 +956,7 @@ class _ActivityTile extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
-                    color: DKColors.textPrimary(context),
+                    color: KinrelColors.textWhite,
                   ),
                 ),
                 if (timeAgo != null) ...[
@@ -969,7 +966,7 @@ class _ActivityTile extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
-                      color: DKColors.textSecondary(context),
+                      color: KinrelColors.textSilver,
                     ),
                   ),
                 ],

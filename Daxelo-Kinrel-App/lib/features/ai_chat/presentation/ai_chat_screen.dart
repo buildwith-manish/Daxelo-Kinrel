@@ -55,7 +55,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
     final suggestionsAsync = ref.watch(aiChatSuggestionsProvider);
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: KinrelColors.darkBackground,
       appBar: AppBar(
         backgroundColor: KinrelColors.darkCard,
         elevation: 0,
@@ -834,7 +834,7 @@ class _InputBar extends StatelessWidget {
                   gradient: isLoading
                       ? null
                       : const LinearGradient(
-                          colors: [KinrelColors.purple, KinrelColors.violet],
+                          colors: [KinrelColors.purple, KinrelColors.brightViolet],
                         ),
                   color: isLoading
                       ? KinrelColors.darkSurface
