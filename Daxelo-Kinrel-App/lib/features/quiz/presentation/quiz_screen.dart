@@ -1094,15 +1094,16 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
 // ── Animation wrapper ────────────────────────────────────────────────
 
 class _AnimSection extends StatelessWidget {
-  final Animation<double> fade;
-  final Animation<Offset> slide;
-  final Widget child;
-
   const _AnimSection({
     required this.fade,
     required this.slide,
     required this.child,
   });
+
+  final Animation<double> fade;
+  final Animation<Offset> slide;
+  final Widget child;
+
 
   @override
   Widget build(BuildContext context) => FadeTransition(
@@ -1112,10 +1113,11 @@ class _AnimSection extends StatelessWidget {
 // ── PressDown feedback ───────────────────────────────────────────────
 
 class _PressDown extends StatefulWidget {
+  const _PressDown({required this.child, required this.onTap});
+
   final Widget child;
   final VoidCallback onTap;
 
-  const _PressDown({required this.child, required this.onTap});
 
   @override
   State<_PressDown> createState() => _PressDownState();
