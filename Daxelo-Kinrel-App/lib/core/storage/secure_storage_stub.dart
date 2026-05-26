@@ -1,6 +1,7 @@
 /// Web/Stub backend for SecureStorageService
 /// Uses SharedPreferences (which maps to localStorage on web)
 /// This file is used when dart.library.io is NOT available (i.e., web)
+library;
 
 import 'package:shared_preferences/shared_preferences.dart';
 
