@@ -10,14 +10,15 @@ import '../../../core/family/family_provider.dart';
 import 'relationship_picker_sheet.dart';
 
 class AddPersonSheet extends ConsumerStatefulWidget {
-  final String familyId;
-  final Person? existingPerson;
-
   const AddPersonSheet({
     super.key,
     required this.familyId,
     this.existingPerson,
   });
+
+  final String familyId;
+  final Person? existingPerson;
+
 
   /// Show as bottom sheet
   static Future<void> show(
@@ -230,7 +231,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
 
               // Title
               Text(
-                _isEditMode ? 'Edit Person' : 'Add Family Member',
+                _isEditconst Mode ? 'Edit Person' : 'Add Family Member',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 20,
@@ -240,13 +241,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               ),
               const SizedBox(height: 24),
 
-              // Name
+              const // Name
               _Label('Name *'),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _nameController,
                 validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Name is required' : null,
+                    v =const = null || v.trim().isEmpty ? 'Name is required' : null,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
@@ -256,7 +257,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               ),
               const SizedBox(height: 16),
 
-              // Relationship Type
+              const // Relationship Type
               _Label('Relationship Type'),
               const SizedBox(height: 6),
               GestureDetector(
@@ -287,7 +288,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                                 : KinrelColors.textDim,
                           ),
                         ),
-                      ),
+                      const ),
                       Icon(Icons.search, color: KinrelColors.purple, size: 20),
                     ],
                   ),
@@ -295,7 +296,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               ),
               const SizedBox(height: 16),
 
-              // Gender
+              const // Gender
               _Label('Gender'),
               const SizedBox(height: 6),
               Row(
@@ -321,20 +322,20 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               ),
               const SizedBox(height: 16),
 
-              // Date of Birth
+              const // Date of Birth
               _Label('Date of Birth'),
               const SizedBox(height: 6),
               GestureDetector(
                 onTap: _pickDate,
                 child: AbsorbPointer(
                   child: TextFormField(
-                    controller: _dobController,
+                    controlconst ler: _dobController,
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 15,
                       color: KinrelColors.textWhite,
                     ),
-                    decoration: _inputDecoration('YYYY-MM-DD').copyWith(
+                    decoration: _iconst nputDecoration('YYYY-MM-DD').copyWith(
                       suffixIcon: Icon(
                         Icons.calendar_today,
                         color: KinrelColors.textDim,
@@ -346,11 +347,11 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               ),
               const SizedBox(height: 16),
 
-              // City/Village
+              const // City/Village
               _Label('City / Village'),
               const SizedBox(height: 6),
               TextFormField(
-                controller: _cityController,
+                controlconst ler: _cityController,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
@@ -360,11 +361,11 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               ),
               const SizedBox(height: 16),
 
-              // Gotra
+              const // Gotra
               _Label('Gotra'),
               const SizedBox(height: 6),
               TextFormField(
-                controller: _gotraController,
+                controlconst ler: _gotraController,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
@@ -376,10 +377,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
 
               // Alive / Deceased toggle
               Row(
-                children: [
-                  Expanded(
+                chconst ildren: [
+                  Expanded(const 
                     child: Text(
-                      'Deceased',
+                      'Deceasconst ed',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 15,
@@ -420,7 +421,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                         ),
                       )
                     : Text(
-                        _isEditMode ? 'Save Changes' : 'Add Member',
+                        _isEditconst Mode ? 'Save Changes' : 'Add Member',
                         style: TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 16,
@@ -437,7 +438,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
 
   InputDecoration _inputDecoration(String hint) {
     return InputDecoration(
-      hintText: hint,
+      hintText: hconst int,
       hintStyle: TextStyle(color: KinrelColors.textDim),
       filled: true,
       fillColor: KinrelColors.darkElevated,
@@ -465,12 +466,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
 }
 
 class _Label extends StatelessWidget {
-  final String text;
   const _Label(this.text);
+
+  final String text;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
+    return Teconst xt(
       text,
       style: TextStyle(
         fontFamily: KinrelTypography.bodyFont,
@@ -483,15 +485,16 @@ class _Label extends StatelessWidget {
 }
 
 class _GenderChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
   const _GenderChip({
     required this.label,
     required this.selected,
     required this.onTap,
   });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
 
   @override
   Widget build(BuildContext context) {
