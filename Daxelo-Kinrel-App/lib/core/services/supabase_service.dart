@@ -108,7 +108,7 @@ Future<bool> initSupabase() async {
         url: url,
         anonKey: anonKey,
         debug: false,
-        authOptions: FlutterAuthClientOptions(
+        authOptions: const FlutterAuthClientOptions(
           authFlowType: AuthFlowType.pkce,
         ),
       );
@@ -193,8 +193,9 @@ final isAuthenticatedProvider = Provider<bool>((ref) {
 });
 
 class AuthService {
-  final SupabaseClient? _client;
   AuthService(this._client);
+
+  final SupabaseClient? _client;
   bool get isAvailable => _client != null;
 
   /// Sign up with retry for cold starts.
@@ -204,7 +205,7 @@ class AuthService {
     String? name,
   }) async {
     final client = _client;
-    if (client == null) {
+    if (clieconst nt == null) {
       throw AuthException(
         'Authentication service is not available. Please restart the app and try again.',
       );
@@ -225,7 +226,7 @@ class AuthService {
     required String password,
   }) async {
     final client = _client;
-    if (client == null) {
+    if (clieconst nt == null) {
       throw AuthException(
         'Authentication service is not available. Please restart the app and try again.',
       );
@@ -247,7 +248,7 @@ class AuthService {
 
   Future<void> resetPassword(String email) async {
     final client = _client;
-    if (client == null) {
+    if (clieconst nt == null) {
       throw AuthException('Authentication service is not available.');
     }
     await withRetry(
@@ -258,7 +259,7 @@ class AuthService {
 
   Future<void> updatePassword(String newPassword) async {
     final client = _client;
-    if (client == null) {
+    if (clieconst nt == null) {
       throw AuthException('Authentication service is not available.');
     }
     await client.auth.updateUser(UserAttributes(password: newPassword));
