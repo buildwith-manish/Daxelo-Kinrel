@@ -6,18 +6,6 @@ import '../../../core/constants/supported_languages.dart';
 // ── State Models ────────────────────────────────────────────────
 
 class FestivalTemplate {
-  final String name;
-  final String icon;
-  final String colorTheme;
-  final List<String> defaultMessageTemplates;
-
-  const FestivalTemplate({
-    required this.name,
-    required this.icon,
-    required this.colorTheme,
-    required this.defaultMessageTemplates,
-  });
-
   factory FestivalTemplate.fromJson(Map<String, dynamic> json) {
     return FestivalTemplate(
       name: json['name'] as String? ?? '',
@@ -30,22 +18,24 @@ class FestivalTemplate {
           [],
     );
   }
+
+  final String name;
+  final String icon;
+  final String colorTheme;
+  final List<String> defaultMessageTemplates;
+
+  const FestivalTemplate({
+    required this.name,
+    required this.icon,
+    required this.colorTheme,
+    required this.defaultMessageTemplates,
+  });
+
 }
 
 enum CardStyle { traditional, modern, elegant }
 
 class FestivalCardsState {
-  final bool isGenerating;
-  final String? imageBase64;
-  final String? festival;
-  final String? kinshipTerm;
-  final String? error;
-  final FestivalTemplate? selectedFestival;
-  final SupportedLanguage selectedLanguage;
-  final CardStyle selectedStyle;
-  final String kinshipTermInput;
-  final String relationshipKeyInput;
-
   const FestivalCardsState({
     this.isGenerating = false,
     this.imageBase64,
@@ -58,6 +48,18 @@ class FestivalCardsState {
     this.kinshipTermInput = '',
     this.relationshipKeyInput = '',
   });
+
+  final bool isGenerating;
+  final String? imageBase64;
+  final String? festival;
+  final String? kinshipTerm;
+  final String? error;
+  final FestivalTemplate? selectedFestival;
+  final SupportedLanguage selectedLanguage;
+  final CardStyle selectedStyle;
+  final String kinshipTermInput;
+  final String relationshipKeyInput;
+
 
   FestivalCardsState copyWith({
     bool? isGenerating,
@@ -108,9 +110,10 @@ final festivalTemplatesProvider =
 
 /// Festival cards state notifier
 class FestivalCardsNotifier extends StateNotifier<FestivalCardsState> {
+  FestivalCardsNotifier(this._dio) : super(const FestivalCardsState());
+
   final Dio _dio;
 
-  FestivalCardsNotifier(this._dio) : super(const FestivalCardsState());
 
   /// Select a festival
   void selectFestival(FestivalTemplate? template) {
