@@ -6,13 +6,6 @@ import '../../../core/constants/supported_languages.dart';
 // ── State Models ────────────────────────────────────────────────
 
 class VoiceSearchState {
-  final bool isRecording;
-  final bool isLoading;
-  final String? transcription;
-  final List<KinshipVoiceResult>? results;
-  final String? error;
-  final SupportedLanguage selectedLanguage;
-
   const VoiceSearchState({
     this.isRecording = false,
     this.isLoading = false,
@@ -21,6 +14,14 @@ class VoiceSearchState {
     this.error,
     this.selectedLanguage = SupportedLanguage.hindi,
   });
+
+  final bool isRecording;
+  final bool isLoading;
+  final String? transcription;
+  final List<KinshipVoiceResult>? results;
+  final String? error;
+  final SupportedLanguage selectedLanguage;
+
 
   VoiceSearchState copyWith({
     bool? isRecording,
@@ -42,6 +43,22 @@ class VoiceSearchState {
 }
 
 class KinshipVoiceResult {
+  factory KinshipVoiceResult.fromJson(Map<String, dynamic> json) {
+    return KinshipVoiceResult(
+      relationshipKey: json['relationshipKey'] as String? ?? '',
+      englishTerm: json['englishTerm'] as String? ?? '',
+      gender: json['gender'] as String? ?? '',
+      lineage: json['lineage'] as String? ?? '',
+      generation: json['generation']?.toString() ?? '',
+      relationshipCategory: json['relationshipCategory'] as String? ?? '',
+      searchKeywords: (json['searchKeywords'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      translations: (json['translations'] as Map<String, dynamic>?) ?? {},
+    );
+  }
+
   final String relationshipKey;
   final String englishTerm;
   final String gender;
@@ -62,24 +79,16 @@ class KinshipVoiceResult {
     required this.translations,
   });
 
-  factory KinshipVoiceResult.fromJson(Map<String, dynamic> json) {
-    return KinshipVoiceResult(
-      relationshipKey: json['relationshipKey'] as String? ?? '',
-      englishTerm: json['englishTerm'] as String? ?? '',
-      gender: json['gender'] as String? ?? '',
-      lineage: json['lineage'] as String? ?? '',
-      generation: json['generation']?.toString() ?? '',
-      relationshipCategory: json['relationshipCategory'] as String? ?? '',
-      searchKeywords: (json['searchKeywords'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [],
-      translations: (json['translations'] as Map<String, dynamic>?) ?? {},
-    );
-  }
 }
 
 class VoiceLookupResult {
+  factory VoiceLookupResult.fromJson(Map<String, dynamic> json) {
+    return VoiceLookupResult(
+      transcription: json['transcription'] as String? ?? '',
+      term: (json['term'] as Map<String, dynamic>?) ?? {},
+    );
+  }
+
   final String transcription;
   final Map<String, dynamic> term;
 
@@ -88,21 +97,16 @@ class VoiceLookupResult {
     required this.term,
   });
 
-  factory VoiceLookupResult.fromJson(Map<String, dynamic> json) {
-    return VoiceLookupResult(
-      transcription: json['transcription'] as String? ?? '',
-      term: (json['term'] as Map<String, dynamic>?) ?? {},
-    );
-  }
 }
 
 // ── Providers ───────────────────────────────────────────────────
 
 /// Voice search state notifier
 class VoiceSearchNotifier extends StateNotifier<VoiceSearchState> {
+  VoiceSearchNotifier(this._dio) : super(const VoiceSearchState());
+
   final Dio _dio;
 
-  VoiceSearchNotifier(this._dio) : super(const VoiceSearchState());
 
   /// Set recording state
   void setRecording(bool isRecording) {
