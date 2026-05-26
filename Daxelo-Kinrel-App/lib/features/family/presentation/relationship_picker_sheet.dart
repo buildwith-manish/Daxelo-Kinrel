@@ -237,7 +237,7 @@ class _RelationshipPickerSheetState
                 hintText: 'Search kinship terms...',
                 hintStyle: TextStyle(color: KinrelColors.textDim),
                 prefixIcon:
-                    Icon(Icons.search, color: KinrelColors.orange, size: 20),
+                    Icon(Icons.search, color: KinrelColors.purple, size: 20),
                 suffixIcon: _query.isNotEmpty
                     ? IconButton(
                         icon: Icon(Icons.clear,
@@ -365,7 +365,7 @@ class _RelationshipPickerSheetState
 
     return searchAsync.when(
       loading: () => const Center(
-        child: CircularProgressIndicator(color: KinrelColors.orange),
+        child: CircularProgressIndicator(color: KinrelColors.purple),
       ),
       error: (e, _) => Center(
         child: Column(
@@ -456,7 +456,7 @@ class _QuickChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: KinrelColors.orange.withValues(alpha: 0.12),
+      color: KinrelColors.purple.withValues(alpha: 0.12),
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
@@ -466,7 +466,7 @@ class _QuickChip extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: KinrelColors.orange.withValues(alpha: 0.3),
+              color: KinrelColors.purple.withValues(alpha: 0.3),
             ),
           ),
           child: Text(
@@ -475,7 +475,7 @@ class _QuickChip extends StatelessWidget {
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: KinrelColors.orange,
+              color: KinrelColors.purple,
             ),
           ),
         ),
@@ -558,7 +558,7 @@ class _SuggestionChip extends StatelessWidget {
   Color _lineageColor(String lineage) {
     switch (lineage.toLowerCase()) {
       case 'paternal':
-        return KinrelColors.orange;
+        return KinrelColors.purple;
       case 'maternal':
         return KinrelColors.amber;
       case 'marital':
@@ -583,7 +583,7 @@ class _SectionHeader extends StatelessWidget {
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: KinrelColors.orange,
+          color: KinrelColors.gold,
           letterSpacing: 1,
         ),
       ),
@@ -735,7 +735,7 @@ class _ContextualRelationshipTile extends StatelessWidget {
       case 'female':
         return KinrelColors.holiPink.withValues(alpha: 0.1);
       default:
-        return KinrelColors.orange.withValues(alpha: 0.1);
+        return KinrelColors.purple.withValues(alpha: 0.1);
     }
   }
 
@@ -746,7 +746,7 @@ class _ContextualRelationshipTile extends StatelessWidget {
       case 'female':
         return KinrelColors.holiPink;
       default:
-        return KinrelColors.orange;
+        return KinrelColors.purple;
     }
   }
 
@@ -764,7 +764,7 @@ class _ContextualRelationshipTile extends StatelessWidget {
   Color _lineageColor(String lineage) {
     switch (lineage.toLowerCase()) {
       case 'paternal':
-        return KinrelColors.orange;
+        return KinrelColors.purple;
       case 'maternal':
         return KinrelColors.amber;
       case 'marital':

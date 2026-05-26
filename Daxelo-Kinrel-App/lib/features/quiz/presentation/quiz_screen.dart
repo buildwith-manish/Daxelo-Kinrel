@@ -226,7 +226,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                 min: 3,
                 max: 15,
                 divisions: 12,
-                activeColor: KinrelColors.orange,
+                activeColor: KinrelColors.purple,
                 inactiveColor: KinrelColors.darkSurface,
                 onChanged: (v) => setState(() => _questionCount = v.round()),
               ),
@@ -252,10 +252,10 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
         gradient: const LinearGradient(
           colors: [Color(0xFF1E1508), KinrelColors.darkCard],
         ),
-        border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.25)),
+        border: Border.all(color: KinrelColors.purple.withValues(alpha: 0.25)),
         boxShadow: [
           BoxShadow(
-            color: KinrelColors.orange.withValues(alpha: 0.12),
+            color: KinrelColors.purple.withValues(alpha: 0.12),
             blurRadius: 32,
             offset: const Offset(0, 8),
           ),
@@ -273,7 +273,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    KinrelColors.orange.withValues(alpha: 0.18),
+                    KinrelColors.purple.withValues(alpha: 0.18),
                     Colors.transparent,
                   ],
                 ),
@@ -292,22 +292,22 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(20),
-                        color: KinrelColors.orange.withValues(alpha: 0.15),
+                        color: KinrelColors.purple.withValues(alpha: 0.15),
                         border: Border.all(
-                            color: KinrelColors.orange.withValues(alpha: 0.4)),
+                            color: KinrelColors.purple.withValues(alpha: 0.4)),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.quiz_rounded,
-                              color: KinrelColors.orange, size: 14),
+                              color: KinrelColors.purple, size: 14),
                           SizedBox(width: 4),
                           Text('Kinship Quiz',
                               style: TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: KinrelColors.orange,
+                                color: KinrelColors.purple,
                               )),
                         ],
                       ),
@@ -362,7 +362,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
           final value = item['value']!;
           final label = item['label']!;
           final isSelected = value == selected;
-          final accentColor = colorMap?[value] ?? KinrelColors.orange;
+          final accentColor = colorMap?[value] ?? KinrelColors.purple;
 
           return _PressDown(
             onTap: () => onSelect(value),
@@ -417,10 +417,10 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           gradient: const LinearGradient(
-              colors: [KinrelColors.orange, KinrelColors.amber]),
+              colors: [KinrelColors.purple, KinrelColors.amber]),
           boxShadow: [
             BoxShadow(
-              color: KinrelColors.orange.withValues(alpha: 0.3),
+              color: KinrelColors.purple.withValues(alpha: 0.3),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
@@ -515,7 +515,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                     value: progress,
                     backgroundColor: KinrelColors.darkSurface,
                     valueColor:
-                        const AlwaysStoppedAnimation<Color>(KinrelColors.orange),
+                        const AlwaysStoppedAnimation<Color>(KinrelColors.purple),
                     minHeight: 6,
                   ),
                 ),
@@ -626,8 +626,8 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
         textColor = KinrelColors.textDim;
       }
     } else if (isSelected) {
-      borderColor = KinrelColors.orange;
-      bgColor = KinrelColors.orange.withValues(alpha: 0.12);
+      borderColor = KinrelColors.purple;
+      bgColor = KinrelColors.purple.withValues(alpha: 0.12);
     }
 
     return _PressDown(
@@ -773,7 +773,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
           ref.read(quizStateProvider.notifier).nextQuestion();
         },
         style: ElevatedButton.styleFrom(
-          backgroundColor: KinrelColors.orange,
+          backgroundColor: KinrelColors.purple,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -1000,13 +1000,13 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                         borderRadius: BorderRadius.circular(14),
                         color: KinrelColors.darkCard,
                         border: Border.all(
-                            color: KinrelColors.orange.withValues(alpha: 0.4)),
+                            color: KinrelColors.purple.withValues(alpha: 0.4)),
                       ),
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.refresh_rounded,
-                              color: KinrelColors.orange, size: 20),
+                              color: KinrelColors.purple, size: 20),
                           SizedBox(width: 8),
                           Text(
                             'Play Again',
@@ -1014,7 +1014,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                               fontFamily: KinrelTypography.displayFont,
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
-                              color: KinrelColors.orange,
+                              color: KinrelColors.purple,
                             ),
                           ),
                         ],
@@ -1033,7 +1033,7 @@ class _QuizScreenState extends ConsumerState<QuizScreen>
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(14),
                         gradient: const LinearGradient(
-                            colors: [KinrelColors.orange, KinrelColors.amber]),
+                            colors: [KinrelColors.purple, KinrelColors.amber]),
                       ),
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,

@@ -1,3 +1,17 @@
+// lib/core/routing/app_router.dart
+//
+// DAXELO KINREL — App Router
+//
+// 5-tab bottom navigation:
+//   1. Home      → /home
+//   2. Kinship   → /kinship-search
+//   3. Graph     → /families
+//   4. Alerts    → /home (placeholder until alerts feature is built)
+//   5. Me        → /profile
+//
+// Uses DKBottomNav with semi-transparent background, purple active,
+// gold indicator, badge support on Alerts tab.
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,6 +37,7 @@ import '../../features/referral/presentation/referral_screen.dart';
 import '../../features/kinship/presentation/kinship_search_screen.dart';
 import '../../features/kinship/presentation/kinship_detail_screen.dart';
 import '../services/supabase_service.dart';
+import '../../shared/widgets/dk_components.dart';
 
 /// Key for accessing the router's navigator state
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -79,6 +94,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/sign-up',
         builder: (context, state) => const SignUpScreen(),
       ),
+      // ── Shell routes (show bottom navigation) ───────────────────
       ShellRoute(
         builder: (context, state, child) =>
             RoutePersistenceShell(child: child),
@@ -88,13 +104,22 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
-            path: '/explore',
-            builder: (context, state) => const ExploreScreen(),
+            path: '/kinship-search',
+            builder: (context, state) => const KinshipSearchScreen(),
           ),
           GoRoute(
             path: '/families',
             builder: (context, state) => const FamilyListScreen(),
           ),
+          GoRoute(
+            path: '/explore',
+            builder: (context, state) => const ExploreScreen(),
+          ),
+          GoRoute(
+            path: '/profile',
+            builder: (context, state) => const ProfileScreen(),
+          ),
+          // Keep /settings in shell for backward compat
           GoRoute(
             path: '/settings',
             builder: (context, state) => const SettingsScreen(),
@@ -136,10 +161,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           familyName: state.uri.queryParameters['name'] ?? 'Family',
         ),
       ),
-      GoRoute(
-        path: '/profile',
-        builder: (context, state) => const ProfileScreen(),
-      ),
 
       // ── AI-Powered Features ─────────────────────────────────────
       GoRoute(
@@ -156,10 +177,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // ── Kinship Dictionary ──────────────────────────────────────
-      GoRoute(
-        path: '/kinship-search',
-        builder: (context, state) => const KinshipSearchScreen(),
-      ),
       GoRoute(
         path: '/kinship/:key',
         builder: (context, state) => KinshipDetailScreen(
@@ -240,8 +257,6 @@ class _AddPersonFormState extends ConsumerState<_AddPersonForm> {
   }
 }
 
-
-
 /// Shell that persists route for app resume
 class RoutePersistenceShell extends StatefulWidget {
   final Widget child;
@@ -286,7 +301,7 @@ class _RoutePersistenceShellState extends State<RoutePersistenceShell>
   }
 }
 
-/// Main shell with bottom navigation
+/// Main shell with 5-tab bottom navigation using DKBottomNav
 class MainShell extends StatelessWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
@@ -300,55 +315,83 @@ class MainShell extends StatelessWidget {
   }
 }
 
+/// 5-tab bottom navigation:
+/// 0. Home      (home icon)
+/// 1. Kinship   (menu_book icon)
+/// 2. Graph     (family_restroom icon)
+/// 3. Alerts    (notifications icon with badge)
+/// 4. Me        (person icon)
 class _BottomNav extends StatelessWidget {
   const _BottomNav();
+
+  static const _items = [
+    DKNavItem(
+      icon: Icons.home_outlined,
+      activeIcon: Icons.home_rounded,
+      label: 'Home',
+    ),
+    DKNavItem(
+      icon: Icons.menu_book_outlined,
+      activeIcon: Icons.menu_book_rounded,
+      label: 'Kinship',
+    ),
+    DKNavItem(
+      icon: Icons.family_restroom_outlined,
+      activeIcon: Icons.family_restroom_rounded,
+      label: 'Graph',
+    ),
+    DKNavItem(
+      icon: Icons.notifications_outlined,
+      activeIcon: Icons.notifications_rounded,
+      label: 'Alerts',
+      badge: 0, // Badge count; update dynamically when needed
+    ),
+    DKNavItem(
+      icon: Icons.person_outline_rounded,
+      activeIcon: Icons.person_rounded,
+      label: 'Me',
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
 
-    return NavigationBar(
-      selectedIndex: _currentIndex(location),
-      onDestinationSelected: (index) => _onTap(context, index),
-      destinations: const [
-        NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Home'),
-        NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore),
-            label: 'Explore'),
-        NavigationDestination(
-            icon: Icon(Icons.family_restroom_outlined),
-            selectedIcon: Icon(Icons.family_restroom),
-            label: 'Families'),
-        NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Settings'),
-      ],
+    return DKBottomNav(
+      currentIndex: _currentIndex(location),
+      onTap: (index) => _onTap(context, index),
+      items: _items,
     );
   }
 
+  /// Map current route to bottom nav index.
+  /// Alerts (index 3) is a placeholder — no dedicated route yet.
   int _currentIndex(String location) {
     if (location.startsWith('/home')) return 0;
-    if (location.startsWith('/explore')) return 1;
+    if (location.startsWith('/kinship-search')) return 1;
     if (location.startsWith('/families')) return 2;
-    if (location.startsWith('/settings')) return 3;
+    // Alerts has no dedicated route yet; placeholder goes to /home
+    if (location.startsWith('/explore')) return 0; // Explore no longer a tab
+    if (location.startsWith('/profile')) return 4;
+    // /settings maps to home tab (backward compat)
+    if (location.startsWith('/settings')) return 0;
     return 0;
   }
 
+  /// Navigate to the route for the given tab index.
   void _onTap(BuildContext context, int index) {
     switch (index) {
       case 0:
         context.go('/home');
       case 1:
-        context.go('/explore');
+        context.go('/kinship-search');
       case 2:
         context.go('/families');
       case 3:
-        context.go('/settings');
+        // Alerts placeholder — navigates to /home until alerts feature is built
+        context.go('/home');
+      case 4:
+        context.go('/profile');
     }
   }
 }

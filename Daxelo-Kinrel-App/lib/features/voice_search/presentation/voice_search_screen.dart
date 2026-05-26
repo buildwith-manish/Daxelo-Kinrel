@@ -212,13 +212,13 @@ class _IdleView extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: const LinearGradient(
-                      colors: [KinrelColors.orange, KinrelColors.amber],
+                      colors: [KinrelColors.purple, KinrelColors.violet],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: KinrelColors.orangeGlow,
+                        color: KinrelColors.purpleGlow,
                         blurRadius: 40,
                         spreadRadius: 10,
                       ),
@@ -349,7 +349,7 @@ class _RecordingView extends StatelessWidget {
                 return CustomPaint(
                   painter: _WaveformPainter(
                     animationValue: waveformController.value,
-                    color: KinrelColors.orange,
+                    color: KinrelColors.purple,
                   ),
                   size: Size(MediaQuery.of(context).size.width - 64, 100),
                 );
@@ -445,7 +445,7 @@ class _LoadingView extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const CircularProgressIndicator(
-            color: KinrelColors.orange,
+            color: KinrelColors.purple,
             strokeWidth: 3,
           ),
           const SizedBox(height: 24),
@@ -500,19 +500,19 @@ class _ResultsView extends StatelessWidget {
             color: KinrelColors.darkCard,
             borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
             border: Border.all(
-                color: KinrelColors.orange.withValues(alpha: 0.2)),
+                color: KinrelColors.purple.withValues(alpha: 0.2)),
           ),
           child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: KinrelColors.orange.withValues(alpha: 0.15),
+                  color: KinrelColors.purple.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
                   Icons.record_voice_over,
-                  color: KinrelColors.orange,
+                  color: KinrelColors.purple,
                   size: 20,
                 ),
               ),
@@ -560,7 +560,7 @@ class _ResultsView extends StatelessWidget {
               icon: const Icon(Icons.mic, size: 16),
               label: const Text('Search again'),
               style: TextButton.styleFrom(
-                foregroundColor: KinrelColors.orange,
+                foregroundColor: KinrelColors.purple,
                 textStyle: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
@@ -655,7 +655,7 @@ class _VoiceResultCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: KinrelColors.orange.withValues(alpha: 0.15),
+                  color: KinrelColors.purple.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -666,7 +666,7 @@ class _VoiceResultCard extends StatelessWidget {
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
-                    color: KinrelColors.orange,
+                    color: KinrelColors.purple,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -786,13 +786,13 @@ class _LanguageSelector extends StatelessWidget {
             Text(
               selectedLanguage.code.toUpperCase(),
               style: TextStyle(
-                color: KinrelColors.orange,
+                color: KinrelColors.purple,
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            Icon(Icons.arrow_drop_down, color: KinrelColors.orange),
+            Icon(Icons.arrow_drop_down, color: KinrelColors.purple),
           ],
         ),
         onSelected: onLanguageChanged,

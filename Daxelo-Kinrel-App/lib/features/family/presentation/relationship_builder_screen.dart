@@ -103,7 +103,7 @@ class _RelationshipBuilderScreenState
       ),
       body: detailAsync.when(
         loading: () => const Center(
-          child: CircularProgressIndicator(color: KinrelColors.orange),
+          child: CircularProgressIndicator(color: KinrelColors.purple),
         ),
         error: (e, _) => _ErrorState(
           message: 'Failed to load family data',
@@ -135,7 +135,7 @@ class _RelationshipBuilderScreenState
           context,
           familyId: widget.familyId,
         ),
-        backgroundColor: KinrelColors.orange,
+        backgroundColor: KinrelColors.purple,
         child: const Icon(Icons.person_add, color: Colors.white),
       ),
     );
@@ -199,7 +199,7 @@ class _RelationshipBuilderScreenState
       instructionColor = KinrelColors.amber;
     } else {
       instruction = 'Creating link...';
-      instructionColor = KinrelColors.orange;
+      instructionColor = KinrelColors.purple;
     }
 
     return AnimatedContainer(
@@ -235,7 +235,7 @@ class _RelationshipBuilderScreenState
           if (_selectedPerson1Id != null)
             _SelectionBadge(
               label: '1st',
-              color: KinrelColors.orange,
+              color: KinrelColors.purple,
             ),
           if (_selectedPerson2Id != null) ...[
             const SizedBox(width: 6),
@@ -378,13 +378,13 @@ class _PersonCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final borderColor = isSelected1
-        ? KinrelColors.orange
+        ? KinrelColors.purple
         : isSelected2
             ? KinrelColors.amber
             : KinrelColors.darkSurface.withValues(alpha: 0.5);
 
     final bgColor = isSelected1
-        ? KinrelColors.orange.withValues(alpha: 0.08)
+        ? KinrelColors.purple.withValues(alpha: 0.08)
         : isSelected2
             ? KinrelColors.amber.withValues(alpha: 0.08)
             : KinrelColors.darkCard;
@@ -408,7 +408,7 @@ class _PersonCard extends StatelessWidget {
               boxShadow: isGlowing
                   ? [
                       BoxShadow(
-                        color: KinrelColors.orangeGlow
+                        color: KinrelColors.purpleGlow
                             .withValues(alpha: 0.3 + glowValue * 0.4),
                         blurRadius: 8 + glowValue * 16,
                         spreadRadius: glowValue * 4,
@@ -446,7 +446,7 @@ class _PersonCard extends StatelessWidget {
                                 ? LinearGradient(
                                     colors: [
                                       KinrelColors.amber,
-                                      KinrelColors.orange,
+                                      KinrelColors.purple,
                                     ],
                                   )
                                 : KinrelColors.igniteGradient,
@@ -479,7 +479,7 @@ class _PersonCard extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: KinrelColors.orange,
+                      color: KinrelColors.purple,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
@@ -550,7 +550,7 @@ class _PersonCard extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
-                  color: KinrelColors.orange,
+                  color: KinrelColors.purple,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -674,7 +674,7 @@ class _EmptyState extends StatelessWidget {
               icon: const Icon(Icons.person_add, size: 18),
               label: const Text('Add First Member'),
               style: FilledButton.styleFrom(
-                backgroundColor: KinrelColors.orange,
+                backgroundColor: KinrelColors.purple,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
                     horizontal: 24, vertical: 12),
@@ -724,7 +724,7 @@ class _ErrorState extends StatelessWidget {
             FilledButton(
               onPressed: onRetry,
               style: FilledButton.styleFrom(
-                backgroundColor: KinrelColors.orange,
+                backgroundColor: KinrelColors.purple,
                 foregroundColor: Colors.white,
               ),
               child: const Text('Retry'),

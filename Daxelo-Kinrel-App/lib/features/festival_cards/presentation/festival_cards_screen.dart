@@ -734,7 +734,7 @@ class _LanguageDropdown extends StatelessWidget {
         child: DropdownButton<SupportedLanguage>(
           value: selectedLanguage,
           isExpanded: true,
-          icon: const Icon(Icons.arrow_drop_down, color: KinrelColors.orange),
+          icon: const Icon(Icons.arrow_drop_down, color: KinrelColors.purple),
           dropdownColor: KinrelColors.darkElevated,
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -870,7 +870,7 @@ class _GeneratingViewState extends State<_GeneratingView>
           const SizedBox(
             width: 200,
             child: LinearProgressIndicator(
-              color: KinrelColors.orange,
+              color: KinrelColors.purple,
               backgroundColor: KinrelColors.darkSurface,
               borderRadius: BorderRadius.all(Radius.circular(4)),
             ),
@@ -932,7 +932,7 @@ class _CardPreviewView extends StatelessWidget {
               borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
               boxShadow: [
                 BoxShadow(
-                  color: KinrelColors.orangeGlow,
+                  color: KinrelColors.purpleGlow,
                   blurRadius: 30,
                   spreadRadius: 5,
                 ),
@@ -1027,7 +1027,7 @@ class _CardPreviewView extends StatelessWidget {
                   icon: const Icon(Icons.share, size: 18),
                   label: const Text('Share'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: KinrelColors.orange,
+                    backgroundColor: KinrelColors.purple,
                     foregroundColor: KinrelColors.textWhite,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(

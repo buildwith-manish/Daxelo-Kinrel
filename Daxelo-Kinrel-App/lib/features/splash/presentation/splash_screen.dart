@@ -6,11 +6,11 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/constants/brand_spacing.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/storage/secure_storage.dart';
 import '../../../shared/widgets/kinrel_icon.dart';
-import '../../../shared/widgets/kinrel_wordmark.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -19,13 +19,25 @@ class SplashScreen extends ConsumerStatefulWidget {
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends ConsumerState<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen>
+    with SingleTickerProviderStateMixin {
   bool _navigated = false;
+  late final AnimationController _pulseController;
 
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3000),
+    )..repeat(reverse: true);
     _initialize();
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
   }
 
   Future<void> _initialize() async {
@@ -91,40 +103,96 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [KinrelColors.darkBackground, KinrelColors.darkCard],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
+      body: AnimatedBuilder(
+        animation: _pulseController,
+        builder: (context, child) {
+          // Subtle gradient pulse: vary the color stops slightly
+          final pulse = 0.5 + 0.5 * _pulseController.value;
+          return Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Color.lerp(
+                    const Color(0xFF6A11CB),
+                    const Color(0xFF7C3AED),
+                    pulse * 0.3,
+                  )!,
+                  Color.lerp(
+                    const Color(0xFFFF6B6B),
+                    const Color(0xFFFF8A80),
+                    pulse * 0.2,
+                  )!,
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+            child: child,
+          );
+        },
         child: SafeArea(
           child: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Animated K-graph icon
-                KinrelIcon(
-                  size: 96,
-                  palette: KinrelIconPalette.orange,
-                  animated: true,
+                const Spacer(flex: 3),
+
+                // ── Animated K-graph icon with glowing circle ──────────
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: KinrelColors.purpleGlow,
+                        blurRadius: 40,
+                        spreadRadius: 8,
+                      ),
+                      BoxShadow(
+                        color: KinrelColors.coral.withValues(alpha: 0.2),
+                        blurRadius: 60,
+                        spreadRadius: 16,
+                      ),
+                    ],
+                  ),
+                  child: KinrelIcon(
+                    size: 96,
+                    palette: KinrelIconPalette.mono,
+                    animated: true,
+                  ),
                 )
-                    .animate(onPlay: (c) => c.repeat())
+                    .animate(onPlay: (c) => c.forward())
                     .fadeIn(duration: 600.ms)
-                    .scale(begin: const Offset(0.8, 0.8), end: const Offset(1, 1)),
+                    .scale(
+                      begin: const Offset(0.7, 0.7),
+                      end: const Offset(1.0, 1.0),
+                      duration: 800.ms,
+                      curve: Curves.elasticOut,
+                    ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 32),
 
-                // Wordmark
-                KinrelWordmark(
-                  fontSize: 36,
-                  variant: WordmarkVariant.gradient,
-                ).animate().fadeIn(duration: 800.ms, delay: 300.ms),
+                // ── Brand text "KinRel" ────────────────────────────────
+                Text(
+                  'KinRel',
+                  style: KinrelTypography.displayHero.copyWith(
+                    fontSize: 42,
+                    color: KinrelColors.textWhite,
+                    letterSpacing: -0.5,
+                    shadows: [
+                      Shadow(
+                        color: KinrelColors.purpleGlow,
+                        blurRadius: 20,
+                      ),
+                    ],
+                  ),
+                )
+                    .animate()
+                    .fadeIn(duration: 800.ms, delay: 300.ms)
+                    .slideY(begin: 0.15, end: 0, duration: 600.ms),
 
                 const SizedBox(height: 12),
 
-                // Tagline
+                // ── Tagline ────────────────────────────────────────────
                 Text(
                   AppConfig.appTagline,
                   style: TextStyle(
@@ -133,19 +201,25 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                     color: KinrelColors.textSilver,
                     letterSpacing: 0.5,
                   ),
-                ).animate().fadeIn(duration: 600.ms, delay: 600.ms),
+                )
+                    .animate()
+                    .fadeIn(duration: 600.ms, delay: 600.ms)
+                    .slideY(begin: 0.1, end: 0, duration: 400.ms),
 
-                const SizedBox(height: 48),
+                const Spacer(flex: 2),
 
-                // Loading indicator
+                // ── Loading indicator ──────────────────────────────────
                 SizedBox(
                   width: 24,
                   height: 24,
                   child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: KinrelColors.orange.withValues(alpha: 0.7),
+                    strokeWidth: 2.5,
+                    color: KinrelColors.textWhite.withValues(alpha: 0.7),
+                    strokeCap: StrokeCap.round,
                   ),
                 ).animate().fadeIn(duration: 400.ms, delay: 800.ms),
+
+                const SizedBox(height: 48),
               ],
             ),
           ),

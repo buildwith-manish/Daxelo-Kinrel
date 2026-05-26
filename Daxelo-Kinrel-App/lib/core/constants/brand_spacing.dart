@@ -5,7 +5,7 @@
 // Spacing, radius, elevation, motion, and logo-size tokens
 // for the KINREL design system.
 //
-// Brand spec: kinrel-brand-complete.zip v4.0
+// Brand spec: stitch.zip design reference — Premium Purple & Gold
 
 import 'package:flutter/material.dart';
 
@@ -41,6 +41,8 @@ class KinrelSpacing {
   static const double radiusSm = 8;
   static const double radiusMd = 12;
   static const double radiusLg = 16;
+  static const double radiusXl = 20;
+  static const double radiusXXl = 24;
 
   // ── Logo Sizes ────────────────────────────────────────────────────
   static const double logoXs = 28;
@@ -67,17 +69,17 @@ class KinrelRadius {
   static const double md = 12;
   static const double lg = 16;
   static const double xl = 20;
-  static const double xxl = 28;
+  static const double xxl = 24;
   static const double full = 9999;
 
   // ── Semantic Radius ───────────────────────────────────────────────
-  static const double card = lg;
-  static const double button = sm;
-  static const double input = sm;
-  static const double dialog = xxl;
-  static const double bottomSheet = xxl;
-  static const double chip = xs;
-  static const double fab = full;
+  static const double card = lg;      // 16
+  static const double button = md;    // 12 (was 8)
+  static const double input = md;     // 12 (was 8)
+  static const double dialog = xxl;   // 24 (was 28)
+  static const double bottomSheet = xxl; // 24 (was 28)
+  static const double chip = xs;      // 4
+  static const double fab = full;     // 9999
 }
 
 /// ── Elevation Tokens ─────────────────────────────────────────────────

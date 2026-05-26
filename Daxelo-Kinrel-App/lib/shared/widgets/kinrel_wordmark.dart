@@ -8,7 +8,7 @@
 // Usage:
 // ```dart
 // KinrelWordmark()                                    // gradient, 24px
-// KinrelWordmark(fontSize: 32, variant: WordmarkVariant.solidOrange)
+// KinrelWordmark(fontSize: 32, variant: WordmarkVariant.solidPurple)
 // KinrelWordmark(fontSize: 14, variant: WordmarkVariant.solidWhite)
 // ```
 
@@ -18,11 +18,11 @@ import '../../core/constants/brand_typography.dart';
 
 /// Wordmark variant styles.
 enum WordmarkVariant {
-  /// White → orange gradient (hero / splash screens)
+  /// White → purple gradient (hero / splash screens)
   gradient,
 
-  /// Flat #E8612A orange
-  solidOrange,
+  /// Flat #5D5FEF purple
+  solidPurple,
 
   /// Flat white (#F5F0EE)
   solidWhite,
@@ -102,11 +102,11 @@ class KinrelWordmark extends StatelessWidget {
     }
 
     final color = switch (variant) {
-      WordmarkVariant.solidOrange => KinrelColors.orange,
+      WordmarkVariant.solidPurple => KinrelColors.purple,
       WordmarkVariant.solidWhite => KinrelColors.textPrimary,
       WordmarkVariant.solidDark => const Color(0xFF1A0A00),
       WordmarkVariant.mono => const Color(0xFFF9FAFB),
-      WordmarkVariant.gradient => KinrelColors.orange, // fallback
+      WordmarkVariant.gradient => KinrelColors.purple, // fallback
     };
 
     return Text(
@@ -119,7 +119,7 @@ class KinrelWordmark extends StatelessWidget {
   Widget _buildByline() {
     final subtitleColor = switch (variant) {
       WordmarkVariant.gradient => KinrelColors.textSecondary,
-      WordmarkVariant.solidOrange => KinrelColors.textSecondary,
+      WordmarkVariant.solidPurple => KinrelColors.textSecondary,
       WordmarkVariant.solidWhite => KinrelColors.textSecondary,
       WordmarkVariant.solidDark => const Color(0xFF7A5040),
       WordmarkVariant.mono => const Color(0xFF9CA3AF),

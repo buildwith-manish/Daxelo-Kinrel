@@ -86,7 +86,7 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
       ),
       body: membersAsync.when(
         loading: () => const Center(
-          child: CircularProgressIndicator(color: KinrelColors.orange),
+          child: CircularProgressIndicator(color: KinrelColors.purple),
         ),
         error: (e, _) => Center(
           child: Text(
@@ -136,7 +136,7 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
                   _pathResult = null;
                 });
               },
-              icon: Icon(Icons.swap_vert, color: KinrelColors.orange),
+              icon: Icon(Icons.swap_vert, color: KinrelColors.purple),
             ),
           ),
 
@@ -163,10 +163,10 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
                 ? _findPath
                 : null,
             style: FilledButton.styleFrom(
-              backgroundColor: KinrelColors.orange,
+              backgroundColor: KinrelColors.purple,
               foregroundColor: Colors.white,
               disabledBackgroundColor:
-                  KinrelColors.orange.withValues(alpha: 0.4),
+                  KinrelColors.purple.withValues(alpha: 0.4),
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius:
@@ -315,7 +315,7 @@ class _PersonSelector extends StatelessWidget {
                 style: TextStyle(color: KinrelColors.textDim),
               ),
               isExpanded: true,
-              icon: Icon(Icons.arrow_drop_down, color: KinrelColors.orange),
+              icon: Icon(Icons.arrow_drop_down, color: KinrelColors.purple),
               dropdownColor: KinrelColors.darkElevated,
               items: members.map((p) {
                 final subtitle = p.gender != null
@@ -355,7 +355,7 @@ class _PathResultCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            KinrelColors.orange.withValues(alpha: 0.1),
+            KinrelColors.purple.withValues(alpha: 0.1),
             KinrelColors.amber.withValues(alpha: 0.05),
           ],
           begin: Alignment.topLeft,
@@ -363,7 +363,7 @@ class _PathResultCard extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
         border: Border.all(
-            color: KinrelColors.orange.withValues(alpha: 0.3)),
+            color: KinrelColors.purple.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -376,7 +376,7 @@ class _PathResultCard extends StatelessWidget {
               fontFamily: KinrelTypography.displayFont,
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: KinrelColors.orange,
+              color: KinrelColors.purple,
             ),
           ),
           const SizedBox(height: 12),
@@ -400,7 +400,7 @@ class _PathResultCard extends StatelessWidget {
                             fontFamily: KinrelTypography.displayFont,
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
-                            color: KinrelColors.orange,
+                            color: KinrelColors.purple,
                           ),
                         ),
                       ),
@@ -463,7 +463,7 @@ class _PathResultCard extends StatelessWidget {
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: KinrelColors.orange,
+                      color: KinrelColors.gold,
                     ),
                   ),
                 ],

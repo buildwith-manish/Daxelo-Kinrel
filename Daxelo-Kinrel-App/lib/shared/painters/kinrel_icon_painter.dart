@@ -7,7 +7,7 @@
 // Next.js KinrelIcon component.
 //
 // Features:
-//   - 4 palettes: orange, light, mono, outline
+//   - 4 palettes: purple, light, mono, outline
 //   - Mini mode (≤24px): simplified 3-stroke K
 //   - Gradient fills, glow halos, specular highlights
 //   - Optional animation support
@@ -22,7 +22,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/brand_colors.dart';
 
 /// Palette variants for the KINREL icon.
-enum KinrelIconPalette { orange, light, mono, outline }
+enum KinrelIconPalette { purple, light, mono, outline }
 
 /// Resolved palette colors for painting.
 class _PaletteColors {
@@ -49,11 +49,11 @@ class _PaletteColors {
 
 _PaletteColors _resolvePalette(KinrelIconPalette palette) {
   switch (palette) {
-    case KinrelIconPalette.orange:
+    case KinrelIconPalette.purple:
       return const _PaletteColors(
         bg: KinrelColors.card,
         bgInner: Color(0xFF23263E),
-        primary: KinrelColors.orange,
+        primary: KinrelColors.purple,
         secondary: KinrelColors.amber,
         accent: KinrelColors.ember,
         showBg: true,
@@ -86,7 +86,7 @@ _PaletteColors _resolvePalette(KinrelIconPalette palette) {
       return const _PaletteColors(
         bg: Colors.transparent,
         bgInner: Colors.transparent,
-        primary: KinrelColors.orange,
+        primary: KinrelColors.purple,
         secondary: KinrelColors.amber,
         accent: KinrelColors.ember,
         showBg: false,
@@ -102,7 +102,7 @@ _PaletteColors _resolvePalette(KinrelIconPalette palette) {
 /// ```dart
 /// CustomPaint(
 ///   size: Size(48, 48),
-///   painter: KinrelIconPainter(palette: KinrelIconPalette.orange),
+///   painter: KinrelIconPainter(palette: KinrelIconPalette.purple),
 /// )
 /// ```
 class KinrelIconPainter extends CustomPainter {
@@ -111,7 +111,7 @@ class KinrelIconPainter extends CustomPainter {
   final double animationValue;
 
   const KinrelIconPainter({
-    this.palette = KinrelIconPalette.orange,
+    this.palette = KinrelIconPalette.purple,
     this.animated = false,
     this.animationValue = 0,
   });

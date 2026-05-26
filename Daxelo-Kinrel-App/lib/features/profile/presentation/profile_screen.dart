@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/theme/theme_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/extensions/context_extensions.dart';
+import '../../../shared/widgets/dk_components.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -14,56 +17,47 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
+    final themeMode = ref.watch(themeModeProvider);
+    final isDark = themeMode == ThemeMode.dark;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Profile',
-          style: TextStyle(
-            fontFamily: KinrelTypography.displayFont,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(KinrelSpacing.xl),
+    return DKScaffold(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(KinrelSpacing.base),
         child: Column(
           children: [
-            // Avatar
-            Container(
-              width: 96,
-              height: 96,
-              decoration: const BoxDecoration(
-                gradient: KinrelColors.igniteGradient,
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  (user?.email?.isNotEmpty == true
-                      ? user!.email![0].toUpperCase()
-                      : '?'),
-                  style: const TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 36,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
+            const SizedBox(height: 8),
+
+            // Profile header with gold-bordered avatar
+            DKAvatar(
+              initials: (user?.email?.isNotEmpty == true
+                  ? user!.email![0].toUpperCase()
+                  : '?'),
+              size: DKAvatarSize.xl,
+              borderColor: DKColors.brandGold,
+              backgroundColor: DKColors.brandPurple,
+              showGlow: true,
+            )
+                .animate(onPlay: (c) => c.forward())
+                .fadeIn(duration: 500.ms)
+                .scale(
+                  begin: const Offset(0.8, 0.8),
+                  end: const Offset(1.0, 1.0),
+                  duration: 400.ms,
+                  curve: Curves.easeOutBack,
                 ),
-              ),
-            ),
 
             const SizedBox(height: 16),
 
-            // Name display
+            // Name
             Text(
               user?.userMetadata?['name'] as String? ??
                   user?.email?.split('@').first ??
                   'Not signed in',
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: KinrelColors.textWhite,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: DKColors.textPrimary(context),
               ),
             ),
 
@@ -75,100 +69,126 @@ class ProfileScreen extends ConsumerWidget {
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
-                color: KinrelColors.textSilver,
-              ),
-            ),
-
-            const SizedBox(height: 4),
-
-            // User ID
-            Text(
-              user?.id ?? '',
-              style: TextStyle(
-                fontFamily: KinrelTypography.monoFont,
-                fontSize: 11,
-                color: KinrelColors.textDim,
+                color: DKColors.textSecondary(context),
               ),
             ),
 
             const SizedBox(height: 32),
 
-            // Profile info cards
-            _ProfileInfoCard(
-              icon: Icons.email,
-              label: 'Email',
-              value: user?.email ?? '-',
+            // Menu items as cards
+            _MenuCard(
+              icon: Icons.family_restroom,
+              label: 'My Families',
+              subtitle: 'Manage your family trees',
+              color: DKColors.brandPurple,
+              onTap: () {},
+              index: 0,
             ),
             const SizedBox(height: 8),
-            _ProfileInfoCard(
-              icon: Icons.calendar_today,
-              label: 'Joined',
-              value: user?.createdAt != null
-                  ? DateTime.parse(user!.createdAt)
-                      .toLocal()
-                      .toString()
-                      .split(' ')
-                      .first
-                  : '-',
+            _MenuCard(
+              icon: Icons.language,
+              label: 'Language',
+              subtitle: 'App display language',
+              color: DKColors.brandPurple,
+              onTap: () {},
+              index: 1,
+            ),
+            const SizedBox(height: 8),
+            _MenuCard(
+              icon: isDark ? Icons.dark_mode : Icons.light_mode,
+              label: 'Theme',
+              subtitle: isDark ? 'Dark mode' : 'Light mode',
+              color: DKColors.brandGold,
+              trailing: Switch(
+                value: isDark,
+                onChanged: (value) {
+                  ref.read(themeModeProvider.notifier).state =
+                      value ? ThemeMode.dark : ThemeMode.light;
+                },
+                activeColor: DKColors.brandPurple,
+                activeTrackColor: DKColors.brandPurple.withValues(alpha: 0.5),
+              ),
+              onTap: () {
+                ref.read(themeModeProvider.notifier).state =
+                    isDark ? ThemeMode.light : ThemeMode.dark;
+              },
+              index: 2,
+            ),
+            const SizedBox(height: 8),
+            _MenuCard(
+              icon: Icons.notifications,
+              label: 'Notifications',
+              subtitle: 'Alerts & reminders',
+              color: DKColors.brandPurple,
+              onTap: () {},
+              index: 3,
+            ),
+            const SizedBox(height: 8),
+            _MenuCard(
+              icon: Icons.privacy_tip,
+              label: 'Privacy',
+              subtitle: 'Data & privacy settings',
+              color: DKColors.brandPurple,
+              onTap: () {},
+              index: 4,
+            ),
+            const SizedBox(height: 8),
+            _MenuCard(
+              icon: Icons.help,
+              label: 'Help & Support',
+              subtitle: 'FAQ & contact',
+              color: DKColors.brandPurple,
+              onTap: () {},
+              index: 5,
+            ),
+            const SizedBox(height: 8),
+            _MenuCard(
+              icon: Icons.info,
+              label: 'About',
+              subtitle: 'Version 1.0.0',
+              color: DKColors.brandPurple,
+              onTap: () {},
+              index: 6,
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
 
-            // Edit Name
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _showEditNameDialog(context, ref, user),
-                icon: const Icon(Icons.edit, size: 18),
-                label: const Text('Edit Name'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: KinrelColors.orange,
-                  side: const BorderSide(color: KinrelColors.orange),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusSm),
-                  ),
-                ),
+            // Sign Out button (gradient: red→purple)
+            DKButton(
+              label: 'Sign Out',
+              variant: DKButtonVariant.gradient,
+              gradient: KinrelGradients.signOutGradient,
+              icon: Icons.logout,
+              fullWidth: true,
+              size: DKButtonSize.lg,
+              onPressed: () async {
+                try {
+                  await ref.read(authServiceProvider).signOut();
+                  if (context.mounted) context.go('/sign-in');
+                } catch (e) {
+                  if (context.mounted) {
+                    context.showSnackBar('Error signing out', isError: true);
+                  }
+                }
+              },
+            )
+                .animate(onPlay: (c) => c.forward())
+                .fadeIn(duration: 500.ms, delay: 400.ms),
+
+            const SizedBox(height: 16),
+
+            // Footer
+            Text(
+              'KINREL by Daxelo',
+              style: TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 12,
+                color: DKColors.textSecondary(context),
+                letterSpacing: 1,
               ),
             ),
 
-            const SizedBox(height: 12),
-
-            // Change Password
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _showChangePasswordDialog(context, ref),
-                icon: const Icon(Icons.lock, size: 18),
-                label: const Text('Change Password'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: KinrelColors.textSilver,
-                  side: BorderSide(color: KinrelColors.darkSurface),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusSm),
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Forgot Password
-            SizedBox(
-              width: double.infinity,
-              child: TextButton.icon(
-                onPressed: () => _sendPasswordReset(context, ref),
-                icon: const Icon(Icons.email_outlined, size: 18),
-                label: const Text('Forgot Password?'),
-                style: TextButton.styleFrom(
-                  foregroundColor: KinrelColors.textDim,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-              ),
-            ),
+            const SizedBox(height: 32),
           ],
         ),
       ),
@@ -186,27 +206,31 @@ class ProfileScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: KinrelColors.darkElevated,
+        backgroundColor: DKColors.cardColor(context),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(KinrelRadius.dialog),
+          side: BorderSide(color: DKColors.borderColor(context)),
+        ),
         title: Text(
           'Edit Name',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
-            color: KinrelColors.textWhite,
+            color: DKColors.textPrimary(context),
           ),
         ),
         content: TextField(
           controller: nameController,
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
-            color: KinrelColors.textWhite,
+            color: DKColors.textPrimary(context),
           ),
           decoration: InputDecoration(
             hintText: 'Enter your name',
-            hintStyle: TextStyle(color: KinrelColors.textDim),
+            hintStyle: TextStyle(color: DKColors.textSecondary(context)),
             filled: true,
-            fillColor: KinrelColors.darkCard,
+            fillColor: DKColors.elevatedColor(context),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+              borderRadius: BorderRadius.circular(KinrelRadius.input),
               borderSide: BorderSide.none,
             ),
           ),
@@ -216,14 +240,16 @@ class ProfileScreen extends ConsumerWidget {
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(
               'Cancel',
-              style: TextStyle(color: KinrelColors.textSilver),
+              style: TextStyle(color: DKColors.textSecondary(context)),
             ),
           ),
-          TextButton(
+          DKButton(
+            label: 'Save',
+            variant: DKButtonVariant.primary,
+            size: DKButtonSize.sm,
             onPressed: () async {
               Navigator.of(ctx).pop();
               try {
-                // Update user metadata with name
                 final client = ref.read(supabaseProvider);
                 if (client != null) {
                   await client.auth.updateUser(
@@ -241,206 +267,91 @@ class ProfileScreen extends ConsumerWidget {
                 }
               }
             },
-            child: Text(
-              'Save',
-              style: TextStyle(color: KinrelColors.orange),
-            ),
           ),
         ],
       ),
     );
-  }
-
-  void _showChangePasswordDialog(BuildContext context, WidgetRef ref) {
-    final currentController = TextEditingController();
-    final newController = TextEditingController();
-    final confirmController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: KinrelColors.darkElevated,
-        title: Text(
-          'Change Password',
-          style: TextStyle(
-            fontFamily: KinrelTypography.displayFont,
-            color: KinrelColors.textWhite,
-          ),
-        ),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: currentController,
-                obscureText: true,
-                style: TextStyle(color: KinrelColors.textWhite),
-                decoration: InputDecoration(
-                  labelText: 'Current Password',
-                  labelStyle: TextStyle(color: KinrelColors.textDim),
-                  filled: true,
-                  fillColor: KinrelColors.darkCard,
-                  border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusSm),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                validator: (v) =>
-                    v == null || v.isEmpty ? 'Required' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: newController,
-                obscureText: true,
-                style: TextStyle(color: KinrelColors.textWhite),
-                decoration: InputDecoration(
-                  labelText: 'New Password',
-                  labelStyle: TextStyle(color: KinrelColors.textDim),
-                  filled: true,
-                  fillColor: KinrelColors.darkCard,
-                  border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusSm),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                validator: (v) =>
-                    v == null || v.length < 6 ? 'Min 6 characters' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: confirmController,
-                obscureText: true,
-                style: TextStyle(color: KinrelColors.textWhite),
-                decoration: InputDecoration(
-                  labelText: 'Confirm Password',
-                  labelStyle: TextStyle(color: KinrelColors.textDim),
-                  filled: true,
-                  fillColor: KinrelColors.darkCard,
-                  border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusSm),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                validator: (v) {
-                  if (v != newController.text) return 'Passwords don\'t match';
-                  return null;
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: KinrelColors.textSilver),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              if (!formKey.currentState!.validate()) return;
-              Navigator.of(ctx).pop();
-
-              try {
-                await ref
-                    .read(authServiceProvider)
-                    .updatePassword(newController.text);
-                if (context.mounted) {
-                  context.showSnackBar('Password updated successfully');
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  context.showSnackBar(
-                    'Failed to update password',
-                    isError: true,
-                  );
-                }
-              }
-            },
-            child: Text(
-              'Update',
-              style: TextStyle(color: KinrelColors.orange),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _sendPasswordReset(BuildContext context, WidgetRef ref) async {
-    final user = ref.read(currentUserProvider);
-    if (user?.email == null) {
-      context.showSnackBar('No email on file', isError: true);
-      return;
-    }
-
-    try {
-      await ref.read(authServiceProvider).resetPassword(user!.email!);
-      if (context.mounted) {
-        context.showSnackBar('Password reset email sent to ${user.email}');
-      }
-    } catch (e) {
-      if (context.mounted) {
-        context.showSnackBar('Failed to send reset email', isError: true);
-      }
-    }
   }
 }
 
-class _ProfileInfoCard extends StatelessWidget {
+// ── Menu Card ────────────────────────────────────────────────────
+
+class _MenuCard extends StatelessWidget {
   final IconData icon;
   final String label;
-  final String value;
+  final String? subtitle;
+  final Color color;
+  final Widget? trailing;
+  final VoidCallback onTap;
+  final int index;
 
-  const _ProfileInfoCard({
+  const _MenuCard({
     required this.icon,
     required this.label,
-    required this.value,
+    this.subtitle,
+    required this.color,
+    this.trailing,
+    required this.onTap,
+    required this.index,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
-        border: Border.all(
-            color: KinrelColors.darkSurface.withValues(alpha: 0.3)),
-      ),
+    return DKCard(
+      borderColor: DKColors.brandPurple.withValues(alpha: 0.1),
+      onTap: onTap,
+      padding: 14,
       child: Row(
         children: [
-          Icon(icon, size: 20, color: KinrelColors.orange),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 11,
-                  color: KinrelColors.textDim,
-                ),
-              ),
-              Text(
-                value,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 14,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-            ],
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(KinrelRadius.md),
+            ),
+            child: Icon(icon, color: color, size: 20),
           ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: DKColors.textPrimary(context),
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 1),
+                  Text(
+                    subtitle!,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 12,
+                      color: DKColors.textSecondary(context),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          trailing ??
+              Icon(Icons.chevron_right,
+                  color: DKColors.textSecondary(context).withValues(alpha: 0.5),
+                  size: 20),
         ],
       ),
-    );
+    )
+        .animate(onPlay: (c) => c.forward())
+        .fadeIn(
+          duration: 400.ms,
+          delay: Duration(milliseconds: 100 + index * 50),
+        )
+        .slideX(begin: 0.05, end: 0, duration: 400.ms);
   }
 }

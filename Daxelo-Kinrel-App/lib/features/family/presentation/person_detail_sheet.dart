@@ -122,7 +122,7 @@ class PersonDetailSheet extends ConsumerWidget {
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
-                color: KinrelColors.orange,
+                color: KinrelColors.purple,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -193,8 +193,8 @@ class PersonDetailSheet extends ConsumerWidget {
                   icon: const Icon(Icons.edit, size: 18),
                   label: const Text('Edit'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: KinrelColors.orange,
-                    side: const BorderSide(color: KinrelColors.orange),
+                    foregroundColor: KinrelColors.purple,
+                    side: const BorderSide(color: KinrelColors.purple),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius:

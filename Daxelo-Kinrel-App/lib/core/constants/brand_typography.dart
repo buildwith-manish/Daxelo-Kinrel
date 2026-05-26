@@ -13,6 +13,14 @@ class KinrelTypography {
   static const String monoFont = 'DMMono';
 
   // ── Type Scale (Material 3 compatible) ──────────────────────
+  static const TextStyle displayHero = TextStyle(
+    fontFamily: displayFont,
+    fontSize: 48,
+    fontWeight: FontWeight.w700,
+    height: 1.15,
+    letterSpacing: -1.0,
+  );
+
   static const TextStyle displayLarge = TextStyle(
     fontFamily: displayFont,
     fontSize: 32,
@@ -55,6 +63,14 @@ class KinrelTypography {
     fontSize: 18,
     fontWeight: FontWeight.w600,
     height: 1.35,
+  );
+
+  static const TextStyle sectionHeader = TextStyle(
+    fontFamily: displayFont,
+    fontSize: 18,
+    fontWeight: FontWeight.w700,
+    height: 1.35,
+    letterSpacing: -0.2,
   );
 
   static const TextStyle titleLarge = TextStyle(
@@ -103,8 +119,8 @@ class KinrelTypography {
 
   static const TextStyle labelLarge = TextStyle(
     fontFamily: bodyFont,
-    fontSize: 14,
-    fontWeight: FontWeight.w500,
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
     height: 1.4,
     letterSpacing: 0.1,
   );

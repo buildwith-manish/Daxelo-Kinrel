@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/extensions/context_extensions.dart';
-import '../../../shared/widgets/kinrel_logo.dart';
+import '../../../shared/widgets/dk_components.dart';
 
 class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
@@ -38,8 +39,36 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
   String? _passwordStrength(String password) {
     if (password.length < 8) return 'Weak';
-    if (password.length < 12 && !RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(password)) return 'Medium';
+    if (password.length < 12 &&
+        !RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(password))
+      return 'Medium';
     return 'Strong';
+  }
+
+  double _passwordStrengthValue(String? strength) {
+    switch (strength) {
+      case 'Strong':
+        return 1.0;
+      case 'Medium':
+        return 0.6;
+      case 'Weak':
+        return 0.3;
+      default:
+        return 0.0;
+    }
+  }
+
+  Color _passwordStrengthColor(String? strength) {
+    switch (strength) {
+      case 'Strong':
+        return KinrelColors.success;
+      case 'Medium':
+        return KinrelColors.warning;
+      case 'Weak':
+        return KinrelColors.error;
+      default:
+        return KinrelColors.textDim;
+    }
   }
 
   String _cleanErrorMessage(String rawMessage) {
@@ -80,7 +109,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   Future<void> _signUp() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_agreedToTerms) {
-      context.showSnackBar('Please agree to the Terms of Service', isError: true);
+      context.showSnackBar('Please agree to the Terms of Service',
+          isError: true);
       return;
     }
 
@@ -119,266 +149,562 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = DKColors.isLight(context);
     final passwordStrength = _passwordStrength(_passwordController.text);
-    final strengthColor = passwordStrength == 'Strong'
-      ? KinrelColors.success
-      : passwordStrength == 'Medium'
-        ? KinrelColors.warning
-        : KinrelColors.error;
-    final theme = Theme.of(context);
+    final strengthColor = _passwordStrengthColor(passwordStrength);
+
+    // Theme-aware colors
+    final bgColor = isLight
+        ? KinrelColors.lightBackground
+        : KinrelColors.darkBackground;
+    final cardColor = isLight ? KinrelColors.lightCard : KinrelColors.darkCard;
+    final inputFillColor = isLight
+        ? KinrelColors.lightElevated
+        : KinrelColors.darkElevated.withValues(alpha: 0.6);
+    final inputBorderColor = isLight
+        ? KinrelColors.lightBorder
+        : const Color(0xFF3A3A4A);
+    final textColor =
+        isLight ? KinrelColors.textDark : KinrelColors.textWhite;
+    final secondaryColor = isLight
+        ? KinrelColors.textSecondaryLight
+        : KinrelColors.textSilver;
+    final accentColor = isLight ? KinrelColors.purple : KinrelColors.coral;
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [KinrelColors.darkBackground, KinrelColors.darkCard],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(KinrelSpacing.base),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Logo
-                    Center(
-                      child: KinrelLogo(
-                        size: LogoSize.md,
-                        layout: LogoLayout.horizontal,
-                      ),
+      backgroundColor: bgColor,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: KinrelSpacing.xl,
+              vertical: KinrelSpacing.lg,
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // ── Title ────────────────────────────────────────────
+                  Text(
+                    'Create Account',
+                    textAlign: TextAlign.center,
+                    style: KinrelTypography.displayLarge.copyWith(
+                      fontSize: 28,
+                      color: textColor,
                     ),
-
-                    const SizedBox(height: 32),
-
-                    Text(
-                      'Create Account',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.displayFont,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: theme.colorScheme.onSurface,
+                  ).animate().fadeIn(duration: 400.ms).slideY(
+                        begin: 0.15,
+                        end: 0,
+                        duration: 500.ms,
                       ),
+
+                  const SizedBox(height: 8),
+
+                  Text(
+                    'Join KinRel and discover your family',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 15,
+                      color: secondaryColor,
+                      height: 1.5,
                     ),
+                  ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
 
-                    const SizedBox(height: 32),
+                  const SizedBox(height: 28),
 
-                    // Name
-                    TextFormField(
-                      controller: _nameController,
-                      textCapitalization: TextCapitalization.words,
-                      style: TextStyle(color: theme.colorScheme.onSurface),
-                      decoration: InputDecoration(
-                        labelText: 'Full Name',
-                        prefixIcon: const Icon(Icons.person_outline),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
-                        ),
-                      ),
-                      validator: (v) => v == null || v.isEmpty ? 'Name is required' : null,
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Email
-                    TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      autocorrect: false,
-                      style: TextStyle(color: theme.colorScheme.onSurface),
-                      decoration: InputDecoration(
-                        labelText: 'Email',
-                        prefixIcon: const Icon(Icons.email_outlined),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
-                        ),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'Email is required';
-                        if (!v.contains('@')) return 'Enter a valid email';
-                        return null;
-                      },
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Password
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      style: TextStyle(color: theme.colorScheme.onSurface),
-                      decoration: InputDecoration(
-                        labelText: 'Password',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
-                        ),
-                      ),
-                      onChanged: (_) => setState(() {}),
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'Password is required';
-                        if (v.length < 8) return 'Password must be at least 8 characters';
-                        return null;
-                      },
-                    ),
-
-                    if (_passwordController.text.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Text(
-                            'Strength: ',
-                            style: TextStyle(
-                              color: KinrelColors.textDim,
-                              fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            passwordStrength ?? '',
-                            style: TextStyle(
-                              color: strengthColor,
-                              fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-
-                    const SizedBox(height: 16),
-
-                    // Confirm Password
-                    TextFormField(
-                      controller: _confirmPasswordController,
-                      obscureText: _obscureConfirmPassword,
-                      style: TextStyle(color: theme.colorScheme.onSurface),
-                      decoration: InputDecoration(
-                        labelText: 'Confirm Password',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscureConfirmPassword ? Icons.visibility_off : Icons.visibility),
-                          onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
-                        ),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'Please confirm your password';
-                        if (v != _passwordController.text) return 'Passwords do not match';
-                        return null;
-                      },
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Terms
-                    Row(
+                  // ── Card containing form fields ─────────────────────
+                  DKCard(
+                    backgroundColor: cardColor,
+                    padding: KinrelSpacing.xl,
+                    radius: KinrelRadius.xxl,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Checkbox(
-                          value: _agreedToTerms,
-                          onChanged: (v) => setState(() => _agreedToTerms = v ?? false),
-                          activeColor: KinrelColors.orange,
-                        ),
-                        Expanded(
-                          child: Text(
-                            'I agree to the Terms of Service and Privacy Policy',
-                            style: TextStyle(
-                              color: KinrelColors.textSilver,
+                        // ── Full Name ────────────────────────────────
+                        TextFormField(
+                          controller: _nameController,
+                          textCapitalization: TextCapitalization.words,
+                          style: TextStyle(
+                            color: textColor,
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 15,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: 'Full Name',
+                            labelStyle: TextStyle(
+                              color: secondaryColor,
                               fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 13,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.person_outline_rounded,
+                              color: accentColor.withValues(alpha: 0.7),
+                              size: 20,
+                            ),
+                            filled: true,
+                            fillColor: inputFillColor,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(KinrelRadius.input),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(KinrelRadius.input),
+                              borderSide: BorderSide(
+                                color: inputBorderColor,
+                                width: 0.5,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(KinrelRadius.input),
+                              borderSide: BorderSide(
+                                color: accentColor,
+                                width: 1.5,
+                              ),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(KinrelRadius.input),
+                              borderSide: const BorderSide(
+                                color: KinrelColors.error,
+                                width: 1,
+                              ),
                             ),
                           ),
+                          validator: (v) =>
+                              v == null || v.isEmpty ? 'Name is required' : null,
                         ),
-                      ],
-                    ),
 
-                    const SizedBox(height: 24),
+                        const SizedBox(height: 16),
 
-                    // Create Account button
-                    FilledButton(
-                      onPressed: _isLoading ? null : _signUp,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: KinrelColors.orange,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+                        // ── Email ─────────────────────────────────────
+                        TextFormField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          autocorrect: false,
+                          style: TextStyle(
+                            color: textColor,
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 15,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: 'Email',
+                            labelStyle: TextStyle(
+                              color: secondaryColor,
+                              fontFamily: KinrelTypography.bodyFont,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.email_outlined,
+                              color: accentColor.withValues(alpha: 0.7),
+                              size: 20,
+                            ),
+                            filled: true,
+                            fillColor: inputFillColor,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(KinrelRadius.input),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(KinrelRadius.input),
+                              borderSide: BorderSide(
+                                color: inputBorderColor,
+                                width: 0.5,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(KinrelRadius.input),
+                              borderSide: BorderSide(
+                                color: accentColor,
+                                width: 1.5,
+                              ),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(KinrelRadius.input),
+                              borderSide: const BorderSide(
+                                color: KinrelColors.error,
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                          validator: (v) {
+                            if (v == null || v.isEmpty)
+                              return 'Email is required';
+                            if (!v.contains('@')) return 'Enter a valid email';
+                            return null;
+                          },
                         ),
-                      ),
-                      child: _isLoading
-                        ? Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+
+                        const SizedBox(height: 16),
+
+                        // ── Password with strength indicator ──────────
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          style: TextStyle(
+                            color: textColor,
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 15,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: 'Password',
+                            labelStyle: TextStyle(
+                              color: secondaryColor,
+                              fontFamily: KinrelTypography.bodyFont,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.lock_outline,
+                              color: accentColor.withValues(alpha: 0.7),
+                              size: 20,
+                            ),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                                color: secondaryColor,
+                                size: 20,
+                              ),
+                              onPressed: () => setState(
+                                  () => _obscurePassword = !_obscurePassword),
+                            ),
+                            filled: true,
+                            fillColor: inputFillColor,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(KinrelRadius.input),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(KinrelRadius.input),
+                              borderSide: BorderSide(
+                                color: inputBorderColor,
+                                width: 0.5,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(KinrelRadius.input),
+                              borderSide: BorderSide(
+                                color: accentColor,
+                                width: 1.5,
+                              ),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(KinrelRadius.input),
+                              borderSide: const BorderSide(
+                                color: KinrelColors.error,
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                          onChanged: (_) => setState(() {}),
+                          validator: (v) {
+                            if (v == null || v.isEmpty)
+                              return 'Password is required';
+                            if (v.length < 8)
+                              return 'Password must be at least 8 characters';
+                            return null;
+                          },
+                        ),
+
+                        // ── Password strength bar ────────────────────
+                        if (_passwordController.text.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Row(
                             children: [
-                              SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
+                              // Strength bar
+                              Expanded(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(2),
+                                  child: LinearProgressIndicator(
+                                    value:
+                                        _passwordStrengthValue(passwordStrength),
+                                    backgroundColor:
+                                        inputBorderColor.withValues(alpha: 0.3),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        strengthColor),
+                                    minHeight: 4,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: 10),
                               Text(
-                                'Creating account...',
+                                passwordStrength ?? '',
                                 style: TextStyle(
-                                  fontFamily: KinrelTypography.displayFont,
+                                  color: strengthColor,
+                                  fontFamily: KinrelTypography.bodyFont,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  fontSize: 16,
                                 ),
                               ),
                             ],
-                          )
-                        : Text(
-                            'Create Account',
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.displayFont,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16,
+                          ),
+                        ],
+
+                        const SizedBox(height: 16),
+
+                        // ── Confirm Password ──────────────────────────
+                        TextFormField(
+                          controller: _confirmPasswordController,
+                          obscureText: _obscureConfirmPassword,
+                          style: TextStyle(
+                            color: textColor,
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 15,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: 'Confirm Password',
+                            labelStyle: TextStyle(
+                              color: secondaryColor,
+                              fontFamily: KinrelTypography.bodyFont,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.lock_outline,
+                              color: accentColor.withValues(alpha: 0.7),
+                              size: 20,
+                            ),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscureConfirmPassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                                color: secondaryColor,
+                                size: 20,
+                              ),
+                              onPressed: () => setState(() =>
+                                  _obscureConfirmPassword =
+                                      !_obscureConfirmPassword),
+                            ),
+                            filled: true,
+                            fillColor: inputFillColor,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(KinrelRadius.input),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(KinrelRadius.input),
+                              borderSide: BorderSide(
+                                color: inputBorderColor,
+                                width: 0.5,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(KinrelRadius.input),
+                              borderSide: BorderSide(
+                                color: accentColor,
+                                width: 1.5,
+                              ),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(KinrelRadius.input),
+                              borderSide: const BorderSide(
+                                color: KinrelColors.error,
+                                width: 1,
+                              ),
                             ),
                           ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Sign In link
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Already have an account? ',
-                          style: TextStyle(
-                            color: KinrelColors.textSilver,
-                            fontFamily: KinrelTypography.bodyFont,
-                          ),
+                          validator: (v) {
+                            if (v == null || v.isEmpty)
+                              return 'Please confirm your password';
+                            if (v != _passwordController.text)
+                              return 'Passwords do not match';
+                            return null;
+                          },
                         ),
-                        TextButton(
-                          onPressed: () => context.go('/sign-in'),
-                          child: Text(
-                            'Sign In',
-                            style: TextStyle(
-                              color: KinrelColors.orange,
-                              fontFamily: KinrelTypography.displayFont,
-                              fontWeight: FontWeight.w600,
+
+                        const SizedBox(height: 16),
+
+                        // ── Terms checkbox ────────────────────────────
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: Checkbox(
+                                value: _agreedToTerms,
+                                onChanged: (v) =>
+                                    setState(() => _agreedToTerms = v ?? false),
+                                activeColor: KinrelColors.purple,
+                                checkColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                      KinrelRadius.xs),
+                                ),
+                                side: BorderSide(
+                                  color: inputBorderColor,
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() =>
+                                    _agreedToTerms = !_agreedToTerms),
+                                child: Text(
+                                  'I agree to the Terms of Service and Privacy Policy',
+                                  style: TextStyle(
+                                    color: secondaryColor,
+                                    fontFamily: KinrelTypography.bodyFont,
+                                    fontSize: 13,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // ── Create Account button ─────────────────────
+                        SizedBox(
+                          height: 52,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [
+                                  KinrelColors.purple,
+                                  KinrelColors.violet,
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                  KinrelRadius.button),
+                              boxShadow: _isLoading
+                                  ? null
+                                  : [
+                                      BoxShadow(
+                                        color: KinrelColors.purple
+                                            .withValues(alpha: 0.35),
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                            ),
+                            child: ElevatedButton(
+                              onPressed: _isLoading ? null : _signUp,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor: Colors.transparent,
+                                disabledForegroundColor:
+                                    Colors.white.withValues(alpha: 0.5),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                      KinrelRadius.button),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: _isLoading
+                                  ? Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child:
+                                              CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          'Creating account...',
+                                          style: TextStyle(
+                                            fontFamily:
+                                                KinrelTypography.displayFont,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Text(
+                                      'Create Account',
+                                      style: TextStyle(
+                                        fontFamily:
+                                            KinrelTypography.displayFont,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 16,
+                                      ),
+                                    ),
                             ),
                           ),
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
+
+                  const SizedBox(height: 24),
+
+                  // ── Sign In link ────────────────────────────────────
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Already have an account? ',
+                        style: TextStyle(
+                          color: secondaryColor,
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 14,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => context.go('/sign-in'),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          'Sign In',
+                          style: TextStyle(
+                            color: accentColor,
+                            fontFamily: KinrelTypography.displayFont,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ).animate().fadeIn(duration: 300.ms, delay: 600.ms),
+
+                  const SizedBox(height: 16),
+                ],
               ),
             ),
           ),

@@ -72,7 +72,7 @@ class KinrelLogo extends StatelessWidget {
     this.size = LogoSize.md,
     this.layout = LogoLayout.horizontal,
     this.showByDaxelo = false,
-    this.palette = KinrelIconPalette.orange,
+    this.palette = KinrelIconPalette.purple,
     this.animated = false,
   });
 
@@ -99,14 +99,14 @@ class KinrelLogo extends StatelessWidget {
   // ── Text Colors per Palette ───────────────────────────────────────
 
   Color get _textColor => switch (palette) {
-        KinrelIconPalette.orange => KinrelColors.textPrimary,
+        KinrelIconPalette.purple => KinrelColors.textPrimary,
         KinrelIconPalette.light => const Color(0xFF1A0A00),
         KinrelIconPalette.mono => const Color(0xFF1F2937),
         KinrelIconPalette.outline => KinrelColors.textPrimary,
       };
 
   Color get _subtitleColor => switch (palette) {
-        KinrelIconPalette.orange => KinrelColors.textSecondary,
+        KinrelIconPalette.purple => KinrelColors.textSecondary,
         KinrelIconPalette.light => const Color(0xFF7A5040),
         KinrelIconPalette.mono => const Color(0xFF6B7280),
         KinrelIconPalette.outline => KinrelColors.textSecondary,

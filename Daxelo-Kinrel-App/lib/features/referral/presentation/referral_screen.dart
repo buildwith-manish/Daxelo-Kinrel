@@ -155,10 +155,10 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
         gradient: const LinearGradient(
           colors: [Color(0xFF1E1508), KinrelColors.darkCard],
         ),
-        border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.25)),
+        border: Border.all(color: KinrelColors.purple.withValues(alpha: 0.25)),
         boxShadow: [
           BoxShadow(
-            color: KinrelColors.orange.withValues(alpha: 0.12),
+            color: KinrelColors.purple.withValues(alpha: 0.12),
             blurRadius: 32,
             offset: const Offset(0, 8),
           ),
@@ -172,22 +172,22 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
-              color: KinrelColors.orange.withValues(alpha: 0.15),
+              color: KinrelColors.purple.withValues(alpha: 0.15),
               border: Border.all(
-                  color: KinrelColors.orange.withValues(alpha: 0.4)),
+                  color: KinrelColors.purple.withValues(alpha: 0.4)),
             ),
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.card_giftcard_rounded,
-                    color: KinrelColors.orange, size: 14),
+                    color: KinrelColors.purple, size: 14),
                 SizedBox(width: 6),
                 Text('Your Referral Code',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: KinrelColors.orange,
+                      color: KinrelColors.purple,
                     )),
               ],
             ),
@@ -200,7 +200,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
               width: 24,
               height: 24,
               child: CircularProgressIndicator(
-                  color: KinrelColors.orange, strokeWidth: 2.5),
+                  color: KinrelColors.purple, strokeWidth: 2.5),
             )
           else
             SelectableText(
@@ -279,7 +279,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                         gradient: const LinearGradient(
-                            colors: [KinrelColors.orange, KinrelColors.amber]),
+                            colors: [KinrelColors.purple, KinrelColors.amber]),
                       ),
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -321,7 +321,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
             icon: Icons.people_alt_rounded,
             value: '$totalReferrals',
             label: 'Total Referrals',
-            color: KinrelColors.orange,
+            color: KinrelColors.purple,
           ),
         ),
         const SizedBox(width: 12),
@@ -524,7 +524,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                     value: progress,
                     backgroundColor: KinrelColors.darkSurface,
                     valueColor: AlwaysStoppedAnimation<Color>(
-                      isUnlocked ? KinrelColors.success : KinrelColors.orange,
+                      isUnlocked ? KinrelColors.success : KinrelColors.purple,
                     ),
                     minHeight: 4,
                   ),
@@ -650,10 +650,10 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                   height: 36,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: KinrelColors.orange.withValues(alpha: 0.12),
+                    color: KinrelColors.purple.withValues(alpha: 0.12),
                   ),
                   child: const Icon(Icons.person_rounded,
-                      color: KinrelColors.orange, size: 18),
+                      color: KinrelColors.purple, size: 18),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -705,7 +705,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
           height: 20,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: KinrelColors.orange.withValues(alpha: 0.5),
+            color: KinrelColors.purple.withValues(alpha: 0.5),
           ),
         ),
       ),

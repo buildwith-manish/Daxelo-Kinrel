@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,6 +10,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/supported_languages.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../shared/widgets/dk_components.dart';
 
 class CreateFamilyScreen extends ConsumerStatefulWidget {
   const CreateFamilyScreen({super.key});
@@ -23,17 +25,14 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
   static const int _totalSteps = 3;
   bool _isSubmitting = false;
 
-  // Step 1: Family Identity
   final _nameController = TextEditingController();
   final _codeController = TextEditingController();
   SupportedLanguage? _selectedLanguage;
   String _selectedRegion = 'North India';
   bool _isCustomCode = false;
 
-  // Step 2: Privacy & Setup
   _PrivacyMode _privacyMode = _PrivacyMode.inviteOnly;
 
-  // Step 3: Add Yourself
   final _personNameController = TextEditingController();
   final _birthYearController = TextEditingController();
   String? _selectedGender;
@@ -112,7 +111,6 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      // Step 1: Create the family
       final family = await createFamily(
         ref: ref,
         name: _nameController.text.trim(),
@@ -126,7 +124,6 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
                 : 'link',
       );
 
-      // Step 2: Create the anchor person
       final birthYear = int.tryParse(_birthYearController.text.trim());
       await createPerson(
         ref: ref,
@@ -167,8 +164,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: KinrelColors.darkBackground,
+    return DKScaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -264,7 +260,6 @@ class _StepIndicator extends StatelessWidget {
       child: Row(
         children: List.generate(totalSteps * 2 - 1, (index) {
           if (index.isOdd) {
-            // Connector line
             final lineIndex = index ~/ 2;
             return Expanded(
               child: Container(
@@ -272,14 +267,13 @@ class _StepIndicator extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
                   color: lineIndex < currentStep
-                      ? KinrelColors.orange
-                      : KinrelColors.darkSurface,
+                      ? DKColors.brandPurple
+                      : DKColors.brandPurple.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(1),
                 ),
               ),
             );
           }
-          // Dot
           final stepIndex = index ~/ 2;
           final isCompleted = stepIndex < currentStep;
           final isCurrent = stepIndex == currentStep;
@@ -290,12 +284,12 @@ class _StepIndicator extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: isCompleted
-                  ? KinrelColors.orange
+                  ? DKColors.brandPurple
                   : isCurrent
-                      ? KinrelColors.orange.withValues(alpha: 0.2)
-                      : KinrelColors.darkElevated,
+                      ? DKColors.brandPurple.withValues(alpha: 0.2)
+                      : DKColors.elevatedColor(context),
               border: isCurrent
-                  ? Border.all(color: KinrelColors.orange, width: 2)
+                  ? Border.all(color: DKColors.brandPurple, width: 2)
                   : null,
             ),
             child: Center(
@@ -309,8 +303,8 @@ class _StepIndicator extends StatelessWidget {
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: isCurrent
-                            ? KinrelColors.orange
-                            : KinrelColors.textDim,
+                            ? DKColors.brandPurple
+                            : DKColors.textSecondary(context),
                       ),
                     ),
             ),
@@ -353,14 +347,51 @@ class _Step1FamilyIdentity extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Decorative family illustration
+          Center(
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [
+                    DKColors.brandPurple.withValues(alpha: 0.15),
+                    DKColors.brandViolet.withValues(alpha: 0.08),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                border: Border.all(
+                  color: DKColors.brandPurple.withValues(alpha: 0.2),
+                  width: 2,
+                ),
+              ),
+              child: Icon(
+                Icons.family_restroom_rounded,
+                size: 36,
+                color: DKColors.brandPurple,
+              ),
+            ),
+          )
+              .animate(onPlay: (c) => c.forward())
+              .fadeIn(duration: 500.ms)
+              .scale(
+                begin: const Offset(0.8, 0.8),
+                end: const Offset(1.0, 1.0),
+                duration: 400.ms,
+                curve: Curves.easeOutBack,
+              ),
+          const SizedBox(height: 24),
+
           // Section header
           Text(
             'Family Identity',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 24,
               fontWeight: FontWeight.w700,
-              color: KinrelColors.textWhite,
+              color: DKColors.textPrimary(context),
             ),
           ),
           const SizedBox(height: 6),
@@ -369,30 +400,30 @@ class _Step1FamilyIdentity extends StatelessWidget {
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14,
-              color: KinrelColors.textSilver,
+              color: DKColors.textSecondary(context),
               height: 1.5,
             ),
           ),
           const SizedBox(height: 32),
 
-          // Family Name (large, Instagram-style)
+          // Family Name
           Text(
             'Family Name',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               fontWeight: FontWeight.w500,
-              color: KinrelColors.textSilver,
+              color: DKColors.textSecondary(context),
             ),
           ),
           const SizedBox(height: 8),
           TextField(
             controller: nameController,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 28,
               fontWeight: FontWeight.w700,
-              color: KinrelColors.textWhite,
+              color: DKColors.textPrimary(context),
               height: 1.3,
             ),
             decoration: InputDecoration(
@@ -401,10 +432,10 @@ class _Step1FamilyIdentity extends StatelessWidget {
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 28,
                 fontWeight: FontWeight.w700,
-                color: KinrelColors.textDim.withValues(alpha: 0.4),
+                color: DKColors.textSecondary(context).withValues(alpha: 0.3),
               ),
               filled: true,
-              fillColor: KinrelColors.darkElevated,
+              fillColor: DKColors.elevatedColor(context),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(KinrelRadius.input),
                 borderSide: BorderSide.none,
@@ -425,7 +456,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: KinrelColors.textSilver,
+                  color: DKColors.textSecondary(context),
                 ),
               ),
               const Spacer(),
@@ -436,7 +467,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
-                    color: KinrelColors.orange,
+                    color: DKColors.brandPurple,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -444,18 +475,13 @@ class _Step1FamilyIdentity extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: KinrelColors.darkCard,
-              borderRadius: BorderRadius.circular(KinrelRadius.input),
-              border: Border.all(color: KinrelColors.darkSurface),
-            ),
+          DKCard(
+            padding: 12,
+            borderColor: DKColors.brandPurple.withValues(alpha: 0.1),
             child: Row(
               children: [
                 Icon(Icons.link_rounded,
-                    size: 16, color: KinrelColors.textDim),
+                    size: 16, color: DKColors.textSecondary(context)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -464,8 +490,8 @@ class _Step1FamilyIdentity extends StatelessWidget {
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 13,
                       color: fullFamilyCode.isEmpty
-                          ? KinrelColors.textDim
-                          : KinrelColors.textSilver,
+                          ? DKColors.textSecondary(context)
+                          : DKColors.textPrimary(context),
                     ),
                   ),
                 ),
@@ -481,7 +507,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               fontWeight: FontWeight.w500,
-              color: KinrelColors.textSilver,
+              color: DKColors.textSecondary(context),
             ),
           ),
           const SizedBox(height: 8),
@@ -498,7 +524,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               fontWeight: FontWeight.w500,
-              color: KinrelColors.textSilver,
+              color: DKColors.textSecondary(context),
             ),
           ),
           const SizedBox(height: 8),
@@ -536,11 +562,11 @@ class _Step2PrivacySetup extends StatelessWidget {
         children: [
           Text(
             'Privacy & Setup',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 24,
               fontWeight: FontWeight.w700,
-              color: KinrelColors.textWhite,
+              color: DKColors.textPrimary(context),
             ),
           ),
           const SizedBox(height: 6),
@@ -549,20 +575,19 @@ class _Step2PrivacySetup extends StatelessWidget {
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14,
-              color: KinrelColors.textSilver,
+              color: DKColors.textSecondary(context),
               height: 1.5,
             ),
           ),
           const SizedBox(height: 32),
 
-          // Privacy mode cards
           Text(
             'Privacy Mode',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               fontWeight: FontWeight.w500,
-              color: KinrelColors.textSilver,
+              color: DKColors.textSecondary(context),
             ),
           ),
           const SizedBox(height: 12),
@@ -605,56 +630,26 @@ class _Step2PrivacySetup extends StatelessWidget {
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               fontWeight: FontWeight.w500,
-              color: KinrelColors.textSilver,
+              color: DKColors.textSecondary(context),
             ),
           ),
           const SizedBox(height: 12),
           Center(
-            child: GestureDetector(
-              onTap: () {
-                // TODO: Implement avatar upload
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Avatar upload coming soon!')),
-                );
-              },
-              child: Container(
-                width: 88,
-                height: 88,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: KinrelColors.darkElevated,
-                  border: Border.all(
-                      color: KinrelColors.orange.withValues(alpha: 0.3),
-                      width: 2),
-                ),
-                child: familyName.isNotEmpty
-                    ? Center(
-                        child: Text(
-                          familyName[0].toUpperCase(),
-                          style: const TextStyle(
-                            fontFamily: KinrelTypography.displayFont,
-                            fontSize: 36,
-                            fontWeight: FontWeight.w700,
-                            color: KinrelColors.orange,
-                          ),
-                        ),
-                      )
-                    : Icon(
-                        Icons.camera_alt_outlined,
-                        size: 32,
-                        color: KinrelColors.textDim,
-                      ),
-              ),
+            child: DKAvatar(
+              initials: familyName.isNotEmpty ? familyName[0].toUpperCase() : '',
+              size: DKAvatarSize.xl,
+              borderColor: DKColors.brandGold.withValues(alpha: 0.4),
+              backgroundColor: DKColors.brandPurple,
             ),
           ),
           const SizedBox(height: 8),
           Center(
             child: Text(
-              'Tap to upload or use initials',
+              'Uses initials by default',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
-                color: KinrelColors.textDim,
+                color: DKColors.textSecondary(context),
               ),
             ),
           ),
@@ -692,11 +687,11 @@ class _Step3AddYourself extends StatelessWidget {
         children: [
           Text(
             'Add Yourself',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 24,
               fontWeight: FontWeight.w700,
-              color: KinrelColors.textWhite,
+              color: DKColors.textPrimary(context),
             ),
           ),
           const SizedBox(height: 6),
@@ -705,33 +700,22 @@ class _Step3AddYourself extends StatelessWidget {
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14,
-              color: KinrelColors.textSilver,
+              color: DKColors.textSecondary(context),
               height: 1.5,
             ),
           ),
           const SizedBox(height: 32),
 
-          // Person icon
+          // Person icon with purple glow
           Center(
-            child: Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: KinrelGradients.igniteGradient,
-                boxShadow: [
-                  BoxShadow(
-                    color: KinrelColors.orange.withValues(alpha: 0.3),
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.person_rounded,
-                size: 40,
-                color: Colors.white,
-              ),
+            child: DKAvatar(
+              initials: nameController.text.isNotEmpty
+                  ? nameController.text[0].toUpperCase()
+                  : '',
+              size: DKAvatarSize.xl,
+              backgroundColor: DKColors.brandPurple,
+              showGlow: true,
+              borderColor: DKColors.brandGold,
             ),
           ),
           const SizedBox(height: 8),
@@ -741,7 +725,7 @@ class _Step3AddYourself extends StatelessWidget {
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
-                color: KinrelColors.textDim,
+                color: DKColors.textSecondary(context),
               ),
             ),
           ),
@@ -754,7 +738,7 @@ class _Step3AddYourself extends StatelessWidget {
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               fontWeight: FontWeight.w500,
-              color: KinrelColors.textSilver,
+              color: DKColors.textSecondary(context),
             ),
           ),
           const SizedBox(height: 8),
@@ -764,7 +748,7 @@ class _Step3AddYourself extends StatelessWidget {
               fontFamily: KinrelTypography.displayFont,
               fontSize: 20,
               fontWeight: FontWeight.w600,
-              color: KinrelColors.textWhite,
+              color: DKColors.textPrimary(context),
             ),
             decoration: InputDecoration(
               hintText: 'e.g., Rahul Sharma',
@@ -772,10 +756,10 @@ class _Step3AddYourself extends StatelessWidget {
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
-                color: KinrelColors.textDim.withValues(alpha: 0.4),
+                color: DKColors.textSecondary(context).withValues(alpha: 0.3),
               ),
               filled: true,
-              fillColor: KinrelColors.darkElevated,
+              fillColor: DKColors.elevatedColor(context),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(KinrelRadius.input),
                 borderSide: BorderSide.none,
@@ -794,7 +778,7 @@ class _Step3AddYourself extends StatelessWidget {
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               fontWeight: FontWeight.w500,
-              color: KinrelColors.textSilver,
+              color: DKColors.textSecondary(context),
             ),
           ),
           const SizedBox(height: 8),
@@ -805,13 +789,14 @@ class _Step3AddYourself extends StatelessWidget {
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 16,
-              color: KinrelColors.textWhite,
+              color: DKColors.textPrimary(context),
             ),
             decoration: InputDecoration(
               hintText: 'e.g., 1990',
-              hintStyle: TextStyle(color: KinrelColors.textDim),
+              hintStyle: TextStyle(
+                  color: DKColors.textSecondary(context).withValues(alpha: 0.5)),
               filled: true,
-              fillColor: KinrelColors.darkElevated,
+              fillColor: DKColors.elevatedColor(context),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(KinrelRadius.input),
                 borderSide: BorderSide.none,
@@ -830,7 +815,7 @@ class _Step3AddYourself extends StatelessWidget {
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               fontWeight: FontWeight.w500,
-              color: KinrelColors.textSilver,
+              color: DKColors.textSecondary(context),
             ),
           ),
           const SizedBox(height: 10),
@@ -839,35 +824,11 @@ class _Step3AddYourself extends StatelessWidget {
             runSpacing: 8,
             children: genders.map((gender) {
               final isSelected = selectedGender == gender;
-              return GestureDetector(
+              return DKSuggestionChip(
+                label: gender,
+                isSelected: isSelected,
                 onTap: () =>
                     onGenderChanged(isSelected ? null : gender),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? KinrelColors.orange.withValues(alpha: 0.2)
-                        : KinrelColors.darkElevated,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isSelected
-                          ? KinrelColors.orange
-                          : KinrelColors.darkSurface,
-                    ),
-                  ),
-                  child: Text(
-                    gender,
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: isSelected
-                          ? KinrelColors.orange
-                          : KinrelColors.textSilver,
-                    ),
-                  ),
-                ),
               );
             }).toList(),
           ),
@@ -901,75 +862,38 @@ class _BottomNav extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(KinrelSpacing.base),
       decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
+        color: DKColors.cardColor(context),
         border: Border(
-          top: BorderSide(color: KinrelColors.border, width: 1),
+          top: BorderSide(color: DKColors.borderColor(context), width: 1),
         ),
       ),
       child: SafeArea(
         top: false,
         child: Row(
           children: [
-            // Back button
             if (currentStep > 0)
               Expanded(
-                child: OutlinedButton(
+                child: DKButton(
+                  label: 'Back',
+                  variant: DKButtonVariant.secondary,
                   onPressed: onBack,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: KinrelColors.textSilver,
-                    side: BorderSide(color: KinrelColors.border),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(KinrelRadius.button),
-                    ),
-                  ),
-                  child: Text(
-                    'Back',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.displayFont,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  size: DKButtonSize.md,
                 ),
               ),
             if (currentStep > 0) const SizedBox(width: 12),
-
-            // Next / Create button
             Expanded(
               flex: 2,
-              child: FilledButton(
+              child: DKButton(
+                label: currentStep == totalSteps - 1
+                    ? 'Create Family'
+                    : 'Next',
+                variant: currentStep == totalSteps - 1
+                    ? DKButtonVariant.gradient
+                    : DKButtonVariant.primary,
                 onPressed: canProceed && !isSubmitting ? onNext : null,
-                style: FilledButton.styleFrom(
-                  backgroundColor: KinrelColors.orange,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor:
-                      KinrelColors.orange.withValues(alpha: 0.4),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(KinrelRadius.button),
-                  ),
-                ),
-                child: isSubmitting
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        currentStep == totalSteps - 1
-                            ? 'Create Family'
-                            : 'Next',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.displayFont,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                isLoading: isSubmitting,
+                fullWidth: true,
+                size: DKButtonSize.lg,
               ),
             ),
           ],
@@ -1001,73 +925,63 @@ class _PrivacyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isSelected = mode == selectedMode;
-    return GestureDetector(
+    return DKCard(
+      borderColor: isSelected
+          ? DKColors.brandPurple.withValues(alpha: 0.5)
+          : DKColors.borderColor(context),
+      backgroundColor: isSelected
+          ? DKColors.brandPurple.withValues(alpha: 0.06)
+          : null,
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? KinrelColors.orange.withValues(alpha: 0.08)
-              : KinrelColors.darkCard,
-          borderRadius: BorderRadius.circular(KinrelRadius.card),
-          border: Border.all(
-            color: isSelected
-                ? KinrelColors.orange.withValues(alpha: 0.5)
-                : KinrelColors.darkSurface,
-            width: isSelected ? 1.5 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isSelected
+                  ? DKColors.brandPurple.withValues(alpha: 0.15)
+                  : DKColors.elevatedColor(context),
+            ),
+            child: Icon(icon,
+                size: 20,
                 color: isSelected
-                    ? KinrelColors.orange.withValues(alpha: 0.15)
-                    : KinrelColors.darkElevated,
-              ),
-              child: Icon(icon,
-                  size: 20,
-                  color: isSelected
-                      ? KinrelColors.orange
-                      : KinrelColors.textDim),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.displayFont,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: isSelected
-                          ? KinrelColors.textWhite
-                          : KinrelColors.textSilver,
-                    ),
+                    ? DKColors.brandPurple
+                    : DKColors.textSecondary(context)),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: isSelected
+                        ? DKColors.textPrimary(context)
+                        : DKColors.textSecondary(context),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 12,
-                      color: KinrelColors.textDim,
-                      height: 1.4,
-                    ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    color: DKColors.textSecondary(context),
+                    height: 1.4,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            if (isSelected)
-              const Icon(Icons.check_circle_rounded,
-                  color: KinrelColors.orange, size: 22),
-          ],
-        ),
+          ),
+          if (isSelected)
+            Icon(Icons.check_circle_rounded,
+                color: DKColors.brandPurple, size: 22),
+        ],
       ),
     );
   }
@@ -1089,20 +1003,21 @@ class _LanguageDropdown extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: KinrelColors.darkElevated,
+        color: DKColors.elevatedColor(context),
         borderRadius: BorderRadius.circular(KinrelRadius.input),
-        border: Border.all(color: KinrelColors.darkSurface.withValues(alpha: 0.3)),
+        border: Border.all(
+            color: DKColors.brandPurple.withValues(alpha: 0.1)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<SupportedLanguage>(
           value: selectedLanguage,
           hint: Text(
             'Select language',
-            style: TextStyle(color: KinrelColors.textDim),
+            style: TextStyle(color: DKColors.textSecondary(context)),
           ),
           isExpanded: true,
-          icon: Icon(Icons.arrow_drop_down, color: KinrelColors.orange),
-          dropdownColor: KinrelColors.darkElevated,
+          icon: Icon(Icons.arrow_drop_down, color: DKColors.brandPurple),
+          dropdownColor: DKColors.cardColor(context),
           items: SupportedLanguage.values.map((lang) {
             return DropdownMenuItem(
               value: lang,
@@ -1111,7 +1026,7 @@ class _LanguageDropdown extends StatelessWidget {
                   Text(
                     lang.nativeName,
                     style: TextStyle(
-                      color: KinrelColors.textWhite,
+                      color: DKColors.textPrimary(context),
                       fontFamily: KinrelTypography.bodyFont,
                     ),
                   ),
@@ -1119,7 +1034,7 @@ class _LanguageDropdown extends StatelessWidget {
                   Text(
                     '(${lang.name})',
                     style: TextStyle(
-                      color: KinrelColors.textDim,
+                      color: DKColors.textSecondary(context),
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                     ),
@@ -1161,23 +1076,24 @@ class _RegionDropdown extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: KinrelColors.darkElevated,
+        color: DKColors.elevatedColor(context),
         borderRadius: BorderRadius.circular(KinrelRadius.input),
-        border: Border.all(color: KinrelColors.darkSurface.withValues(alpha: 0.3)),
+        border: Border.all(
+            color: DKColors.brandPurple.withValues(alpha: 0.1)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: selectedRegion,
           isExpanded: true,
-          icon: Icon(Icons.arrow_drop_down, color: KinrelColors.orange),
-          dropdownColor: KinrelColors.darkElevated,
+          icon: Icon(Icons.arrow_drop_down, color: DKColors.brandPurple),
+          dropdownColor: DKColors.cardColor(context),
           items: _regions.map((region) {
             return DropdownMenuItem(
               value: region,
               child: Text(
                 region,
                 style: TextStyle(
-                  color: KinrelColors.textWhite,
+                  color: DKColors.textPrimary(context),
                   fontFamily: KinrelTypography.bodyFont,
                 ),
               ),

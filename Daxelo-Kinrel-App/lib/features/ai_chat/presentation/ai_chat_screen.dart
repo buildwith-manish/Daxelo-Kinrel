@@ -195,14 +195,14 @@ class _EmptyState extends ConsumerWidget {
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: KinrelColors.orange.withValues(alpha: 0.1),
+                color: KinrelColors.purple.withValues(alpha: 0.1),
                 border: Border.all(
-                  color: KinrelColors.orange.withValues(alpha: 0.3),
+                  color: KinrelColors.purple.withValues(alpha: 0.3),
                 ),
               ),
               child: const Icon(
                 Icons.auto_awesome_rounded,
-                color: KinrelColors.orange,
+                color: KinrelColors.purple,
                 size: 40,
               ),
             ),
@@ -301,7 +301,7 @@ class _SuggestionChip extends StatelessWidget {
           color: KinrelColors.darkCard,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: KinrelColors.orange.withValues(alpha: 0.3),
+            color: KinrelColors.purple.withValues(alpha: 0.3),
           ),
         ),
         child: Text(
@@ -345,7 +345,7 @@ class _ChatBubble extends StatelessWidget {
             ),
             decoration: BoxDecoration(
               color: isUser
-                  ? KinrelColors.orange
+                  ? KinrelColors.purple
                   : KinrelColors.darkCard,
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(16),
@@ -366,7 +366,7 @@ class _ChatBubble extends StatelessWidget {
                   ? [
                       BoxShadow(
                         color:
-                            KinrelColors.orange.withValues(alpha: 0.2),
+                            KinrelColors.purple.withValues(alpha: 0.2),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -388,7 +388,7 @@ class _ChatBubble extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.auto_awesome_rounded,
-                        color: KinrelColors.orange.withValues(alpha: 0.8),
+                        color: KinrelColors.purple.withValues(alpha: 0.8),
                         size: 14,
                       ),
                       const SizedBox(width: 6),
@@ -398,7 +398,7 @@ class _ChatBubble extends StatelessWidget {
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: KinrelColors.orange.withValues(alpha: 0.8),
+                          color: KinrelColors.purple.withValues(alpha: 0.8),
                         ),
                       ),
                     ],
@@ -555,7 +555,7 @@ class _KinshipCard extends StatelessWidget {
             children: [
               _InfoBadge(
                 label: data.lineage,
-                color: KinrelColors.orange,
+                color: KinrelColors.purple,
               ),
               const SizedBox(width: 8),
               _InfoBadge(
@@ -602,7 +602,7 @@ class _KinshipCard extends StatelessWidget {
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 9,
                           fontWeight: FontWeight.w600,
-                          color: KinrelColors.orange,
+                          color: KinrelColors.purple,
                           letterSpacing: 0.3,
                         ),
                       ),
@@ -710,7 +710,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
               children: [
                 Icon(
                   Icons.auto_awesome_rounded,
-                  color: KinrelColors.orange.withValues(alpha: 0.8),
+                  color: KinrelColors.purple.withValues(alpha: 0.8),
                   size: 14,
                 ),
                 const SizedBox(width: 8),
@@ -732,7 +732,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
                               height: 6,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: KinrelColors.orange
+                                color: KinrelColors.purple
                                     .withValues(alpha: 0.4 + 0.6 * scale),
                               ),
                             ),
@@ -831,7 +831,7 @@ class _InputBar extends StatelessWidget {
                   gradient: isLoading
                       ? null
                       : const LinearGradient(
-                          colors: [KinrelColors.orange, KinrelColors.amber],
+                          colors: [KinrelColors.purple, KinrelColors.violet],
                         ),
                   color: isLoading
                       ? KinrelColors.darkSurface
@@ -840,7 +840,7 @@ class _InputBar extends StatelessWidget {
                       ? null
                       : [
                           BoxShadow(
-                            color: KinrelColors.orange
+                            color: KinrelColors.purple
                                 .withValues(alpha: 0.3),
                             blurRadius: 12,
                             offset: const Offset(0, 4),

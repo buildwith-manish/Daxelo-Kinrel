@@ -6,6 +6,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/graph/graph_service.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../shared/widgets/dk_components.dart';
 
 // ── Data models for visualization ──────────────────────────────────
 
@@ -14,7 +15,7 @@ class VisTreeNode {
   final GraphPerson person;
   final GraphPerson? spouse;
   final List<VisTreeNode> children;
-  final String lineage; // 'paternal', 'maternal', 'marital', 'self'
+  final String lineage;
 
   const VisTreeNode({
     required this.person,
@@ -31,7 +32,7 @@ enum NodeLineage { paternal, maternal, marital, self, none }
 
 class GraphFilters {
   final Set<int> visibleGenerations;
-  final String branch; // 'all', 'paternal', 'maternal'
+  final String branch;
   final bool showDeceased;
   final bool showMaritalLinks;
 
@@ -59,7 +60,6 @@ class GraphFilters {
 
 // ── Layout result ──────────────────────────────────────────────────
 
-/// Stores layout position and node metadata keyed by person ID
 class LayoutResult {
   final Map<String, Rect> positions;
   final Map<String, VisTreeNode> nodes;
@@ -74,8 +74,8 @@ class LayoutResult {
 
 // ── Main canvas widget ─────────────────────────────────────────────
 
-/// Advanced family tree canvas with generation layers, minimap,
-/// filters, lineage coloring, and rich node design.
+/// Canvas-based interactive family tree view with zoom/pan,
+/// curved purple connectors, circular nodes, and floating controls.
 class FamilyTreeCanvas extends StatefulWidget {
   final List<Person> members;
   final List<FamilyRelationship> relationships;
@@ -102,7 +102,6 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
   String? _selectedNodeId;
   GraphFilters _filters = const GraphFilters();
 
-  // Node dimensions
   static const double nodeWidth = 160.0;
   static const double nodeHeight = 72.0;
   static const double horizontalGap = 24.0;
@@ -189,14 +188,37 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
           ),
         ),
 
-        // Filter bar (top)
+        // Language selector (top-left, globe icon)
         Positioned(
           top: 8,
           left: 8,
-          right: 8,
+          child: _LanguageSelectorButton(),
+        ),
+
+        // Filter bar (top-center)
+        Positioned(
+          top: 8,
+          left: 52,
+          right: 52,
           child: _FilterBar(
             filters: _filters,
             onFiltersChanged: (f) => setState(() => _filters = f),
+          ),
+        ),
+
+        // Floating zoom controls (bottom-left)
+        Positioned(
+          bottom: 16,
+          left: 16,
+          child: _ZoomControls(
+            scale: _scale,
+            onZoomIn: () => setState(() {
+              _scale = (_scale * 1.2).clamp(0.25, 3.0);
+            }),
+            onZoomOut: () => setState(() {
+              _scale = (_scale / 1.2).clamp(0.25, 3.0);
+            }),
+            onFit: _fitToScreen,
           ),
         ),
 
@@ -225,8 +247,10 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
         // Empty state
         if (activeMembers.isEmpty)
           Center(
-            child: _EmptyCanvasState(
-              onAddMember: () {},
+            child: DKEmptyState(
+              icon: Icons.account_tree_outlined,
+              title: 'No Members Yet',
+              subtitle: 'Add family members to start building your tree.',
             ),
           ),
       ],
@@ -240,12 +264,10 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
     });
   }
 
-  /// Build tree hierarchy from flat person + relationship data
   List<VisTreeNode> _buildTree() {
     var activeMembers =
         widget.members.where((p) => p.deletedAt == null).toList();
 
-    // Filter deceased if needed
     if (!_filters.showDeceased) {
       activeMembers = activeMembers.where((p) => !p.isDeceased).toList();
     }
@@ -259,7 +281,6 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
 
     final personMap = {for (final p in persons) p.id: p};
 
-    // Find parent-child relationships
     final childOf = <String, String>{};
     final spouseOf = <String, String>{};
     final lineageOf = <String, String>{};
@@ -277,7 +298,6 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
         }
       }
 
-      // Assign lineage
       if (type == 'father' ||
           type == 'paternal_grandfather' ||
           type == 'paternal_grandmother') {
@@ -289,7 +309,6 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
       }
     }
 
-    // Find roots (persons without parents)
     final rootIds = <String>{};
     for (final p in persons) {
       if (!childOf.containsKey(p.id)) {
@@ -346,7 +365,6 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
       if (node != null) roots.add(node);
     }
 
-    // Add remaining unlinked persons
     for (final p in persons) {
       if (!usedIds.contains(p.id)) {
         roots.add(VisTreeNode(
@@ -360,7 +378,6 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
     return roots;
   }
 
-  /// Compute layout positions for all nodes
   LayoutResult _computeLayout(List<VisTreeNode> roots) {
     final positions = <String, Rect>{};
     final nodes = <String, VisTreeNode>{};
@@ -393,7 +410,6 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
     final coupleWidth =
         hasSpouse ? nodeWidth * 2 + horizontalGap : nodeWidth;
 
-    // Store node data
     nodes[node.person.id] = node;
     lineages[node.person.id] = node.lineage;
 
@@ -445,6 +461,140 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
   }
 }
 
+// ── Language Selector Button ────────────────────────────────────
+
+class _LanguageSelectorButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final isLight = DKColors.isLight(context);
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: isLight
+            ? Colors.white.withValues(alpha: 0.9)
+            : DKColors.darkBg.withValues(alpha: 0.85),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: DKColors.brandPurple.withValues(alpha: 0.2),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        icon: Icon(Icons.language, color: DKColors.brandPurple, size: 18),
+        tooltip: 'Language',
+        onPressed: () {
+          // TODO: Show language picker
+        },
+      ),
+    );
+  }
+}
+
+// ── Floating Zoom Controls ──────────────────────────────────────
+
+class _ZoomControls extends StatelessWidget {
+  final double scale;
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onFit;
+
+  const _ZoomControls({
+    required this.scale,
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onFit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = DKColors.isLight(context);
+    final bgColor = isLight
+        ? Colors.white.withValues(alpha: 0.95)
+        : const Color(0xFF1E1E2E);
+    final iconColor = isLight ? DKColors.textDark : Colors.white;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(KinrelRadius.lg),
+        border: Border.all(
+          color: DKColors.brandPurple.withValues(alpha: 0.15),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ZoomButton(
+            icon: Icons.add_rounded,
+            color: iconColor,
+            onTap: onZoomIn,
+          ),
+          Container(
+            width: 32,
+            height: 1,
+            color: DKColors.brandPurple.withValues(alpha: 0.1),
+          ),
+          _ZoomButton(
+            icon: Icons.remove_rounded,
+            color: iconColor,
+            onTap: onZoomOut,
+          ),
+          Container(
+            width: 32,
+            height: 1,
+            color: DKColors.brandPurple.withValues(alpha: 0.1),
+          ),
+          _ZoomButton(
+            icon: Icons.fit_screen_rounded,
+            color: DKColors.brandPurple,
+            onTap: onFit,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ZoomButton extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ZoomButton({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        icon: Icon(icon, color: color, size: 20),
+        onPressed: onTap,
+      ),
+    );
+  }
+}
+
 // ── Custom painter ─────────────────────────────────────────────────
 
 class _TreePainter extends CustomPainter {
@@ -486,10 +636,9 @@ class _TreePainter extends CustomPainter {
 
     final layout = _computeLayout();
 
-    // Draw generation layers
     _drawGenerationLayers(canvas, size, layout);
 
-    // Draw connecting lines
+    // Draw curved connections
     for (final root in roots) {
       _drawConnections(canvas, root, layout);
     }
@@ -540,7 +689,7 @@ class _TreePainter extends CustomPainter {
       );
 
       final bandPaint = Paint()
-        ..color = KinrelColors.darkSurface.withValues(alpha: 0.15);
+        ..color = DKColors.brandPurple.withValues(alpha: 0.04);
       canvas.drawRect(bandRect, bandPaint);
 
       final labelPainter = TextPainter(
@@ -549,7 +698,7 @@ class _TreePainter extends CustomPainter {
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 10,
-            color: KinrelColors.textDim.withValues(alpha: 0.4),
+            color: DKColors.brandPurple.withValues(alpha: 0.35),
             fontWeight: FontWeight.w600,
             letterSpacing: 0.5,
           ),
@@ -564,6 +713,7 @@ class _TreePainter extends CustomPainter {
     }
   }
 
+  /// Draw curved purple connectors between parent and children
   void _drawConnections(
     Canvas canvas,
     VisTreeNode node,
@@ -572,7 +722,7 @@ class _TreePainter extends CustomPainter {
     final parentRect = layout.positions[node.person.id];
     if (parentRect == null) return;
 
-    // Draw spouse connection (dotted line)
+    // Spouse connection (dotted purple)
     if (node.spouse != null && filters.showMaritalLinks) {
       final spouseRect = layout.positions[node.spouse!.id];
       if (spouseRect != null) {
@@ -581,27 +731,27 @@ class _TreePainter extends CustomPainter {
         final y = parentRect.top + parentRect.height / 2;
 
         final dotPaint = Paint()
-          ..color = KinrelColors.durgaPurple.withValues(alpha: 0.5)
+          ..color = DKColors.brandPurple.withValues(alpha: 0.5)
           ..strokeWidth = 1.5
           ..style = PaintingStyle.stroke;
 
         _drawDottedLine(canvas, Offset(startX, y), Offset(endX, y), dotPaint);
 
-        // Ring emoji in center
+        // Heart emoji in center
         final centerX = (startX + endX) / 2;
-        final ringText = TextPainter(
-          text: const TextSpan(text: '💍', style: TextStyle(fontSize: 8)),
+        final heartText = TextPainter(
+          text: const TextSpan(text: '💜', style: TextStyle(fontSize: 8)),
           textDirection: TextDirection.ltr,
         );
-        ringText.layout();
-        ringText.paint(
+        heartText.layout();
+        heartText.paint(
           canvas,
-          Offset(centerX - ringText.width / 2, y - ringText.height / 2),
+          Offset(centerX - heartText.width / 2, y - heartText.height / 2),
         );
       }
     }
 
-    // Draw parent-child connections (solid lines)
+    // Parent-child curved connections (purple, 50% opacity)
     if (node.children.isNotEmpty) {
       final parentBottom = Offset(
         parentRect.left + parentRect.width / 2,
@@ -619,51 +769,28 @@ class _TreePainter extends CustomPainter {
       }
 
       if (childPositions.isNotEmpty) {
-        final midY = parentBottom.dy + verticalGap * 0.4;
-        final linePaint = Paint()
-          ..color = KinrelColors.darkSurface
+        // Draw curved paths in purple with 50% opacity
+        final curvePaint = Paint()
+          ..color = DKColors.brandPurple.withValues(alpha: 0.5)
           ..strokeWidth = 2
-          ..style = PaintingStyle.stroke;
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round;
 
-        // Vertical line from parent
-        canvas.drawLine(
-          parentBottom,
-          Offset(parentBottom.dx, midY),
-          linePaint,
-        );
+        for (final childTop in childPositions) {
+          // Draw a curved bezier path from parent to child
+          final path = Path();
+          path.moveTo(parentBottom.dx, parentBottom.dy);
 
-        if (childPositions.length == 1) {
-          final childTop = childPositions.first;
-          canvas.drawLine(
-            Offset(parentBottom.dx, midY),
-            Offset(childTop.dx, midY),
-            linePaint,
-          );
-          canvas.drawLine(
-            Offset(childTop.dx, midY),
-            childTop,
-            linePaint,
-          );
-        } else {
-          final leftX =
-              childPositions.map((p) => p.dx).reduce(math.min);
-          final rightX =
-              childPositions.map((p) => p.dx).reduce(math.max);
+          final midY = (parentBottom.dy + childTop.dy) / 2;
 
-          // Horizontal bracket
-          canvas.drawLine(
-            Offset(leftX, midY),
-            Offset(rightX, midY),
-            linePaint,
+          // Curved path: down from parent, curve to child
+          path.cubicTo(
+            parentBottom.dx, midY,
+            childTop.dx, midY,
+            childTop.dx, childTop.dy,
           );
 
-          for (final childTop in childPositions) {
-            canvas.drawLine(
-              Offset(childTop.dx, midY),
-              childTop,
-              linePaint,
-            );
-          }
+          canvas.drawPath(path, curvePaint);
         }
       }
     }
@@ -714,10 +841,10 @@ class _TreePainter extends CustomPainter {
   }) {
     final nodeLineage = _parseLineage(lineage);
 
-    // Glow effect for anchor person
+    // Purple glow for anchor/self person
     if (isAnchor) {
       final glowPaint = Paint()
-        ..color = KinrelColors.orangeGlow
+        ..color = DKColors.brandPurple.withValues(alpha: 0.4)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
@@ -726,10 +853,10 @@ class _TreePainter extends CustomPainter {
       );
     }
 
-    // Glow effect for selected node
-    if (isSelected) {
+    // Glow for selected node
+    if (isSelected && !isAnchor) {
       final glowPaint = Paint()
-        ..color = KinrelColors.orangeGlow
+        ..color = DKColors.brandGold.withValues(alpha: 0.35)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
@@ -746,11 +873,11 @@ class _TreePainter extends CustomPainter {
       bgPaint,
     );
 
-    // Border
+    // Border — purple for anchor, gold for selected
     final borderColor = isAnchor
-        ? KinrelColors.orange
+        ? DKColors.brandPurple
         : isSelected
-            ? KinrelColors.amber
+            ? DKColors.brandGold
             : _lineageBorderColor(nodeLineage);
     final borderPaint = Paint()
       ..color = borderColor
@@ -764,22 +891,21 @@ class _TreePainter extends CustomPainter {
     // Deceased overlay
     if (isDeceased) {
       final deceasedPaint = Paint()
-        ..color = KinrelColors.textDim.withValues(alpha: 0.2);
+        ..color = Colors.white.withValues(alpha: 0.1);
       canvas.drawRRect(
         RRect.fromRectAndRadius(rect, const Radius.circular(radius)),
         deceasedPaint,
       );
     }
 
-    // Avatar circle
+    // Avatar circle with purple gradient
     final avatarRect = Rect.fromLTWH(
       rect.left + 8,
       rect.top + (rect.height - avatarSize) / 2,
       avatarSize,
       avatarSize,
     );
-    final avatarGradient =
-        _avatarGradient(nodeLineage, isDeceased);
+    final avatarGradient = _avatarGradient(nodeLineage, isDeceased);
     final avatarPaint = Paint()
       ..shader = avatarGradient.createShader(avatarRect);
     canvas.drawRRect(
@@ -808,7 +934,7 @@ class _TreePainter extends CustomPainter {
       final initialPainter = TextPainter(
         text: TextSpan(
           text: initial,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 14,
             fontWeight: FontWeight.w700,
@@ -832,10 +958,10 @@ class _TreePainter extends CustomPainter {
     final genderSymbol =
         genderIcon == 'male' ? '♂' : genderIcon == 'female' ? '♀' : '○';
     final genderColor = genderIcon == 'male'
-        ? KinrelColors.info
+        ? DKColors.brandBlue
         : genderIcon == 'female'
-            ? KinrelColors.holiPink
-            : KinrelColors.textDim;
+            ? DKColors.brandCoral
+            : DKColors.textSecondaryLight;
     final genderPainter = TextPainter(
       text: TextSpan(
         text: genderSymbol,
@@ -860,7 +986,7 @@ class _TreePainter extends CustomPainter {
           fontFamily: KinrelTypography.displayFont,
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: isDeceased ? KinrelColors.textSilver : KinrelColors.textWhite,
+          color: Colors.white,
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -870,7 +996,7 @@ class _TreePainter extends CustomPainter {
     namePainter.layout(maxWidth: textMaxWidth);
     namePainter.paint(canvas, Offset(textStartX, rect.top + 12));
 
-    // Relationship label
+    // Relationship label (purple accent)
     if (relationship != null && relationship.isNotEmpty) {
       final relPainter = TextPainter(
         text: TextSpan(
@@ -879,7 +1005,7 @@ class _TreePainter extends CustomPainter {
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 11,
             fontWeight: FontWeight.w500,
-            color: _lineageTextColor(nodeLineage),
+            color: DKColors.brandPurple.withValues(alpha: 0.8),
             letterSpacing: 0.3,
           ),
         ),
@@ -929,69 +1055,55 @@ class _TreePainter extends CustomPainter {
   Color _lineageBgColor(NodeLineage lineage) {
     switch (lineage) {
       case NodeLineage.paternal:
-        return KinrelColors.orange.withValues(alpha: 0.06);
+        return DKColors.brandPurple.withValues(alpha: 0.08);
       case NodeLineage.maternal:
-        return KinrelColors.amber.withValues(alpha: 0.06);
+        return DKColors.brandGold.withValues(alpha: 0.06);
       case NodeLineage.marital:
-        return KinrelColors.durgaPurple.withValues(alpha: 0.06);
+        return DKColors.brandViolet.withValues(alpha: 0.06);
       case NodeLineage.self:
-        return KinrelColors.success.withValues(alpha: 0.08);
+        return DKColors.brandPurple.withValues(alpha: 0.1);
       case NodeLineage.none:
-        return KinrelColors.darkCard;
+        return DKColors.darkCard;
     }
   }
 
   Color _lineageBorderColor(NodeLineage lineage) {
     switch (lineage) {
       case NodeLineage.paternal:
-        return KinrelColors.orange.withValues(alpha: 0.4);
+        return DKColors.brandPurple.withValues(alpha: 0.4);
       case NodeLineage.maternal:
-        return KinrelColors.amber.withValues(alpha: 0.4);
+        return DKColors.brandGold.withValues(alpha: 0.4);
       case NodeLineage.marital:
-        return KinrelColors.durgaPurple.withValues(alpha: 0.4);
+        return DKColors.brandViolet.withValues(alpha: 0.4);
       case NodeLineage.self:
-        return KinrelColors.success.withValues(alpha: 0.5);
+        return DKColors.brandPurple.withValues(alpha: 0.6);
       case NodeLineage.none:
-        return KinrelColors.darkSurface.withValues(alpha: 0.5);
-    }
-  }
-
-  Color _lineageTextColor(NodeLineage lineage) {
-    switch (lineage) {
-      case NodeLineage.paternal:
-        return KinrelColors.orange;
-      case NodeLineage.maternal:
-        return KinrelColors.amber;
-      case NodeLineage.marital:
-        return KinrelColors.durgaPurple;
-      case NodeLineage.self:
-        return KinrelColors.success;
-      case NodeLineage.none:
-        return KinrelColors.orange;
+        return DKColors.brandPurple.withValues(alpha: 0.15);
     }
   }
 
   LinearGradient _avatarGradient(NodeLineage lineage, bool isDeceased) {
     if (isDeceased) {
       return LinearGradient(
-        colors: [KinrelColors.textDim, KinrelColors.darkSurface],
+        colors: [Colors.grey, DKColors.darkElevated],
       );
     }
     switch (lineage) {
       case NodeLineage.paternal:
         return const LinearGradient(
-            colors: [KinrelColors.orange, KinrelColors.ember]);
+            colors: [DKColors.brandPurple, DKColors.brandViolet]);
       case NodeLineage.maternal:
         return const LinearGradient(
-            colors: [KinrelColors.amber, KinrelColors.orange]);
+            colors: [DKColors.brandGold, DKColors.brandBrightGold]);
       case NodeLineage.marital:
-        return LinearGradient(
-            colors: [KinrelColors.durgaPurple, KinrelColors.holiPink]);
+        return const LinearGradient(
+            colors: [DKColors.brandViolet, DKColors.brandCoral]);
       case NodeLineage.self:
         return const LinearGradient(
-            colors: [KinrelColors.success, KinrelColors.eidGreen]);
+            colors: [DKColors.brandPurple, DKColors.brandViolet]);
       case NodeLineage.none:
-        return KinrelColors.igniteGradient;
+        return const LinearGradient(
+            colors: [DKColors.brandPurple, DKColors.brandDeepPurple]);
     }
   }
 
@@ -1108,30 +1220,31 @@ class _FilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = DKColors.isLight(context);
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: KinrelSpacing.sm,
         vertical: KinrelSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: KinrelColors.darkBackground.withValues(alpha: 0.85),
+        color: isLight
+            ? Colors.white.withValues(alpha: 0.9)
+            : DKColors.darkBg.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
         border: Border.all(
-          color: KinrelColors.darkSurface.withValues(alpha: 0.3),
+          color: DKColors.brandPurple.withValues(alpha: 0.15),
         ),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            // Generation chips
             for (int gen = 1; gen <= 5; gen++)
               Padding(
                 padding: const EdgeInsets.only(right: 4),
-                child: _FilterChip(
+                child: DKSuggestionChip(
                   label: 'G$gen',
-                  selected: filters.visibleGenerations.contains(gen),
-                  selectedColor: KinrelColors.orange,
+                  isSelected: filters.visibleGenerations.contains(gen),
                   onTap: () {
                     final newGens =
                         Set<int>.from(filters.visibleGenerations);
@@ -1151,29 +1264,25 @@ class _FilterBar extends StatelessWidget {
             Container(
               width: 1,
               height: 20,
-              color: KinrelColors.darkSurface,
+              color: DKColors.brandPurple.withValues(alpha: 0.15),
             ),
             const SizedBox(width: 8),
 
-            // Branch chips
-            _FilterChip(
+            DKSuggestionChip(
               label: 'All',
-              selected: filters.branch == 'all',
-              selectedColor: KinrelColors.textSilver,
+              isSelected: filters.branch == 'all',
               onTap: () =>
                   onFiltersChanged(filters.copyWith(branch: 'all')),
             ),
-            _FilterChip(
+            DKSuggestionChip(
               label: 'Paternal',
-              selected: filters.branch == 'paternal',
-              selectedColor: KinrelColors.orange,
+              isSelected: filters.branch == 'paternal',
               onTap: () =>
                   onFiltersChanged(filters.copyWith(branch: 'paternal')),
             ),
-            _FilterChip(
+            DKSuggestionChip(
               label: 'Maternal',
-              selected: filters.branch == 'maternal',
-              selectedColor: KinrelColors.amber,
+              isSelected: filters.branch == 'maternal',
               onTap: () =>
                   onFiltersChanged(filters.copyWith(branch: 'maternal')),
             ),
@@ -1182,76 +1291,26 @@ class _FilterBar extends StatelessWidget {
             Container(
               width: 1,
               height: 20,
-              color: KinrelColors.darkSurface,
+              color: DKColors.brandPurple.withValues(alpha: 0.15),
             ),
             const SizedBox(width: 8),
 
-            // Show/Hide deceased
-            _FilterChip(
+            DKSuggestionChip(
               label: 'Deceased',
-              selected: filters.showDeceased,
-              selectedColor: KinrelColors.textDim,
+              isSelected: filters.showDeceased,
               onTap: () => onFiltersChanged(
                 filters.copyWith(showDeceased: !filters.showDeceased),
               ),
             ),
-
-            // Show/Hide marital
-            _FilterChip(
+            DKSuggestionChip(
               label: 'Marital',
-              selected: filters.showMaritalLinks,
-              selectedColor: KinrelColors.durgaPurple,
+              isSelected: filters.showMaritalLinks,
               onTap: () => onFiltersChanged(
                 filters.copyWith(
                     showMaritalLinks: !filters.showMaritalLinks),
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final Color selectedColor;
-  final VoidCallback onTap;
-
-  const _FilterChip({
-    required this.label,
-    required this.selected,
-    required this.selectedColor,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: KinrelMotion.fast,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: selected
-              ? selectedColor.withValues(alpha: 0.15)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected
-                ? selectedColor.withValues(alpha: 0.5)
-                : KinrelColors.darkSurface.withValues(alpha: 0.3),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: KinrelTypography.bodyFont,
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: selected ? selectedColor : KinrelColors.textDim,
-          ),
         ),
       ),
     );
@@ -1293,15 +1352,8 @@ class _Minimap extends StatelessWidget {
         final minY = layout.values.map((r) => r.top).reduce(math.min);
         final maxY = layout.values.map((r) => r.bottom).reduce(math.max);
 
-        final treeWidth = maxX - minX + 80;
-        final treeHeight = maxY - minY + 80;
-
-        final scaleX = minimapW / treeWidth;
-        final scaleY = minimapH / treeHeight;
-        final miniScale = math.min(scaleX, scaleY);
-
-        final worldX = (localPos.dx / miniScale) + minX - 40;
-        final worldY = (localPos.dy / miniScale) + minY - 40;
+        final worldX = minX + (localPos.dx / minimapW) * (maxX - minX);
+        final worldY = minY + (localPos.dy / minimapH) * (maxY - minY);
 
         onTap(Offset(worldX, worldY));
       },
@@ -1309,10 +1361,10 @@ class _Minimap extends StatelessWidget {
         width: 140,
         height: 100,
         decoration: BoxDecoration(
-          color: KinrelColors.darkBackground.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+          color: DKColors.cardColor(context),
+          borderRadius: BorderRadius.circular(KinrelRadius.md),
           border: Border.all(
-            color: KinrelColors.darkSurface.withValues(alpha: 0.5),
+            color: DKColors.brandPurple.withValues(alpha: 0.2),
           ),
         ),
         child: CustomPaint(
@@ -1321,35 +1373,32 @@ class _Minimap extends StatelessWidget {
             offset: offset,
             scale: scale,
             canvasSize: canvasSize,
+            filters: filters,
           ),
+          size: const Size(140, 100),
         ),
       ),
     );
   }
 
   Map<String, Rect> _computeLayout() {
-    const nodeWidth = 160.0;
-    const nodeHeight = 72.0;
-    const horizontalGap = 24.0;
-    const verticalGap = 90.0;
-
     final positions = <String, Rect>{};
     double xOffset = 40;
 
     double layoutSubtree(VisTreeNode node, double xOff, double yOff) {
+      const nw = 160.0;
+      const nh = 72.0;
+      const hg = 24.0;
+      const vg = 90.0;
+
       final hasSpouse = node.spouse != null;
-      final coupleWidth =
-          hasSpouse ? nodeWidth * 2 + horizontalGap : nodeWidth;
+      final coupleWidth = hasSpouse ? nw * 2 + hg : nw;
 
       if (node.children.isEmpty) {
-        positions[node.person.id] =
-            Rect.fromLTWH(xOff, yOff, nodeWidth, nodeHeight);
+        positions[node.person.id] = Rect.fromLTWH(xOff, yOff, nw, nh);
         if (hasSpouse) {
           positions[node.spouse!.id] = Rect.fromLTWH(
-            xOff + nodeWidth + horizontalGap,
-            yOff,
-            nodeWidth,
-            nodeHeight,
+            xOff + nw + hg, yOff, nw, nh,
           );
         }
         return coupleWidth;
@@ -1359,23 +1408,17 @@ class _Minimap extends StatelessWidget {
       double maxChildWidth = 0;
 
       for (final child in node.children) {
-        final w = layoutSubtree(
-            child, childX, yOff + nodeHeight + verticalGap);
-        maxChildWidth += w + horizontalGap;
-        childX += w + horizontalGap;
+        final w = layoutSubtree(child, childX, yOff + nh + vg);
+        maxChildWidth += w + hg;
+        childX += w + hg;
       }
 
-      maxChildWidth -= horizontalGap;
-
+      maxChildWidth -= hg;
       final centerX = xOff + maxChildWidth / 2 - coupleWidth / 2;
-      positions[node.person.id] =
-          Rect.fromLTWH(centerX, yOff, nodeWidth, nodeHeight);
+      positions[node.person.id] = Rect.fromLTWH(centerX, yOff, nw, nh);
       if (hasSpouse) {
         positions[node.spouse!.id] = Rect.fromLTWH(
-          centerX + nodeWidth + horizontalGap,
-          yOff,
-          nodeWidth,
-          nodeHeight,
+          centerX + nw + hg, yOff, nw, nh,
         );
       }
 
@@ -1384,7 +1427,7 @@ class _Minimap extends StatelessWidget {
 
     for (final root in roots) {
       final width = layoutSubtree(root, xOffset, 60);
-      xOffset += width + horizontalGap * 2;
+      xOffset += width + 48;
     }
 
     return positions;
@@ -1396,100 +1439,76 @@ class _MinimapPainter extends CustomPainter {
   final Offset offset;
   final double scale;
   final Size canvasSize;
+  final GraphFilters filters;
 
   _MinimapPainter({
     required this.roots,
     required this.offset,
     required this.scale,
     required this.canvasSize,
+    required this.filters,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final layout = _computeLayout();
-    if (layout.isEmpty) return;
+    final positions = _computeLayout();
+    if (positions.isEmpty) return;
 
-    final allRects = layout.values.toList();
-    final minX = allRects.map((r) => r.left).reduce(math.min);
-    final maxX = allRects.map((r) => r.right).reduce(math.max);
-    final minY = allRects.map((r) => r.top).reduce(math.min);
-    final maxY = allRects.map((r) => r.bottom).reduce(math.max);
+    final minX = positions.values.map((r) => r.left).reduce(math.min);
+    final maxX = positions.values.map((r) => r.right).reduce(math.max);
+    final minY = positions.values.map((r) => r.top).reduce(math.min);
+    final maxY = positions.values.map((r) => r.bottom).reduce(math.max);
 
-    final treeWidth = maxX - minX + 80;
-    final treeHeight = maxY - minY + 80;
+    final worldW = maxX - minX + 40;
+    final worldH = maxY - minY + 40;
+    final scaleX = size.width / worldW;
+    final scaleY = size.height / worldH;
+    final s = math.min(scaleX, scaleY) * 0.9;
 
-    final scaleX = size.width / treeWidth;
-    final scaleY = size.height / treeHeight;
-    final miniScale = math.min(scaleX, scaleY);
+    final paint = Paint()..color = DKColors.brandPurple.withValues(alpha: 0.5);
+    final viewportPaint = Paint()
+      ..color = DKColors.brandGold.withValues(alpha: 0.3)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
 
-    final offsetX = (size.width - treeWidth * miniScale) / 2;
-    final offsetY = (size.height - treeHeight * miniScale) / 2;
-
-    // Draw nodes as tiny dots
-    final nodePaint = Paint()
-      ..color = KinrelColors.orange.withValues(alpha: 0.7)
-      ..style = PaintingStyle.fill;
-
-    for (final rect in allRects) {
-      final x = (rect.left - minX + 40) * miniScale + offsetX;
-      final y = (rect.top - minY + 40) * miniScale + offsetY;
+    for (final rect in positions.values) {
+      final miniRect = Rect.fromLTWH(
+        (rect.left - minX + 20) * s,
+        (rect.top - minY + 20) * s,
+        rect.width * s,
+        rect.height * s,
+      );
       canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(
-            x,
-            y,
-            math.max(rect.width * miniScale, 4),
-            math.max(rect.height * miniScale, 3),
-          ),
-          const Radius.circular(2),
-        ),
-        nodePaint,
+        RRect.fromRectAndRadius(miniRect, Radius.circular(3 * s)),
+        paint,
       );
     }
 
     // Viewport indicator
-    final viewportLeft =
-        (-offset.dx / scale - minX + 40) * miniScale + offsetX;
-    final viewportTop =
-        (-offset.dy / scale - minY + 40) * miniScale + offsetY;
-    final viewportWidth = (canvasSize.width / scale) * miniScale;
-    final viewportHeight = (canvasSize.height / scale) * miniScale;
-
-    final viewportPaint = Paint()
-      ..color = KinrelColors.amber.withValues(alpha: 0.4)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    canvas.drawRect(
-      Rect.fromLTWH(
-          viewportLeft, viewportTop, viewportWidth, viewportHeight),
-      viewportPaint,
-    );
+    final vpLeft = (-offset.dx / scale - minX + 20) * s;
+    final vpTop = (-offset.dy / scale - minY + 20) * s;
+    final vpW = (canvasSize.width / scale) * s;
+    final vpH = (canvasSize.height / scale) * s;
+    canvas.drawRect(Rect.fromLTWH(vpLeft, vpTop, vpW, vpH), viewportPaint);
   }
 
   Map<String, Rect> _computeLayout() {
-    const nodeWidth = 160.0;
-    const nodeHeight = 72.0;
-    const horizontalGap = 24.0;
-    const verticalGap = 90.0;
-
     final positions = <String, Rect>{};
     double xOffset = 40;
 
     double layoutSubtree(VisTreeNode node, double xOff, double yOff) {
+      const nw = 160.0;
+      const nh = 72.0;
+      const hg = 24.0;
+      const vg = 90.0;
+
       final hasSpouse = node.spouse != null;
-      final coupleWidth =
-          hasSpouse ? nodeWidth * 2 + horizontalGap : nodeWidth;
+      final coupleWidth = hasSpouse ? nw * 2 + hg : nw;
 
       if (node.children.isEmpty) {
-        positions[node.person.id] =
-            Rect.fromLTWH(xOff, yOff, nodeWidth, nodeHeight);
+        positions[node.person.id] = Rect.fromLTWH(xOff, yOff, nw, nh);
         if (hasSpouse) {
-          positions[node.spouse!.id] = Rect.fromLTWH(
-            xOff + nodeWidth + horizontalGap,
-            yOff,
-            nodeWidth,
-            nodeHeight,
-          );
+          positions[node.spouse!.id] = Rect.fromLTWH(xOff + nw + hg, yOff, nw, nh);
         }
         return coupleWidth;
       }
@@ -1498,23 +1517,16 @@ class _MinimapPainter extends CustomPainter {
       double maxChildWidth = 0;
 
       for (final child in node.children) {
-        final w = layoutSubtree(child, childX, yOff + nodeHeight + verticalGap);
-        maxChildWidth += w + horizontalGap;
-        childX += w + horizontalGap;
+        final w = layoutSubtree(child, childX, yOff + nh + vg);
+        maxChildWidth += w + hg;
+        childX += w + hg;
       }
 
-      maxChildWidth -= horizontalGap;
-
+      maxChildWidth -= hg;
       final centerX = xOff + maxChildWidth / 2 - coupleWidth / 2;
-      positions[node.person.id] =
-          Rect.fromLTWH(centerX, yOff, nodeWidth, nodeHeight);
+      positions[node.person.id] = Rect.fromLTWH(centerX, yOff, nw, nh);
       if (hasSpouse) {
-        positions[node.spouse!.id] = Rect.fromLTWH(
-          centerX + nodeWidth + horizontalGap,
-          yOff,
-          nodeWidth,
-          nodeHeight,
-        );
+        positions[node.spouse!.id] = Rect.fromLTWH(centerX + nw + hg, yOff, nw, nh);
       }
 
       return math.max(maxChildWidth, coupleWidth);
@@ -1522,7 +1534,7 @@ class _MinimapPainter extends CustomPainter {
 
     for (final root in roots) {
       final width = layoutSubtree(root, xOffset, 60);
-      xOffset += width + horizontalGap * 2;
+      xOffset += width + 48;
     }
 
     return positions;
@@ -1530,105 +1542,6 @@ class _MinimapPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MinimapPainter oldDelegate) {
-    return oldDelegate.offset != offset ||
-        oldDelegate.scale != scale ||
-        oldDelegate.roots != roots;
-  }
-}
-
-// ── Empty state ────────────────────────────────────────────────────
-
-class _EmptyCanvasState extends StatelessWidget {
-  final VoidCallback onAddMember;
-
-  const _EmptyCanvasState({required this.onAddMember});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(KinrelSpacing.xxl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CustomPaint(
-              size: const Size(140, 140),
-              painter: _DottedCirclePainter(
-                color: KinrelColors.textDim.withValues(alpha: 0.3),
-              ),
-              child: const SizedBox(
-                width: 140,
-                height: 140,
-                child: Center(
-                  child: Icon(
-                    Icons.add,
-                    size: 48,
-                    color: KinrelColors.textDim,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Your Family Tree Awaits',
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: KinrelColors.textWhite,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Tap the + button to add your first family member',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 14,
-                color: KinrelColors.textSilver,
-                height: 1.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DottedCirclePainter extends CustomPainter {
-  final Color color;
-
-  _DottedCirclePainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2 - 6;
-
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke;
-
-    const dashCount = 40;
-    const dashAngle = math.pi * 2 / dashCount;
-    const dashLength = dashAngle * 0.55;
-
-    for (int i = 0; i < dashCount; i++) {
-      final startAngle = i * dashAngle;
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        startAngle,
-        dashLength,
-        false,
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DottedCirclePainter oldDelegate) {
-    return oldDelegate.color != color;
+    return oldDelegate.offset != offset || oldDelegate.scale != scale;
   }
 }

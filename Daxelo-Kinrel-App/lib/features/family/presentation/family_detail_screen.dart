@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -7,6 +8,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
+import '../../../shared/widgets/dk_components.dart';
 import 'family_tree_canvas.dart';
 import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
@@ -41,9 +43,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
   @override
   Widget build(BuildContext context) {
     final detailAsync = ref.watch(familyDetailProvider(widget.familyId));
+    final primaryColor = DKColors.brandPurple;
 
-    return Scaffold(
+    return DKScaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
         title: detailAsync.when(
           loading: () => Text(
             'Family Tree',
@@ -68,26 +75,23 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           ),
         ),
         actions: [
-          // Share family code
           IconButton(
             icon: const Icon(Icons.share_outlined),
             tooltip: 'Share Family',
             onPressed: () => _shareFamily(context),
           ),
-          // Settings
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Settings',
-            onPressed: () {
-              // TODO: Navigate to family settings
-            },
+            onPressed: () {},
           ),
         ],
         bottom: TabBar(
           controller: _tabController,
-          labelColor: KinrelColors.orange,
-          unselectedLabelColor: KinrelColors.textDim,
-          indicatorColor: KinrelColors.orange,
+          labelColor: primaryColor,
+          unselectedLabelColor: DKColors.textSecondary(context),
+          indicatorColor: primaryColor,
+          indicatorSize: TabBarIndicatorSize.label,
           labelStyle: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
@@ -106,17 +110,15 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         ),
       ),
       body: detailAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: KinrelColors.orange),
-        ),
-        error: (error, _) => _ErrorState(
+        loading: () => _buildLoadingState(),
+        error: (error, _) => DKErrorState(
           message: 'Failed to load family data',
           onRetry: () =>
               ref.invalidate(familyDetailProvider(widget.familyId)),
         ),
         data: (detail) {
           if (detail == null) {
-            return _ErrorState(
+            return DKErrorState(
               message: 'Family not found',
               onRetry: () =>
                   ref.invalidate(familyDetailProvider(widget.familyId)),
@@ -126,17 +128,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           return TabBarView(
             controller: _tabController,
             children: [
-              // Graph tab
               _GraphTab(
                 detail: detail,
                 familyId: widget.familyId,
               ),
-              // Members tab
               _MembersTab(
                 detail: detail,
                 familyId: widget.familyId,
               ),
-              // Activity tab
               _ActivityTab(
                 detail: detail,
                 familyId: widget.familyId,
@@ -146,7 +145,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         },
       ),
       // Bottom action bar
-      bottomNavigationBar: detailAsync.when(
+      floatingActionButton: detailAsync.when(
         loading: () => null,
         error: (_, __) => null,
         data: (detail) {
@@ -161,8 +160,36 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
     );
   }
 
+  Widget _buildLoadingState() {
+    return ListView(
+      padding: const EdgeInsets.all(KinrelSpacing.base),
+      children: [
+        // Stats row shimmer
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: List.generate(
+            3,
+            (_) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: DKLoadingShimmer(width: 100, height: 40, radius: 12),
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        // Member cards shimmer
+        ...List.generate(
+          4,
+          (_) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: DKLoadingShimmer(
+                width: double.infinity, height: 64, radius: KinrelRadius.card),
+          ),
+        ),
+      ],
+    );
+  }
+
   void _shareFamily(BuildContext context) {
-    // TODO: Implement family code sharing
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Family sharing coming soon!'),
@@ -183,8 +210,14 @@ class _GraphTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (detail.members.isEmpty) {
-      return _EmptyTreeState(
-        onAddMember: () => AddPersonSheet.show(context, familyId: familyId),
+      return DKEmptyState(
+        icon: Icons.account_tree_outlined,
+        title: 'No Members Yet',
+        subtitle:
+            'Add family members to start building your tree. '
+            'Tap the + button below to add the first person.',
+        actionLabel: 'Add Member',
+        onAction: () => AddPersonSheet.show(context, familyId: familyId),
       );
     }
 
@@ -223,7 +256,7 @@ class _GraphTab extends ConsumerWidget {
   void _showQuickActions(BuildContext context, WidgetRef ref, Person person) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: KinrelColors.darkCard,
+      backgroundColor: DKColors.cardColor(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.bottomSheet),
@@ -237,26 +270,11 @@ class _GraphTab extends ConsumerWidget {
               padding: const EdgeInsets.all(KinrelSpacing.base),
               child: Row(
                 children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      gradient: KinrelColors.igniteGradient,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        person.name.isNotEmpty
-                            ? person.name[0].toUpperCase()
-                            : '?',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.displayFont,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
+                  DKAvatar(
+                    initials: person.name.isNotEmpty
+                        ? person.name[0].toUpperCase()
+                        : '?',
+                    size: DKAvatarSize.md,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -266,14 +284,15 @@ class _GraphTab extends ConsumerWidget {
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: KinrelColors.textWhite,
+                        color: DKColors.textPrimary(context),
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            const Divider(color: KinrelColors.darkSurface, height: 1),
+            Divider(
+                color: DKColors.borderColor(context), height: 1),
             _QuickActionTile(
               icon: Icons.edit_outlined,
               label: 'Edit',
@@ -365,7 +384,7 @@ class _MembersTab extends ConsumerStatefulWidget {
 
 class _MembersTabState extends ConsumerState<_MembersTab> {
   String _searchQuery = '';
-  String _sortBy = 'name'; // 'name' or 'generation'
+  String _sortBy = 'name';
   final _searchController = TextEditingController();
 
   @override
@@ -379,7 +398,6 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
     final activeMembers =
         widget.detail.members.where((p) => p.deletedAt == null).toList();
 
-    // Filter by search
     var filtered = activeMembers;
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
@@ -390,11 +408,9 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
           .toList();
     }
 
-    // Sort
     if (_sortBy == 'name') {
       filtered.sort((a, b) => a.name.compareTo(b.name));
     } else {
-      // Sort by relationship key (rough generation proxy)
       filtered.sort((a, b) => (a.gender ?? '').compareTo(b.gender ?? ''));
     }
 
@@ -406,51 +422,22 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
           child: Row(
             children: [
               Expanded(
-                child: TextField(
+                child: DKSearchField(
+                  hint: 'Search members...',
                   controller: _searchController,
                   onChanged: (v) => setState(() => _searchQuery = v),
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 14,
-                    color: KinrelColors.textWhite,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Search members...',
-                    hintStyle: TextStyle(color: KinrelColors.textDim),
-                    prefixIcon: Icon(Icons.search,
-                        color: KinrelColors.orange, size: 18),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: Icon(Icons.clear,
-                                color: KinrelColors.textDim, size: 16),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() => _searchQuery = '');
-                            },
-                          )
-                        : null,
-                    filled: true,
-                    fillColor: KinrelColors.darkElevated,
-                    border: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(KinrelSpacing.radiusSm),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
-                    isDense: true,
-                  ),
                 ),
               ),
               const SizedBox(width: 8),
               Container(
                 decoration: BoxDecoration(
-                  color: KinrelColors.darkElevated,
+                  color: DKColors.elevatedColor(context),
                   borderRadius:
-                      BorderRadius.circular(KinrelSpacing.radiusSm),
+                      BorderRadius.circular(KinrelSpacing.radiusMd),
                 ),
                 child: PopupMenuButton<String>(
-                  icon: const Icon(Icons.sort, color: KinrelColors.textDim),
+                  icon: Icon(Icons.sort,
+                      color: DKColors.textSecondary(context)),
                   onSelected: (value) => setState(() => _sortBy = value),
                   itemBuilder: (ctx) => [
                     PopupMenuItem(
@@ -460,16 +447,16 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                           Icon(Icons.sort_by_alpha,
                               size: 18,
                               color: _sortBy == 'name'
-                                  ? KinrelColors.orange
-                                  : KinrelColors.textDim),
+                                  ? DKColors.brandPurple
+                                  : DKColors.textSecondary(context)),
                           const SizedBox(width: 8),
                           Text(
                             'Sort by Name',
                             style: TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               color: _sortBy == 'name'
-                                  ? KinrelColors.orange
-                                  : KinrelColors.textWhite,
+                                  ? DKColors.brandPurple
+                                  : DKColors.textPrimary(context),
                             ),
                           ),
                         ],
@@ -482,16 +469,16 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                           Icon(Icons.family_restroom,
                               size: 18,
                               color: _sortBy == 'generation'
-                                  ? KinrelColors.orange
-                                  : KinrelColors.textDim),
+                                  ? DKColors.brandPurple
+                                  : DKColors.textSecondary(context)),
                           const SizedBox(width: 8),
                           Text(
                             'Sort by Relationship',
                             style: TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               color: _sortBy == 'generation'
-                                  ? KinrelColors.orange
-                                  : KinrelColors.textWhite,
+                                  ? DKColors.brandPurple
+                                  : DKColors.textPrimary(context),
                             ),
                           ),
                         ],
@@ -504,20 +491,25 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
           ),
         ),
 
-        // Member count
+        // Stats row
         Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: KinrelSpacing.base,
           ),
           child: Row(
             children: [
-              Text(
-                '${filtered.length} member${filtered.length != 1 ? 's' : ''}',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 12,
-                  color: KinrelColors.textDim,
-                ),
+              DKStatChip(
+                icon: Icons.people,
+                value: '${filtered.length}',
+                label: filtered.length == 1 ? 'member' : 'members',
+                color: DKColors.brandPurple,
+              ),
+              const SizedBox(width: 10),
+              DKStatChip(
+                icon: Icons.link,
+                value: '${widget.detail.relationships.length}',
+                label: widget.detail.relationships.length == 1 ? 'link' : 'links',
+                color: DKColors.brandGold,
               ),
             ],
           ),
@@ -527,16 +519,12 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
         // Member list
         Expanded(
           child: filtered.isEmpty
-              ? Center(
-                  child: Text(
-                    _searchQuery.isEmpty
-                        ? 'No members yet'
-                        : 'No members match "$_searchQuery"',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      color: KinrelColors.textDim,
-                    ),
-                  ),
+              ? DKEmptyState(
+                  icon: Icons.person_search_outlined,
+                  title: _searchQuery.isEmpty ? 'No Members' : 'No Match',
+                  subtitle: _searchQuery.isEmpty
+                      ? 'Add members to your family tree'
+                      : 'No members match "$_searchQuery"',
                 )
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(
@@ -545,20 +533,24 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
                     final person = filtered[index];
-                    return _MemberListTile(
-                      person: person,
-                      familyId: widget.familyId,
-                      relationships: widget.detail.relationships,
-                      onTap: () {
-                        final kinshipAsync =
-                            ref.read(kinshipServiceProvider);
-                        PersonDetailSheet.show(
-                          context,
-                          person: person,
-                          familyId: widget.familyId,
-                          kinshipService: kinshipAsync,
-                        );
-                      },
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _MemberCard(
+                        person: person,
+                        familyId: widget.familyId,
+                        relationships: widget.detail.relationships,
+                        index: index,
+                        onTap: () {
+                          final kinshipAsync =
+                              ref.read(kinshipServiceProvider);
+                          PersonDetailSheet.show(
+                            context,
+                            person: person,
+                            familyId: widget.familyId,
+                            kinshipService: kinshipAsync,
+                          );
+                        },
+                      ),
                     );
                   },
                 ),
@@ -578,7 +570,6 @@ class _ActivityTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Build activity list from relationships (most recent first)
     final activities = <_ActivityItem>[];
 
     for (final rel in detail.relationships) {
@@ -605,7 +596,6 @@ class _ActivityTab extends StatelessWidget {
       ));
     }
 
-    // Sort by timestamp (newest first)
     activities.sort((a, b) {
       if (a.timestamp == null && b.timestamp == null) return 0;
       if (a.timestamp == null) return 1;
@@ -614,33 +604,11 @@ class _ActivityTab extends StatelessWidget {
     });
 
     if (activities.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.history, size: 48, color: KinrelColors.textDim),
-            const SizedBox(height: 12),
-            Text(
-              'No Activity Yet',
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: KinrelColors.textWhite,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Activity will appear here as you add\nmembers and create relationships.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 14,
-                color: KinrelColors.textSilver,
-              ),
-            ),
-          ],
-        ),
+      return DKEmptyState(
+        icon: Icons.history_rounded,
+        title: 'No Activity Yet',
+        subtitle:
+            'Activity will appear here as you add\nmembers and create relationships.',
       );
     }
 
@@ -649,7 +617,10 @@ class _ActivityTab extends StatelessWidget {
       itemCount: activities.length,
       itemBuilder: (context, index) {
         final activity = activities[index];
-        return _ActivityTile(activity: activity);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: KinrelSpacing.sm),
+          child: _ActivityTile(activity: activity, index: index),
+        );
       },
     );
   }
@@ -671,225 +642,55 @@ class _BottomActionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: KinrelSpacing.base,
-        vertical: KinrelSpacing.sm,
-      ),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        border: Border(
-          top: BorderSide(
-            color: KinrelColors.darkSurface.withValues(alpha: 0.3),
+      margin: const EdgeInsets.all(KinrelSpacing.base),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Add Member
+          DKButton(
+            label: 'Add Member',
+            variant: DKButtonVariant.secondary,
+            icon: Icons.person_add,
+            size: DKButtonSize.sm,
+            onPressed: () =>
+                AddPersonSheet.show(context, familyId: familyId),
           ),
-        ),
+          const SizedBox(width: 8),
+          // Share
+          DKButton(
+            label: 'Share',
+            variant: DKButtonVariant.icon,
+            icon: Icons.share,
+            size: DKButtonSize.sm,
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Family sharing coming soon!'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+          // Path Finder
+          DKButton(
+            label: 'Path',
+            variant: DKButtonVariant.icon,
+            icon: Icons.route,
+            size: DKButtonSize.sm,
+            onPressed: () =>
+                context.go('/family/$familyId/path-finder'),
+          ),
+        ],
       ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: [
-            // Add Member
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () =>
-                    AddPersonSheet.show(context, familyId: familyId),
-                icon: const Icon(Icons.person_add, size: 18),
-                label: const Text('Add Member'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: KinrelColors.orange,
-                  side: const BorderSide(color: KinrelColors.orange),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusSm),
-                  ),
-                  textStyle: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-
-            // Link Members
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: memberCount < 2
-                    ? null
-                    : () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => RelationshipBuilderScreen(
-                              familyId: familyId,
-                              familyName: familyName,
-                            ),
-                          ),
-                        );
-                      },
-                icon: const Icon(Icons.link, size: 18),
-                label: const Text('Link Members'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: KinrelColors.orange,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor:
-                      KinrelColors.orange.withValues(alpha: 0.3),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusSm),
-                  ),
-                  textStyle: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-
-            // Share
-            SizedBox(
-              height: 40,
-              width: 40,
-              child: IconButton.outlined(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Family sharing coming soon!'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.share, size: 18),
-                color: KinrelColors.textSilver,
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(
-                    color: KinrelColors.darkSurface.withValues(alpha: 0.5),
-                  ),
-                  padding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusSm),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    )
+        .animate(onPlay: (c) => c.forward())
+        .fadeIn(duration: 400.ms)
+        .slideY(begin: 0.2, end: 0, duration: 400.ms);
   }
 }
 
 // ── Shared sub-widgets ─────────────────────────────────────────────
-
-class _EmptyTreeState extends StatelessWidget {
-  final VoidCallback onAddMember;
-
-  const _EmptyTreeState({required this.onAddMember});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(KinrelSpacing.xxl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: KinrelColors.textDim.withValues(alpha: 0.3),
-                  width: 2,
-                  style: BorderStyle.solid,
-                ),
-              ),
-              child: Center(
-                child: Icon(
-                  Icons.add,
-                  size: 48,
-                  color: KinrelColors.textDim.withValues(alpha: 0.5),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'No Members Yet',
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: KinrelColors.textWhite,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Add family members to start building your tree. '
-              'Tap the + button below to add the first person.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 14,
-                color: KinrelColors.textSilver,
-                height: 1.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-
-  const _ErrorState({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(KinrelSpacing.xxl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: KinrelColors.error.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              message,
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: KinrelColors.textWhite,
-              ),
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: onRetry,
-              style: FilledButton.styleFrom(
-                backgroundColor: KinrelColors.orange,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _ToolbarButton extends StatelessWidget {
   final IconData icon;
@@ -904,16 +705,26 @@ class _ToolbarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = DKColors.isLight(context);
     return Container(
       decoration: BoxDecoration(
-        color: KinrelColors.darkBackground.withValues(alpha: 0.85),
+        color: isLight
+            ? Colors.white.withValues(alpha: 0.9)
+            : DKColors.darkBg.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
         border: Border.all(
-          color: KinrelColors.darkSurface.withValues(alpha: 0.3),
+          color: DKColors.brandPurple.withValues(alpha: 0.2),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: IconButton(
-        icon: Icon(icon, color: KinrelColors.textSilver, size: 20),
+        icon: Icon(icon, color: DKColors.brandPurple, size: 20),
         tooltip: tooltip,
         onPressed: onTap,
       ),
@@ -936,18 +747,18 @@ class _QuickActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color =
+        isDestructive ? DKColors.brandCoral : DKColors.textSecondary(context);
     return ListTile(
-      leading: Icon(
-        icon,
-        color: isDestructive ? KinrelColors.error : KinrelColors.textSilver,
-        size: 20,
-      ),
+      leading: Icon(icon, color: color, size: 20),
       title: Text(
         label,
         style: TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 14,
-          color: isDestructive ? KinrelColors.error : KinrelColors.textWhite,
+          color: isDestructive
+              ? DKColors.brandCoral
+              : DKColors.textPrimary(context),
         ),
       ),
       onTap: onTap,
@@ -955,159 +766,127 @@ class _QuickActionTile extends StatelessWidget {
   }
 }
 
-class _MemberListTile extends StatelessWidget {
+class _MemberCard extends StatelessWidget {
   final Person person;
   final String familyId;
   final List<FamilyRelationship> relationships;
+  final int index;
   final VoidCallback onTap;
 
-  const _MemberListTile({
+  const _MemberCard({
     required this.person,
     required this.familyId,
     required this.relationships,
+    required this.index,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Find relationships for this person
     final personRels = relationships
         .where((r) =>
             r.fromPersonId == person.id || r.toPersonId == person.id)
         .map((r) => r.relationshipKey)
         .toList();
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: KinrelSpacing.sm),
-      child: Material(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
-          child: Padding(
-            padding: const EdgeInsets.all(KinrelSpacing.md),
-            child: Row(
+    return DKCard(
+      borderColor: person.isDeceased
+          ? DKColors.borderColor(context)
+          : DKColors.brandPurple.withValues(alpha: 0.15),
+      onTap: onTap,
+      padding: 12,
+      child: Row(
+        children: [
+          // Avatar
+          DKAvatar(
+            initials: person.name.isNotEmpty
+                ? person.name[0].toUpperCase()
+                : '?',
+            size: DKAvatarSize.md,
+            backgroundColor: person.isDeceased
+                ? DKColors.textSecondary(context).withValues(alpha: 0.3)
+                : DKColors.brandPurple,
+          ),
+          const SizedBox(width: 12),
+
+          // Name and relationship
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Avatar
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    gradient: person.isDeceased
-                        ? LinearGradient(
-                            colors: [
-                              KinrelColors.textDim,
-                              KinrelColors.darkSurface,
-                            ],
-                          )
-                        : KinrelColors.igniteGradient,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: person.isDeceased
-                        ? const Text('🕊️', style: TextStyle(fontSize: 16))
-                        : Text(
-                            person.name.isNotEmpty
-                                ? person.name[0].toUpperCase()
-                                : '?',
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.displayFont,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
+                Text(
+                  person.name,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: person.isDeceased
+                        ? DKColors.textSecondary(context)
+                        : DKColors.textPrimary(context),
                   ),
                 ),
-                const SizedBox(width: 12),
-
-                // Name and relationship
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        person.name,
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.displayFont,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: person.isDeceased
-                              ? KinrelColors.textSilver
-                              : KinrelColors.textWhite,
-                        ),
-                      ),
-                      if (person.gender != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          person.gender!.toUpperCase(),
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.bodyFont,
-                            fontSize: 12,
-                            color: KinrelColors.orange,
-                          ),
-                        ),
-                      ],
-                      if (personRels.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Wrap(
-                          spacing: 4,
-                          runSpacing: 2,
-                          children: personRels.take(3).map((rel) {
-                            return Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: KinrelColors.darkSurface
-                                    .withValues(alpha: 0.5),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                rel.replaceAll('_', ' '),
-                                style: TextStyle(
-                                  fontFamily: KinrelTypography.bodyFont,
-                                  fontSize: 9,
-                                  color: KinrelColors.textDim,
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                // Gender + deceased
-                Column(
-                  children: [
-                    Icon(
-                      person.gender == 'female'
-                          ? Icons.female
-                          : person.gender == 'male'
-                              ? Icons.male
-                              : Icons.person,
-                      size: 16,
-                      color: KinrelColors.textDim,
+                if (person.gender != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    person.gender!.toUpperCase(),
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 12,
+                      color: DKColors.brandPurple,
+                      fontWeight: FontWeight.w500,
                     ),
-                    if (person.isDeceased)
-                      Text(
-                        'Late',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 9,
-                          color: KinrelColors.textDim,
-                        ),
-                      ),
-                  ],
-                ),
+                  ),
+                ],
+                if (personRels.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 2,
+                    children: personRels.take(3).map((rel) {
+                      return DKSuggestionChip(
+                        label: rel.replaceAll('_', ' '),
+                        isSelected: false,
+                        onTap: () {},
+                      );
+                    }).toList(),
+                  ),
+                ],
               ],
             ),
           ),
-        ),
+
+          // Gender icon + deceased
+          Column(
+            children: [
+              Icon(
+                person.gender == 'female'
+                    ? Icons.female
+                    : person.gender == 'male'
+                        ? Icons.male
+                        : Icons.person,
+                size: 16,
+                color: DKColors.textSecondary(context),
+              ),
+              if (person.isDeceased)
+                Text(
+                  'Late',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 9,
+                    color: DKColors.textSecondary(context),
+                  ),
+                ),
+            ],
+          ),
+        ],
       ),
-    );
+    )
+        .animate(onPlay: (c) => c.forward())
+        .fadeIn(
+          duration: 300.ms,
+          delay: Duration(milliseconds: index * 50),
+        )
+        .slideX(begin: 0.05, end: 0, duration: 300.ms);
   }
 }
 
@@ -1129,8 +908,9 @@ class _ActivityItem {
 
 class _ActivityTile extends StatelessWidget {
   final _ActivityItem activity;
+  final int index;
 
-  const _ActivityTile({required this.activity});
+  const _ActivityTile({required this.activity, required this.index});
 
   @override
   Widget build(BuildContext context) {
@@ -1141,27 +921,23 @@ class _ActivityTile extends StatelessWidget {
     };
 
     final iconColor = switch (activity.type) {
-      _ActivityType.memberAdded => KinrelColors.success,
-      _ActivityType.link => KinrelColors.orange,
-      _ActivityType.edit => KinrelColors.amber,
+      _ActivityType.memberAdded => DKColors.brandPurple,
+      _ActivityType.link => DKColors.brandGold,
+      _ActivityType.edit => DKColors.brandViolet,
     };
 
     final timeAgo = _formatTimeAgo(activity.timestamp);
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: KinrelSpacing.sm),
+    return DKCard(
+      padding: 12,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Icon
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(iconData, color: iconColor, size: 16),
+          DKTimelineNode(
+            icon: iconData,
+            color: iconColor,
+            size: 36,
           ),
           const SizedBox(width: 10),
 
@@ -1175,7 +951,7 @@ class _ActivityTile extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
-                    color: KinrelColors.textWhite,
+                    color: DKColors.textPrimary(context),
                   ),
                 ),
                 if (timeAgo != null) ...[
@@ -1185,7 +961,7 @@ class _ActivityTile extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 11,
-                      color: KinrelColors.textDim,
+                      color: DKColors.textSecondary(context),
                     ),
                   ),
                 ],
@@ -1194,19 +970,22 @@ class _ActivityTile extends StatelessWidget {
           ),
         ],
       ),
-    );
+    )
+        .animate(onPlay: (c) => c.forward())
+        .fadeIn(
+          duration: 300.ms,
+          delay: Duration(milliseconds: index * 40),
+        );
   }
 
-  String? _formatTimeAgo(DateTime? timestamp) {
-    if (timestamp == null) return null;
-
-    final now = DateTime.now();
-    final diff = now.difference(timestamp);
-
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
+  String? _formatTimeAgo(DateTime? time) {
+    if (time == null) return null;
+    final diff = DateTime.now().difference(time);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
     if (diff.inDays < 7) return '${diff.inDays}d ago';
-    return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
+    if (diff.inDays < 30) return '${(diff.inDays / 7).round()}w ago';
+    return '${(diff.inDays / 30).round()}mo ago';
   }
 }

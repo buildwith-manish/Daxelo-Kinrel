@@ -100,7 +100,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: KinrelColors.orange,
+              primary: KinrelColors.purple,
               surface: KinrelColors.darkElevated,
             ),
           ),
@@ -288,7 +288,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                           ),
                         ),
                       ),
-                      Icon(Icons.search, color: KinrelColors.orange, size: 20),
+                      Icon(Icons.search, color: KinrelColors.purple, size: 20),
                     ],
                   ),
                 ),
@@ -390,7 +390,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                   Switch.adaptive(
                     value: _isDeceased,
                     onChanged: (v) => setState(() => _isDeceased = v),
-                    activeColor: KinrelColors.orange,
+                    activeColor: KinrelColors.purple,
                   ),
                 ],
               ),
@@ -400,10 +400,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               FilledButton(
                 onPressed: _isSubmitting ? null : _submit,
                 style: FilledButton.styleFrom(
-                  backgroundColor: KinrelColors.orange,
+                  backgroundColor: KinrelColors.purple,
                   foregroundColor: Colors.white,
                   disabledBackgroundColor:
-                      KinrelColors.orange.withValues(alpha: 0.4),
+                      KinrelColors.purple.withValues(alpha: 0.4),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius:
@@ -452,7 +452,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
-        borderSide: const BorderSide(color: KinrelColors.orange),
+        borderSide: const BorderSide(color: KinrelColors.purple),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
@@ -501,12 +501,12 @@ class _GenderChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: selected
-              ? KinrelColors.orange.withValues(alpha: 0.15)
+              ? KinrelColors.purple.withValues(alpha: 0.15)
               : KinrelColors.darkElevated,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color:
-                selected ? KinrelColors.orange : KinrelColors.darkSurface,
+                selected ? KinrelColors.purple : KinrelColors.darkSurface,
           ),
         ),
         child: Text(
@@ -515,7 +515,7 @@ class _GenderChip extends StatelessWidget {
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             fontWeight: FontWeight.w500,
-            color: selected ? KinrelColors.orange : KinrelColors.textSilver,
+            color: selected ? KinrelColors.purple : KinrelColors.textSilver,
           ),
         ),
       ),

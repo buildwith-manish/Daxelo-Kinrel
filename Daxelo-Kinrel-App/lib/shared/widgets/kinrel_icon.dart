@@ -7,7 +7,7 @@
 //
 // Usage:
 // ```dart
-// KinrelIcon(size: 64, palette: KinrelIconPalette.orange)
+// KinrelIcon(size: 64, palette: KinrelIconPalette.purple)
 // KinrelIcon(size: 20) // auto mini mode
 // KinrelIcon(size: 48, animated: true, onTap: () => ...)
 // ```
@@ -44,7 +44,7 @@ class KinrelIcon extends StatelessWidget {
   const KinrelIcon({
     super.key,
     this.size = 48,
-    this.palette = KinrelIconPalette.orange,
+    this.palette = KinrelIconPalette.purple,
     this.animated = false,
     this.onTap,
     this.semanticLabel,

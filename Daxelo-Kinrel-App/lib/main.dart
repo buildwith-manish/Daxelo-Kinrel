@@ -14,13 +14,12 @@ import 'core/theme/theme_provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Force dark mode at the platform level — prevents light mode flash on launch
-  // and ensures system UI (status bar, nav bar) is always dark
+  // Set initial system UI overlay style — will be updated by theme
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
     statusBarBrightness: Brightness.dark,
-    systemNavigationBarColor: Color(0xFF13141E),
+    systemNavigationBarColor: Color(0xFF121212),
     systemNavigationBarIconBrightness: Brightness.light,
   ));
 
@@ -95,16 +94,10 @@ class _KinrelAppState extends ConsumerState<KinrelApp> with WidgetsBindingObserv
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // When app comes back to foreground, re-enforce dark mode system UI
-    // This prevents the system from switching to light mode UI on resume
+    // When app comes back to foreground, update system UI overlay
+    // based on the current theme mode
     if (state == AppLifecycleState.resumed) {
-      SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
-        systemNavigationBarColor: Color(0xFF13141E),
-        systemNavigationBarIconBrightness: Brightness.light,
-      ));
+      _updateSystemUIOverlay();
 
       // Silently refresh the session in the background WITHOUT triggering
       // a navigation reset. We only refresh if there's an existing session.
@@ -124,24 +117,64 @@ class _KinrelAppState extends ConsumerState<KinrelApp> with WidgetsBindingObserv
     }
   }
 
+  /// Update system UI overlay style to match the current theme brightness.
+  void _updateSystemUIOverlay() {
+    final themeMode = ref.read(themeModeProvider);
+    final isDark = themeMode == ThemeMode.dark ||
+        (themeMode == ThemeMode.system &&
+            WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+                Brightness.dark);
+
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+      systemNavigationBarColor:
+          isDark ? const Color(0xFF121212) : const Color(0xFFF5F7FA),
+      systemNavigationBarIconBrightness:
+          isDark ? Brightness.light : Brightness.dark,
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = ref.watch(appThemeProvider);
+    final themeMode = ref.watch(themeModeProvider);
+    final lightTheme = ref.watch(lightThemeProvider);
+    final darkTheme = ref.watch(darkThemeProvider);
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
-      // Always dark mode — KINREL brand requirement
-      theme: theme,
-      darkTheme: theme,
-      themeMode: ThemeMode.dark,
+      // Support both light and dark themes
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: themeMode,
       routerConfig: router,
       builder: (context, child) {
+        // Update system UI overlay when theme changes
+        final brightness = MediaQuery.of(context).platformBrightness;
+        final effectiveDark = themeMode == ThemeMode.dark ||
+            (themeMode == ThemeMode.system &&
+                brightness == Brightness.dark);
+
+        // Set system UI overlay on every build to stay in sync
+        SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness:
+              effectiveDark ? Brightness.light : Brightness.dark,
+          statusBarBrightness:
+              effectiveDark ? Brightness.dark : Brightness.light,
+          systemNavigationBarColor: effectiveDark
+              ? const Color(0xFF121212)
+              : const Color(0xFFF5F7FA),
+          systemNavigationBarIconBrightness:
+              effectiveDark ? Brightness.light : Brightness.dark,
+        ));
+
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
-            // Force platform brightness to dark to prevent any light mode leakage
-            platformBrightness: Brightness.dark,
+            // Respect platform brightness — do NOT force dark mode
             textScaler: TextScaler.linear(ref.watch(fontScaleProvider)),
           ),
           child: child ?? const SizedBox.shrink(),
