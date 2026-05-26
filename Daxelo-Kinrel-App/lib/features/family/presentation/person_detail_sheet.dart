@@ -115,10 +115,10 @@ class PersonDetailSheet extends ConsumerWidget {
           ),
           const SizedBox(height: 4),
 
-          // Relationship type
-          if (person.relationshipKey != null) ...[
+          // Gender
+          if (person.gender != null) ...[
             Text(
-              person.relationshipKey!.snakeToTitle,
+              person.gender!.toUpperCase(),
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
@@ -229,12 +229,8 @@ class PersonDetailSheet extends ConsumerWidget {
   }
 
   String? _getNativeTranslation(WidgetRef ref) {
-    if (person.relationshipKey == null || kinshipService == null) return null;
-    if (!kinshipService!.isLoaded) return null;
-    return kinshipService!.getKinshipTermByLocale(
-      person.relationshipKey!,
-      'hi', // Default to Hindi for now
-    );
+    // Relationship translations now come from the Relationship table, not Person
+    return null;
   }
 
   void _confirmDelete(BuildContext context, WidgetRef ref) {
@@ -269,19 +265,23 @@ class PersonDetailSheet extends ConsumerWidget {
               Navigator.of(ctx).pop(); // Close dialog
               Navigator.of(context).pop(); // Close sheet
 
-              final success = await deletePerson(
-                ref: ref,
-                personId: person.id,
-                familyId: familyId,
-              );
-
-              if (context.mounted) {
-                context.showSnackBar(
-                  success
-                      ? '${person.name} removed'
-                      : 'Failed to delete person',
-                  isError: !success,
+              try {
+                await deletePerson(
+                  ref: ref,
+                  personId: person.id,
+                  familyId: familyId,
                 );
+
+                if (context.mounted) {
+                  context.showSnackBar('${person.name} removed');
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  context.showSnackBar(
+                    'Failed to delete person: ${e.toString().split('\n').first}',
+                    isError: true,
+                  );
+                }
               }
             },
             child: Text(

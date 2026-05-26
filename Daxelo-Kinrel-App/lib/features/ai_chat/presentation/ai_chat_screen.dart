@@ -55,7 +55,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
     final suggestionsAsync = ref.watch(aiChatSuggestionsProvider);
 
     return Scaffold(
-      backgroundColor: KinrelColors.darkBackground,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         backgroundColor: KinrelColors.darkCard,
         elevation: 0,

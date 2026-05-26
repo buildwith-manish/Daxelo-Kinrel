@@ -1,0 +1,17 @@
+import { IsString, IsOptional, IsIn, IsArray, MinLength, MaxLength } from 'class-validator';
+
+export class CreateMessageDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(5000)
+  content!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  attachments?: string[];
+
+  @IsOptional()
+  @IsIn(['in_app', 'email', 'whatsapp', 'phone'])
+  channel?: string;
+}

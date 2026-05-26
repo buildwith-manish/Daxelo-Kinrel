@@ -1,27 +1,14 @@
 :80 {
-  # DAXELO KINREL — NestJS API Server
-  reverse_proxy localhost:3001
+        encode gzip
 
-  # Compression
-  encode gzip
+        # Flutter web app static files
+        handle /flutter/* {
+                uri strip_prefix /flutter
+                reverse_proxy localhost:8080
+        }
 
-  # Security headers
-  header {
-    X-Content-Type-Options "nosniff"
-    X-Frame-Options "DENY"
-    X-XSS-Protection "1; mode=block"
-    Referrer-Policy "strict-origin-when-cross-origin"
-    -Server
-  }
-
-  # CORS preflight
-  @options method OPTIONS
-  handle @options {
-    respond 204
-  }
-
-  # Health check
-  handle /health {
-    reverse_proxy localhost:3001
-  }
+        # Default: Next.js app
+        handle {
+                reverse_proxy localhost:3000
+        }
 }

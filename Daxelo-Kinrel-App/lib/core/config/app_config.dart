@@ -6,20 +6,37 @@ class AppConfig {
 
   static const String appName = 'KINREL';
   static const String appTagline = 'Indian Family Relationship Intelligence';
-  static const String appNameByDaxelo = 'KINREL by Daxelo';
+  static const String appNameByDaxelo = 'Daxelo KINREL';
   static const String version = '1.0.0';
-  
+
+  // Hardcoded fallbacks — Supabase anon key is safe for client-side use
+  // (only service_role key is secret). These ensure the app ALWAYS has
+  // valid credentials even when .env is missing or env vars are empty.
+  static const String _fallbackSupabaseUrl = 'https://promxswvsnvilplmrtsj.supabase.co';
+  static const String _fallbackSupabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY';
+  static const String _fallbackApiBaseUrl = 'https://daxelo-kinrel-server.onrender.com';
+
   // Supabase — reads from .env file (loaded via flutter_dotenv)
   // Falls back to --dart-define, then hardcoded defaults
-  static String get supabaseUrl => dotenv.env['SUPABASE_URL'] ??
-      const String.fromEnvironment('SUPABASE_URL', defaultValue: 'https://vxnyjhvcipgqeowdgfah.supabase.co');
+  // IMPORTANT: Handles both null AND empty string from dotenv
+  static String get supabaseUrl {
+    final env = dotenv.env['SUPABASE_URL'];
+    if (env != null && env.isNotEmpty) return env;
+    return const String.fromEnvironment('SUPABASE_URL', defaultValue: _fallbackSupabaseUrl);
+  }
 
-  static String get supabaseAnonKey => dotenv.env['SUPABASE_ANON_KEY'] ??
-      const String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
-  
+  static String get supabaseAnonKey {
+    final env = dotenv.env['SUPABASE_ANON_KEY'];
+    if (env != null && env.isNotEmpty) return env;
+    return const String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: _fallbackSupabaseAnonKey);
+  }
+
   // Backend API
-  static String get apiBaseUrl => dotenv.env['API_BASE_URL'] ??
-      const String.fromEnvironment('API_BASE_URL', defaultValue: 'https://daxelo-kinrel.vercel.app');
+  static String get apiBaseUrl {
+    final env = dotenv.env['API_BASE_URL'];
+    if (env != null && env.isNotEmpty) return env;
+    return const String.fromEnvironment('API_BASE_URL', defaultValue: _fallbackApiBaseUrl);
+  }
 
   /// Check if Supabase is properly configured
   static bool get isSupabaseConfigured => supabaseAnonKey.isNotEmpty;
@@ -28,15 +45,15 @@ class AppConfig {
   static const bool enableWhatsApp = true;
   static const bool enableCommunity = true;
   static const bool enableModeration = true;
-  
+
   // Limits
   static const int maxFamilyMembers = 500;
   static const int maxTreeDepth = 7;
   static const int searchDebounceMs = 300;
   static const int kinshipCacheDurationMinutes = 60;
-  
+
   // Animation
-  static const Duration splashDuration = Duration(seconds: 3);
+  static const Duration splashDuration = Duration(milliseconds: 1500);
   static const Duration animationFast = Duration(milliseconds: 150);
   static const Duration animationNormal = Duration(milliseconds: 300);
   static const Duration animationSlow = Duration(milliseconds: 500);

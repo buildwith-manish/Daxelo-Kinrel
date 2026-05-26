@@ -1,0 +1,162 @@
+/* src/styles/brand-tokens.css
+ *
+ * Kinrel brand design tokens — single source of truth for the web layer.
+ * Import this in globals.css:  @import '../styles/brand-tokens.css';
+ *
+ * All color references in the codebase must reference these custom properties.
+ * No raw hex values in component CSS / Tailwind config.
+ *
+ * Brand spec: kinrel-brand-complete.zip v4.0
+ */
+
+:root {
+  /* ── Backgrounds ─────────────────────────────────────────────────────────── */
+  --kinrel-bg:       #13141E;   /* App background  oklch(0.14 0.015 260) */
+  --kinrel-card:     #191B2C;   /* Card surfaces   oklch(0.18 0.02  260) */
+  --kinrel-elevated: #202338;   /* Elevated / muted oklch(0.22 0.02 260) */
+  --kinrel-border:   rgba(255, 255, 255, 0.10);
+
+  /* ── Orange accents ──────────────────────────────────────────────────────── */
+  --kinrel-orange: #E8612A;   /* Primary CTA / icon nodes */
+  --kinrel-amber:  #F59240;   /* Highlights, glow         */
+  --kinrel-ember:  #C44A18;   /* Depth, gradient end      */
+
+  /* ── Text ────────────────────────────────────────────────────────────────── */
+  --kinrel-white:  #F5F0EE;   /* Foreground text — 14.5:1 contrast ✓ */
+  --kinrel-silver: #C9B4A8;   /* Body text — 5.1:1 contrast ✓        */
+  --kinrel-dim:    #8A7A72;   /* Disabled / placeholder only           */
+
+  /* ── Semantic ────────────────────────────────────────────────────────────── */
+  --kinrel-error:   #F04E2A;
+  --kinrel-success: #4CAF7A;
+  --kinrel-warning: #F5A623;
+  --kinrel-info:    #60A5FA;
+
+  /* ── Glow ────────────────────────────────────────────────────────────────── */
+  --kinrel-glow: rgba(232, 97, 42, 0.28);
+
+  /* ── Gradients (as background shorthand strings) ─────────────────────────── */
+  --kinrel-grad-ignite:   linear-gradient(135deg, #E8612A 0%, #F59240 100%);
+  --kinrel-grad-heritage: linear-gradient(135deg, #E8612A 0%, #C44A18 100%);
+  --kinrel-grad-wordmark: linear-gradient(135deg, #F5F0EE 0%, #E8612A 100%);
+
+  /* ── Typography ──────────────────────────────────────────────────────────── */
+  --kinrel-font-display: 'Outfit', sans-serif;
+  --kinrel-font-body:    'DM Sans', sans-serif;
+  --kinrel-font-mono:    'DM Mono', monospace;
+
+  /* ── Font sizes (rem, base 16px) ─────────────────────────────────────────── */
+  --kinrel-text-xs:   0.625rem;   /* 10px — tags, captions     */
+  --kinrel-text-sm:   0.75rem;    /* 12px — meta, byline       */
+  --kinrel-text-base: 0.875rem;   /* 14px — body               */
+  --kinrel-text-md:   1rem;       /* 16px — body large         */
+  --kinrel-text-lg:   1.25rem;    /* 20px — h3                 */
+  --kinrel-text-xl:   1.625rem;   /* 26px — h2                 */
+  --kinrel-text-2xl:  2rem;       /* 32px — h1                 */
+  --kinrel-text-hero: 3.5rem;     /* 56px — hero wordmark      */
+
+  /* ── Spacing (px tokens) ─────────────────────────────────────────────────── */
+  --kinrel-sp-1:  4px;
+  --kinrel-sp-2:  8px;
+  --kinrel-sp-3:  12px;
+  --kinrel-sp-4:  16px;
+  --kinrel-sp-5:  20px;
+  --kinrel-sp-6:  24px;
+  --kinrel-sp-8:  32px;
+  --kinrel-sp-10: 40px;
+  --kinrel-sp-12: 48px;
+
+  /* ── Border radius ───────────────────────────────────────────────────────── */
+  --kinrel-rx-sm:   6px;
+  --kinrel-rx-md:   10px;
+  --kinrel-rx-lg:   14px;
+  --kinrel-rx-xl:   18px;
+  --kinrel-rx-2xl:  22px;
+  --kinrel-rx-full: 9999px;
+
+  /* ── Motion ──────────────────────────────────────────────────────────────── */
+  --kinrel-duration-fast:     150ms;
+  --kinrel-duration-normal:   300ms;
+  --kinrel-duration-slow:     500ms;
+  --kinrel-duration-ceremony: 1200ms;
+}
+
+/* ── Light mode overrides ─────────────────────────────────────────────────────
+ * Applied when the user prefers light mode or when a .kinrel-light class
+ * is present on a parent element.
+ */
+@media (prefers-color-scheme: light) {
+  :root:not(.dark) {
+    --kinrel-bg:       #FFFAF8;
+    --kinrel-card:     #FFFFFF;
+    --kinrel-elevated: #F5EDE8;
+    --kinrel-border:   rgba(0, 0, 0, 0.08);
+    --kinrel-white:    #1A0A00;   /* text inverts to dark on light bg */
+    --kinrel-silver:   #7A5040;
+    --kinrel-dim:      #B08060;
+    --kinrel-orange:   #C44A18;  /* slightly darker for legibility */
+    --kinrel-glow:     rgba(196, 74, 24, 0.18);
+  }
+}
+
+.kinrel-light {
+  --kinrel-bg:       #FFFAF8;
+  --kinrel-card:     #FFFFFF;
+  --kinrel-elevated: #F5EDE8;
+  --kinrel-border:   rgba(0, 0, 0, 0.08);
+  --kinrel-white:    #1A0A00;
+  --kinrel-silver:   #7A5040;
+  --kinrel-dim:      #B08060;
+  --kinrel-orange:   #C44A18;
+  --kinrel-glow:     rgba(196, 74, 24, 0.18);
+}
+
+/* ── Utility classes ──────────────────────────────────────────────────────────
+ * Convenience classes using brand tokens.
+ * Prefer Tailwind utilities where possible; use these for dynamic values.
+ */
+
+.kinrel-surface   { background-color: var(--kinrel-bg); }
+.kinrel-card      { background-color: var(--kinrel-card); }
+.kinrel-elevated  { background-color: var(--kinrel-elevated); }
+
+.kinrel-text-primary   { color: var(--kinrel-white); }
+.kinrel-text-secondary { color: var(--kinrel-silver); }
+.kinrel-text-orange    { color: var(--kinrel-orange); }
+.kinrel-text-dim       { color: var(--kinrel-dim); }
+
+.kinrel-border    { border: 1px solid var(--kinrel-border); }
+
+.kinrel-grad-ignite   { background: var(--kinrel-grad-ignite); }
+.kinrel-grad-heritage { background: var(--kinrel-grad-heritage); }
+
+.kinrel-glow-box {
+  box-shadow: 0 0 32px 0 var(--kinrel-glow);
+}
+
+/* ── Kinrel K-Graph Node Animations ────────────────────────────────────────── */
+
+@keyframes kinrel-pulse {
+  from { opacity: 0.75; transform: scale(0.96); }
+  to   { opacity: 1;    transform: scale(1.05); }
+}
+
+@keyframes kinrel-ripple {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  100% { transform: scale(3.4); opacity: 0;    }
+}
+
+@keyframes kinrel-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes kinrel-slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes kinrel-scale-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}

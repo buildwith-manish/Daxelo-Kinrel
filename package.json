@@ -4,10 +4,10 @@
   "private": true,
   "description": "DAXELO KINREL — Family Relationship Intelligence Platform",
   "scripts": {
-    "dev": "cd Daxelo-Kinrel-Server && npm run start:dev",
-    "build": "cd Daxelo-Kinrel-Server && npm run build",
-    "start": "cd Daxelo-Kinrel-Server && npm run start:prod",
-    "lint": "cd Daxelo-Kinrel-Server && npm run lint",
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
     "db:push": "cd Daxelo-Kinrel-Server && npm run db:push",
     "db:generate": "cd Daxelo-Kinrel-Server && npm run db:generate",
     "db:migrate": "cd Daxelo-Kinrel-Server && npm run db:migrate",
@@ -15,5 +15,15 @@
     "flutter:build:ios": "cd Daxelo-Kinrel-App && flutter build ios --release",
     "flutter:run": "cd Daxelo-Kinrel-App && flutter run",
     "flutter:pub": "cd Daxelo-Kinrel-App && flutter pub get"
+  },
+  "dependencies": {
+    "next": "^16.2.6",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "25.9.1",
+    "@types/react": "19.2.15",
+    "typescript": "6.0.3"
   }
 }

@@ -21,9 +21,9 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeMode = ref.watch(themeModeProvider);
     final fontScale = ref.watch(fontScaleProvider);
     final selectedLanguage = ref.watch(selectedLanguageProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -44,28 +44,8 @@ class SettingsScreen extends ConsumerWidget {
           _SettingsTile(
             icon: Icons.dark_mode,
             title: 'Theme',
-            subtitle: themeMode == ThemeMode.dark
-                ? 'Dark'
-                : themeMode == ThemeMode.light
-                    ? 'Light'
-                    : 'System',
-            trailing: SegmentedButton<ThemeMode>(
-              segments: const [
-                ButtonSegment(
-                    value: ThemeMode.dark, icon: Icon(Icons.dark_mode)),
-                ButtonSegment(
-                    value: ThemeMode.light, icon: Icon(Icons.light_mode)),
-                ButtonSegment(
-                    value: ThemeMode.system,
-                    icon: Icon(Icons.brightness_auto)),
-              ],
-              selected: {themeMode},
-              onSelectionChanged: (modes) =>
-                  ref.read(themeModeProvider.notifier).state = modes.first,
-              style: const ButtonStyle(
-                visualDensity: VisualDensity.compact,
-              ),
-            ),
+            subtitle: 'Dark',
+            trailing: Icon(Icons.check_circle, color: theme.colorScheme.primary, size: 20),
           ),
 
           _SettingsTile(
@@ -176,7 +156,7 @@ class SettingsScreen extends ConsumerWidget {
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 12,
-                color: KinrelColors.textDim,
+                color: theme.colorScheme.onSurfaceVariant,
                 letterSpacing: 1,
               ),
             ),
@@ -191,15 +171,16 @@ class SettingsScreen extends ConsumerWidget {
     WidgetRef ref,
     SupportedLanguage current,
   ) {
+    final theme = Theme.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: KinrelColors.darkElevated,
+        backgroundColor: theme.colorScheme.surfaceContainerHigh,
         title: Text(
           'Select Language',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
-            color: KinrelColors.textWhite,
+            color: theme.colorScheme.onSurface,
           ),
         ),
         content: SizedBox(
@@ -215,8 +196,8 @@ class SettingsScreen extends ConsumerWidget {
                   height: 36,
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? KinrelColors.orange.withValues(alpha: 0.15)
-                        : KinrelColors.darkCard,
+                        ? theme.colorScheme.primary.withValues(alpha: 0.15)
+                        : theme.colorScheme.surfaceContainer,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Center(
@@ -227,8 +208,8 @@ class SettingsScreen extends ConsumerWidget {
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         color: isSelected
-                            ? KinrelColors.orange
-                            : KinrelColors.textDim,
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -238,8 +219,8 @@ class SettingsScreen extends ConsumerWidget {
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     color: isSelected
-                        ? KinrelColors.orange
-                        : KinrelColors.textWhite,
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurface,
                     fontWeight:
                         isSelected ? FontWeight.w600 : FontWeight.w400,
                   ),
@@ -249,11 +230,11 @@ class SettingsScreen extends ConsumerWidget {
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
-                    color: KinrelColors.textDim,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
                 trailing: isSelected
-                    ? Icon(Icons.check_circle, color: KinrelColors.orange)
+                    ? Icon(Icons.check_circle, color: theme.colorScheme.primary)
                     : null,
                 onTap: () {
                   ref.read(selectedLanguageProvider.notifier).state = lang;
@@ -268,7 +249,7 @@ class SettingsScreen extends ConsumerWidget {
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(
               'Cancel',
-              style: TextStyle(color: KinrelColors.textSilver),
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
             ),
           ),
         ],
@@ -281,16 +262,17 @@ class SettingsScreen extends ConsumerWidget {
     final newController = TextEditingController();
     final confirmController = TextEditingController();
     final formKey = GlobalKey<FormState>();
+    final theme = Theme.of(context);
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: KinrelColors.darkElevated,
+        backgroundColor: theme.colorScheme.surfaceContainerHigh,
         title: Text(
           'Change Password',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
-            color: KinrelColors.textWhite,
+            color: theme.colorScheme.onSurface,
           ),
         ),
         content: Form(
@@ -301,12 +283,12 @@ class SettingsScreen extends ConsumerWidget {
               TextFormField(
                 controller: currentController,
                 obscureText: true,
-                style: TextStyle(color: KinrelColors.textWhite),
+                style: TextStyle(color: theme.colorScheme.onSurface),
                 decoration: InputDecoration(
                   labelText: 'Current Password',
-                  labelStyle: TextStyle(color: KinrelColors.textDim),
+                  labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
                   filled: true,
-                  fillColor: KinrelColors.darkCard,
+                  fillColor: theme.colorScheme.surfaceContainer,
                   border: OutlineInputBorder(
                     borderRadius:
                         BorderRadius.circular(KinrelSpacing.radiusSm),
@@ -320,12 +302,12 @@ class SettingsScreen extends ConsumerWidget {
               TextFormField(
                 controller: newController,
                 obscureText: true,
-                style: TextStyle(color: KinrelColors.textWhite),
+                style: TextStyle(color: theme.colorScheme.onSurface),
                 decoration: InputDecoration(
                   labelText: 'New Password',
-                  labelStyle: TextStyle(color: KinrelColors.textDim),
+                  labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
                   filled: true,
-                  fillColor: KinrelColors.darkCard,
+                  fillColor: theme.colorScheme.surfaceContainer,
                   border: OutlineInputBorder(
                     borderRadius:
                         BorderRadius.circular(KinrelSpacing.radiusSm),
@@ -339,12 +321,12 @@ class SettingsScreen extends ConsumerWidget {
               TextFormField(
                 controller: confirmController,
                 obscureText: true,
-                style: TextStyle(color: KinrelColors.textWhite),
+                style: TextStyle(color: theme.colorScheme.onSurface),
                 decoration: InputDecoration(
                   labelText: 'Confirm Password',
-                  labelStyle: TextStyle(color: KinrelColors.textDim),
+                  labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
                   filled: true,
-                  fillColor: KinrelColors.darkCard,
+                  fillColor: theme.colorScheme.surfaceContainer,
                   border: OutlineInputBorder(
                     borderRadius:
                         BorderRadius.circular(KinrelSpacing.radiusSm),
@@ -366,7 +348,7 @@ class SettingsScreen extends ConsumerWidget {
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(
               'Cancel',
-              style: TextStyle(color: KinrelColors.textSilver),
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
             ),
           ),
           TextButton(
@@ -392,7 +374,7 @@ class SettingsScreen extends ConsumerWidget {
             },
             child: Text(
               'Update',
-              style: TextStyle(color: KinrelColors.orange),
+              style: TextStyle(color: theme.colorScheme.primary),
             ),
           ),
         ],
@@ -407,6 +389,7 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
@@ -415,7 +398,7 @@ class _SectionHeader extends StatelessWidget {
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: KinrelColors.orange,
+          color: theme.colorScheme.primary,
           letterSpacing: 1,
         ),
       ),
@@ -442,14 +425,15 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return ListTile(
-      leading: Icon(icon, color: titleColor ?? KinrelColors.textSilver),
+      leading: Icon(icon, color: titleColor ?? theme.colorScheme.onSurfaceVariant),
       title: Text(
         title,
         style: TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 15,
-          color: titleColor ?? KinrelColors.textWhite,
+          color: titleColor ?? theme.colorScheme.onSurface,
         ),
       ),
       subtitle: subtitle != null
@@ -458,13 +442,13 @@ class _SettingsTile extends StatelessWidget {
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
-                color: KinrelColors.textDim,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             )
           : null,
       trailing: trailing ??
           (onTap != null
-              ? Icon(Icons.chevron_right, color: KinrelColors.textDim)
+              ? Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant)
               : null),
       onTap: onTap,
       contentPadding: EdgeInsets.zero,

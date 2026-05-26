@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'kinship_models.dart';
 import 'legacy_key_map.dart';
@@ -36,7 +37,12 @@ class KinshipService {
       _buildIndices();
       _isLoaded = true;
     } catch (e) {
-      throw Exception('Failed to load kinship data: $e');
+      // Log the error but don't throw — allow the app to continue
+      // with an empty dataset rather than crashing
+      debugPrint('❌ Failed to load kinship data: $e');
+      _isLoaded = false;
+      // Re-throw so the UI can show an error state
+      rethrow;
     }
   }
 

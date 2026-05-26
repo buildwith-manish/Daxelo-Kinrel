@@ -80,8 +80,8 @@ class _VoiceSearchScreenState extends ConsumerState<VoiceSearchScreen>
 
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          color: KinrelColors.darkBackground,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
         ),
         child: SafeArea(
           child: Column(

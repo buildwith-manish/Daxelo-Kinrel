@@ -10,8 +10,8 @@ class KinshipTranslation {
 
   factory KinshipTranslation.fromJson(Map<String, dynamic> json) {
     return KinshipTranslation(
-      native: json['native'] as String? ?? '',
-      latin: json['latin'] as String? ?? '',
+      native: json['native']?.toString() ?? '',
+      latin: json['latin']?.toString() ?? '',
     );
   }
 
@@ -52,7 +52,7 @@ class KinshipRelationship {
 
   factory KinshipRelationship.fromJson(Map<String, dynamic> json) {
     return KinshipRelationship(
-      id: json['id'] as String? ?? '',
+      id: json['id']?.toString() ?? '',
       relationshipKey: json['relationshipKey'] as String? ?? '',
       englishTerm: json['englishTerm'] as String? ?? '',
       gender: json['gender'] as String? ?? '',

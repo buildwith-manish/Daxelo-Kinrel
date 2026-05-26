@@ -2,14 +2,15 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/app_config.dart';
 import '../config/env_config.dart';
+import '../services/supabase_service.dart';
 
-/// Configured Dio HTTP client
+/// Configured Dio HTTP client with increased timeouts for cold starts
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(
     baseUrl: EnvConfig.apiBaseUrl,
-    connectTimeout: const Duration(seconds: 15),
-    receiveTimeout: const Duration(seconds: 15),
-    sendTimeout: const Duration(seconds: 15),
+    connectTimeout: const Duration(seconds: 30),
+    receiveTimeout: const Duration(seconds: 30),
+    sendTimeout: const Duration(seconds: 30),
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -18,7 +19,7 @@ final dioProvider = Provider<Dio>((ref) {
   ));
 
   dio.interceptors.addAll([
-    _AuthInterceptor(),
+    _AuthInterceptor(ref),
     _LoggingInterceptor(),
     _ErrorInterceptor(),
   ]);
@@ -27,10 +28,24 @@ final dioProvider = Provider<Dio>((ref) {
 });
 
 class _AuthInterceptor extends Interceptor {
+  final Ref _ref;
+
+  _AuthInterceptor(this._ref);
+
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
-    // Add auth token if available
-    // TODO: Get token from secure storage via Supabase
+    // Add auth token from Supabase session if available
+    try {
+      final client = _ref.read(supabaseProvider);
+      if (client != null) {
+        final session = client.auth.currentSession;
+        if (session != null && !session.isExpired) {
+          options.headers['Authorization'] = 'Bearer ${session.accessToken}';
+        }
+      }
+    } catch (_) {
+      // Ignore — request will proceed without auth token
+    }
     handler.next(options);
   }
 }

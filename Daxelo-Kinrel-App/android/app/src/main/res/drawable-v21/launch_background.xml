@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Modify this file to customize your launch splash screen -->
+<!-- Always dark per KINREL brand guidelines — uses hardcoded black instead of ?android:colorBackground -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="?android:colorBackground" />
+    <item android:drawable="@android:color/black" />
 
     <!-- You can insert your own image assets here -->
     <!-- <item>

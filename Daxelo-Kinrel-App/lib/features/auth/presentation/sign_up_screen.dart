@@ -42,6 +42,41 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     return 'Strong';
   }
 
+  String _cleanErrorMessage(String rawMessage) {
+    var message = rawMessage;
+    message = message.replaceAll('AuthException: ', '');
+    message = message.replaceAll('AuthApiException: ', '');
+
+    if (message.contains('SocketException') ||
+        message.contains('Failed host lookup') ||
+        message.contains('AuthRetryableFetchException') ||
+        message.contains('Connection refused') ||
+        message.contains('Network is unreachable') ||
+        message.contains('No address associated with hostname') ||
+        message.contains('Connection timed out') ||
+        message.contains('TimeoutException') ||
+        message.contains('timed out') ||
+        message.contains('Unable to connect') ||
+        message.contains('FetchException') ||
+        message.contains('Connection reset')) {
+      return 'Could not reach server. The server may be waking up — please check your internet connection and try again.';
+    } else if (message.contains('No API key found')) {
+      return 'Server configuration error. Please contact support.';
+    } else if (message.contains('User already registered')) {
+      return 'This email is already registered. Try signing in instead.';
+    } else if (message.contains('Password should be')) {
+      return 'Password is too weak. Use at least 8 characters with numbers and symbols.';
+    } else if (message.contains('Invalid email')) {
+      return 'Please enter a valid email address.';
+    } else if (message.contains('not available') ||
+        message.contains('not available. Please restart')) {
+      return 'Authentication service is not ready. Please restart the app and try again.';
+    } else if (message.length > 150) {
+      return 'Sign up failed. Please check your details and try again.';
+    }
+    return message;
+  }
+
   Future<void> _signUp() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_agreedToTerms) {
@@ -53,31 +88,29 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
     try {
       final authService = ref.read(authServiceProvider);
-      await authService.signUp(
+      final response = await authService.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         name: _nameController.text.trim(),
       );
 
-      if (mounted) context.go('/home');
+      if (!mounted) return;
+
+      // Check if email confirmation is required
+      final user = response.user;
+      if (user != null && user.emailConfirmedAt == null) {
+        // Email confirmation required — show message and go to sign-in
+        context.showSnackBar(
+          'Account created! Please check your email to verify your account, then sign in.',
+        );
+        context.go('/sign-in');
+      } else {
+        // Auto-confirmed or already confirmed — go to home
+        context.go('/home');
+      }
     } catch (e) {
       if (mounted) {
-        String message = e.toString();
-        // Clean up error message for display
-        message = message.replaceAll('AuthException: ', '');
-        message = message.replaceAll('AuthApiException: ', '');
-        if (message.contains('No API key found')) {
-          message = 'Server configuration error. Please contact support.';
-        } else if (message.contains('User already registered')) {
-          message = 'This email is already registered. Try signing in instead.';
-        } else if (message.contains('Password should be')) {
-          message = 'Password is too weak. Use at least 8 characters with numbers and symbols.';
-        } else if (message.contains('Invalid email')) {
-          message = 'Please enter a valid email address.';
-        } else if (message.contains('Supabase is not configured')) {
-          message = 'App is not configured for authentication yet. Please add your Supabase key.';
-        }
-        context.showSnackBar(message, isError: true);
+        context.showSnackBar(_cleanErrorMessage(e.toString()), isError: true);
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -92,6 +125,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       : passwordStrength == 'Medium'
         ? KinrelColors.warning
         : KinrelColors.error;
+    final theme = Theme.of(context);
 
     return Scaffold(
       body: Container(
@@ -113,7 +147,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // Logo
-                    const Center(
+                    Center(
                       child: KinrelLogo(
                         size: LogoSize.md,
                         layout: LogoLayout.horizontal,
@@ -129,7 +163,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
-                        color: KinrelColors.textWhite,
+                        color: theme.colorScheme.onSurface,
                       ),
                     ),
 
@@ -139,7 +173,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     TextFormField(
                       controller: _nameController,
                       textCapitalization: TextCapitalization.words,
-                      style: const TextStyle(color: KinrelColors.textWhite),
+                      style: TextStyle(color: theme.colorScheme.onSurface),
                       decoration: InputDecoration(
                         labelText: 'Full Name',
                         prefixIcon: const Icon(Icons.person_outline),
@@ -157,7 +191,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       autocorrect: false,
-                      style: const TextStyle(color: KinrelColors.textWhite),
+                      style: TextStyle(color: theme.colorScheme.onSurface),
                       decoration: InputDecoration(
                         labelText: 'Email',
                         prefixIcon: const Icon(Icons.email_outlined),
@@ -178,7 +212,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     TextFormField(
                       controller: _passwordController,
                       obscureText: _obscurePassword,
-                      style: const TextStyle(color: KinrelColors.textWhite),
+                      style: TextStyle(color: theme.colorScheme.onSurface),
                       decoration: InputDecoration(
                         labelText: 'Password',
                         prefixIcon: const Icon(Icons.lock_outline),
@@ -229,7 +263,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     TextFormField(
                       controller: _confirmPasswordController,
                       obscureText: _obscureConfirmPassword,
-                      style: const TextStyle(color: KinrelColors.textWhite),
+                      style: TextStyle(color: theme.colorScheme.onSurface),
                       decoration: InputDecoration(
                         labelText: 'Confirm Password',
                         prefixIcon: const Icon(Icons.lock_outline),
@@ -285,10 +319,27 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         ),
                       ),
                       child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        ? Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Creating account...',
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.displayFont,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
                           )
                         : Text(
                             'Create Account',

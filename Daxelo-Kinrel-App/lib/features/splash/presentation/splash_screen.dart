@@ -10,7 +10,6 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/storage/secure_storage.dart';
 import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../shared/widgets/kinrel_wordmark.dart';
-import '../../../shared/painters/kinrel_icon_painter.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -20,6 +19,8 @@ class SplashScreen extends ConsumerStatefulWidget {
 }
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
+  bool _navigated = false;
+
   @override
   void initState() {
     super.initState();
@@ -27,23 +28,58 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _initialize() async {
-    // Wait for splash animation
-    await Future.delayed(AppConfig.splashDuration);
+    // Shorter splash for better UX — 1.5s is enough for branding
+    await Future.delayed(const Duration(milliseconds: 1500));
 
     if (!mounted) return;
+
+    // Wait for Supabase to restore the session (important for app resume)
+    try {
+      if (isSupabaseInitialized) {
+        final client = ref.read(supabaseProvider);
+        if (client != null) {
+          // Force session restoration by accessing the session
+          final session = client.auth.currentSession;
+          // If no session yet, wait for async restoration with longer timeout
+          // for Supabase free tier cold starts
+          if (session == null) {
+            try {
+              await client.auth.onAuthStateChange.first
+                  .timeout(const Duration(seconds: 8));
+            } catch (_) {
+              // Timeout — no session available, will redirect to sign-in
+            }
+          }
+          // Delay to let auth state propagate to providers
+          await Future.delayed(const Duration(milliseconds: 300));
+        }
+      }
+    } catch (_) {
+      // Ignore session restoration errors — will redirect to sign-in
+    }
+
+    if (!mounted || _navigated) return;
 
     final isAuthenticated = ref.read(isAuthenticatedProvider);
     final secureStorage = SecureStorageService();
     final onboardingComplete = await secureStorage.isOnboardingComplete();
 
-    if (!mounted) return;
+    if (!mounted || _navigated) return;
 
-    if (!isAuthenticated) {
-      context.go('/onboarding');
-    } else if (!onboardingComplete) {
-      context.go('/onboarding');
-    } else {
+    _navigated = true;
+
+    // Check for saved route to restore on app resume
+    if (isAuthenticated) {
+      final lastRoute = await getLastRoute();
+      if (lastRoute != null && lastRoute != '/splash' && mounted) {
+        context.go(lastRoute);
+        return;
+      }
       context.go('/home');
+    } else if (onboardingComplete) {
+      context.go('/sign-in');
+    } else {
+      context.go('/onboarding');
     }
   }
 
@@ -64,7 +100,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 // Animated K-graph icon
-                const KinrelIcon(
+                KinrelIcon(
                   size: 96,
                   palette: KinrelIconPalette.orange,
                   animated: true,
@@ -76,7 +112,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 const SizedBox(height: 24),
 
                 // Wordmark
-                const KinrelWordmark(
+                KinrelWordmark(
                   fontSize: 36,
                   variant: WordmarkVariant.gradient,
                 ).animate().fadeIn(duration: 800.ms, delay: 300.ms),

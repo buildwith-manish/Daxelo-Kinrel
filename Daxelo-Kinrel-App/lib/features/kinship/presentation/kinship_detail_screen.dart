@@ -21,6 +21,7 @@ class KinshipDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final allTranslationsAsync = ref.watch(kinshipAllTranslationsProvider(relationshipKey));
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -89,11 +90,11 @@ class KinshipDetailScreen extends ConsumerWidget {
                       // English term
                       Text(
                         rel?.englishTerm ?? relationshipKey.snakeToTitle,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 28,
                           fontWeight: FontWeight.w700,
-                          color: KinrelColors.textWhite,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
 
@@ -104,7 +105,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 14,
-                            color: KinrelColors.textSilver,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -150,7 +151,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                             fontFamily: KinrelTypography.displayFont,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: KinrelColors.textWhite,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -164,7 +165,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: KinrelColors.darkElevated,
+                                  color: colorScheme.surfaceContainer,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
@@ -172,7 +173,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                                   style: TextStyle(
                                     fontFamily: KinrelTypography.bodyFont,
                                     fontSize: 13,
-                                    color: KinrelColors.amber,
+                                    color: colorScheme.tertiary,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -180,7 +181,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                               if (!isLast)
                                 Padding(
                                   padding: const EdgeInsets.symmetric(horizontal: 2),
-                                  child: Icon(Icons.arrow_forward, size: 16, color: KinrelColors.textDim),
+                                  child: Icon(Icons.arrow_forward, size: 16, color: colorScheme.outline),
                                 ),
                             ];
                           }).toList(),
@@ -202,7 +203,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: KinrelColors.textWhite,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -229,10 +230,10 @@ class KinshipDetailScreen extends ConsumerWidget {
                       return Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: KinrelColors.darkCard,
+                          color: colorScheme.surfaceContainerLow,
                           borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
                           border: Border.all(
-                            color: KinrelColors.darkSurface.withValues(alpha: 0.3),
+                            color: colorScheme.outlineVariant.withValues(alpha: 0.3),
                           ),
                         ),
                         child: Column(
@@ -244,7 +245,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                               style: TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 10,
-                                color: KinrelColors.textDim,
+                                color: colorScheme.onSurfaceVariant,
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -253,7 +254,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                               style: TextStyle(
                                 fontFamily: lang.fontFamily,
                                 fontSize: 16,
-                                color: KinrelColors.amber,
+                                color: colorScheme.tertiary,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -262,7 +263,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                               style: TextStyle(
                                 fontFamily: KinrelTypography.bodyFont,
                                 fontSize: 11,
-                                color: KinrelColors.textDim,
+                                color: colorScheme.onSurfaceVariant,
                                 fontStyle: FontStyle.italic,
                               ),
                             ),
@@ -293,23 +294,24 @@ class _MetaChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: KinrelColors.darkElevated,
+        color: colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: KinrelColors.orange),
+          Icon(icon, size: 14, color: colorScheme.primary),
           const SizedBox(width: 4),
           Text(
             label,
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
-              color: KinrelColors.textSilver,
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
         ],

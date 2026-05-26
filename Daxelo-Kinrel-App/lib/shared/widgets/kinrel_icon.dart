@@ -15,6 +15,9 @@
 import 'package:flutter/material.dart';
 import '../painters/kinrel_icon_painter.dart';
 
+// Re-export KinrelIconPalette so consumers can access it via kinrel_icon.dart
+export '../painters/kinrel_icon_painter.dart' show KinrelIconPalette;
+
 /// KINREL K-graph Icon Widget.
 ///
 /// Renders the KINREL brand icon as a custom-painted widget.

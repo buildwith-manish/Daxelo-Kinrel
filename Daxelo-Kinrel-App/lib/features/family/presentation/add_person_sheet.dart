@@ -52,7 +52,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
   final _cityController = TextEditingController();
   final _gotraController = TextEditingController();
 
-  String? _selectedRelationshipKey;
+  String? _selectedRelationshipKey; // Kept for UI — used when creating a Relationship separately
   String? _selectedRelationshipLabel;
   String _selectedGender = 'male';
   bool _isDeceased = false;
@@ -67,8 +67,6 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
     if (_isEditMode) {
       final p = widget.existingPerson!;
       _nameController.text = p.name;
-      _selectedRelationshipKey = p.relationshipKey;
-      _selectedRelationshipLabel = p.relationshipKey?.snakeToTitle;
       _selectedGender = p.gender ?? 'male';
       _dobController.text = p.dateOfBirth ?? '';
       _cityController.text = p.city ?? '';
@@ -124,71 +122,79 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
 
     setState(() => _isSubmitting = true);
 
-    Person? result;
+    try {
+      Person result;
 
-    if (_isEditMode) {
-      result = await updatePerson(
-        ref: ref,
-        personId: widget.existingPerson!.id,
-        familyId: widget.familyId,
-        name: _nameController.text.trim(),
-        relationshipKey: _selectedRelationshipKey,
-        gender: _selectedGender,
-        dateOfBirth: _dobController.text.trim().isEmpty
-            ? null
-            : _dobController.text.trim(),
-        city: _cityController.text.trim().isEmpty
-            ? null
-            : _cityController.text.trim(),
-        gotra: _gotraController.text.trim().isEmpty
-            ? null
-            : _gotraController.text.trim(),
-        isDeceased: _isDeceased,
-      );
-    } else {
-      result = await createPerson(
-        ref: ref,
-        familyId: widget.familyId,
-        name: _nameController.text.trim(),
-        relationshipKey: _selectedRelationshipKey,
-        gender: _selectedGender,
-        dateOfBirth: _dobController.text.trim().isEmpty
-            ? null
-            : _dobController.text.trim(),
-        city: _cityController.text.trim().isEmpty
-            ? null
-            : _cityController.text.trim(),
-        gotra: _gotraController.text.trim().isEmpty
-            ? null
-            : _gotraController.text.trim(),
-        isDeceased: _isDeceased,
-      );
-    }
+      if (_isEditMode) {
+        result = await updatePerson(
+          ref: ref,
+          personId: widget.existingPerson!.id,
+          familyId: widget.familyId,
+          name: _nameController.text.trim(),
+          gender: _selectedGender,
+          dateOfBirth: _dobController.text.trim().isEmpty
+              ? null
+              : _dobController.text.trim(),
+          city: _cityController.text.trim().isEmpty
+              ? null
+              : _cityController.text.trim(),
+          gotra: _gotraController.text.trim().isEmpty
+              ? null
+              : _gotraController.text.trim(),
+          isDeceased: _isDeceased,
+        );
+      } else {
+        result = await createPerson(
+          ref: ref,
+          familyId: widget.familyId,
+          name: _nameController.text.trim(),
+          gender: _selectedGender,
+          dateOfBirth: _dobController.text.trim().isEmpty
+              ? null
+              : _dobController.text.trim(),
+          city: _cityController.text.trim().isEmpty
+              ? null
+              : _cityController.text.trim(),
+          gotra: _gotraController.text.trim().isEmpty
+              ? null
+              : _gotraController.text.trim(),
+          isDeceased: _isDeceased,
+        );
+      }
 
-    if (!mounted) return;
-    setState(() => _isSubmitting = false);
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
 
-    if (result != null) {
       context.showSnackBar(
         _isEditMode
             ? 'Person updated successfully'
             : '${result.name} added to family',
       );
       Navigator.of(context).pop();
-    } else {
-      context.showSnackBar(
-        _isEditMode ? 'Failed to update person' : 'Failed to add person',
-        isError: true,
-      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        context.showSnackBar(
+          _isEditMode
+              ? 'Failed to update person: ${e.toString().split('\n').first}'
+              : 'Failed to add person: ${e.toString().split('\n').first}',
+          isError: true,
+        );
+      }
     }
   }
 
   Future<void> _pickRelationship() async {
-    final result = await RelationshipPickerSheet.show(context);
+    final result = await RelationshipPickerSheet.show(
+      context,
+      personAName: _nameController.text.trim().isNotEmpty
+          ? _nameController.text.trim()
+          : null,
+    );
     if (result != null) {
       setState(() {
-        _selectedRelationshipKey = result.relationshipKey;
-        _selectedRelationshipLabel = result.englishTerm;
+        _selectedRelationshipKey = result;
+        _selectedRelationshipLabel = result.snakeToTitle;
       });
     }
   }

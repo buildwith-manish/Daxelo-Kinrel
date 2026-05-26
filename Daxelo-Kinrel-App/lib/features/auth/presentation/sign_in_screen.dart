@@ -30,6 +30,39 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     super.dispose();
   }
 
+  String _cleanErrorMessage(String rawMessage) {
+    var message = rawMessage;
+    message = message.replaceAll('AuthException: ', '');
+    message = message.replaceAll('AuthApiException: ', '');
+
+    if (message.contains('SocketException') ||
+        message.contains('Failed host lookup') ||
+        message.contains('AuthRetryableFetchException') ||
+        message.contains('Connection refused') ||
+        message.contains('Network is unreachable') ||
+        message.contains('No address associated with hostname') ||
+        message.contains('Connection timed out') ||
+        message.contains('TimeoutException') ||
+        message.contains('timed out') ||
+        message.contains('Unable to connect') ||
+        message.contains('FetchException') ||
+        message.contains('Connection reset')) {
+      return 'Could not reach server. The server may be waking up — please check your internet connection and try again.';
+    } else if (message.contains('No API key found')) {
+      return 'Server configuration error. Please contact support.';
+    } else if (message.contains('Invalid login credentials')) {
+      return 'Incorrect email or password. Please try again.';
+    } else if (message.contains('Email not confirmed')) {
+      return 'Please verify your email before signing in.';
+    } else if (message.contains('not available') ||
+        message.contains('not available. Please restart')) {
+      return 'Authentication service is not ready. Please restart the app and try again.';
+    } else if (message.length > 150) {
+      return 'Sign in failed. Please check your credentials and try again.';
+    }
+    return message;
+  }
+
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -45,20 +78,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       if (mounted) context.go('/home');
     } catch (e) {
       if (mounted) {
-        String message = e.toString();
-        // Clean up error message for display
-        message = message.replaceAll('AuthException: ', '');
-        message = message.replaceAll('AuthApiException: ', '');
-        if (message.contains('No API key found')) {
-          message = 'Server configuration error. Please contact support.';
-        } else if (message.contains('Invalid login credentials')) {
-          message = 'Incorrect email or password. Please try again.';
-        } else if (message.contains('Email not confirmed')) {
-          message = 'Please verify your email before signing in.';
-        } else if (message.contains('Supabase is not configured')) {
-          message = 'App is not configured for authentication yet. Please add your Supabase key.';
-        }
-        context.showSnackBar(message, isError: true);
+        context.showSnackBar(_cleanErrorMessage(e.toString()), isError: true);
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -67,6 +87,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -87,7 +109,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // Logo
-                    const Center(
+                    Center(
                       child: KinrelLogo(
                         size: LogoSize.lg,
                         layout: LogoLayout.vertical,
@@ -101,7 +123,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       autocorrect: false,
-                      style: const TextStyle(color: KinrelColors.textWhite),
+                      style: TextStyle(color: theme.colorScheme.onSurface),
                       decoration: InputDecoration(
                         labelText: 'Email',
                         prefixIcon: const Icon(Icons.email_outlined),
@@ -122,7 +144,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     TextFormField(
                       controller: _passwordController,
                       obscureText: _obscurePassword,
-                      style: const TextStyle(color: KinrelColors.textWhite),
+                      style: TextStyle(color: theme.colorScheme.onSurface),
                       decoration: InputDecoration(
                         labelText: 'Password',
                         prefixIcon: const Icon(Icons.lock_outline),
@@ -175,10 +197,27 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         ),
                       ),
                       child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        ? Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Connecting...',
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.displayFont,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
                           )
                         : Text(
                             'Sign In',

@@ -318,8 +318,8 @@ class _PersonSelector extends StatelessWidget {
               icon: Icon(Icons.arrow_drop_down, color: KinrelColors.orange),
               dropdownColor: KinrelColors.darkElevated,
               items: members.map((p) {
-                final subtitle = p.relationshipKey != null
-                    ? ' (${p.relationshipKey!.snakeToTitle})'
+                final subtitle = p.gender != null
+                    ? ' (${p.gender!.toUpperCase()})'
                     : '';
                 return DropdownMenuItem(
                   value: p.id,

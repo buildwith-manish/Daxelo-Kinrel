@@ -2,15 +2,15 @@
 // Pack 01: Design System + Pack 02: Support & Operations + Pack 04: WhatsApp Platform
 // Pack 06: Accessibility + Pack 07: Developer API + Pack 08: Content Moderation
 // Pack 09: Community & Social + Pack 12: Brand & Motion
+// + Family-Graph-First Redesign
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 // ── Core Models ──────────────────────────────────────────────────────
@@ -96,7 +96,7 @@ model SupportAgent {
   email           String
   phone           String?
 
-  // Agent configuration (stored as JSON strings for PostgreSQL)
+  // Agent configuration (stored as JSON strings)
   status          String   @default("offline") // online, busy, offline, break
   queues          String   @default("[]") // JSON array: ["billing","technical","critical"]
   minTier         Int      @default(1) // Minimum tier weight this agent handles
@@ -387,7 +387,7 @@ model KBArticle {
   subcategory     String?
   sortOrder       Int      @default(0)
 
-  // Content (localized JSON strings for PostgreSQL)
+  // Content (localized JSON strings)
   title           String   @default("{}") // JSON: {"en": "...", "hi": "..."}
   content         String   @default("{}") // JSON: {"en": "...", "hi": "..."}
   excerpt         String   @default("{}") // JSON: {"en": "...", "hi": "..."}
@@ -446,7 +446,7 @@ model KBSearchLog {
 
 // ── Pack 04: WhatsApp Platform ──────────────────────────────────────
 
-// Family & Person models (foundation for WhatsApp features)
+// Family & Person models (foundation for WhatsApp features + Graph-First redesign)
 
 model Family {
   id              String   @id @default(cuid())
@@ -458,11 +458,27 @@ model Family {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  // ── Graph-First Redesign Fields ──
+  familyCode      String   @unique @default(cuid()) // Shareable family ID like Instagram handle
+  avatarUrl       String?
+  region          String?
+  privacyMode     String   @default("private") // private/invite/link
+  isOnboarded     Boolean  @default(false)
+  anchorPersonId  String?  // The primary household anchor person
+  memberCount     Int      @default(0)
+  generationCount Int      @default(1)
+  lastActivityAt  DateTime @default(now())
+  createdBy       String?  // User ID who created this family
+
   members         FamilyMember[]
   persons         Person[]
   invitations     Invitation[]
+  familyInvites   FamilyInvite[]
+  graphLayouts    GraphLayoutState[]
+  graphChangeLogs GraphChangeLog[]
 
   @@index([name])
+  @@index([familyCode])
 }
 
 model FamilyMember {
@@ -476,6 +492,8 @@ model FamilyMember {
 
   joinedAt        DateTime @default(now())
 
+  createdInvites  FamilyInvite[]
+
   @@unique([familyId, userId])
   @@index([familyId])
   @@index([userId])
@@ -485,7 +503,6 @@ model Person {
   id              String   @id @default(cuid())
   familyId        String
   name            String
-  relationship    String?  // e.g., "father", "mother", "bua"
   dateOfBirth     DateTime?
   gotra           String?
   occupation      String?
@@ -493,6 +510,15 @@ model Person {
   isDeceased      Boolean  @default(false)
   privacyLevel    String   @default("family") // family, extended, public
   deletedAt       DateTime? // Soft delete — null means active
+
+  // ── Graph-First Redesign Fields ──
+  birthYear       Int?
+  notes           String?
+  sideOfFamily    String?  // paternal/maternal/both
+  generationIndex Int      @default(0)
+  isAnchor        Boolean  @default(false)
+  photoUrl        String?
+  gender          String?  // male, female, other
 
   family          Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
@@ -505,6 +531,7 @@ model Person {
   @@index([familyId, name])
   @@index([familyId, dateOfBirth])
   @@index([deletedAt])
+  @@index([familyId, generationIndex])
 }
 
 // WhatsApp Template Management
@@ -843,8 +870,11 @@ model Relationship {
   familyId        String
   fromPersonId    String
   toPersonId      String
-  type            String   // father, mother, spouse, child, sibling, etc.
+  relationshipKey String   // Kinship key e.g. "fathers_sister", "spouse", "child" — renamed from "type"
   direction       String   @default("from") // from: fromPerson is the type of toPerson (e.g. from=father means fromPerson is father of toPerson)
+  isActive        Boolean  @default(true)
+  label           String?  // Custom user-defined label override
+  verifiedAt      DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -854,7 +884,7 @@ model Relationship {
   @@index([familyId])
   @@index([fromPersonId])
   @@index([toPersonId])
-  @@index([type])
+  @@index([relationshipKey])
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -1351,4 +1381,86 @@ model PhotoConsent {
   createdAt       DateTime @default(now())
 
   @@index([personId])
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Family-Graph-First Redesign: New Models
+// ══════════════════════════════════════════════════════════════════════
+
+// ── Family Invite (code/link-based sharing) ────────────────────────
+
+model FamilyInvite {
+  id              String   @id @default(uuid())
+  familyId        String
+  invitedBy       String   // FamilyMember id
+  inviteCode      String   @unique @default(cuid())
+  role            String   @default("viewer") // admin/editor/member/viewer
+  maxUses         Int      @default(1)
+  currentUses     Int      @default(0)
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+
+  family          Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  inviterMember   FamilyMember @relation(fields: [invitedBy], references: [id], onDelete: Cascade)
+
+  @@index([inviteCode])
+}
+
+// ── Graph Layout State (user visualization preferences) ─────────────
+
+model GraphLayoutState {
+  id              String   @id @default(uuid())
+  familyId        String
+  userId          String
+  layoutMode      String   @default("tree") // tree/radial/force
+  nodePositions   Json     // {personId: {x, y}}
+  collapsedNodes  Json     // [personId, ...]
+  hiddenNodes     Json     // [personId, ...]
+  zoomLevel       Float    @default(1.0)
+  panOffset       Json     // {x, y}
+  filters         Json     // {generation, branch, bloodline, marital}
+  updatedAt       DateTime @updatedAt
+
+  family          Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  @@unique([familyId, userId])
+}
+
+// ── Graph Change Log (audit trail) ─────────────────────────────────
+
+model GraphChangeLog {
+  id              String   @id @default(uuid())
+  familyId        String
+  userId          String
+  action          String   // person_added/person_removed/relationship_added/relationship_removed/family_merged/branch_split
+  entityType      String   // person/relationship/family
+  entityId        String
+  details         Json     // snapshot of change
+  createdAt       DateTime @default(now())
+
+  family          Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@index([userId])
+}
+
+// ── Relationship Type Metadata (enriched kinship metadata) ──────────
+
+model RelationshipTypeMetadata {
+  id              String   @id @default(uuid())
+  relationshipKey String   @unique // "fathers_sister"
+  englishLabel    String   // "Father's Sister"
+  gender          String   // male/female/neutral
+  lineage         String   // paternal/maternal/marital/sibling
+  generation      Int      // 0=same, +1=elder, -1=younger
+  relationCategory String  // blood/marital/affinal
+  inverseKey      String   // "nephew_niece"
+  pathComponents  Json     // ["father", "sister"]
+  category        String   // "paternal_uncles_aunts"
+  isCompound      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([relationshipKey])
+  @@index([category])
+  @@index([lineage])
 }

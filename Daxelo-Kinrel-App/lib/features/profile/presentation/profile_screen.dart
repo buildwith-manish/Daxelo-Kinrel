@@ -223,14 +223,15 @@ class ProfileScreen extends ConsumerWidget {
             onPressed: () async {
               Navigator.of(ctx).pop();
               try {
-                await ref.read(authServiceProvider).updatePassword('');
                 // Update user metadata with name
                 final client = ref.read(supabaseProvider);
-                await client.auth.updateUser(
-                  UserAttributes(
-                    data: {'name': nameController.text.trim()},
-                  ),
-                );
+                if (client != null) {
+                  await client.auth.updateUser(
+                    UserAttributes(
+                      data: {'name': nameController.text.trim()},
+                    ),
+                  );
+                }
                 if (context.mounted) {
                   context.showSnackBar('Name updated successfully');
                 }

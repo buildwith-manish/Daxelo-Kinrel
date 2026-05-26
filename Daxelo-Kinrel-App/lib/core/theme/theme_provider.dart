@@ -2,8 +2,8 @@
 //
 // DAXELO KINREL — Theme Provider (Riverpod)
 //
-// Manages theme mode, font scaling, and high-contrast mode.
-// Combines all three into a single [ThemeData] provider.
+// Manages font scaling and high-contrast mode.
+// Theme is ALWAYS dark per KINREL brand guidelines.
 //
 // Usage:
 // ```dart
@@ -21,10 +21,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app_theme.dart';
 
-/// Current theme mode (dark, light, system).
-/// Defaults to [ThemeMode.dark] per KINREL brand guidelines.
-final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
-
 /// Font scale factor applied on top of base text sizes.
 /// 1.0 = default, 1.15 = large, 1.3 = extra-large.
 final fontScaleProvider = StateProvider<double>((ref) => 1.0);
@@ -33,19 +29,14 @@ final fontScaleProvider = StateProvider<double>((ref) => 1.0);
 /// When true, increases contrast ratios across the theme.
 final highContrastProvider = StateProvider<bool>((ref) => false);
 
-/// Computed [ThemeData] that combines theme mode, font scale,
-/// and high-contrast settings into a single coherent theme.
+/// Computed [ThemeData] that always uses dark mode with font scale
+/// and high-contrast settings.
 final appThemeProvider = Provider<ThemeData>((ref) {
-  final mode = ref.watch(themeModeProvider);
   final fontScale = ref.watch(fontScaleProvider);
   final highContrast = ref.watch(highContrastProvider);
 
-  // Resolve brightness from theme mode
-  final brightness = mode == ThemeMode.dark
-      ? Brightness.dark
-      : mode == ThemeMode.light
-          ? Brightness.light
-          : WidgetsBinding.instance.platformDispatcher.platformBrightness;
+  // Always dark — KINREL brand requirement
+  const brightness = Brightness.dark;
 
   var theme = getAppTheme(brightness);
 
@@ -64,23 +55,13 @@ final appThemeProvider = Provider<ThemeData>((ref) {
     theme = theme.copyWith(
       colorScheme: colorScheme.copyWith(
         // Boost surface contrast
-        surface: brightness == Brightness.dark
-            ? const Color(0xFF000000)
-            : const Color(0xFFFFFFFF),
-        onSurface: brightness == Brightness.dark
-            ? const Color(0xFFFFFFFF)
-            : const Color(0xFF000000),
-        onSurfaceVariant: brightness == Brightness.dark
-            ? const Color(0xFFE0E0E0)
-            : const Color(0xFF1A1A1A),
-        outline: brightness == Brightness.dark
-            ? const Color(0xFFBBBBBB)
-            : const Color(0xFF444444),
+        surface: const Color(0xFF000000),
+        onSurface: const Color(0xFFFFFFFF),
+        onSurfaceVariant: const Color(0xFFE0E0E0),
+        outline: const Color(0xFFBBBBBB),
       ),
       dividerTheme: theme.dividerTheme.copyWith(
-        color: brightness == Brightness.dark
-            ? const Color(0xFF888888)
-            : const Color(0xFF666666),
+        color: const Color(0xFF888888),
       ),
     );
   }
