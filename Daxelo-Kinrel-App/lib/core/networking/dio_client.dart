@@ -28,9 +28,10 @@ final dioProvider = Provider<Dio>((ref) {
 });
 
 class _AuthInterceptor extends Interceptor {
+  _AuthInterceptor(this._ref);
+
   final Ref _ref;
 
-  _AuthInterceptor(this._ref);
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
