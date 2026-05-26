@@ -4,6 +4,21 @@ import '../../../core/networking/dio_client.dart';
 // ── Models ─────────────────────────────────────────────────────────────
 
 class QuizQuestion {
+  factory QuizQuestion.fromJson(Map<String, dynamic> json) {
+    return QuizQuestion(
+      id: json['id'] as String? ?? '',
+      type: json['type'] as String? ?? '',
+      question: json['question'] as String? ?? '',
+      options: (json['options'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+      correctIndex: json['correctIndex'] as int? ?? 0,
+      explanation: json['explanation'] as String? ?? '',
+      kinshipData: json['kinshipData'] as Map<String, dynamic>? ?? {},
+    );
+  }
+
   final String id;
   final String type;
   final String question;
@@ -22,23 +37,23 @@ class QuizQuestion {
     required this.kinshipData,
   });
 
-  factory QuizQuestion.fromJson(Map<String, dynamic> json) {
-    return QuizQuestion(
-      id: json['id'] as String? ?? '',
-      type: json['type'] as String? ?? '',
-      question: json['question'] as String? ?? '',
-      options: (json['options'] as List<dynamic>?)
-              ?.map((e) => e as String)
-              .toList() ??
-          [],
-      correctIndex: json['correctIndex'] as int? ?? 0,
-      explanation: json['explanation'] as String? ?? '',
-      kinshipData: json['kinshipData'] as Map<String, dynamic>? ?? {},
-    );
-  }
 }
 
 class QuizSession {
+  factory QuizSession.fromJson(Map<String, dynamic> json) {
+    return QuizSession(
+      quizId: json['quizId'] as String? ?? '',
+      questions: (json['questions'] as List<dynamic>?)
+              ?.map((e) => QuizQuestion.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      totalQuestions: json['totalQuestions'] as int? ?? 0,
+      category: json['category'] as String? ?? 'mixed',
+      difficulty: json['difficulty'] as String? ?? 'medium',
+      language: json['language'] as String? ?? 'hi',
+    );
+  }
+
   final String quizId;
   final List<QuizQuestion> questions;
   final int totalQuestions;
@@ -55,22 +70,24 @@ class QuizSession {
     required this.language,
   });
 
-  factory QuizSession.fromJson(Map<String, dynamic> json) {
-    return QuizSession(
-      quizId: json['quizId'] as String? ?? '',
-      questions: (json['questions'] as List<dynamic>?)
-              ?.map((e) => QuizQuestion.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      totalQuestions: json['totalQuestions'] as int? ?? 0,
-      category: json['category'] as String? ?? 'mixed',
-      difficulty: json['difficulty'] as String? ?? 'medium',
-      language: json['language'] as String? ?? 'hi',
-    );
-  }
 }
 
 class QuizResult {
+  factory QuizResult.fromJson(Map<String, dynamic> json) {
+    return QuizResult(
+      quizId: json['quizId'] as String? ?? '',
+      score: json['score'] as int? ?? 0,
+      totalQuestions: json['totalQuestions'] as int? ?? 0,
+      correctAnswers: json['correctAnswers'] as int? ?? 0,
+      percentage: json['percentage'] as int? ?? 0,
+      streak: json['streak'] as int? ?? 0,
+      results: (json['results'] as List<dynamic>?)
+              ?.map((e) => QuestionResult.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+  }
+
   final String quizId;
   final int score;
   final int totalQuestions;
@@ -89,23 +106,18 @@ class QuizResult {
     required this.results,
   });
 
-  factory QuizResult.fromJson(Map<String, dynamic> json) {
-    return QuizResult(
-      quizId: json['quizId'] as String? ?? '',
-      score: json['score'] as int? ?? 0,
-      totalQuestions: json['totalQuestions'] as int? ?? 0,
-      correctAnswers: json['correctAnswers'] as int? ?? 0,
-      percentage: json['percentage'] as int? ?? 0,
-      streak: json['streak'] as int? ?? 0,
-      results: (json['results'] as List<dynamic>?)
-              ?.map((e) => QuestionResult.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-    );
-  }
 }
 
 class QuestionResult {
+  factory QuestionResult.fromJson(Map<String, dynamic> json) {
+    return QuestionResult(
+      questionIndex: json['questionIndex'] as int? ?? 0,
+      correct: json['correct'] as bool? ?? false,
+      yourAnswer: json['yourAnswer'] as int? ?? -1,
+      correctAnswer: json['correctAnswer'] as int? ?? 0,
+    );
+  }
+
   final int questionIndex;
   final bool correct;
   final int yourAnswer;
@@ -118,17 +130,19 @@ class QuestionResult {
     required this.correctAnswer,
   });
 
-  factory QuestionResult.fromJson(Map<String, dynamic> json) {
-    return QuestionResult(
-      questionIndex: json['questionIndex'] as int? ?? 0,
-      correct: json['correct'] as bool? ?? false,
-      yourAnswer: json['yourAnswer'] as int? ?? -1,
-      correctAnswer: json['correctAnswer'] as int? ?? 0,
-    );
-  }
 }
 
 class LeaderboardEntry {
+  factory LeaderboardEntry.fromJson(Map<String, dynamic> json) {
+    return LeaderboardEntry(
+      rank: json['rank'] as int? ?? 0,
+      name: json['name'] as String? ?? '',
+      score: json['score'] as int? ?? 0,
+      streak: json['streak'] as int? ?? 0,
+      avatar: json['avatar'] as String? ?? '',
+    );
+  }
+
   final int rank;
   final String name;
   final int score;
@@ -143,18 +157,21 @@ class LeaderboardEntry {
     required this.avatar,
   });
 
-  factory LeaderboardEntry.fromJson(Map<String, dynamic> json) {
-    return LeaderboardEntry(
-      rank: json['rank'] as int? ?? 0,
-      name: json['name'] as String? ?? '',
-      score: json['score'] as int? ?? 0,
-      streak: json['streak'] as int? ?? 0,
-      avatar: json['avatar'] as String? ?? '',
-    );
-  }
 }
 
 class DailyChallenge {
+  factory DailyChallenge.fromJson(Map<String, dynamic> json) {
+    return DailyChallenge(
+      date: json['date'] as String? ?? '',
+      questions: (json['questions'] as List<dynamic>?)
+              ?.map((e) => QuizQuestion.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      totalParticipants: json['totalParticipants'] as int? ?? 0,
+      averageScore: (json['averageScore'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
   final String date;
   final List<QuizQuestion> questions;
   final int totalParticipants;
@@ -167,17 +184,6 @@ class DailyChallenge {
     required this.averageScore,
   });
 
-  factory DailyChallenge.fromJson(Map<String, dynamic> json) {
-    return DailyChallenge(
-      date: json['date'] as String? ?? '',
-      questions: (json['questions'] as List<dynamic>?)
-              ?.map((e) => QuizQuestion.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-      totalParticipants: json['totalParticipants'] as int? ?? 0,
-      averageScore: (json['averageScore'] as num?)?.toDouble() ?? 0.0,
-    );
-  }
 }
 
 // ── Quiz State ─────────────────────────────────────────────────────────
@@ -185,15 +191,6 @@ class DailyChallenge {
 enum QuizState { idle, playing, results }
 
 class QuizStateData {
-  final QuizState state;
-  final QuizSession? session;
-  final QuizResult? result;
-  final int currentQuestionIndex;
-  final Map<int, int> answers;
-  final int? selectedAnswer;
-  final bool? isCorrect;
-  final bool isGenerating;
-
   const QuizStateData({
     this.state = QuizState.idle,
     this.session,
@@ -204,6 +201,16 @@ class QuizStateData {
     this.isCorrect,
     this.isGenerating = false,
   });
+
+  final QuizState state;
+  final QuizSession? session;
+  final QuizResult? result;
+  final int currentQuestionIndex;
+  final Map<int, int> answers;
+  final int? selectedAnswer;
+  final bool? isCorrect;
+  final bool isGenerating;
+
 
   QuizStateData copyWith({
     QuizState? state,
@@ -236,9 +243,10 @@ final quizStateProvider =
 });
 
 class QuizStateNotifier extends StateNotifier<QuizStateData> {
+  QuizStateNotifier(this._ref) : super(const QuizStateData());
+
   final Ref _ref;
 
-  QuizStateNotifier(this._ref) : super(const QuizStateData());
 
   Future<void> generateQuiz({
     String? category,
