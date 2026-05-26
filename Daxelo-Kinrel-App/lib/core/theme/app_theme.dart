@@ -616,7 +616,7 @@ BottomSheetThemeData _bottomSheetTheme(Brightness brightness) {
     backgroundColor: cardColor,
     surfaceTintColor: Colors.transparent,
     elevation: 0,
-    shape: const RoundedRectangleBorder(
+    shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(
         top: Radius.circular(KinrelRadius.bottomSheet),
       ),

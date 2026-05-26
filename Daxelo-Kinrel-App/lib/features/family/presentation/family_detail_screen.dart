@@ -257,7 +257,7 @@ class _GraphTab extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       backgroundColor: DKColors.cardColor(context),
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.bottomSheet),
         ),

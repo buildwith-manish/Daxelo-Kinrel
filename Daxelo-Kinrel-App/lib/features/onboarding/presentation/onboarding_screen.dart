@@ -127,7 +127,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
           // ── Page indicators + button ─────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(
+            padding: EdgeInsets.fromLTRB(
               KinrelSpacing.base,
               0,
               KinrelSpacing.base,

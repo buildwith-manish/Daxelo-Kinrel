@@ -960,7 +960,7 @@ class DKBottomNav extends StatelessWidget {
         color: isLight
             ? DKColors.lightCard
             : DKColors.darkCard.withValues(alpha: 0.9),
-        borderRadius: const BorderRadius.vertical(
+        borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.xl),
         ),
         border: isLight
@@ -979,7 +979,7 @@ class DKBottomNav extends StatelessWidget {
             : null,
       ),
       child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(
+        borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.xl),
         ),
         child: isLight
@@ -1151,7 +1151,7 @@ class DKChatBubble extends StatelessWidget {
       bg = DKColors.brandPurple;
       fg = Colors.white;
       border = null;
-      borderRadius = const BorderRadius.only(
+      borderRadius = BorderRadius.only(
         topLeft: Radius.circular(KinrelRadius.lg),
         topRight: Radius.circular(KinrelRadius.lg),
         bottomLeft: Radius.circular(KinrelRadius.lg),
@@ -1163,7 +1163,7 @@ class DKChatBubble extends StatelessWidget {
           : const Color(0xFF2A2A2A);
       fg = isLight ? DKColors.textDark : Colors.white;
       border = isLight ? null : DKColors.brandPurple.withValues(alpha: 0.3);
-      borderRadius = const BorderRadius.only(
+      borderRadius = BorderRadius.only(
         topLeft: Radius.circular(KinrelRadius.lg),
         topRight: Radius.circular(KinrelRadius.lg),
         bottomLeft: Radius.circular(4),
@@ -1182,7 +1182,7 @@ class DKChatBubble extends StatelessWidget {
           right: isUser ? 0 : 48,
           bottom: 4,
         ),
-        padding: const EdgeInsets.symmetric(
+        padding: EdgeInsets.symmetric(
           horizontal: KinrelSpacing.md,
           vertical: KinrelSpacing.sm + 2,
         ),

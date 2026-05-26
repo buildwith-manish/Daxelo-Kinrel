@@ -847,7 +847,7 @@ class _TreePainter extends CustomPainter {
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-            rect.inflate(8), const Radius.circular(radius + 4)),
+            rect.inflate(8), Radius.circular(radius + 4)),
         glowPaint,
       );
     }
@@ -859,7 +859,7 @@ class _TreePainter extends CustomPainter {
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-            rect.inflate(4), const Radius.circular(radius + 2)),
+            rect.inflate(4), Radius.circular(radius + 2)),
         glowPaint,
       );
     }
@@ -868,7 +868,7 @@ class _TreePainter extends CustomPainter {
     final bgColor = _lineageBgColor(nodeLineage);
     final bgPaint = Paint()..color = bgColor;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, const Radius.circular(radius)),
+      RRect.fromRectAndRadius(rect, Radius.circular(radius)),
       bgPaint,
     );
 
@@ -883,7 +883,7 @@ class _TreePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = isAnchor ? 2.5 : isSelected ? 2 : 1;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, const Radius.circular(radius)),
+      RRect.fromRectAndRadius(rect, Radius.circular(radius)),
       borderPaint,
     );
 
@@ -892,7 +892,7 @@ class _TreePainter extends CustomPainter {
       final deceasedPaint = Paint()
         ..color = Colors.white.withValues(alpha: 0.1);
       canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(radius)),
+        RRect.fromRectAndRadius(rect, Radius.circular(radius)),
         deceasedPaint,
       );
     }
@@ -909,7 +909,7 @@ class _TreePainter extends CustomPainter {
       ..shader = avatarGradient.createShader(avatarRect);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-          avatarRect, const Radius.circular(avatarSize / 2)),
+          avatarRect, Radius.circular(avatarSize / 2)),
       avatarPaint,
     );
 
