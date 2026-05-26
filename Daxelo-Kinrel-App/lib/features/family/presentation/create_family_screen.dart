@@ -169,9 +169,9 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: _prevStep,
         ),
-        title: Text(
+        title: const Text(
           'Create Family',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
           ),
@@ -243,13 +243,14 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
 // ── Step Indicator ────────────────────────────────────────────────
 
 class _StepIndicator extends StatelessWidget {
-  final int currentStep;
-  final int totalSteps;
-
   const _StepIndicator({
     required this.currentStep,
     required this.totalSteps,
   });
+
+  final int currentStep;
+  final int totalSteps;
+
 
   @override
   Widget build(BuildContext context) {
@@ -317,16 +318,6 @@ class _StepIndicator extends StatelessWidget {
 // ── Step 1: Family Identity ──────────────────────────────────────
 
 class _Step1FamilyIdentity extends StatelessWidget {
-  final TextEditingController nameController;
-  final TextEditingController codeController;
-  final String fullFamilyCode;
-  final SupportedLanguage? selectedLanguage;
-  final String selectedRegion;
-  final ValueChanged<SupportedLanguage?> onLanguageChanged;
-  final ValueChanged<String> onRegionChanged;
-  final VoidCallback onEditCode;
-  final bool canProceed;
-
   const _Step1FamilyIdentity({
     required this.nameController,
     required this.codeController,
@@ -338,6 +329,17 @@ class _Step1FamilyIdentity extends StatelessWidget {
     required this.onEditCode,
     required this.canProceed,
   });
+
+  final TextEditingController nameController;
+  final TextEditingController codeController;
+  final String fullFamilyCode;
+  final SupportedLanguage? selectedLanguage;
+  final String selectedRegion;
+  final ValueChanged<SupportedLanguage?> onLanguageChanged;
+  final ValueChanged<String> onRegionChanged;
+  final VoidCallback onEditCode;
+  final bool canProceed;
+
 
   @override
   Widget build(BuildContext context) {
@@ -364,7 +366,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
                 border: Border.all(
                   color: DKColors.brandPurple.withValues(alpha: 0.2),
                   width: 2,
-                ),
+                ),const 
               ),
               child: Icon(
                 Icons.family_restroom_rounded,
@@ -459,9 +461,9 @@ class _Step1FamilyIdentity extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              GestureDetector(
+              GestureDeconst tector(
                 onTap: onEditCode,
-                child: Text(
+                child: Teconst xt(
                   'Edit',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -542,15 +544,16 @@ class _Step1FamilyIdentity extends StatelessWidget {
 enum _PrivacyMode { private, inviteOnly, linkSharing }
 
 class _Step2PrivacySetup extends StatelessWidget {
-  final _PrivacyMode privacyMode;
-  final ValueChanged<_PrivacyMode> onPrivacyChanged;
-  final String familyName;
-
   const _Step2PrivacySetup({
     required this.privacyMode,
     required this.onPrivacyChanged,
     required this.familyName,
   });
+
+  final _PrivacyMode privacyMode;
+  final ValueChanged<_PrivacyMode> onPrivacyChanged;
+  final String familyName;
+
 
   @override
   Widget build(BuildContext context) {
@@ -661,12 +664,6 @@ class _Step2PrivacySetup extends StatelessWidget {
 // ── Step 3: Add Yourself ─────────────────────────────────────────
 
 class _Step3AddYourself extends StatelessWidget {
-  final TextEditingController nameController;
-  final TextEditingController birthYearController;
-  final String? selectedGender;
-  final ValueChanged<String?> onGenderChanged;
-  final bool canProceed;
-
   const _Step3AddYourself({
     required this.nameController,
     required this.birthYearController,
@@ -674,6 +671,13 @@ class _Step3AddYourself extends StatelessWidget {
     required this.onGenderChanged,
     required this.canProceed,
   });
+
+  final TextEditingController nameController;
+  final TextEditingController birthYearController;
+  final String? selectedGender;
+  final ValueChanged<String?> onGenderChanged;
+  final bool canProceed;
+
 
   @override
   Widget build(BuildContext context) {
@@ -840,13 +844,6 @@ class _Step3AddYourself extends StatelessWidget {
 // ── Bottom Navigation ────────────────────────────────────────────
 
 class _BottomNav extends StatelessWidget {
-  final int currentStep;
-  final int totalSteps;
-  final VoidCallback onBack;
-  final VoidCallback onNext;
-  final bool canProceed;
-  final bool isSubmitting;
-
   const _BottomNav({
     required this.currentStep,
     required this.totalSteps,
@@ -855,6 +852,14 @@ class _BottomNav extends StatelessWidget {
     required this.canProceed,
     required this.isSubmitting,
   });
+
+  final int currentStep;
+  final int totalSteps;
+  final VoidCallback onBack;
+  final VoidCallback onNext;
+  final bool canProceed;
+  final bool isSubmitting;
+
 
   @override
   Widget build(BuildContext context) {
@@ -905,13 +910,6 @@ class _BottomNav extends StatelessWidget {
 // ── Privacy Card ─────────────────────────────────────────────────
 
 class _PrivacyCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String description;
-  final _PrivacyMode mode;
-  final _PrivacyMode selectedMode;
-  final VoidCallback onTap;
-
   const _PrivacyCard({
     required this.icon,
     required this.title,
@@ -920,6 +918,14 @@ class _PrivacyCard extends StatelessWidget {
     required this.selectedMode,
     required this.onTap,
   });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final _PrivacyMode mode;
+  final _PrivacyMode selectedMode;
+  final VoidCallback onTap;
+
 
   @override
   Widget build(BuildContext context) {
@@ -972,7 +978,7 @@ class _PrivacyCard extends StatelessWidget {
                     fontSize: 12,
                     color: DKColors.textSecondary(context),
                     height: 1.4,
-                  ),
+            const       ),
                 ),
               ],
             ),
@@ -989,13 +995,14 @@ class _PrivacyCard extends StatelessWidget {
 // ── Language Dropdown ─────────────────────────────────────────────
 
 class _LanguageDropdown extends StatelessWidget {
-  final SupportedLanguage? selectedLanguage;
-  final ValueChanged<SupportedLanguage?> onChanged;
-
   const _LanguageDropdown({
     required this.selectedLanguage,
     required this.onChanged,
   });
+
+  final SupportedLanguage? selectedLanguage;
+  final ValueChanged<SupportedLanguage?> onChanged;
+
 
   @override
   Widget build(BuildContext context) {
@@ -1008,7 +1015,7 @@ class _LanguageDropdown extends StatelessWidget {
             color: DKColors.brandPurple.withValues(alpha: 0.1)),
       ),
       child: DropdownButtonHideUnderline(
-        child: DropdownButton<SupportedLanguage>(
+        child: Dconst ropdownButton<SupportedLanguage>(
           value: selectedLanguage,
           hint: Text(
             'Select language',
@@ -1052,6 +1059,11 @@ class _LanguageDropdown extends StatelessWidget {
 // ── Region Dropdown ──────────────────────────────────────────────
 
 class _RegionDropdown extends StatelessWidget {
+  const _RegionDropdown({
+    required this.selectedRegion,
+    required this.onChanged,
+  });
+
   final String selectedRegion;
   final ValueChanged<String> onChanged;
 
@@ -1065,10 +1077,6 @@ class _RegionDropdown extends StatelessWidget {
     'Diaspora (Global)',
   ];
 
-  const _RegionDropdown({
-    required this.selectedRegion,
-    required this.onChanged,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -1076,7 +1084,7 @@ class _RegionDropdown extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: DKColors.elevatedColor(context),
-        borderRadius: BorderRadius.circular(KinrelRadius.input),
+        borderRaconst dius: BorderRadius.circular(KinrelRadius.input),
         border: Border.all(
             color: DKColors.brandPurple.withValues(alpha: 0.1)),
       ),
