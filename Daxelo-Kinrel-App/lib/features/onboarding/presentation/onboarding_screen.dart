@@ -95,9 +95,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             child: ShaderMask(
               shaderCallback: (bounds) =>
                   KinrelGradients.wordmarkGradient.createShader(bounds),
-              child: Text(
+              child: const Text(
                 'KINREL',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -186,29 +186,31 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 // ── Data Model ────────────────────────────────────────────────────
 
 class _OnboardingPageData {
-  final IconData icon;
-  final String title;
-  final String tagline;
-  final List<Color> gradient;
-
   const _OnboardingPageData({
     required this.icon,
     required this.title,
     required this.tagline,
     required this.gradient,
   });
+
+  final IconData icon;
+  final String title;
+  final String tagline;
+  final List<Color> gradient;
+
 }
 
 // ── Page Content ──────────────────────────────────────────────────
 
 class _OnboardingPageContent extends StatelessWidget {
-  final _OnboardingPageData data;
-  final bool isActive;
-
   const _OnboardingPageContent({
     required this.data,
     required this.isActive,
   });
+
+  final _OnboardingPageData data;
+  final bool isActive;
+
 
   @override
   Widget build(BuildContext context) {
