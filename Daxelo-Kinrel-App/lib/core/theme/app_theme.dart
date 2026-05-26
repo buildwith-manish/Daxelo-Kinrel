@@ -39,6 +39,8 @@ import '../constants/brand_spacing.dart';
 /// `Theme.of(context).extension<KinrelThemeExtension>()`.
 @immutable
 class KinrelThemeExtension extends ThemeExtension<KinrelThemeExtension> {
+  const KinrelThemeExtension({
+
   // ── Legacy orange aliases (backward compat) ────────────────────
   final Color brandOrange;
   final Color brandAmber;
@@ -75,7 +77,6 @@ class KinrelThemeExtension extends ThemeExtension<KinrelThemeExtension> {
   final double brandButtonRadius;
   final double brandInputRadius;
 
-  const KinrelThemeExtension({
     // Legacy
     required this.brandOrange,
     required this.brandAmber,
