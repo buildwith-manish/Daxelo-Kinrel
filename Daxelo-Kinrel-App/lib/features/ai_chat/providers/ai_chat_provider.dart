@@ -20,6 +20,15 @@ class ChatMessage {
 }
 
 class KinshipCardData {
+  const KinshipCardData({
+    required this.relationshipKey,
+    required this.englishTerm,
+    required this.gender,
+    required this.lineage,
+    required this.relationshipCategory,
+    required this.translations,
+  });
+
   factory KinshipCardData.fromJson(Map<String, dynamic> json) {
     final rawTranslations = json['translations'] as Map<String, dynamic>? ?? {};
     final parsedTranslations = <String, TranslationEntry>{};
@@ -48,15 +57,6 @@ class KinshipCardData {
   final String lineage;
   final String relationshipCategory;
   final Map<String, TranslationEntry> translations;
-
-  const KinshipCardData({
-    required this.relationshipKey,
-    required this.englishTerm,
-    required this.gender,
-    required this.lineage,
-    required this.relationshipCategory,
-    required this.translations,
-  });
 
 }
 

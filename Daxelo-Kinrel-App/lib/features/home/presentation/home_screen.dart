@@ -59,29 +59,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   /// Loading state — DKLoadingShimmer placeholders
   Widget _buildLoadingState() {
-    return SingleChildScrollView(
+    return const SingleChildScrollView(
       physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
-      child: Column(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 24),
           // Header shimmer
           const Row(
             children: [
-              const KinrelIcon(size: 36),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: const Column(
+              KinrelIcon(size: 36),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const DKLoadingShimmer(width: 80, height: 12),
-                    const SizedBox(height: 6),
-                    const DKLoadingShimmer(width: 140, height: 18),
+                    DKLoadingShimmer(width: 80, height: 12),
+                    SizedBox(height: 6),
+                    DKLoadingShimmer(width: 140, height: 18),
                   ],
                 ),
               ),
-              const DKLoadingShimmer(width: 40, height: 40, radius: 20),
+              DKLoadingShimmer(width: 40, height: 40, radius: 20),
             ],
           ),
           const SizedBox(height: 24),
@@ -92,8 +92,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               children: List.generate(
                 5,
                 (_) => const Padding(
-                  padding: const EdgeInsets.only(right: 14),
-                  child: const DKLoadingShimmer(width: 56, height: 72, radius: 28),
+                  padding: EdgeInsets.only(right: 14),
+                  child: DKLoadingShimmer(width: 56, height: 72, radius: 28),
                 ),
               ),
             ),
@@ -107,9 +107,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: List.generate(
               3,
               (_) => const Expanded(
-                child: const Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 5),
-                  child: const DKLoadingShimmer(width: double.infinity, height: 100, radius: 16),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 5),
+                  child: DKLoadingShimmer(width: double.infinity, height: 100, radius: 16),
                 ),
               ),
             ),
@@ -121,8 +121,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ...List.generate(
             3,
             (_) => const Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: const DKLoadingShimmer(width: double.infinity, height: 64, radius: 14),
+              padding: EdgeInsets.only(bottom: 8),
+              child: DKLoadingShimmer(width: double.infinity, height: 64, radius: 14),
             ),
           ),
         ],
@@ -155,7 +155,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onPressed: () => _showJoinFamilyDialog(context),
             child: const Text(
               'Or join an existing family with a code',
-              style: const TextStyle(
+              style: TextStyle(
                 color: KinrelColors.purple,
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
@@ -180,9 +180,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ref.invalidate(familyListProvider);
         ref.invalidate(familyDetailProvider(primaryFamily.id));
       },
-      child: SingleChildScrollView(
+      child: const SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
-        child: Column(
+        child: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
@@ -246,7 +246,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: DKColors.cardColor(context),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(KinrelRadius.dialog),
+          borderRadius: const BorderRadius.circular(KinrelRadius.dialog),
           side: BorderSide(color: DKColors.borderColor(context)),
         ),
         title: Text(
@@ -278,8 +278,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 hintStyle: TextStyle(color: DKColors.textSecondary(context)),
                 filled: true,
                 fillColor: DKColors.elevatedColor(context),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(KinrelRadius.input),
+                border: const OutlineInputBorder(
+                  borderRadius: const BorderRadius.circular(KinrelRadius.input),
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -483,8 +483,8 @@ class _FamilyStoryAvatar extends StatelessWidget {
                     ],
                   ),
                 ),
-                child: Center(
-                  child: Text(
+                child: const Center(
+                  child: const Text(
                     family.name.isNotEmpty
                         ? family.name[0].toUpperCase()
                         : 'F',
@@ -541,7 +541,7 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
         onTap: () => context.push('/family/${family.id}'),
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: const BorderRadius.circular(20),
             border: Border.all(
               color: DKColors.brandPurple.withValues(alpha: 0.3),
               width: 1.5,
@@ -555,7 +555,7 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: const BorderRadius.circular(20),
             child: Stack(
               children: [
                 // Gradient background
@@ -567,12 +567,12 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
                         ? LinearGradient(
                             colors: [
                               DKColors.brandPurple.withValues(alpha: 0.15),
-                          const DKColors.brandViolet.withValues(alpha: 0.08),
+                          DKColors.brandViolet.withValues(alpha: 0.08),
                             ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           )
-                        : LinearGradient(
+                        : const LinearGradient(
                             colors: [
                               DKColors.brandDeepPurple,
                               KinrelColors.darkSurface,
@@ -612,8 +612,8 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
                                     ),
                                   ],
                                 ),
-                                child: Center(
-                                  child: Text(
+                                child: const Center(
+                                  child: const Text(
                                     family.name.isNotEmpty
                                         ? family.name[0].toUpperCase()
                                         : 'F',
@@ -656,15 +656,15 @@ class _PrimaryFamilyHeroCard extends StatelessWidget {
                                         icon: Icons.link_rounded,
                                         value: '${relationships.length}',
                                         label: 'Links',
-                                        color: const DKColors.brandViolet,
+                                        color: DKColors.brandViolet,
                                       ),
-                                    ],);const },
+                                    ],);},
                                 loading: () => SizedBox(
-                                  height: 28,child: Center(
-                                    child: SizedBox(
+                                  height: 28,child: const Center(
+                                    child: const SizedBox(
                                       width: 20,
                                       height: 20,
-                                      child: CircularProgressIndicator(
+                                      child: const CircularProgressIndicator(
                                         strokeWidth: 2,
                                         color: DKColors.brandPurple,
                                       ),
@@ -792,30 +792,30 @@ class _GradientBorderCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(1.5), // border thickness
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
+        decoration: const BoxDecoration(
+          gradient: const LinearGradient(
             colors: gradientColors,
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: const BorderRadius.circular(16),
         ),
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: DKColors.cardColor(context),
-            borderRadius: BorderRadius.circular(14.5),
+            borderRadius: const BorderRadius.circular(14.5),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
+              const Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
+                decoration: const BoxDecoration(
+                  borderRadius: const BorderRadius.circular(10),
                   color: iconBgColor,
                 ),
-                child: Icon(icon, color: iconColor, size: 20),
+                child: const Icon(icon, color: iconColor, size: 20),
               ),
               const SizedBox(height: 10),
               Text(title,
@@ -992,7 +992,7 @@ class _YourFamiliesSection extends StatelessWidget {
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
                       color: DKColors.brandPurple.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: const BorderRadius.circular(10),
                     ),
                     child: Text('${families.length}',
                         style: const TextStyle(
@@ -1006,8 +1006,8 @@ class _YourFamiliesSection extends StatelessWidget {
               ),
               GestureDetector(
                 onTap: () => context.go('/families'),
-                child: Text('See All',
-                    style: TextStyle(
+                child: const Text('See All',
+                    style: const TextStyle(
                       color: KinrelColors.purple,
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,

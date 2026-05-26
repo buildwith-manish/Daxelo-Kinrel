@@ -77,9 +77,9 @@ class _RelationshipBuilderScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
+        title: const Text(
           'Link Members',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
           ),
@@ -90,12 +90,12 @@ class _RelationshipBuilderScreenState
         ),
         actions: [
           if (_selectedPerson1Id != null || _selectedPerson2Id != null)
-            TextButton.icon(
+            const TextButton.icon(
               onPressed: _clearSelection,
               icon: const Icon(Icons.clear, size: 16),
-              label: Text(
+              label: const Text(
                 'Clear',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   color: KinrelColors.textSilver,
                 ),
@@ -218,14 +218,14 @@ class _RelationshipBuilderScreenState
           ),
         ),
       ),
-      child: Row(
+      child: const Row(
         children: [
-          Icon(Icons.link, size: 18, color: instructionColor),
+          const Icon(Icons.link, size: 18, color: instructionColor),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text(
+          const Expanded(
+            child: const Text(
               instruction,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
@@ -403,7 +403,7 @@ class _PersonCard extends StatelessWidget {
             curve: KinrelMotion.easeOut,
             decoration: BoxDecoration(
               color: bgColor,
-              borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+              borderRadius: const BorderRadius.circular(KinrelSpacing.radiusMd),
               border: Border.all(
                 color: borderColor,
                 width: isSelected1 || isSelected2 ? 2 : 1,
@@ -425,19 +425,19 @@ class _PersonCard extends StatelessWidget {
       },
       child: Padding(
         padding: const EdgeInsets.all(KinrelSpacing.md),
-        child: Column(
+        child: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Avatar row
-            Row(
+            const Row(
               children: [
                 // Avatar circle
-                Container(
+                const Container(
                   width: 40,
                   height: 40,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     gradient: person.isDeceased
-                        ? LinearGradient(
+                        ? const LinearGradient(
                             colors: [
                               KinrelColors.textDim,
                               KinrelColors.darkSurface,
@@ -446,7 +446,7 @@ class _PersonCard extends StatelessWidget {
                         : isSelected1
                             ? KinrelGradients.igniteGradient
                             : isSelected2
-                                ? LinearGradient(
+                                ? const LinearGradient(
                                     colors: [
                                       KinrelColors.amber,
                                       KinrelColors.purple,
@@ -455,17 +455,17 @@ class _PersonCard extends StatelessWidget {
                                 : KinrelGradients.igniteGradient,
                     shape: BoxShape.circle,
                   ),
-                  child: Center(
+                  child: const Center(
                     child: person.isDeceased
                         ? const Text(
                             '🕊️',
                             style: TextStyle(fontSize: 18),
                           )
-                        : Text(
+                        : const Text(
                             person.name.isNotEmpty
                                 ? person.name[0].toUpperCase()
                                 : '?',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.displayFont,
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
@@ -478,16 +478,16 @@ class _PersonCard extends StatelessWidget {
 
                 // Selection badge
                 if (isSelected1)
-                  Container(
+                  const Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: KinrelColors.purple,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: const BorderRadius.circular(10),
                     ),
-                    child: Text(
+                    child: const Text(
                       '1st',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -496,16 +496,16 @@ class _PersonCard extends StatelessWidget {
                     ),
                   )
                 else if (isSelected2)
-                  Container(
+                  const Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: KinrelColors.amber,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: const BorderRadius.circular(10),
                     ),
-                    child: Text(
+                    child: const Text(
                       '2nd',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -517,7 +517,7 @@ class _PersonCard extends StatelessWidget {
                 const Spacer(),
 
                 // Gender icon
-                Icon(
+                const Icon(
                   person.gender == 'female'
                       ? Icons.female
                       : person.gender == 'male'
@@ -531,9 +531,9 @@ class _PersonCard extends StatelessWidget {
             const SizedBox(height: 8),
 
             // Name
-            Text(
+            const Text(
               person.name,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -548,8 +548,8 @@ class _PersonCard extends StatelessWidget {
             // Relationship key
             if (person.gender != null) ...[
               const SizedBox(height: 2),
-              Text(person.gender!.toUpperCase(),
-                style: TextStyle(
+              const Text(person.gender!.toUpperCase(),
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
                   color: KinrelColors.purple,
@@ -571,11 +571,11 @@ class _PersonCard extends StatelessWidget {
                         horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: KinrelColors.darkSurface.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: const BorderRadius.circular(4),
                     ),
-                    child: Text(
+                    child: const Text(
                       tag.snakeToTitle,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 9,
                         color: KinrelColors.textDim,
@@ -600,15 +600,15 @@ class _SelectionBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return const Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: const BorderRadius.circular(10),
       ),
-      child: Text(
+      child: const Text(
         label,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 10,
           fontWeight: FontWeight.w700,
@@ -639,11 +639,11 @@ class _EmptyState extends StatelessWidget {
               painter: _DottedCirclePainter(
                 color: KinrelColors.textDim.withValues(alpha: 0.3),
               ),
-              child: SizedBox(
+              child: const SizedBox(
                 width: 120,
                 height: 120,
-                child: Center(
-                  child: Icon(
+                child: const Center(
+                  child: const Icon(
                     Icons.add,
                     size: 40,
                     color: KinrelColors.textDim,
@@ -652,9 +652,9 @@ class _EmptyState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            Text(
+            const Text(
               'Add Members First',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -662,10 +662,10 @@ class _EmptyState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'Add family members, then link them here\nto build your family graph.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 color: KinrelColors.textSilver,
@@ -682,9 +682,9 @@ class _EmptyState extends StatelessWidget {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
                     horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
+                shape: const RoundedRectangleBorder(
                   borderRadius:
-                      BorderRadius.circular(KinrelSpacing.radiusSm),
+                      const BorderRadius.circular(KinrelSpacing.radiusSm),
                 ),
               ),
             ),
@@ -716,9 +716,9 @@ class _ErrorState extends StatelessWidget {
               color: KinrelColors.error.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 20),
-            Text(
+            const Text(
               message,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -749,7 +749,7 @@ class _DottedCirclePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
+    final center = const Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2 - 4;
 
     final paint = Paint()

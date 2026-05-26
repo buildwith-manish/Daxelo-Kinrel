@@ -23,6 +23,26 @@ String _generateId() {
 // ── Data Models ────────────────────────────────────────────────
 
 class Family {
+  const Family({
+    required this.id,
+    required this.name,
+    this.description,
+    this.primaryLanguage,
+    this.gotra,
+    this.originVillage,
+    this.createdBy,
+    this.createdAt,
+    this.familyCode,
+    this.avatarUrl,
+    this.region,
+    this.privacyMode,
+    this.isOnboarded = false,
+    this.anchorPersonId,
+    this.memberCount = 0,
+    this.generationCount = 1,
+    this.lastActivityAt,
+  });
+
   factory Family.fromJson(Map<String, dynamic> json) {
     return Family(
       id: json['id']?.toString() ?? '',
@@ -69,29 +89,30 @@ class Family {
   final int generationCount;
   final DateTime? lastActivityAt;
 
-  const Family({
-    required this.id,
-    required this.name,
-    this.description,
-    this.primaryLanguage,
-    this.gotra,
-    this.originVillage,
-    this.createdBy,
-    this.createdAt,
-    this.familyCode,
-    this.avatarUrl,
-    this.region,
-    this.privacyMode,
-    this.isOnboarded = false,
-    this.anchorPersonId,
-    this.memberCount = 0,
-    this.generationCount = 1,
-    this.lastActivityAt,
-  });
-
 }
 
 class Person {
+  const Person({
+    required this.id,
+    required this.familyId,
+    required this.name,
+    this.gender,
+    this.dateOfBirth,
+    this.city,
+    this.gotra,
+    this.isDeceased = false,
+    this.deletedAt,
+    this.createdAt,
+    this.birthYear,
+    this.occupation,
+    this.privacyLevel,
+    this.notes,
+    this.sideOfFamily,
+    this.generationIndex = 0,
+    this.isAnchor = false,
+    this.photoUrl,
+  });
+
   factory Person.fromJson(Map<String, dynamic> json) {
     return Person(
       id: json['id']?.toString() ?? '',
@@ -138,27 +159,6 @@ class Person {
   final bool isAnchor;
   final String? photoUrl;
 
-  const Person({
-    required this.id,
-    required this.familyId,
-    required this.name,
-    this.gender,
-    this.dateOfBirth,
-    this.city,
-    this.gotra,
-    this.isDeceased = false,
-    this.deletedAt,
-    this.createdAt,
-    this.birthYear,
-    this.occupation,
-    this.privacyLevel,
-    this.notes,
-    this.sideOfFamily,
-    this.generationIndex = 0,
-    this.isAnchor = false,
-    this.photoUrl,
-  });
-
 
   /// Convert to GraphPerson for graph visualization.
   /// Uses the first relationship as the relationship label.
@@ -175,6 +175,18 @@ class Person {
 }
 
 class FamilyRelationship {
+  const FamilyRelationship({
+    required this.id,
+    required this.familyId,
+    required this.fromPersonId,
+    required this.toPersonId,
+    required this.relationshipKey,
+    this.direction = 'from',
+    this.isActive = true,
+    this.label,
+    this.createdAt,
+  });
+
   factory FamilyRelationship.fromJson(Map<String, dynamic> json) {
     return FamilyRelationship(
       id: json['id']?.toString() ?? '',
@@ -200,18 +212,6 @@ class FamilyRelationship {
   final bool isActive;
   final String? label;
   final DateTime? createdAt;
-
-  const FamilyRelationship({
-    required this.id,
-    required this.familyId,
-    required this.fromPersonId,
-    required this.toPersonId,
-    required this.relationshipKey,
-    this.direction = 'from',
-    this.isActive = true,
-    this.label,
-    this.createdAt,
-  });
 
 
   ({String fromId, String toId, String type}) toGraphEdge() {

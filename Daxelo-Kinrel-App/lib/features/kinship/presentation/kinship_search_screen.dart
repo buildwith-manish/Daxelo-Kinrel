@@ -148,8 +148,8 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
                 children: List.generate(
                   5,
                   (_) => const Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: const DKLoadingShimmer(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: DKLoadingShimmer(
                         width: double.infinity, height: 80, radius: KinrelRadius.card),
                   ),
                 ),
@@ -201,11 +201,11 @@ class _KinshipTermCard extends ConsumerWidget {
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: DKColors.brandPurple.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: const BorderRadius.circular(6),
                 ),
-                child: Text(
+                child: const Text(
                   rel.relationshipCategory.replaceAll('_', ' ').toUpperCase(),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
@@ -221,11 +221,11 @@ class _KinshipTermCard extends ConsumerWidget {
                     const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: DKColors.brandGold.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: const BorderRadius.circular(4),
                 ),
-                child: Text(
+                child: const Text(
                   rel.relationshipKey.replaceAll('_', ' '),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 9,
                     color: DKColors.brandGold,
@@ -259,9 +259,9 @@ class _KinshipTermCard extends ConsumerWidget {
                 padding: const EdgeInsets.only(top: 6),
                 child: Row(
                   children: [
-                    Text(
+                    const Text(
                       translation.native,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: language.fontFamily,
                         fontSize: 16,
                         color: DKColors.brandPurple,
@@ -324,7 +324,7 @@ class _TagChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: DKColors.brandPurple.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: const BorderRadius.circular(4),
         border: Border.all(
           color: DKColors.brandPurple.withValues(alpha: 0.1),
           width: 0.5,

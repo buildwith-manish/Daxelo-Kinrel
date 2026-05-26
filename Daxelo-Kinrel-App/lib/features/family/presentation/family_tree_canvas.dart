@@ -192,7 +192,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
         ),
 
         // Language selector (top-left, globe icon)
-        Positioned(
+        const Positioned(
           top: 8,
           left: 8,
           child: _LanguageSelectorButton(),
@@ -245,12 +245,11 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas> {
               },
               filters: _filters,
             ),
-          ,
 
         // Empty state
         if (activeMembers.isEmpty)
-          Center(
-            child: DKEmptyState(
+          const Center(
+            child: const DKEmptyState(
               icon: Icons.account_tree_outlined,
               title: 'No Members Yet',
               subtitle: 'Add family members to start building your tree.',
@@ -488,9 +487,9 @@ class _LanguageSelectorButton extends StatelessWidget {
             offset: const Offset(0, 2),
           ),
         ],),
-      child: IconButton(
+      child: const IconButton(
         padding: EdgeInsets.zero,
-        icon: Icon(Icons.language, color: DKColors.brandPurple, size: 18),
+        icon: const Icon(Icons.language, color: DKColors.brandPurple, size: 18),
         tooltip: 'Language',
         onPressed: () {
           // TODO: Show language picker
@@ -527,7 +526,7 @@ class _ZoomControls extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
+        borderRadius: const BorderRadius.circular(KinrelRadius.lg),
         border: Border.all(
           color: DKColors.brandPurple.withValues(alpha: 0.15),
         ),
@@ -587,12 +586,12 @@ class _ZoomButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return const SizedBox(
       width: 40,
       height: 40,
-      child: IconButton(
+      child: const IconButton(
         padding: EdgeInsets.zero,
-        icon: Icon(icon, color: color, size: 20),
+        icon: const Icon(icon, color: color, size: 20),
         onPressed: onTap,
       ),
     );
@@ -713,7 +712,7 @@ class _TreePainter extends CustomPainter {
       labelPainter.layout();
       labelPainter.paint(
         canvas,
-        Offset(-offset.dx / scale - 180, y + nodeHeight / 2 - 6),
+        const Offset(-offset.dx / scale - 180, y + nodeHeight / 2 - 6),
       );
     }
   }
@@ -740,7 +739,7 @@ class _TreePainter extends CustomPainter {
           ..strokeWidth = 1.5
           ..style = PaintingStyle.stroke;
 
-        _drawDottedLine(canvas, Offset(startX, y), Offset(endX, y), dotPaint);
+        _drawDottedLine(canvas, const Offset(startX, y), Offset(endX, y), dotPaint);
 
         // Heart emoji in center
         final centerX = (startX + endX) / 2;
@@ -751,14 +750,14 @@ class _TreePainter extends CustomPainter {
         heartText.layout();
         heartText.paint(
           canvas,
-          Offset(centerX - heartText.width / 2, y - heartText.height / 2),
+          const Offset(centerX - heartText.width / 2, y - heartText.height / 2),
         );
       }
     }
 
     // Parent-child curved connections (purple, 50% opacity)
     if (node.children.isNotEmpty) {
-      final parentBottom = Offset(
+      final parentBottom = const Offset(
         parentRect.left + parentRect.width / 2,
         parentRect.bottom,
       );
@@ -767,7 +766,7 @@ class _TreePainter extends CustomPainter {
       for (final child in node.children) {
         final childRect = layout.positions[child.person.id];
         if (childRect == null) continue;
-        childPositions.add(Offset(
+        childPositions.add(const Offset(
           childRect.left + childRect.width / 2,
           childRect.top,
         ));
@@ -824,9 +823,9 @@ class _TreePainter extends CustomPainter {
       final endFraction =
           (i * (dashLength + gapLength) + dashLength) / distance;
       canvas.drawLine(
-        Offset(start.dx + dx * startFraction,
+        const Offset(start.dx + dx * startFraction,
             start.dy + dy * startFraction),
-        Offset(start.dx + dx * endFraction,
+        const Offset(start.dx + dx * endFraction,
             start.dy + dy * endFraction),
         paint,
       );
@@ -853,7 +852,7 @@ class _TreePainter extends CustomPainter {
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-            rect.inflate(8), Radius.circular(radius + 4)),
+            rect.inflate(8), const Radius.circular(radius + 4)),
         glowPaint,
       );
     }
@@ -865,7 +864,7 @@ class _TreePainter extends CustomPainter {
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-            rect.inflate(4), Radius.circular(radius + 2)),
+            rect.inflate(4), const Radius.circular(radius + 2)),
         glowPaint,
       );
     }
@@ -874,7 +873,7 @@ class _TreePainter extends CustomPainter {
     final bgColor = _lineageBgColor(nodeLineage);
     final bgPaint = Paint()..color = bgColor;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, Radius.circular(radius)),
+      RRect.fromRectAndRadius(rect, const Radius.circular(radius)),
       bgPaint,
     );
 
@@ -889,7 +888,7 @@ class _TreePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = isAnchor ? 2.5 : isSelected ? 2 : 1;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, Radius.circular(radius)),
+      RRect.fromRectAndRadius(rect, const Radius.circular(radius)),
       borderPaint,
     );
 
@@ -898,7 +897,7 @@ class _TreePainter extends CustomPainter {
       final deceasedPaint = Paint()
         ..color = Colors.white.withValues(alpha: 0.1);
       canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, Radius.circular(radius)),
+        RRect.fromRectAndRadius(rect, const Radius.circular(radius)),
         deceasedPaint,
       );
     }
@@ -915,7 +914,7 @@ class _TreePainter extends CustomPainter {
       ..shader = avatarGradient.createShader(avatarRect);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-          avatarRect, Radius.circular(avatarSize / 2)),
+          avatarRect, const Radius.circular(avatarSize / 2)),
       avatarPaint,
     );
 
@@ -928,7 +927,7 @@ class _TreePainter extends CustomPainter {
       dovePainter.layout();
       dovePainter.paint(
         canvas,
-        Offset(
+        const Offset(
           avatarRect.left + (avatarSize - dovePainter.width) / 2,
           avatarRect.top + (avatarSize - dovePainter.height) / 2,
         ),
@@ -937,7 +936,7 @@ class _TreePainter extends CustomPainter {
       final initial =
           personName.isNotEmpty ? personName[0].toUpperCase() : '?';
       final initialPainter = TextPainter(
-        text: TextSpan(
+        text: const TextSpan(
           text: initial,
           style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -951,7 +950,7 @@ class _TreePainter extends CustomPainter {
       initialPainter.layout();
       initialPainter.paint(
         canvas,
-        Offset(
+        const Offset(
           avatarRect.left + (avatarSize - initialPainter.width) / 2,
           avatarRect.top + (avatarSize - initialPainter.height) / 2,
         ),
@@ -968,26 +967,26 @@ class _TreePainter extends CustomPainter {
             ? DKColors.brandCoral
             : DKColors.textSecondaryLight;
     final genderPainter = TextPainter(
-      text: TextSpan(
+      text: const TextSpan(
         text: genderSymbol,
-        style: TextStyle(fontSize: 10, color: genderColor),
+        style: const TextStyle(fontSize: 10, color: genderColor),
       ),
       textDirection: TextDirection.ltr,
     );
     genderPainter.layout();
     genderPainter.paint(
       canvas,
-      Offset(rect.right - 16, rect.top + 6),
+      const Offset(rect.right - 16, rect.top + 6),
     );
 
-    // Name texconst t
+    // Name text
     final textStartX = avatarRect.right + 8;
     final textMaxWidth = rect.right - textStartX - 24;
 
     final namePainter = TextPainter(
-      text: TextSpan(
+      text: const TextSpan(
         text: personName,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.displayFont,
           fontSize: 14,
           fontWeight: FontWeight.w600,
@@ -999,7 +998,7 @@ class _TreePainter extends CustomPainter {
       ellipsis: '...',
     );
     namePainter.layout(maxWidth: textMaxWidth);
-    namePainter.paint(canvas, Offset(textStartX, rect.top + 12));
+    namePainter.paint(canvas, const Offset(textStartX, rect.top + 12));
 
     // Relationship label (purple accent)
     if (relationship != null && relationship.isNotEmpty) {
@@ -1019,15 +1018,15 @@ class _TreePainter extends CustomPainter {
         ellipsis: '...',
       );
       relPainter.layout(maxWidth: textMaxWidth);
-      relPainter.paint(canvas, Offset(textStartX, rect.top + 34));
+      relPainter.paint(canvas, const Offset(textStartX, rect.top + 34));
     }
 
     // Lineage tag
     if (lineage.isNotEmpty && lineage != 'self') {
       final tagPainter = TextPainter(
         text: TextSpan(
-          text: lineage.split("_").map((w) => w[0].toUpperCase() + w.substring(1)).join(" "),
-          style: TextStyle(
+          text: lineage.split('_').map((w) => w[0].toUpperCase() + w.substring(1)).join(' '),
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 8,
             fontWeight: FontWeight.w700,
@@ -1038,7 +1037,7 @@ class _TreePainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       );
       tagPainter.layout();
-      tagPainter.paint(canvas, Offset(textStartX, rect.top + 52));
+      tagPainter.paint(canvas, const Offset(textStartX, rect.top + 52));
     }
   }
 
@@ -1089,7 +1088,7 @@ class _TreePainter extends CustomPainter {
 
   LinearGradient _avatarGradient(NodeLineage lineage, bool isDeceased) {
     if (isDeceased) {
-      return LinearGradient(
+      return const LinearGradient(
         colors: [Colors.grey, DKColors.darkElevated],
       );
     }
@@ -1236,17 +1235,17 @@ class _FilterBar extends StatelessWidget {
         color: isLight
             ? Colors.white.withValues(alpha: 0.9)
             : DKColors.darkBg.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
+        borderRadius: const BorderRadius.circular(KinrelSpacing.radiusLg),
         border: Border.all(
           color: DKColors.brandPurple.withValues(alpha: 0.15),
         ),
       ),
-      child: SingleChildScrollView(
+      child: const SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        child: Row(
+        child: const Row(
           children: [
             for (int gen = 1; gen <= 5; gen++)
-              Padding(
+              const Padding(
                 padding: const EdgeInsets.only(right: 4),
                 child: DKSuggestionChip(
                   label: 'G$gen',
@@ -1362,14 +1361,14 @@ class _Minimap extends StatelessWidget {
         final worldX = minX + (localPos.dx / minimapW) * (maxX - minX);
         final worldY = minY + (localPos.dy / minimapH) * (maxY - minY);
 
-        onTap(Offset(worldX, worldY));
+        onTap(const Offset(worldX, worldY));
       },
       child: Container(
         width: 140,
         height: 100,
         decoration: BoxDecoration(
           color: DKColors.cardColor(context),
-          borderRadius: BorderRadius.circular(KinrelRadius.md),
+          borderRadius: const BorderRadius.circular(KinrelRadius.md),
           border: Border.all(
             color: DKColors.brandPurple.withValues(alpha: 0.2),
           ),
@@ -1487,7 +1486,7 @@ class _MinimapPainter extends CustomPainter {
         rect.height * s,
       );
       canvas.drawRRect(
-        RRect.fromRectAndRadius(miniRect, Radius.circular(3 * s)),
+        RRect.fromRectAndRadius(miniRect, const Radius.circular(3 * s)),
         paint,
       );
     }

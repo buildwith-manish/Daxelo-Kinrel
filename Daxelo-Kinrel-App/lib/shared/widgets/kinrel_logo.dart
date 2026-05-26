@@ -114,7 +114,7 @@ class KinrelLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icon = KinrelIcon(
+    final icon = const KinrelIcon(
       size: iconSize,
       palette: palette,
       animated: animated,
@@ -131,39 +131,39 @@ class KinrelLogo extends StatelessWidget {
 
     Widget logo;
     if (layout == LogoLayout.horizontal) {
-      logo = Row(
+      logo = const Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           icon,
-          SizedBox(width: gap),
+          const SizedBox(width: gap),
           wordmark,
         ],
       );
     } else {
-      logo = Column(
+      logo = const Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           icon,
-          SizedBox(height: gap),
+          const SizedBox(height: gap),
           wordmark,
         ],
       );
     }
 
     if (showByDaxelo) {
-      logo = Column(
+      logo = const Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: layout == LogoLayout.horizontal
             ? CrossAxisAlignment.start
             : CrossAxisAlignment.center,
         children: [
           logo,
-          SizedBox(height: 4 * _scale),
-          Text(
+          const SizedBox(height: 4 * _scale),
+          const Text(
             'by Daxelo',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 9 * _scale,
               fontWeight: FontWeight.w400,
@@ -183,19 +183,19 @@ class KinrelLogo extends StatelessWidget {
   }
 
   Widget _buildWordmark(double letterSpacing) {
-    return Align(
+    return const Align(
       alignment: layout == LogoLayout.horizontal
           ? Alignment.centerLeft
           : Alignment.center,
-      child: Column(
+      child: const Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: layout == LogoLayout.horizontal
             ? CrossAxisAlignment.start
             : CrossAxisAlignment.center,
         children: [
-          Text(
+          const Text(
             'KINREL',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: wordmarkFontSize,
               fontWeight: FontWeight.w800,

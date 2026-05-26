@@ -164,14 +164,14 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
   @override
   Widget build(BuildContext context) {
     return DKScaffold(
-      appBar: AppBar(
-        leading: IconButton(
+      appBar: const AppBar(
+        leading: const IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: _prevStep,
         ),
         title: const Text(
           'Create Family',
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
           ),
@@ -269,7 +269,7 @@ class _StepIndicator extends StatelessWidget {
                   color: lineIndex < currentStep
                       ? DKColors.brandPurple
                       : DKColors.brandPurple.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(1),
+                  borderRadius: const BorderRadius.circular(1),
                 ),
               ),
             );
@@ -367,7 +367,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
                   color: DKColors.brandPurple.withValues(alpha: 0.2),
                   width: 2,
                 ),),
-              child: Icon(
+              child: const Icon(
                 Icons.family_restroom_rounded,
                 size: 36,
                 color: DKColors.brandPurple,
@@ -436,8 +436,8 @@ class _Step1FamilyIdentity extends StatelessWidget {
               ),
               filled: true,
               fillColor: DKColors.elevatedColor(context),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(KinrelRadius.input),
+              border: const OutlineInputBorder(
+                borderRadius: const BorderRadius.circular(KinrelRadius.input),
                 borderSide: BorderSide.none,
               ),
               contentPadding:
@@ -460,11 +460,11 @@ class _Step1FamilyIdentity extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              GestureDetector(
+              const GestureDetector(
                 onTap: onEditCode,
-                child: Text(
+                child: const Text(
                   'Edit',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
                     color: DKColors.brandPurple,
@@ -762,8 +762,8 @@ class _Step3AddYourself extends StatelessWidget {
               ),
               filled: true,
               fillColor: DKColors.elevatedColor(context),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(KinrelRadius.input),
+              border: const OutlineInputBorder(
+                borderRadius: const BorderRadius.circular(KinrelRadius.input),
                 borderSide: BorderSide.none,
               ),
               contentPadding:
@@ -799,8 +799,8 @@ class _Step3AddYourself extends StatelessWidget {
                   color: DKColors.textSecondary(context).withValues(alpha: 0.5)),
               filled: true,
               fillColor: DKColors.elevatedColor(context),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(KinrelRadius.input),
+              border: const OutlineInputBorder(
+                borderRadius: const BorderRadius.circular(KinrelRadius.input),
                 borderSide: BorderSide.none,
               ),
               counterText: '',
@@ -870,13 +870,13 @@ class _BottomNav extends StatelessWidget {
           top: BorderSide(color: DKColors.borderColor(context), width: 1),
         ),
       ),
-      child: SafeArea(
+      child: const SafeArea(
         top: false,
-        child: Row(
+        child: const Row(
           children: [
             if (currentStep > 0)
-              Expanded(
-                child: DKButton(
+              const Expanded(
+                child: const DKButton(
                   label: 'Back',
                   variant: DKButtonVariant.secondary,
                   onPressed: onBack,
@@ -884,9 +884,9 @@ class _BottomNav extends StatelessWidget {
                 ),
               ),
             if (currentStep > 0) const SizedBox(width: 12),
-            Expanded(
+            const Expanded(
               flex: 2,
-              child: DKButton(
+              child: const DKButton(
                 label: currentStep == totalSteps - 1
                     ? 'Create Family'
                     : 'Next',
@@ -983,7 +983,7 @@ class _PrivacyCard extends StatelessWidget {
             ),
           ),
           if (isSelected)
-            Icon(Icons.check_circle_rounded,
+            const Icon(Icons.check_circle_rounded,
                 color: DKColors.brandPurple, size: 22),
         ],
       ),
@@ -1009,7 +1009,7 @@ class _LanguageDropdown extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: DKColors.elevatedColor(context),
-        borderRadius: BorderRadius.circular(KinrelRadius.input),
+        borderRadius: const BorderRadius.circular(KinrelRadius.input),
         border: Border.all(
             color: DKColors.brandPurple.withValues(alpha: 0.1)),
       ),
@@ -1021,7 +1021,7 @@ class _LanguageDropdown extends StatelessWidget {
             style: TextStyle(color: DKColors.textSecondary(context)),
           ),
           isExpanded: true,
-          icon: Icon(Icons.arrow_drop_down, color: DKColors.brandPurple),
+          icon: const Icon(Icons.arrow_drop_down, color: DKColors.brandPurple),
           dropdownColor: DKColors.cardColor(context),
           items: SupportedLanguage.values.map((lang) {
             return DropdownMenuItem(
@@ -1083,7 +1083,7 @@ class _RegionDropdown extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: DKColors.elevatedColor(context),
-        borderRadius: BorderRadius.circular(KinrelRadius.input),
+        borderRadius: const BorderRadius.circular(KinrelRadius.input),
         border: Border.all(
             color: DKColors.brandPurple.withValues(alpha: 0.1)),
       ),
@@ -1091,7 +1091,7 @@ class _RegionDropdown extends StatelessWidget {
         child: DropdownButton<String>(
           value: selectedRegion,
           isExpanded: true,
-          icon: Icon(Icons.arrow_drop_down, color: DKColors.brandPurple),
+          icon: const Icon(Icons.arrow_drop_down, color: DKColors.brandPurple),
           dropdownColor: DKColors.cardColor(context),
           items: _regions.map((region) {
             return DropdownMenuItem(

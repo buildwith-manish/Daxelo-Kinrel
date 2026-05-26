@@ -53,7 +53,7 @@ _PaletteColors _resolvePalette(KinrelIconPalette palette) {
     case KinrelIconPalette.purple:
       return const _PaletteColors(
         bg: KinrelColors.card,
-        bgInner: Color(0xFF23263E),
+        bgInner: const Color(0xFF23263E),
         primary: KinrelColors.purple,
         secondary: KinrelColors.amber,
         accent: KinrelColors.ember,
@@ -63,22 +63,22 @@ _PaletteColors _resolvePalette(KinrelIconPalette palette) {
       );
     case KinrelIconPalette.light:
       return const _PaletteColors(
-        bg: Color(0xFFFFFFFF),
-        bgInner: Color(0xFFFFF0E8),
+        bg: const Color(0xFFFFFFFF),
+        bgInner: const Color(0xFFFFF0E8),
         primary: KinrelColors.ember,
-        secondary: Color(0xFFD9700F),
-        accent: Color(0xFFA83A10),
+        secondary: const Color(0xFFD9700F),
+        accent: const Color(0xFFA83A10),
         showBg: true,
         showGlow: true,
         isOutline: false,
       );
     case KinrelIconPalette.mono:
       return const _PaletteColors(
-        bg: Color(0xFF111827),
-        bgInner: Color(0xFF1F2937),
-        primary: Color(0xFFF9FAFB),
-        secondary: Color(0xFF9CA3AF),
-        accent: Color(0xFF6B7280),
+        bg: const Color(0xFF111827),
+        bgInner: const Color(0xFF1F2937),
+        primary: const Color(0xFFF9FAFB),
+        secondary: const Color(0xFF9CA3AF),
+        accent: const Color(0xFF6B7280),
         showBg: true,
         showGlow: false,
         isOutline: false,
@@ -139,7 +139,7 @@ class KinrelIconPainter extends CustomPainter {
   void _paintMini(Canvas canvas, Size size, _PaletteColors pc) {
     final s = size.width;
     final r = s / 2;
-    final center = Offset(r, r);
+    final center = const Offset(r, r);
 
     // Background rounded rectangle
     if (pc.showBg) {
@@ -148,7 +148,7 @@ class KinrelIconPainter extends CustomPainter {
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromCenter(center: center, width: s, height: s),
-          Radius.circular(rr),
+          const Radius.circular(rr),
         ),
         bgPaint,
       );
@@ -162,23 +162,23 @@ class KinrelIconPainter extends CustomPainter {
     // Vertical stroke: (32, 18) → (32, 82) → strokeWidth 11
     strokePaint.strokeWidth = s * 0.11;
     canvas.drawLine(
-      Offset(s * 0.32, s * 0.18),
-      Offset(s * 0.32, s * 0.82),
+      const Offset(s * 0.32, s * 0.18),
+      const Offset(s * 0.32, s * 0.82),
       strokePaint,
     );
 
     // Upper diagonal: (32, 50) → (74, 18) → strokeWidth 9
     strokePaint.strokeWidth = s * 0.09;
     canvas.drawLine(
-      Offset(s * 0.32, s * 0.50),
-      Offset(s * 0.74, s * 0.18),
+      const Offset(s * 0.32, s * 0.50),
+      const Offset(s * 0.74, s * 0.18),
       strokePaint,
     );
 
     // Lower diagonal: (32, 50) → (74, 82) → strokeWidth 9
     canvas.drawLine(
-      Offset(s * 0.32, s * 0.50),
-      Offset(s * 0.74, s * 0.82),
+      const Offset(s * 0.32, s * 0.50),
+      const Offset(s * 0.74, s * 0.82),
       strokePaint,
     );
   }
@@ -190,12 +190,12 @@ class KinrelIconPainter extends CustomPainter {
   void _paintFull(Canvas canvas, Size size, _PaletteColors pc) {
     final s = size.width;
     final r = s / 2;
-    final center = Offset(r, r);
+    final center = const Offset(r, r);
 
     // Clip to rounded rectangle
     final clipRRect = RRect.fromRectAndRadius(
       Rect.fromCenter(center: center, width: s, height: s),
-      Radius.circular(s * 0.22),
+      const Radius.circular(s * 0.22),
     );
 
     canvas.save();
@@ -205,7 +205,7 @@ class KinrelIconPainter extends CustomPainter {
     if (pc.showBg) {
       // Radial gradient background
       final bgPaint = Paint()
-        ..shader = RadialGradient(
+        ..shader = const RadialGradient(
           center: const Alignment(-0.3, 0.0),
           radius: 0.65,
           colors: [pc.bgInner, pc.bg],
@@ -232,7 +232,7 @@ class KinrelIconPainter extends CustomPainter {
       final dashGap = s * 0.06;
       _drawDashedCircle(
         canvas,
-        Offset(s * 0.49, s * 0.50),
+        const Offset(s * 0.49, s * 0.50),
         s * 0.38,
         orbitPaint,
         dashWidth: dashWith,
@@ -291,16 +291,16 @@ class KinrelIconPainter extends CustomPainter {
       if (edge.dashed) {
         _drawDashedLine(
           canvas,
-          Offset(from.x, from.y),
-          Offset(to.x, to.y),
+          const Offset(from.x, from.y),
+          const Offset(to.x, to.y),
           paint,
           dashWidth: s * 0.03,
           dashGap: s * 0.03,
         );
       } else {
         canvas.drawLine(
-          Offset(from.x, from.y),
-          Offset(to.x, to.y),
+          const Offset(from.x, from.y),
+          const Offset(to.x, to.y),
           paint,
         );
       }
@@ -309,7 +309,7 @@ class KinrelIconPainter extends CustomPainter {
     // ── Draw nodes ──────────────────────────────────────────────────
     for (int i = 0; i < nodes.length; i++) {
       final n = nodes[i];
-      final offset = Offset(n.x, n.y);
+      final offset = const Offset(n.x, n.y);
 
       // Glow halo
       if (pc.showGlow) {
@@ -337,7 +337,7 @@ class KinrelIconPainter extends CustomPainter {
           ..color = Colors.white.withValues(alpha: 0.38)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1);
         canvas.drawCircle(
-          Offset(n.x - n.r * 0.25, n.y - n.r * 0.25),
+          const Offset(n.x - n.r * 0.25, n.y - n.r * 0.25),
           n.r * 0.35,
           highlightPaint,
         );
@@ -346,7 +346,7 @@ class KinrelIconPainter extends CustomPainter {
 
     // ── Center hub orbit ring ───────────────────────────────────────
     if (pc.showGlow) {
-      final hubCenter = Offset(nodes[1].x, nodes[1].y);
+      final hubCenter = const Offset(nodes[1].x, nodes[1].y);
       final hubRadius = s * 0.09;
 
       // Slightly transparent orbit
@@ -360,7 +360,7 @@ class KinrelIconPainter extends CustomPainter {
 
     // ── Ripple animation ────────────────────────────────────────────
     if (animated && pc.showGlow) {
-      final hubCenter = Offset(nodes[1].x, nodes[1].y);
+      final hubCenter = const Offset(nodes[1].x, nodes[1].y);
       final rippleRadius = s * 0.14;
       final rippleScale = 1.0 + (animationValue * 2.4);
       final rippleOpacity = 0.4 * (1.0 - animationValue);
@@ -391,7 +391,7 @@ class KinrelIconPainter extends CustomPainter {
     final totalLength = (dx * dx + dy * dy);
     if (totalLength == 0) return;
     // Calculate actual length
-    final actualLength = Offset(dx, dy).distance;
+    final actualLength = const Offset(dx, dy).distance;
     if (actualLength == 0) return;
 
     final unitDx = dx / actualLength;
@@ -405,11 +405,11 @@ class KinrelIconPainter extends CustomPainter {
 
       if (draw) {
         canvas.drawLine(
-          Offset(
+          const Offset(
             start.dx + unitDx * covered,
             start.dy + unitDy * covered,
           ),
-          Offset(
+          const Offset(
             start.dx + unitDx * endCovered,
             start.dy + unitDy * endCovered,
           ),

@@ -40,8 +40,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   String? _passwordStrength(String password) {
     if (password.length < 8) return 'Weak';
     if (password.length < 12 &&
-        !RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(password))
+        !RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(password)) {
       return 'Medium';
+    }
     return 'Strong';
   }
 
@@ -174,20 +175,20 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     return Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
+        child: const Center(
+          child: const SingleChildScrollView(
             padding: const EdgeInsets.symmetric(
               horizontal: KinrelSpacing.xl,
               vertical: KinrelSpacing.lg,
             ),
             child: Form(
               key: _formKey,
-              child: Column(
+              child: const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // ── Title ────────────────────────────────────────────
-                  Text(
+                  const Text(
                     'Create Account',
                     textAlign: TextAlign.center,
                     style: KinrelTypography.displayLarge.copyWith(
@@ -202,10 +203,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
                   const SizedBox(height: 8),
 
-                  Text(
+                  const Text(
                     'Join KinRel and discover your family',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 15,
                       color: secondaryColor,
@@ -227,14 +228,14 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         TextFormField(
                           controller: _nameController,
                           textCapitalization: TextCapitalization.words,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: textColor,
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 15,
                           ),
                           decoration: InputDecoration(
                             labelText: 'Full Name',
-                            labelStyle: TextStyle(
+                            labelStyle: const TextStyle(
                               color: secondaryColor,
                               fontFamily: KinrelTypography.bodyFont,
                             ),
@@ -249,30 +250,30 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                               horizontal: 16,
                               vertical: 14,
                             ),
-                            border: OutlineInputBorder(
+                            border: const OutlineInputBorder(
                               borderRadius:
-                                  BorderRadius.circular(KinrelRadius.input),
+                                  const BorderRadius.circular(KinrelRadius.input),
                               borderSide: BorderSide.none,
                             ),
-                            enabledBorder: OutlineInputBorder(
+                            enabledBorder: const OutlineInputBorder(
                               borderRadius:
-                                  BorderRadius.circular(KinrelRadius.input),
+                                  const BorderRadius.circular(KinrelRadius.input),
                               borderSide: BorderSide(
                                 color: inputBorderColor,
                                 width: 0.5,
                               ),
                             ),
-                            focusedBorder: OutlineInputBorder(
+                            focusedBorder: const OutlineInputBorder(
                               borderRadius:
-                                  BorderRadius.circular(KinrelRadius.input),
+                                  const BorderRadius.circular(KinrelRadius.input),
                               borderSide: BorderSide(
                                 color: accentColor,
                                 width: 1.5,
                               ),
                             ),
-                            errorBorder: OutlineInputBorder(
+                            errorBorder: const OutlineInputBorder(
                               borderRadius:
-                                  BorderRadius.circular(KinrelRadius.input),
+                                  const BorderRadius.circular(KinrelRadius.input),
                               borderSide: const BorderSide(
                                 color: KinrelColors.error,
                                 width: 1,
@@ -290,14 +291,14 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
                           autocorrect: false,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: textColor,
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 15,
                           ),
                           decoration: InputDecoration(
                             labelText: 'Email',
-                            labelStyle: TextStyle(
+                            labelStyle: const TextStyle(
                               color: secondaryColor,
                               fontFamily: KinrelTypography.bodyFont,
                             ),
@@ -312,30 +313,30 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                               horizontal: 16,
                               vertical: 14,
                             ),
-                            border: OutlineInputBorder(
+                            border: const OutlineInputBorder(
                               borderRadius:
-                                  BorderRadius.circular(KinrelRadius.input),
+                                  const BorderRadius.circular(KinrelRadius.input),
                               borderSide: BorderSide.none,
                             ),
-                            enabledBorder: OutlineInputBorder(
+                            enabledBorder: const OutlineInputBorder(
                               borderRadius:
-                                  BorderRadius.circular(KinrelRadius.input),
+                                  const BorderRadius.circular(KinrelRadius.input),
                               borderSide: BorderSide(
                                 color: inputBorderColor,
                                 width: 0.5,
                               ),
                             ),
-                            focusedBorder: OutlineInputBorder(
+                            focusedBorder: const OutlineInputBorder(
                               borderRadius:
-                                  BorderRadius.circular(KinrelRadius.input),
+                                  const BorderRadius.circular(KinrelRadius.input),
                               borderSide: BorderSide(
                                 color: accentColor,
                                 width: 1.5,
                               ),
                             ),
-                            errorBorder: OutlineInputBorder(
+                            errorBorder: const OutlineInputBorder(
                               borderRadius:
-                                  BorderRadius.circular(KinrelRadius.input),
+                                  const BorderRadius.circular(KinrelRadius.input),
                               borderSide: const BorderSide(
                                 color: KinrelColors.error,
                                 width: 1,
@@ -357,14 +358,14 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         TextFormField(
                           controller: _passwordController,
                           obscureText: _obscurePassword,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: textColor,
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 15,
                           ),
                           decoration: InputDecoration(
                             labelText: 'Password',
-                            labelStyle: TextStyle(
+                            labelStyle: const TextStyle(
                               color: secondaryColor,
                               fontFamily: KinrelTypography.bodyFont,
                             ),
@@ -374,7 +375,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                               size: 20,
                             ),
                             suffixIcon: IconButton(
-                              icon: Icon(
+                              icon: const Icon(
                                 _obscurePassword
                                     ? Icons.visibility_off_outlined
                                     : Icons.visibility_outlined,
@@ -390,30 +391,30 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                               horizontal: 16,
                               vertical: 14,
                             ),
-                            border: OutlineInputBorder(
+                            border: const OutlineInputBorder(
                               borderRadius:
-                                  BorderRadius.circular(KinrelRadius.input),
+                                  const BorderRadius.circular(KinrelRadius.input),
                               borderSide: BorderSide.none,
                             ),
-                            enabledBorder: OutlineInputBorder(
+                            enabledBorder: const OutlineInputBorder(
                               borderRadius:
-                                  BorderRadius.circular(KinrelRadius.input),
+                                  const BorderRadius.circular(KinrelRadius.input),
                               borderSide: BorderSide(
                                 color: inputBorderColor,
                                 width: 0.5,
                               ),
                             ),
-                            focusedBorder: OutlineInputBorder(
+                            focusedBorder: const OutlineInputBorder(
                               borderRadius:
-                                  BorderRadius.circular(KinrelRadius.input),
+                                  const BorderRadius.circular(KinrelRadius.input),
                               borderSide: BorderSide(
                                 color: accentColor,
                                 width: 1.5,
                               ),
                             ),
-                            errorBorder: OutlineInputBorder(
+                            errorBorder: const OutlineInputBorder(
                               borderRadius:
-                                  BorderRadius.circular(KinrelRadius.input),
+                                  const BorderRadius.circular(KinrelRadius.input),
                               borderSide: const BorderSide(
                                 color: KinrelColors.error,
                                 width: 1,
@@ -438,7 +439,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                               // Strength bar
                               Expanded(
                                 child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(2),
+                                  borderRadius: const BorderRadius.circular(2),
                                   child: LinearProgressIndicator(
                                     value:
                                         _passwordStrengthValue(passwordStrength),
@@ -451,9 +452,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                 ),
                               ),
                               const SizedBox(width: 10),
-                              Text(
+                              const Text(
                                 passwordStrength ?? '',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   color: strengthColor,
                                   fontFamily: KinrelTypography.bodyFont,
                                   fontSize: 12,
@@ -470,14 +471,14 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         TextFormField(
                           controller: _confirmPasswordController,
                           obscureText: _obscureConfirmPassword,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: textColor,
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 15,
                           ),
                           decoration: InputDecoration(
                             labelText: 'Confirm Password',
-                            labelStyle: TextStyle(
+                            labelStyle: const TextStyle(
                               color: secondaryColor,
                               fontFamily: KinrelTypography.bodyFont,
                             ),
@@ -487,7 +488,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                               size: 20,
                             ),
                             suffixIcon: IconButton(
-                              icon: Icon(
+                              icon: const Icon(
                                 _obscureConfirmPassword
                                     ? Icons.visibility_off_outlined
                                     : Icons.visibility_outlined,
@@ -504,30 +505,30 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                               horizontal: 16,
                               vertical: 14,
                             ),
-                            border: OutlineInputBorder(
+                            border: const OutlineInputBorder(
                               borderRadius:
-                                  BorderRadius.circular(KinrelRadius.input),
+                                  const BorderRadius.circular(KinrelRadius.input),
                               borderSide: BorderSide.none,
                             ),
-                            enabledBorder: OutlineInputBorder(
+                            enabledBorder: const OutlineInputBorder(
                               borderRadius:
-                                  BorderRadius.circular(KinrelRadius.input),
+                                  const BorderRadius.circular(KinrelRadius.input),
                               borderSide: BorderSide(
                                 color: inputBorderColor,
                                 width: 0.5,
                               ),
                             ),
-                            focusedBorder: OutlineInputBorder(
+                            focusedBorder: const OutlineInputBorder(
                               borderRadius:
-                                  BorderRadius.circular(KinrelRadius.input),
+                                  const BorderRadius.circular(KinrelRadius.input),
                               borderSide: BorderSide(
                                 color: accentColor,
                                 width: 1.5,
                               ),
                             ),
-                            errorBorder: OutlineInputBorder(
+                            errorBorder: const OutlineInputBorder(
                               borderRadius:
-                                  BorderRadius.circular(KinrelRadius.input),
+                                  const BorderRadius.circular(KinrelRadius.input),
                               borderSide: const BorderSide(
                                 color: KinrelColors.error,
                                 width: 1,
@@ -557,8 +558,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                     setState(() => _agreedToTerms = v ?? false),
                                 activeColor: KinrelColors.purple,
                                 checkColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(
+                                shape: const RoundedRectangleBorder(
+                                  borderRadius: const BorderRadius.circular(
                                       KinrelRadius.xs),
                                 ),
                                 side: BorderSide(
@@ -572,9 +573,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                               child: GestureDetector(
                                 onTap: () => setState(() =>
                                     _agreedToTerms = !_agreedToTerms),
-                                child: Text(
+                                child: const Text(
                                   'I agree to the Terms of Service and Privacy Policy',
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     color: secondaryColor,
                                     fontFamily: KinrelTypography.bodyFont,
                                     fontSize: 13,
@@ -601,7 +602,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
-                              borderRadius: BorderRadius.circular(
+                              borderRadius: const BorderRadius.circular(
                                   KinrelRadius.button),
                               boxShadow: _isLoading
                                   ? null
@@ -622,30 +623,30 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                 disabledBackgroundColor: Colors.transparent,
                                 disabledForegroundColor:
                                     Colors.white.withValues(alpha: 0.5),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(
+                                shape: const RoundedRectangleBorder(
+                                  borderRadius: const BorderRadius.circular(
                                       KinrelRadius.button),
                                 ),
                                 elevation: 0,
                               ),
                               child: _isLoading
-                                  ? Row(
+                                  ? const Row(
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
                                       children: [
-                                        SizedBox(
+                                        const SizedBox(
                                           height: 20,
                                           width: 20,
                                           child:
-                                              CircularProgressIndicator(
+                                              const CircularProgressIndicator(
                                             strokeWidth: 2,
                                             color: Colors.white,
                                           ),
                                         ),
                                         const SizedBox(width: 12),
-                                        Text(
+                                        const Text(
                                           'Creating account...',
-                                          style: TextStyle(
+                                          style: const TextStyle(
                                             fontFamily:
                                                 KinrelTypography.displayFont,
                                             fontWeight: FontWeight.w600,
@@ -654,9 +655,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                         ),
                                       ],
                                     )
-                                  : Text(
+                                  : const Text(
                                       'Create Account',
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         fontFamily:
                                             KinrelTypography.displayFont,
                                         fontWeight: FontWeight.w600,
@@ -676,9 +677,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
+                      const Text(
                         'Already have an account? ',
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: secondaryColor,
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 14,
@@ -686,14 +687,14 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       ),
                       TextButton(
                         onPressed: () => context.go('/sign-in'),
-                        style: TextButton.styleFrom(
+                        style: const TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
-                        child: Text(
+                        child: const Text(
                           'Sign In',
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: accentColor,
                             fontFamily: KinrelTypography.displayFont,
                             fontWeight: FontWeight.w600,

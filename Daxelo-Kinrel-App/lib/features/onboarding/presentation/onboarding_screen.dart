@@ -97,7 +97,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   KinrelGradients.wordmarkGradient.createShader(bounds),
               child: const Text(
                 'KINREL',
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -127,7 +127,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
           // ── Page indicators + button ─────────────────────────────────
           Padding(
-            padding: EdgeInsets.fromLTRB(
+            padding: const EdgeInsets.fromLTRB(
               KinrelSpacing.base,
               0,
               KinrelSpacing.base,
@@ -151,7 +151,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         color: _currentPage == i
                             ? KinrelColors.textWhite
                             : KinrelColors.textWhite.withValues(alpha: 0.35),
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: const BorderRadius.circular(4),
                       ),
                     ),
                   ),
@@ -160,7 +160,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 const SizedBox(height: 24),
 
                 // Get Started / Next button
-                DKButton(
+                const DKButton(
                   label: _currentPage == _pages.length - 1
                       ? 'Get Started'
                       : 'Next',
@@ -250,7 +250,7 @@ class _OnboardingPageContent extends StatelessWidget {
                   width: 1.5,
                 ),
               ),
-              child: Icon(
+              child: const Icon(
                 data.icon,
                 size: 64,
                 color: Colors.white,
@@ -269,7 +269,7 @@ class _OnboardingPageContent extends StatelessWidget {
           const SizedBox(height: 40),
 
           // ── Title ──────────────────────────────────────────────────
-          Text(
+          const Text(
             data.title,
             textAlign: TextAlign.center,
             style: const TextStyle(

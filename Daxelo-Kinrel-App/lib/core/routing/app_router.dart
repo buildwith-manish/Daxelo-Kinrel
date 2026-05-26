@@ -208,9 +208,9 @@ class _AddPersonScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
+        title: const Text(
           'Add Family Member',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: 'Outfit',
             fontWeight: FontWeight.w600,
           ),
@@ -220,8 +220,8 @@ class _AddPersonScreen extends ConsumerWidget {
           onPressed: () => context.pop(),
         ),
       ),
-      body: SingleChildScrollView(
-        child: Padding(
+      body: const SingleChildScrollView(
+        child: const Padding(
           padding: const EdgeInsets.all(16),
           child: _AddPersonForm(familyId: familyId),
         ),

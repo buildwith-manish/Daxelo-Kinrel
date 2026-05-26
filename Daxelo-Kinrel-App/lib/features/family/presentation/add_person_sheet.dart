@@ -30,9 +30,9 @@ class AddPersonSheet extends ConsumerStatefulWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: KinrelColors.darkCard,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.bottomSheet),
+      shape: const RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(
+          top: const Radius.circular(KinrelRadius.bottomSheet),
         ),
       ),
       builder: (_) => AddPersonSheet(
@@ -202,8 +202,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
-    return Padding(
-      padding: EdgeInsets.only(
+    return const Padding(
+      padding: const EdgeInsets.only(
         left: KinrelSpacing.base,
         right: KinrelSpacing.base,
         top: KinrelSpacing.xl,
@@ -211,28 +211,28 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
       ),
       child: Form(
         key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
+        child: const SingleChildScrollView(
+          child: const Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Handle bar
-              Center(
-                child: Container(
+              const Center(
+                child: const Container(
                   width: 40,
                   height: 4,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: KinrelColors.darkSurface,
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: const BorderRadius.circular(2),
                   ),
                 ),
               ),
               const SizedBox(height: 20),
 
               // Title
-              Text(
+              const Text(
                 _isEditMode ? 'Edit Person' : 'Add Family Member',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
@@ -248,7 +248,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                 controller: _nameController,
                 validator: (v) =>
                     v == null || v.trim().isEmpty ? 'Name is required' : null,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
                   color: KinrelColors.textWhite,
@@ -270,17 +270,17 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                   decoration: BoxDecoration(
                     color: KinrelColors.darkElevated,
                     borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusSm),
+                        const BorderRadius.circular(KinrelSpacing.radiusSm),
                     border: Border.all(
                       color: KinrelColors.darkSurface.withValues(alpha: 0.3),
                     ),
                   ),
-                  child: Row(
+                  child: const Row(
                     children: [
-                      Expanded(
-                        child: Text(
+                      const Expanded(
+                        child: const Text(
                           _selectedRelationshipLabel ?? 'Search relationship...',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 15,
                             color: _selectedRelationshipLabel != null
@@ -289,7 +289,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                           ),
                         ),
                       ),
-                      Icon(Icons.search, color: KinrelColors.purple, size: 20),
+                      const Icon(Icons.search, color: KinrelColors.purple, size: 20),
                     ],
                   ),
                 ),
@@ -330,13 +330,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                 child: AbsorbPointer(
                   child: TextFormField(
                     controller: _dobController,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 15,
                       color: KinrelColors.textWhite,
                     ),
                     decoration: _inputDecoration('YYYY-MM-DD').copyWith(
-                      suffixIcon: Icon(
+                      suffixIcon: const Icon(
                         Icons.calendar_today,
                         color: KinrelColors.textDim,
                         size: 18,
@@ -352,7 +352,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               const SizedBox(height: 6),
               TextFormField(
                 controller: _cityController,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
                   color: KinrelColors.textWhite,
@@ -366,7 +366,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               const SizedBox(height: 6),
               TextFormField(
                 controller: _gotraController,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
                   color: KinrelColors.textWhite,
@@ -378,9 +378,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               // Alive / Deceased toggle
               Row(
                 children: [
-                  Expanded(child: Text(
+                  const Expanded(child: Text(
                       'Deceased',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 15,
                         color: KinrelColors.textSilver,
@@ -405,9 +405,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                   disabledBackgroundColor:
                       KinrelColors.purple.withValues(alpha: 0.4),
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
+                  shape: const RoundedRectangleBorder(
                     borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusSm),
+                        const BorderRadius.circular(KinrelSpacing.radiusSm),
                   ),
                 ),
                 child: _isSubmitting
@@ -419,9 +419,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                           color: Colors.white,
                         ),
                       )
-                    : Text(
+                    : const Text(
                         _isEditMode ? 'Save Changes' : 'Add Member',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -438,24 +438,24 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
   InputDecoration _inputDecoration(String hint) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: TextStyle(color: KinrelColors.textDim),
+      hintStyle: const TextStyle(color: KinrelColors.textDim),
       filled: true,
       fillColor: KinrelColors.darkElevated,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+      border: const OutlineInputBorder(
+        borderRadius: const BorderRadius.circular(KinrelSpacing.radiusSm),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+        borderRadius: const BorderRadius.circular(KinrelSpacing.radiusSm),
         borderSide: BorderSide(
             color: KinrelColors.darkSurface.withValues(alpha: 0.3)),
       ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+      focusedBorder: const OutlineInputBorder(
+        borderRadius: const BorderRadius.circular(KinrelSpacing.radiusSm),
         borderSide: const BorderSide(color: KinrelColors.purple),
       ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+      errorBorder: const OutlineInputBorder(
+        borderRadius: const BorderRadius.circular(KinrelSpacing.radiusSm),
         borderSide: const BorderSide(color: KinrelColors.error),
       ),
       contentPadding:
@@ -471,9 +471,9 @@ class _Label extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
+    return const Text(
       text,
-      style: TextStyle(
+      style: const TextStyle(
         fontFamily: KinrelTypography.bodyFont,
         fontSize: 13,
         fontWeight: FontWeight.w500,
@@ -505,15 +505,15 @@ class _GenderChip extends StatelessWidget {
           color: selected
               ? KinrelColors.purple.withValues(alpha: 0.15)
               : KinrelColors.darkElevated,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: const BorderRadius.circular(20),
           border: Border.all(
             color:
                 selected ? KinrelColors.purple : KinrelColors.darkSurface,
           ),
         ),
-        child: Text(
+        child: const Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             fontWeight: FontWeight.w500,

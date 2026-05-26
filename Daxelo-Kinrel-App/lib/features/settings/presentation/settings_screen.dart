@@ -140,7 +140,7 @@ class SettingsScreen extends ConsumerWidget {
           DKCard(
             borderColor: DKColors.brandPurple.withValues(alpha: 0.08),
             padding: 0,
-            child: Column(
+            child: const Column(
               children: [
                 _SettingsTile(
                   icon: Icons.shield_outlined,
@@ -171,7 +171,7 @@ class SettingsScreen extends ConsumerWidget {
           DKCard(
             borderColor: DKColors.brandPurple.withValues(alpha: 0.08),
             padding: 0,
-            child: Column(
+            child: const Column(
               children: [
                 const _SettingsTile(
                   icon: Icons.info_outline,
@@ -251,7 +251,7 @@ class SettingsScreen extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: DKColors.cardColor(context),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(KinrelRadius.dialog),
+          borderRadius: const BorderRadius.circular(KinrelRadius.dialog),
           side: BorderSide(color: DKColors.borderColor(context)),
         ),
         title: Text(
@@ -329,7 +329,7 @@ class SettingsScreen extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: DKColors.cardColor(context),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(KinrelRadius.dialog),
+          borderRadius: const BorderRadius.circular(KinrelRadius.dialog),
           side: BorderSide(color: DKColors.borderColor(context)),
         ),
         title: Text(
@@ -354,9 +354,9 @@ class SettingsScreen extends ConsumerWidget {
                       TextStyle(color: DKColors.textSecondary(context)),
                   filled: true,
                   fillColor: DKColors.elevatedColor(context),
-                  border: OutlineInputBorder(
+                  border: const OutlineInputBorder(
                     borderRadius:
-                        BorderRadius.circular(KinrelRadius.input),
+                        const BorderRadius.circular(KinrelRadius.input),
                     borderSide: BorderSide.none,
                   ),
                 ),
@@ -374,9 +374,9 @@ class SettingsScreen extends ConsumerWidget {
                       TextStyle(color: DKColors.textSecondary(context)),
                   filled: true,
                   fillColor: DKColors.elevatedColor(context),
-                  border: OutlineInputBorder(
+                  border: const OutlineInputBorder(
                     borderRadius:
-                        BorderRadius.circular(KinrelRadius.input),
+                        const BorderRadius.circular(KinrelRadius.input),
                     borderSide: BorderSide.none,
                   ),
                 ),
@@ -394,9 +394,9 @@ class SettingsScreen extends ConsumerWidget {
                       TextStyle(color: DKColors.textSecondary(context)),
                   filled: true,
                   fillColor: DKColors.elevatedColor(context),
-                  border: OutlineInputBorder(
+                  border: const OutlineInputBorder(
                     borderRadius:
-                        BorderRadius.circular(KinrelRadius.input),
+                        const BorderRadius.circular(KinrelRadius.input),
                     borderSide: BorderSide.none,
                   ),
                 ),
@@ -458,11 +458,11 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return const Padding(
       padding: const EdgeInsets.only(bottom: 4),
-      child: Text(
+      child: const Text(
         title.toUpperCase(),
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 12,
           fontWeight: FontWeight.w700,
@@ -509,9 +509,9 @@ class _SettingsTile extends StatelessWidget {
         height: 36,
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(KinrelRadius.sm),
+          borderRadius: const BorderRadius.circular(KinrelRadius.sm),
         ),
-        child: Icon(icon, color: color, size: 18),
+        child: const Icon(icon, color: color, size: 18),
       ),
       title: Text(
         title,
@@ -540,8 +540,8 @@ class _SettingsTile extends StatelessWidget {
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(
           horizontal: KinrelSpacing.md, vertical: 4),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(KinrelRadius.sm),
+      shape: const RoundedRectangleBorder(
+        borderRadius: const BorderRadius.circular(KinrelRadius.sm),
       ),
     );
   }

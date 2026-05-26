@@ -88,6 +88,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // Check for saved route to restore on app resume
     if (isAuthenticated) {
       final lastRoute = await getLastRoute();
+      if (!mounted || _navigated) return;
       if (lastRoute != null && lastRoute != '/splash' && mounted) {
         context.go(lastRoute);
         return;
@@ -108,16 +109,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         builder: (context, child) {
           // Subtle gradient pulse: vary the color stops slightly
           final pulse = 0.5 + 0.5 * _pulseController.value;
-          return Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
+          return const Container(
+            decoration: const BoxDecoration(
+              gradient: const LinearGradient(
                 colors: [
-                  Color.lerp(
+                  const Color.lerp(
                     const Color(0xFF6A11CB),
                     const Color(0xFF7C3AED),
                     pulse * 0.3,
                   )!,
-                  Color.lerp(
+                  const Color.lerp(
                     const Color(0xFFFF6B6B),
                     const Color(0xFFFF8A80),
                     pulse * 0.2,
@@ -172,7 +173,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 const SizedBox(height: 32),
 
                 // ── Brand text "KinRel" ────────────────────────────────
-                Text(
+                const Text(
                   'KinRel',
                   style: KinrelTypography.displayHero.copyWith(
                     fontSize: 42,

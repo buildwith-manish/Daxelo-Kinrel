@@ -6,6 +6,13 @@ import '../../../core/constants/supported_languages.dart';
 // ── State Models ────────────────────────────────────────────────
 
 class FestivalTemplate {
+  const FestivalTemplate({
+    required this.name,
+    required this.icon,
+    required this.colorTheme,
+    required this.defaultMessageTemplates,
+  });
+
   factory FestivalTemplate.fromJson(Map<String, dynamic> json) {
     return FestivalTemplate(
       name: json['name'] as String? ?? '',
@@ -23,13 +30,6 @@ class FestivalTemplate {
   final String icon;
   final String colorTheme;
   final List<String> defaultMessageTemplates;
-
-  const FestivalTemplate({
-    required this.name,
-    required this.icon,
-    required this.colorTheme,
-    required this.defaultMessageTemplates,
-  });
 
 }
 

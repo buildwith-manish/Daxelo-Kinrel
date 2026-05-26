@@ -4,6 +4,12 @@ import '../../../core/networking/dio_client.dart';
 // ── Models ─────────────────────────────────────────────────────────────
 
 class ReferralCode {
+  const ReferralCode({
+    required this.code,
+    required this.shareUrl,
+    required this.shareText,
+  });
+
   factory ReferralCode.fromJson(Map<String, dynamic> json) {
     return ReferralCode(
       code: json['code'] as String? ?? '',
@@ -16,15 +22,15 @@ class ReferralCode {
   final String shareUrl;
   final String shareText;
 
-  const ReferralCode({
-    required this.code,
-    required this.shareUrl,
-    required this.shareText,
-  });
-
 }
 
 class ReferralApplication {
+  const ReferralApplication({
+    required this.success,
+    required this.referrerId,
+    required this.reward,
+  });
+
   factory ReferralApplication.fromJson(Map<String, dynamic> json) {
     return ReferralApplication(
       success: json['success'] as bool? ?? false,
@@ -37,15 +43,16 @@ class ReferralApplication {
   final String referrerId;
   final String reward;
 
-  const ReferralApplication({
-    required this.success,
-    required this.referrerId,
-    required this.reward,
-  });
-
 }
 
 class ReferralStats {
+  const ReferralStats({
+    required this.code,
+    required this.totalReferrals,
+    required this.rewards,
+    required this.recentReferrals,
+  });
+
   factory ReferralStats.fromJson(Map<String, dynamic> json) {
     return ReferralStats(
       code: json['code'] as String? ?? '',
@@ -67,16 +74,14 @@ class ReferralStats {
   final List<String> rewards;
   final List<RecentReferral> recentReferrals;
 
-  const ReferralStats({
-    required this.code,
-    required this.totalReferrals,
-    required this.rewards,
-    required this.recentReferrals,
-  });
-
 }
 
 class RecentReferral {
+  const RecentReferral({
+    required this.name,
+    required this.date,
+  });
+
   factory RecentReferral.fromJson(Map<String, dynamic> json) {
     return RecentReferral(
       name: json['name'] as String? ?? '',
@@ -87,14 +92,16 @@ class RecentReferral {
   final String name;
   final String date;
 
-  const RecentReferral({
-    required this.name,
-    required this.date,
-  });
-
 }
 
 class RewardTier {
+  const RewardTier({
+    required this.referrals,
+    required this.reward,
+    this.badge,
+    required this.description,
+  });
+
   factory RewardTier.fromJson(Map<String, dynamic> json) {
     return RewardTier(
       referrals: json['referrals'] as int? ?? 0,
@@ -109,16 +116,11 @@ class RewardTier {
   final String? badge;
   final String description;
 
-  const RewardTier({
-    required this.referrals,
-    required this.reward,
-    this.badge,
-    required this.description,
-  });
-
 }
 
 class RewardsData {
+  const RewardsData({required this.tiers});
+
   factory RewardsData.fromJson(Map<String, dynamic> json) {
     return RewardsData(
       tiers: (json['tiers'] as List<dynamic>?)
@@ -129,8 +131,6 @@ class RewardsData {
   }
 
   final List<RewardTier> tiers;
-
-  const RewardsData({required this.tiers});
 
 }
 

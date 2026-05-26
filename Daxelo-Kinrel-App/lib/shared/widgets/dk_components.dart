@@ -46,57 +46,57 @@ class DKColors {
   DKColors._();
 
   // ── Brand ────────────────────────────────────────────────────────
-  static const Color brandPurple = Color(0xFF5D5FEF);
-  static const Color brandDeepPurple = Color(0xFF4B3F8A);
-  static const Color brandViolet = Color(0xFF8A2BE2);
-  static const Color brandGold = Color(0xFFD4AF37);
-  static const Color brandBrightGold = Color(0xFFFFD700);
-  static const Color brandCoral = Color(0xFFFF6B6B);
-  static const Color brandOrange = Color(0xFFF97316);
-  static const Color brandBlue = Color(0xFF3B82F6);
+  static const Color brandPurple = const Color(0xFF5D5FEF);
+  static const Color brandDeepPurple = const Color(0xFF4B3F8A);
+  static const Color brandViolet = const Color(0xFF8A2BE2);
+  static const Color brandGold = const Color(0xFFD4AF37);
+  static const Color brandBrightGold = const Color(0xFFFFD700);
+  static const Color brandCoral = const Color(0xFFFF6B6B);
+  static const Color brandOrange = const Color(0xFFF97316);
+  static const Color brandBlue = const Color(0xFF3B82F6);
 
   // ── Dark theme surfaces ──────────────────────────────────────────
-  static const Color darkBg = Color(0xFF121212);
-  static const Color darkCard = Color(0xFF1E1E1E);
-  static const Color darkElevated = Color(0xFF2A2A3E);
-  static const Color darkSurface = Color(0xFF2A1F4A);
+  static const Color darkBg = const Color(0xFF121212);
+  static const Color darkCard = const Color(0xFF1E1E1E);
+  static const Color darkElevated = const Color(0xFF2A2A3E);
+  static const Color darkSurface = const Color(0xFF2A1F4A);
 
   // ── Light theme surfaces ─────────────────────────────────────────
-  static const Color lightBg = Color(0xFFF5F7FA);
-  static const Color lightCard = Color(0xFFFFFFFF);
-  static const Color lightElevated = Color(0xFFF2F2F7);
+  static const Color lightBg = const Color(0xFFF5F7FA);
+  static const Color lightCard = const Color(0xFFFFFFFF);
+  static const Color lightElevated = const Color(0xFFF2F2F7);
 
   // ── Text ─────────────────────────────────────────────────────────
-  static const Color textDark = Color(0xFF2D3748);
-  static const Color textLight = Color(0xFFFFFFFF);
-  static const Color textSecondaryLight = Color(0xFFB0B0B0);
-  static const Color textSecondaryDark = Color(0xFF8E8E93);
+  static const Color textDark = const Color(0xFF2D3748);
+  static const Color textLight = const Color(0xFFFFFFFF);
+  static const Color textSecondaryLight = const Color(0xFFB0B0B0);
+  static const Color textSecondaryDark = const Color(0xFF8E8E93);
 
   // ── Semantic ─────────────────────────────────────────────────────
-  static const Color error = Color(0xFFFF6B6B);
-  static const Color success = Color(0xFF4CAF7A);
-  static const Color warning = Color(0xFFF5A623);
+  static const Color error = const Color(0xFFFF6B6B);
+  static const Color success = const Color(0xFF4CAF7A);
+  static const Color warning = const Color(0xFFF5A623);
 
   // ── Gradients ────────────────────────────────────────────────────
-  static const LinearGradient ctaGradient = LinearGradient(
+  static const LinearGradient ctaGradient = const LinearGradient(
     colors: [brandPurple, brandViolet],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
-  static const LinearGradient socialGradient = LinearGradient(
+  static const LinearGradient socialGradient = const LinearGradient(
     colors: [brandBlue, brandPurple],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
-  static const LinearGradient exploreGradient = LinearGradient(
+  static const LinearGradient exploreGradient = const LinearGradient(
     colors: [brandBlue, brandViolet],
     begin: Alignment.centerLeft,
     end: Alignment.centerRight,
   );
 
-  static const LinearGradient goldGradient = LinearGradient(
+  static const LinearGradient goldGradient = const LinearGradient(
     colors: [brandGold, brandBrightGold],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -192,12 +192,12 @@ class DKScaffold extends StatelessWidget {
 
     Widget bodyContent = body;
     if (useSafeArea) {
-      bodyContent = SafeArea(child: body);
+      bodyContent = const SafeArea(child: body);
     }
 
     if (gradient != null) {
-      bodyContent = DecoratedBox(
-        decoration: BoxDecoration(gradient: gradient),
+      bodyContent = const DecoratedBox(
+        decoration: const BoxDecoration(gradient: gradient),
         child: bodyContent,
       );
     }
@@ -278,7 +278,7 @@ class DKCard extends StatelessWidget {
             BoxShadow(
               color: Colors.black.withValues(alpha: isLight ? 0.08 : 0.3),
               blurRadius: elevation * 4,
-              offset: Offset(0, elevation * 2),
+              offset: const Offset(0, elevation * 2),
             ),
           ]
         : isLight
@@ -291,28 +291,28 @@ class DKCard extends StatelessWidget {
               ]
             : null;
 
-    final decoration = BoxDecoration(
+    final decoration = const BoxDecoration(
       color: gradient != null ? null : bgColor,
       gradient: gradient,
-      borderRadius: BorderRadius.circular(radius),
+      borderRadius: const BorderRadius.circular(radius),
       border: border != null
           ? Border.all(color: border, width: 1)
           : null,
       boxShadow: shadow,
     );
 
-    final cardChild = Padding(
-      padding: EdgeInsets.all(padding),
+    final cardChild = const Padding(
+      padding: const EdgeInsets.all(padding),
       child: child,
     );
 
     if (onTap != null) {
-      return Material(
+      return const Material(
         color: Colors.transparent,
-        child: InkWell(
+        child: const InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(radius),
-          child: AnimatedContainer(
+          borderRadius: const BorderRadius.circular(radius),
+          child: const AnimatedContainer(
             duration: KinrelMotion.fast,
             decoration: decoration,
             clipBehavior: Clip.antiAlias,
@@ -324,7 +324,7 @@ class DKCard extends StatelessWidget {
           .fadeIn(duration: KinrelMotion.normal);
     }
 
-    return AnimatedContainer(
+    return const AnimatedContainer(
       duration: KinrelMotion.normal,
       decoration: decoration,
       clipBehavior: Clip.antiAlias,
@@ -496,7 +496,7 @@ class _DKButtonState extends State<DKButton> {
     final decoration = BoxDecoration(
       color: isDisabled ? (bg?.withValues(alpha: 0.5) ?? DKColors.darkElevated) : bg,
       gradient: isDisabled ? null : bgGradient,
-      borderRadius: BorderRadius.circular(_radius),
+      borderRadius: const BorderRadius.circular(_radius),
       border: border != null && !isDisabled
           ? Border.fromBorderSide(border)
           : null,
@@ -506,10 +506,10 @@ class _DKButtonState extends State<DKButton> {
     // ── Build child ────────────────────────────────────────────────
     Widget content;
     if (widget.isLoading) {
-      content = SizedBox(
+      content = const SizedBox(
         height: _fontSize + 4,
         width: _fontSize + 4,
-        child: CircularProgressIndicator(
+        child: const CircularProgressIndicator(
           strokeWidth: 2,
           valueColor: AlwaysStoppedAnimation<Color>(fg),
         ),
@@ -527,7 +527,7 @@ class _DKButtonState extends State<DKButton> {
       rowChildren.add(
         Text(
           widget.label,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: _fontSize,
             fontWeight: FontWeight.w600,
@@ -536,7 +536,7 @@ class _DKButtonState extends State<DKButton> {
           ),
         ),
       );
-      content = Row(
+      content = const Row(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: rowChildren,
@@ -559,7 +559,7 @@ class _DKButtonState extends State<DKButton> {
           ),
           padding: _padding,
           decoration: decoration,
-          child: Center(child: content),
+          child: const Center(child: content),
         ),
       ),
     );
@@ -650,10 +650,10 @@ class DKAvatar extends StatelessWidget {
         (isLight ? Colors.transparent : const Color(0xFF3A3A4A));
     final fg = isLight ? DKColors.brandPurple : Colors.white;
 
-    Widget avatar = Container(
+    Widget avatar = const Container(
       width: _diameter,
       height: _diameter,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         shape: BoxShape.circle,
         color: imageUrl != null ? null : bg,
         border: Border.all(
@@ -669,10 +669,10 @@ class DKAvatar extends StatelessWidget {
       ),
       child: imageUrl != null
           ? null
-          : Center(
-              child: Text(
+          : const Center(
+              child: const Text(
                 initials ?? '',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: _fontSize,
                   fontWeight: FontWeight.w700,
@@ -773,35 +773,35 @@ class DKSearchField extends StatelessWidget {
       controller: controller,
       onChanged: onChanged,
       onSubmitted: onSubmitted,
-      style: TextStyle(
+      style: const TextStyle(
         fontFamily: KinrelTypography.bodyFont,
         fontSize: 15,
         color: textColor,
       ),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(
+        hintStyle: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 15,
           color: hintColor,
         ),
-        prefixIcon: Icon(Icons.search_rounded, color: iconColor, size: 22),
+        prefixIcon: const Icon(Icons.search_rounded, color: iconColor, size: 22),
         filled: true,
         fillColor: inputFillColor,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: KinrelSpacing.lg,
           vertical: KinrelSpacing.md,
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(KinrelRadius.xl),
+        border: const OutlineInputBorder(
+          borderRadius: const BorderRadius.circular(KinrelRadius.xl),
           borderSide: border ?? BorderSide.none,
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(KinrelRadius.xl),
+        enabledBorder: const OutlineInputBorder(
+          borderRadius: const BorderRadius.circular(KinrelRadius.xl),
           borderSide: border ?? BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(KinrelRadius.xl),
+          borderRadius: const BorderRadius.circular(KinrelRadius.xl),
           borderSide: useGradient
               ? BorderSide(color: Colors.white.withValues(alpha: 0.4), width: 1.5)
               : const BorderSide(color: DKColors.brandPurple, width: 1.5),
@@ -810,10 +810,10 @@ class DKSearchField extends StatelessWidget {
     );
 
     if (useGradient) {
-      textField = Container(
-        decoration: BoxDecoration(
+      textField = const Container(
+        decoration: const BoxDecoration(
           gradient: DKColors.exploreGradient,
-          borderRadius: BorderRadius.circular(KinrelRadius.xl),
+          borderRadius: const BorderRadius.circular(KinrelRadius.xl),
         ),
         child: textField,
       );
@@ -874,19 +874,19 @@ class DKGlassCard extends StatelessWidget {
             : Colors.white.withValues(alpha: 0.12));
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
+      borderRadius: const BorderRadius.circular(radius),
       child: BackdropFilter(
         filter: ImageFilter.blur(
           sigmaX: blurSigma,
           sigmaY: blurSigma,
         ),
         child: Container(
-          padding: EdgeInsets.all(padding),
+          padding: const EdgeInsets.all(padding),
           decoration: BoxDecoration(
             color: isLight
                 ? Colors.white.withValues(alpha: 0.6)
                 : Colors.black.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(radius),
+            borderRadius: const BorderRadius.circular(radius),
             border: Border.all(color: border, width: 1),
           ),
           child: child,
@@ -968,8 +968,8 @@ class DKBottomNav extends StatelessWidget {
         color: isLight
             ? DKColors.lightCard
             : DKColors.darkCard.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.xl),
+        borderRadius: const BorderRadius.vertical(
+          top: const Radius.circular(KinrelRadius.xl),
         ),
         border: isLight
             ? const Border(
@@ -987,8 +987,8 @@ class DKBottomNav extends StatelessWidget {
             : null,
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.xl),
+        borderRadius: const BorderRadius.vertical(
+          top: const Radius.circular(KinrelRadius.xl),
         ),
         child: isLight
             ? _buildContent(isLight)
@@ -1049,28 +1049,28 @@ class _DKNavItemWidget extends StatelessWidget {
     final color = isSelected ? activeColor : inactiveColor;
 
     return Expanded(
-      child: GestureDetector(
+      child: const GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
-        child: SizedBox(
+        child: const SizedBox(
           height: 64,
-          child: Column(
+          child: const Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              SizedBox(
+              const SizedBox(
                 width: 40,
                 height: 28,
-                child: Stack(
+                child: const Stack(
                   clipBehavior: Clip.none,
                   alignment: Alignment.center,
                   children: [
-                    Icon(
+                    const Icon(
                       isSelected ? item.activeIcon : item.icon,
                       color: color,
                       size: 24,
                     ),
                     if (item.badge != null && item.badge! > 0)
-                      Positioned(
+                      const Positioned(
                         top: -2,
                         right: -4,
                         child: DKBadge(count: item.badge!, size: 16),
@@ -1079,9 +1079,9 @@ class _DKNavItemWidget extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
+              const Text(
                 item.label,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 10,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
@@ -1091,12 +1091,12 @@ class _DKNavItemWidget extends StatelessWidget {
               ),
               if (isSelected) ...[
                 const SizedBox(height: 2),
-                Container(
+                const Container(
                   width: 16,
                   height: 2,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: isLight ? DKColors.brandPurple : DKColors.brandGold,
-                    borderRadius: BorderRadius.circular(1),
+                    borderRadius: const BorderRadius.circular(1),
                   ),
                 ),
               ],
@@ -1161,11 +1161,11 @@ class DKChatBubble extends StatelessWidget {
       bg = DKColors.brandPurple;
       fg = Colors.white;
       border = null;
-      borderRadius = BorderRadius.only(
-        topLeft: Radius.circular(KinrelRadius.lg),
-        topRight: Radius.circular(KinrelRadius.lg),
-        bottomLeft: Radius.circular(KinrelRadius.lg),
-        bottomRight: Radius.circular(4),
+      borderRadius = const BorderRadius.only(
+        topLeft: const Radius.circular(KinrelRadius.lg),
+        topRight: const Radius.circular(KinrelRadius.lg),
+        bottomLeft: const Radius.circular(KinrelRadius.lg),
+        bottomRight: const Radius.circular(4),
       );
     } else {
       bg = isLight
@@ -1173,11 +1173,11 @@ class DKChatBubble extends StatelessWidget {
           : const Color(0xFF2A2A2A);
       fg = isLight ? DKColors.textDark : Colors.white;
       border = isLight ? null : DKColors.brandPurple.withValues(alpha: 0.3);
-      borderRadius = BorderRadius.only(
-        topLeft: Radius.circular(KinrelRadius.lg),
-        topRight: Radius.circular(KinrelRadius.lg),
-        bottomLeft: Radius.circular(4),
-        bottomRight: Radius.circular(KinrelRadius.lg),
+      borderRadius = const BorderRadius.only(
+        topLeft: const Radius.circular(KinrelRadius.lg),
+        topRight: const Radius.circular(KinrelRadius.lg),
+        bottomLeft: const Radius.circular(4),
+        bottomRight: const Radius.circular(KinrelRadius.lg),
       );
     }
 
@@ -1187,28 +1187,28 @@ class DKChatBubble extends StatelessWidget {
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
-        margin: EdgeInsets.only(
+        margin: const EdgeInsets.only(
           left: isUser ? 48 : 0,
           right: isUser ? 0 : 48,
           bottom: 4,
         ),
-        padding: EdgeInsets.symmetric(
+        padding: const EdgeInsets.symmetric(
           horizontal: KinrelSpacing.md,
           vertical: KinrelSpacing.sm + 2,
         ),
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: bg,
           borderRadius: borderRadius,
           border: border != null ? Border.all(color: border, width: 1) : null,
         ),
-        child: Column(
+        child: const Column(
           crossAxisAlignment:
               isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
             if (senderName != null && !isUser) ...[
-              Text(
+              const Text(
                 senderName!,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -1218,9 +1218,9 @@ class DKChatBubble extends StatelessWidget {
               ),
               const SizedBox(height: 2),
             ],
-            Text(
+            const Text(
               message,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 fontWeight: FontWeight.w400,
@@ -1281,17 +1281,17 @@ class DKBadge extends StatelessWidget {
 
     final display = count > 99 ? '99+' : '$count';
 
-    return Container(
+    return const Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: color,
         shape: BoxShape.circle,
       ),
       alignment: Alignment.center,
-      child: Text(
+      child: const Text(
         display,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: size * 0.5,
           fontWeight: FontWeight.w700,
@@ -1349,25 +1349,25 @@ class DKSuggestionChip extends StatelessWidget {
         ? DKColors.brandPurple
         : DKColors.borderColor(context);
 
-    return GestureDetector(
+    return const GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
+      child: const AnimatedContainer(
         duration: KinrelMotion.fast,
         padding: const EdgeInsets.symmetric(
           horizontal: KinrelSpacing.md,
           vertical: KinrelSpacing.sm,
         ),
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(KinrelRadius.xxl),
+          borderRadius: const BorderRadius.circular(KinrelRadius.xxl),
           border: Border.all(
             color: border,
             width: isSelected ? 1.5 : 1,
           ),
         ),
-        child: Text(
+        child: const Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
@@ -1419,11 +1419,11 @@ class DKTabToggle extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: isLight
             ? DKColors.lightElevated
             : DKColors.darkElevated,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
+        borderRadius: const BorderRadius.circular(KinrelRadius.lg),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1438,11 +1438,11 @@ class DKTabToggle extends StatelessWidget {
                 horizontal: KinrelSpacing.lg,
                 vertical: KinrelSpacing.sm,
               ),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: isSelected
                     ? DKColors.brandPurple
                     : Colors.transparent,
-                borderRadius: BorderRadius.circular(KinrelRadius.md),
+                borderRadius: const BorderRadius.circular(KinrelRadius.md),
               ),
               child: Text(
                 tabs[index],
@@ -1516,7 +1516,7 @@ class DKTimelineNode extends StatelessWidget {
             color: color.withValues(alpha: isLight ? 0.1 : 0.15),
             border: Border.all(color: color, width: 2),
           ),
-          child: Icon(
+          child: const Icon(
             icon,
             color: color,
             size: size * 0.4,
@@ -1588,16 +1588,16 @@ class DKStatChip extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: isLight ? 0.08 : 0.12),
-        borderRadius: BorderRadius.circular(KinrelRadius.md),
+        borderRadius: const BorderRadius.circular(KinrelRadius.md),
       ),
-      child: Row(
+      child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: color),
+          const Icon(icon, size: 16, color: color),
           const SizedBox(width: 6),
-          Text(
+          const Text(
             value,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 14,
               fontWeight: FontWeight.w700,
@@ -1681,7 +1681,7 @@ class DKEmptyState extends StatelessWidget {
               shape: BoxShape.circle,
               color: iconColor.withValues(alpha: isLight ? 0.1 : 0.15),
             ),
-            child: Icon(
+            child: const Icon(
               icon,
               size: 40,
               color: iconColor,
@@ -1727,7 +1727,7 @@ class DKEmptyState extends StatelessWidget {
               .slideY(begin: 0.1, end: 0, duration: 300.ms),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: KinrelSpacing.xl),
-            DKButton(
+            const DKButton(
               label: actionLabel!,
               variant: DKButtonVariant.primary,
               onPressed: onAction,
@@ -1784,12 +1784,12 @@ class DKLoadingShimmer extends StatelessWidget {
           ? const Color(0xFFF5F5F5)
           : DKColors.darkSurface,
       period: const Duration(milliseconds: 1500),
-      child: Container(
+      child: const Container(
         width: width,
         height: height,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: isLight ? Colors.white : DKColors.darkCard,
-          borderRadius: BorderRadius.circular(radius),
+          borderRadius: const BorderRadius.circular(radius),
         ),
       ),
     );
@@ -1833,7 +1833,7 @@ class DKErrorState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
+          const Icon(
             icon ?? Icons.error_outline_rounded,
             size: 48,
             color: DKColors.brandCoral,
@@ -1861,7 +1861,7 @@ class DKErrorState extends StatelessWidget {
               .animate()
               .fadeIn(duration: 300.ms, delay: 100.ms),
           const SizedBox(height: KinrelSpacing.xl),
-          DKButton(
+          const DKButton(
             label: 'Try Again',
             variant: DKButtonVariant.secondary,
             icon: Icons.refresh_rounded,

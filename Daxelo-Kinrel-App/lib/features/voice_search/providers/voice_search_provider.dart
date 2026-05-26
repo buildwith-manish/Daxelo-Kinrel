@@ -43,6 +43,17 @@ class VoiceSearchState {
 }
 
 class KinshipVoiceResult {
+  const KinshipVoiceResult({
+    required this.relationshipKey,
+    required this.englishTerm,
+    required this.gender,
+    required this.lineage,
+    required this.generation,
+    required this.relationshipCategory,
+    required this.searchKeywords,
+    required this.translations,
+  });
+
   factory KinshipVoiceResult.fromJson(Map<String, dynamic> json) {
     return KinshipVoiceResult(
       relationshipKey: json['relationshipKey'] as String? ?? '',
@@ -68,20 +79,14 @@ class KinshipVoiceResult {
   final List<String> searchKeywords;
   final Map<String, dynamic> translations;
 
-  const KinshipVoiceResult({
-    required this.relationshipKey,
-    required this.englishTerm,
-    required this.gender,
-    required this.lineage,
-    required this.generation,
-    required this.relationshipCategory,
-    required this.searchKeywords,
-    required this.translations,
-  });
-
 }
 
 class VoiceLookupResult {
+  const VoiceLookupResult({
+    required this.transcription,
+    required this.term,
+  });
+
   factory VoiceLookupResult.fromJson(Map<String, dynamic> json) {
     return VoiceLookupResult(
       transcription: json['transcription'] as String? ?? '',
@@ -91,11 +96,6 @@ class VoiceLookupResult {
 
   final String transcription;
   final Map<String, dynamic> term;
-
-  const VoiceLookupResult({
-    required this.transcription,
-    required this.term,
-  });
 
 }
 

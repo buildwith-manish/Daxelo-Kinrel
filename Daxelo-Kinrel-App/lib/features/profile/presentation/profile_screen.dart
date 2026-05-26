@@ -105,7 +105,7 @@ class ProfileScreen extends ConsumerWidget {
                   ref.read(themeModeProvider.notifier).state =
                       value ? ThemeMode.dark : ThemeMode.light;
                 },
-                activeColor: DKColors.brandPurple,
+                activeThumbColor: DKColors.brandPurple,
                 activeTrackColor: DKColors.brandPurple.withValues(alpha: 0.5),
               ),
               onTap: () {
@@ -232,9 +232,9 @@ class _MenuCard extends StatelessWidget {
             height: 40,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(KinrelRadius.md),
+              borderRadius: const BorderRadius.circular(KinrelRadius.md),
             ),
-            child: Icon(icon, color: color, size: 20),
+            child: const Icon(icon, color: color, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(

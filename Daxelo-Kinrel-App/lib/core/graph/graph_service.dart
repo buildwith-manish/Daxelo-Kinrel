@@ -128,7 +128,7 @@ class GraphService {
         .map((p) => p.id)
         .toSet();
 
-    final adjacency = <String, List<_Edge>>{};
+    final adjacency = <String, List<Edge>>{};
 
     for (final person in persons) {
       if (person.deletedAt != null) continue;
@@ -279,9 +279,9 @@ class GraphService {
 
 /// Helper for BFS path tracking
 class BFSNode {
+  const BFSNode(this.personId, this.path);
+
   final List<PathStep> path;
 
   final String personId;
-
-  const BFSNode(this.personId, this.path);
 }

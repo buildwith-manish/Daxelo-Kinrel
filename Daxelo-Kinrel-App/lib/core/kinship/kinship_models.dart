@@ -1,5 +1,10 @@
 /// Translation for a relationship in a specific language
 class KinshipTranslation {
+  const KinshipTranslation({
+    required this.native,
+    required this.latin,
+  });
+
   factory KinshipTranslation.fromJson(Map<String, dynamic> json) {
     return KinshipTranslation(
       native: json['native']?.toString() ?? '',
@@ -10,17 +15,28 @@ class KinshipTranslation {
   final String native;
   final String latin;
 
-  const KinshipTranslation({
-    required this.native,
-    required this.latin,
-  });
-
 
   Map<String, dynamic> toJson() => {'native': native, 'latin': latin};
 }
 
 /// Full relationship record with metadata
 class KinshipRelationship {
+  const KinshipRelationship({
+    required this.id,
+    required this.relationshipKey,
+    required this.englishTerm,
+    required this.gender,
+    required this.lineage,
+    required this.generation,
+    required this.relationType,
+    required this.elderYounger,
+    required this.relationshipCategory,
+    this.cousinType,
+    required this.relationshipPath,
+    this.notes,
+    required this.searchKeywords,
+  });
+
   factory KinshipRelationship.fromJson(Map<String, dynamic> json) {
     return KinshipRelationship(
       id: json['id']?.toString() ?? '',
@@ -59,33 +75,10 @@ class KinshipRelationship {
   final String? notes;
   final List<String> searchKeywords;
 
-  const KinshipRelationship({
-    required this.id,
-    required this.relationshipKey,
-    required this.englishTerm,
-    required this.gender,
-    required this.lineage,
-    required this.generation,
-    required this.relationType,
-    required this.elderYounger,
-    required this.relationshipCategory,
-    this.cousinType,
-    required this.relationshipPath,
-    this.notes,
-    required this.searchKeywords,
-  });
-
 }
 
 /// Root JSON structure
 class KinshipData {
-  final String version;
-  final String generatedAt;
-  final int totalRelationships;
-  final List<String> supportedLanguages;
-  final Map<String, Map<String, KinshipTranslation>> translations;
-  final List<KinshipRelationship> relationships;
-
   const KinshipData({
     required this.version,
     required this.generatedAt,
@@ -126,6 +119,13 @@ class KinshipData {
           [],
     );
   }
+
+  final String version;
+  final String generatedAt;
+  final int totalRelationships;
+  final List<String> supportedLanguages;
+  final Map<String, Map<String, KinshipTranslation>> translations;
+  final List<KinshipRelationship> relationships;
 }
 
 /// Lightweight search result

@@ -4,6 +4,16 @@ import '../../../core/networking/dio_client.dart';
 // ── Models ─────────────────────────────────────────────────────────────
 
 class QuizQuestion {
+  const QuizQuestion({
+    required this.id,
+    required this.type,
+    required this.question,
+    required this.options,
+    required this.correctIndex,
+    required this.explanation,
+    required this.kinshipData,
+  });
+
   factory QuizQuestion.fromJson(Map<String, dynamic> json) {
     return QuizQuestion(
       id: json['id'] as String? ?? '',
@@ -27,19 +37,18 @@ class QuizQuestion {
   final String explanation;
   final Map<String, dynamic> kinshipData;
 
-  const QuizQuestion({
-    required this.id,
-    required this.type,
-    required this.question,
-    required this.options,
-    required this.correctIndex,
-    required this.explanation,
-    required this.kinshipData,
-  });
-
 }
 
 class QuizSession {
+  const QuizSession({
+    required this.quizId,
+    required this.questions,
+    required this.totalQuestions,
+    required this.category,
+    required this.difficulty,
+    required this.language,
+  });
+
   factory QuizSession.fromJson(Map<String, dynamic> json) {
     return QuizSession(
       quizId: json['quizId'] as String? ?? '',
@@ -61,18 +70,19 @@ class QuizSession {
   final String difficulty;
   final String language;
 
-  const QuizSession({
-    required this.quizId,
-    required this.questions,
-    required this.totalQuestions,
-    required this.category,
-    required this.difficulty,
-    required this.language,
-  });
-
 }
 
 class QuizResult {
+  const QuizResult({
+    required this.quizId,
+    required this.score,
+    required this.totalQuestions,
+    required this.correctAnswers,
+    required this.percentage,
+    required this.streak,
+    required this.results,
+  });
+
   factory QuizResult.fromJson(Map<String, dynamic> json) {
     return QuizResult(
       quizId: json['quizId'] as String? ?? '',
@@ -96,19 +106,16 @@ class QuizResult {
   final int streak;
   final List<QuestionResult> results;
 
-  const QuizResult({
-    required this.quizId,
-    required this.score,
-    required this.totalQuestions,
-    required this.correctAnswers,
-    required this.percentage,
-    required this.streak,
-    required this.results,
-  });
-
 }
 
 class QuestionResult {
+  const QuestionResult({
+    required this.questionIndex,
+    required this.correct,
+    required this.yourAnswer,
+    required this.correctAnswer,
+  });
+
   factory QuestionResult.fromJson(Map<String, dynamic> json) {
     return QuestionResult(
       questionIndex: json['questionIndex'] as int? ?? 0,
@@ -123,16 +130,17 @@ class QuestionResult {
   final int yourAnswer;
   final int correctAnswer;
 
-  const QuestionResult({
-    required this.questionIndex,
-    required this.correct,
-    required this.yourAnswer,
-    required this.correctAnswer,
-  });
-
 }
 
 class LeaderboardEntry {
+  const LeaderboardEntry({
+    required this.rank,
+    required this.name,
+    required this.score,
+    required this.streak,
+    required this.avatar,
+  });
+
   factory LeaderboardEntry.fromJson(Map<String, dynamic> json) {
     return LeaderboardEntry(
       rank: json['rank'] as int? ?? 0,
@@ -149,17 +157,16 @@ class LeaderboardEntry {
   final int streak;
   final String avatar;
 
-  const LeaderboardEntry({
-    required this.rank,
-    required this.name,
-    required this.score,
-    required this.streak,
-    required this.avatar,
-  });
-
 }
 
 class DailyChallenge {
+  const DailyChallenge({
+    required this.date,
+    required this.questions,
+    required this.totalParticipants,
+    required this.averageScore,
+  });
+
   factory DailyChallenge.fromJson(Map<String, dynamic> json) {
     return DailyChallenge(
       date: json['date'] as String? ?? '',
@@ -176,13 +183,6 @@ class DailyChallenge {
   final List<QuizQuestion> questions;
   final int totalParticipants;
   final double averageScore;
-
-  const DailyChallenge({
-    required this.date,
-    required this.questions,
-    required this.totalParticipants,
-    required this.averageScore,
-  });
 
 }
 

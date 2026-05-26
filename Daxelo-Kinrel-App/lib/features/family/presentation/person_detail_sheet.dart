@@ -33,9 +33,9 @@ class PersonDetailSheet extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: KinrelColors.darkCard,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.bottomSheet),
+      shape: const RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(
+          top: const Radius.circular(KinrelRadius.bottomSheet),
         ),
       ),
       builder: (_) => PersonDetailSheet(
@@ -61,25 +61,25 @@ class PersonDetailSheet extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Handle bar
-          Center(
-            child: Container(
+          const Center(
+            child: const Container(
               width: 40,
               height: 4,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: KinrelColors.darkSurface,
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: const BorderRadius.circular(2),
               ),
             ),
           ),
           const SizedBox(height: 24),
 
           // Avatar with gradient
-          Container(
+          const Container(
             width: 72,
             height: 72,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               gradient: person.isDeceased
-                  ? LinearGradient(
+                  ? const LinearGradient(
                       colors: [
                         KinrelColors.textDim,
                         KinrelColors.darkSurface,
@@ -88,10 +88,10 @@ class PersonDetailSheet extends ConsumerWidget {
                   : KinrelGradients.igniteGradient,
               shape: BoxShape.circle,
             ),
-            child: Center(
-              child: Text(
+            child: const Center(
+              child: const Text(
                 person.name.isNotEmpty ? person.name[0].toUpperCase() : '?',
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
@@ -103,9 +103,9 @@ class PersonDetailSheet extends ConsumerWidget {
           const SizedBox(height: 16),
 
           // Name
-          Text(
+          const Text(
             person.name,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 20,
               fontWeight: FontWeight.w700,
@@ -118,9 +118,9 @@ class PersonDetailSheet extends ConsumerWidget {
 
           // Gender
           if (person.gender != null) ...[
-            Text(
+            const Text(
               person.gender!.toUpperCase(),
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 color: KinrelColors.purple,
@@ -129,9 +129,9 @@ class PersonDetailSheet extends ConsumerWidget {
             ),
             if (nativeTranslation != null) ...[
               const SizedBox(height: 2),
-              Text(
+              const Text(
                 nativeTranslation,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   color: KinrelColors.textSilver,
@@ -193,13 +193,13 @@ class PersonDetailSheet extends ConsumerWidget {
                   },
                   icon: const Icon(Icons.edit, size: 18),
                   label: const Text('Edit'),
-                  style: OutlinedButton.styleFrom(
+                  style: const OutlinedButton.styleFrom(
                     foregroundColor: KinrelColors.purple,
                     side: const BorderSide(color: KinrelColors.purple),
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
+                    shape: const RoundedRectangleBorder(
                       borderRadius:
-                          BorderRadius.circular(KinrelSpacing.radiusSm),
+                          const BorderRadius.circular(KinrelSpacing.radiusSm),
                     ),
                   ),
                 ),
@@ -211,13 +211,13 @@ class PersonDetailSheet extends ConsumerWidget {
                   onPressed: () => _confirmDelete(context, ref),
                   icon: const Icon(Icons.delete_outline, size: 18),
                   label: const Text('Delete'),
-                  style: OutlinedButton.styleFrom(
+                  style: const OutlinedButton.styleFrom(
                     foregroundColor: KinrelColors.error,
                     side: BorderSide(color: KinrelColors.error),
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
+                    shape: const RoundedRectangleBorder(
                       borderRadius:
-                          BorderRadius.circular(KinrelSpacing.radiusSm),
+                          const BorderRadius.circular(KinrelSpacing.radiusSm),
                     ),
                   ),
                 ),
@@ -241,14 +241,14 @@ class PersonDetailSheet extends ConsumerWidget {
         backgroundColor: KinrelColors.darkElevated,
         title: Text(
           'Delete ${person.name}?',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             color: KinrelColors.textWhite,
           ),
         ),
-        content: Text(
+        content: const Text(
           'This person will be removed from the family tree. This action cannot be undone.',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             color: KinrelColors.textSilver,
           ),
@@ -256,9 +256,9 @@ class PersonDetailSheet extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
+            child: const Text(
               'Cancel',
-              style: TextStyle(color: KinrelColors.textSilver),
+              style: const TextStyle(color: KinrelColors.textSilver),
             ),
           ),
           TextButton(
@@ -285,9 +285,9 @@ class PersonDetailSheet extends ConsumerWidget {
                 }
               }
             },
-            child: Text(
+            child: const Text(
               'Delete',
-              style: TextStyle(color: KinrelColors.error),
+              style: const TextStyle(color: KinrelColors.error),
             ),
           ),
         ],
@@ -312,26 +312,26 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return const Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
+      child: const Row(
         children: [
-          Icon(icon, size: 18, color: KinrelColors.textDim),
+          const Icon(icon, size: 18, color: KinrelColors.textDim),
           const SizedBox(width: 12),
-          Expanded(
-            child: Column(
+          const Expanded(
+            child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label,
-                  style: TextStyle(
+                const Text(label,
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11,
                     color: KinrelColors.textDim,
                   ),
                 ),
-                Text(
+                const Text(
                   value,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     color: valueColor ?? KinrelColors.textWhite,

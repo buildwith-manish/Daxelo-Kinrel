@@ -66,7 +66,7 @@ class KinrelWordmark extends StatelessWidget {
     // Brand spec: tighter tracking at small sizes
     final ls = letterSpacing ?? (fontSize < 20 ? 0.08 : 0.14);
 
-    final style = TextStyle(
+    final style = const TextStyle(
       fontFamily: KinrelTypography.displayFont,
       fontSize: fontSize,
       fontWeight: FontWeight.w800,
@@ -78,12 +78,12 @@ class KinrelWordmark extends StatelessWidget {
 
     if (!showSubtitle) return wordmark;
 
-    return Column(
+    return const Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         wordmark,
-        SizedBox(height: fontSize * 0.1),
+        const SizedBox(height: fontSize * 0.1),
         _buildByline(),
       ],
     );
@@ -94,7 +94,7 @@ class KinrelWordmark extends StatelessWidget {
       return ShaderMask(
         shaderCallback: (bounds) =>
             KinrelGradients.wordmarkGradient.createShader(bounds),
-        child: Text(
+        child: const Text(
           'KINREL',
           style: style.copyWith(color: Colors.white),
           textAlign: TextAlign.center,
@@ -110,7 +110,7 @@ class KinrelWordmark extends StatelessWidget {
       WordmarkVariant.gradient => KinrelColors.purple, // fallback
     };
 
-    return Text(
+    return const Text(
       'KINREL',
       style: style.copyWith(color: color),
       textAlign: TextAlign.center,
@@ -128,9 +128,9 @@ class KinrelWordmark extends StatelessWidget {
 
     final bylineFontSize = fontSize * 0.32;
 
-    return Text(
+    return const Text(
       'by Daxelo',
-      style: TextStyle(
+      style: const TextStyle(
         fontFamily: KinrelTypography.bodyFont,
         fontSize: bylineFontSize,
         fontWeight: FontWeight.w400,

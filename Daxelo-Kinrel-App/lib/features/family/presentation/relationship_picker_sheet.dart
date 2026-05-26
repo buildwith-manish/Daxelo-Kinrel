@@ -43,9 +43,9 @@ class RelationshipPickerSheet extends ConsumerStatefulWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: KinrelColors.darkCard,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.bottomSheet),
+      shape: const RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(
+          top: const Radius.circular(KinrelRadius.bottomSheet),
         ),
       ),
       builder: (_) => RelationshipPickerSheet(
@@ -155,20 +155,20 @@ class _RelationshipPickerSheetState
   Widget build(BuildContext context) {
     final height = MediaQuery.of(context).size.height * 0.8;
 
-    return SizedBox(
+    return const SizedBox(
       height: height,
-      child: Column(
+      child: const Column(
         children: [
           // Handle bar
-          Padding(
+          const Padding(
             padding: const EdgeInsets.only(top: 12),
-            child: Center(
-              child: Container(
+            child: const Center(
+              child: const Container(
                 width: 40,
                 height: 4,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: KinrelColors.darkSurface,
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: const BorderRadius.circular(2),
                 ),
               ),
             ),
@@ -185,9 +185,9 @@ class _RelationshipPickerSheetState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   _headerTitle,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -199,7 +199,7 @@ class _RelationshipPickerSheetState
                   const SizedBox(height: 4),
                   Text(
                     'How is ${widget.personBName} related to ${widget.personAName}?',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
                       color: KinrelColors.textSilver,
@@ -212,7 +212,7 @@ class _RelationshipPickerSheetState
 
           // Quick-select chips
           if (_suggestedKeys.isNotEmpty)
-            Padding(
+            const Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: KinrelSpacing.base,
               ),
@@ -229,19 +229,19 @@ class _RelationshipPickerSheetState
             child: TextField(
               controller: _searchController,
               onChanged: (v) => setState(() => _query = v),
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 15,
                 color: KinrelColors.textWhite,
               ),
               decoration: InputDecoration(
                 hintText: 'Search kinship terms...',
-                hintStyle: TextStyle(color: KinrelColors.textDim),
+                hintStyle: const TextStyle(color: KinrelColors.textDim),
                 prefixIcon:
-                    Icon(Icons.search, color: KinrelColors.purple, size: 20),
+                    const Icon(Icons.search, color: KinrelColors.purple, size: 20),
                 suffixIcon: _query.isNotEmpty
                     ? IconButton(
-                        icon: Icon(Icons.clear,
+                        icon: const Icon(Icons.clear,
                             color: KinrelColors.textDim, size: 18),
                         onPressed: () {
                           _searchController.clear();
@@ -251,9 +251,9 @@ class _RelationshipPickerSheetState
                     : null,
                 filled: true,
                 fillColor: KinrelColors.darkElevated,
-                border: OutlineInputBorder(
+                border: const OutlineInputBorder(
                   borderRadius:
-                      BorderRadius.circular(KinrelSpacing.radiusSm),
+                      const BorderRadius.circular(KinrelSpacing.radiusSm),
                   borderSide: BorderSide.none,
                 ),
                 contentPadding:
@@ -264,7 +264,7 @@ class _RelationshipPickerSheetState
           const SizedBox(height: 8),
 
           // Results
-          Expanded(
+          const Expanded(
             child: _query.isEmpty ? _buildSuggestionsList() : _buildSearchResults(),
           ),
         ],
@@ -369,14 +369,14 @@ class _RelationshipPickerSheetState
         child: CircularProgressIndicator(color: KinrelColors.purple),
       ),
     error: (e, _) => Center(
-        child: Column(
+        child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.search_off, size: 48, color: KinrelColors.textDim),
+            const Icon(Icons.search_off, size: 48, color: KinrelColors.textDim),
             const SizedBox(height: 12),
-            Text(
+            const Text(
               'Search failed',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 color: KinrelColors.textDim,
               ),
@@ -386,15 +386,15 @@ class _RelationshipPickerSheetState
       ),
       data: (results) {
         if (results.isEmpty) {
-          return Center(
-            child: Column(
+          return const Center(
+            child: const Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.search_off, size: 48, color: KinrelColors.textDim),
+                const Icon(Icons.search_off, size: 48, color: KinrelColors.textDim),
                 const SizedBox(height: 12),
-                Text(
+                const Text(
                   'No relationships found for "$_query"',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     color: KinrelColors.textDim,
                   ),
@@ -459,21 +459,21 @@ class _QuickChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: KinrelColors.purple.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: const BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: const BorderRadius.circular(20),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: const BorderRadius.circular(20),
             border: Border.all(
               color: KinrelColors.purple.withValues(alpha: 0.3),
             ),
           ),
-          child: Text(
+          child: const Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -504,14 +504,14 @@ class _SuggestionChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: KinrelColors.darkElevated,
-      borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+      borderRadius: const BorderRadius.circular(KinrelSpacing.radiusSm),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+        borderRadius: const BorderRadius.circular(KinrelSpacing.radiusSm),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+            borderRadius: const BorderRadius.circular(KinrelSpacing.radiusSm),
             border: Border.all(
               color: KinrelColors.darkSurface.withValues(alpha: 0.5),
             ),
@@ -519,11 +519,11 @@ class _SuggestionChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(genderIcon, size: 14, color: KinrelColors.amber),
+              const Icon(genderIcon, size: 14, color: KinrelColors.amber),
               const SizedBox(width: 6),
-              Text(
+              const Text(
                 label,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -537,11 +537,11 @@ class _SuggestionChip extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: _lineageColor(lineage!).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: const BorderRadius.circular(4),
                   ),
-                  child: Text(
+                  child: const Text(
                     lineage!.snakeToTitle,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 9,
                       fontWeight: FontWeight.w600,
@@ -579,11 +579,11 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return const Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 4),
-      child: Text(
+      child: const Text(
         title.toUpperCase(),
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 11,
           fontWeight: FontWeight.w600,
@@ -609,28 +609,28 @@ class _CategoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    return const ListTile(
       dense: true,
-      title: Text(
+      title: const Text(
         category.snakeToTitle,
-        style: TextStyle(
+        style: const TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 14,
           color: KinrelColors.textWhite,
         ),
       ),
-      trailing: Row(
+      trailing: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
+          const Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: const KinrelColors.darkSurface,
-              borderRadius: BorderRadius.circular(10),
+            decoration: const BoxDecoration(
+              color: KinrelColors.darkSurface,
+              borderRadius: const BorderRadius.circular(10),
             ),
-            child: Text(
+            child: const Text(
               '$count',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11,
           color: KinrelColors.textDim,
@@ -638,7 +638,7 @@ class _CategoryTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 4),
-          Icon(Icons.chevron_right, color: KinrelColors.textDim, size: 18),
+          const Icon(Icons.chevron_right, color: KinrelColors.textDim, size: 18),
         ],
       ),
       onTap: onTap,
@@ -664,16 +664,16 @@ class _ContextualRelationshipTile extends StatelessWidget {
     final nativeTranslation =
         kinshipService.getKinshipTerm(relationship.relationshipKey, 'hindi');
 
-    return ListTile(
+    return const ListTile(
       dense: true,
-      leading: Container(
+      leading: const Container(
         width: 36,
         height: 36,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: _genderBgColor(relationship.gender),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: const BorderRadius.circular(8),
         ),
-        child: Icon(
+        child: const Icon(
           _genderIcon(relationship.gender),
           color: _genderFgColor(relationship.gender),
           size: 20,
@@ -681,10 +681,10 @@ class _ContextualRelationshipTile extends StatelessWidget {
       ),
       title: Row(
         children: [
-          Expanded(
-            child: Text(
+          const Expanded(
+            child: const Text(
               relationship.englishTerm,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -697,11 +697,11 @@ class _ContextualRelationshipTile extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: _lineageColor(relationship.lineage).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: const BorderRadius.circular(4),
               ),
-              child: Text(
+              child: const Text(
                 relationship.lineage.snakeToTitle,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 9,
                   fontWeight: FontWeight.w600,
@@ -713,17 +713,17 @@ class _ContextualRelationshipTile extends StatelessWidget {
           ],
       ),
       subtitle: nativeTranslation != null
-          ? Text(
+          ? const Text(
               nativeTranslation.native,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textDim,
               ),
             )
-          : Text(
+          : const Text(
               relationship.relationshipKey.replaceAll('_', ' '),
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
                 color: KinrelColors.textDim,

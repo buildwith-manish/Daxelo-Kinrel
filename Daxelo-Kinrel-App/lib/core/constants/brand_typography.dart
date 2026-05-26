@@ -13,7 +13,7 @@ class KinrelTypography {
   static const String monoFont = 'DMMono';
 
   // ── Type Scale (Material 3 compatible) ──────────────────────
-  static const TextStyle displayHero = TextStyle(
+  static const TextStyle displayHero = const TextStyle(
     fontFamily: displayFont,
     fontSize: 48,
     fontWeight: FontWeight.w700,
@@ -21,7 +21,7 @@ class KinrelTypography {
     letterSpacing: -1.0,
   );
 
-  static const TextStyle displayLarge = TextStyle(
+  static const TextStyle displayLarge = const TextStyle(
     fontFamily: displayFont,
     fontSize: 32,
     fontWeight: FontWeight.w800,
@@ -29,7 +29,7 @@ class KinrelTypography {
     letterSpacing: -0.5,
   );
 
-  static const TextStyle displayMedium = TextStyle(
+  static const TextStyle displayMedium = const TextStyle(
     fontFamily: displayFont,
     fontSize: 28,
     fontWeight: FontWeight.w700,
@@ -37,35 +37,35 @@ class KinrelTypography {
     letterSpacing: -0.3,
   );
 
-  static const TextStyle displaySmall = TextStyle(
+  static const TextStyle displaySmall = const TextStyle(
     fontFamily: displayFont,
     fontSize: 24,
     fontWeight: FontWeight.w700,
     height: 1.3,
   );
 
-  static const TextStyle headlineLarge = TextStyle(
+  static const TextStyle headlineLarge = const TextStyle(
     fontFamily: displayFont,
     fontSize: 22,
     fontWeight: FontWeight.w600,
     height: 1.3,
   );
 
-  static const TextStyle headlineMedium = TextStyle(
+  static const TextStyle headlineMedium = const TextStyle(
     fontFamily: displayFont,
     fontSize: 20,
     fontWeight: FontWeight.w600,
     height: 1.35,
   );
 
-  static const TextStyle headlineSmall = TextStyle(
+  static const TextStyle headlineSmall = const TextStyle(
     fontFamily: displayFont,
     fontSize: 18,
     fontWeight: FontWeight.w600,
     height: 1.35,
   );
 
-  static const TextStyle sectionHeader = TextStyle(
+  static const TextStyle sectionHeader = const TextStyle(
     fontFamily: displayFont,
     fontSize: 18,
     fontWeight: FontWeight.w700,
@@ -73,14 +73,14 @@ class KinrelTypography {
     letterSpacing: -0.2,
   );
 
-  static const TextStyle titleLarge = TextStyle(
+  static const TextStyle titleLarge = const TextStyle(
     fontFamily: displayFont,
     fontSize: 16,
     fontWeight: FontWeight.w600,
     height: 1.4,
   );
 
-  static const TextStyle titleMedium = TextStyle(
+  static const TextStyle titleMedium = const TextStyle(
     fontFamily: bodyFont,
     fontSize: 14,
     fontWeight: FontWeight.w500,
@@ -88,7 +88,7 @@ class KinrelTypography {
     letterSpacing: 0.15,
   );
 
-  static const TextStyle titleSmall = TextStyle(
+  static const TextStyle titleSmall = const TextStyle(
     fontFamily: bodyFont,
     fontSize: 12,
     fontWeight: FontWeight.w500,
@@ -96,28 +96,28 @@ class KinrelTypography {
     letterSpacing: 0.1,
   );
 
-  static const TextStyle bodyLarge = TextStyle(
+  static const TextStyle bodyLarge = const TextStyle(
     fontFamily: bodyFont,
     fontSize: 16,
     fontWeight: FontWeight.w400,
     height: 1.5,
   );
 
-  static const TextStyle bodyMedium = TextStyle(
+  static const TextStyle bodyMedium = const TextStyle(
     fontFamily: bodyFont,
     fontSize: 14,
     fontWeight: FontWeight.w400,
     height: 1.5,
   );
 
-  static const TextStyle bodySmall = TextStyle(
+  static const TextStyle bodySmall = const TextStyle(
     fontFamily: bodyFont,
     fontSize: 12,
     fontWeight: FontWeight.w400,
     height: 1.5,
   );
 
-  static const TextStyle labelLarge = TextStyle(
+  static const TextStyle labelLarge = const TextStyle(
     fontFamily: bodyFont,
     fontSize: 16,
     fontWeight: FontWeight.w600,
@@ -125,7 +125,7 @@ class KinrelTypography {
     letterSpacing: 0.1,
   );
 
-  static const TextStyle labelMedium = TextStyle(
+  static const TextStyle labelMedium = const TextStyle(
     fontFamily: bodyFont,
     fontSize: 12,
     fontWeight: FontWeight.w500,
@@ -133,7 +133,7 @@ class KinrelTypography {
     letterSpacing: 0.5,
   );
 
-  static const TextStyle labelSmall = TextStyle(
+  static const TextStyle labelSmall = const TextStyle(
     fontFamily: bodyFont,
     fontSize: 10,
     fontWeight: FontWeight.w500,
@@ -141,7 +141,7 @@ class KinrelTypography {
     letterSpacing: 0.5,
   );
 
-  static const TextStyle monoBody = TextStyle(
+  static const TextStyle monoBody = const TextStyle(
     fontFamily: monoFont,
     fontSize: 13,
     fontWeight: FontWeight.w400,

@@ -85,11 +85,11 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
           ),
         ),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
+      body: const SafeArea(
+        child: const SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
-          child: Column(
+          child: const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 8),
@@ -151,7 +151,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: const BorderRadius.circular(20),
         gradient: const LinearGradient(
           colors: [Color(0xFF1E1508), KinrelColors.darkCard],
         ),
@@ -171,7 +171,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: const BorderRadius.circular(20),
               color: KinrelColors.purple.withValues(alpha: 0.15),
               border: Border.all(
                   color: KinrelColors.purple.withValues(alpha: 0.4)),
@@ -234,7 +234,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                     child: Container(
                       height: 48,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: const BorderRadius.circular(12),
                         color: KinrelColors.darkElevated,
                         border: Border.all(
                             color: KinrelColors.darkSurface.withValues(alpha: 0.6)),
@@ -274,10 +274,10 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                         ),
                       );
                     },
-                    child: Container(
+                    child: const Container(
                       height: 48,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
+                      decoration: const BoxDecoration(
+                        borderRadius: const BorderRadius.circular(12),
                         gradient: const LinearGradient(
                             colors: [KinrelColors.purple, KinrelColors.amber]),
                       ),
@@ -314,9 +314,9 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
     final totalReferrals = state.stats?.totalReferrals ?? 0;
     final rewardsCount = state.stats?.rewards.length ?? 0;
 
-    return Row(
+    return const Row(
       children: [
-        Expanded(
+        const Expanded(
           child: _buildStatCard(
             icon: Icons.people_alt_rounded,
             value: '$totalReferrals',
@@ -325,7 +325,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
           ),
         ),
         const SizedBox(width: 12),
-        Expanded(
+        const Expanded(
           child: _buildStatCard(
             icon: Icons.emoji_events_rounded,
             value: '$rewardsCount',
@@ -347,7 +347,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
       padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 14),
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: const BorderRadius.circular(16),
         border: Border.all(color: color.withValues(alpha: 0.2)),
         boxShadow: [
           BoxShadow(
@@ -365,10 +365,10 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
               shape: BoxShape.circle,
               color: color.withValues(alpha: 0.12),
             ),
-            child: Icon(icon, color: color, size: 18),
+            child: const Icon(icon, color: color, size: 18),
           ),
           const SizedBox(height: 10),
-          Text(
+          const Text(
             value,
             style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -378,7 +378,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
             ),
           ),
           const SizedBox(height: 2),
-          Text(
+          const Text(
             label,
             style: const TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -394,9 +394,9 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
   // ── Section Header ────────────────────────────────────────────────
 
   Widget _buildSectionHeader(String title) {
-    return Row(
+    return const Row(
       children: [
-        Text(
+        const Text(
           title,
           style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -425,7 +425,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: KinrelColors.darkCard,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: const BorderRadius.circular(14),
               border: Border.all(
                 color: isUnlocked
                     ? KinrelColors.success.withValues(alpha: 0.4)
@@ -462,15 +462,15 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
+                    const Expanded(
+                      child: const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
+                          const Row(
                             children: [
-                              Text(
+                              const Text(
                                 tier.reward,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontFamily: KinrelTypography.displayFont,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
@@ -485,11 +485,11 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(8),
+                                    borderRadius: const BorderRadius.circular(8),
                                     color: KinrelColors.amber
                                         .withValues(alpha: 0.12),
                                   ),
-                                  child: Text(
+                                  child: const Text(
                                     tier.badge!,
                                     style: const TextStyle(
                                       fontFamily: KinrelTypography.bodyFont,
@@ -503,7 +503,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                             ],
                           ),
                           const SizedBox(height: 2),
-                          Text(
+                          const Text(
                             tier.description,
                             style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
@@ -519,8 +519,8 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                 ),
                 const SizedBox(height: 12),
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
+                  borderRadius: const BorderRadius.circular(4),
+                  child: const LinearProgressIndicator(
                     value: progress,
                     backgroundColor: KinrelColors.darkSurface,
                     valueColor: AlwaysStoppedAnimation<Color>(
@@ -598,16 +598,16 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: KinrelColors.darkCard,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: const BorderRadius.circular(14),
           border: Border.all(
               color: KinrelColors.darkSurface.withValues(alpha: 0.6)),
         ),
         child: const Column(
           children: [
-            const Icon(Icons.group_add_outlined,
+            Icon(Icons.group_add_outlined,
                 color: KinrelColors.textDim, size: 32),
-            const SizedBox(height: 12),
-            const Text(
+            SizedBox(height: 12),
+            Text(
               'No referrals yet',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -615,8 +615,8 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                 color: KinrelColors.textDim,
               ),
             ),
-            const SizedBox(height: 4),
-            const Text(
+            SizedBox(height: 4),
+            Text(
               'Share your code to start earning rewards!',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -634,7 +634,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: const BorderRadius.circular(14),
         border:
             Border.all(color: KinrelColors.darkSurface.withValues(alpha: 0.6)),
       ),
@@ -695,9 +695,9 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
   Widget _buildShimmerCard() {
     return Container(
       height: 80,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: const BorderRadius.circular(14),
       ),
       child: Center(
         child: SizedBox(
@@ -793,7 +793,7 @@ class _PressDownState extends State<_PressDown>
         child: AnimatedBuilder(
           animation: _sc,
           builder: (_, child) =>
-              Transform.scale(scale: _sc.value, child: child),
+              const Transform.scale(scale: _sc.value, child: child),
           child: widget.child,
         ),
       );

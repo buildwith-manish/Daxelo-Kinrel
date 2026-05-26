@@ -33,7 +33,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
             physics: const BouncingScrollPhysics(),
             slivers: [
               // Header
-              SliverToBoxAdapter(
+              const SliverToBoxAdapter(
                 child: _Header(familyCount: families.length),
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 16)),
@@ -121,9 +121,9 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
         const SizedBox(height: 60),
         const Row(
           children: [
-            const DKLoadingShimmer(width: 160, height: 28),
-            const SizedBox(width: 10),
-            const DKLoadingShimmer(width: 36, height: 24, radius: 12),
+            DKLoadingShimmer(width: 160, height: 28),
+            SizedBox(width: 10),
+            DKLoadingShimmer(width: 36, height: 24, radius: 12),
           ],
         ),
         const SizedBox(height: 20),
@@ -144,7 +144,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: DKColors.cardColor(context),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(KinrelRadius.dialog),
+          borderRadius: const BorderRadius.circular(KinrelRadius.dialog),
           side: BorderSide(color: DKColors.borderColor(context)),
         ),
         title: Row(
@@ -196,8 +196,8 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
                 fillColor: DKColors.elevatedColor(context),
                 prefixIcon: Icon(Icons.search_rounded,
                     color: DKColors.textSecondary(context), size: 20),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(KinrelRadius.input),
+                border: const OutlineInputBorder(
+                  borderRadius: const BorderRadius.circular(KinrelRadius.input),
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -257,11 +257,11 @@ class _Header extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: DKColors.brandPurple.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: const BorderRadius.circular(12),
             ),
-            child: Text(
+            child: const Text(
               '$familyCount',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
@@ -301,7 +301,7 @@ class _JoinFamilyCard extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: DKColors.brandGold.withValues(alpha: 0.15),
               ),
-              child: Icon(Icons.mail_outline_rounded,
+              child: const Icon(Icons.mail_outline_rounded,
                   color: DKColors.brandGold, size: 20),
             ),
             const SizedBox(width: 14),
@@ -330,7 +330,7 @@ class _JoinFamilyCard extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios_rounded,
+            const Icon(Icons.arrow_forward_ios_rounded,
                 size: 16, color: DKColors.brandGold),
           ],
         ),

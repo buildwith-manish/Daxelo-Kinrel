@@ -109,15 +109,15 @@ final _exploreResultsProvider =
 });
 
 class _ExploreResults {
-  final List<_SearchResultItem> members;
-  final List<_SearchResultItem> families;
-
   const _ExploreResults({required this.members, required this.families});
 
   factory _ExploreResults.empty() => const _ExploreResults(
     members: [],
     families: [],
   );
+
+  final List<_SearchResultItem> members;
+  final List<_SearchResultItem> families;
 
   bool get isEmpty => members.isEmpty && families.isEmpty;
 }
@@ -342,10 +342,10 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
           );
         },
         loading: () => SliverToBoxAdapter(
-        child: Center(
-          child: Padding(
+        child: const Center(
+          child: const Padding(
             padding: const EdgeInsets.symmetric(vertical: 40),
-            child: DKLoadingShimmer(width: 200, height: 16),
+            child: const DKLoadingShimmer(width: 200, height: 16),
           ),
         ),
       ),
@@ -361,7 +361,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   List<Widget> _buildDefaultContent(AsyncValue<List<Family>> familiesAsync) {
     return [
       // Trending Kinship Terms
-      SliverToBoxAdapter(
+      const SliverToBoxAdapter(
         child: _TrendingSection()
             .animate()
             .fadeIn(duration: 350.ms)
@@ -392,7 +392,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
       const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
       // Quick access languages
-      SliverToBoxAdapter(
+      const SliverToBoxAdapter(
         child: _LanguageChips()
             .animate()
             .fadeIn(duration: 350.ms, delay: 200.ms),
@@ -400,7 +400,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
       const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
       // Families quick links
-      SliverToBoxAdapter(
+      const SliverToBoxAdapter(
         child: _FamiliesQuickLinks(familiesAsync: familiesAsync)
             .animate()
             .fadeIn(duration: 350.ms, delay: 250.ms)
@@ -416,7 +416,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: DKColors.cardColor(context),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(KinrelRadius.dialog),
+          borderRadius: const BorderRadius.circular(KinrelRadius.dialog),
           side: BorderSide(color: DKColors.borderColor(context)),
         ),
         title: Text(
@@ -449,8 +449,8 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 hintStyle: TextStyle(color: DKColors.textSecondary(context)),
                 filled: true,
                 fillColor: DKColors.elevatedColor(context),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(KinrelRadius.input),
+                border: const OutlineInputBorder(
+                  borderRadius: const BorderRadius.circular(KinrelRadius.input),
                   borderSide: BorderSide.none,
                 ),
               ),
@@ -530,7 +530,7 @@ class _GradientSearchSection extends StatelessWidget {
                       shape: BoxShape.circle,
                       color: DKColors.brandPurple.withValues(alpha: 0.1),
                     ),
-                    child: Icon(Icons.search_rounded,
+                    child: const Icon(Icons.search_rounded,
                         size: 20,
                         color: DKColors.brandPurple),
                   ),
@@ -582,9 +582,9 @@ class _SectionHeader extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
               color: DKColors.brandPurple.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: const BorderRadius.circular(10),
             ),
-            child: Text(
+            child: const Text(
               '$count',
               style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -596,11 +596,11 @@ class _SectionHeader extends StatelessWidget {
           ),
           const Spacer(),
           if (onSeeAll != null)
-            GestureDetector(
+            const GestureDetector(
               onTap: onSeeAll,
-              child: Text(
+              child: const Text(
                 'See All',
-                style: TextStyle(
+                style: const TextStyle(
                   color: KinrelColors.purple,
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
@@ -635,7 +635,7 @@ class _TrendingSection extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: const BorderRadius.circular(8),
                   color: DKColors.brandPurple.withValues(alpha: 0.12),
                 ),
                 child: const Icon(Icons.trending_up_rounded,
@@ -662,7 +662,7 @@ class _TrendingSection extends StatelessWidget {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: DKColors.cardColor(context),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: const BorderRadius.circular(12),
                     border: Border.all(
                       color: isLight
                           ? accentColor.withValues(alpha: 0.15)
@@ -685,13 +685,13 @@ class _TrendingSection extends StatelessWidget {
                         width: 28,
                         height: 28,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: const BorderRadius.circular(8),
                           color: accentColor.withValues(alpha: 0.12),
                         ),
-                        child: Center(
-                          child: Text(
+                        child: const Center(
+                          child: const Text(
                             term.$2,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: accentColor,
@@ -773,7 +773,7 @@ class _KinshipDictionaryCard extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: const BorderRadius.circular(14),
                 color: DKColors.brandPurple.withValues(alpha: 0.2),
                 boxShadow: [
                   BoxShadow(
@@ -840,7 +840,7 @@ class _JoinFamilyBanner extends StatelessWidget {
         onTap: onJoin,
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: const BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
                 color: DKColors.brandCoral.withValues(alpha: 0.2),
@@ -850,7 +850,7 @@ class _JoinFamilyBanner extends StatelessWidget {
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: const BorderRadius.circular(16),
             child: Container(
               padding: const EdgeInsets.all(20),
               decoration: const BoxDecoration(
@@ -998,7 +998,7 @@ class _FamiliesQuickLinks extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
                           color: DKColors.brandPurple.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: const BorderRadius.circular(10),
                         ),
                         child: Text('${families.length}',
                             style: const TextStyle(
@@ -1012,8 +1012,8 @@ class _FamiliesQuickLinks extends ConsumerWidget {
                   ),
                   GestureDetector(
                     onTap: () => context.go('/families'),
-                    child: Text('See All',
-                        style: TextStyle(
+                    child: const Text('See All',
+                        style: const TextStyle(
                           color: KinrelColors.purple,
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 13,
@@ -1107,7 +1107,7 @@ class _FamilyQuickLink extends ConsumerWidget {
               shape: BoxShape.circle,
               color: DKColors.brandPurple.withValues(alpha: 0.08),
             ),
-            child: Icon(Icons.chevron_right,
+            child: const Icon(Icons.chevron_right,
                 color: DKColors.brandPurple, size: 18),
           ),
         ],
@@ -1133,9 +1133,9 @@ class _SearchResultCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(
           horizontal: KinrelSpacing.base, vertical: 4),
-      child: DKCard(
+      child: const DKCard(
         onTap: onTap,
-        child: Row(
+        child: const Row(
           children: [
             DKAvatar(
               initials: item.title.isNotEmpty
@@ -1235,9 +1235,9 @@ class _KinshipResultCard extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: DKColors.brandPurple.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: const BorderRadius.circular(4),
                         ),
-                        child: Text(
+                        child: const Text(
                           rel.relationshipCategory.replaceAll('_', ' '),
                           style: const TextStyle(
                             fontFamily: KinrelTypography.bodyFont,

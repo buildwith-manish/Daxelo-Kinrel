@@ -76,10 +76,10 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
     final membersAsync = ref.watch(familyMembersProvider(widget.familyId));
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
+      appBar: const AppBar(
+        title: const Text(
           'Find Path',
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontWeight: FontWeight.w600,
           ),
@@ -90,9 +90,9 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
           child: CircularProgressIndicator(color: KinrelColors.purple),
         ),
     error: (e, _) => Center(
-          child: Text(
+          child: const Text(
             'Failed to load members',
-            style: TextStyle(color: KinrelColors.textDim),
+            style: const TextStyle(color: KinrelColors.textDim),
           ),
         ),
         data: (members) {
@@ -137,7 +137,7 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
                   _pathResult = null;
                 });
               },
-              icon: Icon(Icons.swap_vert, color: KinrelColors.purple),
+              icon: const Icon(Icons.swap_vert, color: KinrelColors.purple),
             ),
           ),
 
@@ -169,9 +169,9 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
               disabledBackgroundColor:
                   KinrelColors.purple.withValues(alpha: 0.4),
               padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
+              shape: const RoundedRectangleBorder(
                 borderRadius:
-                    BorderRadius.circular(KinrelSpacing.radiusSm),
+                    const BorderRadius.circular(KinrelSpacing.radiusSm),
               ),
             ),
             child: _isSearching
@@ -203,19 +203,19 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen> {
           ] else if (_fromPersonId != null &&
               _toPersonId != null &&
               !_isSearching) ...[
-            Container(
+            const Container(
               padding: const EdgeInsets.all(KinrelSpacing.base),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: KinrelColors.darkCard,
                 borderRadius:
-                    BorderRadius.circular(KinrelSpacing.radiusMd),
+                    const BorderRadius.circular(KinrelSpacing.radiusMd),
               ),
-              child: Column(
+              child: const Column(
                 children: [
-                  Text(
+                  const Text(
                     'Tap "Find Relationship Path" to discover how these family members are connected.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       color: KinrelColors.textDim,
@@ -246,9 +246,9 @@ class _EmptyState extends StatelessWidget {
               color: KinrelColors.textDim.withValues(alpha: 0.3),
             ),
             const SizedBox(height: 20),
-            Text(
+            const Text(
               'No Members Yet',
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
@@ -256,10 +256,10 @@ class _EmptyState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'Add family members first to find relationship paths.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 color: KinrelColors.textSilver,
@@ -291,8 +291,8 @@ class _PersonSelector extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-          style: TextStyle(
+        const Text(label,
+          style: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             fontWeight: FontWeight.w500,
@@ -304,19 +304,19 @@ class _PersonSelector extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
             color: KinrelColors.darkElevated,
-            borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+            borderRadius: const BorderRadius.circular(KinrelSpacing.radiusSm),
             border: Border.all(
                 color: KinrelColors.darkSurface.withValues(alpha: 0.3)),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: selectedId,
-              hint: Text(
+              hint: const Text(
                 'Select person',
-                style: TextStyle(color: KinrelColors.textDim),
+                style: const TextStyle(color: KinrelColors.textDim),
               ),
               isExpanded: true,
-              icon: Icon(Icons.arrow_drop_down, color: KinrelColors.purple),
+              icon: const Icon(Icons.arrow_drop_down, color: KinrelColors.purple),
               dropdownColor: KinrelColors.darkElevated,
               items: members.map((p) {
                 final subtitle = p.gender != null
@@ -326,7 +326,7 @@ class _PersonSelector extends StatelessWidget {
                   value: p.id,
                   child: Text(
                     '${p.name}$subtitle',
-                    style: TextStyle(color: KinrelColors.textWhite),
+                    style: const TextStyle(color: KinrelColors.textWhite),
                     overflow: TextOverflow.ellipsis,
                   ),
                 );
@@ -363,7 +363,7 @@ class _PathResultCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+        borderRadius: const BorderRadius.circular(KinrelSpacing.radiusMd),
         border: Border.all(
             color: KinrelColors.purple.withValues(alpha: 0.3)),
       ),
@@ -374,7 +374,7 @@ class _PathResultCard extends StatelessWidget {
             result.path.isEmpty
                 ? 'Same Person'
                 : 'Path Found (${result.length} step${result.length != 1 ? 's' : ''})',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -390,14 +390,14 @@ class _PathResultCard extends StatelessWidget {
                   children: [
                     Container(width: 32,
                       height: 32,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: KinrelColors.darkElevated,
                         shape: BoxShape.circle,
                       ),
                       child: Center(
                         child: Text(
                           '${result.path.indexOf(step) + 1}',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontFamily: KinrelTypography.displayFont,
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -407,22 +407,22 @@ class _PathResultCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
+                    const Expanded(
+                      child: const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          const Text(
                             step.personName,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.displayFont,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                               color: KinrelColors.textWhite,
                             ),
                           ),
-                          Text(
+                          const Text(
                             step.type.snakeToTitle,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 12,
                               color: KinrelColors.textSilver,
@@ -442,13 +442,13 @@ class _PathResultCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: KinrelColors.darkElevated.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+              borderRadius: const BorderRadius.circular(KinrelSpacing.radiusSm),
             ),
             child: Column(
               children: [
-                Text(result.relationshipDescription,
+                const Text(result.relationshipDescription,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 13,
                     color: KinrelColors.textSilver,
@@ -456,9 +456,9 @@ class _PathResultCard extends StatelessWidget {
                 ),
                 if (result.localizedDescription != null) ...[
                   const SizedBox(height: 6),
-                  Text(result.localizedDescription!,
+                  const Text(result.localizedDescription!,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,

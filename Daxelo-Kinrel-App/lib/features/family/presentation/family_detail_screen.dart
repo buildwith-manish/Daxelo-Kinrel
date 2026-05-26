@@ -44,7 +44,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
   @override
   Widget build(BuildContext context) {
     final detailAsync = ref.watch(familyDetailProvider(widget.familyId));
-    final primaryColor = DKColors.brandPurple;
+    const primaryColor = DKColors.brandPurple;
 
     return DKScaffold(
       appBar: AppBar(
@@ -55,21 +55,21 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         title: detailAsync.when(
           loading: () => Text(
             'Family Tree',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontWeight: FontWeight.w600,
             ),
           ),
     error: (_, __) => Text(
             'Family Tree',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontWeight: FontWeight.w600,
             ),
           ),
           data: (detail) => Text(
             detail?.family.name ?? 'Family Tree',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontWeight: FontWeight.w600,
             ),
@@ -81,7 +81,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
             tooltip: 'Share Family',
             onPressed: () => _shareFamily(context),
           ),
-          IconButton(
+          const IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Settings',
             onPressed: () {},
@@ -93,12 +93,12 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           unselectedLabelColor: DKColors.textSecondary(context),
           indicatorColor: primaryColor,
           indicatorSize: TabBarIndicatorSize.label,
-          labelStyle: TextStyle(
+          labelStyle: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
-    unselectedLabelStyle: TextStyle(
+    unselectedLabelStyle: const TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             fontWeight: FontWeight.w500,
@@ -171,7 +171,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           children: List.generate(
             3, (_) => Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: DKLoadingShimmer(width: 100, height: 40, radius: 12),
+              child: const DKLoadingShimmer(width: 100, height: 40, radius: 12),
             ),
           ),
         ),
@@ -257,9 +257,9 @@ class _GraphTab extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       backgroundColor: DKColors.cardColor(context),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.bottomSheet),
+      shape: const RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(
+          top: const Radius.circular(KinrelRadius.bottomSheet),
         ),
       ),
       builder: (ctx) => SafeArea(
@@ -434,7 +434,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                 decoration: BoxDecoration(
                   color: DKColors.elevatedColor(context),
                   borderRadius:
-                      BorderRadius.circular(KinrelSpacing.radiusMd),
+                      const BorderRadius.circular(KinrelSpacing.radiusMd),
                 ),
                 child: PopupMenuButton<String>(
                   icon: Icon(Icons.sort,
@@ -520,7 +520,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
         // Member list
         Expanded(
           child: filtered.isEmpty
-              ? DKEmptyState(
+              ? const DKEmptyState(
                   icon: Icons.person_search_outlined,
                   title: _searchQuery.isEmpty ? 'No Members' : 'No Match',
                   subtitle: _searchQuery.isEmpty
@@ -602,11 +602,11 @@ class _ActivityTab extends StatelessWidget {
       if (a.timestamp == null && b.timestamp == null) return 0;
       if (a.timestamp == null) return 1;
       if (b.timestamp == null) return -1;
-      return const b.timestamp!.compareTo(a.timestamp!);
+      return b.timestamp!.compareTo(a.timestamp!);
     });
 
     if (activities.isEmpty) {
-      return DKEmptyState(
+      return const DKEmptyState(
         icon: Icons.history_rounded,
         title: 'No Activity Yet',
         subtitle:
@@ -619,7 +619,7 @@ class _ActivityTab extends StatelessWidget {
       itemCount: activities.length,
       itemBuilder: (context, index) {
         final activity = activities[index];
-        return Padding(
+        return const Padding(
           padding: const EdgeInsets.only(bottom: KinrelSpacing.sm),
           child: _ActivityTile(activity: activity, index: index),
         );
@@ -715,7 +715,7 @@ class _ToolbarButton extends StatelessWidget {
         color: isLight
             ? Colors.white.withValues(alpha: 0.9)
             : DKColors.darkBg.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+        borderRadius: const BorderRadius.circular(KinrelSpacing.radiusSm),
         border: Border.all(
           color: DKColors.brandPurple.withValues(alpha: 0.2),
         ),
@@ -727,8 +727,8 @@ class _ToolbarButton extends StatelessWidget {
           ),
         ],
       ),
-      child: IconButton(
-        icon: Icon(icon, color: DKColors.brandPurple, size: 20),
+      child: const IconButton(
+        icon: const Icon(icon, color: DKColors.brandPurple, size: 20),
         tooltip: tooltip,
         onPressed: onTap,
       ),
@@ -755,7 +755,7 @@ class _QuickActionTile extends StatelessWidget {
     final color =
         isDestructive ? DKColors.brandCoral : DKColors.textSecondary(context);
     return ListTile(
-      leading: Icon(icon, color: color, size: 20),
+      leading: const Icon(icon, color: color, size: 20),
       title: Text(
         label,
         style: TextStyle(
@@ -833,9 +833,9 @@ class _MemberCard extends StatelessWidget {
                 ),
                 if (person.gender != null) ...[
                   const SizedBox(height: 2),
-                  Text(
+                  const Text(
                     person.gender!.toUpperCase(),
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
                       color: DKColors.brandPurple,
@@ -936,9 +936,9 @@ class _ActivityTile extends StatelessWidget {
 
     final timeAgo = _formatTimeAgo(activity.timestamp);
 
-    return DKCard(
+    return const DKCard(
       padding: 12,
-      child: Row(
+      child: const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Icon
