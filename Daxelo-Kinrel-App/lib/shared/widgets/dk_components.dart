@@ -152,6 +152,17 @@ class DKColors {
 /// )
 /// ```
 class DKScaffold extends StatelessWidget {
+  const DKScaffold({
+    super.key,
+    this.gradient,
+    this.backgroundColor,
+    required this.body,
+    this.appBar,
+    this.bottomNavigationBar,
+    this.floatingActionButton,
+    this.useSafeArea = true,
+  });
+
   /// Optional gradient to paint behind the body.
   final LinearGradient? gradient;
 
@@ -174,16 +185,6 @@ class DKScaffold extends StatelessWidget {
   /// Whether to wrap the body in a [SafeArea]. Default true.
   final bool useSafeArea;
 
-  const DKScaffold({
-    super.key,
-    this.gradient,
-    this.backgroundColor,
-    required this.body,
-    this.appBar,
-    this.bottomNavigationBar,
-    this.floatingActionButton,
-    this.useSafeArea = true,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -230,6 +231,18 @@ class DKScaffold extends StatelessWidget {
 /// )
 /// ```
 class DKCard extends StatelessWidget {
+  const DKCard({
+    super.key,
+    required this.child,
+    this.padding = 16,
+    this.radius = KinrelRadius.lg,
+    this.elevation = 0,
+    this.gradient,
+    this.borderColor,
+    this.backgroundColor,
+    this.onTap,
+  });
+
   /// The card's content.
   final Widget child;
 
@@ -254,17 +267,6 @@ class DKCard extends StatelessWidget {
   /// Optional tap handler — makes the card interactive.
   final VoidCallback? onTap;
 
-  const DKCard({
-    super.key,
-    required this.child,
-    this.padding = 16,
-    this.radius = KinrelRadius.lg,
-    this.elevation = 0,
-    this.gradient,
-    this.borderColor,
-    this.backgroundColor,
-    this.onTap,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -352,6 +354,18 @@ enum DKButtonVariant { primary, secondary, gradient, social, icon }
 /// )
 /// ```
 class DKButton extends StatefulWidget {
+  const DKButton({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.variant = DKButtonVariant.primary,
+    this.icon,
+    this.isLoading = false,
+    this.gradient,
+    this.fullWidth = false,
+    this.size = DKButtonSize.md,
+  });
+
   /// Button label text.
   final String label;
 
@@ -377,17 +391,6 @@ class DKButton extends StatefulWidget {
   /// Size variant. Default [DKButtonSize.md].
   final DKButtonSize size;
 
-  const DKButton({
-    super.key,
-    required this.label,
-    this.onPressed,
-    this.variant = DKButtonVariant.primary,
-    this.icon,
-    this.isLoading = false,
-    this.gradient,
-    this.fullWidth = false,
-    this.size = DKButtonSize.md,
-  });
 
   @override
   State<DKButton> createState() => _DKButtonState();
@@ -581,6 +584,16 @@ enum DKAvatarSize { sm, md, lg, xl }
 /// )
 /// ```
 class DKAvatar extends StatelessWidget {
+  const DKAvatar({
+    super.key,
+    this.size = DKAvatarSize.md,
+    this.imageUrl,
+    this.initials,
+    this.borderColor,
+    this.showGlow = false,
+    this.backgroundColor,
+  });
+
   /// Size preset. Default [DKAvatarSize.md].
   final DKAvatarSize size;
 
@@ -599,15 +612,6 @@ class DKAvatar extends StatelessWidget {
   /// Background color when no image is provided.
   final Color? backgroundColor;
 
-  const DKAvatar({
-    super.key,
-    this.size = DKAvatarSize.md,
-    this.imageUrl,
-    this.initials,
-    this.borderColor,
-    this.showGlow = false,
-    this.backgroundColor,
-  });
 
   double get _diameter {
     switch (size) {
@@ -713,6 +717,15 @@ class DKAvatar extends StatelessWidget {
 /// )
 /// ```
 class DKSearchField extends StatelessWidget {
+  const DKSearchField({
+    super.key,
+    required this.hint,
+    this.onChanged,
+    this.onSubmitted,
+    this.controller,
+    this.useGradient = false,
+  });
+
   /// Placeholder hint text.
   final String hint;
 
@@ -729,14 +742,6 @@ class DKSearchField extends StatelessWidget {
   /// Default false.
   final bool useGradient;
 
-  const DKSearchField({
-    super.key,
-    required this.hint,
-    this.onChanged,
-    this.onSubmitted,
-    this.controller,
-    this.useGradient = false,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -835,6 +840,15 @@ class DKSearchField extends StatelessWidget {
 /// )
 /// ```
 class DKGlassCard extends StatelessWidget {
+  const DKGlassCard({
+    super.key,
+    required this.child,
+    this.padding = 16,
+    this.radius = 20,
+    this.borderColor,
+    this.blurSigma = 16,
+  });
+
   /// The card's content.
   final Widget child;
 
@@ -850,14 +864,6 @@ class DKGlassCard extends StatelessWidget {
   /// Blur sigma for the backdrop filter. Default 16.
   final double blurSigma;
 
-  const DKGlassCard({
-    super.key,
-    required this.child,
-    this.padding = 16,
-    this.radius = 20,
-    this.borderColor,
-    this.blurSigma = 16,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -896,6 +902,13 @@ class DKGlassCard extends StatelessWidget {
 
 /// A navigation item for [DKBottomNav].
 class DKNavItem {
+  const DKNavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    this.badge,
+  });
+
   /// Icon for the unselected state.
   final IconData icon;
 
@@ -908,12 +921,6 @@ class DKNavItem {
   /// Optional badge count to display.
   final int? badge;
 
-  const DKNavItem({
-    required this.icon,
-    required this.activeIcon,
-    required this.label,
-    this.badge,
-  });
 }
 
 /// 5-tab bottom navigation bar with theme-aware styling.
@@ -934,6 +941,13 @@ class DKNavItem {
 /// )
 /// ```
 class DKBottomNav extends StatelessWidget {
+  const DKBottomNav({
+    super.key,
+    required this.currentIndex,
+    required this.onTap,
+    required this.items,
+  });
+
   /// Currently selected tab index.
   final int currentIndex;
 
@@ -943,12 +957,6 @@ class DKBottomNav extends StatelessWidget {
   /// List of navigation items.
   final List<DKNavItem> items;
 
-  const DKBottomNav({
-    super.key,
-    required this.currentIndex,
-    required this.onTap,
-    required this.items,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -1019,13 +1027,6 @@ class DKBottomNav extends StatelessWidget {
 }
 
 class _DKNavItemWidget extends StatelessWidget {
-  final DKNavItem item;
-  final bool isSelected;
-  final Color activeColor;
-  final Color inactiveColor;
-  final bool isLight;
-  final VoidCallback onTap;
-
   const _DKNavItemWidget({
     required this.item,
     required this.isSelected,
@@ -1034,6 +1035,14 @@ class _DKNavItemWidget extends StatelessWidget {
     required this.isLight,
     required this.onTap,
   });
+
+  final DKNavItem item;
+  final bool isSelected;
+  final Color activeColor;
+  final Color inactiveColor;
+  final bool isLight;
+  final VoidCallback onTap;
+
 
   @override
   Widget build(BuildContext context) {
@@ -1118,6 +1127,14 @@ class _DKNavItemWidget extends StatelessWidget {
 /// )
 /// ```
 class DKChatBubble extends StatelessWidget {
+  const DKChatBubble({
+    super.key,
+    required this.message,
+    this.isUser = false,
+    this.time,
+    this.senderName,
+  });
+
   /// The message text.
   final String message;
 
@@ -1130,13 +1147,6 @@ class DKChatBubble extends StatelessWidget {
   /// Optional sender name (for AI messages).
   final String? senderName;
 
-  const DKChatBubble({
-    super.key,
-    required this.message,
-    this.isUser = false,
-    this.time,
-    this.senderName,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -1248,6 +1258,13 @@ class DKChatBubble extends StatelessWidget {
 /// DKBadge(count: 99, size: 20, color: DKColors.brandCoral)
 /// ```
 class DKBadge extends StatelessWidget {
+  const DKBadge({
+    super.key,
+    required this.count,
+    this.size = 18,
+    this.color = DKColors.brandCoral,
+  });
+
   /// The count to display. If 0, the badge is hidden.
   final int count;
 
@@ -1257,12 +1274,6 @@ class DKBadge extends StatelessWidget {
   /// Background color of the badge. Default red.
   final Color color;
 
-  const DKBadge({
-    super.key,
-    required this.count,
-    this.size = 18,
-    this.color = DKColors.brandCoral,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -1308,6 +1319,13 @@ class DKBadge extends StatelessWidget {
 /// )
 /// ```
 class DKSuggestionChip extends StatelessWidget {
+  const DKSuggestionChip({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.isSelected = false,
+  });
+
   /// The chip label.
   final String label;
 
@@ -1317,12 +1335,6 @@ class DKSuggestionChip extends StatelessWidget {
   /// Whether the chip is in a selected state. Default false.
   final bool isSelected;
 
-  const DKSuggestionChip({
-    super.key,
-    required this.label,
-    required this.onTap,
-    this.isSelected = false,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -1384,6 +1396,13 @@ class DKSuggestionChip extends StatelessWidget {
 /// )
 /// ```
 class DKTabToggle extends StatelessWidget {
+  const DKTabToggle({
+    super.key,
+    required this.tabs,
+    required this.selectedIndex,
+    required this.onChanged,
+  });
+
   /// List of tab labels.
   final List<String> tabs;
 
@@ -1393,12 +1412,6 @@ class DKTabToggle extends StatelessWidget {
   /// Callback when the selected tab changes.
   final ValueChanged<int> onChanged;
 
-  const DKTabToggle({
-    super.key,
-    required this.tabs,
-    required this.selectedIndex,
-    required this.onChanged,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -1467,6 +1480,14 @@ class DKTabToggle extends StatelessWidget {
 /// )
 /// ```
 class DKTimelineNode extends StatelessWidget {
+  const DKTimelineNode({
+    super.key,
+    required this.icon,
+    required this.color,
+    this.size = 60,
+    this.label,
+  });
+
   /// Icon displayed inside the circle.
   final IconData icon;
 
@@ -1479,13 +1500,6 @@ class DKTimelineNode extends StatelessWidget {
   /// Optional label below the circle.
   final String? label;
 
-  const DKTimelineNode({
-    super.key,
-    required this.icon,
-    required this.color,
-    this.size = 60,
-    this.label,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -1542,6 +1556,14 @@ class DKTimelineNode extends StatelessWidget {
 /// )
 /// ```
 class DKStatChip extends StatelessWidget {
+  const DKStatChip({
+    super.key,
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
   /// Icon to display.
   final IconData icon;
 
@@ -1554,13 +1576,6 @@ class DKStatChip extends StatelessWidget {
   /// Accent color for icon and value.
   final Color color;
 
-  const DKStatChip({
-    super.key,
-    required this.icon,
-    required this.value,
-    required this.label,
-    required this.color,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -1624,6 +1639,15 @@ class DKStatChip extends StatelessWidget {
 /// )
 /// ```
 class DKEmptyState extends StatelessWidget {
+  const DKEmptyState({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.actionLabel,
+    this.onAction,
+  });
+
   /// Large centered icon.
   final IconData icon;
 
@@ -1639,14 +1663,6 @@ class DKEmptyState extends StatelessWidget {
   /// Optional CTA button callback.
   final VoidCallback? onAction;
 
-  const DKEmptyState({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.actionLabel,
-    this.onAction,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -1739,6 +1755,13 @@ class DKEmptyState extends StatelessWidget {
 /// DKLoadingShimmer(width: double.infinity, height: 120, radius: 16)
 /// ```
 class DKLoadingShimmer extends StatelessWidget {
+  const DKLoadingShimmer({
+    super.key,
+    required this.width,
+    required this.height,
+    this.radius = KinrelRadius.md,
+  });
+
   /// Width of the shimmer placeholder.
   final double width;
 
@@ -1748,12 +1771,6 @@ class DKLoadingShimmer extends StatelessWidget {
   /// Border radius. Default 12.
   final double radius;
 
-  const DKLoadingShimmer({
-    super.key,
-    required this.width,
-    required this.height,
-    this.radius = KinrelRadius.md,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -1792,6 +1809,13 @@ class DKLoadingShimmer extends StatelessWidget {
 /// )
 /// ```
 class DKErrorState extends StatelessWidget {
+  const DKErrorState({
+    super.key,
+    required this.message,
+    required this.onRetry,
+    this.icon,
+  });
+
   /// Error message to display.
   final String message;
 
@@ -1801,12 +1825,6 @@ class DKErrorState extends StatelessWidget {
   /// Optional custom icon. Default [Icons.error_outline_rounded].
   final IconData? icon;
 
-  const DKErrorState({
-    super.key,
-    required this.message,
-    required this.onRetry,
-    this.icon,
-  });
 
   @override
   Widget build(BuildContext context) {
