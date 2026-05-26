@@ -4,6 +4,14 @@ import '../../../core/networking/dio_client.dart';
 // ── Models ─────────────────────────────────────────────────────────────
 
 class ReferralCode {
+  factory ReferralCode.fromJson(Map<String, dynamic> json) {
+    return ReferralCode(
+      code: json['code'] as String? ?? '',
+      shareUrl: json['shareUrl'] as String? ?? '',
+      shareText: json['shareText'] as String? ?? '',
+    );
+  }
+
   final String code;
   final String shareUrl;
   final String shareText;
@@ -14,16 +22,17 @@ class ReferralCode {
     required this.shareText,
   });
 
-  factory ReferralCode.fromJson(Map<String, dynamic> json) {
-    return ReferralCode(
-      code: json['code'] as String? ?? '',
-      shareUrl: json['shareUrl'] as String? ?? '',
-      shareText: json['shareText'] as String? ?? '',
-    );
-  }
 }
 
 class ReferralApplication {
+  factory ReferralApplication.fromJson(Map<String, dynamic> json) {
+    return ReferralApplication(
+      success: json['success'] as bool? ?? false,
+      referrerId: json['referrerId'] as String? ?? '',
+      reward: json['reward'] as String? ?? '',
+    );
+  }
+
   final bool success;
   final String referrerId;
   final String reward;
@@ -34,28 +43,9 @@ class ReferralApplication {
     required this.reward,
   });
 
-  factory ReferralApplication.fromJson(Map<String, dynamic> json) {
-    return ReferralApplication(
-      success: json['success'] as bool? ?? false,
-      referrerId: json['referrerId'] as String? ?? '',
-      reward: json['reward'] as String? ?? '',
-    );
-  }
 }
 
 class ReferralStats {
-  final String code;
-  final int totalReferrals;
-  final List<String> rewards;
-  final List<RecentReferral> recentReferrals;
-
-  const ReferralStats({
-    required this.code,
-    required this.totalReferrals,
-    required this.rewards,
-    required this.recentReferrals,
-  });
-
   factory ReferralStats.fromJson(Map<String, dynamic> json) {
     return ReferralStats(
       code: json['code'] as String? ?? '',
@@ -71,9 +61,29 @@ class ReferralStats {
           [],
     );
   }
+
+  final String code;
+  final int totalReferrals;
+  final List<String> rewards;
+  final List<RecentReferral> recentReferrals;
+
+  const ReferralStats({
+    required this.code,
+    required this.totalReferrals,
+    required this.rewards,
+    required this.recentReferrals,
+  });
+
 }
 
 class RecentReferral {
+  factory RecentReferral.fromJson(Map<String, dynamic> json) {
+    return RecentReferral(
+      name: json['name'] as String? ?? '',
+      date: json['date'] as String? ?? '',
+    );
+  }
+
   final String name;
   final String date;
 
@@ -82,15 +92,18 @@ class RecentReferral {
     required this.date,
   });
 
-  factory RecentReferral.fromJson(Map<String, dynamic> json) {
-    return RecentReferral(
-      name: json['name'] as String? ?? '',
-      date: json['date'] as String? ?? '',
-    );
-  }
 }
 
 class RewardTier {
+  factory RewardTier.fromJson(Map<String, dynamic> json) {
+    return RewardTier(
+      referrals: json['referrals'] as int? ?? 0,
+      reward: json['reward'] as String? ?? '',
+      badge: json['badge'] as String?,
+      description: json['description'] as String? ?? '',
+    );
+  }
+
   final int referrals;
   final String reward;
   final String? badge;
@@ -103,21 +116,9 @@ class RewardTier {
     required this.description,
   });
 
-  factory RewardTier.fromJson(Map<String, dynamic> json) {
-    return RewardTier(
-      referrals: json['referrals'] as int? ?? 0,
-      reward: json['reward'] as String? ?? '',
-      badge: json['badge'] as String?,
-      description: json['description'] as String? ?? '',
-    );
-  }
 }
 
 class RewardsData {
-  final List<RewardTier> tiers;
-
-  const RewardsData({required this.tiers});
-
   factory RewardsData.fromJson(Map<String, dynamic> json) {
     return RewardsData(
       tiers: (json['tiers'] as List<dynamic>?)
@@ -126,17 +127,16 @@ class RewardsData {
           [],
     );
   }
+
+  final List<RewardTier> tiers;
+
+  const RewardsData({required this.tiers});
+
 }
 
 // ── Referral State ──────────────────────────────────────────────────────
 
 class ReferralState {
-  final ReferralCode? code;
-  final ReferralStats? stats;
-  final bool isGenerating;
-  final bool isApplying;
-  final String? error;
-
   const ReferralState({
     this.code,
     this.stats,
@@ -144,6 +144,13 @@ class ReferralState {
     this.isApplying = false,
     this.error,
   });
+
+  final ReferralCode? code;
+  final ReferralStats? stats;
+  final bool isGenerating;
+  final bool isApplying;
+  final String? error;
+
 
   ReferralState copyWith({
     ReferralCode? code,
@@ -170,9 +177,10 @@ final referralProvider =
 });
 
 class ReferralNotifier extends StateNotifier<ReferralState> {
+  ReferralNotifier(this._ref) : super(const ReferralState());
+
   final Ref _ref;
 
-  ReferralNotifier(this._ref) : super(const ReferralState());
 
   Future<void> generateCode(String userId) async {
     state = state.copyWith(isGenerating: true, error: null);
