@@ -7,6 +7,7 @@
 // Includes realistic demo data for Family, Celebrations, Engagement,
 // and System notification types.
 
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -64,9 +65,9 @@ class NotificationModel {
   /// Background color for the avatar circle.
   final int? avatarColor;
 
-  /// Icon codepoint for system / engagement notifications
+  /// Icon for system / engagement notifications
   /// that don't have a person avatar.
-  final int? iconData;
+  final IconData? iconData;
 
   NotificationModel copyWith({
     bool? isRead,
@@ -273,7 +274,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
             'You added 3 new members this week. Your Sharma Family tree now has 24 members.',
         time: '1 hr ago',
         isRead: false,
-        iconData: 0xe3af, // Icons.trending_up
+        iconData: const IconData(0xe3af, fontFamily: 'MaterialIcons'), // Icons.trending_up
       ),
       NotificationModel(
         id: 'n9',
@@ -283,7 +284,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
             'Learn that your father\'s elder brother is called "Tau" and younger brother "Chacha" in Hindi.',
         time: '4 hrs ago',
         isRead: false,
-        iconData: 0xe86f, // Icons.explore
+        iconData: const IconData(0xe86f, fontFamily: 'MaterialIcons'), // Icons.explore
       ),
       NotificationModel(
         id: 'n10',
@@ -293,7 +294,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
             'This week: Can you name all 8 terms for cousins in Marathi? Take the quiz now.',
         time: '6 hrs ago',
         isRead: true,
-        iconData: 0xe037, // Icons.emoji_events
+        iconData: const IconData(0xe037, fontFamily: 'MaterialIcons'), // Icons.emoji_events
       ),
 
       // ── System ───────────────────────────────────────────────────
@@ -306,7 +307,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         time: '1 day ago',
         isRead: true,
         isPinned: true,
-        iconData: 0xe87e, // Icons.waving_hand
+        iconData: const IconData(0xe87e, fontFamily: 'MaterialIcons'), // Icons.waving_hand
       ),
       NotificationModel(
         id: 'n12',
@@ -316,7 +317,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
             'Add your photo and birthday to help family members find and connect with you.',
         time: '1 day ago',
         isRead: true,
-        iconData: 0xe7fd, // Icons.person
+        iconData: const IconData(0xe7fd, fontFamily: 'MaterialIcons'), // Icons.person
       ),
       NotificationModel(
         id: 'n13',
@@ -326,7 +327,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
             'New: Festival greeting cards, voice search for kinship terms, and bug fixes.',
         time: '2 days ago',
         isRead: true,
-        iconData: 0xe896, // Icons.system_update
+        iconData: const IconData(0xe896, fontFamily: 'MaterialIcons'), // Icons.system_update
       ),
     ];
 

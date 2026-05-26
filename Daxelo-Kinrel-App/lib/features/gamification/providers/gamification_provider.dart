@@ -24,15 +24,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class BadgeIcons {
   BadgeIcons._();
 
-  static const int sprout = 0xe549;     // eco / sprout
-  static const int leaf = 0xe3ab;       // nature / leaf
-  static const int tree = 0xe3c0;       // park / tree
-  static const int book = 0xe865;       // menu_book / book
-  static const int map = 0xe56c;        // map / map
-  static const int building = 0xe8c1;   // account_balance / building
-  static const int link = 0xe3bc;       // link / link
-  static const int lightning = 0xe430;  // bolt / lightning
-  static const int globe = 0xe55b;      // public / globe
+  static const IconData sprout = IconData(0xe549, fontFamily: 'MaterialIcons');     // eco / sprout
+  static const IconData leaf = IconData(0xe3ab, fontFamily: 'MaterialIcons');       // nature / leaf
+  static const IconData tree = IconData(0xe3c0, fontFamily: 'MaterialIcons');       // park / tree
+  static const IconData book = IconData(0xe865, fontFamily: 'MaterialIcons');       // menu_book / book
+  static const IconData map = IconData(0xe56c, fontFamily: 'MaterialIcons');        // map / map
+  static const IconData building = IconData(0xe8c1, fontFamily: 'MaterialIcons');   // account_balance / building
+  static const IconData link = IconData(0xe3bc, fontFamily: 'MaterialIcons');       // link / link
+  static const IconData lightning = IconData(0xe430, fontFamily: 'MaterialIcons');  // bolt / lightning
+  static const IconData globe = IconData(0xe55b, fontFamily: 'MaterialIcons');      // public / globe
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -45,7 +45,7 @@ class AchievementBadge {
     required this.id,
     required this.name,
     required this.description,
-    required this.iconCodePoint,
+    required this.icon,
     required this.isUnlocked,
     this.unlockedDate,
     required this.condition,
@@ -60,8 +60,8 @@ class AchievementBadge {
   /// Short description of the achievement.
   final String description;
 
-  /// Material Icon codepoint (see [BadgeIcons]).
-  final int iconCodePoint;
+  /// Icon for the badge.
+  final IconData icon;
 
   /// Whether the badge has been earned.
   final bool isUnlocked;
@@ -82,9 +82,6 @@ class AchievementBadge {
     return '${months[unlockedDate!.month - 1]} ${unlockedDate!.day}, ${unlockedDate!.year}';
   }
 
-  /// IconData from the codepoint.
-  IconData get icon => IconData(iconCodePoint, fontFamily: 'MaterialIcons');
-
   AchievementBadge copyWith({
     bool? isUnlocked,
     DateTime? unlockedDate,
@@ -93,7 +90,7 @@ class AchievementBadge {
       id: id,
       name: name,
       description: description,
-      iconCodePoint: iconCodePoint,
+      icon: icon,
       isUnlocked: isUnlocked ?? this.isUnlocked,
       unlockedDate: unlockedDate ?? this.unlockedDate,
       condition: condition,
@@ -287,7 +284,7 @@ class SuggestedStep {
     required this.id,
     required this.title,
     required this.description,
-    required this.iconCodePoint,
+    required this.icon,
     required this.accentColor,
     this.actionLabel,
     this.route,
@@ -296,12 +293,11 @@ class SuggestedStep {
   final String id;
   final String title;
   final String description;
-  final int iconCodePoint;
+  final IconData icon;
   final int accentColor;
   final String? actionLabel;
   final String? route;
 
-  IconData get icon => IconData(iconCodePoint, fontFamily: 'MaterialIcons');
   Color get color => Color(accentColor);
 }
 
@@ -430,7 +426,7 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
         id: 'first_steps',
         name: 'First Steps',
         description: 'You added your first family member — every great tree starts with a single branch!',
-        iconCodePoint: BadgeIcons.sprout,
+        icon: BadgeIcons.sprout,
         isUnlocked: true,
         unlockedDate: null, // Will be set below
         condition: 'Add first family member',
@@ -439,7 +435,7 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
         id: 'growing_family',
         name: 'Growing Family',
         description: '10 members and counting — your family tree is taking shape!',
-        iconCodePoint: BadgeIcons.leaf,
+        icon: BadgeIcons.leaf,
         isUnlocked: true,
         unlockedDate: null,
         condition: 'Add 10 members',
@@ -448,7 +444,7 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
         id: 'generation_mapper',
         name: 'Generation Mapper',
         description: '3 generations mapped — you\'re bridging the past and present!',
-        iconCodePoint: BadgeIcons.map,
+        icon: BadgeIcons.map,
         isUnlocked: true,
         unlockedDate: null,
         condition: 'Map 3 generations',
@@ -457,7 +453,7 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
         id: 'connector',
         name: 'Connector',
         description: '10 relationships created — you\'re the family glue!',
-        iconCodePoint: BadgeIcons.link,
+        icon: BadgeIcons.link,
         isUnlocked: true,
         unlockedDate: null,
         condition: 'Create 10 relationships',
@@ -468,7 +464,7 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
         id: 'deep_roots',
         name: 'Deep Roots',
         description: '25 members — your tree is becoming a forest!',
-        iconCodePoint: BadgeIcons.tree,
+        icon: BadgeIcons.tree,
         isUnlocked: false,
         condition: 'Add 25 members',
       ),
@@ -476,7 +472,7 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
         id: 'family_historian',
         name: 'Family Historian',
         description: '50 members — you\'re a true keeper of family heritage!',
-        iconCodePoint: BadgeIcons.book,
+        icon: BadgeIcons.book,
         isUnlocked: false,
         condition: 'Add 50 members',
       ),
@@ -484,7 +480,7 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
         id: 'ancient_roots',
         name: 'Ancient Roots',
         description: '5+ generations — reaching back through time itself!',
-        iconCodePoint: BadgeIcons.building,
+        icon: BadgeIcons.building,
         isUnlocked: false,
         condition: 'Map 5+ generations',
       ),
@@ -492,7 +488,7 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
         id: 'super_connector',
         name: 'Super Connector',
         description: '50 relationships — the ultimate family networker!',
-        iconCodePoint: BadgeIcons.lightning,
+        icon: BadgeIcons.lightning,
         isUnlocked: false,
         condition: 'Create 50 relationships',
       ),
@@ -500,7 +496,7 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
         id: 'linguist',
         name: 'Linguist',
         description: 'Kinship terms in 3 languages — a true multilingual!',
-        iconCodePoint: BadgeIcons.globe,
+        icon: BadgeIcons.globe,
         isUnlocked: false,
         condition: 'Use kinship terms in 3 languages',
       ),
@@ -562,7 +558,7 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
         id: 'add_parents',
         title: "Add Your Parents' Details",
         description: 'Filling in parent information unlocks the Deep Roots badge and brings your tree to 70%.',
-        iconCodePoint: 0xef3d, // family_restroom
+        icon: const IconData(0xef3d, fontFamily: 'MaterialIcons'), // family_restroom
         accentColor: 0xFFE8612A,
         actionLabel: 'Add Parents',
         route: '/families',
@@ -571,7 +567,7 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
         id: 'daily_checkin',
         title: 'Complete Today\'s Check-In',
         description: 'Keep your 7-day streak alive! Daily check-ins earn you bonus points toward the Super Connector badge.',
-        iconCodePoint: 0xe7ed, // check_circle
+        icon: const IconData(0xe7ed, fontFamily: 'MaterialIcons'), // check_circle
         accentColor: 0xFFF59240,
         actionLabel: 'Check In Now',
       ),
@@ -579,7 +575,7 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
         id: 'learn_languages',
         title: 'Explore Kinship in a New Language',
         description: 'You\'ve used Hindi and English — try Marathi or Bengali to unlock the Linguist badge!',
-        iconCodePoint: 0xe55b, // public
+        icon: const IconData(0xe55b, fontFamily: 'MaterialIcons'), // public
         accentColor: 0xFFD4AF37,
         actionLabel: 'Explore Terms',
         route: '/kinship-search',

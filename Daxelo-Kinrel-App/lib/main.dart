@@ -13,7 +13,7 @@ import 'core/storage/local_cache.dart';
 import 'core/theme/theme_provider.dart';
 
 // Generated localization imports (flutter gen-l10n)
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:kinrel/l10n/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -157,12 +157,12 @@ class _KinrelAppState extends ConsumerState<KinrelApp> with WidgetsBindingObserv
       routerConfig: router,
       // Localization — 15 languages
       localizationsDelegates: const [
-        AppLocalizations.delegate,
+        S.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: AppLocalizations.supportedLocales,
+      supportedLocales: S.supportedLocales,
       locale: null, // Follows system locale; can be overridden by user preference
       builder: (context, child) {
         // Update system UI overlay when theme changes

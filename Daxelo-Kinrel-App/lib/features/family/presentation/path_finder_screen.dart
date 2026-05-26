@@ -10,7 +10,6 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/kinship/kinship_models.dart';
-import '../../../core/kinship/kinship_service.dart';
 
 // ────────────────────────────────────────────────────────────────
 // Path Finder Screen — Relationship Path Finder (#1 Wow Feature)
@@ -1083,7 +1082,7 @@ class _HeroResultCard extends ConsumerWidget {
           ),
 
           // ── Cultural note ─────────────────────────────────────
-          if (culturalNote != null && culturalNote!.isNotEmpty) ...[
+          if (culturalNote != null && culturalNote.isNotEmpty) ...[
             const SizedBox(height: 16),
             Container(
               width: double.infinity,
@@ -1103,7 +1102,7 @@ class _HeroResultCard extends ConsumerWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      culturalNote!,
+                      culturalNote,
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,

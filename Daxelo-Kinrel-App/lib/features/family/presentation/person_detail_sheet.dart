@@ -63,8 +63,6 @@ class PersonDetailSheet extends ConsumerStatefulWidget {
 class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  int _selectedTab = 0;
-
   static const _tabLabels = ['Info', 'Relations', 'Timeline', 'Notes'];
 
   @override
@@ -76,7 +74,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
     );
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
-        setState(() => _selectedTab = _tabController.index);
+        setState(() {});
       }
     });
   }

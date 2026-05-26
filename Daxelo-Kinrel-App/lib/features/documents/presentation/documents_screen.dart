@@ -1384,7 +1384,7 @@ class _EmptyState extends StatelessWidget {
                   Positioned(
                     top: 20,
                     right: 22,
-                    Icon(
+                    child: Icon(
                       Icons.auto_awesome_rounded,
                       size: 20,
                       color: _cGold.withValues(alpha: 0.6),
@@ -1394,7 +1394,7 @@ class _EmptyState extends StatelessWidget {
                   Positioned(
                     bottom: 18,
                     left: 22,
-                    Icon(
+                    child: Icon(
                       Icons.description_rounded,
                       size: 18,
                       color: _cAmber.withValues(alpha: 0.5),

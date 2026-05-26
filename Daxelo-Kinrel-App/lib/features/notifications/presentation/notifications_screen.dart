@@ -582,9 +582,7 @@ class _NotificationItem extends StatelessWidget {
     }
 
     // System / engagement icon
-    final icon = notification.iconData != null
-        ? IconData(notification.iconData!, fontFamily: 'MaterialIcons')
-        : Icons.notifications;
+    final icon = notification.iconData ?? Icons.notifications;
 
     final iconColor = _categoryIconColor(notification.category);
     return Container(

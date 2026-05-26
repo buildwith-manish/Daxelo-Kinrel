@@ -31,6 +31,77 @@ enum MemoryEventType {
   custom,
 }
 
+extension MemoryEventTypeX on MemoryEventType {
+  Color get accentColor {
+    switch (this) {
+      case MemoryEventType.birth:
+        return KinrelColors.orange;
+      case MemoryEventType.death:
+        return KinrelColors.textSilver;
+      case MemoryEventType.marriage:
+        return KinrelColors.amber;
+      case MemoryEventType.anniversary:
+        return KinrelColors.gold;
+      case MemoryEventType.graduation:
+        return KinrelColors.info;
+      case MemoryEventType.achievement:
+        return KinrelColors.brightGold;
+      case MemoryEventType.migration:
+        return KinrelColors.success;
+      case MemoryEventType.festival:
+        return KinrelColors.orange;
+      case MemoryEventType.custom:
+        return KinrelColors.textDim;
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case MemoryEventType.birth:
+        return Icons.child_care_rounded;
+      case MemoryEventType.death:
+        return Icons.auto_awesome_rounded;
+      case MemoryEventType.marriage:
+        return Icons.favorite_rounded;
+      case MemoryEventType.anniversary:
+        return Icons.celebration_rounded;
+      case MemoryEventType.graduation:
+        return Icons.school_rounded;
+      case MemoryEventType.achievement:
+        return Icons.emoji_events_rounded;
+      case MemoryEventType.migration:
+        return Icons.flight_takeoff_rounded;
+      case MemoryEventType.festival:
+        return Icons.festival_rounded;
+      case MemoryEventType.custom:
+        return Icons.bookmark_rounded;
+    }
+  }
+
+  String get typeLabel {
+    switch (this) {
+      case MemoryEventType.birth:
+        return 'BIRTH';
+      case MemoryEventType.death:
+        return 'MEMORIAL';
+      case MemoryEventType.marriage:
+        return 'MARRIAGE';
+      case MemoryEventType.anniversary:
+        return 'ANNIVERSARY';
+      case MemoryEventType.graduation:
+        return 'GRADUATION';
+      case MemoryEventType.achievement:
+        return 'ACHIEVEMENT';
+      case MemoryEventType.migration:
+        return 'MIGRATION';
+      case MemoryEventType.festival:
+        return 'FESTIVAL';
+      case MemoryEventType.custom:
+        return 'CUSTOM';
+    }
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Related Member (avatar row in event cards)
 // ═══════════════════════════════════════════════════════════════════════

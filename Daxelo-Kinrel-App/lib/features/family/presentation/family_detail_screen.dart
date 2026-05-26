@@ -189,7 +189,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
   }
 
   void _shareFamily(BuildContext context) {
-    context.push('/family/$familyId/share');
+    context.push('/family/${widget.familyId}/share');
   }
 }
 

@@ -34,9 +34,6 @@ class MemoriesScreen extends ConsumerStatefulWidget {
 class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
     with TickerProviderStateMixin {
   late AnimationController _fabController;
-  bool _showYearDropdown = false;
-  bool _showTypeDropdown = false;
-  bool _showMemberDropdown = false;
 
   @override
   void initState() {

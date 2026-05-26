@@ -18,7 +18,6 @@ const Color _bg = Color(0xFF131416);
 const Color _cardBg = Color(0xFF191B2C);
 const Color _orange = Color(0xFFE8612A);
 const Color _textPrimary = Color(0xFFF5F0EE);
-const Color _textSecondary = Color(0xFFC9B4A8);
 const Color _textDim = Color(0xFF8A7A72);
 const Color _chevronColor = Color(0xFF8A7A72);
 const Color _borderSubtle = Color(0x0FFFFFFF); // rgba(255,255,255,0.06)

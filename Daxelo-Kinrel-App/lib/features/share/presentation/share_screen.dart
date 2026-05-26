@@ -95,7 +95,7 @@ class _ShareScreenState extends ConsumerState<ShareScreen>
 
   @override
   Widget build(BuildContext context) {
-    final shareState = ref.watch(shareProvider(
+    ref.watch(shareProvider(
       (familyId: widget.familyId, familyName: widget.familyName),
     ));
 
@@ -2438,8 +2438,8 @@ class _ShareGraphTab extends ConsumerWidget {
                     color: _cOrange.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(KinrelRadius.sm),
                   ),
-                  child: const Icon(
-                    Icons.watermark_rounded,
+                  child: Icon(
+                    Icons.branding_watermark,
                     color: _cOrange,
                     size: 18,
                   ),

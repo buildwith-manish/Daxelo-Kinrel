@@ -11,10 +11,7 @@
 // Orange K-Graph DNA: Link=orange, QR=amber, WhatsApp=green,
 //   SMS=blue, Email=orange, Copy=white.
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../../core/constants/brand_colors.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Invite Method Enum

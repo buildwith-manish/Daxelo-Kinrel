@@ -636,7 +636,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(KinrelRadius.xl),
-                      borderSide: BorderSide.all(
+                      borderSide: BorderSide(
                         color: KinrelColors.orange.withValues(alpha: 0.3),
                         width: 1,
                       ),

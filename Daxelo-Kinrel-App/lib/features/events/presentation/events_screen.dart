@@ -1012,7 +1012,7 @@ class _EmptyState extends StatelessWidget {
                   Positioned(
                     top: 20,
                     right: 22,
-                    Icon(
+                    child: Icon(
                       Icons.auto_awesome_rounded,
                       size: 20,
                       color: _cGold.withValues(alpha: 0.6),
@@ -1022,7 +1022,7 @@ class _EmptyState extends StatelessWidget {
                   Positioned(
                     bottom: 22,
                     left: 22,
-                    Icon(
+                    child: Icon(
                       Icons.favorite_rounded,
                       size: 16,
                       color: _cAmber.withValues(alpha: 0.5),
@@ -2338,7 +2338,7 @@ class _SendWishesSheet extends StatelessWidget {
     final options = <String>[];
     switch (event.type) {
       case EventType.birthday:
-        final name = event.members.firstOrNull?.name?.split(' ').firstOrNull ?? 'dear';
+        final name = event.members.firstOrNull?.name.split(' ').firstOrNull ?? 'dear';
         options.addAll([
           'Happy Birthday, $name! 🎂 Wishing you an amazing year ahead!',
           'Wishing you a wonderful birthday filled with joy and laughter! 🎉',

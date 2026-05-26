@@ -29,8 +29,6 @@ import '../../../shared/widgets/dk_components.dart';
 
 // ── Color shortcuts for the Command Center ──────────────────────
 const _cOrange = KinrelColors.orange;       // #E8612A
-const _cAmber = KinrelColors.amber;         // #F59240
-const _cEmber = KinrelColors.ember;         // #C44A18
 const _cBg = KinrelColors.darkBackground;   // #131416
 const _cCard = KinrelColors.darkCard;       // #191B2C
 const _cElevated = KinrelColors.darkElevated; // #202338
@@ -853,7 +851,7 @@ class _HeroFamilyCard extends StatelessWidget {
                         Spacer(),
 
                         // View Full Graph button (Ignite gradient, white text, 12px radius, 48px height)
-                        _buildViewGraphButton(family),
+                        _buildViewGraphButton(context, family),
                       ],
                     ),
                   ),
@@ -866,7 +864,7 @@ class _HeroFamilyCard extends StatelessWidget {
     );
   }
 
-  Widget _buildViewGraphButton(Family family) {
+  Widget _buildViewGraphButton(BuildContext context, Family family) {
     return GestureDetector(
       onTap: () => context.push('/family/${family.id}'),
       child: Container(
