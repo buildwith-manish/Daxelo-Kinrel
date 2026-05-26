@@ -77,7 +77,7 @@ class _Edge {
 }
 
 /// Inverse relationship type mapping
-Map<String, String> inverseTypeMap = {
+const Map<String, String> inverseTypeMap = {
   'father': 'child',
   'mother': 'child',
   'child': 'parent',

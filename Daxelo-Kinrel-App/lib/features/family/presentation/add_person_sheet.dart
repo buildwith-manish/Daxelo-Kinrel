@@ -10,7 +10,7 @@ import '../../../core/family/family_provider.dart';
 import 'relationship_picker_sheet.dart';
 
 class AddPersonSheet extends ConsumerStatefulWidget {
-  AddPersonSheet({
+  const AddPersonSheet({
     super.key,
     required this.familyId,
     this.existingPerson,
@@ -100,7 +100,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.dark(
+            colorScheme: const ColorScheme.dark(
               primary: KinrelColors.purple,
               surface: KinrelColors.darkElevated,
             ),
@@ -227,11 +227,11 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                   ),
                 ),
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
 
               // Title
               Text(
-                _isEditMode ? 'Edit Person' : 'Add Family Member',
+                _isEditconst Mode ? 'Edit Person' : 'Add Family Member',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 20,
@@ -241,13 +241,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               ),
               const SizedBox(height: 24),
 
-              // Name
+              const // Name
               _Label('Name *'),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _nameController,
                 validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Name is required' : null,
+                    v =const = null || v.trim().isEmpty ? 'Name is required' : null,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
@@ -257,13 +257,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               ),
               const SizedBox(height: 16),
 
-              // Relationship Type
+              const // Relationship Type
               _Label('Relationship Type'),
               const SizedBox(height: 6),
               GestureDetector(
                 onTap: _pickRelationship,
                 child: Container(
-                  padding: EdgeInsets.symmetric(
+                  padding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 12,
                   ),
@@ -288,7 +288,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                                 : KinrelColors.textDim,
                           ),
                         ),
-                      ),
+                      const ),
                       Icon(Icons.search, color: KinrelColors.purple, size: 20),
                     ],
                   ),
@@ -296,9 +296,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               ),
               const SizedBox(height: 16),
 
-              // Gender
+              const // Gender
               _Label('Gender'),
-              SizedBox(height: 6),
+              const SizedBox(height: 6),
               Row(
                 children: [
                   _GenderChip(
@@ -306,13 +306,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                     selected: _selectedGender == 'male',
                     onTap: () => setState(() => _selectedGender = 'male'),
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   _GenderChip(
                     label: 'Female',
                     selected: _selectedGender == 'female',
                     onTap: () => setState(() => _selectedGender = 'female'),
                   ),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   _GenderChip(
                     label: 'Other',
                     selected: _selectedGender == 'other',
@@ -322,20 +322,20 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               ),
               const SizedBox(height: 16),
 
-              // Date of Birth
+              const // Date of Birth
               _Label('Date of Birth'),
-              SizedBox(height: 6),
+              const SizedBox(height: 6),
               GestureDetector(
                 onTap: _pickDate,
                 child: AbsorbPointer(
                   child: TextFormField(
-                    controller: _dobController,
+                    controlconst ler: _dobController,
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 15,
                       color: KinrelColors.textWhite,
                     ),
-                    decoration: _inputDecoration('YYYY-MM-DD').copyWith(
+                    decoration: _iconst nputDecoration('YYYY-MM-DD').copyWith(
                       suffixIcon: Icon(
                         Icons.calendar_today,
                         color: KinrelColors.textDim,
@@ -347,11 +347,11 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               ),
               const SizedBox(height: 16),
 
-              // City/Village
+              const // City/Village
               _Label('City / Village'),
-              SizedBox(height: 6),
+              const SizedBox(height: 6),
               TextFormField(
-                controller: _cityController,
+                controlconst ler: _cityController,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
@@ -361,11 +361,11 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
               ),
               const SizedBox(height: 16),
 
-              // Gotra
+              const // Gotra
               _Label('Gotra'),
-              SizedBox(height: 6),
+              const SizedBox(height: 6),
               TextFormField(
-                controller: _gotraController,
+                controlconst ler: _gotraController,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 15,
@@ -377,9 +377,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
 
               // Alive / Deceased toggle
               Row(
-                children: [
-                  Expanded(child: Text(
-                      'Deceased',
+                chconst ildren: [
+                  Expanded(const 
+                    child: Text(
+                      'Deceasconst ed',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 15,
@@ -411,7 +412,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                   ),
                 ),
                 child: _isSubmitting
-                    ? SizedBox(
+                    ? const SizedBox(
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(
@@ -420,7 +421,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                         ),
                       )
                     : Text(
-                        _isEditMode ? 'Save Changes' : 'Add Member',
+                        _isEditconst Mode ? 'Save Changes' : 'Add Member',
                         style: TextStyle(
                           fontFamily: KinrelTypography.displayFont,
                           fontSize: 16,
@@ -437,7 +438,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
 
   InputDecoration _inputDecoration(String hint) {
     return InputDecoration(
-      hintText: hint,
+      hintText: hconst int,
       hintStyle: TextStyle(color: KinrelColors.textDim),
       filled: true,
       fillColor: KinrelColors.darkElevated,
@@ -471,7 +472,7 @@ class _Label extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
+    return Teconst xt(
       text,
       style: TextStyle(
         fontFamily: KinrelTypography.bodyFont,

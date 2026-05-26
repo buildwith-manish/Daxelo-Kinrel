@@ -80,19 +80,19 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/splash',
-        builder: (context, state) => SplashScreen(),
+        builder: (context, state) => const SplashScreen(),
       ),
       GoRoute(
         path: '/onboarding',
-        builder: (context, state) => OnboardingScreen(),
+        builder: (context, state) => const OnboardingScreen(),
       ),
       GoRoute(
         path: '/sign-in',
-        builder: (context, state) => SignInScreen(),
+        builder: (context, state) => const SignInScreen(),
       ),
       GoRoute(
         path: '/sign-up',
-        builder: (context, state) => SignUpScreen(),
+        builder: (context, state) => const SignUpScreen(),
       ),
       // ── Shell routes (show bottom navigation) ───────────────────
       ShellRoute(
@@ -101,34 +101,34 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: '/home',
-            builder: (context, state) => HomeScreen(),
+            builder: (context, state) => const HomeScreen(),
           ),
           GoRoute(
             path: '/kinship-search',
-            builder: (context, state) => KinshipSearchScreen(),
+            builder: (context, state) => const KinshipSearchScreen(),
           ),
           GoRoute(
             path: '/families',
-            builder: (context, state) => FamilyListScreen(),
+            builder: (context, state) => const FamilyListScreen(),
           ),
           GoRoute(
             path: '/explore',
-            builder: (context, state) => ExploreScreen(),
+            builder: (context, state) => const ExploreScreen(),
           ),
           GoRoute(
             path: '/profile',
-            builder: (context, state) => ProfileScreen(),
+            builder: (context, state) => const ProfileScreen(),
           ),
           // Keep /settings in shell for backward compat
           GoRoute(
             path: '/settings',
-            builder: (context, state) => SettingsScreen(),
+            builder: (context, state) => const SettingsScreen(),
           ),
         ],
       ),
       GoRoute(
         path: '/families/create',
-        builder: (context, state) => CreateFamilyScreen(),
+        builder: (context, state) => const CreateFamilyScreen(),
       ),
       GoRoute(
         path: '/family/:id',
@@ -165,15 +165,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── AI-Powered Features ─────────────────────────────────────
       GoRoute(
         path: '/ai-chat',
-        builder: (context, state) => AiChatScreen(),
+        builder: (context, state) => const AiChatScreen(),
       ),
       GoRoute(
         path: '/voice-search',
-        builder: (context, state) => VoiceSearchScreen(),
+        builder: (context, state) => const VoiceSearchScreen(),
       ),
       GoRoute(
         path: '/festival-cards',
-        builder: (context, state) => FestivalCardsScreen(),
+        builder: (context, state) => const FestivalCardsScreen(),
       ),
 
       // ── Kinship Dictionary ──────────────────────────────────────
@@ -187,7 +187,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Growth & Engagement ─────────────────────────────────────
       GoRoute(
         path: '/quiz',
-        builder: (context, state) => QuizScreen(),
+        builder: (context, state) => const QuizScreen(),
       ),
       GoRoute(
         path: '/referral',
@@ -199,7 +199,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
 /// Full-screen wrapper for AddPersonSheet
 class _AddPersonScreen extends ConsumerWidget {
-  _AddPersonScreen({required this.familyId});
+  const _AddPersonScreen({required this.familyId});
 
   final String familyId;
 
@@ -207,9 +207,9 @@ class _AddPersonScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: Aconst ppBar(
         title: Text(
-          'Add Family Member',
+          'Add Faconst mily Member',
           style: TextStyle(
             fontFamily: 'Outfit',
             fontWeight: FontWeight.w600,
@@ -328,7 +328,7 @@ class MainShell extends StatelessWidget {
 class _BottomNav extends StatelessWidget {
   const _BottomNav();
 
-  static _items = [
+  static const _items = [
     DKNavItem(
       icon: Icons.home_outlined,
       activeIcon: Icons.home_rounded,

@@ -25,7 +25,7 @@ class ProfileScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(KinrelSpacing.base),
         child: Column(
           children: [
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
 
             // Profile header with gold-bordered avatar
             DKAvatar(
@@ -46,7 +46,7 @@ class ProfileScreen extends ConsumerWidget {
                   curve: Curves.easeOutBack,
                 ),
 
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // Name
             Text(
@@ -61,7 +61,7 @@ class ProfileScreen extends ConsumerWidget {
               ),
             ),
 
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
 
             // Email
             Text(
@@ -73,7 +73,7 @@ class ProfileScreen extends ConsumerWidget {
               ),
             ),
 
-            SizedBox(height: 32),
+            const SizedBox(height: 32),
 
             // Menu items as cards
             _MenuCard(
@@ -84,7 +84,7 @@ class ProfileScreen extends ConsumerWidget {
               onTap: () {},
               index: 0,
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             _MenuCard(
               icon: Icons.language,
               label: 'Language',
@@ -93,7 +93,7 @@ class ProfileScreen extends ConsumerWidget {
               onTap: () {},
               index: 1,
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             _MenuCard(
               icon: isDark ? Icons.dark_mode : Icons.light_mode,
               label: 'Theme',
@@ -114,7 +114,7 @@ class ProfileScreen extends ConsumerWidget {
               },
               index: 2,
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             _MenuCard(
               icon: Icons.notifications,
               label: 'Notifications',
@@ -123,7 +123,7 @@ class ProfileScreen extends ConsumerWidget {
               onTap: () {},
               index: 3,
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             _MenuCard(
               icon: Icons.privacy_tip,
               label: 'Privacy',
@@ -132,7 +132,7 @@ class ProfileScreen extends ConsumerWidget {
               onTap: () {},
               index: 4,
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             _MenuCard(
               icon: Icons.help,
               label: 'Help & Support',
@@ -141,7 +141,7 @@ class ProfileScreen extends ConsumerWidget {
               onTap: () {},
               index: 5,
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             _MenuCard(
               icon: Icons.info,
               label: 'About',
@@ -151,7 +151,7 @@ class ProfileScreen extends ConsumerWidget {
               index: 6,
             ),
 
-            SizedBox(height: 32),
+            const SizedBox(height: 32),
 
             // Sign Out button (gradient: red→purple)
             DKButton(
@@ -175,7 +175,7 @@ class ProfileScreen extends ConsumerWidget {
                 .animate(onPlay: (c) => c.forward())
                 .fadeIn(duration: 500.ms, delay: 400.ms),
 
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
 
             // Footer
             Text(

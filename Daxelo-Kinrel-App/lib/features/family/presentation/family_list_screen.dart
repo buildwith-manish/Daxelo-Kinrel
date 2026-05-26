@@ -10,7 +10,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
 
 class FamilyListScreen extends ConsumerStatefulWidget {
-  FamilyListScreen({super.key});
+  const FamilyListScreen({super.key});
 
   @override
   ConsumerState<FamilyListScreen> createState() => _FamilyListScreenState();
@@ -44,7 +44,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
                   onJoin: () => _showJoinFamilyDialog(context),
                 ),
               ),
-              SliverToBoxAdapter(child: SizedBox(height: 20)),
+              const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
               // Family cards or empty state
               if (families.isEmpty)
@@ -67,7 +67,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
                       (context, index) {
                         final family = families[index];
                         return Padding(
-                          padding: EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.only(bottom: 12),
                           child: _FamilyCard(
                             family: family,
                             index: index,
@@ -81,7 +81,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
                   ),
                 ),
 
-              SliverToBoxAdapter(child: SizedBox(height: 100)),
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           );
         },
@@ -158,7 +158,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
               child: const Icon(Icons.link_rounded,
                   color: DKColors.brandPurple, size: 20),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Text(
               'Join Family',
               style: TextStyle(
@@ -179,7 +179,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
                 height: 1.5,
               ),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             TextField(
               controller: codeController,
               style: TextStyle(
@@ -217,7 +217,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
             onPressed: () {
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Join family coming soon!')),
+                const SnackBar(content: Text('Join family coming soon!')),
               );
             },
           ),
@@ -237,7 +237,7 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: KinrelSpacing.base,
         vertical: KinrelSpacing.md,
       ),
@@ -254,13 +254,13 @@ class _Header extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: DKColors.brandPurple.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              '$familyCount',
+              '$familconst yCount',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 13,
@@ -304,7 +304,7 @@ class _JoinFamilyCard extends StatelessWidget {
               child: Icon(Icons.mail_outline_rounded,
                   color: DKColors.brandGold, size: 20),
             ),
-            SizedBox(width: 14),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -318,7 +318,7 @@ class _JoinFamilyCard extends StatelessWidget {
                       color: DKColors.textPrimary(context),
                     ),
                   ),
-                  SizedBox(height: 2),
+                  const SizedBox(height: 2),
                   Text(
                     'Enter a family code to join an existing family',
                     style: TextStyle(
@@ -328,7 +328,7 @@ class _JoinFamilyCard extends StatelessWidget {
                     ),
                   ),
                 ],
-            ),
+            const   ),
             ),
             Icon(Icons.arrow_forward_ios_rounded,
                 size: 16, color: DKColors.brandGold),
@@ -344,7 +344,7 @@ class _JoinFamilyCard extends StatelessWidget {
 // ── Family Card ──────────────────────────────────────────────────
 
 class _FamilyCard extends ConsumerWidget {
-  _FamilyCard({
+  const _FamilyCard({
     required this.family,
     required this.index,
     required this.onTap,
@@ -410,7 +410,7 @@ class _FamilyCard extends ConsumerWidget {
                     color: DKColors.textSecondary(context).withValues(alpha: 0.7),
                   ),
                 ),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 Row(
                   children: [
                     // Member count

@@ -15,7 +15,7 @@ enum SupportedLanguage {
   sanskrit('sa', 'Sanskrit', 'संस्कृतम्', 'Devanagari', false),
   english('en', 'English', 'English', 'Latin', false);
 
-  SupportedLanguage(
+  const SupportedLanguage(
     this.code,
     this.name,
     this.nativeName,

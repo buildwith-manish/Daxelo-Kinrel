@@ -49,25 +49,26 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
     return DKScaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
-        title: detailAsync.when(
+        title: detailAsynconst c.when(
           loading: () => Text(
-            'FamilyTree',
+            'Familyconst  Tree',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontWeight: FontWeight.w600,
             ),
-          ),error: (_, __) => Text(
-            'FamilyTree',
+          ),const 
+          error: (_, __) => Text(
+            'Familyconst  Tree',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontWeight: FontWeight.w600,
             ),
           ),
           data: (detail) => Text(
-            detail?.family.name ?? 'Family Tree',
+            detail?const .family.name ?? 'Family Tree',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontWeight: FontWeight.w600,
@@ -76,12 +77,12 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.share_outlined),
+            icon: const Icon(Icons.share_outlined),
             tooltip: 'Share Family',
             onPressed: () => _shareFamily(context),
           ),
           IconButton(
-            icon: Icon(Icons.settings_outlined),
+            icon: const Icon(Icons.settings_outlined),
             tooltip: 'Settings',
             onPressed: () {},
           ),
@@ -91,17 +92,18 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           labelColor: primaryColor,
           unselectedLabelColor: DKColors.textSecondary(context),
           indicatorColor: primaryColor,
-          indicatorSize: TabBarIndicatorSize.label,
+          indicatorSizconst e: TabBarIndicatorSize.label,
           labelStyle: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             fontWeight: FontWeight.w600,
-          ),const unselectedLabelStyle: TextStyle(
+          ),const 
+          unselectedLabelStyle: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
-          tabs: [
+          tabs: const [
             Tab(text: 'Graph'),
             Tab(text: 'Members'),
             Tab(text: 'Activity'),
@@ -167,7 +169,8 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: List.generate(
-            3,const (_) => Padding(
+            3,const 
+            (_) => Padding(
               paddingconst : const EdgeInsets.symmetric(horizontal: 8),
               child: DKLoadingShimmer(width: 100, height: 40, radius: 12),
             ),
@@ -176,7 +179,8 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         const SizedBox(height: 24),
         // Member cards shimmer
         ...List.generate(
-          4,const (_) => Padding(
+          4,const 
+          (_) => Padding(
             paddingconst : const EdgeInsets.only(bottom: 10),
             child: DKLoadingShimmer(
                 width: double.infinity, height: 64, radius: KinrelRadius.card),
@@ -188,7 +192,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
 
   void _shareFamily(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      const SnackBar(
         content: Text('Family sharing coming soon!'),
         behavior: SnackBarBehavior.floating,
       ),
@@ -199,7 +203,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
 // ── Graph Tab ──────────────────────────────────────────────────────
 
 class _GraphTab extends ConsumerWidget {
-  _GraphTab({required this.detail, required this.familyId});
+  const _GraphTab({required this.detail, required this.familyId});
 
   final FamilyDetail detail;
   final String familyId;
@@ -265,7 +269,7 @@ class _GraphTab extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: EdgeInsets.all(KinrelSpacing.base),
+              padding: const EdgeInsets.all(KinrelSpacing.base),
               child: Row(
                 children: [
                   DKAvatar(
@@ -274,7 +278,7 @@ class _GraphTab extends ConsumerWidget {
                         : '?',
                     size: DKAvatarSize.md,
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       person.name,
@@ -371,7 +375,7 @@ class _GraphTab extends ConsumerWidget {
 // ── Members Tab ────────────────────────────────────────────────────
 
 class _MembersTab extends ConsumerStatefulWidget {
-  _MembersTab({required this.detail, required this.familyId});
+  const _MembersTab({required this.detail, required this.familyId});
 
   final FamilyDetail detail;
   final String familyId;
@@ -417,7 +421,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
       children: [
         // Search + sort bar
         Padding(
-          padding: EdgeInsets.all(KinrelSpacing.base),
+          padding: const EdgeInsets.all(KinrelSpacing.base),
           child: Row(
             children: [
               Expanded(
@@ -427,7 +431,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                   onChanged: (v) => setState(() => _searchQuery = v),
                 ),
               ),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Container(
                 decoration: BoxDecoration(
                   color: DKColors.elevatedColor(context),
@@ -448,7 +452,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                               color: _sortBy == 'name'
                                   ? DKColors.brandPurple
                                   : DKColors.textSecondary(context)),
-                          SizedBox(width: 8),
+                          const SizedBox(width: 8),
                           Text(
                             'Sort by Name',
                             style: TextStyle(
@@ -470,7 +474,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                               color: _sortBy == 'generation'
                                   ? DKColors.brandPurple
                                   : DKColors.textSecondary(context)),
-                          SizedBox(width: 8),
+                          const SizedBox(width: 8),
                           Text(
                             'Sort by Relationship',
                             style: TextStyle(
@@ -492,7 +496,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
 
         // Stats row
         Padding(
-          padding: EdgeInsets.symmetric(
+          padding: const EdgeInsets.symmetric(
             horizontal: KinrelSpacing.base,
           ),
           child: Row(
@@ -503,7 +507,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                 label: filtered.length == 1 ? 'member' : 'members',
                 color: DKColors.brandPurple,
               ),
-              SizedBox(width: 10),
+              const SizedBox(width: 10),
               DKStatChip(
                 icon: Icons.link,
                 value: '${widget.detail.relationships.length}',
@@ -513,7 +517,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
             ],
           ),
         ),
-        SizedBox(height: 8),
+        const SizedBox(height: 8),
 
         // Member list
         Expanded(
@@ -562,7 +566,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
 // ── Activity Tab ───────────────────────────────────────────────────
 
 class _ActivityTab extends StatelessWidget {
-  _ActivityTab({required this.detail, required this.familyId});
+  const _ActivityTab({required this.detail, required this.familyId});
 
   final FamilyDetail detail;
   final String familyId;
@@ -600,7 +604,7 @@ class _ActivityTab extends StatelessWidget {
       if (a.timestamp == null && b.timestamp == null) return 0;
       if (a.timestamp == null) return 1;
       if (b.timestamp == null) return -1;
-      return b.timestamp!.compareTo(a.timestamp!);
+      return const b.timestamp!.compareTo(a.timestamp!);
     });
 
     if (activities.isEmpty) {
@@ -643,7 +647,7 @@ class _BottomActionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: EdgeInsets.all(KinrelSpacing.base),
+      margin: const EdgeInsets.all(KinrelSpacing.base),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -656,7 +660,7 @@ class _BottomActionBar extends StatelessWidget {
             onPressed: () =>
                 AddPersonSheet.show(context, familyId: familyId),
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           // Share
           DKButton(
             label: 'Share',
@@ -665,14 +669,14 @@ class _BottomActionBar extends StatelessWidget {
             size: DKButtonSize.sm,
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
+                const SnackBar(
                   content: Text('Family sharing coming soon!'),
                   behavior: SnackBarBehavior.floating,
                 ),
               );
             },
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           // Path Finder
           DKButton(
             label: 'Path',
@@ -770,7 +774,7 @@ class _QuickActionTile extends StatelessWidget {
 }
 
 class _MemberCard extends StatelessWidget {
-  _MemberCard({
+  const _MemberCard({
     required this.person,
     required this.familyId,
     required this.relationships,
@@ -825,7 +829,7 @@ class _MemberCard extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: person.isDeceased
-                        ? DKColors.textSecondary(context)
+                        ? Dconst KColors.textSecondary(context)
                         : DKColors.textPrimary(context),
                   ),
                 ),
@@ -842,7 +846,7 @@ class _MemberCard extends StatelessWidget {
                   ),
                 ],
                 if (personRels.isNotEmpty) ...[
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Wrap(
                     spacing: 4,
                     runSpacing: 2,
@@ -961,7 +965,7 @@ class _ActivityTile extends StatelessWidget {
                   ),
                 ),
                 if (timeAgo != null) ...[
-                  SizedBox(height: 2),
+                  const SizedBox(height: 2),
                   Text(
                     timeAgo,
                     style: TextStyle(

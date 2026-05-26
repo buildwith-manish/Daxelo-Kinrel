@@ -109,7 +109,7 @@ class KinrelLogo extends StatelessWidget {
   Color get _subtitleColor => switch (palette) {
         KinrelIconPalette.purple => KinrelColors.textSecondary,
         KinrelIconPalette.light => const Color(0xFF7A5040),
-        KinrelIconPalette.mono => Color(0xFF6B7280),
+        KinrelIconPalette.mono => const Color(0xFF6B7280),
         KinrelIconPalette.outline => KinrelColors.textSecondary,
       };
 

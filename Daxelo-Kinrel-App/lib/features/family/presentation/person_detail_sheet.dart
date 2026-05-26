@@ -71,14 +71,14 @@ class PersonDetailSheet extends ConsumerWidget {
               ),
             ),
           ),
-          SizedBox(height: 24),
+          const SizedBox(height: 24),
 
           // Avatar with gradient
           Container(
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              gradient: person.isDeceased
+              gradieconst nt: person.isDeceased
                   ? LinearGradient(
                       colors: [
                         KinrelColors.textDim,
@@ -90,7 +90,7 @@ class PersonDetailSheet extends ConsumerWidget {
             ),
             child: Center(
               child: Text(
-                person.name.isNotEmpty ? person.name[0].toUpperCase() : '?',
+                person.const name.isNotEmpty ? person.name[0].toUpperCase() : '?',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 28,
@@ -119,7 +119,7 @@ class PersonDetailSheet extends ConsumerWidget {
           // Gender
           if (person.gender != null) ...[
             Text(
-              person.gender!.toUpperCase(),
+              person.const gender!.toUpperCase(),
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
@@ -130,7 +130,7 @@ class PersonDetailSheet extends ConsumerWidget {
             if (nativeTranslation != null) ...[
               const SizedBox(height: 2),
               Text(
-                nativeTranslation,
+                nativeTconst ranslation,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
@@ -139,7 +139,7 @@ class PersonDetailSheet extends ConsumerWidget {
               ),
             ],
           ],
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
 
           // Detail rows
           if (person.dateOfBirth != null && person.dateOfBirth!.isNotEmpty)
@@ -192,7 +192,7 @@ class PersonDetailSheet extends ConsumerWidget {
                     );
                   },
                   icon: const Icon(Icons.edit, size: 18),
-                  label: Text('Edit'),
+                  label: const Text('Edit'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: KinrelColors.purple,
                     side: const BorderSide(color: KinrelColors.purple),
@@ -210,11 +210,11 @@ class PersonDetailSheet extends ConsumerWidget {
                 child: OutlinedButton.icon(
                   onPressed: () => _confirmDelete(context, ref),
                   icon: const Icon(Icons.delete_outline, size: 18),
-                  label: Text('Delete'),
+                  label: const Text('Delete'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: KinrelColors.error,
+                    foregrconst oundColor: KinrelColors.error,
                     side: BorderSide(color: KinrelColors.error),
-                    padding: EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius:
                           BorderRadius.circular(KinrelSpacing.radiusSm),
@@ -240,13 +240,14 @@ class PersonDetailSheet extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: KinrelColors.darkElevated,
         title: Text(
-          'Delete ${person.name}?',
+          'Deleteconst  ${person.name}?',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             color: KinrelColors.textWhite,
           ),
-        ),content: Text(
-          'This person will be removed from the family tree. This action cannot be undone.',
+        ),const 
+        content: Text(
+          'This pconst erson will be removed from the family tree. This action cannot be undone.',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             color: KinrelColors.textSilver,
@@ -254,9 +255,9 @@ class PersonDetailSheet extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressconst ed: () => Navigator.of(ctx).pop(),
             child: Text(
-              'Cancel',
+              'Cancelconst ',
               style: TextStyle(color: KinrelColors.textSilver),
             ),
           ),
@@ -283,7 +284,8 @@ class PersonDetailSheet extends ConsumerWidget {
                   );
                 }
               }
-            },child: Text(
+            },const 
+            child: Text(
               'Deleteconst ',
               style: TextStyle(color: KinrelColors.error),
             ),
@@ -320,7 +322,8 @@ class _DetailRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(const label,
+                Text(const 
+                  label,
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11,

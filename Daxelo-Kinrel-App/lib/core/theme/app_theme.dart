@@ -40,37 +40,6 @@ import '../constants/brand_spacing.dart';
 @immutable
 class KinrelThemeExtension extends ThemeExtension<KinrelThemeExtension> {
   const KinrelThemeExtension({
-    // Legacy
-    required this.brandOrange,
-    required this.brandAmber,
-    required this.brandEmber,
-    required this.brandGlow,
-    // New
-    required this.brandPurple,
-    required this.brandDeepPurple,
-    required this.brandGold,
-    required this.brandViolet,
-    required this.brandCoral,
-    required this.brandPurpleGlow,
-    required this.brandGoldGlow,
-    // Text
-    required this.brandTextPrimary,
-    required this.brandTextSecondary,
-    required this.brandTextDim,
-    // Surface
-    required this.brandCardBg,
-    required this.brandElevatedBg,
-    required this.brandBorder,
-    required this.brandBackground,
-    // Gradients
-    required this.brandIgniteGradient,
-    required this.brandHeritageGradient,
-    required this.brandWordmarkGradient,
-    // Radii
-    required this.brandCardRadius,
-    required this.brandButtonRadius,
-    required this.brandInputRadius,
-  });
 
   // ── Legacy orange aliases (backward compat) ────────────────────
   final Color brandOrange;
@@ -107,6 +76,38 @@ class KinrelThemeExtension extends ThemeExtension<KinrelThemeExtension> {
   final double brandCardRadius;
   final double brandButtonRadius;
   final double brandInputRadius;
+
+    // Legacy
+    required this.brandOrange,
+    required this.brandAmber,
+    required this.brandEmber,
+    required this.brandGlow,
+    // New
+    required this.brandPurple,
+    required this.brandDeepPurple,
+    required this.brandGold,
+    required this.brandViolet,
+    required this.brandCoral,
+    required this.brandPurpleGlow,
+    required this.brandGoldGlow,
+    // Text
+    required this.brandTextPrimary,
+    required this.brandTextSecondary,
+    required this.brandTextDim,
+    // Surface
+    required this.brandCardBg,
+    required this.brandElevatedBg,
+    required this.brandBorder,
+    required this.brandBackground,
+    // Gradients
+    required this.brandIgniteGradient,
+    required this.brandHeritageGradient,
+    required this.brandWordmarkGradient,
+    // Radii
+    required this.brandCardRadius,
+    required this.brandButtonRadius,
+    required this.brandInputRadius,
+  });
 
   @override
   KinrelThemeExtension copyWith({

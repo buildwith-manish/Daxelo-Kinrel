@@ -5,7 +5,7 @@ import '../../../core/config/env_config.dart';
 // ── Models ──────────────────────────────────────────────────────────
 
 class ChatMessage {
-  ChatMessage({
+  const ChatMessage({
     required this.content,
     required this.isUser,
     required this.timestamp,
@@ -61,7 +61,7 @@ class KinshipCardData {
 }
 
 class TranslationEntry {
-  TranslationEntry({required this.native, required this.latin});
+  const TranslationEntry({required this.native, required this.latin});
 
   final String native;
   final String latin;

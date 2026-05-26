@@ -11,7 +11,7 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../shared/widgets/dk_components.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
-  SignInScreen({super.key});
+  const SignInScreen({super.key});
 
   @override
   ConsumerState<SignInScreen> createState() => _SignInScreenState();
@@ -137,7 +137,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ),
 
                   // ── Welcome text ────────────────────────────────────
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
                   Text(
                     'Welcome Back!',
                     textAlign: TextAlign.center,
@@ -150,7 +150,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         duration: 500.ms,
                       ),
 
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
 
                   Text(
                     'Sign in to continue to KinRel',
@@ -163,7 +163,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ),
                   ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
 
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
                   // ── Card containing form fields ─────────────────────
                   DKCard(
@@ -224,7 +224,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                             errorBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(
                                   KinrelRadius.input),
-                              borderSide: BorderSide(
+                              borderSide: const BorderSide(
                                 color: KinrelColors.error,
                                 width: 1,
                               ),
@@ -240,7 +240,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           },
                         ),
 
-                        SizedBox(height: 16),
+                        const SizedBox(height: 16),
 
                         // ── Password input ───────────────────────────
                         TextFormField(
@@ -303,7 +303,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                             errorBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(
                                   KinrelRadius.input),
-                              borderSide: BorderSide(
+                              borderSide: const BorderSide(
                                 color: KinrelColors.error,
                                 width: 1,
                               ),
@@ -332,7 +332,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                               // TODO: Navigate to forgot password
                             },
                             style: TextButton.styleFrom(
-                              padding: EdgeInsets.symmetric(
+                              padding: const EdgeInsets.symmetric(
                                   horizontal: 4, vertical: 4),
                               minimumSize: Size.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -362,31 +362,33 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                               disabledBackgroundColor:
                                   buttonColor.withValues(alpha: 0.5),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
+                                boconst rderRadius: BorderRadius.circular(
                                     KinrelRadius.button),
                               ),
-                              elevation: 0,
+                              elevatioconst n: 0,
                             ),
                             child: _isLoading
-                                ? Row(const mainAxisAlignment: MainAxisAlignment.center,
+                                ? Row(const 
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       SizedBox(
                                         height: 20,
                                         width: 20,
-                                      const child: CircularProgressIndicator(
+                                      const   child: CircularProgressIndicator(
                                           strokeWidth: 2,
                                           colorconst : Colors.white,
                                         ),
                                       ),
-                                      SizedBox(width: 12),
+                                      const SizedBox(width: 12),
                                       Text(
                                         'Connecting...',
                                         style: TextStyle(
                                           fontFamily:
                                               KinrelTypography.displayFont,
-                                  const fontWeight: FontWeight.w600,
+                                  const         fontWeight: FontWeight.w600,
                                           fontSize: 16,
-                                        ),),
+                                        ),const 
+                                      ),
                                     ],
                                   )
                                 : Text(
@@ -415,7 +417,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         ),
                       ),
                       Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
                           'or',
                           style: TextStyle(
@@ -435,7 +437,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ],
                   ).animate().fadeIn(duration: 300.ms, delay: 300.ms),
 
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
                   // ── Social login buttons ────────────────────────────
                   Row(
@@ -452,7 +454,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           },
                         ),
                       ),
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       // Apple
                       Expanded(
                         child: DKButton(
@@ -468,7 +470,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ],
                   ).animate().fadeIn(duration: 300.ms, delay: 400.ms),
 
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
                   // ── Biometric options ──────────────────────────────
                   Row(
@@ -484,7 +486,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           // TODO: Biometric auth
                         },
                       ),
-                      SizedBox(width: 24),
+                      const SizedBox(width: 24),
                       // Fingerprint
                       _BiometricButton(
                         icon: Icons.fingerprint,
@@ -498,7 +500,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ],
                   ).animate().fadeIn(duration: 300.ms, delay: 500.ms),
 
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
                   // ── Sign Up link ───────────────────────────────────
                   Row(
@@ -515,7 +517,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       TextButton(
                         onPressed: () => context.go('/sign-up'),
                         style: TextButton.styleFrom(
-                          padding: EdgeInsets.symmetric(horizontal: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),

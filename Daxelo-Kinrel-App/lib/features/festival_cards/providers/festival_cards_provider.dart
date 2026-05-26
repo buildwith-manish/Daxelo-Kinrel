@@ -110,7 +110,7 @@ final festivalTemplatesProvider =
 
 /// Festival cards state notifier
 class FestivalCardsNotifier extends StateNotifier<FestivalCardsState> {
-  FestivalCardsNotifier(this._dio) : super(FestivalCardsState());
+  FestivalCardsNotifier(this._dio) : super(const FestivalCardsState());
 
   final Dio _dio;
 
@@ -241,7 +241,7 @@ final festivalCardsProvider =
 
 // ── Fallback Templates ──────────────────────────────────────────
 
-_fallbackTemplates = <FestivalTemplate>[
+const _fallbackTemplates = <FestivalTemplate>[
   FestivalTemplate(
     name: 'Diwali',
     icon: '🪔',

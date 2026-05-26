@@ -38,7 +38,7 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
         children: [
           // Search bar (gradient in dark mode)
           Padding(
-            padding: EdgeInsets.all(KinrelSpacing.base),
+            padding: const EdgeInsets.all(KinrelSpacing.base),
             child: DKSearchField(
               hint: 'Search relationships (bua, chacha, mama...)',
               controller: _searchController,
@@ -82,7 +82,7 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: KinrelSpacing.base, vertical: 4),
                 itemCount: categories.length + 1,
-                separatorBuilder: (_, __) => SizedBox(width: 6),
+                separatorBuilder: (_, __) => const SizedBox(width: 6),
                 itemBuilder: (context, index) {
                   if (index == 0) {
                     return DKSuggestionChip(
@@ -106,7 +106,7 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
             error: (_, __) => const SizedBox.shrink(),
           ),
 
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
 
           // Results
           Expanded(
@@ -130,7 +130,7 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
                     vertical: 8,
                   ),
                   itemCount: results.length,
-                  separatorBuilder: (_, __) => SizedBox(height: 8),
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final result = results[index];
                     return _KinshipTermCard(
@@ -149,7 +149,7 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
                   5,
                   (_) => const Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: DKLoadingShimmer(
+                    child: const DKLoadingShimmer(
                         width: double.infinity, height: 80, radius: KinrelRadius.card),
                   ),
                 ),
@@ -198,13 +198,13 @@ class _KinshipTermCard extends ConsumerWidget {
             children: [
               Container(
                 padding:
-                    EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: DKColors.brandPurple.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  rel.relationshipCategory.replaceAll('_', ' ').toUpperCase(),
+                  rel.relconst ationshipCategory.replaceAll('_', ' ').toUpperCase(),
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 10,
@@ -218,13 +218,13 @@ class _KinshipTermCard extends ConsumerWidget {
               // Relationship key
               Container(
                 padding:
-                    EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: DKColors.brandGold.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  rel.relationshipKey.replaceAll('_', ' '),
+                  rel.relconst ationshipKey.replaceAll('_', ' '),
                   style: TextStyle(
                     fontFamily: KinrelTypography.monoFont,
                     fontSize: 9,
@@ -296,7 +296,7 @@ class _KinshipTermCard extends ConsumerWidget {
               const SizedBox(width: 6),
               if (rel.cousinType != null) ...[
                 _TagChip(label: rel.cousinType!),
-                SizedBox(width: 6),
+                const SizedBox(width: 6),
               ],
               _TagChip(label: 'Gen ${rel.generation}'),
             ],
