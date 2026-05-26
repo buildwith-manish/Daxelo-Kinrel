@@ -25,7 +25,7 @@ workflows:
 
     environment:
       flutter: stable
-      java: 17
+      java: '17'
       vars:
         SUPABASE_URL: $SUPABASE_URL
         SUPABASE_ANON_KEY: $SUPABASE_ANON_KEY
@@ -34,23 +34,13 @@ workflows:
     scripts:
       - name: Create .env file
         script: |
-          DEFAULT_SUPABASE_URL="https://promxswvsnvilplmrtsj.supabase.co"
-          DEFAULT_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY"
-          DEFAULT_API_BASE_URL="https://daxelo-kinrel-server.onrender.com"
-
-          FINAL_SUPABASE_URL="${SUPABASE_URL:-$DEFAULT_SUPABASE_URL}"
-          FINAL_SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-$DEFAULT_SUPABASE_ANON_KEY}"
-          FINAL_API_BASE_URL="${API_BASE_URL:-$DEFAULT_API_BASE_URL}"
-
-          cat > .env <<EOF
-          SUPABASE_URL=$FINAL_SUPABASE_URL
-          SUPABASE_ANON_KEY=$FINAL_SUPABASE_ANON_KEY
-          API_BASE_URL=$FINAL_API_BASE_URL
-          EOF
-
-          echo "✅ .env created"
-          echo "   SUPABASE_URL=$FINAL_SUPABASE_URL"
-          echo "   API_BASE_URL=$FINAL_API_BASE_URL"
+          FINAL_URL="${SUPABASE_URL:-https://promxswvsnvilplmrtsj.supabase.co}"
+          FINAL_KEY="${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY}"
+          FINAL_API="${API_BASE_URL:-https://daxelo-kinrel-server.onrender.com}"
+          echo "SUPABASE_URL=$FINAL_URL" > .env
+          echo "SUPABASE_ANON_KEY=$FINAL_KEY" >> .env
+          echo "API_BASE_URL=$FINAL_API" >> .env
+          echo "✅ .env created — URL=$FINAL_URL"
 
       - name: Get Flutter packages
         script: flutter pub get
@@ -63,38 +53,27 @@ workflows:
 
       - name: Build APK (release)
         script: |
-          BUILD_NUMBER=${CM_BUILD_NUMBER:-1}
+          BUILD_NUMBER="${CM_BUILD_NUMBER:-1}"
           flutter build apk \
             --release \
-            --build-number=$BUILD_NUMBER \
-            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-            --dart-define=API_BASE_URL="$API_BASE_URL"
+            --build-number="$BUILD_NUMBER"
 
       - name: Rename APK with build info
         script: |
-          BUILD_NUMBER=${CM_BUILD_NUMBER:-1}
+          BUILD_NUMBER="${CM_BUILD_NUMBER:-1}"
           BRANCH=$(echo "${CM_BRANCH:-main}" | tr '/' '-')
-          APK_SRC="build/app/outputs/flutter-apk/app-release.apk"
-          APK_DST="build/app/outputs/flutter-apk/kinrel-${BRANCH}-${BUILD_NUMBER}.apk"
-          if [ -f "$APK_SRC" ]; then
-            cp "$APK_SRC" "$APK_DST"
-            echo "✅ APK renamed to: kinrel-${BRANCH}-${BUILD_NUMBER}.apk"
+          SRC="build/app/outputs/flutter-apk/app-release.apk"
+          DST="build/app/outputs/flutter-apk/kinrel-${BRANCH}-${BUILD_NUMBER}.apk"
+          if [ -f "$SRC" ]; then
+            cp "$SRC" "$DST"
+            echo "✅ APK: kinrel-${BRANCH}-${BUILD_NUMBER}.apk"
           else
-            echo "⚠️  APK not found at $APK_SRC"
+            echo "⚠️  APK not found at $SRC"
             ls build/app/outputs/ || true
           fi
 
     artifacts:
       - build/app/outputs/flutter-apk/*.apk
-
-    publishing:
-      email:
-        recipients:
-          - $CM_EMAIL
-        notify:
-          success: true
-          failure: true
 
   # ─────────────────────────────────────────────────────────────────
   # iOS — triggers on every push to main or develop
@@ -122,7 +101,6 @@ workflows:
     environment:
       flutter: stable
       xcode: latest
-      cocoapods: default
       vars:
         SUPABASE_URL: $SUPABASE_URL
         SUPABASE_ANON_KEY: $SUPABASE_ANON_KEY
@@ -131,42 +109,30 @@ workflows:
     scripts:
       - name: Create .env file
         script: |
-          DEFAULT_SUPABASE_URL="https://promxswvsnvilplmrtsj.supabase.co"
-          DEFAULT_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY"
-          DEFAULT_API_BASE_URL="https://daxelo-kinrel-server.onrender.com"
-
-          FINAL_SUPABASE_URL="${SUPABASE_URL:-$DEFAULT_SUPABASE_URL}"
-          FINAL_SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-$DEFAULT_SUPABASE_ANON_KEY}"
-          FINAL_API_BASE_URL="${API_BASE_URL:-$DEFAULT_API_BASE_URL}"
-
-          cat > .env <<EOF
-          SUPABASE_URL=$FINAL_SUPABASE_URL
-          SUPABASE_ANON_KEY=$FINAL_SUPABASE_ANON_KEY
-          API_BASE_URL=$FINAL_API_BASE_URL
-          EOF
-
+          FINAL_URL="${SUPABASE_URL:-https://promxswvsnvilplmrtsj.supabase.co}"
+          FINAL_KEY="${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY}"
+          FINAL_API="${API_BASE_URL:-https://daxelo-kinrel-server.onrender.com}"
+          echo "SUPABASE_URL=$FINAL_URL" > .env
+          echo "SUPABASE_ANON_KEY=$FINAL_KEY" >> .env
+          echo "API_BASE_URL=$FINAL_API" >> .env
           echo "✅ .env created"
 
       - name: Get Flutter packages
         script: flutter pub get
 
-      - name: Install CocoaPods
-        script: |
-          cd ios && pod install
+      - name: Install CocoaPods dependencies
+        script: find . -name "Podfile" -execdir pod install \;
 
       - name: Analyze code
         script: flutter analyze --no-fatal-warnings
 
       - name: Build iOS (no code sign)
         script: |
-          BUILD_NUMBER=${CM_BUILD_NUMBER:-1}
+          BUILD_NUMBER="${CM_BUILD_NUMBER:-1}"
           flutter build ios \
             --release \
             --no-codesign \
-            --build-number=$BUILD_NUMBER \
-            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
-            --dart-define=API_BASE_URL="$API_BASE_URL"
+            --build-number="$BUILD_NUMBER"
 
     artifacts:
       - build/ios/ipa/*.ipa
