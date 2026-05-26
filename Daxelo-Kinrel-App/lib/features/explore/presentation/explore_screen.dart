@@ -109,15 +109,17 @@ final _exploreResultsProvider =
 });
 
 class _ExploreResults {
+      );
+
+  factory _ExploreResults.empty() => const _ExploreResults(
+        members: [],
+        families: [],
+
   final List<_SearchResultItem> members;
   final List<_SearchResultItem> families;
 
   const _ExploreResults({required this.members, required this.families});
 
-  factory _ExploreResults.empty() => const _ExploreResults(
-        members: [],
-        families: [],
-      );
 
   bool get isEmpty => members.isEmpty && families.isEmpty;
 }
@@ -125,13 +127,6 @@ class _ExploreResults {
 enum _ResultType { member, family }
 
 class _SearchResultItem {
-  final String id;
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final _ResultType type;
-  final String familyId;
-
   const _SearchResultItem({
     required this.id,
     required this.title,
@@ -140,6 +135,14 @@ class _SearchResultItem {
     required this.type,
     required this.familyId,
   });
+
+  final String id;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final _ResultType type;
+  final String familyId;
+
 }
 
 // ── Trending Kinship Terms (static data for the default view) ───
@@ -337,11 +340,11 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     onTap: () => context.push('/family/${item.familyId}'),
                   )),
             ],
-          ]),
-        );
-      },
+          ]),const 
+        );const 
+      },const 
       loading: () => SliverToBoxAdapter(
-        child: Center(
+        child: Centconst er(
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 40),
             child: DKLoadingShimmer(width: 200, height: 16),
@@ -483,13 +486,6 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
 // ── Gradient Search Section ──────────────────────────────────────
 
 class _GradientSearchSection extends StatelessWidget {
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final bool isSearching;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onClear;
-  final bool isLight;
-
   const _GradientSearchSection({
     required this.controller,
     required this.focusNode,
@@ -498,6 +494,14 @@ class _GradientSearchSection extends StatelessWidget {
     required this.onClear,
     required this.isLight,
   });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool isSearching;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+  final bool isLight;
+
 
   @override
   Widget build(BuildContext context) {
@@ -524,7 +528,7 @@ class _GradientSearchSection extends StatelessWidget {
                   onTap: () => focusNode.requestFocus(),
                   child: Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
+                    decoratconst ion: BoxDecoration(
                       shape: BoxShape.circle,
                       color: DKColors.brandPurple.withValues(alpha: 0.1),
                     ),
@@ -552,15 +556,16 @@ class _GradientSearchSection extends StatelessWidget {
 // ── Section Header ───────────────────────────────────────────────
 
 class _SectionHeader extends StatelessWidget {
-  final String title;
-  final int count;
-  final VoidCallback? onSeeAll;
-
   const _SectionHeader({
     required this.title,
     required this.count,
     this.onSeeAll,
   });
+
+  final String title;
+  final int count;
+  final VoidCallback? onSeeAll;
+
 
   @override
   Widget build(BuildContext context) {
@@ -590,9 +595,9 @@ class _SectionHeader extends StatelessWidget {
                 color: DKColors.brandPurple,
               ),
             ),
-          ),
+          ),const 
           const Spacer(),
-          if (onSeeAll != null)
+          if (onSeeAll const != null)
             GestureDetector(
               onTap: onSeeAll,
               child: Text(
@@ -735,8 +740,9 @@ class _TrendingSection extends StatelessWidget {
 // ── Kinship Dictionary Card ──────────────────────────────────────
 
 class _KinshipDictionaryCard extends StatelessWidget {
-  final VoidCallback onTap;
   const _KinshipDictionaryCard({required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -824,8 +830,9 @@ class _KinshipDictionaryCard extends StatelessWidget {
 // ── Join Family CTA Banner ───────────────────────────────────────
 
 class _JoinFamilyBanner extends StatelessWidget {
-  final VoidCallback onJoin;
   const _JoinFamilyBanner({required this.onJoin});
+
+  final VoidCallback onJoin;
 
   @override
   Widget build(BuildContext context) {
@@ -962,9 +969,10 @@ class _LanguageChips extends StatelessWidget {
 // ── Families Quick Links ─────────────────────────────────────────
 
 class _FamiliesQuickLinks extends ConsumerWidget {
+  const _FamiliesQuickLinks({required this.familiesAsync});
+
   final AsyncValue<List<Family>> familiesAsync;
 
-  const _FamiliesQuickLinks({required this.familiesAsync});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -998,8 +1006,8 @@ class _FamiliesQuickLinks extends ConsumerWidget {
                             style: const TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: DKColors.brandPurple,
+                           const    fontWeight: FontWeight.w600,
+                              cconst olor: DKColors.brandPurple,
                             )),
                       ),
                     ],
@@ -1036,13 +1044,14 @@ class _FamiliesQuickLinks extends ConsumerWidget {
 }
 
 class _FamilyQuickLink extends ConsumerWidget {
-  final Family family;
-  final VoidCallback onTap;
-
   const _FamilyQuickLink({
     required this.family,
     required this.onTap,
   });
+
+  final Family family;
+  final VoidCallback onTap;
+
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1092,7 +1101,7 @@ class _FamilyQuickLink extends ConsumerWidget {
                   error: (_, __) => Text('...',
                       style: TextStyle(color: DKColors.textSecondary(context))),
                 ),
-              ],
+              ],const 
             ),
           ),
           Container(
@@ -1113,13 +1122,14 @@ class _FamilyQuickLink extends ConsumerWidget {
 // ── Search Result Card ───────────────────────────────────────────
 
 class _SearchResultCard extends StatelessWidget {
-  final _SearchResultItem item;
-  final VoidCallback onTap;
-
   const _SearchResultCard({
     required this.item,
     required this.onTap,
   });
+
+  final _SearchResultItem item;
+  final VoidCallback onTap;
+
 
   @override
   Widget build(BuildContext context) {
@@ -1176,13 +1186,14 @@ class _SearchResultCard extends StatelessWidget {
 // ── Kinship Result Card ──────────────────────────────────────────
 
 class _KinshipResultCard extends ConsumerWidget {
-  final KinshipSearchResult result;
-  final VoidCallback onTap;
-
   const _KinshipResultCard({
     required this.result,
     required this.onTap,
   });
+
+  final KinshipSearchResult result;
+  final VoidCallback onTap;
+
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
