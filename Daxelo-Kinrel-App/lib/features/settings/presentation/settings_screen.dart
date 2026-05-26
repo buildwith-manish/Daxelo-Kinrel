@@ -743,7 +743,7 @@ class _SettingsToggleRow extends ConsumerWidget {
             child: Switch(
               value: value,
               onChanged: (v) => ref.read(provider.notifier).state = v,
-              activeColor: _orange,
+              activeThumbColor: _orange,
               activeTrackColor: _orange.withValues(alpha: 0.5),
               thumbColor: WidgetStateProperty.resolveWith((states) {
                 if (states.contains(WidgetState.selected)) return Colors.white;

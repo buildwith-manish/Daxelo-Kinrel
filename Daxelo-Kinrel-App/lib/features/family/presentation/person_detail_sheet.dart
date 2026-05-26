@@ -217,7 +217,9 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
 
   String? get _ageText {
     if (widget.person.dateOfBirth == null ||
-        widget.person.dateOfBirth!.isEmpty) return null;
+        widget.person.dateOfBirth!.isEmpty) {
+      return null;
+    }
 
     try {
       final dob = DateTime.parse(widget.person.dateOfBirth!);
@@ -984,11 +986,11 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                   familyId: widget.familyId,
                 );
 
-                if (context.mounted) {
+                if (mounted) {
                   context.showSnackBar('${person.name} removed');
                 }
               } catch (e) {
-                if (context.mounted) {
+                if (mounted) {
                   context.showSnackBar(
                     'Failed to delete: ${e.toString().split('\n').first}',
                     isError: true,

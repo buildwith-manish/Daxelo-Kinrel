@@ -919,9 +919,7 @@ class _HeroResultCard extends ConsumerWidget {
     if (nativeTerm == null && result.localizedDescription != null) {
       nativeTerm = result.localizedDescription;
     }
-    if (englishTerm == null) {
-      englishTerm = result.relationshipDescription;
-    }
+    englishTerm ??= result.relationshipDescription;
 
     // Calculate generation difference from person data
     if (generationDiff == null || generationDiff == 0) {

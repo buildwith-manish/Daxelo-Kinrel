@@ -134,7 +134,7 @@ class StreakData {
     } else if (currentStreak < 7) {
       return "You've been building your family tree for $currentStreak days straight!";
     } else if (currentStreak < 30) {
-      return "Amazing! $currentStreak days in a row — your family tree is thriving!";
+      return 'Amazing! $currentStreak days in a row — your family tree is thriving!';
     } else {
       return "Incredible! $currentStreak day streak — you're a family tree legend!";
     }

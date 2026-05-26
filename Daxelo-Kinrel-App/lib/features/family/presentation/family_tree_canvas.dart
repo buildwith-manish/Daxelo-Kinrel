@@ -142,7 +142,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
   late AnimationController _pulseController;
 
   // ── Force-directed simulation state ─────────────────────────────
-  Map<String, Offset> _forcePositions = {};
+  final Map<String, Offset> _forcePositions = {};
   Map<String, Offset> _forceVelocities = {};
 
   // ── Layout constants ────────────────────────────────────────────
@@ -403,9 +403,9 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
         final screenSize = MediaQuery.of(context).size;
         setState(() {
           _transformationController.value = Matrix4.identity()
-            ..translate(screenSize.width / 2 - pos.dx * 1.5,
-                screenSize.height / 2 - pos.dy * 1.5)
-            ..scale(1.5);
+            ..setEntry(0, 3, screenSize.width / 2 - pos.dx * 1.5)
+            ..setEntry(1, 3, screenSize.height / 2 - pos.dy * 1.5)
+            ..scaleByDouble(1.5);
           _currentScale = 1.5;
         });
       }
@@ -429,7 +429,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
     final newScale = (_currentScale * 1.2).clamp(0.3, 3.0);
     final scaleFactor = newScale / _currentScale;
     setState(() {
-      _transformationController.value = current.scaled(scaleFactor, scaleFactor);
+      _transformationController.value = current.scaledByDouble(scaleFactor);
       _currentScale = newScale;
     });
   }
@@ -439,7 +439,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
     final newScale = (_currentScale / 1.2).clamp(0.3, 3.0);
     final scaleFactor = newScale / _currentScale;
     setState(() {
-      _transformationController.value = current.scaled(scaleFactor, scaleFactor);
+      _transformationController.value = current.scaledByDouble(scaleFactor);
       _currentScale = newScale;
     });
   }
@@ -459,9 +459,9 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
       final screenSize = MediaQuery.of(context).size;
       setState(() {
         _transformationController.value = Matrix4.identity()
-          ..translate(screenSize.width / 2 - anchorPos.dx * 1.5,
-              screenSize.height / 2 - anchorPos.dy * 1.5)
-          ..scale(1.5);
+          ..setEntry(0, 3, screenSize.width / 2 - anchorPos.dx * 1.5)
+          ..setEntry(1, 3, screenSize.height / 2 - anchorPos.dy * 1.5)
+          ..scaleByDouble(1.5);
         _currentScale = 1.5;
       });
     }
@@ -760,7 +760,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
       return math.max(maxChildWidth, coupleWidth);
     }
 
-    double yOffset = startY;
+    final double yOffset = startY;
     for (final root in roots) {
       final width = layoutSubtree(root, xOffset, yOffset);
       xOffset += width + horizontalGap;
@@ -874,7 +874,9 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
       // Attraction
       for (final edge in edges) {
         if (!_forcePositions.containsKey(edge.fromId) ||
-            !_forcePositions.containsKey(edge.toId)) continue;
+            !_forcePositions.containsKey(edge.toId)) {
+          continue;
+        }
         final delta =
             _forcePositions[edge.toId]! - _forcePositions[edge.fromId]!;
         final dist = math.max(delta.distance, 0.1);

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -357,7 +358,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
       // Success celebration
       HapticFeedback.mediumImpact();
-      _launchConfetti();
+      unawaited(_launchConfetti());
 
       setState(() {
         _isSubmitting = false;
@@ -1241,7 +1242,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               Switch.adaptive(
                 value: _isDeceased,
                 onChanged: (v) => setState(() => _isDeceased = v),
-                activeColor: KinrelColors.error,
+                activeThumbColor: KinrelColors.error,
                 activeTrackColor: KinrelColors.error.withValues(alpha: 0.4),
               ),
             ],
@@ -1481,7 +1482,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           Switch.adaptive(
             value: _isDeceased,
             onChanged: (v) => setState(() => _isDeceased = v),
-            activeColor: KinrelColors.orange,
+            activeThumbColor: KinrelColors.orange,
             activeTrackColor: KinrelColors.orange.withValues(alpha: 0.4),
           ),
         ],

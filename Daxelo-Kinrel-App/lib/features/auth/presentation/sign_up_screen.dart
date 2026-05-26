@@ -54,7 +54,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
   // ── Password strength (4 levels: weak / fair / good / strong) ──
   _PasswordStrength _passwordStrength(String password) {
-    if (password.isEmpty) return _PasswordStrength.none;
+    if (password.isEmpty) {
+      return _PasswordStrength.none;
+    }
     int score = 0;
     if (password.length >= 8) score++;
     if (password.length >= 12) score++;
@@ -368,8 +370,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     onChanged: (_) => setState(() {}),
                     validator: (v) {
                       if (v == null || v.isEmpty) return 'Password is required';
-                      if (v.length < 8)
+                      if (v.length < 8) {
                         return 'Password must be at least 8 characters';
+                      }
                       return null;
                     },
                   ),
@@ -457,10 +460,12 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       ),
                     ),
                     validator: (v) {
-                      if (v == null || v.isEmpty)
+                      if (v == null || v.isEmpty) {
                         return 'Please confirm your password';
-                      if (v != _passwordController.text)
+                      }
+                      if (v != _passwordController.text) {
                         return 'Passwords do not match';
+                      }
                       return null;
                     },
                   ),
@@ -784,17 +789,17 @@ class _SocialAuthButton extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _CountryCode {
-  final String name;
-  final String code;
-  final String dialCode;
-  final String flag;
-
   const _CountryCode({
     required this.name,
     required this.code,
     required this.dialCode,
     required this.flag,
   });
+
+  final String name;
+  final String code;
+  final String dialCode;
+  final String flag;
 }
 
 const List<_CountryCode> _countryCodes = [

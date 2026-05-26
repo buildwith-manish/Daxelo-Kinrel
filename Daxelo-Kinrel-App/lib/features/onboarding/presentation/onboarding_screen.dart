@@ -452,9 +452,9 @@ class _OnboardingPage1State extends State<_OnboardingPage1>
 /// Custom painter for the K-graph on Page 1
 /// 3 base pulsing nodes + 4th that appears showing growth
 class _KGraphPainter extends CustomPainter {
-  final double progress;
-
   _KGraphPainter(this.progress);
+
+  final double progress;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -879,9 +879,9 @@ class _OnboardingPage3State extends State<_OnboardingPage3>
 /// Custom painter for the family graph on Page 3
 /// ~8 nodes with auto-rotate/pan animation
 class _FamilyGraphPainter extends CustomPainter {
-  final double progress;
-
   _FamilyGraphPainter(this.progress);
+
+  final double progress;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1093,9 +1093,9 @@ class _OnboardingPage4State extends State<_OnboardingPage4>
 /// Two nodes with animated dotted path connecting them
 /// Relationship label appears when path is complete
 class _PathFinderPainter extends CustomPainter {
-  final double progress;
-
   _PathFinderPainter(this.progress);
+
+  final double progress;
 
   @override
   void paint(Canvas canvas, Size size) {
