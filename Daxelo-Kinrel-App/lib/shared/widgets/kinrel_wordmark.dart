@@ -40,6 +40,14 @@ enum WordmarkVariant {
 /// letter-spacing that varies by size (tighter at small sizes,
 /// wider at larger sizes per brand spec).
 class KinrelWordmark extends StatelessWidget {
+  const KinrelWordmark({
+    super.key,
+    this.fontSize = 24,
+    this.variant = WordmarkVariant.gradient,
+    this.letterSpacing,
+    this.showSubtitle = false,
+  });
+
   /// Font size in logical pixels. Default 24.
   final double fontSize;
 
@@ -52,13 +60,6 @@ class KinrelWordmark extends StatelessWidget {
   /// Optional subtitle "by Daxelo" shown below the wordmark.
   final bool showSubtitle;
 
-  const KinrelWordmark({
-    super.key,
-    this.fontSize = 24,
-    this.variant = WordmarkVariant.gradient,
-    this.letterSpacing,
-    this.showSubtitle = false,
-  });
 
   @override
   Widget build(BuildContext context) {
