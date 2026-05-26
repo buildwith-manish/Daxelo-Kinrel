@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
@@ -195,83 +196,6 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  void _showEditNameDialog(
-    BuildContext context,
-    WidgetRef ref,
-    User? user,
-  ) {
-    final nameController =
-        TextEditingController(text: user?.userMetadata?['name'] as String? ?? '');
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: DKColors.cardColor(context),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(KinrelRadius.dialog),
-          side: BorderSide(color: DKColors.borderColor(context)),
-        ),
-        title: Text(
-          'Edit Name',
-          style: TextStyle(
-            fontFamily: KinrelTypography.displayFont,
-            color: DKColors.textPrimary(context),
-          ),
-        ),
-        content: TextField(
-          controller: nameController,
-          style: TextStyle(
-            fontFamily: KinrelTypography.bodyFont,
-            color: DKColors.textPrimary(context),
-          ),
-          decoration: InputDecoration(
-            hintText: 'Enter your name',
-            hintStyle: TextStyle(color: DKColors.textSecondary(context)),
-            filled: true,
-            fillColor: DKColors.elevatedColor(context),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(KinrelRadius.input),
-              borderSide: BorderSide.none,
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: DKColors.textSecondary(context)),
-            ),
-          ),
-          DKButton(
-            label: 'Save',
-            variant: DKButtonVariant.primary,
-            size: DKButtonSize.sm,
-            onPressed: () async {
-              Navigator.of(ctx).pop();
-              try {
-                final client = ref.read(supabaseProvider);
-                if (client != null) {
-                  await client.auth.updateUser(
-                    UserAttributes(
-                      data: {'name': nameController.text.trim()},
-                    ),
-                  );
-                }
-                if (context.mounted) {
-                  context.showSnackBar('Name updated successfully');
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  context.showSnackBar('Failed to update name', isError: true);
-                }
-              }
-            },
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ── Menu Card ────────────────────────────────────────────────────

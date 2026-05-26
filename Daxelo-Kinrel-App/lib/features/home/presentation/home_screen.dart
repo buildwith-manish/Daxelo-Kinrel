@@ -109,7 +109,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               (_) => Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 5),
-                  child: DKLoadingShimmer(height: 100, radius: 16),
+                  child: DKLoadingShimmer(width: double.infinity, height: 100, radius: 16),
                 ),
               ),
             ),
@@ -122,7 +122,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             3,
             (_) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: DKLoadingShimmer(height: 64, radius: 14),
+              child: DKLoadingShimmer(width: double.infinity, height: 64, radius: 14),
             ),
           ),
         ],
@@ -887,8 +887,7 @@ class _RecentActivitySection extends StatelessWidget {
           child: Row(
             children: [
               Text('Recent Activity',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.sectionHeader,
+                  style: KinrelTypography.sectionHeader.copyWith(
                     color: DKColors.textPrimary(context),
                   )),
               const SizedBox(width: 8),
@@ -978,8 +977,7 @@ class _YourFamiliesSection extends StatelessWidget {
               Row(
                 children: [
                   Text('Your Families',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.sectionHeader,
+                      style: KinrelTypography.sectionHeader.copyWith(
                         color: DKColors.textPrimary(context),
                       )),
                   const SizedBox(width: 8),

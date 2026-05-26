@@ -441,7 +441,7 @@ class _PersonCard extends StatelessWidget {
                             ],
                           )
                         : isSelected1
-                            ? KinrelColors.igniteGradient
+                            ? KinrelGradients.igniteGradient
                             : isSelected2
                                 ? LinearGradient(
                                     colors: [
@@ -449,7 +449,7 @@ class _PersonCard extends StatelessWidget {
                                       KinrelColors.purple,
                                     ],
                                   )
-                                : KinrelColors.igniteGradient,
+                                : KinrelGradients.igniteGradient,
                     shape: BoxShape.circle,
                   ),
                   child: Center(

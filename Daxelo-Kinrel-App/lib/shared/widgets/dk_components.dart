@@ -31,7 +31,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shimmer/shimmer.dart';
 
-import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/constants/brand_spacing.dart';
 
@@ -320,7 +319,7 @@ class DKCard extends StatelessWidget {
         ),
       )
           .animate(onPlay: (c) => c.forward())
-          .fadeIn(duration: KinrelMotion.normal.ms);
+          .fadeIn(duration: KinrelMotion.normal);
     }
 
     return AnimatedContainer(
@@ -743,7 +742,6 @@ class DKSearchField extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLight = DKColors.isLight(context);
 
-    final Color bgColor;
     final Color hintColor;
     final Color iconColor;
     final Color textColor;
@@ -751,14 +749,12 @@ class DKSearchField extends StatelessWidget {
     BorderSide? border;
 
     if (useGradient) {
-      bgColor = Colors.transparent;
       inputFillColor = Colors.white.withValues(alpha: 0.15);
       hintColor = Colors.white.withValues(alpha: 0.6);
       iconColor = Colors.white.withValues(alpha: 0.7);
       textColor = Colors.white;
       border = null;
     } else {
-      bgColor = Colors.transparent;
       inputFillColor = isLight
           ? DKColors.lightElevated
           : DKColors.darkElevated;
@@ -1814,8 +1810,6 @@ class DKErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLight = DKColors.isLight(context);
-
     return Padding(
       padding: const EdgeInsets.all(KinrelSpacing.xxl),
       child: Column(

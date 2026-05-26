@@ -109,7 +109,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp> with WidgetsBindingObserv
             // Only refresh if we already have a session — don't try to restore
             client.auth.refreshSession().catchError((_) {
               // Ignore refresh errors — existing session is still valid locally
-              return client.auth.currentSession ?? AuthResponse();
+              return AuthResponse();
             });
           }
         } catch (_) {}

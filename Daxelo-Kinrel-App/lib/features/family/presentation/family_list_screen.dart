@@ -3,7 +3,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/supported_languages.dart';
@@ -139,7 +138,6 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen> {
 
   void _showJoinFamilyDialog(BuildContext context) {
     final codeController = TextEditingController();
-    final isLight = DKColors.isLight(context);
 
     showDialog(
       context: context,

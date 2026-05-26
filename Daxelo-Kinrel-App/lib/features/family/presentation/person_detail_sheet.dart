@@ -84,7 +84,7 @@ class PersonDetailSheet extends ConsumerWidget {
                         KinrelColors.darkSurface,
                       ],
                     )
-                  : KinrelColors.igniteGradient,
+                  : KinrelGradients.igniteGradient,
               shape: BoxShape.circle,
             ),
             child: Center(

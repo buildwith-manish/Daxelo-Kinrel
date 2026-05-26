@@ -306,8 +306,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     horizontal: KinrelSpacing.base),
                 child: Text(
                   'Members',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.sectionHeader,
+                  style: KinrelTypography.sectionHeader.copyWith(
                     color: DKColors.textPrimary(context),
                   ),
                 ),
@@ -327,8 +326,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                     horizontal: KinrelSpacing.base),
                 child: Text(
                   'Families',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.sectionHeader,
+                  style: KinrelTypography.sectionHeader.copyWith(
                     color: DKColors.textPrimary(context),
                   ),
                 ),
@@ -572,8 +570,7 @@ class _SectionHeader extends StatelessWidget {
         children: [
           Text(
             title,
-            style: TextStyle(
-              fontFamily: KinrelTypography.sectionHeader,
+            style: KinrelTypography.sectionHeader.copyWith(
               color: DKColors.textPrimary(context),
             ),
           ),
@@ -628,8 +625,7 @@ class _TrendingSection extends StatelessWidget {
           child: Row(
             children: [
               Text('Trending Kinship Terms',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.sectionHeader,
+                  style: KinrelTypography.sectionHeader.copyWith(
                     color: DKColors.textPrimary(context),
                   )),
               const SizedBox(width: 8),
@@ -928,8 +924,7 @@ class _LanguageChips extends StatelessWidget {
           child: Row(
             children: [
               Text('Quick Access Languages',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.sectionHeader,
+                  style: KinrelTypography.sectionHeader.copyWith(
                     color: DKColors.textPrimary(context),
                   )),
               const SizedBox(width: 8),
@@ -989,8 +984,7 @@ class _FamiliesQuickLinks extends ConsumerWidget {
                   Row(
                     children: [
                       Text('Your Families',
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.sectionHeader,
+                          style: KinrelTypography.sectionHeader.copyWith(
                             color: DKColors.textPrimary(context),
                           )),
                       const SizedBox(width: 8),
@@ -1250,7 +1244,7 @@ class _KinshipResultCard extends ConsumerWidget {
                   const SizedBox(height: 2),
                   termAsync.when(
                     data: (term) => Text(
-                      term?.term ?? '',
+                      term?.native ?? '',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,

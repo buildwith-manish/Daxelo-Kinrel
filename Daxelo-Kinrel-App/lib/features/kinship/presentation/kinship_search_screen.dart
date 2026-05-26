@@ -94,7 +94,7 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
                   }
                   final cat = categories[index - 1];
                   return DKSuggestionChip(
-                    label: cat.snakeToTitle,
+                    label: cat.split('_').map((w) => w[0].toUpperCase() + w.substring(1)).join(' '),
                     isSelected: selectedCategory == cat,
                     onTap: () =>
                         ref.read(kinshipCategoryProvider.notifier).state = cat,
