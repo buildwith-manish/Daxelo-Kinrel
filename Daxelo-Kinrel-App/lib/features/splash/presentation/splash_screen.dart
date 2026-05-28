@@ -9,7 +9,6 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/database/isar_database.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/services/supabase_service.dart';
-import '../../../core/storage/secure_storage.dart';
 
 // ─────────────────────────────────────────────────────────────────────
 // KINREL Splash Screen — Animated K-Graph Experience
@@ -105,6 +104,24 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     });
 
     _initialize();
+
+    // Safety timeout: force navigate after 5 seconds even if init hasn't completed
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted && !_navigated) {
+        debugPrint('⚠️ Splash safety timeout triggered — forcing navigation');
+        _navigated = true;
+        try {
+          final isAuthenticated = ref.read(isAuthenticatedProvider);
+          if (isAuthenticated) {
+            context.go('/home');
+          } else {
+            context.go('/sign-in');
+          }
+        } catch (_) {
+          context.go('/sign-in');
+        }
+      }
+    });
   }
 
   @override
@@ -149,14 +166,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       debugPrint('⚠️ Cannot read auth state, using cached profile: $e');
     }
 
-    final secureStorage = SecureStorageService();
-    bool onboardingComplete = false;
-    try {
-      onboardingComplete = await secureStorage.isOnboardingComplete();
-    } catch (e) {
-      debugPrint('⚠️ Cannot read onboarding state: $e');
-    }
-
     if (!mounted || _navigated) return;
 
     // Signal complete — stop breathing
@@ -172,25 +181,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     // ── NAVIGATION DECISION ──────────────────────────────────────────
     // Priority:
-    // 1. If onboarding not complete → /onboarding
-    // 2. If authenticated OR has cached profile → /home (or last route)
-    // 3. Otherwise → /sign-in
+    // 1. If authenticated OR has cached profile → /home (or last route)
+    // 2. Otherwise → /sign-in (ALWAYS, no onboarding before login)
     //
     // CRITICAL: Even if Supabase isn't ready yet, we still navigate.
     // If we have a cached profile, the user was previously logged in,
     // so go to home. If not, go to sign-in. This ensures the user
     // NEVER sees a blank screen waiting for Supabase.
-    if (!onboardingComplete) {
-      // Onboarding not complete — redirect to onboarding flow
-      debugPrint('🧭 Splash → /onboarding (onboarding not complete)');
-      context.go('/onboarding');
-    } else if (isAuthenticated || _hasCachedProfile) {
-      // Authenticated or has cached session → go to home
+    // Onboarding is removed from the initial flow — login comes first.
+    if (isAuthenticated || _hasCachedProfile) {
+      // Authenticated → go to home (or last route)
       String? lastRoute;
       try {
         lastRoute = await getLastRoute();
       } catch (_) {}
-
       if (!mounted || _navigated) return;
       if (lastRoute != null && lastRoute != '/splash' && mounted) {
         debugPrint('🧭 Splash → $lastRoute (restored last route)');
@@ -200,8 +204,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       debugPrint('🧭 Splash → /home (authenticated: $isAuthenticated, cached: $_hasCachedProfile)');
       context.go('/home');
     } else {
-      // Not authenticated and no cached profile — go to sign-in
-      debugPrint('🧭 Splash → /sign-in (not authenticated, no cache)');
+      // NOT authenticated → ALWAYS go to sign-in FIRST (no onboarding before login)
+      debugPrint('🧭 Splash → /sign-in (not authenticated, login required first)');
       context.go('/sign-in');
     }
   }

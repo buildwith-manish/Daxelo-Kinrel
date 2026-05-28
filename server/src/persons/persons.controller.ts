@@ -11,6 +11,8 @@ import {
 import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { PersonsService } from './persons.service';
+import { AddPersonDto } from '../dto/add-person.dto';
+import { UpdatePersonDto } from '../dto/update-person.dto';
 
 @Controller('families/:familyId/persons')
 export class PersonsController {
@@ -31,7 +33,7 @@ export class PersonsController {
   async addPerson(
     @CurrentUser() user: any,
     @Param('familyId') familyId: string,
-    @Body() body: any,
+    @Body() body: AddPersonDto,
   ) {
     const person = await this.personsService.addPerson(user.id, familyId, body);
     return { person };
@@ -47,7 +49,7 @@ export class PersonController {
   async updatePerson(
     @CurrentUser() user: any,
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: UpdatePersonDto,
   ) {
     const person = await this.personsService.updatePerson(user.id, id, body);
     return { person };

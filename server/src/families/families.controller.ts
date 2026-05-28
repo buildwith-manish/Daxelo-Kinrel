@@ -11,6 +11,8 @@ import {
 import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { FamiliesService } from './families.service';
+import { CreateFamilyDto } from '../dto/create-family.dto';
+import { UpdateFamilyDto } from '../dto/update-family.dto';
 
 @Controller('families')
 export class FamiliesController {
@@ -25,7 +27,7 @@ export class FamiliesController {
 
   @Post()
   @UseGuards(SupabaseAuthGuard)
-  async createFamily(@CurrentUser() user: any, @Body() body: any) {
+  async createFamily(@CurrentUser() user: any, @Body() body: CreateFamilyDto) {
     const family = await this.familiesService.createFamily(user.id, body);
     return { family };
   }
@@ -42,7 +44,7 @@ export class FamiliesController {
   async updateFamily(
     @CurrentUser() user: any,
     @Param('id') id: string,
-    @Body() body: any,
+    @Body() body: UpdateFamilyDto,
   ) {
     const family = await this.familiesService.updateFamily(user.id, id, body);
     return { family };

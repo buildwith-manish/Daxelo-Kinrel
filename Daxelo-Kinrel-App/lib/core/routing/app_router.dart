@@ -258,14 +258,13 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
     }
   }
 
-  final isOnboarding = state.matchedLocation == '/onboarding';
   final isAuth =
       state.matchedLocation == '/sign-in' ||
       state.matchedLocation == '/sign-up';
   final isPublicLegal =
       state.matchedLocation == '/privacy' ||
       state.matchedLocation == '/terms';
-  final isProtected = !isSplash && !isOnboarding && !isAuth && !isPublicLegal;
+  final isProtected = !isSplash && !isAuth && !isPublicLegal;
 
   // If trying to access a protected route, check auth status.
   // IMPORTANT: If Supabase isn't initialized yet, DON'T redirect to

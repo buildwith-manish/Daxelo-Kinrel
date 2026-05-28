@@ -10,6 +10,7 @@ import {
 import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { RelationshipsService } from './relationships.service';
+import { CreateRelationshipDto } from '../dto/create-relationship.dto';
 
 @Controller('families/:familyId/relationships')
 export class RelationshipsController {
@@ -30,7 +31,7 @@ export class RelationshipsController {
   async createRelationship(
     @CurrentUser() user: any,
     @Param('familyId') familyId: string,
-    @Body() body: any,
+    @Body() body: CreateRelationshipDto,
   ) {
     const relationship = await this.relationshipsService.createRelationship(user.id, familyId, body);
     return { relationship };

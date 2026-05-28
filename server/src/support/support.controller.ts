@@ -2,6 +2,7 @@ import { Controller, Post, Body, UseGuards } from '@nestjs/common';
 import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { SupportService } from './support.service';
+import { CreateTicketDto } from '../dto/create-ticket.dto';
 
 @Controller('support')
 export class SupportController {
@@ -11,7 +12,7 @@ export class SupportController {
   @UseGuards(SupabaseAuthGuard)
   async createTicket(
     @CurrentUser() user: any,
-    @Body() body: { subject: string; message: string },
+    @Body() body: CreateTicketDto,
   ) {
     const ticket = await this.supportService.createTicket(user.id, body);
     return { ticket };

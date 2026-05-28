@@ -9,23 +9,18 @@ import {
   Query,
   Param,
   UseGuards,
-  Request,
-  UploadedFile,
-  UseInterceptors,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { UsersService } from './users.service';
-import { PrismaService } from '../prisma/prisma.service';
+import { UpdateProfileDto } from '../dto/update-profile.dto';
+import { UpdateQuietHoursDto } from '../dto/update-quiet-hours.dto';
 
 @Controller('users')
 export class UsersController {
-  constructor(
-    private readonly usersService: UsersService,
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly usersService: UsersService) {}
 
   @Get('me')
   @UseGuards(SupabaseAuthGuard)
@@ -38,7 +33,7 @@ export class UsersController {
 
   @Patch('me')
   @UseGuards(SupabaseAuthGuard)
-  async updateProfile(@CurrentUser() user: any, @Body() body: any) {
+  async updateProfile(@CurrentUser() user: any, @Body() body: UpdateProfileDto) {
     const updated = await this.usersService.updateProfile(user.id, body);
     const { twoFactorSecret, ...safeUser } = updated as any;
     return { user: safeUser };
@@ -116,7 +111,7 @@ export class UsersController {
 
   @Put('me/quiet-hours')
   @UseGuards(SupabaseAuthGuard)
-  async updateQuietHours(@CurrentUser() user: any, @Body() body: any) {
+  async updateQuietHours(@CurrentUser() user: any, @Body() body: UpdateQuietHoursDto) {
     return this.usersService.updateQuietHours(user.id, body);
   }
 }
