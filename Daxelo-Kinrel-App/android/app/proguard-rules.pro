@@ -60,3 +60,8 @@
 -keep class * extends java.lang.annotation.Annotation { *; }
 -keepclassmembers class **.R$* { public static <fields>; }
 -keep class * implements android.os.Parcelable { public static final ** CREATOR; }
+
+# ── Play Core (FlutterPlayStoreSplitApplication references) ──────
+# We don't use split APKs, but Flutter references SplitCompatApplication.
+-dontwarn com.google.android.play.core.**
+-keep class com.google.android.play.core.** { *; }

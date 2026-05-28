@@ -19,23 +19,28 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
-// ─── Namespace injection for legacy Flutter plugins ──────────────────────
-// AGP 9.0+ requires every Android library to declare a namespace.
-// Some older plugins (e.g. isar_flutter_libs 3.1.0) only specify the
-// deprecated `package` attribute in AndroidManifest.xml.
-// Using pluginManager.withPlugin fires immediately when the library plugin
-// is applied — BEFORE the variant builder is created — so the namespace
-// is available during AGP's strict configuration check.
+// ─── Compatibility fixes for legacy Flutter plugins ─────────────────────
+// AGP 9.0+ requires every Android library to declare a namespace and
+// compile against API 34+. Some older plugins (e.g. isar_flutter_libs 3.1.0)
+// don't meet these requirements. This block injects namespace from
+// AndroidManifest.xml and forces compileSdk = 36 for all library subprojects.
 subprojects {
     pluginManager.withPlugin("com.android.library") {
         val androidExt = extensions.findByType<com.android.build.gradle.LibraryExtension>()
-        if (androidExt != null && androidExt.namespace == null) {
-            val manifestFile = file("src/main/AndroidManifest.xml")
-            if (manifestFile.exists()) {
-                val manifestText = manifestFile.readText()
-                val packageMatch = Regex("""package\s*=\s*"([^"]+)"""").find(manifestText)
-                if (packageMatch != null) {
-                    androidExt.namespace = packageMatch.groupValues[1]
+        if (androidExt != null) {
+            // Force compileSdk 36 so transitive deps (androidx.fragment 1.7+,
+            // androidx.window 1.2+) don't fail the AAR metadata check.
+            androidExt.compileSdk = 36
+
+            // Inject namespace from AndroidManifest.xml if not declared.
+            if (androidExt.namespace == null) {
+                val manifestFile = file("src/main/AndroidManifest.xml")
+                if (manifestFile.exists()) {
+                    val manifestText = manifestFile.readText()
+                    val packageMatch = Regex("""package\s*=\s*"([^"]+)"""").find(manifestText)
+                    if (packageMatch != null) {
+                        androidExt.namespace = packageMatch.groupValues[1]
+                    }
                 }
             }
         }
