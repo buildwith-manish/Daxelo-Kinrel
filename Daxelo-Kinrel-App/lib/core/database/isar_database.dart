@@ -3,6 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 
+// Import + Export all Isar collections so:
+// - This file can use the schemas and generated extensions (import)
+// - Any file that imports isar_database.dart also gets access to
+//   the collection extensions (e.g. GetCachedProfileCollection.cachedProfiles)
 import 'collections/cached_family.dart';
 import 'collections/cached_person.dart';
 import 'collections/cached_relationship.dart';
@@ -12,6 +16,16 @@ import 'collections/recently_viewed_profile.dart';
 import 'collections/app_settings_entry.dart';
 import 'collections/pending_operation.dart';
 import 'collections/api_cache_entry.dart';
+
+export 'collections/cached_family.dart';
+export 'collections/cached_person.dart';
+export 'collections/cached_relationship.dart';
+export 'collections/cached_profile.dart';
+export 'collections/search_history_entry.dart';
+export 'collections/recently_viewed_profile.dart';
+export 'collections/app_settings_entry.dart';
+export 'collections/pending_operation.dart';
+export 'collections/api_cache_entry.dart';
 
 /// Isar database initialization and management service.
 /// Provides a singleton Isar instance configured with all collections.
