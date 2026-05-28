@@ -45,8 +45,8 @@ class ProfileModel {
 
   factory ProfileModel.fromJson(Map<String, dynamic> json) {
     return ProfileModel(
-      id: json['id'] as String? ?? '',
-      email: json['email'] as String? ?? '',
+      id: _parseString(json['id']),
+      email: _parseString(json['email']),
       name: json['name'] as String?,
       phone: json['phone'] as String?,
       avatarUrl: json['avatarUrl'] as String?,
@@ -56,16 +56,16 @@ class ProfileModel {
           : null,
       gender: json['gender'] as String?,
       username: json['username'] as String?,
-      preferredLanguage: json['preferredLanguage'] as String? ?? 'en',
-      profileVisibility: json['profileVisibility'] as String? ?? 'public',
-      invitePermission: json['invitePermission'] as String? ?? 'anyone',
-      twoFactorEnabled: json['twoFactorEnabled'] as bool? ?? false,
-      authProvider: json['authProvider'] as String? ?? 'email',
+      preferredLanguage: _parseString(json['preferredLanguage'], fallback: 'en'),
+      profileVisibility: _parseString(json['profileVisibility'], fallback: 'public'),
+      invitePermission: _parseString(json['invitePermission'], fallback: 'anyone'),
+      twoFactorEnabled: _parseBool(json['twoFactorEnabled']),
+      authProvider: _parseString(json['authProvider'], fallback: 'email'),
       createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'].toString())
+          ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
       updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'].toString())
+          ? DateTime.tryParse(json['updatedAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
     );
   }
@@ -117,9 +117,9 @@ class UserStatsModel {
 
   factory UserStatsModel.fromJson(Map<String, dynamic> json) {
     return UserStatsModel(
-      familyTrees: json['familyTrees'] as int? ?? 0,
-      membersAdded: json['membersAdded'] as int? ?? 0,
-      relations: json['relations'] as int? ?? 0,
+      familyTrees: _parseInt(json['familyTrees']),
+      membersAdded: _parseInt(json['membersAdded']),
+      relations: _parseInt(json['relations']),
     );
   }
 
@@ -172,11 +172,11 @@ class FamilyTreeNode {
 
   factory FamilyTreeNode.fromJson(Map<String, dynamic> json) {
     return FamilyTreeNode(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
+      id: _parseString(json['id']),
+      name: _parseString(json['name']),
       username: json['username'] as String?,
-      role: json['role'] as String? ?? 'member',
-      memberCount: json['memberCount'] as int? ?? 0,
+      role: _parseString(json['role'], fallback: 'member'),
+      memberCount: _parseInt(json['memberCount']),
     );
   }
 
@@ -269,6 +269,47 @@ class TwoFASetupResponse {
 // PROFILE STATE
 // ════════════════════════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════════════════════════
+// SAFE PARSING HELPERS
+// ════════════════════════════════════════════════════════════════════
+
+/// Safely parse a value that might be String or int into int.
+/// Backend may return numeric fields as strings (e.g. "5" instead of 5).
+int _parseInt(dynamic value) {
+  if (value is int) return value;
+  if (value is String) return int.tryParse(value) ?? 0;
+  if (value is num) return value.toInt();
+  return 0;
+}
+
+/// Safely parse a value that might be int or String into String.
+/// Backend may return string IDs as integers.
+String _parseString(dynamic value, {String fallback = ''}) {
+  if (value is String) return value;
+  if (value is int || value is num) return value.toString();
+  return fallback;
+}
+
+/// Safely parse a bool that might come as int, String, or bool.
+bool _parseBool(dynamic value, {bool fallback = false}) {
+  if (value is bool) return value;
+  if (value is int) return value != 0;
+  if (value is String) return value.toLowerCase() == 'true' || value == '1';
+  return fallback;
+}
+
+/// Extract the user object from an API response.
+/// The NestJS backend returns { "user": { ... } } but the Flutter
+/// code expects the user object directly.
+Map<String, dynamic> _extractUserData(Map<String, dynamic> response) {
+  // If the response has a top-level 'user' key, unwrap it
+  if (response.containsKey('user') && response['user'] is Map) {
+    return (response['user'] as Map).cast<String, dynamic>();
+  }
+  // Otherwise assume the response IS the user object
+  return response;
+}
+
 class ProfileState {
   const ProfileState({
     this.profile,
@@ -351,7 +392,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     try {
       final response = await _dio.get('/api/users/me');
       final profile = ProfileModel.fromJson(
-        response.data as Map<String, dynamic>,
+        _extractUserData(response.data as Map<String, dynamic>),
       );
       state = state.copyWith(profile: profile, isLoading: false);
     } on DioException catch (e) {
@@ -519,11 +560,11 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       }
     }
 
-    // Fallback to direct API call
+    // Fallback to direct API call (original behavior)
     try {
       final response = await _dio.patch('/api/users/me', data: data);
       final profile = ProfileModel.fromJson(
-        response.data as Map<String, dynamic>,
+        _extractUserData(response.data as Map<String, dynamic>),
       );
       state = state.copyWith(profile: profile);
       return true;
@@ -632,7 +673,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
         options: Options(contentType: 'multipart/form-data'),
       );
       final profile = ProfileModel.fromJson(
-        response.data as Map<String, dynamic>,
+        _extractUserData(response.data as Map<String, dynamic>),
       );
       state = state.copyWith(profile: profile, isLoading: false);
       return true;
@@ -717,7 +758,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
         data: {'username': username},
       );
       final profile = ProfileModel.fromJson(
-        response.data as Map<String, dynamic>,
+        _extractUserData(response.data as Map<String, dynamic>),
       );
       state = state.copyWith(profile: profile, isLoading: false);
       return true;

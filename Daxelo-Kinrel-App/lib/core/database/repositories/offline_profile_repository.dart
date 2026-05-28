@@ -68,9 +68,12 @@ class OfflineProfileRepository {
   Future<ProfileModel?> _fetchProfileFromNetwork() async {
     try {
       final response = await _dio.get('/api/users/me');
-      final profile = ProfileModel.fromJson(
-        response.data as Map<String, dynamic>,
-      );
+      final data = response.data as Map<String, dynamic>;
+      // Backend returns { "user": { ... } }, unwrap the user object
+      final userData = data.containsKey('user') && data['user'] is Map
+          ? (data['user'] as Map).cast<String, dynamic>()
+          : data;
+      final profile = ProfileModel.fromJson(userData);
 
       // Cache the result
       await _cacheProfile(profile);
@@ -111,9 +114,12 @@ class OfflineProfileRepository {
     if (_isOnline) {
       try {
         final response = await _dio.patch('/api/users/me', data: data);
-        final profile = ProfileModel.fromJson(
-          response.data as Map<String, dynamic>,
-        );
+        final respData = response.data as Map<String, dynamic>;
+        // Backend returns { "user": { ... } }, unwrap the user object
+        final userData = respData.containsKey('user') && respData['user'] is Map
+            ? (respData['user'] as Map).cast<String, dynamic>()
+            : respData;
+        final profile = ProfileModel.fromJson(userData);
         await _cacheProfile(profile);
         return true;
       } on DioException catch (e) {
