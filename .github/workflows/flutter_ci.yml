@@ -33,6 +33,9 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Generate Isar code
+        run: dart run build_runner build --delete-conflicting-outputs
+
       - name: Check formatting
         run: dart format --output=none --set-exit-if-changed . || echo "::warning::Code formatting issues detected. Run 'dart format .' to fix."
 
@@ -88,6 +91,9 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Generate Isar code
+        run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Decode keystore
         run: |

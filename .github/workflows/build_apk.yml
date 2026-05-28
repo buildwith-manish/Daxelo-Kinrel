@@ -56,6 +56,10 @@ jobs:
         run: flutter pub get
         working-directory: ${{ env.FLUTTER_DIR }}
 
+      - name: Generate Isar code
+        run: dart run build_runner build --delete-conflicting-outputs
+        working-directory: ${{ env.FLUTTER_DIR }}
+
       - name: Create key.properties and keystore
         env:
           KS_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}

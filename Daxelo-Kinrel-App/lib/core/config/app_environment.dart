@@ -25,7 +25,7 @@ enum AppEnvironment {
   prod;
 
   /// Parse from string (case-insensitive)
-  static AppEnvironment fromString(String? value) {
+  static AppEnvironment? fromString(String? value) {
     switch (value?.toLowerCase()) {
       case 'dev':
       case 'development':
