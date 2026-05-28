@@ -67,6 +67,8 @@ import '../../features/profile/presentation/help_center_screen.dart';
 import '../../features/profile/presentation/contact_support_screen.dart';
 import '../../features/profile/presentation/report_bug_screen.dart';
 import '../../features/profile/presentation/legal_screen.dart';
+import '../../presentation/screens/legal/privacy_policy_screen.dart';
+import '../../presentation/screens/legal/terms_of_service_screen.dart';
 import '../../features/profile/presentation/my_families_screen.dart';
 import '../../features/profile/presentation/invitations_screen.dart';
 import '../../features/profile/presentation/blocked_users_screen.dart';
@@ -251,7 +253,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isAuth =
           state.matchedLocation == '/sign-in' ||
           state.matchedLocation == '/sign-up';
-      final isProtected = !isSplash && !isOnboarding && !isAuth;
+      final isPublicLegal =
+          state.matchedLocation == '/privacy' ||
+          state.matchedLocation == '/terms';
+      final isProtected = !isSplash && !isOnboarding && !isAuth && !isPublicLegal;
 
       // If not authenticated and trying to access protected route, go to sign-in
       // BUT: Don't redirect if Supabase isn't initialized yet — the session
@@ -612,6 +617,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: const ReportBugScreen()),
       ),
+      // ── P4-F4: Public Legal Screens (NO auth required) ──────────
+      // These routes are accessible without login for Play Store compliance.
+      GoRoute(
+        path: '/privacy',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const PrivacyPolicyScreen()),
+      ),
+      GoRoute(
+        path: '/terms',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const TermsOfServiceScreen()),
+      ),
+
       GoRoute(
         path: '/legal/terms',
         pageBuilder: (context, state) =>

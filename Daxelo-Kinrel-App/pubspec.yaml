@@ -53,8 +53,10 @@ dependencies:
   # UI Utilities
   shimmer: ^3.0.0
   flutter_svg: ^2.1.0+1
+  smooth_page_indicator: ^1.2.0
   
   # Utilities
+  permission_handler: ^11.3.1
   shared_preferences: ^2.3.4
   uuid: ^4.5.1
   logger: ^2.6.0
@@ -63,6 +65,7 @@ dependencies:
   url_launcher: ^6.3.1
   share_plus: ^10.1.4
   package_info_plus: ^8.3.0
+  in_app_review: ^2.0.9
 
   # Media & Device
   image_picker: ^1.0.7
@@ -110,6 +113,7 @@ flutter:
     - assets/icons/
     - assets/images/
     - assets/fonts/
+    - assets/privacy_policy.md
   
   fonts:
     - family: Outfit

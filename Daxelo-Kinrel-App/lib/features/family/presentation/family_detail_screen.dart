@@ -19,6 +19,7 @@ import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
 import 'relationship_builder_screen.dart';
 import '../../core/utils/device_tier.dart';
+import '../../../core/utils/error_boundary.dart';
 import '../../../core/utils/smart_preloader.dart';
 import '../../../core/utils/share_helper.dart';
 import '../../profile/data/profile_provider.dart';
@@ -136,8 +137,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           return TabBarView(
             controller: _tabController,
             children: [
-              _GraphTab(detail: detail, familyId: widget.familyId),
-              _MembersTab(detail: detail, familyId: widget.familyId),
+              // P4-F7: Wrap high-risk graph tab with ErrorBoundary
+              ErrorBoundary(
+                child: _GraphTab(detail: detail, familyId: widget.familyId),
+              ),
+              // P4-F7: Wrap member list with ErrorBoundary
+              ErrorBoundary(
+                child: _MembersTab(detail: detail, familyId: widget.familyId),
+              ),
               _ActivityTab(detail: detail, familyId: widget.familyId),
             ],
           );

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -85,20 +86,26 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   Widget _buildOnboardingFlow() {
     return Column(
       children: [
-        // Skip button
-        Align(
-          alignment: Alignment.topRight,
-          child: Padding(
-            padding: const EdgeInsets.only(top: 8, right: 8),
-            child: TextButton(
-              onPressed: _onSkip,
-              child: Text(
-                'Skip',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: const Color(0xFFC9B4A8),
+        // Skip button — only visible on pages 1-3 (not last page)
+        Visibility(
+          visible: _currentPage < _onboardingPageCount - 1,
+          maintainSize: true,
+          maintainAnimation: true,
+          maintainState: true,
+          child: Align(
+            alignment: Alignment.topRight,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8, right: 8),
+              child: TextButton(
+                onPressed: _onSkip,
+                child: Text(
+                  'Skip',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: const Color(0xFFC9B4A8),
+                  ),
                 ),
               ),
             ),
@@ -109,6 +116,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         Expanded(
           child: PageView.builder(
             controller: _pageController,
+            physics: const BouncingScrollPhysics(),
             itemCount: _onboardingPageCount,
             onPageChanged: (i) => setState(() => _currentPage = i),
             itemBuilder: (context, index) {
@@ -132,23 +140,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               // Dot indicators
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  _onboardingPageCount,
-                  (i) => AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutCubic,
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    width: _currentPage == i ? 28 : 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: _currentPage == i
-                          ? KinrelColors.orange
-                          : const Color(0xFF202338),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
+              SmoothPageIndicator(
+                controller: _pageController,
+                count: _onboardingPageCount,
+                effect: ScrollingDotsEffect(
+                  activeDotColor: KinrelColors.orange,
+                  dotColor: const Color(0xFF202338),
+                  dotHeight: 8,
+                  dotWidth: 8,
+                  activeDotScale: 1.4,
+                  spacing: 8,
                 ),
               ),
               const SizedBox(height: 24),

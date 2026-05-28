@@ -163,7 +163,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // If user is authenticated OR has cached profile, go to home.
     // The home screen will show cached data instantly while
     // refreshing in the background.
-    if (isAuthenticated || _hasCachedProfile) {
+    if (!onboardingComplete) {
+      // Onboarding not complete — redirect to onboarding flow
+      if (!mounted || _navigated) return;
+      context.go('/onboarding');
+    } else if (isAuthenticated || _hasCachedProfile) {
       final lastRoute = await getLastRoute();
       if (!mounted || _navigated) return;
       if (lastRoute != null && lastRoute != '/splash' && mounted) {
@@ -172,10 +176,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       }
       context.go('/home');
     } else {
-      // Always go to sign-in for unauthenticated users
-      if (!onboardingComplete) {
-        await SecureStorageService().setOnboardingComplete(true);
-      }
+      // Not authenticated, go to sign-in
       if (!mounted || _navigated) return;
       context.go('/sign-in');
     }

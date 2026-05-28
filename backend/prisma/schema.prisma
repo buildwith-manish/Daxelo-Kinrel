@@ -86,6 +86,18 @@ model Post {
   updatedAt DateTime @updatedAt
 }
 
+model DataDeletionRequest {
+  id        String   @id @default(cuid())
+  email     String
+  userId    String?
+  reason    String?
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+}
+
 // ── Pack 02: Subscription & Support Tier ─────────────────────────────
 
 model Subscription {

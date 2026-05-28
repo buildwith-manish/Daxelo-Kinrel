@@ -5,6 +5,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/kinrel_icon.dart';
+import '../../../core/utils/error_boundary.dart';
 import '../providers/ai_chat_provider.dart';
 
 class AiChatScreen extends ConsumerStatefulWidget {
@@ -119,58 +120,61 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
           ),
         ),
       ),
-      body: Column(
-        children: [
-          // ── Suggestion Chips ─────────────────────────────────────
-          if (messages.isEmpty)
-            suggestionsAsync.when(
-              data: (suggestions) => _SuggestionChips(
-                suggestions: suggestions,
-                onTap: (suggestion) {
-                  _textController.text = suggestion;
-                  ref.read(aiChatSendMessageProvider)(suggestion);
-                  _scrollToBottom();
-                },
+      // P4-F7: Wrap AI chat body with ErrorBoundary
+      body: ErrorBoundary(
+        child: Column(
+          children: [
+            // ── Suggestion Chips ─────────────────────────────────────
+            if (messages.isEmpty)
+              suggestionsAsync.when(
+                data: (suggestions) => _SuggestionChips(
+                  suggestions: suggestions,
+                  onTap: (suggestion) {
+                    _textController.text = suggestion;
+                    ref.read(aiChatSendMessageProvider)(suggestion);
+                    _scrollToBottom();
+                  },
+                ),
+                loading: () => SizedBox.shrink(),
+                error: (_, __) => SizedBox.shrink(),
               ),
-              loading: () => SizedBox.shrink(),
-              error: (_, __) => SizedBox.shrink(),
+
+            // ── Messages List ────────────────────────────────────────
+            Expanded(
+              child: messages.isEmpty
+                  ? _EmptyState(
+                      onSuggestionTap: (suggestion) {
+                        _textController.text = suggestion;
+                        ref.read(aiChatSendMessageProvider)(suggestion);
+                        _scrollToBottom();
+                      },
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: KinrelSpacing.base,
+                        vertical: KinrelSpacing.md,
+                      ),
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) {
+                        final msg = messages[index];
+                        return _ChatBubble(message: msg, isUser: msg.isUser);
+                      },
+                    ),
             ),
 
-          // ── Messages List ────────────────────────────────────────
-          Expanded(
-            child: messages.isEmpty
-                ? _EmptyState(
-                    onSuggestionTap: (suggestion) {
-                      _textController.text = suggestion;
-                      ref.read(aiChatSendMessageProvider)(suggestion);
-                      _scrollToBottom();
-                    },
-                  )
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: KinrelSpacing.base,
-                      vertical: KinrelSpacing.md,
-                    ),
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = messages[index];
-                      return _ChatBubble(message: msg, isUser: msg.isUser);
-                    },
-                  ),
-          ),
+            // ── Typing Indicator ─────────────────────────────────────
+            if (isLoading) const _TypingIndicator(),
 
-          // ── Typing Indicator ─────────────────────────────────────
-          if (isLoading) const _TypingIndicator(),
-
-          // ── Input Bar ────────────────────────────────────────────
-          _InputBar(
-            controller: _textController,
-            focusNode: _focusNode,
-            onSend: _sendMessage,
-            isLoading: isLoading,
-          ),
-        ],
+            // ── Input Bar ────────────────────────────────────────────
+            _InputBar(
+              controller: _textController,
+              focusNode: _focusNode,
+              onSend: _sendMessage,
+              isLoading: isLoading,
+            ),
+          ],
+        ),
       ),
     );
   }

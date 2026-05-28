@@ -25,9 +25,12 @@ import 'core/database/sync/sync_service.dart';
 import 'core/network/socket_service.dart';
 import 'core/utils/device_tier.dart';
 import 'core/utils/a11y_checker.dart';
+import 'core/utils/memory_monitor.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'core/widgets/offline_banner.dart';
 import 'features/profile/data/profile_provider.dart';
 import 'core/database/repositories/offline_family_repository.dart';
+import 'core/services/rating_service.dart';
 import 'core/family/family_provider.dart';
 import 'features/family/providers/member_detail_provider.dart';
 
@@ -50,6 +53,33 @@ void main() async {
   // Run the rest inside a guarded zone
   runWithCrashGuard(() async {
     WidgetsFlutterBinding.ensureInitialized();
+
+    // ── P4-F7: Global error widget — prevents red screen of death ──
+    ErrorWidget.builder = (FlutterErrorDetails details) {
+      try {
+        FirebaseCrashlytics.instance.recordFlutterError(details);
+      } catch (_) {}
+      return Material(
+        child: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.error_outline,
+                    size: 48,
+                    color: Colors.red.shade700),
+                const SizedBox(height: 16),
+                const Text('Something went wrong',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                const Text('Tap to go home',
+                    style: TextStyle(fontSize: 13, color: Colors.grey)),
+              ],
+            ),
+          ),
+        ),
+      );
+    };
 
     // ── CRITICAL PATH: only essentials before runApp() ─────────────
     // These are needed before the first frame renders.
@@ -318,8 +348,14 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       }
     }
 
+    // ── P4-F2: Initialize Rating Service ────────────────────────
+    RatingService.instance.init();
+
     // ── P3-F5: Accessibility audit (debug only)
     A11yChecker.runAudit();
+
+    // ── P4-F7: Memory monitor (debug only) ─────────────────────────
+    MemoryMonitor.start();
 
     // ── P3-F1: Capture provider state for crash context ───────────
     try {
@@ -400,11 +436,17 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
 
       // ── P3-F1: Log app resume action ─────────────────────────────
       logActionBreadcrumb('app_resume');
+
+      // ── P4-F2: Rating service foreground tracking ───────
+      RatingService.instance.onForeground();
     } else if (state == AppLifecycleState.paused) {
       // ── P3-F1: Log app background action ─────────────────────────
       logActionBreadcrumb('app_background');
       // Force-send any pending crash reports while we have a chance
       sendUnsentReports();
+
+      // ── P4-F2: Rating service background tracking ───────
+      RatingService.instance.onBackground();
     }
   }
 
