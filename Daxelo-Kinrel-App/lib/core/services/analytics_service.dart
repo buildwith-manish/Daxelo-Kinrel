@@ -8,7 +8,9 @@
 // Never logs PII: no names, emails, phone numbers.
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_environment.dart';
 

@@ -12,7 +12,7 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
 import '../../../core/services/analytics_service.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
   SignInScreen({super.key});
@@ -230,7 +230,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           ),
                         ],
                       )
-                      .maybeAnimate()
+                      .animate()
                       .fadeIn(duration: 400.ms)
                       .slideY(begin: 0.15, end: 0, duration: 500.ms),
 
@@ -409,7 +409,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                               ),
                       ),
                     ),
-                  ).maybeAnimate().fadeIn(duration: 400.ms, delay: 200.ms),
+                  ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
 
                   const SizedBox(height: 28),
 
@@ -441,7 +441,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         ),
                       ),
                     ],
-                  ).maybeAnimate().fadeIn(duration: 300.ms, delay: 300.ms),
+                  ).animate().fadeIn(duration: 300.ms, delay: 300.ms),
 
                   const SizedBox(height: 20),
 
@@ -455,7 +455,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     onPressed: () {
                       // TODO: Google sign in
                     },
-                  ).maybeAnimate().fadeIn(duration: 300.ms, delay: 400.ms),
+                  ).animate().fadeIn(duration: 300.ms, delay: 400.ms),
 
                   const SizedBox(height: 32),
 
@@ -489,7 +489,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         ),
                       ),
                     ],
-                  ).maybeAnimate().fadeIn(duration: 300.ms, delay: 500.ms),
+                  ).animate().fadeIn(duration: 300.ms, delay: 500.ms),
 
                   const SizedBox(height: 16),
                 ],

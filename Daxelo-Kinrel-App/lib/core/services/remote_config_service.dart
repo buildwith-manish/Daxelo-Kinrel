@@ -158,22 +158,23 @@ class RemoteConfigService {
 
     try {
       final all = _remoteConfig.getAll();
-      return all.map((key, value) {
-        // Try each type in order
-        try {
-          return MapEntry(key, value.toBool());
-        } catch (_) {}
-        try {
-          return MapEntry(key, value.toDouble());
-        } catch (_) {}
-        try {
-          return MapEntry(key, value.toInt());
-        } catch (_) {}
-        try {
-          return MapEntry(key, value.asString());
-        } catch (_) {}
-        return MapEntry(key, value.source);
-      });
+      final result = <String, dynamic>{};
+      for (final key in all.keys) {
+        // Determine type from defaults, then use the typed getter
+        final defaultValue = _defaults[key];
+        if (defaultValue is bool) {
+          result[key] = _remoteConfig.getBool(key);
+        } else if (defaultValue is double) {
+          result[key] = _remoteConfig.getDouble(key);
+        } else if (defaultValue is int) {
+          result[key] = _remoteConfig.getInt(key);
+        } else if (defaultValue is String) {
+          result[key] = _remoteConfig.getString(key);
+        } else {
+          result[key] = _remoteConfig.getString(key);
+        }
+      }
+      return result;
     } catch (_) {
       return Map.from(_defaults);
     }
