@@ -55,7 +55,7 @@ subprojects {
     // any compileSdk < 34 set by legacy plugins.
     afterEvaluate {
         val androidExt = extensions.findByType<com.android.build.api.dsl.LibraryExtension>()
-        if (androidExt != null && androidExt.compileSdk < 34) {
+        if (androidExt != null && (androidExt.compileSdk ?: 0) < 34) {
             androidExt.compileSdk = 36
         }
     }
