@@ -22,16 +22,20 @@ subprojects {
 // ─── Compatibility fixes for legacy Flutter plugins ─────────────────────
 // AGP 9.0+ requires every Android library to declare a namespace and
 // compile against API 34+. Some older plugins (e.g. isar_flutter_libs 3.1.0)
-// don't meet these requirements. This block injects namespace from
-// AndroidManifest.xml and forces compileSdk = 36 for all library subprojects.
+// don't meet these requirements.
+//
+// 1) pluginManager.withPlugin: fires when com.android.library is applied,
+//    BEFORE the subproject's own android {} block runs — good for namespace
+//    injection which only needs a value, not a compileSdk override.
+//
+// 2) afterEvaluate: fires AFTER the subproject's android {} block has set
+//    compileSdk = 30 (or similar). We override it here because the
+//    checkReleaseAarMetadata task reads compileSdk at execution time, not
+//    configuration time — so late overrides still take effect.
 subprojects {
     pluginManager.withPlugin("com.android.library") {
         val androidExt = extensions.findByType<com.android.build.gradle.LibraryExtension>()
         if (androidExt != null) {
-            // Force compileSdk 36 so transitive deps (androidx.fragment 1.7+,
-            // androidx.window 1.2+) don't fail the AAR metadata check.
-            androidExt.compileSdk = 36
-
             // Inject namespace from AndroidManifest.xml if not declared.
             if (androidExt.namespace == null) {
                 val manifestFile = file("src/main/AndroidManifest.xml")
@@ -43,6 +47,16 @@ subprojects {
                     }
                 }
             }
+        }
+    }
+
+    // Force compileSdk = 36 for all Android library subprojects.
+    // Must run AFTER the subproject's own build.gradle so we override
+    // any compileSdk < 34 set by legacy plugins.
+    afterEvaluate {
+        val androidExt = extensions.findByType<com.android.build.gradle.LibraryExtension>()
+        if (androidExt != null && androidExt.compileSdk < 34) {
+            androidExt.compileSdk = 36
         }
     }
 }
