@@ -39,16 +39,10 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-    }
-
-    splits {
-        // ABI splits configuration for smaller APKs
-        // Using the new AGP 9.0 compatible syntax
-        abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64")
-            isUniversalApk = false
+        // Let Flutter handle ABI filtering automatically — avoids conflict
+        // with ndk.abiFilters set by the Flutter Gradle plugin.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
         }
     }
 
