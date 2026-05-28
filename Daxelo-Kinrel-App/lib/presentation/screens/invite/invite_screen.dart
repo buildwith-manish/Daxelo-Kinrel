@@ -25,7 +25,7 @@ import '../../../core/utils/share_helper.dart';
 import '../../../core/utils/invite_message_builder.dart';
 import '../../../core/services/retention_service.dart';
 import '../../../core/services/analytics_service.dart';
-import '../../features/profile/data/profile_provider.dart';
+import '../../../features/profile/data/profile_provider.dart';
 
 class InviteScreen extends ConsumerStatefulWidget {
   const InviteScreen({
@@ -45,7 +45,6 @@ class _InviteScreenState extends ConsumerState<InviteScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _linkCopied = false;
-  bool _isQrLoading = false;
 
   // The invite URL for this family
   String get _inviteUrl => 'https://kinrel.app/invite/${widget.familyId}';
@@ -343,11 +342,11 @@ class _InviteScreenState extends ConsumerState<InviteScreen>
                 version: QrVersions.auto,
                 size: 200.0,
                 eyeStyle: const QrEyeStyle(
-                  eyeShape: QrEyeShape.roundedOuter,
+                  eyeShape: QrEyeShape.square,
                   color: KinrelColors.orange,
                 ),
                 dataModuleStyle: const QrDataModuleStyle(
-                  dataModuleShape: QrDataModuleShape.roundedOuter,
+                  dataModuleShape: QrDataModuleShape.square,
                   color: Color(0xFF1A1A2E),
                 ),
               ),
@@ -422,7 +421,7 @@ class _InviteScreenState extends ConsumerState<InviteScreen>
               // Invitee info
               Expanded(
                 child: Text(
-                  invite.familyName,
+                  invite.familyName ?? '',
                   style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
@@ -650,8 +649,6 @@ class _InviteScreenState extends ConsumerState<InviteScreen>
   Future<void> _saveQrCode() async {
     // For now, show a snackbar — full implementation would use
     // path_provider + screenshot package to save the QR image
-    setState(() => _isQrLoading = true);
-
     try {
       // The full implementation would:
       // 1. Use RepaintBoundary + RenderRepaintBoundary to capture the QR
@@ -676,7 +673,7 @@ class _InviteScreenState extends ConsumerState<InviteScreen>
         );
       }
     } finally {
-      if (mounted) setState(() => _isQrLoading = false);
+      // No cleanup needed
     }
   }
 }
@@ -786,7 +783,7 @@ class _PendingInviteCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  invitation.familyName,
+                  invitation.familyName ?? '',
                   style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 15,
@@ -798,7 +795,7 @@ class _PendingInviteCard extends ConsumerWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Invited by ${invitation.inviterName}',
+                  'Invited by ${invitation.inviterName ?? ''}',
                   style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,

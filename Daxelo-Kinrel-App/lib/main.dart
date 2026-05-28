@@ -216,7 +216,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
         }
 
         // Listen for auth state changes to update crash context
-        client.auth.onAuthStateChange.listen((event) {
+        client.auth.onAuthStateChange.listen((event) async {
           final user = event.session?.user;
           if (user != null) {
             setUserIdentifier(user.id);

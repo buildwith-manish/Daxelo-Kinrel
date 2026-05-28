@@ -2272,7 +2272,7 @@ class _EventsForDateList extends StatelessWidget {
                   itemBuilder: (context, index) {
                     return _EventCard(event: events[index])
                         .maybeAnimate()
-                        .fadeIn()
+                        .fadeIn(
                           duration: 350.ms,
                           delay: Duration(milliseconds: index * 60),
                         )

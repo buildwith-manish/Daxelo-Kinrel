@@ -42,11 +42,13 @@ android {
     }
 
     splits {
+        // ABI splits configuration for smaller APKs
+        // Using the new AGP 9.0 compatible syntax
         abi {
-            enable = true
+            isEnable = true
             reset()
             include("arm64-v8a", "armeabi-v7a", "x86_64")
-            universalApk = false
+            isUniversalApk = false
         }
     }
 

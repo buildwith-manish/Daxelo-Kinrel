@@ -186,18 +186,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   /// If found, set _hasCachedProfile = true so we can navigate faster.
   void _checkIsarCache() {
     if (!IsarDatabase.isInitialized) return;
-    try {
-      final isar = IsarDatabase.instance;
-      final cachedProfile = isar.cachedProfiles.where().findFirstSync();
-      if (cachedProfile != null) {
-        _hasCachedProfile = true;
-        debugPrint('⚡ Isar cache hit — cached profile found, fast navigation enabled');
-      } else {
-        debugPrint('📦 No cached profile in Isar — will wait for auth');
-      }
-    } catch (e) {
-      debugPrint('⚠️ Isar cache check failed: $e');
-    }
+    // TODO: Re-enable Isar cache check once generated code is available.
+    // The cachedProfiles getter on Isar requires running build_runner
+    // to generate the .g.dart file for CachedProfile.
+    debugPrint('📦 Isar cache check skipped — generated code not available');
   }
 
   /// Restore Supabase session (important for app resume & cold starts).
