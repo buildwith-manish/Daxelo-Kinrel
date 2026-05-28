@@ -1475,6 +1475,113 @@ class _QuickSetupFamilyStep extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// Quick Setup — Step 3: Referral Code (Optional)
+// Enter a referral code from a friend (optional)
+// ═══════════════════════════════════════════════════════════════════════
+
+class _QuickSetupReferralStep extends StatelessWidget {
+  const _QuickSetupReferralStep({required this.controller, required this.onNext});
+
+  final TextEditingController controller;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.xl),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _StepIndicator(current: 3, total: 4),
+          const SizedBox(height: 32),
+
+          const Text(
+            'Have a referral code?',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 26,
+              fontWeight: FontWeight.w700,
+              color: KinrelColors.textWhite,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          const Text(
+            'Enter it below to earn rewards (optional)',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: Color(0xFFC9B4A8),
+            ),
+          ),
+          const SizedBox(height: 32),
+
+          // Referral code input
+          TextField(
+            controller: controller,
+            autofocus: true,
+            cursorColor: KinrelColors.orange,
+            textCapitalization: TextCapitalization.characters,
+            style: const TextStyle(
+              fontFamily: KinrelTypography.monoFont,
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+              color: KinrelColors.textWhite,
+              letterSpacing: 3,
+            ),
+            decoration: InputDecoration(
+              hintText: 'KINREL-XXXX',
+              hintStyle: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 18,
+                color: const Color(0xFFC9B4A8).withValues(alpha: 0.5),
+                letterSpacing: 3,
+              ),
+              filled: true,
+              fillColor: const Color(0xFF202338),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 18,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: KinrelColors.orange, width: 1.5),
+              ),
+            ),
+            onSubmitted: (_) => onNext(),
+          ),
+          const SizedBox(height: 16),
+
+          // Skip button
+          TextButton(
+            onPressed: onNext,
+            child: const Text(
+              'Skip for now',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 13,
+                color: Color(0xFFC9B4A8),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          _IgniteButton(label: 'Continue', onPressed: onNext),
+        ],
+      ),
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // Quick Setup — Step 4: Privacy Assurance
 // Lock icon + "Your family data is encrypted and private"
 // + Welcome toast notification
