@@ -299,7 +299,7 @@ class KinshipDetailScreen extends ConsumerWidget {
                           ),
                         )
                         .maybeAnimate(onPlay: (c) => c.forward())
-                        .fadeIn()
+                        .fadeIn(
                           duration: 300.ms,
                           delay: Duration(milliseconds: index * 30),
                         );

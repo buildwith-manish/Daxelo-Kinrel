@@ -894,7 +894,7 @@ class _KinshipTermCard extends StatelessWidget {
           ),
         )
         .maybeAnimate(onPlay: (c) => c.forward())
-        .fadeIn()
+        .fadeIn(
           duration: 250.ms,
           delay: Duration(milliseconds: (index % 20) * 20),
         );
