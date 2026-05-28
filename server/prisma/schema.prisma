@@ -37,10 +37,16 @@ model User {
   preferredLanguage String   @default("en")
   role              String   @default("user") // user, admin, agent
   phone             String?
+  isPremium         Boolean  @default(false) // P5-B2: Premium status flag
+  lastOpenedAt      DateTime? // P5-B4: Last app open timestamp
+  dormantNotificationSent Boolean @default(false) // P5-B4: Dormant notification sent flag
+  timezoneOffset    Int      @default(330) // P5-B4: IST offset in minutes
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
   subscription      Subscription?
+  referralCode      ReferralCode?  @relation("UserReferralCode")
+  referredBy        ReferralCode?  @relation("UserReferredBy")
   supportTickets    SupportTicket[]
   supportAgent      SupportAgent?
   authoredArticles  KBArticle[]      @relation("KBArticleAuthor")
@@ -85,21 +91,24 @@ model Post {
 // ── Pack 02: Subscription & Support Tier ─────────────────────────────
 
 model Subscription {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id])
-  plan        String   @default("free") // free, pro_monthly, pro_annual, family_annual, lifetime
-  status      String   @default("active") // active, cancelled, expired
-  supportTier String   @default("basic") // basic, standard, premium, vip
-  startDate   DateTime @default(now())
-  endDate     DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id])
+  plan              String   @default("free") // free, pro_monthly, pro_annual, family_annual, lifetime
+  status            String   @default("active") // active, cancelled, expired
+  supportTier       String   @default("basic") // basic, standard, premium, vip
+  startDate         DateTime @default(now())
+  endDate           DateTime?
+  razorpayOrderId   String?  // P5-B2: Razorpay order ID
+  razorpayPaymentId String?  // P5-B2: Razorpay payment ID
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   tickets     SupportTicket[] @relation("SupportTicketSubscription")
 
   @@index([userId, status])
   @@index([supportTier])
+  @@index([status, endDate])
 }
 
 // ── Pack 02: Support Agent ───────────────────────────────────────────
