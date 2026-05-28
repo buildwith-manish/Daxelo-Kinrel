@@ -94,7 +94,7 @@ dependencies:
   qr_flutter: ^4.1.0
 
   # Timezone support (required by flutter_local_notifications scheduling)
-  timezone: ^0.9.4
+  timezone: ^0.10.1
 
 dev_dependencies:
   flutter_test:

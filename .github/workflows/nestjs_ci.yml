@@ -34,6 +34,8 @@ jobs:
 
       - name: Validate Prisma schema
         run: npx prisma validate
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
 
       - name: Run env check
         run: bash scripts/env_check.sh
