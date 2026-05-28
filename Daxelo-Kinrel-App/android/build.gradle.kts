@@ -34,7 +34,7 @@ subprojects {
 //    configuration time — so late overrides still take effect.
 subprojects {
     pluginManager.withPlugin("com.android.library") {
-        val androidExt = extensions.findByType<com.android.build.gradle.LibraryExtension>()
+        val androidExt = extensions.findByType<com.android.build.api.dsl.LibraryExtension>()
         if (androidExt != null) {
             // Inject namespace from AndroidManifest.xml if not declared.
             if (androidExt.namespace == null) {
@@ -54,7 +54,7 @@ subprojects {
     // Must run AFTER the subproject's own build.gradle so we override
     // any compileSdk < 34 set by legacy plugins.
     afterEvaluate {
-        val androidExt = extensions.findByType<com.android.build.gradle.LibraryExtension>()
+        val androidExt = extensions.findByType<com.android.build.api.dsl.LibraryExtension>()
         if (androidExt != null && androidExt.compileSdk < 34) {
             androidExt.compileSdk = 36
         }
