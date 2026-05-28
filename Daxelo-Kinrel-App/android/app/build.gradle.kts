@@ -67,8 +67,14 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            // R8 code shrinking — safe with comprehensive ProGuard rules.
+            // Keeps code minification while preventing runtime class-not-found.
             isMinifyEnabled = true
-            isShrinkResources = true
+            // Resource shrinking DISABLED — it was stripping native .so files
+            // and assets needed at runtime (Isar FFI, fonts, etc.).
+            // This is the #1 cause of blank screen on release builds.
+            // APK size increases by ~5MB but app works correctly.
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
