@@ -27,6 +27,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/theme/theme_provider.dart' show themeModeProvider, fontScaleProvider, localeProvider;
 import '../../../core/services/supabase_service.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/profile_provider.dart';
@@ -1629,6 +1630,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             onPressed: () async {
               Navigator.of(ctx).pop();
               try {
+                // P5-F1: Track logout event
+                AnalyticsService.instance.logLogout();
                 await ref.read(profileProvider.notifier).logout();
                 if (context.mounted) context.go('/sign-in');
               } catch (e) {

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
+import '../../../core/services/analytics_service.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -444,6 +445,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             size: DKButtonSize.lg,
             onPressed: () async {
               try {
+                // P5-F1: Track logout event
+                AnalyticsService.instance.logLogout();
                 await ref.read(authServiceProvider).signOut();
                 await SecureStorageService().clearAuthTokens();
                 if (context.mounted) context.go('/sign-in');

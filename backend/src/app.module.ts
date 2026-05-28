@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
+import { ScheduleModule } from '@nestjs/schedule';
 import { configuration, validationSchema } from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -47,6 +48,8 @@ import { CampaignsModule } from './campaigns/campaigns.module';
         },
       },
     }),
+    // P5: Required for @Cron decorators in CampaignsScheduler and PremiumService
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     FamilyModule,

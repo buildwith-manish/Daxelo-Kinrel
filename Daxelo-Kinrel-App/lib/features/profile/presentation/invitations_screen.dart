@@ -14,6 +14,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/device_tier.dart';
+import '../../../core/services/analytics_service.dart';
 import '../data/profile_provider.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
@@ -75,6 +76,8 @@ class _InvitationsScreenState extends ConsumerState<InvitationsScreen>
     if (!mounted) return;
 
     if (success) {
+      // P5-F1: Track invite accepted
+      AnalyticsService.instance.logInviteAccepted('invitation_list');
       context.showSnackBar('Joined "${invitation.familyName}"!');
       // Navigate to family graph
       await context.push('/families');

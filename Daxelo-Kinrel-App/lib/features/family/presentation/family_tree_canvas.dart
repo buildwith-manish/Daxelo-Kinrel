@@ -9,6 +9,7 @@ import '../../../core/graph/graph_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/utils/smart_preloader.dart';
 import '../../../core/utils/accessibility_utils.dart';
+import '../../../core/services/analytics_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // DATA MODELS
@@ -277,6 +278,10 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
+
+    // P5-F1: Track graph opened with node count
+    final activeCount = widget.members.where((p) => p.deletedAt == null).length;
+    AnalyticsService.instance.logGraphOpened(activeCount);
   }
 
   @override
@@ -353,6 +358,10 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
             maxScale: 3.0,
             boundaryMargin: const EdgeInsets.all(2000),
             onInteractionUpdate: (details) {
+              // P5-F1: Track zoom changes (only for pinch zoom, not pan)
+              if (details.scale != 1.0 && details.scale != _currentScale) {
+                AnalyticsService.instance.logGraphZoomed(details.scale);
+              }
               setState(() {
                 _currentScale = details.scale;
               });
@@ -543,6 +552,8 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
       }
 
       setState(() => _selectedNodeId = tappedId);
+      // P5-F1: Track graph node tap
+      AnalyticsService.instance.logGraphNodeTapped();
       widget.onNodeTap?.call(person);
     } else {
       setState(() => _selectedNodeId = null);

@@ -230,6 +230,20 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
             // When the user signs in (or token refreshes), ensure the
             // FCM token is synced to the backend.
             if (event.event == AuthChangeEvent.signedIn) {
+              // P5-F1: Set user properties for analytics
+              try {
+                final familyList = await ref.read(familyListProvider.future);
+                final primaryFamily = familyList.isNotEmpty ? familyList.first : null;
+                final profileState = ref.read(profileProvider);
+                await AnalyticsService.instance.setUserProperties(
+                  userId: user.id,
+                  familyId: primaryFamily?.id ?? '',
+                  memberCount: profileState.stats?.membersAdded ?? 0,
+                  preferredLanguage: profileState.profile?.preferredLanguage ?? 'en',
+                  isPremium: false, // Will be updated by PremiumService
+                );
+              } catch (_) {}
+
               try {
                 final pushService = ref.read(pushNotificationServiceProvider);
                 if (!pushService.isInitialized) {
