@@ -90,7 +90,7 @@ jobs:
 
       - name: Create .env for Prisma
         run: |
-          echo 'DATABASE_URL="file:./dev.db"' > .env
+          echo 'DATABASE_URL="postgresql://ci:ci@localhost:5432/ci_test"' > .env
           echo 'JWT_SECRET=ci-placeholder-secret-that-is-at-least-32-chars' >> .env
           echo 'JWT_REFRESH_SECRET=ci-placeholder-refresh-secret-that-is-at-least-32-chars' >> .env
 
@@ -110,4 +110,4 @@ jobs:
       - name: Validate Prisma schema
         run: npx prisma validate
         env:
-          DATABASE_URL: "file:./dev.db"
+          DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci_test"
