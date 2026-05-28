@@ -91,9 +91,14 @@ import '../../features/chat/presentation/chat_screen.dart';
 import '../../features/share/presentation/share_screen.dart';
 import '../../features/gamification/presentation/achievements_screen.dart';
 import '../../features/documents/presentation/documents_screen.dart';
+import '../../presentation/screens/invite/invite_screen.dart';
+import '../../presentation/screens/premium/paywall_screen.dart';
+import '../../presentation/screens/debug/engagement_dashboard.dart';
+import '../config/app_environment.dart';
 import '../services/supabase_service.dart';
 import '../services/crashlytics_service.dart';
 import '../services/deep_link_service.dart';
+import '../services/analytics_service.dart';
 import '../../shared/widgets/dk_components.dart';
 import '../../core/family/family_provider.dart';
 import '../../features/profile/data/profile_provider.dart';
@@ -240,6 +245,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/splash',
     debugLogDiagnostics: true,
+    observers: [
+      // P5-F1: Track every route change for analytics
+      AnalyticsNavigatorObserver(),
+    ],
     redirect: (context, state) {
       // ── P3-F1: Log navigation breadcrumb for crash context ───────
       logNavigationBreadcrumb(state.matchedLocation);
@@ -247,6 +256,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Don't redirect away from splash — it handles its own navigation
       final isSplash = state.matchedLocation == '/splash';
       if (isSplash) return null;
+
+      // ── P5: Debug route guard — only accessible in dev flavor ──────
+      if (state.matchedLocation == '/debug') {
+        if (!AppEnvironmentConfig.current.isDev) {
+          return '/home';
+        }
+      }
 
       final authState = ref.read(isAuthenticatedProvider);
       final isOnboarding = state.matchedLocation == '/onboarding';
@@ -497,6 +513,37 @@ final routerProvider = Provider<GoRouter>((ref) {
             _fastFadePage(key: state.pageKey, child: ReferralScreen()),
       ),
 
+      // ── P5: Invite Screen ──────────────────────────────────────────
+      GoRoute(
+        path: '/invite',
+        pageBuilder: (context, state) {
+          final familyId = state.uri.queryParameters['familyId'] ?? '';
+          final familyName = state.uri.queryParameters['familyName'] ?? 'Family';
+          return _fastFadePage(
+            key: state.pageKey,
+            child: InviteScreen(
+              familyId: familyId,
+              familyName: familyName,
+            ),
+          );
+        },
+      ),
+
+      // ── P5: Premium Paywall ────────────────────────────────────────
+      GoRoute(
+        path: '/premium',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const PaywallScreen()),
+      ),
+
+      // ── P5: Debug Engagement Dashboard ─────────────────────────────
+      // Only accessible in dev flavor — redirect guard is above.
+      GoRoute(
+        path: '/debug',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const EngagementDashboard()),
+      ),
+
       // ── Share & Invite ──────────────────────────────────────────
       GoRoute(
         path: '/family/:id/share',
@@ -661,6 +708,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/profile/relations',
         pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: const RelationsScreen()),
+      ),
+
+      // ── P5: Premium Paywall (alternative path) ────────────────────
+      GoRoute(
+        path: '/profile/premium',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const PaywallScreen()),
       ),
     ],
   );

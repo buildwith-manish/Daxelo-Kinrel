@@ -11,6 +11,7 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../core/utils/device_tier.dart';
 
 class SignUpScreen extends ConsumerStatefulWidget {
@@ -179,6 +180,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         password: _passwordController.text,
         name: _nameController.text.trim(),
       );
+
+      // P5-F1: Track successful sign-up
+      AnalyticsService.instance.logSignUp('email');
 
       if (!mounted) return;
 

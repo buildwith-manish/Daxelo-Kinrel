@@ -31,6 +31,8 @@ import 'core/widgets/offline_banner.dart';
 import 'features/profile/data/profile_provider.dart';
 import 'core/database/repositories/offline_family_repository.dart';
 import 'core/services/rating_service.dart';
+import 'core/services/analytics_service.dart';
+import 'core/services/remote_config_service.dart';
 import 'core/family/family_provider.dart';
 import 'features/family/providers/member_detail_provider.dart';
 
@@ -115,6 +117,16 @@ void main() async {
 
     // Initialize Hive for local caching
     await Hive.initFlutter();
+
+    // P5-F4: Open engagement box for retention tracking
+    try {
+      await Hive.openBox('engagement');
+    } catch (_) {}
+
+    // P5: Open settings box for premium status & local config
+    try {
+      await Hive.openBox('settings');
+    } catch (_) {}
 
     // Initialize Isar database for offline-first caching
     try {
@@ -347,6 +359,25 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
         debugPrint('⚠️ Birthday preload failed: $e');
       }
     }
+
+    // ── P5-F1: Initialize Analytics Service ────────────────────────
+    await AnalyticsService.instance.init();
+
+    // ── P5: Initialize Remote Config Service ──────────────────────
+    try {
+      await RemoteConfigService.instance.init();
+      debugPrint('✅ Remote Config initialized');
+    } catch (e) {
+      debugPrint('⚠️ Remote Config init failed, using defaults: $e');
+    }
+
+    // ── P5-F4: Record app open for retention tracking
+    try {
+      final engagementBox = Hive.box('engagement');
+      final opens = engagementBox.get('app_opens', defaultValue: 0);
+      await engagementBox.put('app_opens', opens + 1);
+      await engagementBox.put('last_open', DateTime.now().toIso8601String());
+    } catch (_) {}
 
     // ── P4-F2: Initialize Rating Service ────────────────────────
     RatingService.instance.init();

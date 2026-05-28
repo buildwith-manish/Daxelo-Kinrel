@@ -20,7 +20,7 @@ export class AuthService {
    * - Return { user: { id, email, name }, familyId }
    */
   async register(dto: RegisterDto) {
-    const { name, email, password } = dto;
+    const { name, email, password, referralCode } = dto;
 
     // Check existing user
     const existing = await this.prisma.user.findUnique({ where: { email } });
@@ -53,6 +53,38 @@ export class AuthService {
         role: 'admin',
       },
     });
+
+    // Handle referral code if provided
+    if (referralCode) {
+      try {
+        const referrer = await this.prisma.user.findUnique({
+          where: { referralCode },
+          select: { id: true },
+        });
+
+        if (referrer && referrer.id !== user.id) {
+          // Check if the new user hasn't already been referred
+          const existingReferral = await this.prisma.referral.findFirst({
+            where: { referredId: user.id },
+          });
+
+          if (!existingReferral) {
+            await this.prisma.referral.create({
+              data: {
+                referrerId: referrer.id,
+                referredId: user.id,
+                code: referralCode,
+                status: 'accepted',
+                acceptedAt: new Date(),
+              },
+            });
+          }
+        }
+      } catch (error) {
+        // Log but don't fail registration if referral processing fails
+        console.error('Failed to process referral code:', error instanceof Error ? error.message : String(error));
+      }
+    }
 
     // Generate tokens
     const accessToken = this.generateAccessToken({

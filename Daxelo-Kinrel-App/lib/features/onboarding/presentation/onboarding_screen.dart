@@ -10,6 +10,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/storage/secure_storage.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../core/utils/device_tier.dart';
 
@@ -34,15 +35,25 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   // Quick setup state
   final _nameController = TextEditingController();
   final _familyNameController = TextEditingController();
+  final _referralCodeController = TextEditingController();
   int _quickSetupStep = 0;
 
   static const int _onboardingPageCount = 4;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // P5-F1: Track onboarding start
+    AnalyticsService.instance.logOnboardingStart();
+  }
 
   @override
   void dispose() {
     _pageController.dispose();
     _nameController.dispose();
     _familyNameController.dispose();
+    _referralCodeController.dispose();
     super.dispose();
   }
 
@@ -62,11 +73,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   Future<void> _completeOnboarding() async {
     final storage = SecureStorageService();
     await storage.setOnboardingComplete(true);
+
+    // P5-F1: Track onboarding completion
+    AnalyticsService.instance.logOnboardingComplete();
+
     if (mounted) context.go('/sign-in');
   }
 
   void _onQuickSetupNext() {
-    if (_quickSetupStep < 2) {
+    if (_quickSetupStep < 3) {
       setState(() => _quickSetupStep++);
     } else {
       _completeOnboarding();
@@ -193,6 +208,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           onNext: _onQuickSetupNext,
         );
       case 2:
+        return _QuickSetupReferralStep(
+          controller: _referralCodeController,
+          onNext: _onQuickSetupNext,
+        );
+      case 3:
         return _QuickSetupPrivacyStep(
           userName: _nameController.text.trim().isEmpty
               ? 'there'

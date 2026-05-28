@@ -8,6 +8,7 @@
 
 import 'package:share_plus/share_plus.dart' as share_plus;
 import '../services/crashlytics_service.dart';
+import '../services/analytics_service.dart';
 
 /// Base URL for shareable deep links
 const _baseUrl = 'https://kinrel.app';
@@ -28,6 +29,9 @@ class ShareHelper {
         '— Sent via Kinrel by Daxelo';
 
     logActionBreadcrumb('share_family', {'familyId': familyId});
+
+    // P5-F1: Track share event
+    AnalyticsService.instance.logShareProfile('other');
 
     await share_plus.Share.share(
       text,

@@ -86,6 +86,20 @@ export class UsersService {
   }
 
   /**
+   * Record app open event
+   * Updates User.lastOpenedAt and resets dormantNotificationSent to false
+   */
+  async appOpen(userId: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        lastOpenedAt: new Date(),
+        dormantNotificationSent: false,
+      },
+    });
+  }
+
+  /**
    * Delete user account with cascade
    */
   async deleteAccount(userId: string) {

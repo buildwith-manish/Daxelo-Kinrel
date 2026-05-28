@@ -74,6 +74,17 @@ model User {
   blockedUsers      BlockedUser[]   @relation("UserBlocked")
   blockedBy         BlockedUser[]   @relation("UserBlockedBy")
   dataExports       DataExportRequest[]
+
+  // P5-B1: Referral system
+  referralCode      String?   @unique // 8-char alphanumeric referral code
+  referralsSent     Referral[] @relation("ReferrerRefs")
+  referredBy        Referral[] @relation("ReferredRefs")
+
+  // P5-B4: Re-engagement campaigns
+  lastOpenedAt              DateTime?
+  dormantNotificationSent   Boolean  @default(false)
+  timezoneOffset            Int      @default(330) // IST = +330 minutes
+  isPremium                 Boolean  @default(false)
 }
 
 model Post {
@@ -1456,4 +1467,39 @@ model NotificationLog {
   @@unique([userId, type, referenceId, sentAt])
   @@index([userId])
   @@index([type, sentAt])
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Phase 5: Growth & Virality
+// ══════════════════════════════════════════════════════════════════════
+
+// P5-B1: Referral System
+model Referral {
+  id            String    @id @default(cuid())
+  referrerId    String
+  referredId    String?
+  code          String    @unique
+  status        String    @default("pending") // pending | accepted | rewarded
+  createdAt     DateTime  @default(now())
+  acceptedAt    DateTime?
+
+  referrer      User      @relation("ReferrerRefs", fields: [referrerId], references: [id])
+  referred      User?     @relation("ReferredRefs", fields: [referredId], references: [id])
+
+  @@index([referrerId])
+  @@index([referredId])
+  @@index([code])
+  @@index([status])
+}
+
+// P5-B3: Growth Analytics Events
+model AnalyticsEvent {
+  id         String   @id @default(cuid())
+  userId     String
+  event      String   // event name
+  properties String?  // JSON string of event properties
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([event, createdAt])
 }

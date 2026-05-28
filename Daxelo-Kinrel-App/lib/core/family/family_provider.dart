@@ -1,8 +1,10 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import '../services/supabase_service.dart';
+import '../services/analytics_service.dart';
 import '../graph/graph_service.dart';
 import '../database/isar_database.dart';
 import '../database/repositories/offline_family_repository.dart';
@@ -626,6 +628,9 @@ Future<Family> createFamily({
     } catch (_) {}
   }
 
+  // P5-F1: Track family creation
+  AnalyticsService.instance.logFamilyCreated();
+
   return family;
 }
 
@@ -686,6 +691,16 @@ Future<Person> createPerson({
       await CacheInvalidation.invalidateFamily(familyId);
     } catch (_) {}
   }
+
+  // P5-F1: Track member addition
+  AnalyticsService.instance.logMemberAdded(gender ?? 'unknown');
+
+  // P5-F4: Record member added for retention tracking
+  try {
+    final engagementBox = Hive.box('engagement');
+    final count = engagementBox.get('members_added', defaultValue: 0);
+    await engagementBox.put('members_added', count + 1);
+  } catch (_) {}
 
   return Person.fromJson(response);
 }
@@ -1172,6 +1187,9 @@ Future<Family> joinFamilyByCode(WidgetRef ref, String familyCode) async {
       await CacheInvalidation.invalidateFamilyList();
     } catch (_) {}
   }
+
+  // P5-F1: Track family join
+  AnalyticsService.instance.logFamilyJoined('invite_code');
 
   return family;
 }

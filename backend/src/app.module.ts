@@ -9,6 +9,10 @@ import { ProfileModule } from './profile/profile.module';
 import { UsersModule } from './users/users.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { LegalModule } from './legal/legal.module';
+import { ReferralModule } from './referral/referral.module';
+import { PremiumModule } from './premium/premium.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { CampaignsModule } from './campaigns/campaigns.module';
 
 @Module({
   imports: [
@@ -50,6 +54,10 @@ import { LegalModule } from './legal/legal.module';
     UsersModule,
     NotificationsModule,
     LegalModule,
+    ReferralModule,
+    PremiumModule,
+    AnalyticsModule,
+    CampaignsModule,
   ],
 })
 export class AppModule {}

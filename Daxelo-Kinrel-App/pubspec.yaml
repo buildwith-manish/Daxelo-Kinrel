@@ -82,12 +82,16 @@ dependencies:
   firebase_crashlytics: ^4.3.5
   firebase_analytics: ^11.0.0
   firebase_messaging: ^15.2.5
+  firebase_remote_config: ^5.0.0
 
   # Local Notifications (foreground FCM display)
   flutter_local_notifications: ^19.0.0
   google_fonts: ^8.1.0
   socket_io_client: ^3.1.4
   app_links: ^7.1.1
+
+  # QR Code generation
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:

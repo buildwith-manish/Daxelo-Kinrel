@@ -55,6 +55,17 @@ export class UsersController {
   }
 
   /**
+   * POST /api/users/app-open
+   * Update User.lastOpenedAt and reset dormantNotificationSent
+   * Returns 204 No Content
+   */
+  @Post('app-open')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async appOpen(@CurrentUser() user: { id: string }) {
+    await this.usersService.appOpen(user.id);
+  }
+
+  /**
    * DELETE /api/users/me
    * Matches Next.js: { success: true, message: 'Account deleted' }
    */
