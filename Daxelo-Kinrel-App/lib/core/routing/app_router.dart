@@ -264,7 +264,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         }
       }
 
-      final authState = ref.read(isAuthenticatedProvider);
       final isOnboarding = state.matchedLocation == '/onboarding';
       final isAuth =
           state.matchedLocation == '/sign-in' ||
@@ -274,11 +273,26 @@ final routerProvider = Provider<GoRouter>((ref) {
           state.matchedLocation == '/terms';
       final isProtected = !isSplash && !isOnboarding && !isAuth && !isPublicLegal;
 
-      // If not authenticated and trying to access protected route, go to sign-in
-      // BUT: Don't redirect if Supabase isn't initialized yet — the session
-      // might just be restoring. This prevents flicker to sign-in on resume.
+      // If trying to access a protected route, check auth status.
+      // IMPORTANT: If Supabase isn't initialized yet, DON'T redirect to
+      // sign-in — the session might still be restoring. Allow navigation
+      // to proceed and let the splash screen / individual screens handle
+      // the auth state gracefully.
+      bool authState = false;
+      bool supabaseReady = false;
+      try {
+        authState = ref.read(isAuthenticatedProvider);
+        supabaseReady = ref.read(isSupabaseReadyProvider);
+      } catch (_) {
+        // Providers may throw if not initialized — treat as not ready
+        return null;
+      }
+
       if (!authState && isProtected) {
-        if (!ref.read(isSupabaseReadyProvider)) return null;
+        // Only redirect to sign-in if Supabase is fully initialized
+        // and the user is definitely not authenticated. If Supabase
+        // isn't ready, allow navigation — screens should be resilient.
+        if (!supabaseReady) return null;
         return '/sign-in';
       }
 

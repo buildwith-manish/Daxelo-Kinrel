@@ -28,6 +28,7 @@ import 'core/utils/a11y_checker.dart';
 import 'core/utils/memory_monitor.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'core/widgets/offline_banner.dart';
+import 'core/utils/error_boundary.dart';
 import 'features/profile/data/profile_provider.dart';
 import 'core/database/repositories/offline_family_repository.dart';
 import 'core/services/rating_service.dart';
@@ -574,11 +575,14 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
             // Respect platform brightness — do NOT force dark mode
             textScaler: TextScaler.linear(ref.watch(fontScaleProvider)),
           ),
-          child: Column(
-            children: [
-              const OfflineBanner(),
-              Expanded(child: child ?? const SizedBox.shrink()),
-            ],
+          child: ErrorBoundary(
+            fallback: child ?? const SizedBox.shrink(),
+            child: Column(
+              children: [
+                const OfflineBanner(),
+                Expanded(child: child ?? const SizedBox.shrink()),
+              ],
+            ),
           ),
         );
       },

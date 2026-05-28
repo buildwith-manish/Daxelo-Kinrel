@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,7 +40,7 @@ Future<bool> _warmUpSupabase(String url) async {
   try {
     _log.i('🔧 Warming up Supabase server...');
     final client = HttpClient();
-    client.connectionTimeout = const Duration(seconds: 45);
+    client.connectionTimeout = const Duration(seconds: 5);
     final request = await client.getUrl(Uri.parse('$url/rest/v1/'));
     request.headers.set('apikey', _resolveSupabaseAnonKey());
     request.headers.set('Authorization', 'Bearer ${_resolveSupabaseAnonKey()}');
@@ -101,8 +102,9 @@ Future<bool> initSupabase() async {
     _log.i('🔧 Attempting initialization anyway...');
   }
 
-  // Pre-warm the Supabase server (critical for free tier cold starts)
-  await _warmUpSupabase(url);
+  // Pre-warm the Supabase server (fire-and-forget — don't block startup)
+  // The warmup helps with free tier cold starts but should never delay app init.
+  unawaited(_warmUpSupabase(url));
 
   // Retry Supabase initialization up to 3 times for cold starts
   int attempts = 0;
@@ -127,7 +129,7 @@ Future<bool> initSupabase() async {
         '❌ Supabase initialization failed (attempt $attempts/$maxAttempts): $e',
       );
       if (attempts < maxAttempts) {
-        final delay = Duration(seconds: attempts * 5);
+        final delay = Duration(seconds: attempts * 2);
         _log.i('🔄 Retrying in ${delay.inSeconds}s...');
         await Future.delayed(delay);
       }

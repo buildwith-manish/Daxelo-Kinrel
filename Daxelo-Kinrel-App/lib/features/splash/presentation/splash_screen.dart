@@ -128,21 +128,21 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // Preload kinship data in the background (5 300+ terms, ~15 MB JSON)
     unawaited(ref.read(kinshipInitializedProvider.future).catchError((_) {}));
 
-    // Start Supabase session restoration early (overlaps with animation)
-    final authFuture = _restoreSession();
+    // Start Supabase session restoration in the background.
+    // We do NOT await this — it may take 30+ seconds on a cold Supabase.
+    // Instead, we navigate based on cached/local state and let the
+    // session restoration complete in the background.
+    unawaited(_restoreSession());
 
     // Shorter hold if we have cached data — user sees app faster
     final holdMs = _hasCachedProfile ? 1200 : 1800;
     await Future.delayed(Duration(milliseconds: holdMs));
 
-    if (!mounted) return;
-
-    // Wait for auth restoration to finish (may already be done)
-    await authFuture;
-
     if (!mounted || _navigated) return;
 
-    // Read navigation state
+    // Read navigation state from LOCAL sources only — don't block on network.
+    // If Supabase is already initialized, use its auth state; otherwise
+    // fall back to cached profile presence to decide where to go.
     final isAuthenticated = ref.read(isAuthenticatedProvider);
     final secureStorage = SecureStorageService();
     final onboardingComplete = await secureStorage.isOnboardingComplete();
@@ -163,9 +163,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // If user is authenticated OR has cached profile, go to home.
     // The home screen will show cached data instantly while
     // refreshing in the background.
+    // IMPORTANT: Even if Supabase isn't ready yet, we still navigate.
+    // If we have a cached profile, the user was previously logged in,
+    // so go to home. If not, go to sign-in. This ensures the user
+    // NEVER sees a blank screen waiting for Supabase.
     if (!onboardingComplete) {
       // Onboarding not complete — redirect to onboarding flow
-      if (!mounted || _navigated) return;
       context.go('/onboarding');
     } else if (isAuthenticated || _hasCachedProfile) {
       final lastRoute = await getLastRoute();
@@ -176,8 +179,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       }
       context.go('/home');
     } else {
-      // Not authenticated, go to sign-in
-      if (!mounted || _navigated) return;
+      // Not authenticated and no cached profile — go to sign-in
       context.go('/sign-in');
     }
   }
@@ -193,6 +195,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   /// Restore Supabase session (important for app resume & cold starts).
+  /// This runs in the background (fire-and-forget) and should NOT block
+  /// splash screen navigation. If Supabase isn't initialized yet, skip.
   Future<void> _restoreSession() async {
     try {
       if (isSupabaseInitialized) {
@@ -202,14 +206,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           if (session == null) {
             try {
               await client.auth.onAuthStateChange.first.timeout(
-                const Duration(seconds: 8),
+                const Duration(seconds: 3),
               );
             } catch (_) {
               // Timeout — no session, will redirect to sign-in
             }
           }
           // Let auth state propagate to providers
-          await Future.delayed(const Duration(milliseconds: 300));
+          await Future.delayed(const Duration(milliseconds: 200));
         }
       }
     } catch (_) {

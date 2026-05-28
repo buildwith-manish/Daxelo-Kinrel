@@ -21,6 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/sync/connectivity_service.dart';
 import '../utils/accessibility_utils.dart';
+import '../utils/error_boundary.dart';
 
 // ---------------------------------------------------------------------------
 // Provider — tracks recent network request failures
@@ -44,6 +45,9 @@ final recentRequestFailureProvider = StateProvider<DateTime?>((ref) => null);
 /// Integration: placed inside the `MaterialApp.builder` callback as a
 /// persistent overlay using a Column wrapper. Does NOT alter any
 /// existing screen's Scaffold.
+///
+/// Wrapped in ErrorBoundary so that if connectivity providers fail,
+/// the banner silently disappears instead of crashing the app.
 class OfflineBanner extends ConsumerStatefulWidget {
   const OfflineBanner({super.key});
 
@@ -62,11 +66,15 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner> {
     // if no new provider state change occurs.
     _expiryTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
-      final lastFailure = ref.read(recentRequestFailureProvider);
-      if (lastFailure != null &&
-          DateTime.now().difference(lastFailure).inSeconds >= 30) {
-        // Force a rebuild so the banner hides
-        setState(() {});
+      try {
+        final lastFailure = ref.read(recentRequestFailureProvider);
+        if (lastFailure != null &&
+            DateTime.now().difference(lastFailure).inSeconds >= 30) {
+          // Force a rebuild so the banner hides
+          setState(() {});
+        }
+      } catch (_) {
+        // Provider may not be ready — ignore
       }
     });
   }
@@ -79,8 +87,17 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner> {
 
   @override
   Widget build(BuildContext context) {
-    final isOnline = ref.watch(isOnlineProvider).valueOrNull ?? true;
-    final lastFailure = ref.watch(recentRequestFailureProvider);
+    bool isOnline = true;
+    DateTime? lastFailure;
+
+    // Safely read providers — if they throw (e.g., Supabase not ready),
+    // default to online = true so the banner doesn't show.
+    try {
+      isOnline = ref.watch(isOnlineProvider).valueOrNull ?? true;
+      lastFailure = ref.watch(recentRequestFailureProvider);
+    } catch (_) {
+      isOnline = true;
+    }
 
     final show = !isOnline &&
         lastFailure != null &&
