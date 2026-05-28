@@ -28,7 +28,6 @@ import 'core/utils/a11y_checker.dart';
 import 'core/utils/memory_monitor.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'core/widgets/offline_banner.dart';
-import 'core/utils/error_boundary.dart';
 import 'features/profile/data/profile_provider.dart';
 import 'core/database/repositories/offline_family_repository.dart';
 import 'core/services/rating_service.dart';
@@ -36,130 +35,182 @@ import 'core/services/analytics_service.dart';
 import 'core/services/remote_config_service.dart';
 import 'core/family/family_provider.dart';
 import 'features/family/providers/member_detail_provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 // Generated localization imports (flutter gen-l10n)
 import 'package:kinrel/l10n/app_localizations.dart';
 
 void main() async {
-  // ── P3-F1: runZonedGuarded wraps everything ──────────────────────
-  // This catches ALL uncaught async errors, even those that
-  // PlatformDispatcher.onError misses (Timer, Future callbacks, etc.)
-
-  // Initialize environment FIRST — determines dev/staging/prod
+  // ── Initialize environment FIRST ───────────────────────────────────
   AppEnvironmentConfig.initialize();
 
-  // ── P3-F3: Register FCM background handler BEFORE runApp() ────────
-  // Must be a top-level function, registered as early as possible
-  // so background isolates can handle messages from the start.
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  // ── CRITICAL: Ensure Flutter binding before any async work ─────────
+  WidgetsFlutterBinding.ensureInitialized();
 
-  // Run the rest inside a guarded zone
-  runWithCrashGuard(() async {
-    WidgetsFlutterBinding.ensureInitialized();
-
-    // ── P4-F7: Global error widget — prevents red screen of death ──
-    ErrorWidget.builder = (FlutterErrorDetails details) {
-      try {
+  // ── P4-F7: Global error widget — prevents red screen of death ──
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    try {
+      if (isCrashlyticsAvailable) {
         FirebaseCrashlytics.instance.recordFlutterError(details);
-      } catch (_) {}
-      return Material(
-        child: SafeArea(
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.error_outline,
-                    size: 48,
-                    color: Colors.red.shade700),
-                const SizedBox(height: 16),
-                const Text('Something went wrong',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                const Text('Tap to go home',
-                    style: TextStyle(fontSize: 13, color: Colors.grey)),
-              ],
-            ),
+      }
+    } catch (_) {}
+    return Material(
+      child: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline,
+                  size: 48,
+                  color: Colors.red.shade700),
+              const SizedBox(height: 16),
+              const Text('Something went wrong',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              const Text('Please restart the app',
+                  style: TextStyle(fontSize: 13, color: Colors.grey)),
+            ],
           ),
         ),
-      );
-    };
-
-    // ── CRITICAL PATH: only essentials before runApp() ─────────────
-    // These are needed before the first frame renders.
-    // Everything else is deferred via addPostFrameCallback.
-
-    // Load environment variables from .env file
-    // CRITICAL: dotenv MUST be initialized before anyone calls dotenv.env[]
-    try {
-      await dotenv.load(fileName: '.env');
-      debugPrint('✅ .env file loaded successfully');
-    } catch (e) {
-      try {
-        dotenv.loadFromString(envString: '# fallback — using hardcoded defaults');
-      } catch (_) {}
-      debugPrint('⚠️ .env file not found or empty, using fallback defaults');
-    }
-
-    // Set initial system UI overlay style
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
-        systemNavigationBarColor: Color(0xFF121212),
-        systemNavigationBarIconBrightness: Brightness.light,
       ),
     );
+  };
 
+  // ── 1. Initialize Firebase BEFORE anything that depends on it ──────
+  // This MUST come before FirebaseMessaging, Crashlytics, etc.
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    debugPrint('✅ Firebase initialized successfully');
+  } catch (e) {
+    debugPrint('⚠️ Firebase initialization failed: $e');
+    // Continue — app works without Firebase (no crashlytics/push)
+  }
+
+  // ── 2. Initialize Crashlytics (now that Firebase is ready) ────────
+  await initCrashlytics();
+
+  // ── P3-F3: Register FCM background handler ────────────────────────
+  // Must be a top-level function, registered after Firebase init
+  try {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  } catch (e) {
+    debugPrint('⚠️ FCM background handler registration failed: $e');
+  }
+
+  // ── 3. Load environment variables ──────────────────────────────────
+  try {
+    await dotenv.load(fileName: '.env');
+    debugPrint('✅ .env file loaded successfully');
+  } catch (e) {
+    try {
+      dotenv.loadFromString(envString: '# fallback — using hardcoded defaults');
+    } catch (_) {}
+    debugPrint('⚠️ .env file not found or empty, using fallback defaults');
+  }
+
+  // ── 4. Set system UI ──────────────────────────────────────────────
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
+      systemNavigationBarColor: Color(0xFF121212),
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+  );
+
+  try {
     await SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
     ]);
+  } catch (_) {}
 
-    // Initialize Hive for local caching
+  // ── 5. Initialize Hive for local caching ──────────────────────────
+  try {
     await Hive.initFlutter();
+    await Hive.openBox('engagement');
+    await Hive.openBox('settings');
+    debugPrint('✅ Hive initialized');
+  } catch (e) {
+    debugPrint('⚠️ Hive initialization failed: $e');
+  }
 
-    // P5-F4: Open engagement box for retention tracking
-    try {
-      await Hive.openBox('engagement');
-    } catch (_) {}
+  // ── 6. Initialize Isar database for offline-first caching ─────────
+  try {
+    await IsarDatabase.initialize();
+    debugPrint('✅ Isar database initialized');
+  } catch (e) {
+    debugPrint('⚠️ Isar initialization failed, continuing without offline cache: $e');
+  }
 
-    // P5: Open settings box for premium status & local config
-    try {
-      await Hive.openBox('settings');
-    } catch (_) {}
+  // ── 7. Initialize Supabase BEFORE runApp ──────────────────────────
+  // CRITICAL FIX: Supabase MUST be initialized before runApp so that
+  // isAuthenticatedProvider works correctly when splash navigates.
+  try {
+    final supabaseReady = await initSupabase();
+    debugPrint('🔧 Supabase initialized before runApp: $supabaseReady');
+  } catch (e) {
+    debugPrint('⚠️ Supabase init failed before runApp: $e');
+    // Continue — app will redirect to sign-in
+  }
 
-    // Initialize Isar database for offline-first caching
-    try {
-      await IsarDatabase.initialize();
-      debugPrint('✅ Isar database initialized');
-    } catch (e) {
-      debugPrint('⚠️ Isar initialization failed, continuing without offline cache: $e');
-    }
+  // ── 8. Disable Google Fonts runtime fetching ──────────────────────
+  GoogleFonts.config.allowRuntimeFetching = false;
 
-    // Disable Google Fonts runtime fetching — we bundle key fonts instead
-    GoogleFonts.config.allowRuntimeFetching = false;
-
-    // ── Detect Device Tier ──────────────────────────────────────────────
-    // Initialize DeviceTierCache from the first available MediaQuery data.
-    // This must happen before runApp() so that all providers and widgets
-    // can access the tier during their first build.
+  // ── 9. Detect Device Tier ─────────────────────────────────────────
+  try {
     final binding = WidgetsFlutterBinding.ensureInitialized();
     final view = binding.platformDispatcher.views.first;
     final physicalSize = view.physicalSize;
     final pixelRatio = view.devicePixelRatio;
     final screenWidth = physicalSize.width / pixelRatio;
     DeviceTierCache.instance.initialize(screenWidth, pixelRatio);
+  } catch (e) {
+    debugPrint('⚠️ Device tier detection failed: $e');
+  }
 
-    // ── Log environment info for crash context ─────────────────────
-    logNavigationBreadcrumb('/splash');
-    logActionBreadcrumb('app_start', {
-      'env': AppEnvironmentConfig.current.label,
-      'device_tier': DeviceTierCache.instance.tier.name,
-    });
-
-    runApp(ProviderScope(child: KinrelApp()));
+  // ── Log environment info for crash context ─────────────────────────
+  logNavigationBreadcrumb('/splash');
+  logActionBreadcrumb('app_start', {
+    'env': AppEnvironmentConfig.current.label,
+    'device_tier': DeviceTierCache.instance.tier.name,
   });
+
+  // ── Run app inside guarded zone ────────────────────────────────────
+  runZonedGuarded<Future<void>>(
+    () async {
+      runApp(ProviderScope(child: KinrelApp()));
+    },
+    (error, stack) {
+      _attachStateContext(error.toString());
+      if (isCrashlyticsAvailable) {
+        FirebaseCrashlytics.instance.recordError(
+          error,
+          stack,
+          reason: 'Uncaught async error in guarded zone',
+          fatal: true,
+        );
+      } else {
+        debugPrint('🔴 [Uncaught async error]: $error');
+        debugPrint('   Stack: $stack');
+      }
+    },
+  );
+}
+
+/// Attach captured Riverpod state + breadcrumbs to a Crashlytics report.
+void _attachStateContext(String errorContext) {
+  if (!isCrashlyticsAvailable) return;
+  try {
+    FirebaseCrashlytics.instance.setCustomKey(
+      'crash_environment',
+      AppEnvironmentConfig.current.label,
+    );
+  } catch (_) {}
 }
 
 class KinrelApp extends ConsumerStatefulWidget {
@@ -181,8 +232,8 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     _loadSavedLocale();
 
     // ── DEFERRED INIT: non-critical services after first frame ───
-    // These run after the first frame renders, so the user sees
-    // the splash screen instantly instead of waiting for services.
+    // These run after the widget tree is built, so the splash screen
+    // appears immediately while these load in the background.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initDeferredServices();
     });
@@ -192,16 +243,13 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
   /// Runs after the widget tree is built, so the splash screen
   /// appears immediately while these load in the background.
   Future<void> _initDeferredServices() async {
-    // 1. Firebase Crashlytics (non-critical — catches crashes AFTER init)
-    await initCrashlytics();
-
-    // 2. Local cache service (Hive-based, used alongside Isar)
-    final cacheService = LocalCacheService();
-    await cacheService.init();
-
-    // 3. Initialize Supabase — will ALWAYS succeed with hardcoded fallbacks
-    final supabaseReady = await initSupabase();
-    debugPrint('🔧 Supabase initialized: $supabaseReady');
+    // 1. Local cache service (Hive-based, used alongside Isar)
+    try {
+      final cacheService = LocalCacheService();
+      await cacheService.init();
+    } catch (e) {
+      debugPrint('⚠️ LocalCacheService init failed: $e');
+    }
 
     // ── P3-F1: Capture auth state for crash context ───────────────
     try {
@@ -228,8 +276,6 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
             });
 
             // ── P3-F3: Re-sync FCM token on sign-in ──────────────────
-            // When the user signs in (or token refreshes), ensure the
-            // FCM token is synced to the backend.
             if (event.event == AuthChangeEvent.signedIn) {
               // P5-F1: Set user properties for analytics
               try {
@@ -241,7 +287,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
                   familyId: primaryFamily?.id ?? '',
                   memberCount: profileState.stats?.membersAdded ?? 0,
                   preferredLanguage: profileState.profile?.preferredLanguage ?? 'en',
-                  isPremium: false, // Will be updated by PremiumService
+                  isPremium: false,
                 );
               } catch (_) {}
 
@@ -264,7 +310,6 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
             captureRiverpodState('auth', {'status': 'signed_out'});
 
             // ── P3-F3: Delete FCM token on sign-out ───────────────────
-            // Prevent notifications from being delivered after sign-out.
             try {
               final pushService = ref.read(pushNotificationServiceProvider);
               pushService.deleteToken();
@@ -275,7 +320,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       }
     } catch (_) {}
 
-    // 4. Start the sync service if Isar is initialized
+    // 2. Start the sync service if Isar is initialized
     if (IsarDatabase.isInitialized) {
       try {
         final syncService = ref.read(syncServiceProvider);
@@ -286,7 +331,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       }
     }
 
-    // 5. Start the Socket.IO service if authenticated
+    // 3. Start the Socket.IO service if authenticated
     try {
       final client = ref.read(supabaseProvider);
       if (client != null && client.auth.currentSession != null) {
@@ -298,14 +343,11 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       debugPrint('⚠️ SocketService start failed: $e');
     }
 
-    // ── P3-F3: Initialize Push Notifications if authenticated ─────
-    // Only register FCM when the user is signed in.
-    // Token sync requires a valid Supabase JWT for the NestJS backend.
+    // 4. Initialize Push Notifications if authenticated
     try {
       final client = ref.read(supabaseProvider);
       if (client != null && client.auth.currentSession != null) {
         final pushService = ref.read(pushNotificationServiceProvider);
-        // Set up deep link handler to navigate via GoRouter
         pushService.onDeepLink = (route) {
           try {
             final router = ref.read(routerProvider);
@@ -330,20 +372,19 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       '🔧 AppConfig isSupabaseConfigured: ${AppConfig.isSupabaseConfigured}',
     );
 
-    // 6. Preload bottom nav tabs (500ms delay to not compete with initial load)
+    // 5. Preload bottom nav tabs (500ms delay to not compete with initial load)
     Future.delayed(const Duration(milliseconds: 500), () {
       try {
-        // Warm up providers for tabs the user hasn't opened yet
-        ref.read(familyListProvider.future); // Graph tab
-        ref.read(profileProvider.notifier).loadProfile(); // Profile tab
-        ref.read(profileProvider.notifier).loadStats(); // Profile tab
+        ref.read(familyListProvider.future);
+        ref.read(profileProvider.notifier).loadProfile();
+        ref.read(profileProvider.notifier).loadStats();
         debugPrint('🚀 Bottom nav tabs preloaded');
       } catch (e) {
         debugPrint('⚠️ Bottom nav preload failed: $e');
       }
     });
 
-    // 7. Birthday preload — check for upcoming birthdays in the next 7 days
+    // 6. Birthday preload
     if (IsarDatabase.isInitialized) {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
@@ -358,13 +399,10 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
                 final thisYearBirthday = DateTime(now.year, dob.month, dob.day);
                 final daysUntil = thisYearBirthday.difference(now).inDays;
                 if (daysUntil >= 0 && daysUntil <= 7) {
-                  // Preload this member's profile silently
                   debugPrint('🎂 Birthday preload: ${member.name} in $daysUntil days');
                   try {
                     unawaited(ref.read(memberDetailProvider(member.id).future));
-                  } catch (_) {
-                    // Silently ignore — best-effort preload
-                  }
+                  } catch (_) {}
                 }
               }
             }
@@ -376,7 +414,11 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     }
 
     // ── P5-F1: Initialize Analytics Service ────────────────────────
-    await AnalyticsService.instance.init();
+    try {
+      await AnalyticsService.instance.init();
+    } catch (e) {
+      debugPrint('⚠️ Analytics init failed: $e');
+    }
 
     // ── P5: Initialize Remote Config Service ──────────────────────
     try {
@@ -405,7 +447,6 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
 
     // ── P3-F1: Capture provider state for crash context ───────────
     try {
-      // Listen to family list provider state
       ref.listen(familyListProvider, (_, next) {
         captureRiverpodState('familyList', {
           'count': next.value?.length ?? 0,
@@ -416,8 +457,6 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     } catch (_) {}
 
     // ── P3-F2: Initialize Deep Link Service ─────────────────────────
-    // Listens for incoming deep links (cold start + warm start) and
-    // navigates to the correct screen using GoRouter.
     try {
       final deepLinkService = ref.read(deepLinkServiceProvider);
       await deepLinkService.init(
@@ -435,7 +474,6 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       debugPrint('⚠️ Deep link service init failed: $e');
     }
   }
-
 
   Future<void> _loadSavedLocale() async {
     try {
@@ -459,8 +497,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     if (state == AppLifecycleState.resumed) {
       _updateSystemUIOverlay();
 
-      // Silently refresh the session in the background WITHOUT triggering
-      // a navigation reset.
+      // Silently refresh the session in the background
       if (isSupabaseInitialized) {
         try {
           final client = ref.read(supabaseProvider);
@@ -480,18 +517,11 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
         } catch (_) {}
       }
 
-      // ── P3-F1: Log app resume action ─────────────────────────────
       logActionBreadcrumb('app_resume');
-
-      // ── P4-F2: Rating service foreground tracking ───────
       RatingService.instance.onForeground();
     } else if (state == AppLifecycleState.paused) {
-      // ── P3-F1: Log app background action ─────────────────────────
       logActionBreadcrumb('app_background');
-      // Force-send any pending crash reports while we have a chance
       sendUnsentReports();
-
-      // ── P4-F2: Rating service background tracking ───────
       RatingService.instance.onBackground();
     }
   }
@@ -543,7 +573,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: S.supportedLocales,
-      locale: ref.watch(localeProvider), // Saved language preference or system default
+      locale: ref.watch(localeProvider),
       builder: (context, child) {
         // Update system UI overlay when theme changes
         final brightness = MediaQuery.of(context).platformBrightness;
@@ -572,17 +602,13 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
 
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
-            // Respect platform brightness — do NOT force dark mode
             textScaler: TextScaler.linear(ref.watch(fontScaleProvider)),
           ),
-          child: ErrorBoundary(
-            fallback: child ?? const SizedBox.shrink(),
-            child: Column(
-              children: [
-                const OfflineBanner(),
-                Expanded(child: child ?? const SizedBox.shrink()),
-              ],
-            ),
+          child: Column(
+            children: [
+              const OfflineBanner(),
+              Expanded(child: child ?? const SizedBox.shrink()),
+            ],
           ),
         );
       },

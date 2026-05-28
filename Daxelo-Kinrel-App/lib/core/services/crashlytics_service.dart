@@ -6,18 +6,15 @@
 // Only initializes on Android/iOS — gracefully skips on web/desktop.
 // If Firebase is not configured, logs a warning and the app still runs.
 //
-// P3-F1 Enhancements:
-// - runZonedGuarded wrapper for catching async errors
-// - Riverpod state capture at crash time for context
-// - Environment tagging (dev/staging/prod) for separated crash reports
-// - Breadcrumb logging for navigation + user actions
+// IMPORTANT: Firebase.initializeApp() MUST be called BEFORE this
+// service's initCrashlytics() method. The main.dart file handles
+// Firebase init at the top of main().
 
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
-import '../../firebase_options.dart';
 import '../config/app_environment.dart';
 
 /// Whether Firebase has been successfully initialized.
@@ -42,21 +39,31 @@ final List<String> _actionBreadcrumbs = [];
 
 /// Initialize Firebase Crashlytics.
 ///
-/// Call this early in `main()` before `runApp()`.
-/// - Only runs on Android/iOS (Firebase Crashlytics doesn't support web/desktop)
-/// - If Firebase is not configured (missing google-services.json), logs a warning
-/// - The app always runs regardless — crash reporting is optional
+/// IMPORTANT: Firebase.initializeApp() MUST be called BEFORE this method.
+/// In main.dart, Firebase.initializeApp() is called at the top of main().
+///
+/// This method configures Crashlytics error handlers and sets up
+/// environment tagging. It does NOT call Firebase.initializeApp() again.
 Future<void> initCrashlytics() async {
-  // Only init Firebase on mobile platforms
+  // Only init on mobile platforms
   if (!Platform.isAndroid && !Platform.isIOS) {
     debugPrint('⏭️ Firebase Crashlytics skipped — not a mobile platform');
     return;
   }
 
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    // Check if Firebase is already initialized (it should be, from main.dart)
+    try {
+      // If Firebase.apps is empty, Firebase hasn't been initialized yet
+      if (Firebase.apps.isEmpty) {
+        debugPrint('⚠️ Firebase not initialized before initCrashlytics() — skipping');
+        return;
+      }
+    } catch (e) {
+      debugPrint('⚠️ Firebase apps check failed: $e');
+      return;
+    }
+
     _firebaseInitialized = true;
 
     // ── Tag with environment ────────────────────────────────────────
@@ -69,7 +76,6 @@ Future<void> initCrashlytics() async {
 
     // ── Pass all uncaught Flutter framework errors to Crashlytics ───
     FlutterError.onError = (details) {
-      // Capture Riverpod state at crash time for context
       _attachStateContext(details.exception.toString());
       FirebaseCrashlytics.instance.recordFlutterFatalError(details);
     };
@@ -82,7 +88,6 @@ Future<void> initCrashlytics() async {
     };
 
     // ── Enable collection based on environment ──────────────────────
-    // Dev: disabled (noise), Staging/Prod: enabled
     await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
       env.shouldReportCrashes,
     );
@@ -94,39 +99,24 @@ Future<void> initCrashlytics() async {
   } catch (e) {
     // Firebase not configured — app still works, just no crash reporting
     debugPrint('⚠️ Firebase Crashlytics not initialized: $e');
-    debugPrint('   To enable crash reporting:');
-    debugPrint('   1. Run: flutterfire configure --project=daxelo-kinrel');
-    debugPrint('   2. Ensure google-services.json is in android/app/');
-    debugPrint('   3. Ensure GoogleService-Info.plist is in ios/Runner/');
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// runZonedGuarded Wrapper
+// runZonedGuarded Wrapper (DEPRECATED — use runZonedGuarded directly)
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Run the app inside a guarded zone that catches all uncaught async errors.
 ///
-/// This is the P3-F1 way to start the app:
-/// ```dart
-/// void main() async {
-///   WidgetsFlutterBinding.ensureInitialized();
-///   // ... init code ...
-///   runWithCrashGuard(() => runApp(KinrelApp()));
-/// }
-/// ```
-///
-/// Catches:
-/// - Uncaught async errors in zones (Future.then, Timer, etc.)
-/// - Errors in event handlers that aren't wrapped in try/catch
-/// - Microtask errors
+/// DEPRECATED: main.dart now uses runZonedGuarded directly for better
+/// control over the initialization order. This function is kept for
+/// backward compatibility but should not be used in new code.
 void runWithCrashGuard(void Function() callback) {
   runZonedGuarded<Future<void>>(
     () async {
       callback();
     },
     (error, stack) {
-      // Attach state context before recording
       _attachStateContext(error.toString());
 
       if (_firebaseInitialized) {
@@ -149,23 +139,8 @@ void runWithCrashGuard(void Function() callback) {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Capture current Riverpod state for crash context.
-///
-/// Call this from providers when state changes significantly.
-/// The last captured state is attached to crash reports.
-///
-/// Example:
-/// ```dart
-/// ref.listen(familyListProvider, (_, next) {
-///   captureRiverpodState('familyList', {
-///     'count': next.value?.length ?? 0,
-///     'isLoading': next.isLoading,
-///     'hasError': next.hasError,
-///   });
-/// });
-/// ```
 void captureRiverpodState(String key, Map<String, dynamic> state) {
   _lastKnownState[key] = state;
-  // Keep only the last 10 state snapshots
   if (_lastKnownState.length > 10) {
     _lastKnownState.remove(_lastKnownState.keys.first);
   }
@@ -176,13 +151,11 @@ void _attachStateContext(String errorContext) {
   if (!_firebaseInitialized) return;
 
   try {
-    // Attach environment
     FirebaseCrashlytics.instance.setCustomKey(
       'crash_environment',
       AppEnvironmentConfig.current.label,
     );
 
-    // Attach last known state as a structured log
     if (_lastKnownState.isNotEmpty) {
       final stateSummary = _lastKnownState.entries
           .map((e) => '${e.key}: ${e.value}')
@@ -190,21 +163,18 @@ void _attachStateContext(String errorContext) {
       FirebaseCrashlytics.instance.log('Riverpod state: $stateSummary');
     }
 
-    // Attach navigation breadcrumbs
     if (_navigationBreadcrumbs.isNotEmpty) {
       FirebaseCrashlytics.instance.log(
         'Navigation: ${_navigationBreadcrumbs.take(10).join(' → ')}',
       );
     }
 
-    // Attach action breadcrumbs
     if (_actionBreadcrumbs.isNotEmpty) {
       FirebaseCrashlytics.instance.log(
         'Recent actions: ${_actionBreadcrumbs.take(5).join(', ')}',
       );
     }
 
-    // Attach state keys
     FirebaseCrashlytics.instance.setCustomKey(
       'active_providers',
       _lastKnownState.keys.join(','),
@@ -213,9 +183,7 @@ void _attachStateContext(String errorContext) {
       'nav_depth',
       _navigationBreadcrumbs.length,
     );
-  } catch (_) {
-    // Never let state capture crash the app
-  }
+  } catch (_) {}
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -223,39 +191,25 @@ void _attachStateContext(String errorContext) {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Log a navigation breadcrumb for crash context.
-///
-/// Call this in GoRouter redirect or screen initState:
-/// ```dart
-/// logNavigationBreadcrumb('/family/${familyId}');
-/// ```
 void logNavigationBreadcrumb(String route) {
   _navigationBreadcrumbs.add(route);
-  // Keep only last 20
   if (_navigationBreadcrumbs.length > 20) {
     _navigationBreadcrumbs.removeAt(0);
   }
-  // Also log to Crashlytics as a breadcrumb
   if (_firebaseInitialized) {
     FirebaseCrashlytics.instance.log('Navigation → $route');
   }
 }
 
 /// Log a user action breadcrumb for crash context.
-///
-/// Call this for significant user actions:
-/// ```dart
-/// logActionBreadcrumb('add_member', {'familyId': familyId});
-/// ```
 void logActionBreadcrumb(String action, [Map<String, dynamic>? params]) {
   final entry = params != null
       ? '$action(${params.entries.map((e) => '${e.key}=${e.value}').join(',')})'
       : action;
   _actionBreadcrumbs.add(entry);
-  // Keep only last 20
   if (_actionBreadcrumbs.length > 20) {
     _actionBreadcrumbs.removeAt(0);
   }
-  // Also log to Crashlytics as a breadcrumb
   if (_firebaseInitialized) {
     FirebaseCrashlytics.instance.log('Action → $entry');
   }
@@ -266,9 +220,6 @@ void logActionBreadcrumb(String action, [Map<String, dynamic>? params]) {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Log a non-fatal error to Crashlytics.
-///
-/// Use this for caught exceptions that should be tracked
-/// but don't crash the app.
 void logError(
   dynamic error,
   StackTrace? stack, {
@@ -299,30 +250,21 @@ void log(String message) {
 }
 
 /// Set a user identifier for Crashlytics reports.
-///
-/// Call this after sign-in to associate crash reports with users.
 void setUserIdentifier(String userId) {
   if (!_firebaseInitialized) return;
   FirebaseCrashlytics.instance.setUserIdentifier(userId);
 }
 
 /// Set a custom key-value pair for Crashlytics reports.
-///
-/// Useful for adding context (e.g., selected family, current screen).
 void setCustomKey(String key, dynamic value) {
   if (!_firebaseInitialized) return;
   FirebaseCrashlytics.instance.setCustomKey(key, value);
 }
 
 /// Force-send all pending crash reports.
-///
-/// Call when the user triggers a "report bug" action or
-/// before the app is about to terminate gracefully.
 Future<void> sendUnsentReports() async {
   if (!_firebaseInitialized) return;
   try {
     await FirebaseCrashlytics.instance.sendUnsentReports();
-  } catch (_) {
-    // Never let this crash the app
-  }
+  } catch (_) {}
 }

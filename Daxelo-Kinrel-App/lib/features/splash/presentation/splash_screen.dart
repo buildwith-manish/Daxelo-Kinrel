@@ -143,9 +143,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // Read navigation state from LOCAL sources only — don't block on network.
     // If Supabase is already initialized, use its auth state; otherwise
     // fall back to cached profile presence to decide where to go.
-    final isAuthenticated = ref.read(isAuthenticatedProvider);
+    bool isAuthenticated = false;
+    try {
+      isAuthenticated = ref.read(isAuthenticatedProvider);
+    } catch (e) {
+      debugPrint('⚠️ Cannot read auth state, using cached profile: $e');
+    }
+
     final secureStorage = SecureStorageService();
-    final onboardingComplete = await secureStorage.isOnboardingComplete();
+    bool onboardingComplete = false;
+    try {
+      onboardingComplete = await secureStorage.isOnboardingComplete();
+    } catch (e) {
+      debugPrint('⚠️ Cannot read onboarding state: $e');
+    }
 
     if (!mounted || _navigated) return;
 
@@ -160,26 +171,38 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _navigated = true;
 
-    // If user is authenticated OR has cached profile, go to home.
-    // The home screen will show cached data instantly while
-    // refreshing in the background.
-    // IMPORTANT: Even if Supabase isn't ready yet, we still navigate.
+    // ── NAVIGATION DECISION ──────────────────────────────────────────
+    // Priority:
+    // 1. If onboarding not complete → /onboarding
+    // 2. If authenticated OR has cached profile → /home (or last route)
+    // 3. Otherwise → /sign-in
+    //
+    // CRITICAL: Even if Supabase isn't ready yet, we still navigate.
     // If we have a cached profile, the user was previously logged in,
     // so go to home. If not, go to sign-in. This ensures the user
     // NEVER sees a blank screen waiting for Supabase.
     if (!onboardingComplete) {
       // Onboarding not complete — redirect to onboarding flow
+      debugPrint('🧭 Splash → /onboarding (onboarding not complete)');
       context.go('/onboarding');
     } else if (isAuthenticated || _hasCachedProfile) {
-      final lastRoute = await getLastRoute();
+      // Authenticated or has cached session → go to home
+      String? lastRoute;
+      try {
+        lastRoute = await getLastRoute();
+      } catch (_) {}
+
       if (!mounted || _navigated) return;
       if (lastRoute != null && lastRoute != '/splash' && mounted) {
+        debugPrint('🧭 Splash → $lastRoute (restored last route)');
         context.go(lastRoute);
         return;
       }
+      debugPrint('🧭 Splash → /home (authenticated: $isAuthenticated, cached: $_hasCachedProfile)');
       context.go('/home');
     } else {
       // Not authenticated and no cached profile — go to sign-in
+      debugPrint('🧭 Splash → /sign-in (not authenticated, no cache)');
       context.go('/sign-in');
     }
   }
@@ -187,11 +210,23 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   /// Check Isar cache for a cached user profile.
   /// If found, set _hasCachedProfile = true so we can navigate faster.
   void _checkIsarCache() {
-    if (!IsarDatabase.isInitialized) return;
-    // TODO: Re-enable Isar cache check once generated code is available.
-    // The cachedProfiles getter on Isar requires running build_runner
-    // to generate the .g.dart file for CachedProfile.
-    debugPrint('📦 Isar cache check skipped — generated code not available');
+    if (!IsarDatabase.isInitialized) {
+      debugPrint('📦 Isar not initialized — skipping cache check');
+      return;
+    }
+    try {
+      final isar = IsarDatabase.instance;
+      final profileCount = isar.cachedProfiles.countSync();
+      if (profileCount > 0) {
+        _hasCachedProfile = true;
+        debugPrint('📦 Isar cache: found $profileCount cached profile(s)');
+      } else {
+        debugPrint('📦 Isar cache: no cached profiles');
+      }
+    } catch (e) {
+      debugPrint('📦 Isar cache check failed: $e');
+      // Don't crash — just treat as no cache
+    }
   }
 
   /// Restore Supabase session (important for app resume & cold starts).
@@ -350,15 +385,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
 // ═════════════════════════════════════════════════════════════════════
 // K-Graph Splash CustomPainter
-//
-// Draws the animated K-graph network:
-//   7 nodes  — Center (You), Top (Parent), Bottom (Child),
-//              Left (Spouse), UpperRight (Uncle),
-//              LowerRight (Aunt), FarRight (Cousin)
-//   6 edges  — Center↔Top, Center↔Bottom, Center↔Left,
-//              Center↔UpperRight, Center↔LowerRight,
-//              UpperRight↔FarRight
-//   1 orbit  — Thin circle around all nodes
 // ═════════════════════════════════════════════════════════════════════
 
 class _KGraphSplashPainter extends CustomPainter {
@@ -375,87 +401,54 @@ class _KGraphSplashPainter extends CustomPainter {
   final double orbitProgress;
 
   // ── Node definitions ─────────────────────────────────────────────
-  // Positions as fractions of half-width (s). Centre of canvas = (0, 0).
   static const _nodes = <_SplashNode>[
-    _SplashNode(0.00, -0.42, 0.048, KinrelColors.brightViolet, 'Parent'), // Top
-    _SplashNode(
-      0.00,
-      0.42,
-      0.048,
-      KinrelColors.brightViolet,
-      'Child',
-    ), // Bottom
-    _SplashNode(-0.42, 0.00, 0.048, KinrelColors.deepPurple, 'Spouse'), // Left
-    _SplashNode(
-      0.40,
-      -0.24,
-      0.044,
-      KinrelColors.brightViolet,
-      'Uncle',
-    ), // UpperRight
-    _SplashNode(
-      0.40,
-      0.24,
-      0.044,
-      KinrelColors.deepPurple,
-      'Aunt',
-    ), // LowerRight
-    _SplashNode(
-      0.68,
-      -0.24,
-      0.044,
-      KinrelColors.brightViolet,
-      'Cousin',
-    ), // FarRight
+    _SplashNode(0.00, -0.42, 0.048, KinrelColors.brightViolet, 'Parent'),
+    _SplashNode(0.00, 0.42, 0.048, KinrelColors.brightViolet, 'Child'),
+    _SplashNode(-0.42, 0.00, 0.048, KinrelColors.deepPurple, 'Spouse'),
+    _SplashNode(0.40, -0.24, 0.044, KinrelColors.brightViolet, 'Uncle'),
+    _SplashNode(0.40, 0.24, 0.044, KinrelColors.deepPurple, 'Aunt'),
+    _SplashNode(0.68, -0.24, 0.044, KinrelColors.brightViolet, 'Cousin'),
   ];
 
   // ── Edge definitions (from-index, to-index into _nodes) ──────────
-  // Index -1 = centre node (not in the list; drawn separately)
   static const _edges = <_SplashEdge>[
-    _SplashEdge(-1, 0, 0), // Centre → Top (Parent)
-    _SplashEdge(-1, 1, 0), // Centre → Bottom (Child)
-    _SplashEdge(-1, 2, 1), // Centre → Left (Spouse)
-    _SplashEdge(-1, 3, 1), // Centre → UpperRight (Uncle)
-    _SplashEdge(-1, 4, 1), // Centre → LowerRight (Aunt)
-    _SplashEdge(3, 5, 2), // UpperRight → FarRight (Cousin)
+    _SplashEdge(-1, 0, 0),
+    _SplashEdge(-1, 1, 0),
+    _SplashEdge(-1, 2, 1),
+    _SplashEdge(-1, 3, 1),
+    _SplashEdge(-1, 4, 1),
+    _SplashEdge(3, 5, 2),
   ];
 
   @override
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
     final cy = size.height / 2;
-    final s = size.width / 2; // half-size for positioning
+    final s = size.width / 2;
 
-    // ── Phase 1: Radial glow (behind everything) ───────────────────
     if (glowProgress > 0) {
       _drawGlowCore(canvas, size, cx, cy);
     }
 
-    // ── Phase 4: Orbit ring + halo (behind nodes, in front of glow) ─
     if (orbitProgress > 0) {
       _drawOrbitAndHalo(canvas, cx, cy, s);
     }
 
-    // ── Phase 3: Edges + outer nodes ───────────────────────────────
     if (edgesProgress > 0) {
       _drawEdgesAndNodes(canvas, cx, cy, s);
     }
 
-    // ── Phase 2: Centre node (on top of everything) ────────────────
     if (centerNodeProgress > 0) {
       _drawCenterNode(canvas, cx, cy, s);
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // Phase 1 — Radial glow core
-  // ─────────────────────────────────────────────────────────────────
   void _drawGlowCore(Canvas canvas, Size size, double cx, double cy) {
     final alpha = (0.28 * glowProgress).clamp(0.0, 1.0);
     final glowPaint = Paint()
       ..shader =
           RadialGradient(
-            center: const Alignment(-0.4, -0.4), // 30 % 30 %
+            center: const Alignment(-0.4, -0.4),
             radius: 0.7,
             colors: [
               Color.fromRGBO(232, 97, 42, alpha),
@@ -478,22 +471,16 @@ class _KGraphSplashPainter extends CustomPainter {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // Phase 2 — Centre "You" node with heartbeat glow
-  // ─────────────────────────────────────────────────────────────────
   void _drawCenterNode(Canvas canvas, double cx, double cy, double s) {
     final baseRadius = s * 0.075;
-    final scale = centerNodeProgress; // easeOutBack gives a slight overshoot
+    final scale = centerNodeProgress;
     final radius = baseRadius * scale;
 
     if (radius <= 0) return;
 
     final center = Offset(cx, cy);
-
-    // Heartbeat glow — double-pulse like a real heartbeat
     final glowIntensity = _heartbeatGlow(centerNodeProgress);
 
-    // Outer glow ring
     if (glowIntensity > 0) {
       final glowPaint = Paint()
         ..color = KinrelColors.purple.withValues(alpha: glowIntensity * 0.35)
@@ -501,24 +488,21 @@ class _KGraphSplashPainter extends CustomPainter {
       canvas.drawCircle(center, radius * 3.0, glowPaint);
     }
 
-    // Soft inner glow
     final innerGlow = Paint()
       ..color = KinrelColors.purple.withValues(alpha: 0.15)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
     canvas.drawCircle(center, radius * 1.8, innerGlow);
 
-    // Node body
     final nodePaint = Paint()
       ..shader = RadialGradient(
         center: Alignment(-0.3, -0.3),
         colors: [
-          KinrelColors.brightViolet, // #F59240 amber highlight
-          KinrelColors.purple, // #E8612A orange
+          KinrelColors.brightViolet,
+          KinrelColors.purple,
         ],
       ).createShader(Rect.fromCircle(center: center, radius: radius));
     canvas.drawCircle(center, radius, nodePaint);
 
-    // Specular highlight
     final highlightPaint = Paint()
       ..color = Colors.white.withValues(alpha: 0.45)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
@@ -529,29 +513,18 @@ class _KGraphSplashPainter extends CustomPainter {
     );
   }
 
-  /// Double-pulse heartbeat curve: two quick peaks then settle.
   static double _heartbeatGlow(double t) {
-    // t ranges 0→1 over the centre-node phase
     if (t < 0.15) return 0.0;
-    if (t < 0.40) return math.sin(math.pi * (t - 0.15) / 0.25); // first beat
+    if (t < 0.40) return math.sin(math.pi * (t - 0.15) / 0.25);
     if (t < 0.50) return 0.0;
     if (t < 0.75) {
-      return 0.6 *
-          math.sin(math.pi * (t - 0.50) / 0.25); // second beat (softer)
+      return 0.6 * math.sin(math.pi * (t - 0.50) / 0.25);
     }
     return 0.0;
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // Phase 3 — Edges draw outward + outer nodes appear
-  // ─────────────────────────────────────────────────────────────────
   void _drawEdgesAndNodes(Canvas canvas, double cx, double cy, double s) {
     final center = Offset(cx, cy);
-
-    // Tier timing within edgesProgress (0→1):
-    //   Tier 0: 0.00–0.40  Centre→Top, Centre→Bottom
-    //   Tier 1: 0.25–0.65  Centre→Left, Centre→UpperRight, Centre→LowerRight
-    //   Tier 2: 0.55–1.00  UpperRight→FarRight
 
     for (final edge in _edges) {
       final tier = edge.tier;
@@ -575,7 +548,6 @@ class _KGraphSplashPainter extends CustomPainter {
           .clamp(0.0, 1.0);
       if (progress <= 0) continue;
 
-      // Resolve positions
       final Offset from;
       if (edge.from == -1) {
         from = center;
@@ -586,7 +558,6 @@ class _KGraphSplashPainter extends CustomPainter {
       final toN = _nodes[edge.to];
       final to = Offset(cx + toN.x * s, cy + toN.y * s);
 
-      // Draw edge with progress
       final edgePaint = Paint()
         ..color =
             (edge.from == -1 ? KinrelColors.purple : KinrelColors.brightViolet)
@@ -601,7 +572,6 @@ class _KGraphSplashPainter extends CustomPainter {
       );
       canvas.drawLine(from, endPoint, edgePaint);
 
-      // Node appears when its edge is ~80 % drawn
       if (progress > 0.75) {
         final nodeOpacity = ((progress - 0.75) / 0.25).clamp(0.0, 1.0);
         _drawNode(canvas, to, toN.r * s, toN.color, nodeOpacity);
@@ -609,7 +579,6 @@ class _KGraphSplashPainter extends CustomPainter {
     }
   }
 
-  /// Draw a single outer node with glow + specular highlight.
   void _drawNode(
     Canvas canvas,
     Offset pos,
@@ -619,17 +588,14 @@ class _KGraphSplashPainter extends CustomPainter {
   ) {
     if (radius <= 0 || opacity <= 0) return;
 
-    // Glow halo
     final glowPaint = Paint()
       ..color = color.withValues(alpha: 0.18 * opacity)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
     canvas.drawCircle(pos, radius * 2.2, glowPaint);
 
-    // Node body
     final nodePaint = Paint()..color = color.withValues(alpha: opacity);
     canvas.drawCircle(pos, radius, nodePaint);
 
-    // Specular highlight
     if (opacity > 0.5) {
       final hlPaint = Paint()
         ..color = Colors.white.withValues(alpha: 0.35 * opacity)
@@ -642,14 +608,10 @@ class _KGraphSplashPainter extends CustomPainter {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // Phase 4 — Orbit ring + halo pulse
-  // ─────────────────────────────────────────────────────────────────
   void _drawOrbitAndHalo(Canvas canvas, double cx, double cy, double s) {
     final orbitRadius = s * 0.72;
     final center = Offset(cx, cy);
 
-    // Orbit ring: circular path animation (arc grows from top)
     final sweepAngle = 2 * math.pi * orbitProgress;
     final orbitPaint = Paint()
       ..color = KinrelColors.purple.withValues(alpha: 0.22)
@@ -658,13 +620,12 @@ class _KGraphSplashPainter extends CustomPainter {
 
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: orbitRadius),
-      -math.pi / 2, // start from top
+      -math.pi / 2,
       sweepAngle,
       false,
       orbitPaint,
     );
 
-    // Dashed secondary orbit (subtle, behind the main one)
     if (orbitProgress > 0.5) {
       final dashOpacity = ((orbitProgress - 0.5) * 2.0).clamp(0.0, 0.12);
       final dashPaint = Paint()
@@ -681,7 +642,6 @@ class _KGraphSplashPainter extends CustomPainter {
       );
     }
 
-    // Halo pulse: one soft glow pulse behind the whole icon
     final haloAlpha = 0.18 * math.sin(math.pi * orbitProgress);
     if (haloAlpha > 0) {
       final haloPaint = Paint()
@@ -691,7 +651,6 @@ class _KGraphSplashPainter extends CustomPainter {
     }
   }
 
-  // ── Utility: Dashed Circle ────────────────────────────────────────
   static void _drawDashedCircle(
     Canvas canvas,
     Offset center,
@@ -730,31 +689,17 @@ class _KGraphSplashPainter extends CustomPainter {
 class _SplashNode {
   const _SplashNode(this.x, this.y, this.r, this.color, this.label);
 
-  /// X position as fraction of half-width (0 = centre).
   final double x;
-
-  /// Y position as fraction of half-height (0 = centre).
   final double y;
-
-  /// Radius as fraction of half-width.
   final double r;
-
-  /// Fill colour.
   final Color color;
-
-  /// Debug label (not rendered).
   final String label;
 }
 
 class _SplashEdge {
   const _SplashEdge(this.from, this.to, this.tier);
 
-  /// From-node index (-1 = centre "You" node).
   final int from;
-
-  /// To-node index into _SplashNode list.
   final int to;
-
-  /// Draw tier (0 = first, 1 = second, 2 = third).
   final int tier;
 }

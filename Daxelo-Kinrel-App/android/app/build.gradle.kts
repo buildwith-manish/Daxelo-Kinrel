@@ -40,11 +40,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        // Let Flutter handle ABI filtering automatically — avoids conflict
-        // with ndk.abiFilters set by the Flutter Gradle plugin.
-        ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
-        }
+        // Let Flutter handle ABI filtering automatically via --split-per-abi
+        // or --target-platform flags. DO NOT set ndk.abiFilters here —
+        // it conflicts with the Flutter Gradle plugin's own ABI filtering.
     }
 
     if (keystorePropertiesFile.exists()) {
