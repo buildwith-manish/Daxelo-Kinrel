@@ -106,9 +106,12 @@ Future<bool> initSupabase() async {
   // The warmup helps with free tier cold starts but should never delay app init.
   unawaited(_warmUpSupabase(url));
 
-  // Retry Supabase initialization up to 3 times for cold starts
+  // Retry Supabase initialization up to 2 times (reduced from 3 to avoid
+  // blocking app startup for 30+ seconds on cold Supabase free tier).
+  // The splash screen navigates based on local state anyway, so a
+  // failed Supabase init won't cause a blank screen.
   int attempts = 0;
-  const maxAttempts = 3;
+  const maxAttempts = 2;
 
   while (attempts < maxAttempts) {
     attempts++;

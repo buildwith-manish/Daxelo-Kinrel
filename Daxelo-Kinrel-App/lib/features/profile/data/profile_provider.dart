@@ -141,14 +141,14 @@ class SessionModel {
 
   factory SessionModel.fromJson(Map<String, dynamic> json) {
     return SessionModel(
-      id: json['id'] as String? ?? '',
+      id: _parseString(json['id']),
       deviceName: json['deviceName'] as String?,
-      deviceType: json['deviceType'] as String? ?? 'unknown',
+      deviceType: _parseString(json['deviceType'], fallback: 'unknown'),
       location: json['location'] as String?,
       lastActiveAt: json['lastActiveAt'] != null
-          ? DateTime.parse(json['lastActiveAt'].toString())
+          ? DateTime.tryParse(json['lastActiveAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
-      isCurrentDevice: json['isCurrentDevice'] as bool? ?? false,
+      isCurrentDevice: _parseBool(json['isCurrentDevice']),
     );
   }
 
@@ -201,14 +201,14 @@ class InvitationModel {
 
   factory InvitationModel.fromJson(Map<String, dynamic> json) {
     return InvitationModel(
-      id: json['id'] as String? ?? '',
-      familyName: json['familyName'] as String? ?? '',
+      id: _parseString(json['id']),
+      familyName: _parseString(json['familyName']),
       familyAvatar: json['familyAvatar'] as String?,
-      inviterName: json['inviterName'] as String? ?? '',
+      inviterName: _parseString(json['inviterName']),
       inviterUsername: json['inviterUsername'] as String?,
-      status: json['status'] as String? ?? 'pending',
+      status: _parseString(json['status'], fallback: 'pending'),
       createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'].toString())
+          ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
     );
   }
@@ -233,8 +233,8 @@ class BlockedUserModel {
 
   factory BlockedUserModel.fromJson(Map<String, dynamic> json) {
     return BlockedUserModel(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
+      id: _parseString(json['id']),
+      name: _parseString(json['name']),
       username: json['username'] as String?,
       avatarUrl: json['avatarUrl'] as String?,
     );
@@ -448,16 +448,27 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       // Query family member count (table name must match Supabase: PascalCase)
       final familyMembers = await client
           .from('FamilyMember')
-          .select('id')
+          .select('id, familyId')
           .eq('userId', userId);
 
-      // Query persons in user's families (Person table has no createdById,
-      // so count persons across all families the user is a member of)
+      // SAFELY extract family IDs — Supabase may return familyId as
+      // String or int depending on the column type. Use _parseString
+      // to handle both cases without type casting errors.
+      final familyIds = <String>{};
+      try {
+        for (final row in (familyMembers as List)) {
+          final familyId = _parseString(row['familyId']);
+          if (familyId.isNotEmpty) {
+            familyIds.add(familyId);
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ Family ID extraction failed: $e');
+      }
+
+      // Query persons in user's families
       int personCount = 0;
       try {
-        final familyIds = (familyMembers as List)
-            .map((row) => row['familyId'] as String)
-            .toSet();
         if (familyIds.isNotEmpty) {
           final persons = await client
               .from('Person')
@@ -469,13 +480,9 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
         debugPrint('⚠️ Person count query failed: $e');
       }
 
-      // Query relationships in user's families (Relationship table has no createdById,
-      // so count relationships across all families the user is a member of)
+      // Query relationships in user's families
       int relationshipCount = 0;
       try {
-        final familyIds = (familyMembers as List)
-            .map((row) => row['familyId'] as String)
-            .toSet();
         if (familyIds.isNotEmpty) {
           final relationships = await client
               .from('Relationship')

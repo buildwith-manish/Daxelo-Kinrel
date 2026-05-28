@@ -26,7 +26,10 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.daxelo.kinrel"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // NDK version removed — Isar 3.x ships prebuilt .so files,
+    // so native compilation is not needed. This also reduces
+    // build disk usage by ~2GB and avoids NDK download.
+    // ndkVersion = flutter.ndkVersion
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true

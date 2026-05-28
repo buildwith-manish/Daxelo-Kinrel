@@ -234,6 +234,76 @@ class _PrefetchProfileState extends ConsumerState<_PrefetchProfile> {
   Widget build(BuildContext context) => widget.child;
 }
 
+/// Handle GoRouter redirect logic safely.
+///
+/// CRITICAL RULES to avoid blank screen:
+/// 1. NEVER throw — always return null (allow) on any error
+/// 2. NEVER redirect when auth state is still loading (isLoading)
+/// 3. NEVER create redirect loops (splash → sign-in → home → sign-in)
+/// 4. If Supabase isn't ready, DON'T redirect — let screens handle auth
+String? _handleRedirect(Ref ref, GoRouterState state) {
+  // ── Log navigation breadcrumb for crash context ──────────────────
+  logNavigationBreadcrumb(state.matchedLocation);
+
+  // Don't redirect away from splash — it handles its own navigation
+  final isSplash = state.matchedLocation == '/splash';
+  if (isSplash) return null;
+
+  // ── Debug route guard — only accessible in dev flavor ──────────────
+  if (state.matchedLocation == '/debug') {
+    if (!AppEnvironmentConfig.current.isDev) {
+      return '/home';
+    }
+  }
+
+  final isOnboarding = state.matchedLocation == '/onboarding';
+  final isAuth =
+      state.matchedLocation == '/sign-in' ||
+      state.matchedLocation == '/sign-up';
+  final isPublicLegal =
+      state.matchedLocation == '/privacy' ||
+      state.matchedLocation == '/terms';
+  final isProtected = !isSplash && !isOnboarding && !isAuth && !isPublicLegal;
+
+  // If trying to access a protected route, check auth status.
+  // IMPORTANT: If Supabase isn't initialized yet, DON'T redirect to
+  // sign-in — the session might still be restoring. Allow navigation
+  // to proceed and let the splash screen / individual screens handle
+  // the auth state gracefully.
+  bool authState = false;
+  bool supabaseReady = false;
+  bool authLoading = false;
+  try {
+    authState = ref.read(isAuthenticatedProvider);
+    supabaseReady = ref.read(isSupabaseReadyProvider);
+    // Check if auth state is still loading (stream hasn't emitted yet)
+    final authStream = ref.read(authStateProvider);
+    authLoading = authStream.isLoading;
+  } catch (_) {
+    // Providers may throw if not initialized — treat as not ready
+    return null;
+  }
+
+  // CRITICAL: If auth is still loading, DON'T redirect.
+  // Returning null allows the current navigation to proceed.
+  // The splash screen or individual screens will handle auth
+  // gracefully once the state is resolved.
+  if (authLoading) return null;
+
+  if (!authState && isProtected) {
+    // Only redirect to sign-in if Supabase is fully initialized
+    // AND auth state is NOT loading, AND the user is definitely
+    // not authenticated.
+    if (!supabaseReady) return null;
+    return '/sign-in';
+  }
+
+  // If authenticated and on auth pages, go to home
+  if (authState && isAuth) return '/home';
+
+  return null;
+}
+
 /// Router provider — uses a single GoRouter instance that doesn't
 /// rebuild on auth state changes. This prevents the app from
 /// restarting/resetting navigation when resuming from background.
@@ -250,56 +320,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       AnalyticsNavigatorObserver(),
     ],
     redirect: (context, state) {
-      // ── P3-F1: Log navigation breadcrumb for crash context ───────
-      logNavigationBreadcrumb(state.matchedLocation);
-
-      // Don't redirect away from splash — it handles its own navigation
-      final isSplash = state.matchedLocation == '/splash';
-      if (isSplash) return null;
-
-      // ── P5: Debug route guard — only accessible in dev flavor ──────
-      if (state.matchedLocation == '/debug') {
-        if (!AppEnvironmentConfig.current.isDev) {
-          return '/home';
-        }
-      }
-
-      final isOnboarding = state.matchedLocation == '/onboarding';
-      final isAuth =
-          state.matchedLocation == '/sign-in' ||
-          state.matchedLocation == '/sign-up';
-      final isPublicLegal =
-          state.matchedLocation == '/privacy' ||
-          state.matchedLocation == '/terms';
-      final isProtected = !isSplash && !isOnboarding && !isAuth && !isPublicLegal;
-
-      // If trying to access a protected route, check auth status.
-      // IMPORTANT: If Supabase isn't initialized yet, DON'T redirect to
-      // sign-in — the session might still be restoring. Allow navigation
-      // to proceed and let the splash screen / individual screens handle
-      // the auth state gracefully.
-      bool authState = false;
-      bool supabaseReady = false;
+      // ── SAFETY: Never throw in redirect — always return a route or null ──
       try {
-        authState = ref.read(isAuthenticatedProvider);
-        supabaseReady = ref.read(isSupabaseReadyProvider);
-      } catch (_) {
-        // Providers may throw if not initialized — treat as not ready
+        return _handleRedirect(ref, state);
+      } catch (e) {
+        // If ANYTHING goes wrong in redirect logic, allow navigation.
+        // A potentially wrong screen is better than a blank screen from
+        // an unhandled redirect exception.
+        debugPrint('⚠️ Router redirect error, allowing navigation: $e');
         return null;
       }
-
-      if (!authState && isProtected) {
-        // Only redirect to sign-in if Supabase is fully initialized
-        // and the user is definitely not authenticated. If Supabase
-        // isn't ready, allow navigation — screens should be resilient.
-        if (!supabaseReady) return null;
-        return '/sign-in';
-      }
-
-      // If authenticated and on auth pages, go to home
-      if (authState && isAuth) return '/home';
-
-      return null;
     },
     routes: [
       // ── Auth / Onboarding (fast 200ms fade) ────────────────────────

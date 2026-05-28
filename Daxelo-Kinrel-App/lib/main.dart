@@ -42,11 +42,15 @@ import 'firebase_options.dart';
 import 'package:kinrel/l10n/app_localizations.dart';
 
 void main() async {
-  // ── Initialize environment FIRST ───────────────────────────────────
-  AppEnvironmentConfig.initialize();
-
-  // ── CRITICAL: Ensure Flutter binding before any async work ─────────
+  // ── CRITICAL: Ensure Flutter binding BEFORE any async work ────────
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ── 1. Initialize environment ────────────────────────────────────
+  try {
+    AppEnvironmentConfig.initialize();
+  } catch (e) {
+    debugPrint('⚠️ AppEnvironmentConfig.initialize failed: $e');
+  }
 
   // ── P4-F7: Global error widget — prevents red screen of death ──
   ErrorWidget.builder = (FlutterErrorDetails details) {
@@ -77,8 +81,34 @@ void main() async {
     );
   };
 
-  // ── 1. Initialize Firebase BEFORE anything that depends on it ──────
-  // This MUST come before FirebaseMessaging, Crashlytics, etc.
+  // ── 2. Initialize Hive FIRST (before anything that might use it) ──
+  try {
+    await Hive.initFlutter();
+    await Hive.openBox('engagement');
+    await Hive.openBox('settings');
+    debugPrint('✅ Hive initialized');
+  } catch (e) {
+    debugPrint('⚠️ Hive initialization failed: $e');
+    // Continue — Hive failures should not prevent the app from starting
+  }
+
+  // ── 3. Load environment variables (with safe fallback) ────────────
+  // The .env file may not exist in release builds — always wrap in try-catch.
+  // AppConfig has hardcoded fallbacks for all env vars, so this is safe.
+  try {
+    await dotenv.load(fileName: '.env');
+    debugPrint('✅ .env file loaded successfully');
+  } catch (e) {
+    // .env missing is EXPECTED on release builds — don't crash.
+    // Load an empty string so dotenv.isInitialized is true and
+    // dotenv.env[] calls don't throw NotInitializedError.
+    try {
+      dotenv.loadFromString(envString: '# fallback — using hardcoded defaults');
+    } catch (_) {}
+    debugPrint('⚠️ .env file not found, using hardcoded defaults');
+  }
+
+  // ── 4. Initialize Firebase (wrapped in try-catch) ────────────────
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -89,57 +119,41 @@ void main() async {
     // Continue — app works without Firebase (no crashlytics/push)
   }
 
-  // ── 2. Initialize Crashlytics (now that Firebase is ready) ────────
-  await initCrashlytics();
+  // ── 5. Initialize Crashlytics (NOW in try-catch!) ────────────────
+  // Previously NOT in try-catch — this was a crash risk if Firebase
+  // failed to initialize. Now safe.
+  try {
+    await initCrashlytics();
+  } catch (e) {
+    debugPrint('⚠️ Crashlytics initialization failed: $e');
+  }
 
-  // ── P3-F3: Register FCM background handler ────────────────────────
-  // Must be a top-level function, registered after Firebase init
+  // ── 6. Register FCM background handler (safe) ────────────────────
   try {
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   } catch (e) {
     debugPrint('⚠️ FCM background handler registration failed: $e');
   }
 
-  // ── 3. Load environment variables ──────────────────────────────────
+  // ── 7. Set system UI ─────────────────────────────────────────────
   try {
-    await dotenv.load(fileName: '.env');
-    debugPrint('✅ .env file loaded successfully');
-  } catch (e) {
-    try {
-      dotenv.loadFromString(envString: '# fallback — using hardcoded defaults');
-    } catch (_) {}
-    debugPrint('⚠️ .env file not found or empty, using fallback defaults');
-  }
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+        systemNavigationBarColor: Color(0xFF121212),
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
+    );
 
-  // ── 4. Set system UI ──────────────────────────────────────────────
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      statusBarBrightness: Brightness.dark,
-      systemNavigationBarColor: Color(0xFF121212),
-      systemNavigationBarIconBrightness: Brightness.light,
-    ),
-  );
-
-  try {
     await SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
     ]);
   } catch (_) {}
 
-  // ── 5. Initialize Hive for local caching ──────────────────────────
-  try {
-    await Hive.initFlutter();
-    await Hive.openBox('engagement');
-    await Hive.openBox('settings');
-    debugPrint('✅ Hive initialized');
-  } catch (e) {
-    debugPrint('⚠️ Hive initialization failed: $e');
-  }
-
-  // ── 6. Initialize Isar database for offline-first caching ─────────
+  // ── 8. Initialize Isar database (safe) ───────────────────────────
   try {
     await IsarDatabase.initialize();
     debugPrint('✅ Isar database initialized');
@@ -147,9 +161,12 @@ void main() async {
     debugPrint('⚠️ Isar initialization failed, continuing without offline cache: $e');
   }
 
-  // ── 7. Initialize Supabase BEFORE runApp ──────────────────────────
-  // CRITICAL FIX: Supabase MUST be initialized before runApp so that
+  // ── 9. Initialize Supabase BEFORE runApp ─────────────────────────
+  // CRITICAL: Supabase MUST be initialized before runApp so that
   // isAuthenticatedProvider works correctly when splash navigates.
+  // BUT: We limit retries to avoid blocking startup for 30+ seconds
+  // on cold Supabase free tier. If init fails, the app still starts
+  // and the splash screen handles navigation gracefully.
   try {
     final supabaseReady = await initSupabase();
     debugPrint('🔧 Supabase initialized before runApp: $supabaseReady');
@@ -158,10 +175,10 @@ void main() async {
     // Continue — app will redirect to sign-in
   }
 
-  // ── 8. Disable Google Fonts runtime fetching ──────────────────────
+  // ── 10. Disable Google Fonts runtime fetching ────────────────────
   GoogleFonts.config.allowRuntimeFetching = false;
 
-  // ── 9. Detect Device Tier ─────────────────────────────────────────
+  // ── 11. Detect Device Tier (safe) ────────────────────────────────
   try {
     final binding = WidgetsFlutterBinding.ensureInitialized();
     final view = binding.platformDispatcher.views.first;
@@ -173,31 +190,36 @@ void main() async {
     debugPrint('⚠️ Device tier detection failed: $e');
   }
 
-  // ── Log environment info for crash context ─────────────────────────
-  logNavigationBreadcrumb('/splash');
-  logActionBreadcrumb('app_start', {
-    'env': AppEnvironmentConfig.current.label,
-    'device_tier': DeviceTierCache.instance.tier.name,
-  });
+  // ── Log environment info for crash context ────────────────────────
+  try {
+    logNavigationBreadcrumb('/splash');
+    logActionBreadcrumb('app_start', {
+      'env': AppEnvironmentConfig.current.label,
+      'device_tier': DeviceTierCache.instance.tier.name,
+    });
+  } catch (_) {}
 
   // ── Run app inside guarded zone ────────────────────────────────────
+  // IMPORTANT: We ALWAYS call runApp() — no matter what failed above.
+  // A broken app is better than a blank screen.
   runZonedGuarded<Future<void>>(
     () async {
       runApp(ProviderScope(child: KinrelApp()));
     },
     (error, stack) {
-      _attachStateContext(error.toString());
-      if (isCrashlyticsAvailable) {
-        FirebaseCrashlytics.instance.recordError(
-          error,
-          stack,
-          reason: 'Uncaught async error in guarded zone',
-          fatal: true,
-        );
-      } else {
-        debugPrint('🔴 [Uncaught async error]: $error');
-        debugPrint('   Stack: $stack');
-      }
+      try {
+        _attachStateContext(error.toString());
+        if (isCrashlyticsAvailable) {
+          FirebaseCrashlytics.instance.recordError(
+            error,
+            stack,
+            reason: 'Uncaught async error in guarded zone',
+            fatal: true,
+          );
+        }
+      } catch (_) {}
+      debugPrint('🔴 [Uncaught async error]: $error');
+      debugPrint('   Stack: $stack');
     },
   );
 }
@@ -251,7 +273,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       debugPrint('⚠️ LocalCacheService init failed: $e');
     }
 
-    // ── P3-F1: Capture auth state for crash context ───────────────
+    // ── Capture auth state for crash context ───────────────────────
     try {
       final client = ref.read(supabaseProvider);
       if (client != null) {
@@ -275,9 +297,9 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
               'event': event.event.name,
             });
 
-            // ── P3-F3: Re-sync FCM token on sign-in ──────────────────
+            // ── Re-sync FCM token on sign-in ──────────────────────
             if (event.event == AuthChangeEvent.signedIn) {
-              // P5-F1: Set user properties for analytics
+              // Set user properties for analytics
               try {
                 final familyList = await ref.read(familyListProvider.future);
                 final primaryFamily = familyList.isNotEmpty ? familyList.first : null;
@@ -309,7 +331,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
           } else {
             captureRiverpodState('auth', {'status': 'signed_out'});
 
-            // ── P3-F3: Delete FCM token on sign-out ───────────────────
+            // ── Delete FCM token on sign-out ───────────────────────
             try {
               final pushService = ref.read(pushNotificationServiceProvider);
               pushService.deleteToken();
@@ -413,14 +435,14 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       }
     }
 
-    // ── P5-F1: Initialize Analytics Service ────────────────────────
+    // ── Initialize Analytics Service ────────────────────────────────
     try {
       await AnalyticsService.instance.init();
     } catch (e) {
       debugPrint('⚠️ Analytics init failed: $e');
     }
 
-    // ── P5: Initialize Remote Config Service ──────────────────────
+    // ── Initialize Remote Config Service ──────────────────────────
     try {
       await RemoteConfigService.instance.init();
       debugPrint('✅ Remote Config initialized');
@@ -428,7 +450,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       debugPrint('⚠️ Remote Config init failed, using defaults: $e');
     }
 
-    // ── P5-F4: Record app open for retention tracking
+    // ── Record app open for retention tracking ──────────────────────
     try {
       final engagementBox = Hive.box('engagement');
       final opens = engagementBox.get('app_opens', defaultValue: 0);
@@ -436,16 +458,16 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       await engagementBox.put('last_open', DateTime.now().toIso8601String());
     } catch (_) {}
 
-    // ── P4-F2: Initialize Rating Service ────────────────────────
+    // ── Initialize Rating Service ────────────────────────────────
     RatingService.instance.init();
 
-    // ── P3-F5: Accessibility audit (debug only)
+    // ── Accessibility audit (debug only) ────────────────────────────
     A11yChecker.runAudit();
 
-    // ── P4-F7: Memory monitor (debug only) ─────────────────────────
+    // ── Memory monitor (debug only) ─────────────────────────────────
     MemoryMonitor.start();
 
-    // ── P3-F1: Capture provider state for crash context ───────────
+    // ── Capture provider state for crash context ───────────────────
     try {
       ref.listen(familyListProvider, (_, next) {
         captureRiverpodState('familyList', {
@@ -456,7 +478,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       });
     } catch (_) {}
 
-    // ── P3-F2: Initialize Deep Link Service ─────────────────────────
+    // ── Initialize Deep Link Service ────────────────────────────────
     try {
       final deepLinkService = ref.read(deepLinkServiceProvider);
       await deepLinkService.init(
