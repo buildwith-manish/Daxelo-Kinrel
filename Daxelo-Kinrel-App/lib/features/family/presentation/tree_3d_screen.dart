@@ -29,7 +29,7 @@ import '../../../core/kinship/kinship_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/graph/graph_service.dart';
 import 'family_tree_canvas.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // LAYOUT MODE ENUM
@@ -1062,7 +1062,7 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
               strokeWidth: 3,
               valueColor: AlwaysStoppedAnimation<Color>(KinrelColors.orange),
             ),
-          ).maybeAnimate(onPlay: (c) => c.repeat()).fadeIn(duration: 600.ms),
+          ).animate(onPlay: (c) => c.repeat()).fadeIn(duration: 600.ms),
           const SizedBox(height: 16),
           Text(
             'Loading 3D Tree...',
@@ -2414,7 +2414,7 @@ class _FloatingControlPanel extends StatelessWidget {
             ],
           ),
         )
-        .maybeAnimate()
+        .animate()
         .fadeIn(duration: 300.ms)
         .slideX(begin: 0.1, end: 0, duration: 300.ms);
   }
@@ -3057,7 +3057,7 @@ class _NodeDetailPopupState extends ConsumerState<_NodeDetailPopup> {
             ),
           ),
         )
-        .maybeAnimate()
+        .animate()
         .fadeIn(duration: 300.ms)
         .slideY(
           begin: 0.3,

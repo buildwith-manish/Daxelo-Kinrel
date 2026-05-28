@@ -30,7 +30,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/kinship/kinship_models.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // DESIGN TOKENS
@@ -1444,7 +1444,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
                   onTap: () => _showDetailSheet(context, term),
                 ),
               )
-              .maybeAnimate(onPlay: (c) => c.forward())
+              .animate(onPlay: (c) => c.forward())
               .fadeIn(
                 duration: 300.ms,
                 delay: Duration(milliseconds: index * 30),

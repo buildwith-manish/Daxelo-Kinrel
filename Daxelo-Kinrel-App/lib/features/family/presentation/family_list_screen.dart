@@ -12,7 +12,7 @@ import '../../../core/constants/supported_languages.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 import '../../../presentation/widgets/skeletons/family_list_skeleton.dart';
 
 class FamilyListScreen extends ConsumerStatefulWidget {
@@ -109,7 +109,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
                   tooltip: 'Create family',
                 ),
               )
-              .maybeAnimate(onPlay: (c) => c.forward())
+              .animate(onPlay: (c) => c.forward())
               .fadeIn(duration: 500.ms)
               .scale(
                 begin: const Offset(0.5, 0.5),
@@ -278,7 +278,7 @@ class _Header extends StatelessWidget {
             ],
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(duration: 300.ms)
         .slideX(begin: -0.1, end: 0, duration: 300.ms);
   }
@@ -348,7 +348,7 @@ class _JoinFamilyCard extends StatelessWidget {
             ),
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(duration: 400.ms, delay: 100.ms);
   }
 }
@@ -520,7 +520,7 @@ class _FamilyCard extends ConsumerWidget {
             ],
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(
           duration: 400.ms,
           delay: Duration(milliseconds: 100 + index * 60),

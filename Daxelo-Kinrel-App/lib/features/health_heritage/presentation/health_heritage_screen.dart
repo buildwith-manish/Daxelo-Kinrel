@@ -28,7 +28,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/health_heritage_provider.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // View mode enum
@@ -756,7 +756,7 @@ class _RiskScoreCard extends StatelessWidget {
     final riskLevel = summary?.riskLevelText ?? 'Low';
 
     final animatedPercent = Tween<double>(begin: 0, end: riskScore * 100)
-        .maybeAnimate(
+        .animate(
           CurvedAnimation(
             parent: animation,
             curve: const Interval(0.2, 0.8, curve: Curves.easeOutCubic),
@@ -873,7 +873,7 @@ class _RiskScoreCard extends StatelessWidget {
             ),
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(duration: KinrelMotion.normal)
         .slideY(begin: 0.1, end: 0, duration: KinrelMotion.normal);
   }
@@ -1173,7 +1173,7 @@ class _InsightCard extends StatelessWidget {
             ],
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(
           duration: KinrelMotion.normal,
           delay: Duration(milliseconds: index * 80),
@@ -1369,7 +1369,7 @@ class _InheritancePatternCard extends StatelessWidget {
             ],
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(
           duration: KinrelMotion.normal,
           delay: Duration(milliseconds: index * 60),
@@ -1534,7 +1534,7 @@ class _CategoryCard extends StatelessWidget {
             ),
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(
           duration: KinrelMotion.normal,
           delay: Duration(milliseconds: index * 50),
@@ -1757,7 +1757,7 @@ class _ConditionCard extends StatelessWidget {
             ),
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(
           duration: KinrelMotion.normal,
           delay: Duration(milliseconds: (animDelay * 1000).round()),
@@ -2021,7 +2021,7 @@ class _HealthTimelineEventCard extends StatelessWidget {
             ],
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(
           duration: KinrelMotion.normal,
           delay: Duration(milliseconds: index * 50),

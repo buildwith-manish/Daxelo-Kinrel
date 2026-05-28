@@ -26,7 +26,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/gamification_provider.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // AchievementsScreen
@@ -268,7 +268,7 @@ class _ProfileCompletionRing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final animatedPercent = Tween<double>(begin: 0, end: completion.percentage)
-        .maybeAnimate(
+        .animate(
           CurvedAnimation(
             parent: animation,
             curve: const Interval(0.2, 0.8, curve: Curves.easeOutCubic),

@@ -82,7 +82,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
         children: [
           // ── Header ────────────────────────────────────────────────
           const _VaultHeader()
-              .maybeAnimate()
+              .animate()
               .fadeIn(duration: 300.ms)
               .slideY(begin: -0.05, end: 0),
 
@@ -91,7 +91,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
             controller: _searchController,
             onChanged: (query) =>
                 ref.read(documentsProvider.notifier).setSearchQuery(query),
-          ).maybeAnimate().fadeIn(duration: 300.ms, delay: 50.ms),
+          ).animate().fadeIn(duration: 300.ms, delay: 50.ms),
 
           const SizedBox(height: 12),
 
@@ -104,7 +104,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                 ref.read(documentsProvider.notifier).setSelectedType(null),
             documentsByType: docsState.documentsByType,
             totalDocuments: docsState.documents.length,
-          ).maybeAnimate().fadeIn(duration: 300.ms, delay: 100.ms),
+          ).animate().fadeIn(duration: 300.ms, delay: 100.ms),
 
           const SizedBox(height: 12),
 
@@ -113,7 +113,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
             encryptedCount: docsState.encryptedCount,
             totalDocuments: docsState.documents.length,
             auditLog: docsState.recentAuditLog,
-          ).maybeAnimate().fadeIn(duration: 300.ms, delay: 120.ms),
+          ).animate().fadeIn(duration: 300.ms, delay: 120.ms),
 
           const SizedBox(height: 12),
 
@@ -121,7 +121,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
           Expanded(
             child: filteredDocs.isEmpty
                 ? _EmptyState()
-                      .maybeAnimate()
+                      .animate()
                       .fadeIn(duration: 400.ms)
                       .slideY(begin: 0.1, end: 0)
                 : _DocumentGrid(documents: filteredDocs),
@@ -742,7 +742,7 @@ class _DocumentGrid extends StatelessWidget {
       itemCount: documents.length,
       itemBuilder: (context, index) {
         return _DocumentCard(document: documents[index])
-            .maybeAnimate()
+            .animate()
             .fadeIn(
               duration: 350.ms,
               delay: Duration(milliseconds: index * 40),
@@ -1459,7 +1459,7 @@ class _EmptyState extends StatelessWidget {
                     ],
                   ),
                 )
-                .maybeAnimate(onPlay: (c) => c.repeat())
+                .animate(onPlay: (c) => c.repeat())
                 .shimmer(
                   duration: DeviceTierCache.instance.shouldAnimate ? 3000.ms : Duration.zero,
                   color: _cOrange.withValues(alpha: 0.06),

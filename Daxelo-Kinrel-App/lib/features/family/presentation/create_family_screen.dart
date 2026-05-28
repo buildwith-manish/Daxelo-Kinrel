@@ -12,7 +12,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 
 class CreateFamilyScreen extends ConsumerStatefulWidget {
   CreateFamilyScreen({super.key});
@@ -412,7 +412,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
                   ),
                 ),
               )
-              .maybeAnimate(onPlay: (c) => c.forward())
+              .animate(onPlay: (c) => c.forward())
               .fadeIn(duration: 500.ms)
               .scale(
                 begin: const Offset(0.8, 0.8),

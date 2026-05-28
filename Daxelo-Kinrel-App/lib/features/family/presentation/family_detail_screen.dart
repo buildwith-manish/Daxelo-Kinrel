@@ -18,7 +18,7 @@ import 'family_tree_canvas.dart';
 import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
 import 'relationship_builder_screen.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 import '../../../core/utils/error_boundary.dart';
 import '../../../core/utils/smart_preloader.dart';
 import '../../../core/utils/share_helper.dart';
@@ -1018,7 +1018,7 @@ class _BottomActionBar extends StatelessWidget {
             ],
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(duration: 400.ms)
         .slideY(begin: 0.2, end: 0, duration: 400.ms);
   }
@@ -1259,7 +1259,7 @@ class _MemberCard extends StatelessWidget {
     return Opacity(
       opacity: _isPending ? 0.7 : 1.0,
       child: cardContent
-          .maybeAnimate(onPlay: (c) => c.forward())
+          .animate(onPlay: (c) => c.forward())
           .fadeIn(
             duration: 300.ms,
             delay: Duration(milliseconds: index * 50),
@@ -1346,7 +1346,7 @@ class _ActivityTile extends StatelessWidget {
             ],
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(
           duration: 300.ms,
           delay: Duration(milliseconds: index * 40),

@@ -131,16 +131,16 @@ Duration tierDelay(Duration original) {
 ///
 /// On mid/high-tier devices, all parameters pass through unchanged.
 ///
-/// Usage — replace `.animate(` with `.maybeAnimate(`:
+/// Usage — replace `.animate(` with `.animate(`:
 /// ```dart
 /// // Before:
 /// MyWidget().animate().fadeIn(duration: 400.ms)
 ///
 /// // After:
-/// MyWidget().maybeAnimate().fadeIn(duration: 400.ms)
+/// MyWidget().animate().fadeIn(duration: 400.ms)
 ///
 /// // With onPlay:
-/// MyWidget().maybeAnimate(onPlay: (c) => c.forward()).fadeIn()
+/// MyWidget().animate(onPlay: (c) => c.forward()).fadeIn()
 /// ```
 extension TierAnimateExtension on Widget {
   /// Drop-in replacement for `.animate()` that adapts to device tier.

@@ -37,7 +37,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/utils/share_helper.dart';
 import '../providers/share_provider.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────────
 const _cOrange = KinrelColors.orange; // #E8612A
@@ -114,12 +114,12 @@ class _ShareScreenState extends ConsumerState<ShareScreen>
           // ── Header ────────────────────────────────────────────────
           _ShareHeader(
             familyName: widget.familyName,
-          ).maybeAnimate().fadeIn(duration: 300.ms).slideY(begin: -0.05, end: 0),
+          ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.05, end: 0),
 
           // ── Tab Bar ───────────────────────────────────────────────
           _ShareTabBar(
             tabController: _tabController,
-          ).maybeAnimate().fadeIn(duration: 300.ms, delay: 50.ms),
+          ).animate().fadeIn(duration: 300.ms, delay: 50.ms),
 
           const SizedBox(height: 12),
 
@@ -338,7 +338,7 @@ class _InviteTab extends ConsumerWidget {
                   ),
                 );
               },
-            ).maybeAnimate().fadeIn(duration: 350.ms).slideY(begin: 0.06, end: 0),
+            ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.06, end: 0),
 
           const SizedBox(height: 20),
 
@@ -375,7 +375,7 @@ class _InviteTab extends ConsumerWidget {
                   }
                 },
               )
-              .maybeAnimate()
+              .animate()
               .fadeIn(duration: 350.ms, delay: 100.ms)
               .slideY(begin: 0.06, end: 0),
 
@@ -1854,13 +1854,13 @@ class _ShareCardTabState extends ConsumerState<_ShareCardTab> {
               color: _cTextPrimary,
               letterSpacing: 0.3,
             ),
-          ).maybeAnimate().fadeIn(duration: 350.ms).slideY(begin: 0.06, end: 0),
+          ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.06, end: 0),
 
           const SizedBox(height: 16),
 
           // ── Beautiful Kinship Card ────────────────────────────────
           _KinshipCardWidget(card: card)
-              .maybeAnimate()
+              .animate()
               .fadeIn(duration: 400.ms, delay: 100.ms)
               .slideY(begin: 0.08, end: 0),
 
@@ -2376,7 +2376,7 @@ class _ShareGraphTab extends ConsumerWidget {
               fontWeight: FontWeight.w700,
               color: _cTextPrimary,
             ),
-          ).maybeAnimate().fadeIn(duration: 350.ms).slideY(begin: 0.06, end: 0),
+          ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.06, end: 0),
 
           const SizedBox(height: 6),
 
@@ -2394,7 +2394,7 @@ class _ShareGraphTab extends ConsumerWidget {
 
           // ── Graph Preview Card ────────────────────────────────────
           _GraphPreviewCard(familyName: familyName)
-              .maybeAnimate()
+              .animate()
               .fadeIn(duration: 400.ms, delay: 100.ms)
               .slideY(begin: 0.08, end: 0),
 
@@ -2416,7 +2416,7 @@ class _ShareGraphTab extends ConsumerWidget {
                   }
                 },
               )
-              .maybeAnimate()
+              .animate()
               .fadeIn(duration: 400.ms, delay: 200.ms)
               .slideY(begin: 0.08, end: 0),
 

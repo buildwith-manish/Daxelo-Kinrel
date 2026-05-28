@@ -12,7 +12,7 @@ import '../../../core/kinship/country_kinship_provider.dart';
 import '../../../core/kinship/global_kinship_models.dart';
 import '../../../core/kinship/global_kinship_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 
 /// Country Kinship Detail Screen — Shows kinship terms for a specific country
 ///
@@ -304,7 +304,7 @@ class _LanguagesTab extends StatelessWidget {
             ],
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(duration: 400.ms)
         .slideY(begin: 0.05, end: 0, duration: 400.ms);
   }
@@ -893,7 +893,7 @@ class _KinshipTermCard extends StatelessWidget {
             ],
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(
           duration: 250.ms,
           delay: Duration(milliseconds: (index % 20) * 20),

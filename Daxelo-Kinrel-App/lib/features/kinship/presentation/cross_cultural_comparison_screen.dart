@@ -9,7 +9,7 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/kinship/global_kinship_models.dart';
 import '../../../core/kinship/global_kinship_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 
 /// Cross-Cultural Comparison Screen
 ///
@@ -311,7 +311,7 @@ class _CrossCulturalComparisonScreenState
                       color: DKColors.textPrimary(context),
                     ),
                   )
-                  .maybeAnimate(onPlay: (c) => c.forward())
+                  .animate(onPlay: (c) => c.forward())
                   .fadeIn(duration: 400.ms)
                   .slideY(begin: 0.1, end: 0, duration: 400.ms),
               const SizedBox(height: 4),
@@ -548,7 +548,7 @@ class _ComparisonCard extends StatelessWidget {
             ),
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(
           duration: 300.ms,
           delay: Duration(milliseconds: index * 60),

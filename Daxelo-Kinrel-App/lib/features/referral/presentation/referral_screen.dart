@@ -6,7 +6,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../providers/referral_provider.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 
 class ReferralScreen extends ConsumerStatefulWidget {
   ReferralScreen({super.key});

@@ -15,7 +15,7 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/storage/secure_storage.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 
 // ── Design Tokens (matching profile_screen) ────────────────────────
 const Color _bg = Color(0xFF131416);
@@ -479,7 +479,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           letterSpacing: 0.8,
         ),
       ),
-    ).maybeAnimate(onPlay: (c) => c.forward()).fadeIn(duration: 300.ms);
+    ).animate(onPlay: (c) => c.forward()).fadeIn(duration: 300.ms);
   }
 
   // ── Section Card ──────────────────────────────────────────────────

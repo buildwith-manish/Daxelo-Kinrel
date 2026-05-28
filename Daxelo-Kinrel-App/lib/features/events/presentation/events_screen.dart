@@ -87,7 +87,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
         children: [
           // ── Header ────────────────────────────────────────────────
           _EventsHeader()
-              .maybeAnimate()
+              .animate()
               .fadeIn(duration: 300.ms)
               .slideY(begin: -0.05, end: 0),
 
@@ -96,7 +96,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
             currentFilter: eventsState.filter,
             onFilterChanged: (filter) =>
                 ref.read(eventsProvider.notifier).setFilter(filter),
-          ).maybeAnimate().fadeIn(duration: 300.ms, delay: 50.ms),
+          ).animate().fadeIn(duration: 300.ms, delay: 50.ms),
 
           const SizedBox(height: 12),
 
@@ -104,7 +104,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
           Expanded(
             child: filteredEvents.isEmpty
                 ? _EmptyState()
-                      .maybeAnimate()
+                      .animate()
                       .fadeIn(duration: 400.ms)
                       .slideY(begin: 0.1, end: 0)
                 : _EventsList(events: filteredEvents),
@@ -342,7 +342,7 @@ class _EventsList extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         return _EventCard(event: events[index])
-            .maybeAnimate()
+            .animate()
             .fadeIn(
               duration: 350.ms,
               delay: Duration(milliseconds: index * 60),
@@ -571,7 +571,7 @@ class _EventCard extends ConsumerWidget {
                 Tween<Offset>(
                   begin: const Offset(0, 0.1),
                   end: Offset.zero,
-                ).maybeAnimate(
+                ).animate(
                   CurvedAnimation(
                     parent: animation,
                     curve: KinrelMotion.easeOut,
@@ -1020,7 +1020,7 @@ class _EmptyState extends StatelessWidget {
                     ],
                   ),
                 )
-                .maybeAnimate(onPlay: (c) => c.repeat())
+                .animate(onPlay: (c) => c.repeat())
                 .shimmer(
                   duration: DeviceTierCache.instance.shouldAnimate ? 3000.ms : Duration.zero,
                   color: _cOrange.withValues(alpha: 0.06),

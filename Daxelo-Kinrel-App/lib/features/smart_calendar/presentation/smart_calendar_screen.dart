@@ -36,7 +36,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/smart_calendar_provider.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────────
 const _cOrange = KinrelColors.orange;
@@ -84,12 +84,12 @@ class _SmartCalendarScreenState extends ConsumerState<SmartCalendarScreen> {
         children: [
           // ── Header ────────────────────────────────────────────────
           _CalendarHeader()
-              .maybeAnimate()
+              .animate()
               .fadeIn(duration: 300.ms)
               .slideY(begin: -0.05, end: 0),
 
           // ── View Toggle + Panchang Toggle ─────────────────────────
-          _ViewAndPanchangToggle().maybeAnimate().fadeIn(
+          _ViewAndPanchangToggle().animate().fadeIn(
             duration: 300.ms,
             delay: 50.ms,
           ),
@@ -100,13 +100,13 @@ class _SmartCalendarScreenState extends ConsumerState<SmartCalendarScreen> {
           if (calendarState.upcomingFestivalEvents.isNotEmpty)
             _FestivalBanner(
               festivals: calendarState.upcomingFestivalEvents,
-            ).maybeAnimate().fadeIn(duration: 350.ms).slideY(begin: -0.04, end: 0),
+            ).animate().fadeIn(duration: 350.ms).slideY(begin: -0.04, end: 0),
 
           // ── Reminders Bar ────────────────────────────────────────
           if (calendarState.activeReminders.isNotEmpty)
             _RemindersBar(
               reminders: calendarState.activeReminders.take(3).toList(),
-            ).maybeAnimate().fadeIn(duration: 350.ms),
+            ).animate().fadeIn(duration: 350.ms),
 
           // ── Content based on view mode ───────────────────────────
           Expanded(child: _buildCalendarContent(calendarState)),
@@ -201,7 +201,7 @@ class _MonthViewContent extends StatelessWidget {
                   calendarState.panchangForSelectedDate != null
               ? _PanchangPanel(
                   panchang: calendarState.panchangForSelectedDate!,
-                ).maybeAnimate().fadeIn(duration: 350.ms).slideY(begin: 0.08, end: 0)
+                ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.08, end: 0)
               : const SizedBox.shrink(),
         ),
 
@@ -2271,7 +2271,7 @@ class _EventsForDateList extends StatelessWidget {
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     return _EventCard(event: events[index])
-                        .maybeAnimate()
+                        .animate()
                         .fadeIn(
                           duration: 350.ms,
                           delay: Duration(milliseconds: index * 60),

@@ -23,7 +23,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/oral_history_provider.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Oral History Screen
@@ -1866,7 +1866,7 @@ class _StoryCard extends StatelessWidget {
             ),
           ),
         )
-        .maybeAnimate()
+        .animate()
         .fadeIn(duration: KinrelMotion.normal)
         .slideX(begin: 0.05, end: 0, duration: KinrelMotion.normal);
   }
@@ -3133,7 +3133,7 @@ Shared via Daxelo KinRel — Family Oral History
             ),
           ),
         )
-        .maybeAnimate()
+        .animate()
         .fadeIn(duration: KinrelMotion.normal)
         .slideY(begin: 0.1, end: 0, duration: KinrelMotion.normal);
   }

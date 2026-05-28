@@ -12,7 +12,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/storage/secure_storage.dart';
 import '../../../core/services/analytics_service.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Onboarding Screen — Redesigned
@@ -409,7 +409,7 @@ class _OnboardingPage1State extends State<_OnboardingPage1>
                   height: 1.2,
                 ),
               )
-              .maybeAnimate(target: widget.isActive ? 1 : 0)
+              .animate(target: widget.isActive ? 1 : 0)
               .fadeIn(duration: 500.ms, delay: 200.ms)
               .slideY(begin: 0.15, end: 0),
 
@@ -427,7 +427,7 @@ class _OnboardingPage1State extends State<_OnboardingPage1>
                   height: 1.55,
                 ),
               )
-              .maybeAnimate(target: widget.isActive ? 1 : 0)
+              .animate(target: widget.isActive ? 1 : 0)
               .fadeIn(duration: 500.ms, delay: 400.ms),
         ],
       ),
@@ -658,7 +658,7 @@ class _OnboardingPage2State extends State<_OnboardingPage2>
                   height: 1.2,
                 ),
               )
-              .maybeAnimate(target: widget.isActive ? 1 : 0)
+              .animate(target: widget.isActive ? 1 : 0)
               .fadeIn(duration: 500.ms, delay: 200.ms)
               .slideY(begin: 0.15, end: 0),
 
@@ -676,7 +676,7 @@ class _OnboardingPage2State extends State<_OnboardingPage2>
                   height: 1.55,
                 ),
               )
-              .maybeAnimate(target: widget.isActive ? 1 : 0)
+              .animate(target: widget.isActive ? 1 : 0)
               .fadeIn(duration: 500.ms, delay: 400.ms),
         ],
       ),
@@ -858,7 +858,7 @@ class _OnboardingPage3State extends State<_OnboardingPage3>
                   height: 1.2,
                 ),
               )
-              .maybeAnimate(target: widget.isActive ? 1 : 0)
+              .animate(target: widget.isActive ? 1 : 0)
               .fadeIn(duration: 500.ms, delay: 200.ms)
               .slideY(begin: 0.15, end: 0),
 
@@ -876,7 +876,7 @@ class _OnboardingPage3State extends State<_OnboardingPage3>
                   height: 1.55,
                 ),
               )
-              .maybeAnimate(target: widget.isActive ? 1 : 0)
+              .animate(target: widget.isActive ? 1 : 0)
               .fadeIn(duration: 500.ms, delay: 400.ms),
         ],
       ),
@@ -1070,7 +1070,7 @@ class _OnboardingPage4State extends State<_OnboardingPage4>
                   height: 1.2,
                 ),
               )
-              .maybeAnimate(target: widget.isActive ? 1 : 0)
+              .animate(target: widget.isActive ? 1 : 0)
               .fadeIn(duration: 500.ms, delay: 200.ms)
               .slideY(begin: 0.15, end: 0),
 
@@ -1088,7 +1088,7 @@ class _OnboardingPage4State extends State<_OnboardingPage4>
                   height: 1.55,
                 ),
               )
-              .maybeAnimate(target: widget.isActive ? 1 : 0)
+              .animate(target: widget.isActive ? 1 : 0)
               .fadeIn(duration: 500.ms, delay: 400.ms),
         ],
       ),
@@ -1380,7 +1380,7 @@ class _QuickSetupNameStep extends StatelessWidget {
           _IgniteButton(label: 'Continue', onPressed: onNext),
         ],
       ),
-    ).maybeAnimate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
   }
 }
 
@@ -1470,7 +1470,7 @@ class _QuickSetupFamilyStep extends StatelessWidget {
           _IgniteButton(label: 'Continue', onPressed: onNext),
         ],
       ),
-    ).maybeAnimate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
   }
 }
 
@@ -1547,7 +1547,7 @@ class _QuickSetupPrivacyStepState extends State<_QuickSetupPrivacyStep> {
                 color: KinrelColors.orange,
               ),
             ),
-          ).maybeAnimate().scale(
+          ).animate().scale(
             duration: 600.ms,
             curve: Curves.elasticOut,
             begin: const Offset(0.6, 0.6),
@@ -1619,14 +1619,14 @@ class _QuickSetupPrivacyStepState extends State<_QuickSetupPrivacyStep> {
                   ),
                 ],
               ),
-            ).maybeAnimate().fadeIn(duration: 400.ms).slideY(begin: 0.2, end: 0),
+            ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.2, end: 0),
 
           const SizedBox(height: 24),
 
           _IgniteButton(label: 'Start Exploring', onPressed: widget.onComplete),
         ],
       ),
-    ).maybeAnimate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
   }
 }
 

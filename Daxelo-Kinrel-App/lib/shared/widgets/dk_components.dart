@@ -339,7 +339,7 @@ class DKCard extends StatelessWidget {
           ),
         ),
       )
-      .maybeAnimate(onPlay: (c) => c.forward())
+      .animate(onPlay: (c) => c.forward())
       .fadeIn(duration: KinrelMotion.normal);
     }
 
@@ -1678,7 +1678,7 @@ class DKEmptyState extends StatelessWidget {
                 ),
                 child: Icon(icon, size: 40, color: iconColor),
               )
-              .maybeAnimate(onPlay: (c) => c.forward())
+              .animate(onPlay: (c) => c.forward())
               .fadeIn(duration: 400.ms)
               .scale(
                 begin: const Offset(0.8, 0.8),
@@ -1698,7 +1698,7 @@ class DKEmptyState extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               )
-              .maybeAnimate()
+              .animate()
               .fadeIn(duration: 300.ms, delay: 100.ms)
               .slideY(begin: 0.1, end: 0, duration: 300.ms),
           const SizedBox(height: KinrelSpacing.sm),
@@ -1713,7 +1713,7 @@ class DKEmptyState extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               )
-              .maybeAnimate()
+              .animate()
               .fadeIn(duration: 300.ms, delay: 200.ms)
               .slideY(begin: 0.1, end: 0, duration: 300.ms),
           if (actionLabel != null && onAction != null) ...[
@@ -1723,7 +1723,7 @@ class DKEmptyState extends StatelessWidget {
                   variant: DKButtonVariant.primary,
                   onPressed: onAction,
                 )
-                .maybeAnimate()
+                .animate()
                 .fadeIn(duration: 300.ms, delay: 300.ms)
                 .slideY(begin: 0.15, end: 0, duration: 300.ms),
           ],
@@ -1823,7 +1823,7 @@ class DKErrorState extends StatelessWidget {
                 size: 48,
                 color: DKColors.brandCoral,
               )
-              .maybeAnimate(onPlay: (c) => c.forward())
+              .animate(onPlay: (c) => c.forward())
               .fadeIn(duration: 300.ms)
               .scale(
                 begin: const Offset(0.8, 0.8),
@@ -1842,7 +1842,7 @@ class DKErrorState extends StatelessWidget {
               height: 1.5,
             ),
             textAlign: TextAlign.center,
-          ).maybeAnimate().fadeIn(duration: 300.ms, delay: 100.ms),
+          ).animate().fadeIn(duration: 300.ms, delay: 100.ms),
           const SizedBox(height: KinrelSpacing.xl),
           DKButton(
                 label: 'Try Again',
@@ -1850,7 +1850,7 @@ class DKErrorState extends StatelessWidget {
                 icon: Icons.refresh_rounded,
                 onPressed: onRetry,
               )
-              .maybeAnimate()
+              .animate()
               .fadeIn(duration: 300.ms, delay: 200.ms)
               .slideY(begin: 0.1, end: 0, duration: 300.ms),
         ],

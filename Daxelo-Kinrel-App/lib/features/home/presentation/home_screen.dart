@@ -27,7 +27,7 @@ import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../feed/presentation/family_feed.dart';
 import '../../feed/providers/feed_provider.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 import '../../../core/utils/accessibility_utils.dart';
 
 // ── Color shortcuts for the Command Center ──────────────────────
@@ -173,7 +173,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 'Create your first family to start building your kinship graph',
             actionLabel: 'Create Family',
             onAction: () => context.push('/families/create'),
-          ).maybeAnimate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0),
+          ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0),
           SizedBox(height: 16),
           semanticLink(
             label: 'Join an existing family with a code',
@@ -225,7 +225,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               children: [
                 // Family Switcher
                 _FamilySwitcherRow(families: families)
-                    .maybeAnimate()
+                    .animate()
                     .fadeIn(duration: 350.ms, delay: 50.ms)
                     .slideX(begin: -0.05, end: 0),
 
@@ -233,7 +233,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
                 // Hero Family Card
                 _HeroFamilyCard(family: primaryFamily, detailAsync: detailAsync)
-                    .maybeAnimate()
+                    .animate()
                     .fadeIn(duration: 400.ms, delay: 100.ms)
                     .slideY(begin: 0.08, end: 0),
 
@@ -242,7 +242,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 // Quick Actions Row
                 _QuickActionsRow(
                   familyId: primaryFamily.id,
-                ).maybeAnimate().fadeIn(duration: 350.ms, delay: 150.ms),
+                ).animate().fadeIn(duration: 350.ms, delay: 150.ms),
 
                 SizedBox(height: 24),
 
@@ -273,7 +273,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       ],
                     ),
                   ),
-                ).maybeAnimate().fadeIn(duration: 350.ms, delay: 200.ms),
+                ).animate().fadeIn(duration: 350.ms, delay: 200.ms),
 
                 SizedBox(height: 12),
               ],
@@ -285,7 +285,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             hasScrollBody: true,
             child: FamilyFeed(
               familyId: primaryFamily.id,
-            ).maybeAnimate().fadeIn(duration: 350.ms, delay: 250.ms),
+            ).animate().fadeIn(duration: 350.ms, delay: 250.ms),
           ),
         ],
       ),

@@ -15,7 +15,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/feed_provider.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────
 const _cOrange = KinrelColors.orange;
@@ -109,7 +109,7 @@ class _FamilyFeedState extends ConsumerState<FamilyFeed> {
             onSave: () => ref
                 .read(feedProvider.notifier)
                 .toggleSave(feedState.posts[index].id),
-          ).maybeAnimate().fadeIn(duration: 300.ms, delay: (index * 50).ms);
+          ).animate().fadeIn(duration: 300.ms, delay: (index * 50).ms);
         },
       ),
     );

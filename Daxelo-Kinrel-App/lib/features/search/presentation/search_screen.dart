@@ -21,7 +21,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../data/repositories/search_repository.dart';
 import '../../../presentation/providers/search_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 import '../../../presentation/widgets/skeletons/search_skeleton.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -553,7 +553,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             ),
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(duration: 250.ms)
         .slideY(begin: 0.04, end: 0, duration: 250.ms);
   }
@@ -626,7 +626,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             ),
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(duration: 250.ms)
         .slideY(begin: 0.04, end: 0, duration: 250.ms);
   }

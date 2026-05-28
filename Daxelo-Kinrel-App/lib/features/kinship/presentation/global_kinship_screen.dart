@@ -9,7 +9,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/kinship/country_kinship_models.dart';
 import '../../../core/kinship/country_kinship_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 
 /// Global Kinship Screen — Country-first approach to world kinship
 ///
@@ -211,7 +211,7 @@ class _GlobalKinshipScreenState extends ConsumerState<GlobalKinshipScreen> {
             ],
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(duration: 400.ms)
         .slideY(begin: 0.05, end: 0, duration: 400.ms);
   }
@@ -591,7 +591,7 @@ class _CountryCard extends StatelessWidget {
             ],
           ),
         )
-        .maybeAnimate(onPlay: (c) => c.forward())
+        .animate(onPlay: (c) => c.forward())
         .fadeIn(
           duration: 300.ms,
           delay: Duration(milliseconds: index * 30),

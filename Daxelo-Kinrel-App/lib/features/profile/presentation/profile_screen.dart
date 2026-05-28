@@ -32,7 +32,7 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/profile_provider.dart';
 import '../../../core/utils/share_helper.dart';
-import '../../core/utils/device_tier.dart';
+import '../../../core/utils/device_tier.dart';
 import '../../../presentation/widgets/skeletons/profile_skeleton.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
@@ -480,7 +480,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   size: DKButtonSize.lg,
                   onPressed: () => _showSignOutDialog(context),
                 )
-                .maybeAnimate(onPlay: (c) => c.forward())
+                .animate(onPlay: (c) => c.forward())
                 .fadeIn(duration: 500.ms, delay: 400.ms),
 
             const SizedBox(height: 32),
@@ -618,7 +618,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               ),
             ),
             )
-            .maybeAnimate(onPlay: (c) => c.forward())
+            .animate(onPlay: (c) => c.forward())
             .fadeIn(duration: 500.ms)
             .scale(
               begin: const Offset(0.8, 0.8),
@@ -758,7 +758,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           letterSpacing: 0.8,
         ),
       ),
-    ).maybeAnimate(onPlay: (c) => c.forward()).fadeIn(duration: 300.ms);
+    ).animate(onPlay: (c) => c.forward()).fadeIn(duration: 300.ms);
   }
 
   // ── Section Card ──────────────────────────────────────────────────
