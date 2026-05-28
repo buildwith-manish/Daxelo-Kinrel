@@ -19,37 +19,21 @@ import '../../../core/constants/brand_colors.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Types of events supported by the Events & Celebrations feature.
-enum EventType {
-  birthday,
-  anniversary,
-  reunion,
-  festival,
-  custom,
-}
+enum EventType { birthday, anniversary, reunion, festival, custom }
 
 // ═══════════════════════════════════════════════════════════════════════
 // RSVP Status Enum
 // ═══════════════════════════════════════════════════════════════════════
 
 /// RSVP response status for reunion-type events.
-enum RSVPStatus {
-  none,
-  going,
-  maybe,
-  notGoing,
-}
+enum RSVPStatus { none, going, maybe, notGoing }
 
 // ═══════════════════════════════════════════════════════════════════════
 // Reminder Timing
 // ═══════════════════════════════════════════════════════════════════════
 
 /// When a reminder should fire relative to the event.
-enum ReminderTiming {
-  oneWeekBefore,
-  oneDayBefore,
-  dayOf,
-  custom,
-}
+enum ReminderTiming { oneWeekBefore, oneDayBefore, dayOf, custom }
 
 // ═══════════════════════════════════════════════════════════════════════
 // Event Member (related person)
@@ -74,11 +58,11 @@ class EventMember {
       initials ??
       (name.isNotEmpty
           ? name
-              .split(' ')
-              .where((s) => s.isNotEmpty)
-              .take(2)
-              .map((s) => s[0].toUpperCase())
-              .join()
+                .split(' ')
+                .where((s) => s.isNotEmpty)
+                .take(2)
+                .map((s) => s[0].toUpperCase())
+                .join()
           : '?');
 }
 
@@ -189,13 +173,13 @@ class EventModel {
   Color get accentColor {
     switch (type) {
       case EventType.birthday:
-        return KinrelColors.orange;    // #E8612A
+        return KinrelColors.orange; // #E8612A
       case EventType.anniversary:
-        return KinrelColors.amber;     // #F59240
+        return KinrelColors.amber; // #F59240
       case EventType.festival:
-        return KinrelColors.gold;      // #D4AF37
+        return KinrelColors.gold; // #D4AF37
       case EventType.reunion:
-        return KinrelColors.orange;    // #E8612A
+        return KinrelColors.orange; // #E8612A
       case EventType.custom:
         return KinrelColors.textSilver; // #C9B4A8
     }
@@ -236,8 +220,19 @@ class EventModel {
   /// Format the date for display.
   String get formattedDate {
     const months = [
-      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${date.day} ${months[date.month]}, ${date.year}';
   }
@@ -314,11 +309,7 @@ class EventComment {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Tab filter options for the events screen.
-enum EventsFilter {
-  upcoming,
-  thisMonth,
-  all,
-}
+enum EventsFilter { upcoming, thisMonth, all }
 
 // ═══════════════════════════════════════════════════════════════════════
 // Events State
@@ -348,8 +339,7 @@ class EventsState {
         return events.where((e) => e.isThisMonth).toList()
           ..sort((a, b) => a.date.compareTo(b.date));
       case EventsFilter.all:
-        return events.toList()
-          ..sort((a, b) => a.date.compareTo(b.date));
+        return events.toList()..sort((a, b) => a.date.compareTo(b.date));
     }
   }
 
@@ -408,9 +398,29 @@ class EventsNotifier extends StateNotifier<EventsState> {
     state = state.copyWith(events: updatedEvents);
   }
 
-  /// Add a new custom event.
+  /// Add a new custom event (optimistic — appears immediately).
+  /// No loading spinner is shown; the event is added to the list
+  /// right away. If the caller needs server confirmation, they
+  /// should fire the API call and remove the event on failure.
   void addEvent(EventModel event) {
     state = state.copyWith(events: [...state.events, event]);
+  }
+
+  /// Remove an event by ID (used for rollback on API failure).
+  void removeEvent(String eventId) {
+    state = state.copyWith(
+      events: state.events.where((e) => e.id != eventId).toList(),
+    );
+  }
+
+  /// Replace a pending event (identified by `pendingId`) with
+  /// the real server-confirmed event.
+  void replaceEvent(String pendingId, EventModel realEvent) {
+    final updatedEvents = state.events.map((e) {
+      if (e.id == pendingId) return realEvent;
+      return e;
+    }).toList();
+    state = state.copyWith(events: updatedEvents);
   }
 
   /// Toggle a reminder timing for an event.
@@ -457,9 +467,7 @@ class EventsNotifier extends StateNotifier<EventsState> {
           'May your bond grow stronger with each passing year! Happy Anniversary! ${event.emoji}',
         ];
       default:
-        return [
-          'Wishing you a wonderful ${event.name}! ${event.emoji}',
-        ];
+        return ['Wishing you a wonderful ${event.name}! ${event.emoji}'];
     }
   }
 }
@@ -469,8 +477,9 @@ class EventsNotifier extends StateNotifier<EventsState> {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Main events provider.
-final eventsProvider =
-    StateNotifierProvider<EventsNotifier, EventsState>((ref) {
+final eventsProvider = StateNotifierProvider<EventsNotifier, EventsState>((
+  ref,
+) {
   return EventsNotifier();
 });
 
@@ -510,10 +519,7 @@ final _demoEvents = <EventModel>[
     isAllDay: true,
     isAutoGenerated: true,
     description: 'Meera\'s special day! 🎂',
-    reminderTimings: [
-      ReminderTiming.oneWeekBefore,
-      ReminderTiming.dayOf,
-    ],
+    reminderTimings: [ReminderTiming.oneWeekBefore, ReminderTiming.dayOf],
     members: [
       EventMember(id: 'm4', name: 'Meera Patel', initials: 'MP'),
       EventMember(id: 'm5', name: 'Rajesh Patel', initials: 'RP'),
@@ -549,10 +555,7 @@ final _demoEvents = <EventModel>[
     isAllDay: true,
     isAutoGenerated: true,
     description: 'Nani\'s birthday — the whole family gathers! 🎂',
-    reminderTimings: [
-      ReminderTiming.oneWeekBefore,
-      ReminderTiming.dayOf,
-    ],
+    reminderTimings: [ReminderTiming.oneWeekBefore, ReminderTiming.dayOf],
     members: [
       EventMember(id: 'm9', name: 'Saroj Devi', initials: 'SD'),
       EventMember(id: 'm4', name: 'Meera Patel', initials: 'MP'),
@@ -588,10 +591,7 @@ final _demoEvents = <EventModel>[
     isAllDay: true,
     isAutoGenerated: true,
     description: 'Rajesh & Meera celebrate 8 years! 💍',
-    reminderTimings: [
-      ReminderTiming.oneWeekBefore,
-      ReminderTiming.dayOf,
-    ],
+    reminderTimings: [ReminderTiming.oneWeekBefore, ReminderTiming.dayOf],
     members: [
       EventMember(id: 'm5', name: 'Rajesh Patel', initials: 'RP'),
       EventMember(id: 'm4', name: 'Meera Patel', initials: 'MP'),
@@ -605,7 +605,8 @@ final _demoEvents = <EventModel>[
     type: EventType.festival,
     date: DateTime(_now.year, _now.month, _now.day + 25),
     isAllDay: true,
-    description: 'May the festival of lights bring joy, prosperity, and happiness to your family! 🪔✨',
+    description:
+        'May the festival of lights bring joy, prosperity, and happiness to your family! 🪔✨',
     location: 'Sharma Family Home, Jaipur',
     reminderTimings: [
       ReminderTiming.oneWeekBefore,
@@ -626,12 +627,10 @@ final _demoEvents = <EventModel>[
     type: EventType.festival,
     date: DateTime(_now.year, 3, 14),
     isAllDay: true,
-    description: 'Celebrate the victory of good over evil with colors and joy! 🎨🌈',
+    description:
+        'Celebrate the victory of good over evil with colors and joy! 🎨🌈',
     location: 'Community Ground, Jaipur',
-    reminderTimings: [
-      ReminderTiming.oneWeekBefore,
-      ReminderTiming.dayOf,
-    ],
+    reminderTimings: [ReminderTiming.oneWeekBefore, ReminderTiming.dayOf],
     members: [
       EventMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
       EventMember(id: 'm2', name: 'Priya Sharma', initials: 'PS'),
@@ -645,13 +644,8 @@ final _demoEvents = <EventModel>[
     date: DateTime(_now.year, _now.month + 2, 2),
     isAllDay: true,
     description: 'Eid Mubarak! May blessings and joy fill your home! 🌙✨',
-    reminderTimings: [
-      ReminderTiming.oneDayBefore,
-      ReminderTiming.dayOf,
-    ],
-    members: [
-      EventMember(id: 'm10', name: 'Imran Khan', initials: 'IK'),
-    ],
+    reminderTimings: [ReminderTiming.oneDayBefore, ReminderTiming.dayOf],
+    members: [EventMember(id: 'm10', name: 'Imran Khan', initials: 'IK')],
   ),
 
   EventModel(
@@ -661,13 +655,8 @@ final _demoEvents = <EventModel>[
     date: DateTime(_now.year, 12, 25),
     isAllDay: true,
     description: 'Merry Christmas! Wishing warmth and joy to the family! 🎄🎁',
-    reminderTimings: [
-      ReminderTiming.oneWeekBefore,
-      ReminderTiming.dayOf,
-    ],
-    members: [
-      EventMember(id: 'm11', name: 'Anita D\'Souza', initials: 'AD'),
-    ],
+    reminderTimings: [ReminderTiming.oneWeekBefore, ReminderTiming.dayOf],
+    members: [EventMember(id: 'm11', name: 'Anita D\'Souza', initials: 'AD')],
   ),
 
   // ── Family Reunions ─────────────────────────────────────────────
@@ -678,7 +667,8 @@ final _demoEvents = <EventModel>[
     date: DateTime(_now.year, _now.month + 1, 20, 10, 0),
     endTime: DateTime(_now.year, _now.month + 1, 22, 18, 0),
     isAllDay: false,
-    description: 'Annual Sharma family gathering — 3 days of food, fun, and family bonding! Don\'t miss the cricket match and rangoli competition.',
+    description:
+        'Annual Sharma family gathering — 3 days of food, fun, and family bonding! Don\'t miss the cricket match and rangoli competition.',
     location: 'Farmhouse, Kukas, Jaipur',
     rsvpStatus: RSVPStatus.none,
     reminderTimings: [
@@ -704,10 +694,7 @@ final _demoEvents = <EventModel>[
     description: 'One-day Patel family meet with lunch and garba night! 💃🕺',
     location: 'Patel Wadi, Ahmedabad',
     rsvpStatus: RSVPStatus.going,
-    reminderTimings: [
-      ReminderTiming.oneWeekBefore,
-      ReminderTiming.dayOf,
-    ],
+    reminderTimings: [ReminderTiming.oneWeekBefore, ReminderTiming.dayOf],
     members: [
       EventMember(id: 'm5', name: 'Rajesh Patel', initials: 'RP'),
       EventMember(id: 'm4', name: 'Meera Patel', initials: 'MP'),
@@ -722,7 +709,8 @@ final _demoEvents = <EventModel>[
     type: EventType.custom,
     date: DateTime(_now.year, _now.month, _now.day + 30, 9, 0),
     isAllDay: false,
-    description: 'Namkaran ceremony for baby Anaya. All family members invited! 🎀👶',
+    description:
+        'Namkaran ceremony for baby Anaya. All family members invited! 🎀👶',
     location: 'Sharma Residence, Malviya Nagar, Jaipur',
     reminderTimings: [
       ReminderTiming.oneWeekBefore,
@@ -742,12 +730,10 @@ final _demoEvents = <EventModel>[
     type: EventType.custom,
     date: DateTime(_now.year, _now.month + 2, 5, 8, 0),
     isAllDay: false,
-    description: 'Housewarming ceremony at the new Patel residence. Puja followed by lunch. 🏠🙏',
+    description:
+        'Housewarming ceremony at the new Patel residence. Puja followed by lunch. 🏠🙏',
     location: 'New Patel House, Vastrapur, Ahmedabad',
-    reminderTimings: [
-      ReminderTiming.oneWeekBefore,
-      ReminderTiming.dayOf,
-    ],
+    reminderTimings: [ReminderTiming.oneWeekBefore, ReminderTiming.dayOf],
     members: [
       EventMember(id: 'm5', name: 'Rajesh Patel', initials: 'RP'),
       EventMember(id: 'm4', name: 'Meera Patel', initials: 'MP'),

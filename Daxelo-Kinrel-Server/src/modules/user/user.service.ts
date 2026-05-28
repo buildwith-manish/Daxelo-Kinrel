@@ -20,7 +20,7 @@ export class UserService {
   /**
    * GET /api/users/me
    * Get current user profile (JWT protected).
-   * Response: { user: { id, email, name, phone, preferredLanguage, role, createdAt, updatedAt } }
+   * Response: { user: { id, email, name, phone, preferredLanguage, role, avatarUrl, twoFactorEnabled, createdAt, updatedAt } }
    */
   async getProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -32,6 +32,8 @@ export class UserService {
         phone: true,
         preferredLanguage: true,
         role: true,
+        avatarUrl: true,
+        twoFactorEnabled: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -42,6 +44,89 @@ export class UserService {
     }
 
     return { user };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Get User Stats
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * GET /api/users/me/stats
+   * Get stats for the current user: family trees count, members added, relations.
+   */
+  async getUserStats(userId: string) {
+    // Count families where user is a member
+    const familyTrees = await this.prisma.familyMember.count({
+      where: { userId },
+    });
+
+    // Get all family IDs where the user is a member
+    const familyMemberships = await this.prisma.familyMember.findMany({
+      where: { userId },
+      select: { familyId: true },
+    });
+    const familyIds = familyMemberships.map((fm) => fm.familyId);
+
+    // Count persons in user's families (approximate "members added")
+    const membersAdded =
+      familyIds.length > 0
+        ? await this.prisma.person.count({
+            where: {
+              familyId: { in: familyIds },
+              deletedAt: null,
+            },
+          })
+        : 0;
+
+    // Count relationships in user's families
+    const relations =
+      familyIds.length > 0
+        ? await this.prisma.relationship.count({
+            where: {
+              familyId: { in: familyIds },
+              isActive: true,
+            },
+          })
+        : 0;
+
+    return { familyTrees, membersAdded, relations };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Upload Avatar
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * PUT /api/users/me/avatar
+   * Upload avatar image (multipart form data).
+   * Stores as base64 data URL for simplicity.
+   * In production, you'd upload to S3/Cloudinary.
+   */
+  async updateAvatar(userId: string, file: Express.Multer.File) {
+    // Verify user exists
+    const existing = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Store the avatar as a base64 data URL for simplicity
+    // In production, you'd upload to S3/Cloudinary
+    const base64 = file.buffer.toString('base64');
+    const mimeType = file.mimetype;
+    const avatarUrl = `data:${mimeType};base64,${base64}`;
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl },
+    });
+
+    this.logger.log(`Avatar updated for user: ${userId}`);
+
+    return this.getProfile(userId);
   }
 
   // ═══════════════════════════════════════════════════════════════════

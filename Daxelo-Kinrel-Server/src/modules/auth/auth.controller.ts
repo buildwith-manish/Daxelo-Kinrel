@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   UseGuards,
   Req,
@@ -16,6 +17,8 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { Verify2FADto, Disable2FADto } from './dto/verify-2fa.dto';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { GoogleProfile } from './strategies/google.strategy';
@@ -76,6 +79,66 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async logout(@Body() dto: RefreshTokenDto) {
     return this.authService.logout(dto.refreshToken);
+  }
+
+  // ── POST /api/auth/change-password ──────────────────────────────
+  /**
+   * Change password for authenticated user.
+   * Body: { currentPassword, newPassword }
+   * Response: { message: 'Password changed successfully' }
+   */
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async changePassword(
+    @CurrentUser('id') userId: string,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(userId, dto);
+  }
+
+  // ── POST /api/auth/2fa/setup ────────────────────────────────────
+  /**
+   * Setup 2FA — generates TOTP secret and QR code URL.
+   * Response: { secret, qrCodeUrl }
+   */
+  @Post('2fa/setup')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async setup2FA(@CurrentUser('id') userId: string) {
+    return this.authService.setup2FA(userId);
+  }
+
+  // ── POST /api/auth/2fa/verify ───────────────────────────────────
+  /**
+   * Verify 2FA code — enables 2FA if valid.
+   * Body: { code }
+   * Response: { verified: true }
+   */
+  @Post('2fa/verify')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async verify2FA(
+    @CurrentUser('id') userId: string,
+    @Body() dto: Verify2FADto,
+  ) {
+    return this.authService.verify2FA(userId, dto);
+  }
+
+  // ── DELETE /api/auth/2fa ────────────────────────────────────────
+  /**
+   * Disable 2FA — requires password confirmation.
+   * Body: { password }
+   * Response: { disabled: true }
+   */
+  @Delete('2fa')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async disable2FA(
+    @CurrentUser('id') userId: string,
+    @Body() dto: Disable2FADto,
+  ) {
+    return this.authService.disable2FA(userId, dto);
   }
 
   // ── GET /api/auth/google ────────────────────────────────────────

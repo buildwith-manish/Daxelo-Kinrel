@@ -80,9 +80,7 @@ class _VoiceSearchScreenState extends ConsumerState<VoiceSearchScreen>
 
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
-          color: KinrelColors.darkBackground,
-        ),
+        decoration: BoxDecoration(color: KinrelColors.darkBackground),
         child: SafeArea(
           child: Column(
             children: [
@@ -92,8 +90,10 @@ class _VoiceSearchScreenState extends ConsumerState<VoiceSearchScreen>
                 child: Row(
                   children: [
                     IconButton(
-                      icon: Icon(Icons.arrow_back,
-                          color: KinrelColors.textWhite),
+                      icon: Icon(
+                        Icons.arrow_back,
+                        color: KinrelColors.textWhite,
+                      ),
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                     const SizedBox(width: 8),
@@ -125,24 +125,22 @@ class _VoiceSearchScreenState extends ConsumerState<VoiceSearchScreen>
                 child: voiceState.isLoading
                     ? _LoadingView()
                     : voiceState.isRecording
-                        ? _RecordingView(
-                            waveformController: _waveformController,
-                            onStop: _toggleRecording,
-                          )
-                        : voiceState.transcription != null
-                            ? _ResultsView(
-                                transcription: voiceState.transcription!,
-                                results: voiceState.results ?? [],
-                                onSearchAgain: () {
-                                  ref
-                                      .read(voiceSearchProvider.notifier)
-                                      .clearResults();
-                                },
-                              )
-                            : _IdleView(
-                                pulseAnimation: _pulseAnimation,
-                                onStart: _toggleRecording,
-                              ),
+                    ? _RecordingView(
+                        waveformController: _waveformController,
+                        onStop: _toggleRecording,
+                      )
+                    : voiceState.transcription != null
+                    ? _ResultsView(
+                        transcription: voiceState.transcription!,
+                        results: voiceState.results ?? [],
+                        onSearchAgain: () {
+                          ref.read(voiceSearchProvider.notifier).clearResults();
+                        },
+                      )
+                    : _IdleView(
+                        pulseAnimation: _pulseAnimation,
+                        onStart: _toggleRecording,
+                      ),
               ),
 
               // ── Error Banner ──────────────────────────────────────
@@ -152,15 +150,18 @@ class _VoiceSearchScreenState extends ConsumerState<VoiceSearchScreen>
                   padding: EdgeInsets.all(KinrelSpacing.md),
                   decoration: BoxDecoration(
                     color: KinrelColors.error.withValues(alpha: 0.15),
-                    borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusMd),
+                    borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
                     border: Border.all(
-                        color: KinrelColors.error.withValues(alpha: 0.3)),
+                      color: KinrelColors.error.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.error_outline,
-                          color: KinrelColors.error, size: 20),
+                      Icon(
+                        Icons.error_outline,
+                        color: KinrelColors.error,
+                        size: 20,
+                      ),
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -186,10 +187,7 @@ class _VoiceSearchScreenState extends ConsumerState<VoiceSearchScreen>
 // ── Idle View (Microphone button) ───────────────────────────────
 
 class _IdleView extends StatelessWidget {
-  const _IdleView({
-    required this.pulseAnimation,
-    required this.onStart,
-  });
+  const _IdleView({required this.pulseAnimation, required this.onStart});
 
   final Animation<double> pulseAnimation;
   final VoidCallback onStart;
@@ -270,19 +268,22 @@ class _IdleView extends StatelessWidget {
               color: KinrelColors.darkCard,
               borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
               border: Border.all(
-                  color: KinrelColors.darkSurface.withValues(alpha: 0.3)),
+                color: KinrelColors.darkSurface.withValues(alpha: 0.3),
+              ),
             ),
             child: Column(
               children: [
                 _TipRow(icon: Icons.search, text: 'Search for kinship terms'),
                 SizedBox(height: 8),
                 _TipRow(
-                    icon: Icons.translate,
-                    text: 'Get translations in 14 languages'),
+                  icon: Icons.translate,
+                  text: 'Get translations in 14 languages',
+                ),
                 SizedBox(height: 8),
                 _TipRow(
-                    icon: Icons.record_voice_over,
-                    text: 'Works with Hindi, Tamil, Bengali & more'),
+                  icon: Icons.record_voice_over,
+                  text: 'Works with Hindi, Tamil, Bengali & more',
+                ),
               ],
             ),
           ),
@@ -304,7 +305,8 @@ class _TipRow extends StatelessWidget {
       children: [
         Icon(icon, size: 16, color: KinrelColors.amber),
         SizedBox(width: 10),
-        Text(text,
+        Text(
+          text,
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 13,
@@ -354,8 +356,7 @@ class _RecordingView extends StatelessWidget {
 
           // Recording indicator
           Container(
-            padding:
-                EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             decoration: BoxDecoration(
               color: KinrelColors.error.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(20),
@@ -404,11 +405,7 @@ class _RecordingView extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Icon(
-                Icons.stop,
-                size: 36,
-                color: KinrelColors.textWhite,
-              ),
+              child: Icon(Icons.stop, size: 36, color: KinrelColors.textWhite),
             ),
           ),
           const SizedBox(height: 16),
@@ -435,10 +432,7 @@ class _LoadingView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          CircularProgressIndicator(
-            color: KinrelColors.purple,
-            strokeWidth: 3,
-          ),
+          CircularProgressIndicator(color: KinrelColors.purple, strokeWidth: 3),
           SizedBox(height: 24),
           Text(
             'Processing your voice...',
@@ -491,7 +485,8 @@ class _ResultsView extends StatelessWidget {
             color: KinrelColors.darkCard,
             borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
             border: Border.all(
-                color: KinrelColors.purple.withValues(alpha: 0.2)),
+              color: KinrelColors.purple.withValues(alpha: 0.2),
+            ),
           ),
           child: Row(
             children: [
@@ -568,9 +563,11 @@ class _ResultsView extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.search_off,
-                          size: 48,
-                          color: KinrelColors.textDim.withValues(alpha: 0.4)),
+                      Icon(
+                        Icons.search_off,
+                        size: 48,
+                        color: KinrelColors.textDim.withValues(alpha: 0.4),
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         'No kinship terms found',
@@ -634,7 +631,8 @@ class _VoiceResultCard extends StatelessWidget {
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
         border: Border.all(
-            color: KinrelColors.darkSurface.withValues(alpha: 0.3)),
+          color: KinrelColors.darkSurface.withValues(alpha: 0.3),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -643,8 +641,7 @@ class _VoiceResultCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding:
-                    EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: KinrelColors.purple.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
@@ -663,8 +660,7 @@ class _VoiceResultCard extends StatelessWidget {
                 ),
               ),
               Spacer(),
-              Icon(Icons.chevron_right,
-                  color: KinrelColors.textDim, size: 20),
+              Icon(Icons.chevron_right, color: KinrelColors.textDim, size: 20),
             ],
           ),
 
@@ -788,10 +784,12 @@ class _LanguageSelector extends StatelessWidget {
         ),
         onSelected: onLanguageChanged,
         itemBuilder: (context) => SupportedLanguage.values
-            .map((lang) => PopupMenuItem(
-                  value: lang,
-                  child: Text('${lang.nativeName} (${lang.name})'),
-                ))
+            .map(
+              (lang) => PopupMenuItem(
+                value: lang,
+                child: Text('${lang.nativeName} (${lang.name})'),
+              ),
+            )
             .toList(),
       ),
     );
@@ -801,10 +799,7 @@ class _LanguageSelector extends StatelessWidget {
 // ── Waveform Painter ────────────────────────────────────────────
 
 class _WaveformPainter extends CustomPainter {
-  _WaveformPainter({
-    required this.animationValue,
-    required this.color,
-  });
+  _WaveformPainter({required this.animationValue, required this.color});
 
   final double animationValue;
   final Color color;
@@ -820,8 +815,7 @@ class _WaveformPainter extends CustomPainter {
     final centerY = size.height / 2;
     const barCount = 32;
     const barGap = 4.0;
-    final barWidth =
-        (size.width - (barCount - 1) * barGap) / barCount;
+    final barWidth = (size.width - (barCount - 1) * barGap) / barCount;
     final random = math.Random(42); // Fixed seed for consistency
 
     for (int i = 0; i < barCount; i++) {
@@ -829,8 +823,7 @@ class _WaveformPainter extends CustomPainter {
       // Create a wave-like pattern that animates
       final phase = (animationValue * 2 * math.pi) + (i * 0.3);
       final amplitude = 15 + random.nextDouble() * 25;
-      final waveHeight =
-          amplitude * math.sin(phase) + amplitude * 0.5;
+      final waveHeight = amplitude * math.sin(phase) + amplitude * 0.5;
 
       final height = waveHeight.abs().clamp(6.0, size.height * 0.8);
       final y = centerY - height / 2;

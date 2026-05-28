@@ -17,21 +17,15 @@ class GraphPerson {
   final int generation;
   final bool isDeceased;
   final String? deletedAt;
-
 }
 
 /// Tree node for hierarchical family display
 class TreeNode {
-  const TreeNode({
-    required this.person,
-    this.spouse,
-    this.children = const [],
-  });
+  const TreeNode({required this.person, this.spouse, this.children = const []});
 
   final GraphPerson person;
   final GraphPerson? spouse;
   final List<TreeNode> children;
-
 }
 
 /// Path step in a relationship path
@@ -47,7 +41,6 @@ class PathStep {
   final String personName;
   final String type;
   final String direction;
-
 }
 
 /// Result of a path search
@@ -63,7 +56,6 @@ class PathResult {
   final int length;
   final String relationshipDescription;
   final String? localizedDescription;
-
 }
 
 /// Edge in the adjacency list
@@ -73,7 +65,6 @@ class Edge {
   final String targetId;
   final String type;
   final String direction;
-
 }
 
 /// Inverse relationship type mapping
@@ -113,7 +104,6 @@ class GraphService {
   GraphService(this._kinshipService);
 
   final KinshipService _kinshipService;
-
 
   /// Get inverse relationship type
   String inverseType(String type) => inverseTypeMap[type] ?? type;

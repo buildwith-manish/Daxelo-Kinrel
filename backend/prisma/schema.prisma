@@ -9,8 +9,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ── Core Models ──────────────────────────────────────────────────────
@@ -23,6 +23,22 @@ model User {
   preferredLanguage String   @default("en")
   role              String   @default("user") // user, admin, agent
   phone             String?
+  avatarUrl         String?   // Profile photo URL
+  bio               String?   // User bio/about text
+  dateOfBirth       DateTime? // Date of birth
+  gender            String?   // Male / Female / Other / Prefer not to say
+  username          String?   @unique // Unique @username (3-20 chars, lowercase+numbers+underscores)
+  profileVisibility String   @default("public") // public, private
+  invitePermission  String   @default("everyone") // everyone, mutual, nobody
+  twoFactorEnabled  Boolean  @default(false)
+  twoFactorSecret   String?   // TOTP secret (base32)
+  twoFactorBackupCodes String? // JSON array of backup codes
+  authProvider      String   @default("email") // email, google, apple
+  googleId          String?   @unique // Google OAuth ID
+  appleId           String?   @unique // Apple OAuth ID
+  refreshToken      String?
+  refreshTokenExp   DateTime?
+  fcmToken          String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -54,6 +70,10 @@ model User {
   parentalConsents  ParentalConsent[]
   appealAppellant   ModerationAppeal[] @relation("AppealAppellant")
   appealReviewer    ModerationAppeal[] @relation("AppealReviewer")
+  sessions          ActiveSession[]
+  blockedUsers      BlockedUser[]   @relation("UserBlocked")
+  blockedBy         BlockedUser[]   @relation("UserBlockedBy")
+  dataExports       DataExportRequest[]
 }
 
 model Post {
@@ -130,7 +150,7 @@ model SupportTicket {
   id              String   @id @default(cuid())
   ticketNumber    String   @unique // DK-2024-00001
   userId          String
-  user            User     @relation(fields: [userId], references: [id])
+  user            User     @relation(fields: [userId], references: [id], map: "SupportTicket_user_fkey")
 
   // Classification
   category        String   @default("general") // billing, account, data_loss, bug, feature_request, general, matrimonial, verification, privacy
@@ -152,7 +172,7 @@ model SupportTicket {
   resolutionType  String?  // resolved, wont_fix, duplicate, no_response, out_of_scope
 
   // Subscription reference
-  subscription    Subscription?  @relation(fields: [userId], references: [userId])
+  subscription    Subscription?  @relation(fields: [userId], references: [userId], map: "SupportTicket_subscription_fkey")
 
   // Assignment
   assignedAgentId String?
@@ -1351,4 +1371,77 @@ model PhotoConsent {
   createdAt       DateTime @default(now())
 
   @@index([personId])
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Profile & Account Management Models
+// ══════════════════════════════════════════════════════════════════════
+
+model ActiveSession {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash   String   @unique // Hash of the JWT token
+  deviceName  String?
+  deviceType  String   @default("mobile") // mobile, desktop, web
+  ipAddress   String?
+  location    String?  // "Mumbai, India"
+  lastActiveAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([lastActiveAt])
+}
+
+model BlockedUser {
+  id          String   @id @default(cuid())
+  blockerId   String
+  blockedId   String
+  createdAt   DateTime @default(now())
+
+  blocker     User     @relation("UserBlocked", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked     User     @relation("UserBlockedBy", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+}
+
+model DataExportRequest {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status      String   @default("pending") // pending, processing, completed, failed
+  downloadUrl String?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+
+  @@index([userId, status])
+}
+
+model FamilyExport {
+  id          String   @id @default(cuid())
+  familyId    String
+  userId      String
+  format      String   // pdf, json, csv
+  status      String   @default("pending") // pending, processing, completed, failed
+  fileUrl     String?
+  createdAt   DateTime @default(now())
+
+  @@index([familyId])
+  @@index([userId])
+}
+
+// ── Notification Log (dedup for push notifications) ──────────────────
+
+model NotificationLog {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // birthday_reminder, new_family_member, family_event
+  referenceId String   // memberId, familyId, or eventId
+  sentAt      DateTime @default(now())
+
+  @@unique([userId, type, referenceId, sentAt])
+  @@index([userId])
+  @@index([type, sentAt])
 }

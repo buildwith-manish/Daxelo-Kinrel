@@ -32,6 +32,7 @@ import 'package:flutter/cupertino.dart';
 import '../constants/brand_colors.dart';
 import '../constants/brand_typography.dart';
 import '../constants/brand_spacing.dart';
+import '../utils/device_tier.dart';
 
 // ── Theme Extension ───────────────────────────────────────────────────
 
@@ -75,26 +76,35 @@ class KinrelThemeExtension extends ThemeExtension<KinrelThemeExtension> {
   // ── Core orange palette ──────────────────────────────────────────
   /// Kinrel Orange — #E8612A
   final Color brandOrange;
+
   /// Warm Amber — #F59240
   final Color brandAmber;
+
   /// Burnt Ember — #C44A18
   final Color brandEmber;
+
   /// Orange glow — 0x33E8612A (20% alpha)
   final Color brandGlow;
 
   // ── Brand legacy aliases (backward compat) ──────────────────────
   /// Primary brand color — orange in dark, ember in light
   final Color brandPurple;
+
   /// Deep brand color — #C44A18 (ember)
   final Color brandDeepPurple;
+
   /// Gold accent — #D4AF37
   final Color brandGold;
+
   /// Violet alias — now maps to orange
   final Color brandViolet;
+
   /// Coral accent — #FF6B6B
   final Color brandCoral;
+
   /// Purple glow alias — now orange glow
   final Color brandPurpleGlow;
+
   /// Gold glow — 0x47D4AF37
   final Color brandGoldGlow;
 
@@ -177,10 +187,7 @@ class KinrelThemeExtension extends ThemeExtension<KinrelThemeExtension> {
   }
 
   @override
-  KinrelThemeExtension lerp(
-    covariant KinrelThemeExtension? other,
-    double t,
-  ) {
+  KinrelThemeExtension lerp(covariant KinrelThemeExtension? other, double t) {
     if (other == null) return this;
     return KinrelThemeExtension(
       brandOrange: Color.lerp(brandOrange, other.brandOrange, t)!,
@@ -194,27 +201,47 @@ class KinrelThemeExtension extends ThemeExtension<KinrelThemeExtension> {
       brandCoral: Color.lerp(brandCoral, other.brandCoral, t)!,
       brandPurpleGlow: Color.lerp(brandPurpleGlow, other.brandPurpleGlow, t)!,
       brandGoldGlow: Color.lerp(brandGoldGlow, other.brandGoldGlow, t)!,
-      brandTextPrimary:
-          Color.lerp(brandTextPrimary, other.brandTextPrimary, t)!,
-      brandTextSecondary:
-          Color.lerp(brandTextSecondary, other.brandTextSecondary, t)!,
+      brandTextPrimary: Color.lerp(
+        brandTextPrimary,
+        other.brandTextPrimary,
+        t,
+      )!,
+      brandTextSecondary: Color.lerp(
+        brandTextSecondary,
+        other.brandTextSecondary,
+        t,
+      )!,
       brandTextDim: Color.lerp(brandTextDim, other.brandTextDim, t)!,
       brandCardBg: Color.lerp(brandCardBg, other.brandCardBg, t)!,
       brandElevatedBg: Color.lerp(brandElevatedBg, other.brandElevatedBg, t)!,
       brandBorder: Color.lerp(brandBorder, other.brandBorder, t)!,
       brandBackground: Color.lerp(brandBackground, other.brandBackground, t)!,
       brandIgniteGradient: Gradient.lerp(
-          brandIgniteGradient, other.brandIgniteGradient, t)!,
+        brandIgniteGradient,
+        other.brandIgniteGradient,
+        t,
+      )!,
       brandHeritageGradient: Gradient.lerp(
-          brandHeritageGradient, other.brandHeritageGradient, t)!,
+        brandHeritageGradient,
+        other.brandHeritageGradient,
+        t,
+      )!,
       brandWordmarkGradient: Gradient.lerp(
-          brandWordmarkGradient, other.brandWordmarkGradient, t)!,
-      brandCardRadius:
-          lerpDouble(brandCardRadius, other.brandCardRadius, t)!,
-      brandButtonRadius:
-          lerpDouble(brandButtonRadius, other.brandButtonRadius, t)!,
-      brandInputRadius:
-          lerpDouble(brandInputRadius, other.brandInputRadius, t)!,
+        brandWordmarkGradient,
+        other.brandWordmarkGradient,
+        t,
+      )!,
+      brandCardRadius: lerpDouble(brandCardRadius, other.brandCardRadius, t)!,
+      brandButtonRadius: lerpDouble(
+        brandButtonRadius,
+        other.brandButtonRadius,
+        t,
+      )!,
+      brandInputRadius: lerpDouble(
+        brandInputRadius,
+        other.brandInputRadius,
+        t,
+      )!,
     );
   }
 }
@@ -231,32 +258,32 @@ double? lerpDouble(num? a, num? b, double t) {
 
 ColorScheme _darkColorScheme() {
   return const ColorScheme.dark(
-    primary: KinrelColors.purple,                // #E8612A — Kinrel Orange
+    primary: KinrelColors.purple, // #E8612A — Kinrel Orange
     onPrimary: Color(0xFFFFFFFF),
-    primaryContainer: Color(0xFF3A2D1E),         // warm dark orange tint
+    primaryContainer: Color(0xFF3A2D1E), // warm dark orange tint
     onPrimaryContainer: KinrelColors.brightViolet, // #F59240 — Warm Amber
-    secondary: KinrelColors.gold,                // #D4AF37
+    secondary: KinrelColors.gold, // #D4AF37
     onSecondary: Color(0xFF1C1917),
     secondaryContainer: Color(0xFF3D3520),
     onSecondaryContainer: KinrelColors.brightGold, // #FFD700
-    tertiary: KinrelColors.brightViolet,         // #F59240 — Warm Amber
+    tertiary: KinrelColors.brightViolet, // #F59240 — Warm Amber
     onTertiary: Color(0xFFFFFFFF),
-    tertiaryContainer: Color(0xFF3A2D1E),        // warm dark orange tint
+    tertiaryContainer: Color(0xFF3A2D1E), // warm dark orange tint
     onTertiaryContainer: KinrelColors.brightViolet, // #F59240
-    error: KinrelColors.error,                   // #F04E2A
+    error: KinrelColors.error, // #F04E2A
     onError: Colors.white,
     errorContainer: Color(0xFF5C1A0A),
     onErrorContainer: Color(0xFFF87171),
-    surface: KinrelColors.darkBackground,        // #131416
-    onSurface: KinrelColors.textWhite,           // #F5F0EE warm white
+    surface: KinrelColors.darkBackground, // #131416
+    onSurface: KinrelColors.textWhite, // #F5F0EE warm white
     surfaceContainerLowest: Color(0xFF0A0A0E),
-    surfaceContainerLow: KinrelColors.darkCard,  // #191B2C
-    surfaceContainer: KinrelColors.darkElevated,  // #202338
+    surfaceContainerLow: KinrelColors.darkCard, // #191B2C
+    surfaceContainer: KinrelColors.darkElevated, // #202338
     surfaceContainerHigh: KinrelColors.darkSurface, // #13141E
     surfaceContainerHighest: Color(0xFF282B44),
     onSurfaceVariant: KinrelColors.textSecondaryDark, // #C9B4A8
-    outline: KinrelColors.textDim,               // #8A7A72
-    outlineVariant: KinrelColors.border,         // #2A2A3D
+    outline: KinrelColors.textDim, // #8A7A72
+    outlineVariant: KinrelColors.border, // #2A2A3D
     inverseSurface: Color(0xFFF5F0EE),
     onInverseSurface: Color(0xFF1C1917),
     shadow: Color(0xFF000000),
@@ -268,24 +295,24 @@ ColorScheme _darkColorScheme() {
 
 ColorScheme _lightColorScheme() {
   return const ColorScheme.light(
-    primary: KinrelColors.deepPurple,            // #C44A18 — Ember (darker for light bg)
+    primary: KinrelColors.deepPurple, // #C44A18 — Ember (darker for light bg)
     onPrimary: Color(0xFFFFFFFF),
-    primaryContainer: Color(0xFFFFE0CC),          // light orange tint
+    primaryContainer: Color(0xFFFFE0CC), // light orange tint
     onPrimaryContainer: Color(0xFF3A1500),
-    secondary: KinrelColors.gold,                // #D4AF37
+    secondary: KinrelColors.gold, // #D4AF37
     onSecondary: Color(0xFF1C1917),
     secondaryContainer: Color(0xFFF5EDD0),
     onSecondaryContainer: Color(0xFF3D3520),
-    tertiary: KinrelColors.purple,               // #E8612A — Orange
+    tertiary: KinrelColors.purple, // #E8612A — Orange
     onTertiary: Color(0xFFFFFFFF),
     tertiaryContainer: Color(0xFFFFE0CC),
     onTertiaryContainer: Color(0xFF3A1500),
-    error: KinrelColors.error,                   // #F04E2A
+    error: KinrelColors.error, // #F04E2A
     onError: Colors.white,
     errorContainer: Color(0xFFFFDAD6),
     onErrorContainer: Color(0xFF410002),
-    surface: KinrelColors.lightBackground,       // #FFFAF8
-    onSurface: KinrelColors.textDark,            // #1A0A00
+    surface: KinrelColors.lightBackground, // #FFFAF8
+    onSurface: KinrelColors.textDark, // #1A0A00
     surfaceContainerLowest: Color(0xFFFFFFFF),
     surfaceContainerLow: KinrelColors.lightCard, // #FFFFFF
     surfaceContainer: KinrelColors.lightElevated, // #F5F0EE
@@ -304,10 +331,12 @@ ColorScheme _lightColorScheme() {
 // ── Text Theme ────────────────────────────────────────────────────────
 
 TextTheme _buildTextTheme(Brightness brightness) {
-  final baseColor =
-      brightness == Brightness.dark ? KinrelColors.textWhite : KinrelColors.textDark;
-  final secondaryColor =
-      brightness == Brightness.dark ? KinrelColors.textSecondaryDark : KinrelColors.textSecondaryLight;
+  final baseColor = brightness == Brightness.dark
+      ? KinrelColors.textWhite
+      : KinrelColors.textDark;
+  final secondaryColor = brightness == Brightness.dark
+      ? KinrelColors.textSecondaryDark
+      : KinrelColors.textSecondaryLight;
 
   return TextTheme(
     // Display
@@ -316,8 +345,7 @@ TextTheme _buildTextTheme(Brightness brightness) {
     displaySmall: KinrelTypography.displaySmall.copyWith(color: baseColor),
     // Headline
     headlineLarge: KinrelTypography.headlineLarge.copyWith(color: baseColor),
-    headlineMedium:
-        KinrelTypography.headlineMedium.copyWith(color: baseColor),
+    headlineMedium: KinrelTypography.headlineMedium.copyWith(color: baseColor),
     headlineSmall: KinrelTypography.headlineSmall.copyWith(color: baseColor),
     // Title
     titleLarge: KinrelTypography.titleLarge.copyWith(color: baseColor),
@@ -363,10 +391,11 @@ AppBarTheme _appBarTheme(Brightness brightness) {
 
 CardThemeData _cardTheme(Brightness brightness) {
   final cardColor = brightness == Brightness.dark
-      ? KinrelColors.darkCard          // #191B2C
-      : KinrelColors.lightCard;        // #FFFFFF
+      ? KinrelColors
+            .darkCard // #191B2C
+      : KinrelColors.lightCard; // #FFFFFF
   final borderColor = brightness == Brightness.dark
-      ? const Color(0x1AFFFFFF)        // rgba(255,255,255,0.10)
+      ? const Color(0x1AFFFFFF) // rgba(255,255,255,0.10)
       : KinrelColors.lightBorder;
 
   return CardThemeData(
@@ -376,10 +405,7 @@ CardThemeData _cardTheme(Brightness brightness) {
     surfaceTintColor: Colors.transparent,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(KinrelRadius.card),
-      side: BorderSide(
-        color: borderColor,
-        width: 1,
-      ),
+      side: BorderSide(color: borderColor, width: 1),
     ),
     margin: EdgeInsets.zero,
     clipBehavior: Clip.antiAlias,
@@ -388,8 +414,9 @@ CardThemeData _cardTheme(Brightness brightness) {
 
 ElevatedButtonThemeData _elevatedButtonTheme(Brightness brightness) {
   final primaryColor = brightness == Brightness.dark
-      ? KinrelColors.purple            // #E8612A — orange primary
-      : KinrelColors.deepPurple;       // #C44A18 — ember for light bg
+      ? KinrelColors
+            .purple // #E8612A — orange primary
+      : KinrelColors.deepPurple; // #C44A18 — ember for light bg
   final disabledBg = brightness == Brightness.dark
       ? KinrelColors.darkElevated
       : KinrelColors.lightElevated;
@@ -421,8 +448,9 @@ ElevatedButtonThemeData _elevatedButtonTheme(Brightness brightness) {
 
 OutlinedButtonThemeData _outlinedButtonTheme(Brightness brightness) {
   final primaryColor = brightness == Brightness.dark
-      ? KinrelColors.purple            // #E8612A — orange
-      : KinrelColors.deepPurple;       // #C44A18 — ember
+      ? KinrelColors
+            .purple // #E8612A — orange
+      : KinrelColors.deepPurple; // #C44A18 — ember
   final disabledFg = brightness == Brightness.dark
       ? KinrelColors.textDim
       : KinrelColors.textSecondaryLight;
@@ -431,9 +459,7 @@ OutlinedButtonThemeData _outlinedButtonTheme(Brightness brightness) {
     style: OutlinedButton.styleFrom(
       foregroundColor: primaryColor,
       disabledForegroundColor: disabledFg,
-      side: BorderSide(
-        color: primaryColor.withValues(alpha: 0.5),
-      ),
+      side: BorderSide(color: primaryColor.withValues(alpha: 0.5)),
       padding: EdgeInsets.symmetric(
         horizontal: KinrelSpacing.xl,
         vertical: KinrelSpacing.md,
@@ -449,8 +475,9 @@ OutlinedButtonThemeData _outlinedButtonTheme(Brightness brightness) {
 
 TextButtonThemeData _textButtonTheme(Brightness brightness) {
   final primaryColor = brightness == Brightness.dark
-      ? KinrelColors.purple            // #E8612A — orange
-      : KinrelColors.deepPurple;       // #C44A18 — ember
+      ? KinrelColors
+            .purple // #E8612A — orange
+      : KinrelColors.deepPurple; // #C44A18 — ember
   final disabledFg = brightness == Brightness.dark
       ? KinrelColors.textDim
       : KinrelColors.textSecondaryLight;
@@ -474,8 +501,9 @@ TextButtonThemeData _textButtonTheme(Brightness brightness) {
 
 InputDecorationTheme _inputDecorationTheme(Brightness brightness) {
   final primaryColor = brightness == Brightness.dark
-      ? KinrelColors.purple            // #E8612A — orange focus
-      : KinrelColors.deepPurple;       // #C44A18 — ember focus
+      ? KinrelColors
+            .purple // #E8612A — orange focus
+      : KinrelColors.deepPurple; // #C44A18 — ember focus
   final fillColor = brightness == Brightness.dark
       ? KinrelColors.darkElevated
       : KinrelColors.lightElevated;
@@ -541,7 +569,7 @@ BottomNavigationBarThemeData _bottomNavigationBarTheme(Brightness brightness) {
   final bgColor = brightness == Brightness.dark
       ? const Color(0xCC191B2C) // darkCard semi-transparent
       : const Color(0xCCFFFFFF); // lightCard semi-transparent
-  final selectedItemColor = KinrelColors.purple;  // #E8612A — orange active
+  final selectedItemColor = KinrelColors.purple; // #E8612A — orange active
   final unselectedItemColor = brightness == Brightness.dark
       ? KinrelColors.textDim
       : KinrelColors.textSecondaryLight;
@@ -558,7 +586,7 @@ BottomNavigationBarThemeData _bottomNavigationBarTheme(Brightness brightness) {
 }
 
 TabBarThemeData _tabBarTheme(Brightness brightness) {
-  final primaryColor = KinrelColors.purple;        // #E8612A — orange indicator
+  final primaryColor = KinrelColors.purple; // #E8612A — orange indicator
   final unselectedColor = brightness == Brightness.dark
       ? KinrelColors.textDim
       : KinrelColors.textSecondaryLight;
@@ -582,7 +610,7 @@ DialogThemeData _dialogTheme(Brightness brightness) {
       ? KinrelColors.darkCard
       : KinrelColors.lightCard;
   final borderColor = brightness == Brightness.dark
-      ? const Color(0x1AFFFFFF)        // rgba(255,255,255,0.10)
+      ? const Color(0x1AFFFFFF) // rgba(255,255,255,0.10)
       : KinrelColors.lightBorder;
   final textPrimary = brightness == Brightness.dark
       ? KinrelColors.textWhite
@@ -598,14 +626,9 @@ DialogThemeData _dialogTheme(Brightness brightness) {
     surfaceTintColor: Colors.transparent,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(KinrelRadius.dialog),
-      side: BorderSide(
-        color: borderColor,
-        width: 1,
-      ),
+      side: BorderSide(color: borderColor, width: 1),
     ),
-    titleTextStyle: KinrelTypography.headlineSmall.copyWith(
-      color: textPrimary,
-    ),
+    titleTextStyle: KinrelTypography.headlineSmall.copyWith(color: textPrimary),
     contentTextStyle: KinrelTypography.bodyMedium.copyWith(
       color: textSecondary,
     ),
@@ -640,13 +663,14 @@ ChipThemeData _chipTheme(Brightness brightness) {
       ? KinrelColors.darkElevated
       : KinrelColors.lightElevated;
   final primaryColor = brightness == Brightness.dark
-      ? KinrelColors.purple            // #E8612A — orange tint when selected
-      : KinrelColors.deepPurple;       // #C44A18 — ember
+      ? KinrelColors
+            .purple // #E8612A — orange tint when selected
+      : KinrelColors.deepPurple; // #C44A18 — ember
   final textPrimary = brightness == Brightness.dark
       ? KinrelColors.textWhite
       : KinrelColors.textDark;
   final borderColor = brightness == Brightness.dark
-      ? const Color(0x1AFFFFFF)        // rgba(255,255,255,0.10)
+      ? const Color(0x1AFFFFFF) // rgba(255,255,255,0.10)
       : KinrelColors.lightBorder;
 
   return ChipThemeData(
@@ -656,15 +680,11 @@ ChipThemeData _chipTheme(Brightness brightness) {
     deleteIconColor: brightness == Brightness.dark
         ? KinrelColors.textSecondaryDark
         : KinrelColors.textSecondaryLight,
-    labelStyle: KinrelTypography.labelMedium.copyWith(
-      color: textPrimary,
-    ),
+    labelStyle: KinrelTypography.labelMedium.copyWith(color: textPrimary),
     secondaryLabelStyle: KinrelTypography.labelMedium.copyWith(
       color: primaryColor,
     ),
-    side: BorderSide(
-      color: borderColor,
-    ),
+    side: BorderSide(color: borderColor),
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(KinrelRadius.chip),
     ),
@@ -677,8 +697,9 @@ ChipThemeData _chipTheme(Brightness brightness) {
 
 FloatingActionButtonThemeData _fabTheme(Brightness brightness) {
   final primaryColor = brightness == Brightness.dark
-      ? KinrelColors.purple            // #E8612A — orange FAB
-      : KinrelColors.deepPurple;       // #C44A18 — ember FAB
+      ? KinrelColors
+            .purple // #E8612A — orange FAB
+      : KinrelColors.deepPurple; // #C44A18 — ember FAB
 
   return FloatingActionButtonThemeData(
     backgroundColor: primaryColor,
@@ -698,13 +719,11 @@ SnackBarThemeData _snackbarTheme(Brightness brightness) {
   final textPrimary = brightness == Brightness.dark
       ? KinrelColors.textWhite
       : KinrelColors.textDark;
-  final actionColor = KinrelColors.purple;  // #E8612A — orange action
+  final actionColor = KinrelColors.purple; // #E8612A — orange action
 
   return SnackBarThemeData(
     backgroundColor: bgColor,
-    contentTextStyle: KinrelTypography.bodyMedium.copyWith(
-      color: textPrimary,
-    ),
+    contentTextStyle: KinrelTypography.bodyMedium.copyWith(color: textPrimary),
     actionTextColor: actionColor,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(KinrelRadius.sm),
@@ -719,15 +738,11 @@ DividerThemeData _dividerTheme(Brightness brightness) {
       ? KinrelColors.border
       : KinrelColors.lightBorder;
 
-  return DividerThemeData(
-    color: color,
-    thickness: 1,
-    space: 1,
-  );
+  return DividerThemeData(color: color, thickness: 1, space: 1);
 }
 
 SwitchThemeData _switchTheme(Brightness brightness) {
-  final primaryColor = KinrelColors.purple;      // #E8612A — orange active
+  final primaryColor = KinrelColors.purple; // #E8612A — orange active
   final elevatedBg = brightness == Brightness.dark
       ? KinrelColors.darkElevated
       : KinrelColors.lightElevated;
@@ -765,7 +780,7 @@ SwitchThemeData _switchTheme(Brightness brightness) {
 }
 
 ProgressIndicatorThemeData _progressBarTheme(Brightness brightness) {
-  final primaryColor = KinrelColors.purple;      // #E8612A — orange progress
+  final primaryColor = KinrelColors.purple; // #E8612A — orange progress
   final trackColor = brightness == Brightness.dark
       ? KinrelColors.darkElevated
       : KinrelColors.lightElevated;
@@ -784,26 +799,27 @@ ProgressIndicatorThemeData _progressBarTheme(Brightness brightness) {
 KinrelThemeExtension _darkExtension() {
   return const KinrelThemeExtension(
     // Core orange palette
-    brandOrange: KinrelColors.orange,            // #E8612A
-    brandAmber: KinrelColors.amber,              // #F59240
-    brandEmber: KinrelColors.ember,              // #C44A18
-    brandGlow: KinrelColors.orangeGlow,          // Color(0x33E8612A)
+    brandOrange: KinrelColors.orange, // #E8612A
+    brandAmber: KinrelColors.amber, // #F59240
+    brandEmber: KinrelColors.ember, // #C44A18
+    brandGlow: KinrelColors.orangeGlow, // Color(0x33E8612A)
     // Brand legacy aliases
-    brandPurple: KinrelColors.purple,            // #E8612A (now orange)
-    brandDeepPurple: KinrelColors.deepPurple,    // #C44A18 (now ember)
-    brandGold: KinrelColors.gold,                // #D4AF37
-    brandViolet: KinrelColors.violet,            // #E8612A (now orange)
-    brandCoral: KinrelColors.coral,              // #FF6B6B
-    brandPurpleGlow: KinrelColors.purpleGlow,    // Color(0x33E8612A) (now orange glow)
-    brandGoldGlow: KinrelColors.goldGlow,        // Color(0x47D4AF37)
+    brandPurple: KinrelColors.purple, // #E8612A (now orange)
+    brandDeepPurple: KinrelColors.deepPurple, // #C44A18 (now ember)
+    brandGold: KinrelColors.gold, // #D4AF37
+    brandViolet: KinrelColors.violet, // #E8612A (now orange)
+    brandCoral: KinrelColors.coral, // #FF6B6B
+    brandPurpleGlow:
+        KinrelColors.purpleGlow, // Color(0x33E8612A) (now orange glow)
+    brandGoldGlow: KinrelColors.goldGlow, // Color(0x47D4AF37)
     // Text
-    brandTextPrimary: KinrelColors.textWhite,    // #F5F0EE warm white
+    brandTextPrimary: KinrelColors.textWhite, // #F5F0EE warm white
     brandTextSecondary: KinrelColors.textSecondaryDark, // #C9B4A8
-    brandTextDim: KinrelColors.textDim,          // #8A7A72
+    brandTextDim: KinrelColors.textDim, // #8A7A72
     // Surface
-    brandCardBg: KinrelColors.darkCard,          // #191B2C
-    brandElevatedBg: KinrelColors.darkElevated,  // #202338
-    brandBorder: Color(0x1AFFFFFF),              // rgba(255,255,255,0.10)
+    brandCardBg: KinrelColors.darkCard, // #191B2C
+    brandElevatedBg: KinrelColors.darkElevated, // #202338
+    brandBorder: Color(0x1AFFFFFF), // rgba(255,255,255,0.10)
     brandBackground: KinrelColors.darkBackground, // #131416
     // Gradients
     brandIgniteGradient: KinrelGradients.ignite,
@@ -819,26 +835,27 @@ KinrelThemeExtension _darkExtension() {
 KinrelThemeExtension _lightExtension() {
   return const KinrelThemeExtension(
     // Core orange palette
-    brandOrange: KinrelColors.orange,            // #E8612A
-    brandAmber: KinrelColors.amber,              // #F59240
-    brandEmber: KinrelColors.ember,              // #C44A18
-    brandGlow: KinrelColors.orangeGlow,          // Color(0x33E8612A)
+    brandOrange: KinrelColors.orange, // #E8612A
+    brandAmber: KinrelColors.amber, // #F59240
+    brandEmber: KinrelColors.ember, // #C44A18
+    brandGlow: KinrelColors.orangeGlow, // Color(0x33E8612A)
     // Brand legacy aliases
-    brandPurple: KinrelColors.deepPurple,        // #C44A18 (ember for light bg)
-    brandDeepPurple: KinrelColors.deepPurple,    // #C44A18
-    brandGold: KinrelColors.gold,                // #D4AF37
-    brandViolet: KinrelColors.purple,            // #E8612A (orange)
-    brandCoral: KinrelColors.coral,              // #FF6B6B
-    brandPurpleGlow: KinrelColors.purpleGlow,    // Color(0x33E8612A) (now orange glow)
-    brandGoldGlow: KinrelColors.goldGlow,        // Color(0x47D4AF37)
+    brandPurple: KinrelColors.deepPurple, // #C44A18 (ember for light bg)
+    brandDeepPurple: KinrelColors.deepPurple, // #C44A18
+    brandGold: KinrelColors.gold, // #D4AF37
+    brandViolet: KinrelColors.purple, // #E8612A (orange)
+    brandCoral: KinrelColors.coral, // #FF6B6B
+    brandPurpleGlow:
+        KinrelColors.purpleGlow, // Color(0x33E8612A) (now orange glow)
+    brandGoldGlow: KinrelColors.goldGlow, // Color(0x47D4AF37)
     // Text
-    brandTextPrimary: KinrelColors.textDark,     // #1A0A00
+    brandTextPrimary: KinrelColors.textDark, // #1A0A00
     brandTextSecondary: KinrelColors.textSecondaryLight, // #745040
-    brandTextDim: KinrelColors.textSecondaryLight,       // #745040
+    brandTextDim: KinrelColors.textSecondaryLight, // #745040
     // Surface
-    brandCardBg: KinrelColors.lightCard,         // #FFFFFF
+    brandCardBg: KinrelColors.lightCard, // #FFFFFF
     brandElevatedBg: KinrelColors.lightElevated, // #F5F0EE
-    brandBorder: KinrelColors.lightBorder,       // Color(0x14000000)
+    brandBorder: KinrelColors.lightBorder, // Color(0x14000000)
     brandBackground: KinrelColors.lightBackground, // #FFFAF8
     // Gradients
     brandIgniteGradient: KinrelGradients.ignite,
@@ -853,17 +870,21 @@ KinrelThemeExtension _lightExtension() {
 
 // ── Main Theme Builder ────────────────────────────────────────────────
 
-/// Returns a complete [ThemeData] for the given [brightness].
+/// Returns a complete [ThemeData] for the given [brightness] and [deviceTier].
 /// Supports both [Brightness.dark] and [Brightness.light].
-ThemeData getAppTheme(Brightness brightness) {
+/// Page transitions adapt to device tier:
+///   low:  FadeUpwardsPageTransitionsBuilder (lightweight)
+///   mid:  ZoomPageTransitionsBuilder (default)
+///   high: ZoomPageTransitionsBuilder (default)
+ThemeData getAppTheme(Brightness brightness, {DeviceTier deviceTier = DeviceTier.mid}) {
   final isDark = brightness == Brightness.dark;
-  final colorScheme =
-      isDark ? _darkColorScheme() : _lightColorScheme();
+  final colorScheme = isDark ? _darkColorScheme() : _lightColorScheme();
 
   // Primary color for icon themes etc.
   final primaryColor = isDark ? KinrelColors.purple : KinrelColors.deepPurple;
-  final textSecondary =
-      isDark ? KinrelColors.textSecondaryDark : KinrelColors.textSecondaryLight;
+  final textSecondary = isDark
+      ? KinrelColors.textSecondaryDark
+      : KinrelColors.textSecondaryLight;
 
   return ThemeData(
     useMaterial3: true,
@@ -894,14 +915,8 @@ ThemeData getAppTheme(Brightness brightness) {
     progressIndicatorTheme: _progressBarTheme(brightness),
 
     // ── Additional Component Themes ───────────────────────────────
-    iconTheme: IconThemeData(
-      color: textSecondary,
-      size: 24,
-    ),
-    primaryIconTheme: IconThemeData(
-      color: primaryColor,
-      size: 24,
-    ),
+    iconTheme: IconThemeData(color: textSecondary, size: 24),
+    primaryIconTheme: IconThemeData(color: primaryColor, size: 24),
 
     listTileTheme: ListTileThemeData(
       contentPadding: EdgeInsets.symmetric(
@@ -947,10 +962,7 @@ ThemeData getAppTheme(Brightness brightness) {
     navigationRailTheme: NavigationRailThemeData(
       backgroundColor: isDark ? KinrelColors.darkCard : KinrelColors.lightCard,
       indicatorColor: primaryColor.withValues(alpha: 0.15),
-      selectedIconTheme: IconThemeData(
-        color: primaryColor,
-        size: 24,
-      ),
+      selectedIconTheme: IconThemeData(color: primaryColor, size: 24),
       unselectedIconTheme: IconThemeData(
         color: isDark ? KinrelColors.textDim : KinrelColors.textSecondaryLight,
         size: 24,
@@ -971,22 +983,22 @@ ThemeData getAppTheme(Brightness brightness) {
       indicatorColor: primaryColor.withValues(alpha: 0.15),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return IconThemeData(
-            color: primaryColor,
-          );
+          return IconThemeData(color: primaryColor);
         }
         return IconThemeData(
-          color: isDark ? KinrelColors.textDim : KinrelColors.textSecondaryLight,
+          color: isDark
+              ? KinrelColors.textDim
+              : KinrelColors.textSecondaryLight,
         );
       }),
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return KinrelTypography.labelSmall.copyWith(
-            color: primaryColor,
-          );
+          return KinrelTypography.labelSmall.copyWith(color: primaryColor);
         }
         return KinrelTypography.labelSmall.copyWith(
-          color: isDark ? KinrelColors.textDim : KinrelColors.textSecondaryLight,
+          color: isDark
+              ? KinrelColors.textDim
+              : KinrelColors.textSecondaryLight,
         );
       }),
       elevation: 0,
@@ -995,7 +1007,9 @@ ThemeData getAppTheme(Brightness brightness) {
 
     sliderTheme: SliderThemeData(
       activeTrackColor: primaryColor,
-      inactiveTrackColor: isDark ? KinrelColors.darkElevated : KinrelColors.lightElevated,
+      inactiveTrackColor: isDark
+          ? KinrelColors.darkElevated
+          : KinrelColors.lightElevated,
       thumbColor: primaryColor,
       overlayColor: primaryColor.withValues(alpha: 0.12),
       trackHeight: 4,
@@ -1004,7 +1018,9 @@ ThemeData getAppTheme(Brightness brightness) {
     checkboxTheme: CheckboxThemeData(
       fillColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.disabled)) {
-          return (isDark ? KinrelColors.darkElevated : KinrelColors.lightElevated)
+          return (isDark
+                  ? KinrelColors.darkElevated
+                  : KinrelColors.lightElevated)
               .withValues(alpha: 0.5);
         }
         if (states.contains(WidgetState.selected)) {
@@ -1036,12 +1052,18 @@ ThemeData getAppTheme(Brightness brightness) {
       isDark ? _darkExtension() : _lightExtension(),
     ],
 
-    // ── Page transitions ──────────────────────────────────────────
-    pageTransitionsTheme: const PageTransitionsTheme(
+    // ── Page transitions (adapted to device tier) ─────────────────
+    pageTransitionsTheme: PageTransitionsTheme(
       builders: {
-        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-        TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.android: deviceTier == DeviceTier.low
+            ? const FadeUpwardsPageTransitionsBuilder()
+            : const ZoomPageTransitionsBuilder(),
+        TargetPlatform.iOS: deviceTier == DeviceTier.low
+            ? const FadeUpwardsPageTransitionsBuilder()
+            : const ZoomPageTransitionsBuilder(),
+        TargetPlatform.macOS: deviceTier == DeviceTier.low
+            ? const FadeUpwardsPageTransitionsBuilder()
+            : const ZoomPageTransitionsBuilder(),
       },
     ),
 

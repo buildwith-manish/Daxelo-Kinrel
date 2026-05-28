@@ -63,6 +63,9 @@ export class AuthService {
     });
     const refreshToken = this.generateRefreshToken(user.id);
 
+    // Store hashed refresh token in DB
+    await this.storeRefreshToken(user.id, refreshToken);
+
     return {
       user,
       familyId: family.id,
@@ -110,6 +113,9 @@ export class AuthService {
     });
     const refreshToken = this.generateRefreshToken(user.id);
 
+    // Store hashed refresh token in DB
+    await this.storeRefreshToken(user.id, refreshToken);
+
     return {
       user: {
         id: user.id,
@@ -124,23 +130,61 @@ export class AuthService {
   }
 
   /**
-   * Refresh token
+   * Refresh token — with DB-backed rotation
+   * 1. Verify the JWT
+   * 2. Check if the refresh token hash exists in DB for this user and is not expired
+   * 3. If valid: generate new access + refresh tokens
+   * 4. Store new refresh token in DB, invalidate old one
+   * 5. If invalid: throw UnauthorizedException
    */
   async refresh(refreshToken: string) {
     try {
+      // 1. Verify the JWT
       const payload = this.jwtService.verify(refreshToken, {
         secret: process.env.JWT_REFRESH_SECRET || 'kinrel-refresh-secret-change-in-production',
       });
 
+      const userId = payload.sub;
+
+      // 2. Check if the refresh token hash exists in DB and is not expired
+      const tokenHash = this.hashToken(refreshToken);
       const user = await this.prisma.user.findUnique({
-        where: { id: payload.sub },
-        select: { id: true, email: true, name: true, role: true, preferredLanguage: true },
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          preferredLanguage: true,
+          refreshToken: true,
+          refreshTokenExp: true,
+        },
       });
 
       if (!user) {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
+      // Verify the stored token matches the provided one
+      if (user.refreshToken !== tokenHash) {
+        // Token reuse detected — invalidate all refresh tokens for this user
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { refreshToken: null, refreshTokenExp: null },
+        });
+        throw new UnauthorizedException('Invalid refresh token — possible token reuse detected');
+      }
+
+      // Verify token is not expired in DB
+      if (user.refreshTokenExp && new Date() > user.refreshTokenExp) {
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { refreshToken: null, refreshTokenExp: null },
+        });
+        throw new UnauthorizedException('Refresh token expired');
+      }
+
+      // 3. Generate new access + refresh tokens
       const accessToken = this.generateAccessToken({
         id: user.id,
         email: user.email,
@@ -148,6 +192,9 @@ export class AuthService {
         preferredLanguage: user.preferredLanguage,
       });
       const newRefreshToken = this.generateRefreshToken(user.id);
+
+      // 4. Store new refresh token in DB, invalidate old one
+      await this.storeRefreshToken(user.id, newRefreshToken);
 
       return {
         accessToken,
@@ -160,7 +207,10 @@ export class AuthService {
           preferredLanguage: user.preferredLanguage,
         },
       };
-    } catch {
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
   }
@@ -175,10 +225,13 @@ export class AuthService {
   }
 
   /**
-   * Logout — client-side token invalidation
+   * Logout — invalidate refresh token in DB
    */
-  async logout() {
-    // JWT is stateless; logout is handled client-side
+  async logout(userId: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { refreshToken: null, refreshTokenExp: null },
+    });
     return { success: true, message: 'Logged out successfully' };
   }
 
@@ -196,6 +249,49 @@ export class AuthService {
         preferredLanguage: true,
       },
     });
+  }
+
+  /**
+   * Store hashed refresh token in DB with expiration
+   */
+  private async storeRefreshToken(userId: string, refreshToken: string) {
+    const tokenHash = this.hashToken(refreshToken);
+    // Refresh token expires in 7 days by default
+    const expiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+    const expiresMs = this.parseExpiry(expiresIn);
+    const refreshTokenExp = new Date(Date.now() + expiresMs);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        refreshToken: tokenHash,
+        refreshTokenExp,
+      },
+    });
+  }
+
+  /**
+   * Hash a token using SHA-256
+   */
+  private hashToken(token: string): string {
+    return CryptoJS.SHA256(token).toString();
+  }
+
+  /**
+   * Parse JWT expiry string (e.g., '7d', '15m', '1h') to milliseconds
+   */
+  private parseExpiry(expiry: string): number {
+    const match = expiry.match(/^(\d+)([smhd])$/);
+    if (!match) return 7 * 24 * 60 * 60 * 1000; // default 7 days
+    const value = parseInt(match[1], 10);
+    const unit = match[2];
+    switch (unit) {
+      case 's': return value * 1000;
+      case 'm': return value * 60 * 1000;
+      case 'h': return value * 60 * 60 * 1000;
+      case 'd': return value * 24 * 60 * 60 * 1000;
+      default: return 7 * 24 * 60 * 60 * 1000;
+    }
   }
 
   private generateAccessToken(user: { id: string; email: string; role: string; preferredLanguage: string }) {

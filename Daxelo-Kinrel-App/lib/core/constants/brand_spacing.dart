@@ -16,13 +16,13 @@ class KinrelSpacing {
   KinrelSpacing._();
 
   // ── Base Spacing (8 px grid) ──────────────────────────────────────
-  static const double xs = 4.0;    // Tight padding, icon gaps
-  static const double sm = 8.0;    // Between related elements
-  static const double md = 12.0;   // Standard inner padding
+  static const double xs = 4.0; // Tight padding, icon gaps
+  static const double sm = 8.0; // Between related elements
+  static const double md = 12.0; // Standard inner padding
   static const double base = 16.0; // Default padding, margins
-  static const double lg = 20.0;   // Section inner padding
-  static const double xl = 24.0;   // Card padding
-  static const double xxl = 32.0;  // Section gaps (2xl)
+  static const double lg = 20.0; // Section inner padding
+  static const double xl = 24.0; // Card padding
+  static const double xxl = 32.0; // Section gaps (2xl)
   static const double xxxl = 40.0; // Major section separation (3xl)
   static const double huge = 48.0; // Page top/bottom padding (4xl)
   static const double massive = 64.0; // Hero sections (5xl)
@@ -67,22 +67,22 @@ class KinrelRadius {
   KinrelRadius._();
 
   static const double none = 0;
-  static const double xs = 4.0;    // Tags, small chips
-  static const double sm = 6.0;    // Buttons, inputs (compact)
-  static const double md = 10.0;   // Standard cards, modals
-  static const double lg = 14.0;   // Feature cards, images
-  static const double xl = 18.0;   // Large cards, sheets
-  static const double xxl = 22.0;  // App icon shape, hero cards
+  static const double xs = 4.0; // Tags, small chips
+  static const double sm = 6.0; // Buttons, inputs (compact)
+  static const double md = 10.0; // Standard cards, modals
+  static const double lg = 14.0; // Feature cards, images
+  static const double xl = 18.0; // Large cards, sheets
+  static const double xxl = 22.0; // App icon shape, hero cards
   static const double full = 9999.0; // Pills, avatars, FABs
 
   // ── Semantic Radius (backward compat) ────────────────────────────
-  static const double button = 12.0;      // (backward compat)
-  static const double card = 14.0;        // (backward compat)
-  static const double input = 10.0;       // (backward compat)
-  static const double chip = 9999.0;      // (backward compat)
-  static const double dialog = 18.0;      // (backward compat)
+  static const double button = 12.0; // (backward compat)
+  static const double card = 14.0; // (backward compat)
+  static const double input = 10.0; // (backward compat)
+  static const double chip = 9999.0; // (backward compat)
+  static const double dialog = 18.0; // (backward compat)
   static const double bottomSheet = 22.0; // (backward compat)
-  static const double fab = full;         // 9999
+  static const double fab = full; // 9999
 }
 
 /// ── Elevation Tokens ─────────────────────────────────────────────────
@@ -97,56 +97,56 @@ class KinrelElevation {
 
   // ── Shadow definitions (dark mode) ────────────────────────────────
   static List<BoxShadow> shadowSm(Color color) => [
-        BoxShadow(
-          color: color.withValues(alpha: 0.05),
-          offset: const Offset(0, 1),
-          blurRadius: 2,
-        ),
-      ];
+    BoxShadow(
+      color: color.withValues(alpha: 0.05),
+      offset: const Offset(0, 1),
+      blurRadius: 2,
+    ),
+  ];
 
   static List<BoxShadow> shadowMd(Color color) => [
-        BoxShadow(
-          color: color.withValues(alpha: 0.1),
-          offset: const Offset(0, 4),
-          blurRadius: 6,
-        ),
-        BoxShadow(
-          color: color.withValues(alpha: 0.1),
-          offset: const Offset(0, 2),
-          blurRadius: 4,
-          spreadRadius: -2,
-        ),
-      ];
+    BoxShadow(
+      color: color.withValues(alpha: 0.1),
+      offset: const Offset(0, 4),
+      blurRadius: 6,
+    ),
+    BoxShadow(
+      color: color.withValues(alpha: 0.1),
+      offset: const Offset(0, 2),
+      blurRadius: 4,
+      spreadRadius: -2,
+    ),
+  ];
 
   static List<BoxShadow> shadowLg(Color color) => [
-        BoxShadow(
-          color: color.withValues(alpha: 0.1),
-          offset: const Offset(0, 10),
-          blurRadius: 15,
-          spreadRadius: -3,
-        ),
-        BoxShadow(
-          color: color.withValues(alpha: 0.1),
-          offset: const Offset(0, 4),
-          blurRadius: 6,
-          spreadRadius: -4,
-        ),
-      ];
+    BoxShadow(
+      color: color.withValues(alpha: 0.1),
+      offset: const Offset(0, 10),
+      blurRadius: 15,
+      spreadRadius: -3,
+    ),
+    BoxShadow(
+      color: color.withValues(alpha: 0.1),
+      offset: const Offset(0, 4),
+      blurRadius: 6,
+      spreadRadius: -4,
+    ),
+  ];
 
   static List<BoxShadow> shadowXl(Color color) => [
-        BoxShadow(
-          color: color.withValues(alpha: 0.1),
-          offset: const Offset(0, 20),
-          blurRadius: 25,
-          spreadRadius: -5,
-        ),
-        BoxShadow(
-          color: color.withValues(alpha: 0.1),
-          offset: const Offset(0, 8),
-          blurRadius: 10,
-          spreadRadius: -6,
-        ),
-      ];
+    BoxShadow(
+      color: color.withValues(alpha: 0.1),
+      offset: const Offset(0, 20),
+      blurRadius: 25,
+      spreadRadius: -5,
+    ),
+    BoxShadow(
+      color: color.withValues(alpha: 0.1),
+      offset: const Offset(0, 8),
+      blurRadius: 10,
+      spreadRadius: -6,
+    ),
+  ];
 }
 
 /// ── Motion Tokens ────────────────────────────────────────────────────

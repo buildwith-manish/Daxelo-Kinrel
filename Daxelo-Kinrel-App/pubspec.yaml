@@ -30,10 +30,10 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   flutter_secure_storage: ^9.2.4
-  
-  # Serialization
-  freezed_annotation: ^3.0.0
-  json_annotation: ^4.9.0
+
+  # Local Database (Offline-First)
+  isar: ^3.1.0+1
+  isar_flutter_libs: ^3.1.0+1
   
   # Localization
   flutter_localizations:
@@ -63,10 +63,28 @@ dependencies:
   url_launcher: ^6.3.1
   share_plus: ^10.1.4
   package_info_plus: ^8.3.0
+
+  # Media & Device
+  image_picker: ^1.0.7
+  image_cropper: ^8.0.0
+  local_auth: ^2.2.0
+  webview_flutter: ^4.7.0
   
   # Math/Graph
   collection: ^1.19.1
   flutter_dotenv: ^6.0.1
+
+  # Firebase — Crash Reporting, Analytics & Push Notifications
+  firebase_core: ^3.13.0
+  firebase_crashlytics: ^4.3.5
+  firebase_analytics: ^11.0.0
+  firebase_messaging: ^15.2.5
+
+  # Local Notifications (foreground FCM display)
+  flutter_local_notifications: ^19.0.0
+  google_fonts: ^8.1.0
+  socket_io_client: ^3.1.4
+  app_links: ^7.1.1
 
 dev_dependencies:
   flutter_test:
@@ -75,15 +93,11 @@ dev_dependencies:
     sdk: flutter
   
   # Code Generation
-  build_runner: ^2.4.14
-  freezed: ^3.0.6
-  json_serializable: ^6.9.4
-  riverpod_generator: ^2.6.3
+  build_runner: ^2.4.13
+  isar_generator: ^3.1.0+1
   
   # Linting
   flutter_lints: ^5.0.0
-  custom_lint: ^0.7.1
-  riverpod_lint: ^2.6.3
 
 flutter:
   generate: true
@@ -92,6 +106,7 @@ flutter:
   assets:
     - .env
     - assets/data/
+    - assets/data/global/
     - assets/icons/
     - assets/images/
     - assets/fonts/
@@ -122,3 +137,20 @@ flutter:
         - asset: assets/fonts/DMMono-Regular.ttf
         - asset: assets/fonts/DMMono-Medium.ttf
           weight: 500
+    # ── Bundled Indian script fonts (covers 80%+ of Indian users) ──
+    # NotoSans: Latin + Devanagari (Hindi, Marathi, Nepali, Sanskrit)
+    - family: NotoSans
+      fonts:
+        - asset: assets/fonts/NotoSans-Regular.ttf
+    - family: NotoSansDevanagari
+      fonts:
+        - asset: assets/fonts/NotoSansDevanagari-Regular.ttf
+    - family: NotoSansTamil
+      fonts:
+        - asset: assets/fonts/NotoSansTamil-Regular.ttf
+    - family: NotoSansTelugu
+      fonts:
+        - asset: assets/fonts/NotoSansTelugu-Regular.ttf
+    - family: NotoSansBengali
+      fonts:
+        - asset: assets/fonts/NotoSansBengali-Regular.ttf

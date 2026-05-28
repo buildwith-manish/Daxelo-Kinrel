@@ -5,6 +5,15 @@
 // Full-screen immersive 3D family tree visualization with perspective
 // transforms, rotation controls, depth-based rendering, starfield
 // background, generation rings, layout modes, and node detail pop-ups.
+//
+// ENHANCEMENTS:
+// - Touch hit-testing for node selection
+// - Search/highlight functionality
+// - Minimap with viewport indicator
+// - Curved bezier edge rendering (parent-child, spouse, sibling)
+// - Enhanced node detail popup (kinship term, generation, quick actions)
+// - Node labels with zoom-based scaling and fading
+// - Auto-layout animation when switching layout modes
 
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -18,7 +27,9 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../../core/graph/graph_service.dart';
 import 'family_tree_canvas.dart';
+import '../../core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // LAYOUT MODE ENUM
@@ -66,6 +77,22 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
   // ── Show control panel ───────────────────────────────────────────
   bool _showControls = true;
 
+  // ── Search state ─────────────────────────────────────────────────
+  String _searchQuery = '';
+  final Set<String> _highlightedNodeIds = {};
+  final FocusNode _searchFocusNode = FocusNode();
+  final TextEditingController _searchController = TextEditingController();
+
+  // ── Auto-layout animation state ──────────────────────────────────
+  Map<String, Offset> _previousPositions = {};
+  Map<String, Offset> _targetPositions = {};
+  late AnimationController _layoutAnimationController;
+  late Animation<double> _layoutAnimation;
+  bool _isAnimatingLayout = false;
+
+  // ── Screen-space positions for hit testing ───────────────────────
+  final Map<String, Offset> _screenNodePositions = {};
+
   // ── Animation controllers ────────────────────────────────────────
   late AnimationController _ambientController;
   late AnimationController _pulseController;
@@ -73,10 +100,10 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
 
   // ── Computed layout data ─────────────────────────────────────────
   Map<String, Offset> _nodePositions = {};
-  Map<String, int> _nodeGenerations = {};
-  Map<String, String> _nodeLineages = {};
-  List<VisEdge> _edges = [];
-  Map<String, VisTreeNode> _nodes = {};
+  final Map<String, int> _nodeGenerations = {};
+  final Map<String, String> _nodeLineages = {};
+  final List<VisEdge> _edges = [];
+  final Map<String, VisTreeNode> _nodes = {};
 
   // ── Star field (pre-generated) ───────────────────────────────────
   final List<_Star> _stars = [];
@@ -84,6 +111,9 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
 
   // ── Canvas size for layout computation ───────────────────────────
   static const double _canvasSize = 2000.0;
+
+  // ── Node radius constant (must match painter) ───────────────────
+  static const double _nodeRadius = 24.0;
 
   @override
   void initState() {
@@ -103,6 +133,18 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
       duration: const Duration(seconds: 3),
     )..repeat();
 
+    _layoutAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+
+    _layoutAnimation = CurvedAnimation(
+      parent: _layoutAnimationController,
+      curve: Curves.easeInOutCubic,
+    );
+
+    _layoutAnimationController.addListener(_onLayoutAnimationTick);
+
     _generateStars();
     _generateParticles();
   }
@@ -112,6 +154,10 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
     _ambientController.dispose();
     _pulseController.dispose();
     _floatController.dispose();
+    _layoutAnimationController.removeListener(_onLayoutAnimationTick);
+    _layoutAnimationController.dispose();
+    _searchFocusNode.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -121,14 +167,16 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
     final rng = math.Random(42);
     _stars.clear();
     for (int i = 0; i < 200; i++) {
-      _stars.add(_Star(
-        x: rng.nextDouble(),
-        y: rng.nextDouble(),
-        radius: 0.3 + rng.nextDouble() * 1.2,
-        baseOpacity: 0.03 + rng.nextDouble() * 0.08,
-        twinkleSpeed: 0.5 + rng.nextDouble() * 2.0,
-        twinklePhase: rng.nextDouble() * math.pi * 2,
-      ));
+      _stars.add(
+        _Star(
+          x: rng.nextDouble(),
+          y: rng.nextDouble(),
+          radius: 0.3 + rng.nextDouble() * 1.2,
+          baseOpacity: 0.03 + rng.nextDouble() * 0.08,
+          twinkleSpeed: 0.5 + rng.nextDouble() * 2.0,
+          twinklePhase: rng.nextDouble() * math.pi * 2,
+        ),
+      );
     }
   }
 
@@ -136,15 +184,258 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
     final rng = math.Random(77);
     _particles.clear();
     for (int i = 0; i < 30; i++) {
-      _particles.add(_Particle(
-        x: rng.nextDouble(),
-        y: rng.nextDouble(),
-        vx: (rng.nextDouble() - 0.5) * 0.0003,
-        vy: (rng.nextDouble() - 0.5) * 0.0003,
-        radius: 1.0 + rng.nextDouble() * 2.0,
-        opacity: 0.05 + rng.nextDouble() * 0.15,
-      ));
+      _particles.add(
+        _Particle(
+          x: rng.nextDouble(),
+          y: rng.nextDouble(),
+          vx: (rng.nextDouble() - 0.5) * 0.0003,
+          vy: (rng.nextDouble() - 0.5) * 0.0003,
+          radius: 1.0 + rng.nextDouble() * 2.0,
+          opacity: 0.05 + rng.nextDouble() * 0.15,
+        ),
+      );
     }
+  }
+
+  // ── 3D transform (shared between hit-test and painter) ───────────
+
+  Offset _transformPoint(Offset graphPos, Size screenSize) {
+    final cx = _canvasSize / 2;
+    final cy = _canvasSize / 2;
+
+    final double x = graphPos.dx - cx;
+    final double y = graphPos.dy - cy;
+
+    final cosY = math.cos(_rotationY);
+    final sinY = math.sin(_rotationY);
+    final x2 = x * cosY;
+    final z2 = x * sinY;
+
+    final cosX = math.cos(_rotationX);
+    final sinX = math.sin(_rotationX);
+    final y2 = y * cosX - z2 * sinX;
+    final z3 = y * sinX + z2 * cosX;
+
+    final perspective = 1.0 / (1.0 + z3 * 0.001);
+    final screenX =
+        x2 * perspective * _zoom + screenSize.width / 2 + _panOffset.dx;
+    final screenY =
+        y2 * perspective * _zoom + screenSize.height / 2 + _panOffset.dy;
+
+    return Offset(screenX, screenY);
+  }
+
+  /// Compute screen-space positions of all nodes for hit testing
+  void _computeScreenPositions(Size screenSize) {
+    _screenNodePositions.clear();
+    for (final entry in _nodePositions.entries) {
+      final ambient = _ambientOffsetForId(entry.key);
+      final floating = _floatOffsetForId(entry.key);
+      final graphPos = entry.value + ambient + floating;
+      _screenNodePositions[entry.key] = _transformPoint(graphPos, screenSize);
+    }
+  }
+
+  Offset _ambientOffsetForId(String id) {
+    final phase = id.hashCode * 0.1;
+    final dx = math.sin(_ambientController.value * 2 * math.pi + phase) * 2.0;
+    final dy =
+        math.cos(_ambientController.value * 2 * math.pi + phase * 0.7) * 2.0;
+    return Offset(dx, dy);
+  }
+
+  Offset _floatOffsetForId(String id) {
+    final phase = id.hashCode * 0.37;
+    final dx = math.sin(_floatController.value * 2 * math.pi + phase) * 3.0;
+    final dy =
+        math.cos(_floatController.value * 2 * math.pi + phase * 0.6) * 3.0;
+    return Offset(dx, dy);
+  }
+
+  // ── Touch hit-testing ────────────────────────────────────────────
+
+  /// Find the nearest node to a screen tap position
+  String? _findNearestNode(Offset screenPos) {
+    String? nearestId;
+    double nearestDist = double.infinity;
+    final tapRadius = _nodeRadius * _zoom * 1.8; // generous tap target
+
+    for (final entry in _screenNodePositions.entries) {
+      final dist = (entry.value - screenPos).distance;
+      if (dist < tapRadius && dist < nearestDist) {
+        nearestDist = dist;
+        nearestId = entry.key;
+      }
+    }
+    return nearestId;
+  }
+
+  // ── Search/highlight ─────────────────────────────────────────────
+
+  void _onSearchChanged(String query) {
+    setState(() {
+      _searchQuery = query;
+      _highlightedNodeIds.clear();
+
+      if (query.isEmpty) return;
+
+      final q = query.toLowerCase();
+      for (final entry in _nodes.entries) {
+        final name = entry.value.person.name.toLowerCase();
+        if (name.contains(q)) {
+          _highlightedNodeIds.add(entry.key);
+        }
+      }
+
+      // Auto-focus camera on first match
+      if (_highlightedNodeIds.isNotEmpty) {
+        final firstId = _highlightedNodeIds.first;
+        _focusOnNode(firstId);
+      }
+    });
+  }
+
+  /// Focus camera on a specific node by adjusting pan offset
+  void _focusOnNode(String nodeId) {
+    final graphPos = _nodePositions[nodeId];
+    if (graphPos == null) return;
+
+    final cx = _canvasSize / 2;
+    final cy = _canvasSize / 2;
+
+    final double x = graphPos.dx - cx;
+    final double y = graphPos.dy - cy;
+
+    final cosY = math.cos(_rotationY);
+    final sinY = math.sin(_rotationY);
+    final x2 = x * cosY;
+    final z2 = x * sinY;
+
+    final cosX = math.cos(_rotationX);
+    final sinX = math.sin(_rotationX);
+    final y2 = y * cosX - z2 * sinX;
+    final z3 = y * sinX + z2 * cosX;
+
+    final perspective = 1.0 / (1.0 + z3 * 0.001);
+
+    // We want the node to appear at screen center
+    // screenX = x2 * perspective * zoom + width/2 + panOffset.dx
+    // 0 = x2 * perspective * zoom + panOffset.dx
+    // panOffset.dx = -x2 * perspective * zoom
+    setState(() {
+      _panOffset = Offset(-x2 * perspective * _zoom, -y2 * perspective * _zoom);
+      _zoom = _zoom.clamp(1.0, 2.0);
+    });
+  }
+
+  // ── Auto-layout animation ────────────────────────────────────────
+
+  void _onLayoutAnimationTick() {
+    if (!_isAnimatingLayout) return;
+
+    final t = _layoutAnimation.value;
+    final interpolated = <String, Offset>{};
+
+    for (final id in _targetPositions.keys) {
+      final from = _previousPositions[id] ?? _targetPositions[id]!;
+      final to = _targetPositions[id]!;
+      interpolated[id] = Offset(
+        from.dx + (to.dx - from.dx) * t,
+        from.dy + (to.dy - from.dy) * t,
+      );
+    }
+
+    // Also include any positions in previous but not in target
+    for (final id in _previousPositions.keys) {
+      if (!interpolated.containsKey(id)) {
+        interpolated[id] = _previousPositions[id]!;
+      }
+    }
+
+    setState(() {
+      _nodePositions = interpolated;
+    });
+
+    if (_layoutAnimationController.isCompleted) {
+      _isAnimatingLayout = false;
+      _nodePositions = Map.from(_targetPositions);
+    }
+  }
+
+  void _switchLayoutMode(Tree3DLayoutMode newMode) {
+    if (newMode == _layoutMode && !_isAnimatingLayout) return;
+
+    // Save current positions as start for animation
+    _previousPositions = Map.from(_nodePositions);
+
+    setState(() {
+      _layoutMode = newMode;
+    });
+
+    // Compute target positions for the new layout
+    _computeLayoutPositions();
+
+    // Start animation
+    _targetPositions = Map.from(_nodePositions);
+    _nodePositions = Map.from(_previousPositions);
+
+    setState(() {
+      _isAnimatingLayout = true;
+    });
+
+    _layoutAnimationController.forward(from: 0.0);
+  }
+
+  /// Compute only the positions (without re-computing the full tree structure)
+  void _computeLayoutPositions() {
+    switch (_layoutMode) {
+      case Tree3DLayoutMode.constellation:
+        _computeConstellationLayout();
+      case Tree3DLayoutMode.galaxy:
+        _computeGalaxyLayout();
+      case Tree3DLayoutMode.solar:
+        _computeSolarLayout();
+    }
+
+    // Ensure all nodes have positions
+    for (final id in _nodes.keys) {
+      _nodePositions.putIfAbsent(
+        id,
+        () => const Offset(_canvasSize / 2, _canvasSize / 2),
+      );
+    }
+  }
+
+  // ── Minimap navigation ───────────────────────────────────────────
+
+  void _onMinimapTap(Offset minimapTapPos, Size minimapSize) {
+    // Convert minimap tap to graph space
+    final graphX = (minimapTapPos.dx / minimapSize.width) * _canvasSize;
+    final graphY = (minimapTapPos.dy / minimapSize.height) * _canvasSize;
+
+    // Adjust pan offset so that graph point appears at screen center
+    final graphPos = Offset(graphX, graphY);
+
+    final cx = _canvasSize / 2;
+    final cy = _canvasSize / 2;
+    final double x = graphPos.dx - cx;
+    final double y = graphPos.dy - cy;
+
+    final cosY = math.cos(_rotationY);
+    final sinY = math.sin(_rotationY);
+    final x2 = x * cosY;
+    final z2 = x * sinY;
+
+    final cosX = math.cos(_rotationX);
+    final sinX = math.sin(_rotationX);
+    final y2 = y * cosX - z2 * sinX;
+    final z3 = y * sinX + z2 * cosX;
+
+    final perspective = 1.0 / (1.0 + z3 * 0.001);
+
+    setState(() {
+      _panOffset = Offset(-x2 * perspective * _zoom, -y2 * perspective * _zoom);
+    });
   }
 
   // ── Layout computation ─────────────────────────────────────────────
@@ -267,18 +558,35 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
 
       if (node.spouse != null) {
         final spouseId = node.spouse!.id;
-        _nodes[spouseId] = VisTreeNode(person: node.spouse!, lineage: 'marital');
+        _nodes[spouseId] = VisTreeNode(
+          person: node.spouse!,
+          lineage: 'marital',
+        );
         _nodeLineages[spouseId] = 'marital';
         _nodeGenerations[spouseId] = depth;
         final spouseMember = memberMap[spouseId];
         if (spouseMember != null && spouseMember.generationIndex > 0) {
           _nodeGenerations[spouseId] = spouseMember.generationIndex;
         }
-        _edges.add(VisEdge(fromId: id, toId: spouseId, type: EdgeType.spouse, label: 'spouse'));
+        _edges.add(
+          VisEdge(
+            fromId: id,
+            toId: spouseId,
+            type: EdgeType.spouse,
+            label: 'spouse',
+          ),
+        );
       }
 
       for (final child in node.children) {
-        _edges.add(VisEdge(fromId: id, toId: child.person.id, type: EdgeType.parentChild, label: 'parent-child'));
+        _edges.add(
+          VisEdge(
+            fromId: id,
+            toId: child.person.id,
+            type: EdgeType.parentChild,
+            label: 'parent-child',
+          ),
+        );
         collectNodes(child, depth + 1);
       }
     }
@@ -309,26 +617,21 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
       if (edgeType != null &&
           _nodes.containsKey(rel.fromId) &&
           _nodes.containsKey(rel.toId)) {
-        _edges.add(VisEdge(fromId: rel.fromId, toId: rel.toId, type: edgeType, label: rel.type));
+        _edges.add(
+          VisEdge(
+            fromId: rel.fromId,
+            toId: rel.toId,
+            type: edgeType,
+            label: rel.type,
+          ),
+        );
         existingEdgeSet.add(key1);
         existingEdgeSet.add('${rel.toId}-${rel.fromId}');
       }
     }
 
     // Compute positions based on layout mode
-    switch (_layoutMode) {
-      case Tree3DLayoutMode.constellation:
-        _computeConstellationLayout();
-      case Tree3DLayoutMode.galaxy:
-        _computeGalaxyLayout();
-      case Tree3DLayoutMode.solar:
-        _computeSolarLayout();
-    }
-
-    // Ensure all nodes have positions
-    for (final id in _nodes.keys) {
-      _nodePositions.putIfAbsent(id, () => const Offset(_canvasSize / 2, _canvasSize / 2));
-    }
+    _computeLayoutPositions();
   }
 
   // ── Constellation layout (force-directed) ─────────────────────────
@@ -380,7 +683,10 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
 
       // Attraction
       for (final edge in _edges) {
-        if (!positions.containsKey(edge.fromId) || !positions.containsKey(edge.toId)) continue;
+        if (!positions.containsKey(edge.fromId) ||
+            !positions.containsKey(edge.toId)) {
+          continue;
+        }
         final delta = positions[edge.toId]! - positions[edge.fromId]!;
         final dist = math.max(delta.distance, 0.1);
         final force = 0.003 * (dist - 120);
@@ -407,7 +713,6 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
 
   void _computeGalaxyLayout() {
     final center = const Offset(_canvasSize / 2, _canvasSize / 2);
-    final allIds = _nodes.keys.toList();
 
     // Sort by generation for spiral arm assignment
     final byGen = <int, List<String>>{};
@@ -416,7 +721,7 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
     }
 
     // Spiral galaxy: multiple arms
-    final armCount = 2;
+    const armCount = 2;
     final positions = <String, Offset>{};
 
     int globalIndex = 0;
@@ -435,8 +740,12 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
         final spread = (i - ids.length / 2) * 15.0;
 
         positions[ids[i]] = Offset(
-          center.dx + spiralRadius * math.cos(spiralAngle) + spread * math.cos(spiralAngle + math.pi / 2),
-          center.dy + spiralRadius * math.sin(spiralAngle) + spread * math.sin(spiralAngle + math.pi / 2),
+          center.dx +
+              spiralRadius * math.cos(spiralAngle) +
+              spread * math.cos(spiralAngle + math.pi / 2),
+          center.dy +
+              spiralRadius * math.sin(spiralAngle) +
+              spread * math.sin(spiralAngle + math.pi / 2),
         );
         globalIndex++;
       }
@@ -461,7 +770,7 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
     // Group by generation for orbital rings
     final byGen = <int, List<String>>{};
     for (final entry in _nodeGenerations.entries) {
-      if (entry.key == _nodeGenerations[anchorId]) continue;
+      if (_nodeGenerations[entry.key] == _nodeGenerations[anchorId]) continue;
       byGen.putIfAbsent(entry.value, () => []).add(entry.key);
     }
 
@@ -469,7 +778,9 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
 
     for (final gen in sortedGens) {
       final ids = byGen[gen]!;
-      final genDiff = (gen - (anchorId != null ? (_nodeGenerations[anchorId] ?? 1) : 1)).abs();
+      final genDiff =
+          (gen - (anchorId != null ? (_nodeGenerations[anchorId] ?? 1) : 1))
+              .abs();
       final ringRadius = 120.0 + genDiff * 100.0;
       final angleStep = 2 * math.pi / math.max(ids.length, 1);
 
@@ -485,9 +796,6 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
 
     _nodePositions = positions;
   }
-
-  // ── 3D perspective is handled in the painter via manual rotation ──
-  // Matrix4 is used for reference: Matrix4.identity()..setEntry(3, 2, 0.001)..rotateX(rotationX)..rotateY(rotationY)
 
   // ── Reset view ─────────────────────────────────────────────────────
 
@@ -546,11 +854,35 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
           // Compute layout
           _computeLayout(detail.members, detail.relationships);
 
+          // Compute screen positions for hit testing
+          final screenSize = MediaQuery.of(context).size;
+          _computeScreenPositions(screenSize);
+
           return Stack(
             children: [
               // ── 3D Canvas ────────────────────────────────────────
               GestureDetector(
                 onDoubleTap: _resetView,
+                onTapUp: (details) {
+                  final tappedId = _findNearestNode(details.localPosition);
+                  if (tappedId != null) {
+                    Person? member;
+                    for (final p in detail.members) {
+                      if (p.id == tappedId && p.deletedAt == null) {
+                        member = p;
+                        break;
+                      }
+                    }
+                    if (member != null) {
+                      _handleNodeTap(member);
+                    }
+                  } else {
+                    // Tap on empty space dismisses selection
+                    if (_selectedPerson != null) {
+                      _dismissDetail();
+                    }
+                  }
+                },
                 onScaleStart: (details) {
                   _lastPanPosition = details.focalPoint;
                 },
@@ -580,8 +912,12 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
                       _ambientController,
                       _pulseController,
                       _floatController,
+                      _layoutAnimationController,
                     ]),
                     builder: (context, _) {
+                      // Recompute screen positions on each animation frame
+                      _computeScreenPositions(screenSize);
+
                       return CustomPaint(
                         painter: _Tree3DCanvasPainter(
                           nodePositions: _nodePositions,
@@ -602,10 +938,30 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
                           particles: _particles,
                           selectedPersonId: _selectedPerson?.id,
                           layoutMode: _layoutMode,
+                          highlightedNodeIds: _highlightedNodeIds,
+                          searchQuery: _searchQuery,
                         ),
                       );
                     },
                   ),
+                ),
+              ),
+
+              // ── Search bar (top-center) ─────────────────────────
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 48,
+                left: 12,
+                right: _showControls ? 230 : 12,
+                child: _SearchBar3D(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  query: _searchQuery,
+                  matchCount: _highlightedNodeIds.length,
+                  onChanged: _onSearchChanged,
+                  onClear: () {
+                    _searchController.clear();
+                    _onSearchChanged('');
+                  },
                 ),
               ),
 
@@ -622,10 +978,7 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
                     onRotationXChanged: (v) => setState(() => _rotationX = v),
                     onRotationYChanged: (v) => setState(() => _rotationY = v),
                     onZoomChanged: (v) => setState(() => _zoom = v),
-                    onLayoutModeChanged: (m) => setState(() {
-                      _layoutMode = m;
-                      _nodePositions.clear();
-                    }),
+                    onLayoutModeChanged: _switchLayoutMode,
                     onReset: _resetView,
                   ),
                 ),
@@ -655,6 +1008,24 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
                 child: _TitleBar(familyName: detail.family.name),
               ),
 
+              // ── Minimap (bottom-left) ───────────────────────────
+              Positioned(
+                bottom: 24,
+                left: 12,
+                child: _Minimap3D(
+                  nodePositions: _nodePositions,
+                  nodeGenerations: _nodeGenerations,
+                  anchorPersonId: detail.family.anchorPersonId,
+                  screenSize: screenSize,
+                  zoom: _zoom,
+                  panOffset: _panOffset,
+                  rotationX: _rotationX,
+                  rotationY: _rotationY,
+                  transformPoint: _transformPoint,
+                  onTap: _onMinimapTap,
+                ),
+              ),
+
               // ── Node detail popup ───────────────────────────────
               if (_selectedPerson != null)
                 _NodeDetailPopup(
@@ -666,6 +1037,9 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
                   onNodeTap: _handleNodeTap,
                   members: detail.members,
                   relationships: detail.relationships,
+                  nodeGenerations: _nodeGenerations,
+                  nodes: _nodes,
+                  edges: _edges,
                 ),
             ],
           );
@@ -688,9 +1062,7 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
               strokeWidth: 3,
               valueColor: AlwaysStoppedAnimation<Color>(KinrelColors.orange),
             ),
-          )
-              .animate(onPlay: (c) => c.repeat())
-              .fadeIn(duration: 600.ms),
+          ).maybeAnimate(onPlay: (c) => c.repeat()).fadeIn(duration: 600.ms),
           const SizedBox(height: 16),
           Text(
             'Loading 3D Tree...',
@@ -713,16 +1085,24 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline_rounded, color: KinrelColors.error, size: 40),
+              Icon(
+                Icons.error_outline_rounded,
+                color: KinrelColors.error,
+                size: 40,
+              ),
               const SizedBox(height: 16),
               Text(
                 'Could not load family tree',
-                style: KinrelTypography.headlineSmall.copyWith(color: KinrelColors.textWhite),
+                style: KinrelTypography.headlineSmall.copyWith(
+                  color: KinrelColors.textWhite,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 error.toString(),
-                style: KinrelTypography.bodySmall.copyWith(color: KinrelColors.textSilver),
+                style: KinrelTypography.bodySmall.copyWith(
+                  color: KinrelColors.textSilver,
+                ),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -757,6 +1137,8 @@ class _Tree3DCanvasPainter extends CustomPainter {
     required this.particles,
     required this.selectedPersonId,
     required this.layoutMode,
+    required this.highlightedNodeIds,
+    required this.searchQuery,
   });
 
   final Map<String, Offset> nodePositions;
@@ -777,6 +1159,8 @@ class _Tree3DCanvasPainter extends CustomPainter {
   final List<_Particle> particles;
   final String? selectedPersonId;
   final Tree3DLayoutMode layoutMode;
+  final Set<String> highlightedNodeIds;
+  final String searchQuery;
 
   static const double _nodeRadius = 24.0;
   static const double _canvasSize = 2000.0;
@@ -808,6 +1192,10 @@ class _Tree3DCanvasPainter extends CustomPainter {
     return Offset(dx, dy);
   }
 
+  /// Whether search highlight mode is active
+  bool get _isSearchActive =>
+      searchQuery.isNotEmpty && highlightedNodeIds.isNotEmpty;
+
   /// Transform a graph-space offset to screen-space using 3D perspective
   Offset _transformPoint(Offset graphPos, Size screenSize) {
     // Center of the canvas in graph space
@@ -815,8 +1203,8 @@ class _Tree3DCanvasPainter extends CustomPainter {
     final cy = _canvasSize / 2;
 
     // Translate to origin
-    double x = graphPos.dx - cx;
-    double y = graphPos.dy - cy;
+    final double x = graphPos.dx - cx;
+    final double y = graphPos.dy - cy;
 
     // Apply rotation Y (yaw)
     final cosY = math.cos(rotationY);
@@ -832,8 +1220,10 @@ class _Tree3DCanvasPainter extends CustomPainter {
 
     // Perspective projection
     final perspective = 1.0 / (1.0 + z3 * 0.001);
-    final screenX = x2 * perspective * zoom + screenSize.width / 2 + panOffset.dx;
-    final screenY = y2 * perspective * zoom + screenSize.height / 2 + panOffset.dy;
+    final screenX =
+        x2 * perspective * zoom + screenSize.width / 2 + panOffset.dx;
+    final screenY =
+        y2 * perspective * zoom + screenSize.height / 2 + panOffset.dy;
 
     return Offset(screenX, screenY);
   }
@@ -842,10 +1232,9 @@ class _Tree3DCanvasPainter extends CustomPainter {
   double _getDepth(Offset graphPos) {
     final cx = _canvasSize / 2;
     final cy = _canvasSize / 2;
-    double x = graphPos.dx - cx;
-    double y = graphPos.dy - cy;
+    final double x = graphPos.dx - cx;
+    final double y = graphPos.dy - cy;
 
-    final cosY = math.cos(rotationY);
     final sinY = math.sin(rotationY);
     final z2 = x * sinY;
 
@@ -865,15 +1254,18 @@ class _Tree3DCanvasPainter extends CustomPainter {
     // ── Ambient orange glow from center ────────────────────────────
     final glowCenter = Offset(size.width / 2, size.height / 2);
     final glowPaint = Paint()
-      ..shader = RadialGradient(
-        center: Alignment.center,
-        radius: 0.6,
-        colors: [
-          KinrelColors.orange.withValues(alpha: 0.08),
-          KinrelColors.amber.withValues(alpha: 0.03),
-          Colors.transparent,
-        ],
-      ).createShader(Rect.fromCircle(center: glowCenter, radius: size.width * 0.6));
+      ..shader =
+          RadialGradient(
+            center: Alignment.center,
+            radius: 0.6,
+            colors: [
+              KinrelColors.orange.withValues(alpha: 0.08),
+              KinrelColors.amber.withValues(alpha: 0.03),
+              Colors.transparent,
+            ],
+          ).createShader(
+            Rect.fromCircle(center: glowCenter, radius: size.width * 0.6),
+          );
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), glowPaint);
 
     // ── Star field ─────────────────────────────────────────────────
@@ -912,6 +1304,13 @@ class _Tree3DCanvasPainter extends CustomPainter {
       final isConnectedToSelected =
           edge.fromId == selectedPersonId || edge.toId == selectedPersonId;
 
+      // Search highlight: dim edges not connected to highlighted nodes
+      final isEdgeHighlighted =
+          _isSearchActive &&
+          (highlightedNodeIds.contains(edge.fromId) ||
+              highlightedNodeIds.contains(edge.toId));
+      final isEdgeDimmed = _isSearchActive && !isEdgeHighlighted;
+
       Color color;
       double width;
       switch (edge.type) {
@@ -948,7 +1347,19 @@ class _Tree3DCanvasPainter extends CustomPainter {
       final fromDepth = depthMap[edge.fromId] ?? 0.0;
       final toDepth = depthMap[edge.toId] ?? 0.0;
       final avgDepth = (fromDepth + toDepth) / 2;
-      final edgeOpacity = (1.0 - avgDepth.abs() * 0.0003).clamp(0.2, isConnectedToSelected ? 0.9 : 0.4);
+      double edgeOpacity = (1.0 - avgDepth.abs() * 0.0003).clamp(
+        0.2,
+        isConnectedToSelected ? 0.9 : 0.4,
+      );
+
+      // Dim edges during search
+      if (isEdgeDimmed) {
+        edgeOpacity *= 0.15;
+      }
+      // Brighten highlighted edges during search
+      if (isEdgeHighlighted) {
+        edgeOpacity = (edgeOpacity * 1.5).clamp(0.5, 1.0);
+      }
 
       final paint = Paint()
         ..color = color.withValues(alpha: edgeOpacity)
@@ -958,15 +1369,15 @@ class _Tree3DCanvasPainter extends CustomPainter {
 
       _drawEdgePath(canvas, from, to, edge.type, paint);
 
-      // Heart at midpoint for spouse
+      // Heart/diamond at midpoint for spouse
       if (edge.type == EdgeType.spouse) {
         final mid = Offset((from.dx + to.dx) / 2, (from.dy + to.dy) / 2);
-        final heartPainter = TextPainter(
-          text: const TextSpan(text: '\u2764', style: TextStyle(fontSize: 10, color: Color(0xFFE8612A))),
-          textDirection: TextDirection.ltr,
+        _drawDiamond(
+          canvas,
+          mid,
+          5.0,
+          const Color(0xFFE8612A).withValues(alpha: edgeOpacity),
         );
-        heartPainter.layout();
-        heartPainter.paint(canvas, Offset(mid.dx - heartPainter.width / 2, mid.dy - heartPainter.height / 2));
       }
     }
 
@@ -982,12 +1393,17 @@ class _Tree3DCanvasPainter extends CustomPainter {
 
   void _drawStarfield(Canvas canvas, Size size) {
     for (final star in stars) {
-      final twinkle = math.sin(ambientValue * 2 * math.pi * star.twinkleSpeed + star.twinklePhase);
+      final twinkle = math.sin(
+        ambientValue * 2 * math.pi * star.twinkleSpeed + star.twinklePhase,
+      );
       final opacity = star.baseOpacity + twinkle * 0.03;
       canvas.drawCircle(
         Offset(star.x * size.width, star.y * size.height),
         star.radius,
-        Paint()..color = const Color(0xFFF5F0EE).withValues(alpha: opacity.clamp(0.0, 1.0)),
+        Paint()
+          ..color = const Color(
+            0xFFF5F0EE,
+          ).withValues(alpha: opacity.clamp(0.0, 1.0)),
       );
     }
   }
@@ -1006,7 +1422,10 @@ class _Tree3DCanvasPainter extends CustomPainter {
       canvas.drawCircle(
         Offset(p.x * size.width, p.y * size.height),
         p.radius,
-        Paint()..color = KinrelColors.orange.withValues(alpha: (p.opacity + pulse).clamp(0.0, 1.0)),
+        Paint()
+          ..color = KinrelColors.orange.withValues(
+            alpha: (p.opacity + pulse).clamp(0.0, 1.0),
+          ),
       );
     }
   }
@@ -1079,61 +1498,207 @@ class _Tree3DCanvasPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       );
       labelPainter.layout();
-      labelPainter.paint(canvas, Offset(labelPos.dx - labelPainter.width / 2, labelPos.dy - labelPainter.height / 2));
+      labelPainter.paint(
+        canvas,
+        Offset(
+          labelPos.dx - labelPainter.width / 2,
+          labelPos.dy - labelPainter.height / 2,
+        ),
+      );
     }
   }
 
-  // ── Edge path drawing ───────────────────────────────────────────────
+  // ── Edge path drawing (enhanced bezier curves) ────────────────────
 
-  void _drawEdgePath(Canvas canvas, Offset start, Offset end, EdgeType type, Paint paint) {
+  void _drawEdgePath(
+    Canvas canvas,
+    Offset start,
+    Offset end,
+    EdgeType type,
+    Paint paint,
+  ) {
     switch (type) {
       case EdgeType.parentChild:
+        // Smooth S-curve from parent down to child
         final midY = (start.dy + end.dy) / 2;
         final path = Path()
           ..moveTo(start.dx, start.dy)
-          ..cubicTo(start.dx, midY, end.dx, midY, end.dx, end.dy);
+          ..cubicTo(
+            start.dx,
+            start.dy + (midY - start.dy) * 0.6,
+            end.dx,
+            end.dy - (end.dy - midY) * 0.6,
+            end.dx,
+            end.dy,
+          );
         canvas.drawPath(path, paint);
+
+      case EdgeType.spouse:
+        // Horizontal bezier with slight arc
+        final midX = (start.dx + end.dx) / 2;
+        final dy = (end.dy - start.dy).abs();
+        final arcHeight = dy < 30
+            ? -20.0
+            : 0.0; // gentle arc when nodes are level
+        final path = Path()
+          ..moveTo(start.dx, start.dy)
+          ..cubicTo(
+            start.dx + (midX - start.dx) * 0.5,
+            start.dy + arcHeight,
+            end.dx - (end.dx - midX) * 0.5,
+            end.dy + arcHeight,
+            end.dx,
+            end.dy,
+          );
+        canvas.drawPath(path, paint);
+
       case EdgeType.sibling:
-        _drawDashedLine(canvas, start, end, paint, 6, 4);
+        // Dashed bezier curve (arc above/below)
+        final midX = (start.dx + end.dx) / 2;
+        final midY = (start.dy + end.dy) / 2;
+        final dist = (end - start).distance;
+        final arcHeight = -dist * 0.15; // arc outward
+        final controlY = midY + arcHeight;
+        _drawDashedBezier(
+          canvas,
+          start,
+          Offset(midX, controlY),
+          end,
+          paint,
+          6,
+          4,
+        );
+
       case EdgeType.inLaw:
-        _drawDottedLine(canvas, start, end, paint, 2, 5);
+        // Dotted curve
+        final midX = (start.dx + end.dx) / 2;
+        final midY = (start.dy + end.dy) / 2;
+        final dist = (end - start).distance;
+        final arcHeight = dist * 0.1;
+        final controlY = midY + arcHeight;
+        _drawDottedBezier(
+          canvas,
+          start,
+          Offset(midX, controlY),
+          end,
+          paint,
+          2,
+          6,
+        );
+
       default:
         canvas.drawLine(start, end, paint);
     }
   }
 
-  void _drawDashedLine(Canvas canvas, Offset start, Offset end, Paint paint, double dashLen, double gapLen) {
-    final dx = end.dx - start.dx;
-    final dy = end.dy - start.dy;
-    final distance = math.sqrt(dx * dx + dy * dy);
-    if (distance == 0) return;
-    final steps = (distance / (dashLen + gapLen)).floor();
-    for (int i = 0; i < steps; i++) {
-      final s = i * (dashLen + gapLen) / distance;
-      final e = (i * (dashLen + gapLen) + dashLen) / distance;
-      canvas.drawLine(
-        Offset(start.dx + dx * s, start.dy + dy * s),
-        Offset(start.dx + dx * e, start.dy + dy * e),
-        paint,
-      );
+  /// Draw a dashed quadratic bezier curve
+  void _drawDashedBezier(
+    Canvas canvas,
+    Offset start,
+    Offset control,
+    Offset end,
+    Paint paint,
+    double dashLen,
+    double gapLen,
+  ) {
+    final totalLen = _bezierLength(start, control, end);
+    final segments = (totalLen / (dashLen + gapLen)).floor();
+    final stepsPerDash = 4;
+
+    for (int seg = 0; seg < segments; seg++) {
+      final startT = seg * (dashLen + gapLen) / totalLen;
+      final endT = (seg * (dashLen + gapLen) + dashLen) / totalLen;
+
+      final path = Path();
+      for (int s = 0; s <= stepsPerDash; s++) {
+        final t = startT + (endT - startT) * s / stepsPerDash;
+        final point = _quadraticBezierPoint(start, control, end, t);
+        if (s == 0) {
+          path.moveTo(point.dx, point.dy);
+        } else {
+          path.lineTo(point.dx, point.dy);
+        }
+      }
+      canvas.drawPath(path, paint);
     }
   }
 
-  void _drawDottedLine(Canvas canvas, Offset start, Offset end, Paint paint, double dotRadius, double spacing) {
-    final dx = end.dx - start.dx;
-    final dy = end.dy - start.dy;
-    final distance = math.sqrt(dx * dx + dy * dy);
-    if (distance == 0) return;
-    final steps = (distance / spacing).floor();
+  /// Draw a dotted quadratic bezier curve
+  void _drawDottedBezier(
+    Canvas canvas,
+    Offset start,
+    Offset control,
+    Offset end,
+    Paint paint,
+    double dotRadius,
+    double spacing,
+  ) {
+    final totalLen = _bezierLength(start, control, end);
+    final steps = (totalLen / spacing).floor();
+    final dotPaint = Paint()
+      ..color = paint.color
+      ..style = PaintingStyle.fill;
+
     for (int i = 0; i <= steps; i++) {
       final t = i / steps;
-      canvas.drawCircle(Offset(start.dx + dx * t, start.dy + dy * t), dotRadius, paint);
+      final point = _quadraticBezierPoint(start, control, end, t);
+      canvas.drawCircle(point, dotRadius, dotPaint);
     }
+  }
+
+  /// Approximate length of a quadratic bezier
+  double _bezierLength(Offset start, Offset control, Offset end) {
+    double len = 0;
+    Offset prev = start;
+    for (int i = 1; i <= 20; i++) {
+      final t = i / 20;
+      final p = _quadraticBezierPoint(start, control, end, t);
+      len += (p - prev).distance;
+      prev = p;
+    }
+    return len;
+  }
+
+  /// Evaluate quadratic bezier at parameter t
+  Offset _quadraticBezierPoint(
+    Offset start,
+    Offset control,
+    Offset end,
+    double t,
+  ) {
+    final mt = 1 - t;
+    return Offset(
+      mt * mt * start.dx + 2 * mt * t * control.dx + t * t * end.dx,
+      mt * mt * start.dy + 2 * mt * t * control.dy + t * t * end.dy,
+    );
+  }
+
+  /// Draw a diamond shape at a position (for spouse edge midpoint)
+  void _drawDiamond(Canvas canvas, Offset center, double size, Color color) {
+    final path = Path()
+      ..moveTo(center.dx, center.dy - size)
+      ..lineTo(center.dx + size, center.dy)
+      ..lineTo(center.dx, center.dy + size)
+      ..lineTo(center.dx - size, center.dy)
+      ..close();
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.fill,
+    );
   }
 
   // ── Node drawing with 3D effects ────────────────────────────────────
 
-  void _drawNode(Canvas canvas, String id, Offset center, double depth, Size screenSize) {
+  void _drawNode(
+    Canvas canvas,
+    String id,
+    Offset center,
+    double depth,
+    Size screenSize,
+  ) {
     final isSelected = id == selectedPersonId;
     final isAnchor = id == anchorPersonId;
     final node = nodes[id];
@@ -1145,14 +1710,47 @@ class _Tree3DCanvasPainter extends CustomPainter {
     // Depth-based effects
     final depthScale = 1.0 + depth * 0.0001;
     final effectiveRadius = (_nodeRadius * depthScale * zoom).clamp(8.0, 60.0);
-    final depthOpacity = (1.0 - depth.abs() * 0.0003).clamp(0.4, 1.0);
+    double depthOpacity = (1.0 - depth.abs() * 0.0003).clamp(0.4, 1.0);
+
+    // ── Search highlight/dim effects ────────────────────────────────
+    final isHighlighted = _isSearchActive && highlightedNodeIds.contains(id);
+    final isDimmed = _isSearchActive && !isHighlighted;
+
+    if (isDimmed) {
+      depthOpacity *= 0.2;
+    }
+
     final ringColor = _generationRingColor(generation);
+
+    // ── Search highlight glow (pulsing bright glow) ────────────────
+    if (isHighlighted) {
+      final highlightAlpha = 0.25 + pulseValue * 0.2;
+      final highlightPaint = Paint()
+        ..color = KinrelColors.amber.withValues(alpha: highlightAlpha)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20);
+      canvas.drawCircle(center, effectiveRadius + 16, highlightPaint);
+
+      // Outer ring pulse
+      final ringAlpha = 0.15 + pulseValue * 0.15;
+      final ringPaint2 = Paint()
+        ..color = KinrelColors.amber.withValues(alpha: ringAlpha)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+      canvas.drawCircle(
+        center,
+        effectiveRadius + 10 + pulseValue * 6,
+        ringPaint2,
+      );
+    }
 
     // ── Selection glow (pulsing orange) ────────────────────────────
     if (isSelected) {
       final glowAlpha = 0.2 + pulseValue * 0.15;
       final glowPaint = Paint()
-        ..color = KinrelColors.orange.withValues(alpha: glowAlpha * depthOpacity)
+        ..color = KinrelColors.orange.withValues(
+          alpha: glowAlpha * depthOpacity,
+        )
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
       canvas.drawCircle(center, effectiveRadius + 12, glowPaint);
     }
@@ -1182,14 +1780,24 @@ class _Tree3DCanvasPainter extends CustomPainter {
     // ── Node body (gradient circle) ────────────────────────────────
     final gradient = isDeceased
         ? const LinearGradient(colors: [Color(0xFF4A4A5E), Color(0xFF2A2A3E)])
-        : const LinearGradient(colors: [KinrelColors.orange, KinrelColors.amber]);
+        : const LinearGradient(
+            colors: [KinrelColors.orange, KinrelColors.amber],
+          );
 
     final bodyRect = Rect.fromCircle(center: center, radius: effectiveRadius);
-    canvas.drawCircle(center, effectiveRadius, Paint()..shader = gradient.createShader(bodyRect));
+    canvas.drawCircle(
+      center,
+      effectiveRadius,
+      Paint()..shader = gradient.createShader(bodyRect),
+    );
 
     // ── Deceased overlay ───────────────────────────────────────────
     if (isDeceased) {
-      canvas.drawCircle(center, effectiveRadius, Paint()..color = Colors.white.withValues(alpha: 0.08));
+      canvas.drawCircle(
+        center,
+        effectiveRadius,
+        Paint()..color = Colors.white.withValues(alpha: 0.08),
+      );
     }
 
     // ── Depth dimming overlay ──────────────────────────────────────
@@ -1197,18 +1805,30 @@ class _Tree3DCanvasPainter extends CustomPainter {
       canvas.drawCircle(
         center,
         effectiveRadius,
-        Paint()..color = KinrelColors.darkBackground.withValues(alpha: (1.0 - depthOpacity) * 0.6),
+        Paint()
+          ..color = KinrelColors.darkBackground.withValues(
+            alpha: (1.0 - depthOpacity) * 0.6,
+          ),
       );
     }
 
     // ── Content: Initial or dove ───────────────────────────────────
     if (isDeceased) {
       final dovePainter = TextPainter(
-        text: const TextSpan(text: '\u2702', style: TextStyle(fontSize: effectiveRadius * 0.7)),
+        text: TextSpan(
+          text: '\u2702',
+          style: TextStyle(fontSize: effectiveRadius * 0.7),
+        ),
         textDirection: TextDirection.ltr,
       );
       dovePainter.layout();
-      dovePainter.paint(canvas, Offset(center.dx - dovePainter.width / 2, center.dy - dovePainter.height / 2));
+      dovePainter.paint(
+        canvas,
+        Offset(
+          center.dx - dovePainter.width / 2,
+          center.dy - dovePainter.height / 2,
+        ),
+      );
     } else {
       final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
       final initialPainter = TextPainter(
@@ -1224,27 +1844,45 @@ class _Tree3DCanvasPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       );
       initialPainter.layout();
-      initialPainter.paint(canvas, Offset(center.dx - initialPainter.width / 2, center.dy - initialPainter.height / 2));
+      initialPainter.paint(
+        canvas,
+        Offset(
+          center.dx - initialPainter.width / 2,
+          center.dy - initialPainter.height / 2,
+        ),
+      );
     }
 
-    // ── Name label below node ──────────────────────────────────────
-    final labelAlpha = depthOpacity;
-    final namePainter = TextPainter(
-      text: TextSpan(
-        text: name,
-        style: TextStyle(
-          fontFamily: KinrelTypography.bodyFont,
-          fontSize: (11 * zoom).clamp(6, 16),
-          fontWeight: FontWeight.w500,
-          color: const Color(0xFFF5F0EE).withValues(alpha: labelAlpha),
+    // ── Name label below node (zoom-based scaling and fading) ──────
+    final labelAlpha =
+        depthOpacity * (zoom < 0.5 ? (zoom - 0.3) / 0.2 : 1.0).clamp(0.0, 1.0);
+
+    if (labelAlpha > 0.05) {
+      final namePainter = TextPainter(
+        text: TextSpan(
+          text: name,
+          style: TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: (11 * zoom).clamp(6, 16),
+            fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w500,
+            color:
+                (isHighlighted ? KinrelColors.amber : const Color(0xFFF5F0EE))
+                    .withValues(alpha: labelAlpha),
+          ),
         ),
-      ),
-      textDirection: TextDirection.ltr,
-      maxLines: 1,
-      ellipsis: '...',
-    );
-    namePainter.layout(maxWidth: 80 * zoom);
-    namePainter.paint(canvas, Offset(center.dx - namePainter.width / 2, center.dy + effectiveRadius + 6));
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '...',
+      );
+      namePainter.layout(maxWidth: 80 * zoom);
+      namePainter.paint(
+        canvas,
+        Offset(
+          center.dx - namePainter.width / 2,
+          center.dy + effectiveRadius + 6,
+        ),
+      );
+    }
 
     // ── Kinship label above when selected ──────────────────────────
     if (isSelected && relationship != null && relationship.isNotEmpty) {
@@ -1263,7 +1901,38 @@ class _Tree3DCanvasPainter extends CustomPainter {
         ellipsis: '...',
       );
       kinshipPainter.layout(maxWidth: 100 * zoom);
-      kinshipPainter.paint(canvas, Offset(center.dx - kinshipPainter.width / 2, center.dy - effectiveRadius - 18));
+      kinshipPainter.paint(
+        canvas,
+        Offset(
+          center.dx - kinshipPainter.width / 2,
+          center.dy - effectiveRadius - 18,
+        ),
+      );
+    }
+
+    // ── Generation badge (small label at top-right when zoomed in) ─
+    if (zoom > 0.8 && labelAlpha > 0.3) {
+      final genText = 'G$generation';
+      final genPainter = TextPainter(
+        text: TextSpan(
+          text: genText,
+          style: TextStyle(
+            fontFamily: KinrelTypography.monoFont,
+            fontSize: (8 * zoom).clamp(5, 10),
+            fontWeight: FontWeight.w500,
+            color: ringColor.withValues(alpha: labelAlpha * 0.7),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      genPainter.layout();
+      genPainter.paint(
+        canvas,
+        Offset(
+          center.dx + effectiveRadius * 0.5,
+          center.dy - effectiveRadius - 4,
+        ),
+      );
     }
   }
 
@@ -1278,7 +1947,319 @@ class _Tree3DCanvasPainter extends CustomPainter {
         oldDelegate.floatValue != floatValue ||
         oldDelegate.selectedPersonId != selectedPersonId ||
         oldDelegate.layoutMode != layoutMode ||
-        oldDelegate.nodePositions != nodePositions;
+        oldDelegate.nodePositions != nodePositions ||
+        oldDelegate.highlightedNodeIds != highlightedNodeIds ||
+        oldDelegate.searchQuery != searchQuery;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SEARCH BAR 3D
+// ═══════════════════════════════════════════════════════════════════════
+
+class _SearchBar3D extends StatelessWidget {
+  const _SearchBar3D({
+    required this.controller,
+    required this.focusNode,
+    required this.query,
+    required this.matchCount,
+    required this.onChanged,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final String query;
+  final int matchCount;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 36,
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(KinrelRadius.full),
+        border: Border.all(
+          color: query.isNotEmpty
+              ? KinrelColors.amber.withValues(alpha: 0.5)
+              : KinrelColors.orange.withValues(alpha: 0.15),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 12),
+          Icon(
+            Icons.search_rounded,
+            color: query.isNotEmpty ? KinrelColors.amber : KinrelColors.textDim,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              focusNode: focusNode,
+              onChanged: onChanged,
+              style: KinrelTypography.bodySmall.copyWith(
+                color: KinrelColors.textWhite,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Search family members...',
+                hintStyle: KinrelTypography.bodySmall.copyWith(
+                  color: KinrelColors.textDim,
+                ),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+              ),
+            ),
+          ),
+          if (query.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: KinrelColors.amber.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(KinrelRadius.full),
+              ),
+              child: Text(
+                '$matchCount',
+                style: KinrelTypography.labelSmall.copyWith(
+                  color: KinrelColors.amber,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: onClear,
+              child: Icon(
+                Icons.close_rounded,
+                color: KinrelColors.textSilver,
+                size: 16,
+              ),
+            ),
+          ],
+          const SizedBox(width: 10),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MINIMAP 3D
+// ═══════════════════════════════════════════════════════════════════════
+
+class _Minimap3D extends StatelessWidget {
+  const _Minimap3D({
+    required this.nodePositions,
+    required this.nodeGenerations,
+    required this.anchorPersonId,
+    required this.screenSize,
+    required this.zoom,
+    required this.panOffset,
+    required this.rotationX,
+    required this.rotationY,
+    required this.transformPoint,
+    required this.onTap,
+  });
+
+  final Map<String, Offset> nodePositions;
+  final Map<String, int> nodeGenerations;
+  final String? anchorPersonId;
+  final Size screenSize;
+  final double zoom;
+  final Offset panOffset;
+  final double rotationX;
+  final double rotationY;
+  final Offset Function(Offset, Size) transformPoint;
+  final void Function(Offset, Size) onTap;
+
+  static const double _minimapSize = 120.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapUp: (details) {
+        onTap(details.localPosition, const Size(_minimapSize, _minimapSize));
+      },
+      child: Container(
+        width: _minimapSize,
+        height: _minimapSize,
+        decoration: BoxDecoration(
+          color: KinrelColors.darkCard.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(KinrelRadius.md),
+          border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(KinrelRadius.md),
+          child: CustomPaint(
+            size: const Size(_minimapSize, _minimapSize),
+            painter: _MinimapPainter(
+              nodePositions: nodePositions,
+              nodeGenerations: nodeGenerations,
+              anchorPersonId: anchorPersonId,
+              screenSize: screenSize,
+              zoom: zoom,
+              panOffset: panOffset,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MinimapPainter extends CustomPainter {
+  _MinimapPainter({
+    required this.nodePositions,
+    required this.nodeGenerations,
+    required this.anchorPersonId,
+    required this.screenSize,
+    required this.zoom,
+    required this.panOffset,
+  });
+
+  final Map<String, Offset> nodePositions;
+  final Map<String, int> nodeGenerations;
+  final String? anchorPersonId;
+  final Size screenSize;
+  final double zoom;
+  final Offset panOffset;
+
+  static const double _canvasSize = 2000.0;
+
+  Color _genColor(int gen) {
+    if (gen >= 3) return const Color(0xFFC44A18);
+    if (gen == 2) return const Color(0xFFE8612A);
+    if (gen == 1) return const Color(0xFFF59240);
+    return const Color(0xFFFFB870);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Background
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Paint()..color = const Color(0xFF0D0E12),
+    );
+
+    if (nodePositions.isEmpty) return;
+
+    // Scale graph coords to minimap coords
+    Offset toMini(Offset graphPos) {
+      return Offset(
+        (graphPos.dx / _canvasSize) * size.width,
+        (graphPos.dy / _canvasSize) * size.height,
+      );
+    }
+
+    // Draw nodes as dots
+    for (final entry in nodePositions.entries) {
+      final id = entry.key;
+      final pos = toMini(entry.value);
+      final gen = nodeGenerations[id] ?? 1;
+      final isAnchor = id == anchorPersonId;
+      final color = _genColor(gen);
+
+      final dotRadius = isAnchor ? 3.0 : 2.0;
+      canvas.drawCircle(
+        pos,
+        dotRadius,
+        Paint()..color = color.withValues(alpha: 0.8),
+      );
+
+      // Anchor ring
+      if (isAnchor) {
+        canvas.drawCircle(
+          pos,
+          5.0,
+          Paint()
+            ..color = KinrelColors.orange.withValues(alpha: 0.4)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1,
+        );
+      }
+    }
+
+    // Draw viewport indicator
+    // The viewport shows what's visible on screen. We need to compute
+    // the graph-space bounds that map to the current screen view.
+    // Simplified: show a rectangle representing the current view.
+    final viewWidth = screenSize.width / zoom;
+    final viewHeight = screenSize.height / zoom;
+    final viewCenter = Offset(_canvasSize / 2, _canvasSize / 2);
+
+    final viewRect = Rect.fromCenter(
+      center: viewCenter,
+      width: viewWidth,
+      height: viewHeight,
+    );
+
+    final miniRect = Rect.fromLTRB(
+      (viewRect.left / _canvasSize) * size.width,
+      (viewRect.top / _canvasSize) * size.height,
+      (viewRect.right / _canvasSize) * size.width,
+      (viewRect.bottom / _canvasSize) * size.height,
+    );
+
+    // Clamp to minimap bounds
+    final clampedRect = miniRect.intersect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+    );
+
+    canvas.drawRect(
+      clampedRect,
+      Paint()
+        ..color = KinrelColors.orange.withValues(alpha: 0.3)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+
+    // Semi-transparent fill for viewport area
+    canvas.drawRect(
+      clampedRect,
+      Paint()..color = KinrelColors.orange.withValues(alpha: 0.05),
+    );
+
+    // Label
+    final labelPainter = TextPainter(
+      text: TextSpan(
+        text: 'MAP',
+        style: TextStyle(
+          fontFamily: KinrelTypography.monoFont,
+          fontSize: 7,
+          color: KinrelColors.textDim.withValues(alpha: 0.5),
+          fontWeight: FontWeight.w500,
+          letterSpacing: 1,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    labelPainter.layout();
+    labelPainter.paint(canvas, const Offset(4, 2));
+  }
+
+  @override
+  bool shouldRepaint(covariant _MinimapPainter oldDelegate) {
+    return oldDelegate.nodePositions != nodePositions ||
+        oldDelegate.zoom != zoom ||
+        oldDelegate.panOffset != panOffset;
   }
 }
 
@@ -1312,117 +2293,128 @@ class _FloatingControlPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 200,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.15)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            children: [
-              Icon(Icons.view_in_ar_rounded, color: KinrelColors.orange, size: 16),
-              const SizedBox(width: 6),
-              Text(
-                '3D CONTROLS',
-                style: KinrelTypography.overline.copyWith(color: KinrelColors.orange),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // X Rotation slider
-          _SliderRow(
-            label: 'Pitch',
-            icon: Icons.swap_vert_rounded,
-            value: rotationX,
-            min: -0.5,
-            max: 0.5,
-            color: KinrelColors.amber,
-            onChanged: onRotationXChanged,
-          ),
-          const SizedBox(height: 8),
-
-          // Y Rotation slider
-          _SliderRow(
-            label: 'Yaw',
-            icon: Icons.swap_horiz_rounded,
-            value: rotationY,
-            min: -1.0,
-            max: 1.0,
-            color: KinrelColors.orange,
-            onChanged: onRotationYChanged,
-          ),
-          const SizedBox(height: 8),
-
-          // Zoom slider
-          _SliderRow(
-            label: 'Zoom',
-            icon: Icons.zoom_in_rounded,
-            value: zoom,
-            min: 0.3,
-            max: 3.0,
-            color: KinrelColors.gold,
-            onChanged: onZoomChanged,
-          ),
-          const SizedBox(height: 12),
-
-          // Layout mode toggle
-          Text(
-            'LAYOUT',
-            style: KinrelTypography.overline.copyWith(color: KinrelColors.textDim),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              _LayoutChip(
-                label: 'Constellation',
-                isSelected: layoutMode == Tree3DLayoutMode.constellation,
-                onTap: () => onLayoutModeChanged(Tree3DLayoutMode.constellation),
-              ),
-              const SizedBox(width: 4),
-              _LayoutChip(
-                label: 'Galaxy',
-                isSelected: layoutMode == Tree3DLayoutMode.galaxy,
-                onTap: () => onLayoutModeChanged(Tree3DLayoutMode.galaxy),
-              ),
-              const SizedBox(width: 4),
-              _LayoutChip(
-                label: 'Solar',
-                isSelected: layoutMode == Tree3DLayoutMode.solar,
-                onTap: () => onLayoutModeChanged(Tree3DLayoutMode.solar),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Reset button
-          SizedBox(
-            width: double.infinity,
-            child: DKButton(
-              label: 'Reset View',
-              variant: DKButtonVariant.secondary,
-              size: DKButtonSize.sm,
-              icon: Icons.refresh_rounded,
-              onPressed: onReset,
+          width: 200,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkCard.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(KinrelRadius.lg),
+            border: Border.all(
+              color: KinrelColors.orange.withValues(alpha: 0.15),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-    )
-        .animate()
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Icon(
+                    Icons.view_in_ar_rounded,
+                    color: KinrelColors.orange,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '3D CONTROLS',
+                    style: KinrelTypography.overline.copyWith(
+                      color: KinrelColors.orange,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // X Rotation slider
+              _SliderRow(
+                label: 'Pitch',
+                icon: Icons.swap_vert_rounded,
+                value: rotationX,
+                min: -0.5,
+                max: 0.5,
+                color: KinrelColors.amber,
+                onChanged: onRotationXChanged,
+              ),
+              const SizedBox(height: 8),
+
+              // Y Rotation slider
+              _SliderRow(
+                label: 'Yaw',
+                icon: Icons.swap_horiz_rounded,
+                value: rotationY,
+                min: -1.0,
+                max: 1.0,
+                color: KinrelColors.orange,
+                onChanged: onRotationYChanged,
+              ),
+              const SizedBox(height: 8),
+
+              // Zoom slider
+              _SliderRow(
+                label: 'Zoom',
+                icon: Icons.zoom_in_rounded,
+                value: zoom,
+                min: 0.3,
+                max: 3.0,
+                color: KinrelColors.gold,
+                onChanged: onZoomChanged,
+              ),
+              const SizedBox(height: 12),
+
+              // Layout mode toggle
+              Text(
+                'LAYOUT',
+                style: KinrelTypography.overline.copyWith(
+                  color: KinrelColors.textDim,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  _LayoutChip(
+                    label: 'Constellation',
+                    isSelected: layoutMode == Tree3DLayoutMode.constellation,
+                    onTap: () =>
+                        onLayoutModeChanged(Tree3DLayoutMode.constellation),
+                  ),
+                  const SizedBox(width: 4),
+                  _LayoutChip(
+                    label: 'Galaxy',
+                    isSelected: layoutMode == Tree3DLayoutMode.galaxy,
+                    onTap: () => onLayoutModeChanged(Tree3DLayoutMode.galaxy),
+                  ),
+                  const SizedBox(width: 4),
+                  _LayoutChip(
+                    label: 'Solar',
+                    isSelected: layoutMode == Tree3DLayoutMode.solar,
+                    onTap: () => onLayoutModeChanged(Tree3DLayoutMode.solar),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Reset button
+              SizedBox(
+                width: double.infinity,
+                child: DKButton(
+                  label: 'Reset View',
+                  variant: DKButtonVariant.secondary,
+                  size: DKButtonSize.sm,
+                  icon: Icons.refresh_rounded,
+                  onPressed: onReset,
+                ),
+              ),
+            ],
+          ),
+        )
+        .maybeAnimate()
         .fadeIn(duration: 300.ms)
         .slideX(begin: 0.1, end: 0, duration: 300.ms);
   }
@@ -1461,7 +2453,9 @@ class _SliderRow extends StatelessWidget {
           width: 42,
           child: Text(
             label,
-            style: KinrelTypography.labelSmall.copyWith(color: KinrelColors.textSilver),
+            style: KinrelTypography.labelSmall.copyWith(
+              color: KinrelColors.textSilver,
+            ),
           ),
         ),
         Expanded(
@@ -1509,10 +2503,14 @@ class _LayoutChip extends StatelessWidget {
         duration: KinrelMotion.fast,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: isSelected ? KinrelColors.orange.withValues(alpha: 0.2) : Colors.transparent,
+          color: isSelected
+              ? KinrelColors.orange.withValues(alpha: 0.2)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(KinrelRadius.full),
           border: Border.all(
-            color: isSelected ? KinrelColors.orange : KinrelColors.orange.withValues(alpha: 0.3),
+            color: isSelected
+                ? KinrelColors.orange
+                : KinrelColors.orange.withValues(alpha: 0.3),
             width: 1,
           ),
         ),
@@ -1595,7 +2593,11 @@ class _BackButton extends StatelessWidget {
             ),
           ],
         ),
-        child: Icon(Icons.arrow_back_rounded, color: KinrelColors.textWhite, size: 20),
+        child: Icon(
+          Icons.arrow_back_rounded,
+          color: KinrelColors.textWhite,
+          size: 20,
+        ),
       ),
     );
   }
@@ -1622,12 +2624,18 @@ class _TitleBar extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.auto_awesome_rounded, color: KinrelColors.orange, size: 16),
+          Icon(
+            Icons.auto_awesome_rounded,
+            color: KinrelColors.orange,
+            size: 16,
+          ),
           const SizedBox(width: 6),
           Flexible(
             child: Text(
               familyName,
-              style: KinrelTypography.labelMedium.copyWith(color: KinrelColors.textWhite),
+              style: KinrelTypography.labelMedium.copyWith(
+                color: KinrelColors.textWhite,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -1638,7 +2646,7 @@ class _TitleBar extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// NODE DETAIL POPUP
+// NODE DETAIL POPUP (ENHANCED)
 // ═══════════════════════════════════════════════════════════════════════
 
 class _NodeDetailPopup extends ConsumerStatefulWidget {
@@ -1651,6 +2659,9 @@ class _NodeDetailPopup extends ConsumerStatefulWidget {
     required this.onNodeTap,
     required this.members,
     required this.relationships,
+    required this.nodeGenerations,
+    required this.nodes,
+    required this.edges,
   });
 
   final Person person;
@@ -1661,231 +2672,451 @@ class _NodeDetailPopup extends ConsumerStatefulWidget {
   final ValueChanged<Person> onNodeTap;
   final List<Person> members;
   final List<FamilyRelationship> relationships;
+  final Map<String, int> nodeGenerations;
+  final Map<String, VisTreeNode> nodes;
+  final List<VisEdge> edges;
 
   @override
   ConsumerState<_NodeDetailPopup> createState() => _NodeDetailPopupState();
 }
 
 class _NodeDetailPopupState extends ConsumerState<_NodeDetailPopup> {
+  /// Count spouse connections
+  int get _spouseCount {
+    int count = 0;
+    for (final rel in widget.relationships) {
+      if ((rel.fromPersonId == widget.person.id ||
+              rel.toPersonId == widget.person.id) &&
+          rel.relationshipKey.toLowerCase().contains('spouse')) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /// Count children
+  int get _childrenCount {
+    int count = 0;
+    for (final edge in widget.edges) {
+      if (edge.fromId == widget.person.id &&
+          edge.type == EdgeType.parentChild) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /// Count sibling connections
+  int get _siblingCount {
+    int count = 0;
+    for (final edge in widget.edges) {
+      if ((edge.fromId == widget.person.id || edge.toId == widget.person.id) &&
+          edge.type == EdgeType.sibling) {
+        count++;
+      }
+    }
+    return count;
+  }
+
   @override
   Widget build(BuildContext context) {
     final language = widget.primaryLanguage ?? 'en';
 
     // Try to get kinship term
     final kinshipTermAsync = widget.relationshipKey != null
-        ? ref.watch(kinshipTermProvider((key: widget.relationshipKey!, language: language)))
+        ? ref.watch(
+            kinshipTermProvider((
+              key: widget.relationshipKey!,
+              language: language,
+            )),
+          )
         : null;
 
     final kinshipNative = kinshipTermAsync?.valueOrNull?.native ?? '';
     final kinshipLatin = kinshipTermAsync?.valueOrNull?.latin ?? '';
 
+    final generation = widget.nodeGenerations[widget.person.id] ?? 0;
+
     return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 0,
-      child: GestureDetector(
-        onVerticalDragUpdate: (details) {
-          if (details.delta.dy > 20) {
-            widget.onDismiss();
-          }
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                KinrelColors.darkCard.withValues(alpha: 0.95),
-                KinrelColors.darkElevated,
-              ],
-            ),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(KinrelRadius.xxl)),
-            border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.2)),
-            boxShadow: [
-              BoxShadow(
-                color: KinrelColors.orangeGlow,
-                blurRadius: 20,
-                offset: const Offset(0, -4),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Drag handle
-              Container(
-                margin: const EdgeInsets.only(top: 8),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: KinrelColors.textDim.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(2),
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: GestureDetector(
+            onVerticalDragUpdate: (details) {
+              if (details.delta.dy > 20) {
+                widget.onDismiss();
+              }
+            },
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    KinrelColors.darkCard.withValues(alpha: 0.95),
+                    KinrelColors.darkElevated,
+                  ],
                 ),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(KinrelRadius.xxl),
+                ),
+                border: Border.all(
+                  color: KinrelColors.orange.withValues(alpha: 0.2),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: KinrelColors.orangeGlow,
+                    blurRadius: 20,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
               ),
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header row
-                    Row(
-                      children: [
-                        DKAvatar(
-                          initials: widget.person.name.isNotEmpty ? widget.person.name[0].toUpperCase() : '?',
-                          size: DKAvatarSize.lg,
-                          showGlow: true,
-                          borderColor: KinrelColors.orange,
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.person.name,
-                                style: KinrelTypography.headlineMedium.copyWith(color: KinrelColors.textWhite),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 4),
-                              if (widget.relationshipKey != null)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: KinrelColors.orange.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(KinrelRadius.full),
-                                    border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.3)),
-                                  ),
-                                  child: Text(
-                                    widget.relationshipKey!.replaceAll('_', ' '),
-                                    style: KinrelTypography.labelSmall.copyWith(color: KinrelColors.orange),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        // Close button
-                        GestureDetector(
-                          onTap: widget.onDismiss,
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: KinrelColors.darkElevated,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.2)),
-                            ),
-                            child: Icon(Icons.close_rounded, color: KinrelColors.textSilver, size: 16),
-                          ),
-                        ),
-                      ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Drag handle
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: KinrelColors.textDim.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                    const SizedBox(height: 16),
-
-                    // Stats row
-                    Row(
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        DKStatChip(
-                          icon: Icons.people_rounded,
-                          value: '${widget.person.generationIndex}',
-                          label: 'Generation',
-                          color: KinrelColors.amber,
-                        ),
-                        const SizedBox(width: 8),
-                        if (widget.person.gender != null)
-                          DKStatChip(
-                            icon: widget.person.gender == 'male' ? Icons.male_rounded : Icons.female_rounded,
-                            value: widget.person.gender!.capitalize(),
-                            label: 'Gender',
-                            color: KinrelColors.orange,
-                          ),
-                        if (widget.person.city != null) ...[
-                          const SizedBox(width: 8),
-                          DKStatChip(
-                            icon: Icons.location_on_rounded,
-                            value: widget.person.city!,
-                            label: 'City',
-                            color: KinrelColors.gold,
-                          ),
-                        ],
-                      ],
-                    ),
-
-                    // Kinship term in primary language
-                    if (kinshipNative.isNotEmpty || kinshipLatin.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          gradient: KinrelGradients.igniteGradient,
-                          borderRadius: BorderRadius.circular(KinrelRadius.md),
-                        ),
-                        child: Row(
+                        // Header row
+                        Row(
                           children: [
-                            Icon(Icons.translate_rounded, color: Colors.white, size: 18),
-                            const SizedBox(width: 8),
+                            DKAvatar(
+                              initials: widget.person.name.isNotEmpty
+                                  ? widget.person.name[0].toUpperCase()
+                                  : '?',
+                              size: DKAvatarSize.lg,
+                              showGlow: true,
+                              borderColor: KinrelColors.orange,
+                            ),
+                            const SizedBox(width: 16),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  if (kinshipNative.isNotEmpty)
-                                    Text(
-                                      kinshipNative,
-                                      style: KinrelTypography.headlineSmall.copyWith(color: Colors.white),
-                                    ),
-                                  if (kinshipLatin.isNotEmpty && kinshipLatin != kinshipNative)
-                                    Text(
-                                      kinshipLatin,
-                                      style: KinrelTypography.bodySmall.copyWith(color: Colors.white70),
-                                    ),
+                                  Text(
+                                    widget.person.name,
+                                    style: KinrelTypography.headlineMedium
+                                        .copyWith(
+                                          color: KinrelColors.textWhite,
+                                        ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  // Kinship term badge + generation badge
+                                  Row(
+                                    children: [
+                                      if (widget.relationshipKey != null)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: KinrelColors.orange
+                                                .withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(
+                                              KinrelRadius.full,
+                                            ),
+                                            border: Border.all(
+                                              color: KinrelColors.orange
+                                                  .withValues(alpha: 0.3),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            widget.relationshipKey!.replaceAll(
+                                              '_',
+                                              ' ',
+                                            ),
+                                            style: KinrelTypography.labelSmall
+                                                .copyWith(
+                                                  color: KinrelColors.orange,
+                                                ),
+                                          ),
+                                        ),
+                                      const SizedBox(width: 6),
+                                      if (generation > 0)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: KinrelColors.amber
+                                                .withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(
+                                              KinrelRadius.full,
+                                            ),
+                                            border: Border.all(
+                                              color: KinrelColors.amber
+                                                  .withValues(alpha: 0.25),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'Gen $generation',
+                                            style: KinrelTypography.labelSmall
+                                                .copyWith(
+                                                  color: KinrelColors.amber,
+                                                  fontSize: 10,
+                                                ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
                                 ],
+                              ),
+                            ),
+                            // Close button
+                            GestureDetector(
+                              onTap: widget.onDismiss,
+                              child: Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: KinrelColors.darkElevated,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: KinrelColors.orange.withValues(
+                                      alpha: 0.2,
+                                    ),
+                                  ),
+                                ),
+                                child: Icon(
+                                  Icons.close_rounded,
+                                  color: KinrelColors.textSilver,
+                                  size: 16,
+                                ),
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 12),
 
-                    const SizedBox(height: 20),
-
-                    // Action buttons
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DKButton(
-                            label: 'View Profile',
-                            variant: DKButtonVariant.gradient,
-                            size: DKButtonSize.md,
-                            icon: Icons.person_rounded,
-                            onPressed: () {
-                              // TODO: Navigate to profile
-                            },
-                          ),
+                        // Relationship counts row
+                        Row(
+                          children: [
+                            _RelationshipCountChip(
+                              icon: Icons.favorite_rounded,
+                              count: _spouseCount,
+                              label: 'Spouse',
+                              color: const Color(0xFFE8612A),
+                            ),
+                            const SizedBox(width: 8),
+                            _RelationshipCountChip(
+                              icon: Icons.child_care_rounded,
+                              count: _childrenCount,
+                              label: 'Children',
+                              color: KinrelColors.amber,
+                            ),
+                            const SizedBox(width: 8),
+                            _RelationshipCountChip(
+                              icon: Icons.people_outline_rounded,
+                              count: _siblingCount,
+                              label: 'Siblings',
+                              color: KinrelColors.gold,
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: DKButton(
-                            label: 'Find Path',
-                            variant: DKButtonVariant.secondary,
-                            size: DKButtonSize.md,
-                            icon: Icons.route_rounded,
-                            onPressed: () {
-                              // TODO: Navigate to path finder
-                            },
+                        const SizedBox(height: 12),
+
+                        // Stats row
+                        Row(
+                          children: [
+                            DKStatChip(
+                              icon: Icons.people_rounded,
+                              value: '${widget.person.generationIndex}',
+                              label: 'Generation',
+                              color: KinrelColors.amber,
+                            ),
+                            const SizedBox(width: 8),
+                            if (widget.person.gender != null)
+                              DKStatChip(
+                                icon: widget.person.gender == 'male'
+                                    ? Icons.male_rounded
+                                    : Icons.female_rounded,
+                                value: widget.person.gender!.capitalize(),
+                                label: 'Gender',
+                                color: KinrelColors.orange,
+                              ),
+                            if (widget.person.city != null) ...[
+                              const SizedBox(width: 8),
+                              DKStatChip(
+                                icon: Icons.location_on_rounded,
+                                value: widget.person.city!,
+                                label: 'City',
+                                color: KinrelColors.gold,
+                              ),
+                            ],
+                          ],
+                        ),
+
+                        // Kinship term in primary language
+                        if (kinshipNative.isNotEmpty ||
+                            kinshipLatin.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              gradient: KinrelGradients.igniteGradient,
+                              borderRadius: BorderRadius.circular(
+                                KinrelRadius.md,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.translate_rounded,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (kinshipNative.isNotEmpty)
+                                        Text(
+                                          kinshipNative,
+                                          style: KinrelTypography.headlineSmall
+                                              .copyWith(color: Colors.white),
+                                        ),
+                                      if (kinshipLatin.isNotEmpty &&
+                                          kinshipLatin != kinshipNative)
+                                        Text(
+                                          kinshipLatin,
+                                          style: KinrelTypography.bodySmall
+                                              .copyWith(color: Colors.white70),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                        ],
+
+                        const SizedBox(height: 20),
+
+                        // Action buttons (3 buttons: View Profile, Find Path, Add Relationship)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DKButton(
+                                label: 'View Profile',
+                                variant: DKButtonVariant.gradient,
+                                size: DKButtonSize.md,
+                                icon: Icons.person_rounded,
+                                onPressed: () {
+                                  // TODO: Navigate to profile
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: DKButton(
+                                label: 'Find Path',
+                                variant: DKButtonVariant.secondary,
+                                size: DKButtonSize.md,
+                                icon: Icons.route_rounded,
+                                onPressed: () {
+                                  // TODO: Navigate to path finder
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: DKButton(
+                                label: 'Add Rel',
+                                variant: DKButtonVariant.secondary,
+                                size: DKButtonSize.md,
+                                icon: Icons.add_circle_outline_rounded,
+                                onPressed: () {
+                                  // TODO: Navigate to add relationship
+                                },
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
-    )
-        .animate()
+        )
+        .maybeAnimate()
         .fadeIn(duration: 300.ms)
-        .slideY(begin: 0.3, end: 0, duration: 300.ms, curve: Curves.easeOutCubic);
+        .slideY(
+          begin: 0.3,
+          end: 0,
+          duration: 300.ms,
+          curve: Curves.easeOutCubic,
+        );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// RELATIONSHIP COUNT CHIP
+// ═══════════════════════════════════════════════════════════════════════
+
+class _RelationshipCountChip extends StatelessWidget {
+  const _RelationshipCountChip({
+    required this.icon,
+    required this.count,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final int count;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(KinrelRadius.sm),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 14),
+          const SizedBox(width: 4),
+          Text(
+            '$count',
+            style: KinrelTypography.labelSmall.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 2),
+          Text(
+            label,
+            style: KinrelTypography.labelSmall.copyWith(
+              color: color.withValues(alpha: 0.7),
+              fontSize: 9,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

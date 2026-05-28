@@ -107,8 +107,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   void _onScroll() {
-    final show = _scrollController.hasClients &&
-        _scrollController.position.pixels > 300;
+    final show =
+        _scrollController.hasClients && _scrollController.position.pixels > 300;
     if (show != _showScrollFab) {
       setState(() => _showScrollFab = show);
     }
@@ -136,10 +136,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (text.isEmpty) return;
 
     final chatState = ref.read(chatProvider(widget.familyId));
-    ref.read(chatProvider(widget.familyId).notifier).sendMessage(
-          text,
-          replyToId: chatState.replyToMessage?.id,
-        );
+    ref
+        .read(chatProvider(widget.familyId).notifier)
+        .sendMessage(text, replyToId: chatState.replyToMessage?.id);
 
     _textController.clear();
     _focusNode.requestFocus();
@@ -214,10 +213,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         decoration: BoxDecoration(
           color: const Color(0xFF13141E),
           border: Border(
-            bottom: BorderSide(
-              color: const Color(0xFF2A2A3D),
-              width: 0.5,
-            ),
+            bottom: BorderSide(color: const Color(0xFF2A2A3D), width: 0.5),
           ),
         ),
         child: AppBar(
@@ -225,8 +221,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           elevation: 0,
           centerTitle: false,
           leading: IconButton(
-            icon: Icon(Icons.arrow_back_ios_new, size: 20,
-                color: KinrelColors.textWhite),
+            icon: Icon(
+              Icons.arrow_back_ios_new,
+              size: 20,
+              color: KinrelColors.textWhite,
+            ),
             onPressed: () => Navigator.of(context).pop(),
           ),
           title: Row(
@@ -241,7 +240,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
                 child: Center(
                   child: Text(
-                    widget.familyName.substring(0, 1).toUpperCase(),
+                    (widget.familyName.isNotEmpty ? widget.familyName.substring(0, 1) : 'F').toUpperCase(),
                     style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 16,
@@ -300,8 +299,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           actions: [
             // Video call placeholder
             IconButton(
-              icon: Icon(Icons.videocam_outlined,
-                  size: 24, color: KinrelColors.textSilver),
+              icon: Icon(
+                Icons.videocam_outlined,
+                size: 24,
+                color: KinrelColors.textSilver,
+              ),
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -314,8 +316,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
             // Voice call placeholder
             IconButton(
-              icon: Icon(Icons.call_outlined,
-                  size: 22, color: KinrelColors.textSilver),
+              icon: Icon(
+                Icons.call_outlined,
+                size: 22,
+                color: KinrelColors.textSilver,
+              ),
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -412,10 +417,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: KinrelColors.darkCard,
-            border: Border.all(
-              color: const Color(0xFF3A3A4A),
-              width: 1,
-            ),
+            border: Border.all(color: const Color(0xFF3A3A4A), width: 1),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.3),
@@ -451,7 +453,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
             child: Center(
               child: Text(
-                chatState.typingUserName?.substring(0, 1).toUpperCase() ?? '?',
+                ((chatState.typingUserName != null && chatState.typingUserName!.isNotEmpty) ? chatState.typingUserName!.substring(0, 1) : '?').toUpperCase(),
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 9,
@@ -558,9 +560,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           IconButton(
             icon: Icon(Icons.close, size: 18, color: KinrelColors.textDim),
             onPressed: () {
-              ref
-                  .read(chatProvider(widget.familyId).notifier)
-                  .clearReplyTo();
+              ref.read(chatProvider(widget.familyId).notifier).clearReplyTo();
             },
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -647,10 +647,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
             const SizedBox(width: 6),
             // Send button
-            _SendButton(
-              isActive: _isComposing,
-              onTap: _sendMessage,
-            ),
+            _SendButton(isActive: _isComposing, onTap: _sendMessage),
           ],
         ),
       ),
@@ -702,9 +699,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               : Colors.transparent,
                           border: hasReacted
                               ? Border.all(
-                                  color: KinrelColors.orange
-                                      .withValues(alpha: 0.4),
-                                  width: 1.5)
+                                  color: KinrelColors.orange.withValues(
+                                    alpha: 0.4,
+                                  ),
+                                  width: 1.5,
+                                )
                               : null,
                         ),
                         child: Center(
@@ -717,15 +716,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ),
               const SizedBox(height: 8),
               Divider(
-                  color: const Color(0xFF3A3A4A), height: 1, thickness: 0.5),
+                color: const Color(0xFF3A3A4A),
+                height: 1,
+                thickness: 0.5,
+              ),
               // Reply action
               ListTile(
-                leading: Icon(Icons.reply, color: KinrelColors.orange, size: 22),
-                title: Text('Reply',
-                    style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 15,
-                        color: KinrelColors.textWhite)),
+                leading: Icon(
+                  Icons.reply,
+                  color: KinrelColors.orange,
+                  size: 22,
+                ),
+                title: Text(
+                  'Reply',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 15,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   ref
@@ -735,13 +744,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ),
               // Copy action
               ListTile(
-                leading: Icon(Icons.copy_rounded,
-                    color: KinrelColors.textSilver, size: 22),
-                title: Text('Copy',
-                    style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 15,
-                        color: KinrelColors.textWhite)),
+                leading: Icon(
+                  Icons.copy_rounded,
+                  color: KinrelColors.textSilver,
+                  size: 22,
+                ),
+                title: Text(
+                  'Copy',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 15,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   // Copy to clipboard placeholder
@@ -756,13 +771,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ),
               // Forward action
               ListTile(
-                leading: Icon(Icons.forward,
-                    color: KinrelColors.textSilver, size: 22),
-                title: Text('Forward',
-                    style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 15,
-                        color: KinrelColors.textWhite)),
+                leading: Icon(
+                  Icons.forward,
+                  color: KinrelColors.textSilver,
+                  size: 22,
+                ),
+                title: Text(
+                  'Forward',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 15,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -777,13 +798,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               // Delete (only for own messages)
               if (isMe)
                 ListTile(
-                  leading:
-                      Icon(Icons.delete_outline, color: KinrelColors.error, size: 22),
-                  title: Text('Delete',
-                      style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 15,
-                          color: KinrelColors.error)),
+                  leading: Icon(
+                    Icons.delete_outline,
+                    color: KinrelColors.error,
+                    size: 22,
+                  ),
+                  title: Text(
+                    'Delete',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 15,
+                      color: KinrelColors.error,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     // Delete placeholder
@@ -806,7 +833,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
     for (final msg in messages) {
       final msgDate = DateTime(
-          msg.timestamp.year, msg.timestamp.month, msg.timestamp.day);
+        msg.timestamp.year,
+        msg.timestamp.month,
+        msg.timestamp.day,
+      );
 
       String label;
       if (msgDate == today) {
@@ -827,9 +857,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           'September',
           'October',
           'November',
-          'December'
+          'December',
         ];
-        label = '${months[msg.timestamp.month]} ${msg.timestamp.day}, ${msg.timestamp.year}';
+        label =
+            '${months[msg.timestamp.month]} ${msg.timestamp.day}, ${msg.timestamp.year}';
       }
 
       final existing = groups.where((g) => g.dateLabel == label).firstOrNull;
@@ -873,13 +904,11 @@ class _MessageBubble extends StatelessWidget {
           constraints: BoxConstraints(
             maxWidth: MediaQuery.of(context).size.width * 0.78,
           ),
-          margin: EdgeInsets.only(
-            left: isMe ? 48 : 0,
-            right: isMe ? 0 : 48,
-          ),
+          margin: EdgeInsets.only(left: isMe ? 48 : 0, right: isMe ? 0 : 48),
           child: Column(
-            crossAxisAlignment:
-                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            crossAxisAlignment: isMe
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
             children: [
               // Reply preview (if replying to a message)
               if (message.replyToId != null) _buildReplyPreview(),
@@ -904,10 +933,7 @@ class _MessageBubble extends StatelessWidget {
                           color: KinrelColors.orange.withValues(alpha: 0.12),
                           width: 0.5,
                         )
-                      : Border.all(
-                          color: const Color(0xFF2A2A3D),
-                          width: 0.5,
-                        ),
+                      : Border.all(color: const Color(0xFF2A2A3D), width: 0.5),
                 ),
                 child: Column(
                   crossAxisAlignment: isMe
@@ -1030,9 +1056,11 @@ class _MessageBubble extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.image_outlined,
-                      size: 36,
-                      color: KinrelColors.textSilver.withValues(alpha: 0.5)),
+                  Icon(
+                    Icons.image_outlined,
+                    size: 36,
+                    color: KinrelColors.textSilver.withValues(alpha: 0.5),
+                  ),
                   const SizedBox(height: 6),
                   Text(
                     'Photo',
@@ -1094,8 +1122,9 @@ class _MessageBubble extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: isMe
                                 ? KinrelColors.orange.withValues(alpha: 0.5)
-                                : KinrelColors.textSilver
-                                    .withValues(alpha: 0.3),
+                                : KinrelColors.textSilver.withValues(
+                                    alpha: 0.3,
+                                  ),
                             borderRadius: BorderRadius.circular(1),
                           ),
                         ),
@@ -1141,8 +1170,11 @@ class _MessageBubble extends StatelessWidget {
                       shape: BoxShape.circle,
                       gradient: KinrelGradients.igniteGradient,
                     ),
-                    child: Icon(Icons.celebration,
-                        size: 14, color: Colors.white),
+                    child: Icon(
+                      Icons.celebration,
+                      size: 14,
+                      color: Colors.white,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -1176,8 +1208,11 @@ class _MessageBubble extends StatelessWidget {
               if (message.eventDate != null)
                 Row(
                   children: [
-                    Icon(Icons.calendar_today_outlined,
-                        size: 12, color: KinrelColors.orange),
+                    Icon(
+                      Icons.calendar_today_outlined,
+                      size: 12,
+                      color: KinrelColors.orange,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       message.eventDate!,
@@ -1212,7 +1247,9 @@ class _MessageBubble extends StatelessWidget {
       padding: const EdgeInsets.only(top: 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMe
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         children: [
           Text(
             message.formattedTime,
@@ -1302,9 +1339,7 @@ class _ReadReceipt extends StatelessWidget {
     return SizedBox(
       width: 16,
       height: 10,
-      child: CustomPaint(
-        painter: _DoubleTickPainter(color: color),
-      ),
+      child: CustomPaint(painter: _DoubleTickPainter(color: color)),
     );
   }
 }
@@ -1347,10 +1382,7 @@ class _DoubleTickPainter extends CustomPainter {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _SendButton extends StatelessWidget {
-  const _SendButton({
-    required this.isActive,
-    required this.onTap,
-  });
+  const _SendButton({required this.isActive, required this.onTap});
 
   final bool isActive;
   final VoidCallback onTap;
@@ -1368,10 +1400,7 @@ class _SendButton extends StatelessWidget {
           gradient: isActive
               ? KinrelGradients.igniteGradient
               : LinearGradient(
-                  colors: [
-                    const Color(0xFF202338),
-                    const Color(0xFF202338),
-                  ],
+                  colors: [const Color(0xFF202338), const Color(0xFF202338)],
                 ),
           boxShadow: isActive
               ? [
@@ -1386,9 +1415,7 @@ class _SendButton extends StatelessWidget {
         child: Icon(
           Icons.send_rounded,
           size: 20,
-          color: isActive
-              ? Colors.white
-              : KinrelColors.textDim,
+          color: isActive ? Colors.white : KinrelColors.textDim,
         ),
       ),
     );
@@ -1458,8 +1485,10 @@ class _ReactionOverlay extends StatelessWidget {
               child: Material(
                 color: Colors.transparent,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF202338),
                     borderRadius: BorderRadius.circular(KinrelRadius.xxl),
@@ -1484,14 +1513,9 @@ class _ReactionOverlay extends StatelessWidget {
                           width: 42,
                           height: 42,
                           margin: const EdgeInsets.symmetric(horizontal: 2),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                          ),
+                          decoration: BoxDecoration(shape: BoxShape.circle),
                           child: Center(
-                            child: Text(
-                              emoji,
-                              style: TextStyle(fontSize: 24),
-                            ),
+                            child: Text(emoji, style: TextStyle(fontSize: 24)),
                           ),
                         ),
                       );

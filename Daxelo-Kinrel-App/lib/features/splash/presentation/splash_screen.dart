@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/database/isar_database.dart';
+import '../../../core/database/collections/cached_profile.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/storage/secure_storage.dart';
@@ -21,8 +23,9 @@ import '../../../core/storage/secure_storage.dart';
 //   Phase 5  1200–1500 ms "KINREL" fades up (gradient) + "BY DAXELO"
 //   Phase 6  1500–1800 ms Hold → fade out → navigate
 //
-// If the app needs more init time, a subtle breathing animation
-// (scale 1.0→1.02→1.0, 2 s loop) keeps the K-graph alive.
+// FAST STARTUP: Reads Isar cache instantly to determine if user
+// has a cached profile. If so, navigates to /home immediately
+// after the animation without waiting for full Supabase auth.
 // ─────────────────────────────────────────────────────────────────────
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -36,10 +39,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     with TickerProviderStateMixin {
   bool _navigated = false;
   bool _initComplete = false;
+  bool _hasCachedProfile = false;
 
   // ── Animation Controllers ────────────────────────────────────────
   late final AnimationController _introController; // 1 500 ms – main sequence
-  late final AnimationController _breathingController; // 1 000 ms × 2 = 2 s cycle
+  late final AnimationController
+  _breathingController; // 1 000 ms × 2 = 2 s cycle
   late final AnimationController _fadeOutController; // 400 ms – screen exit
 
   // ── Phase Animations (derived from _introController) ─────────────
@@ -115,14 +120,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   // Initialization — runs in parallel with animation
   // ─────────────────────────────────────────────────────────────────
   Future<void> _initialize() async {
+    // FAST STARTUP: Check Isar cache INSTANTLY for cached profile.
+    // If we have one, the user is likely authenticated — we can
+    // navigate to home immediately without waiting for Supabase.
+    _checkIsarCache();
+
     // Preload kinship data in the background (5 300+ terms, ~15 MB JSON)
     unawaited(ref.read(kinshipInitializedProvider.future).catchError((_) {}));
 
     // Start Supabase session restoration early (overlaps with animation)
     final authFuture = _restoreSession();
 
-    // Ensure the intro animation + hold period completes (1 500 + 300 ms)
-    await Future.delayed(const Duration(milliseconds: 1800));
+    // Shorter hold if we have cached data — user sees app faster
+    final holdMs = _hasCachedProfile ? 1200 : 1800;
+    await Future.delayed(Duration(milliseconds: holdMs));
 
     if (!mounted) return;
 
@@ -149,7 +160,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _navigated = true;
 
-    if (isAuthenticated) {
+    // If user is authenticated OR has cached profile, go to home.
+    // The home screen will show cached data instantly while
+    // refreshing in the background.
+    if (isAuthenticated || _hasCachedProfile) {
       final lastRoute = await getLastRoute();
       if (!mounted || _navigated) return;
       if (lastRoute != null && lastRoute != '/splash' && mounted) {
@@ -157,10 +171,31 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         return;
       }
       context.go('/home');
-    } else if (onboardingComplete) {
-      context.go('/sign-in');
     } else {
-      context.go('/onboarding');
+      // Always go to sign-in for unauthenticated users
+      if (!onboardingComplete) {
+        await SecureStorageService().setOnboardingComplete(true);
+      }
+      if (!mounted || _navigated) return;
+      context.go('/sign-in');
+    }
+  }
+
+  /// Check Isar cache for a cached user profile.
+  /// If found, set _hasCachedProfile = true so we can navigate faster.
+  void _checkIsarCache() {
+    if (!IsarDatabase.isInitialized) return;
+    try {
+      final isar = IsarDatabase.instance;
+      final cachedProfile = isar.cachedProfiles.where().findFirstSync();
+      if (cachedProfile != null) {
+        _hasCachedProfile = true;
+        debugPrint('⚡ Isar cache hit — cached profile found, fast navigation enabled');
+      } else {
+        debugPrint('📦 No cached profile in Isar — will wait for auth');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Isar cache check failed: $e');
     }
   }
 
@@ -173,8 +208,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           final session = client.auth.currentSession;
           if (session == null) {
             try {
-              await client.auth.onAuthStateChange.first
-                  .timeout(const Duration(seconds: 8));
+              await client.auth.onAuthStateChange.first.timeout(
+                const Duration(seconds: 8),
+              );
             } catch (_) {
               // Timeout — no session, will redirect to sign-in
             }
@@ -345,11 +381,35 @@ class _KGraphSplashPainter extends CustomPainter {
   // Positions as fractions of half-width (s). Centre of canvas = (0, 0).
   static const _nodes = <_SplashNode>[
     _SplashNode(0.00, -0.42, 0.048, KinrelColors.brightViolet, 'Parent'), // Top
-    _SplashNode(0.00, 0.42, 0.048, KinrelColors.brightViolet, 'Child'), // Bottom
+    _SplashNode(
+      0.00,
+      0.42,
+      0.048,
+      KinrelColors.brightViolet,
+      'Child',
+    ), // Bottom
     _SplashNode(-0.42, 0.00, 0.048, KinrelColors.deepPurple, 'Spouse'), // Left
-    _SplashNode(0.40, -0.24, 0.044, KinrelColors.brightViolet, 'Uncle'), // UpperRight
-    _SplashNode(0.40, 0.24, 0.044, KinrelColors.deepPurple, 'Aunt'), // LowerRight
-    _SplashNode(0.68, -0.24, 0.044, KinrelColors.brightViolet, 'Cousin'), // FarRight
+    _SplashNode(
+      0.40,
+      -0.24,
+      0.044,
+      KinrelColors.brightViolet,
+      'Uncle',
+    ), // UpperRight
+    _SplashNode(
+      0.40,
+      0.24,
+      0.044,
+      KinrelColors.deepPurple,
+      'Aunt',
+    ), // LowerRight
+    _SplashNode(
+      0.68,
+      -0.24,
+      0.044,
+      KinrelColors.brightViolet,
+      'Cousin',
+    ), // FarRight
   ];
 
   // ── Edge definitions (from-index, to-index into _nodes) ──────────
@@ -396,21 +456,27 @@ class _KGraphSplashPainter extends CustomPainter {
   void _drawGlowCore(Canvas canvas, Size size, double cx, double cy) {
     final alpha = (0.28 * glowProgress).clamp(0.0, 1.0);
     final glowPaint = Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(-0.4, -0.4), // 30 % 30 %
-        radius: 0.7,
-        colors: [
-          Color.fromRGBO(232, 97, 42, alpha),
-          KinrelColors.darkSurface,
-        ],
-      ).createShader(Rect.fromCenter(
-        center: Offset(cx, cy),
-        width: size.width * 1.2,
-        height: size.height * 1.2,
-      ));
+      ..shader =
+          RadialGradient(
+            center: const Alignment(-0.4, -0.4), // 30 % 30 %
+            radius: 0.7,
+            colors: [
+              Color.fromRGBO(232, 97, 42, alpha),
+              KinrelColors.darkSurface,
+            ],
+          ).createShader(
+            Rect.fromCenter(
+              center: Offset(cx, cy),
+              width: size.width * 1.2,
+              height: size.height * 1.2,
+            ),
+          );
     canvas.drawRect(
       Rect.fromCenter(
-          center: Offset(cx, cy), width: size.width, height: size.height),
+        center: Offset(cx, cy),
+        width: size.width,
+        height: size.height,
+      ),
       glowPaint,
     );
   }
@@ -452,8 +518,7 @@ class _KGraphSplashPainter extends CustomPainter {
           KinrelColors.brightViolet, // #F59240 amber highlight
           KinrelColors.purple, // #E8612A orange
         ],
-      ).createShader(
-          Rect.fromCircle(center: center, radius: radius));
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
     canvas.drawCircle(center, radius, nodePaint);
 
     // Specular highlight
@@ -473,7 +538,10 @@ class _KGraphSplashPainter extends CustomPainter {
     if (t < 0.15) return 0.0;
     if (t < 0.40) return math.sin(math.pi * (t - 0.15) / 0.25); // first beat
     if (t < 0.50) return 0.0;
-    if (t < 0.75) return 0.6 * math.sin(math.pi * (t - 0.50) / 0.25); // second beat (softer)
+    if (t < 0.75) {
+      return 0.6 *
+          math.sin(math.pi * (t - 0.50) / 0.25); // second beat (softer)
+    }
     return 0.0;
   }
 
@@ -506,8 +574,8 @@ class _KGraphSplashPainter extends CustomPainter {
           break;
       }
 
-      final progress =
-          ((edgesProgress - tierStart) / (tierEnd - tierStart)).clamp(0.0, 1.0);
+      final progress = ((edgesProgress - tierStart) / (tierEnd - tierStart))
+          .clamp(0.0, 1.0);
       if (progress <= 0) continue;
 
       // Resolve positions
@@ -523,10 +591,9 @@ class _KGraphSplashPainter extends CustomPainter {
 
       // Draw edge with progress
       final edgePaint = Paint()
-        ..color = (edge.from == -1
-                ? KinrelColors.purple
-                : KinrelColors.brightViolet)
-            .withValues(alpha: 0.65)
+        ..color =
+            (edge.from == -1 ? KinrelColors.purple : KinrelColors.brightViolet)
+                .withValues(alpha: 0.65)
         ..strokeWidth = 2.0
         ..strokeCap = StrokeCap.round
         ..style = PaintingStyle.stroke;
@@ -547,7 +614,12 @@ class _KGraphSplashPainter extends CustomPainter {
 
   /// Draw a single outer node with glow + specular highlight.
   void _drawNode(
-      Canvas canvas, Offset pos, double radius, Color color, double opacity) {
+    Canvas canvas,
+    Offset pos,
+    double radius,
+    Color color,
+    double opacity,
+  ) {
     if (radius <= 0 || opacity <= 0) return;
 
     // Glow halo

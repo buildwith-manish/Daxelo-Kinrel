@@ -10,6 +10,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/storage/secure_storage.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Onboarding Screen — Redesigned
@@ -32,7 +33,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   // Quick setup state
   final _nameController = TextEditingController();
   final _familyNameController = TextEditingController();
-  String _selectedLanguage = '';
   int _quickSetupStep = 0;
 
   static const int _onboardingPageCount = 4;
@@ -65,7 +65,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   }
 
   void _onQuickSetupNext() {
-    if (_quickSetupStep < 3) {
+    if (_quickSetupStep < 2) {
       setState(() => _quickSetupStep++);
     } else {
       _completeOnboarding();
@@ -187,18 +187,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           onNext: _onQuickSetupNext,
         );
       case 1:
-        return _QuickSetupLanguageStep(
-          selectedLanguage: _selectedLanguage,
-          onLanguageSelected: (lang) =>
-              setState(() => _selectedLanguage = lang),
-          onNext: _onQuickSetupNext,
-        );
-      case 2:
         return _QuickSetupFamilyStep(
           controller: _familyNameController,
           onNext: _onQuickSetupNext,
         );
-      case 3:
+      case 2:
         return _QuickSetupPrivacyStep(
           userName: _nameController.text.trim().isEmpty
               ? 'there'
@@ -248,10 +241,7 @@ class _OnboardingPageWrapper extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _IgniteButton extends StatefulWidget {
-  const _IgniteButton({
-    required this.label,
-    required this.onPressed,
-  });
+  const _IgniteButton({required this.label, required this.onPressed});
 
   final String label;
   final VoidCallback onPressed;
@@ -388,17 +378,17 @@ class _OnboardingPage1State extends State<_OnboardingPage1>
 
           // ── Headline ────────────────────────────────────────────
           const Text(
-            'Your Family, Your Story',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              color: KinrelColors.textWhite,
-              height: 1.2,
-            ),
-          )
-              .animate(target: widget.isActive ? 1 : 0)
+                'Your Family, Your Story',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                  height: 1.2,
+                ),
+              )
+              .maybeAnimate(target: widget.isActive ? 1 : 0)
               .fadeIn(duration: 500.ms, delay: 200.ms)
               .slideY(begin: 0.15, end: 0),
 
@@ -406,19 +396,18 @@ class _OnboardingPage1State extends State<_OnboardingPage1>
 
           // ── Body ────────────────────────────────────────────────
           const Text(
-            'Kinrel maps every relationship in your family — from your grandparents to your grandchildren, in the language you grew up with.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: Color(0xFFC9B4A8),
-              height: 1.55,
-            ),
-          ).animate(target: widget.isActive ? 1 : 0).fadeIn(
-                duration: 500.ms,
-                delay: 400.ms,
-              ),
+                'Kinrel maps every relationship in your family — from your grandparents to your grandchildren, in the language you grew up with.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: Color(0xFFC9B4A8),
+                  height: 1.55,
+                ),
+              )
+              .maybeAnimate(target: widget.isActive ? 1 : 0)
+              .fadeIn(duration: 500.ms, delay: 400.ms),
         ],
       ),
     );
@@ -638,17 +627,17 @@ class _OnboardingPage2State extends State<_OnboardingPage2>
 
           // ── Headline ────────────────────────────────────────────
           const Text(
-            'Names That Feel Like Home',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              color: KinrelColors.textWhite,
-              height: 1.2,
-            ),
-          )
-              .animate(target: widget.isActive ? 1 : 0)
+                'Names That Feel Like Home',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                  height: 1.2,
+                ),
+              )
+              .maybeAnimate(target: widget.isActive ? 1 : 0)
               .fadeIn(duration: 500.ms, delay: 200.ms)
               .slideY(begin: 0.15, end: 0),
 
@@ -656,19 +645,18 @@ class _OnboardingPage2State extends State<_OnboardingPage2>
 
           // ── Body ────────────────────────────────────────────────
           const Text(
-            "Not just 'uncle' and 'aunt' — Kinrel knows the difference between your Chacha, Mama, Fufa, and Tauji. In Hindi, Tamil, Bengali, Telugu, and 11+ more languages.",
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: Color(0xFFC9B4A8),
-              height: 1.55,
-            ),
-          ).animate(target: widget.isActive ? 1 : 0).fadeIn(
-                duration: 500.ms,
-                delay: 400.ms,
-              ),
+                "Not just 'uncle' and 'aunt' — Kinrel knows the difference between your Chacha, Mama, Fufa, and Tauji. In Hindi, Tamil, Bengali, Telugu, and 11+ more languages.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: Color(0xFFC9B4A8),
+                  height: 1.55,
+                ),
+              )
+              .maybeAnimate(target: widget.isActive ? 1 : 0)
+              .fadeIn(duration: 500.ms, delay: 400.ms),
         ],
       ),
     );
@@ -839,17 +827,17 @@ class _OnboardingPage3State extends State<_OnboardingPage3>
 
           // ── Headline ────────────────────────────────────────────
           const Text(
-            'See the Big Picture',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              color: KinrelColors.textWhite,
-              height: 1.2,
-            ),
-          )
-              .animate(target: widget.isActive ? 1 : 0)
+                'See the Big Picture',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                  height: 1.2,
+                ),
+              )
+              .maybeAnimate(target: widget.isActive ? 1 : 0)
               .fadeIn(duration: 500.ms, delay: 200.ms)
               .slideY(begin: 0.15, end: 0),
 
@@ -857,19 +845,18 @@ class _OnboardingPage3State extends State<_OnboardingPage3>
 
           // ── Body ────────────────────────────────────────────────
           const Text(
-            'Your entire family as a beautiful, interactive graph. Zoom in, explore connections, discover relationships you never knew existed.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: Color(0xFFC9B4A8),
-              height: 1.55,
-            ),
-          ).animate(target: widget.isActive ? 1 : 0).fadeIn(
-                duration: 500.ms,
-                delay: 400.ms,
-              ),
+                'Your entire family as a beautiful, interactive graph. Zoom in, explore connections, discover relationships you never knew existed.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: Color(0xFFC9B4A8),
+                  height: 1.55,
+                ),
+              )
+              .maybeAnimate(target: widget.isActive ? 1 : 0)
+              .fadeIn(duration: 500.ms, delay: 400.ms),
         ],
       ),
     );
@@ -1052,17 +1039,17 @@ class _OnboardingPage4State extends State<_OnboardingPage4>
 
           // ── Headline ────────────────────────────────────────────
           const Text(
-            'Find Any Relationship Instantly',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              color: KinrelColors.textWhite,
-              height: 1.2,
-            ),
-          )
-              .animate(target: widget.isActive ? 1 : 0)
+                'Find Any Relationship Instantly',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                  height: 1.2,
+                ),
+              )
+              .maybeAnimate(target: widget.isActive ? 1 : 0)
               .fadeIn(duration: 500.ms, delay: 200.ms)
               .slideY(begin: 0.15, end: 0),
 
@@ -1070,19 +1057,18 @@ class _OnboardingPage4State extends State<_OnboardingPage4>
 
           // ── Body ────────────────────────────────────────────────
           const Text(
-            "Select any two family members — Kinrel's AI calculates the exact relationship name in your language. Even 5th cousins twice removed.",
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: Color(0xFFC9B4A8),
-              height: 1.55,
-            ),
-          ).animate(target: widget.isActive ? 1 : 0).fadeIn(
-                duration: 500.ms,
-                delay: 400.ms,
-              ),
+                "Select any two family members — Kinrel's AI calculates the exact relationship name in your language. Even 5th cousins twice removed.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: Color(0xFFC9B4A8),
+                  height: 1.55,
+                ),
+              )
+              .maybeAnimate(target: widget.isActive ? 1 : 0)
+              .fadeIn(duration: 500.ms, delay: 400.ms),
         ],
       ),
     );
@@ -1122,8 +1108,7 @@ class _PathFinderPainter extends CustomPainter {
     // Measure path and draw up to drawProgress
     final pathMetrics = path.computeMetrics();
     for (final metric in pathMetrics) {
-      final extractedPath =
-          metric.extractPath(0, metric.length * drawProgress);
+      final extractedPath = metric.extractPath(0, metric.length * drawProgress);
       canvas.drawPath(_dashPath(extractedPath, 6, 4), pathPaint);
     }
 
@@ -1262,10 +1247,7 @@ class _PathFinderPainter extends CustomPainter {
       textAlign: TextAlign.center,
     )..layout();
 
-    tp.paint(
-      canvas,
-      Offset(center.dx - tp.width / 2, center.dy + 24),
-    );
+    tp.paint(canvas, Offset(center.dx - tp.width / 2, center.dy + 24));
   }
 
   /// Creates a dashed version of a path
@@ -1309,10 +1291,7 @@ class _PathFinderPainter extends CustomPainter {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _QuickSetupNameStep extends StatelessWidget {
-  const _QuickSetupNameStep({
-    required this.controller,
-    required this.onNext,
-  });
+  const _QuickSetupNameStep({required this.controller, required this.onNext});
 
   final TextEditingController controller;
   final VoidCallback onNext;
@@ -1324,7 +1303,7 @@ class _QuickSetupNameStep extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _StepIndicator(current: 1, total: 4),
+          _StepIndicator(current: 1, total: 3),
           const SizedBox(height: 32),
 
           const Text(
@@ -1377,149 +1356,20 @@ class _QuickSetupNameStep extends StatelessWidget {
           ),
           const SizedBox(height: 40),
 
-          _IgniteButton(
-            label: 'Continue',
-            onPressed: onNext,
-          ),
+          _IgniteButton(label: 'Continue', onPressed: onNext),
         ],
       ),
-    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
+    ).maybeAnimate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Quick Setup — Step 2: "Choose your language"
-// Grid of languages with flag + script preview
-// ═══════════════════════════════════════════════════════════════════════
-
-class _QuickSetupLanguageStep extends StatelessWidget {
-  const _QuickSetupLanguageStep({
-    required this.selectedLanguage,
-    required this.onLanguageSelected,
-    required this.onNext,
-  });
-
-  final String selectedLanguage;
-  final ValueChanged<String> onLanguageSelected;
-  final VoidCallback onNext;
-
-  static const _languages = [
-    ('Hindi', 'हिन्दी', '🇮🇳'),
-    ('Bengali', 'বাংলা', '🇮🇳'),
-    ('Telugu', 'తెలుగు', '🇮🇳'),
-    ('Tamil', 'தமிழ்', '🇮🇳'),
-    ('Marathi', 'मराठी', '🇮🇳'),
-    ('Gujarati', 'ગુજરાતી', '🇮🇳'),
-    ('Kannada', 'ಕನ್ನಡ', '🇮🇳'),
-    ('Malayalam', 'മലയാളം', '🇮🇳'),
-    ('Punjabi', 'ਪੰਜਾਬੀ', '🇮🇳'),
-    ('English', 'English', '🇬🇧'),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.xl),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const SizedBox(height: 40),
-          _StepIndicator(current: 2, total: 4),
-          const SizedBox(height: 24),
-
-          const Text(
-            'Choose your language',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 26,
-              fontWeight: FontWeight.w700,
-              color: KinrelColors.textWhite,
-              height: 1.2,
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Language grid
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            alignment: WrapAlignment.center,
-            children: _languages.map((lang) {
-              final isSelected = selectedLanguage == lang.$1;
-              return GestureDetector(
-                onTap: () => onLanguageSelected(lang.$1),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? KinrelColors.orange.withValues(alpha: 0.15)
-                        : const Color(0xFF202338),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isSelected
-                          ? KinrelColors.orange
-                          : const Color(0xFF2A2A3D),
-                      width: isSelected ? 1.5 : 1,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(lang.$3, style: const TextStyle(fontSize: 20)),
-                      const SizedBox(height: 4),
-                      Text(
-                        lang.$1,
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: isSelected
-                              ? KinrelColors.orange
-                              : KinrelColors.textWhite,
-                        ),
-                      ),
-                      Text(
-                        lang.$2,
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w400,
-                          color: isSelected
-                              ? KinrelColors.orange.withValues(alpha: 0.7)
-                              : const Color(0xFFC9B4A8).withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 32),
-
-          _IgniteButton(
-            label: 'Continue',
-            onPressed: selectedLanguage.isEmpty ? () {} : onNext,
-          ),
-          const SizedBox(height: 40),
-        ],
-      ),
-    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Quick Setup — Step 3: "Create your first family"
+// Quick Setup — Step 2: "Create your first family"
 // Name your family tree
 // ═══════════════════════════════════════════════════════════════════════
 
 class _QuickSetupFamilyStep extends StatelessWidget {
-  const _QuickSetupFamilyStep({
-    required this.controller,
-    required this.onNext,
-  });
+  const _QuickSetupFamilyStep({required this.controller, required this.onNext});
 
   final TextEditingController controller;
   final VoidCallback onNext;
@@ -1531,7 +1381,7 @@ class _QuickSetupFamilyStep extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _StepIndicator(current: 3, total: 4),
+          _StepIndicator(current: 2, total: 3),
           const SizedBox(height: 32),
 
           const Text(
@@ -1596,13 +1446,10 @@ class _QuickSetupFamilyStep extends StatelessWidget {
           ),
           const SizedBox(height: 40),
 
-          _IgniteButton(
-            label: 'Continue',
-            onPressed: onNext,
-          ),
+          _IgniteButton(label: 'Continue', onPressed: onNext),
         ],
       ),
-    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
+    ).maybeAnimate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
   }
 }
 
@@ -1646,7 +1493,7 @@ class _QuickSetupPrivacyStepState extends State<_QuickSetupPrivacyStep> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _StepIndicator(current: 4, total: 4),
+          _StepIndicator(current: 3, total: 3),
           const SizedBox(height: 32),
 
           // Lock icon with glow
@@ -1679,12 +1526,12 @@ class _QuickSetupPrivacyStepState extends State<_QuickSetupPrivacyStep> {
                 color: KinrelColors.orange,
               ),
             ),
-          ).animate().scale(
-                duration: 600.ms,
-                curve: Curves.elasticOut,
-                begin: const Offset(0.6, 0.6),
-                end: const Offset(1, 1),
-              ),
+          ).maybeAnimate().scale(
+            duration: 600.ms,
+            curve: Curves.elasticOut,
+            begin: const Offset(0.6, 0.6),
+            end: const Offset(1, 1),
+          ),
 
           const SizedBox(height: 24),
 
@@ -1718,10 +1565,7 @@ class _QuickSetupPrivacyStepState extends State<_QuickSetupPrivacyStep> {
           if (_showToast)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 16,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: BoxDecoration(
                 gradient: KinrelGradients.igniteGradient,
                 borderRadius: BorderRadius.circular(14),
@@ -1754,17 +1598,14 @@ class _QuickSetupPrivacyStepState extends State<_QuickSetupPrivacyStep> {
                   ),
                 ],
               ),
-            ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.2, end: 0),
+            ).maybeAnimate().fadeIn(duration: 400.ms).slideY(begin: 0.2, end: 0),
 
           const SizedBox(height: 24),
 
-          _IgniteButton(
-            label: 'Start Exploring',
-            onPressed: widget.onComplete,
-          ),
+          _IgniteButton(label: 'Start Exploring', onPressed: widget.onComplete),
         ],
       ),
-    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
+    ).maybeAnimate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
   }
 }
 
@@ -1774,10 +1615,7 @@ class _QuickSetupPrivacyStepState extends State<_QuickSetupPrivacyStep> {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _StepIndicator extends StatelessWidget {
-  const _StepIndicator({
-    required this.current,
-    required this.total,
-  });
+  const _StepIndicator({required this.current, required this.total});
 
   final int current;
   final int total;

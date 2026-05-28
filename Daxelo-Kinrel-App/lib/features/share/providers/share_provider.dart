@@ -18,14 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Methods available for sharing an invite.
-enum InviteMethod {
-  link,
-  qrCode,
-  whatsapp,
-  sms,
-  email,
-  copyLink,
-}
+enum InviteMethod { link, qrCode, whatsapp, sms, email, copyLink }
 
 // ═══════════════════════════════════════════════════════════════════════
 // Invite Link Model
@@ -97,8 +90,19 @@ class InviteLink {
   /// Formatted creation date.
   String get formattedCreatedDate {
     const months = [
-      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${createdAt.day} ${months[createdAt.month]} ${createdAt.year}';
   }
@@ -245,11 +249,7 @@ class KinshipShareCard {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Tabs on the Share screen.
-enum ShareTab {
-  invite,
-  shareCard,
-  shareGraph,
-}
+enum ShareTab { invite, shareCard, shareGraph }
 
 // ═══════════════════════════════════════════════════════════════════════
 // Share State
@@ -328,12 +328,14 @@ class ShareState {
 /// State notifier managing share & invite operations.
 class ShareNotifier extends StateNotifier<ShareState> {
   ShareNotifier({required String familyId, required String familyName})
-      : super(ShareState(
+    : super(
+        ShareState(
           familyId: familyId,
           familyName: familyName,
           inviteLinks: _demoInviteLinks,
           kinshipCards: _demoKinshipCards,
-        ));
+        ),
+      );
 
   /// Switch between tabs.
   void setTab(ShareTab tab) {
@@ -402,13 +404,17 @@ class ShareNotifier extends StateNotifier<ShareState> {
 
 /// Family-scoped share provider.
 /// Usage: ref.watch(shareProvider(familyId: 'xxx', familyName: 'Sharma'))
-final shareProvider = StateNotifierProvider.family<ShareNotifier, ShareState,
-    ({String familyId, String familyName})>(
-  (ref, params) => ShareNotifier(
-    familyId: params.familyId,
-    familyName: params.familyName,
-  ),
-);
+final shareProvider =
+    StateNotifierProvider.family<
+      ShareNotifier,
+      ShareState,
+      ({String familyId, String familyName})
+    >(
+      (ref, params) => ShareNotifier(
+        familyId: params.familyId,
+        familyName: params.familyName,
+      ),
+    );
 
 // ═══════════════════════════════════════════════════════════════════════
 // Demo Data — Realistic Indian Family Invite Links & Kinship Cards

@@ -16,7 +16,6 @@ class ChatMessage {
   final bool isUser;
   final DateTime timestamp;
   final List<KinshipCardData>? kinshipData;
-
 }
 
 class KinshipCardData {
@@ -57,7 +56,6 @@ class KinshipCardData {
   final String lineage;
   final String relationshipCategory;
   final Map<String, TranslationEntry> translations;
-
 }
 
 class TranslationEntry {
@@ -65,13 +63,11 @@ class TranslationEntry {
 
   final String native;
   final String latin;
-
 }
 
 // ── State Providers ─────────────────────────────────────────────────
 
-final aiChatMessagesProvider =
-    StateProvider<List<ChatMessage>>((ref) => []);
+final aiChatMessagesProvider = StateProvider<List<ChatMessage>>((ref) => []);
 
 final aiChatLoadingProvider = StateProvider<bool>((ref) => false);
 
@@ -89,9 +85,7 @@ final aiChatSuggestionsProvider = FutureProvider<List<String>>((ref) async {
     );
     final data = response.data;
     if (data is Map<String, dynamic> && data['suggestions'] is List) {
-      return (data['suggestions'] as List)
-          .map((s) => s.toString())
-          .toList();
+      return (data['suggestions'] as List).map((s) => s.toString()).toList();
     }
     return [];
   } catch (e) {
@@ -109,93 +103,81 @@ final aiChatSuggestionsProvider = FutureProvider<List<String>>((ref) async {
 
 // ── Send Message Provider ───────────────────────────────────────────
 
-final aiChatSendMessageProvider = Provider<Future<void> Function(String)>(
-  (ref) {
-    return (String message) async {
-      final dio = ref.watch(dioProvider);
-      final messages = ref.read(aiChatMessagesProvider.notifier);
-      final loading = ref.read(aiChatLoadingProvider.notifier);
-      final sessionId = ref.read(aiChatSessionIdProvider);
+final aiChatSendMessageProvider = Provider<Future<void> Function(String)>((
+  ref,
+) {
+  return (String message) async {
+    final dio = ref.watch(dioProvider);
+    final messages = ref.read(aiChatMessagesProvider.notifier);
+    final loading = ref.read(aiChatLoadingProvider.notifier);
+    final sessionId = ref.read(aiChatSessionIdProvider);
 
-      // Add user message
+    // Add user message
+    messages.state = [
+      ...messages.state,
+      ChatMessage(content: message, isUser: true, timestamp: DateTime.now()),
+    ];
+
+    // Set loading
+    loading.state = true;
+
+    try {
+      final response = await dio.post(
+        '${EnvConfig.apiBaseUrl}/v1/ai-chat',
+        data: {'sessionId': sessionId, 'message': message},
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      final aiResponse = data['response'] as String? ?? 'No response';
+      final rawKinship = data['kinshipData'] as List<dynamic>?;
+
+      List<KinshipCardData>? kinshipCards;
+      if (rawKinship != null && rawKinship.isNotEmpty) {
+        kinshipCards = rawKinship
+            .map((k) => KinshipCardData.fromJson(k as Map<String, dynamic>))
+            .toList();
+      }
+
       messages.state = [
         ...messages.state,
         ChatMessage(
-          content: message,
-          isUser: true,
+          content: aiResponse,
+          isUser: false,
+          timestamp: DateTime.now(),
+          kinshipData: kinshipCards,
+        ),
+      ];
+    } catch (e) {
+      messages.state = [
+        ...messages.state,
+        ChatMessage(
+          content: 'Sorry, I couldn\'t process your request. Please try again.',
+          isUser: false,
           timestamp: DateTime.now(),
         ),
       ];
-
-      // Set loading
-      loading.state = true;
-
-      try {
-        final response = await dio.post(
-          '${EnvConfig.apiBaseUrl}/v1/ai-chat',
-          data: {
-            'sessionId': sessionId,
-            'message': message,
-          },
-        );
-
-        final data = response.data as Map<String, dynamic>;
-        final aiResponse = data['response'] as String? ?? 'No response';
-        final rawKinship = data['kinshipData'] as List<dynamic>?;
-
-        List<KinshipCardData>? kinshipCards;
-        if (rawKinship != null && rawKinship.isNotEmpty) {
-          kinshipCards = rawKinship
-              .map((k) => KinshipCardData.fromJson(k as Map<String, dynamic>))
-              .toList();
-        }
-
-        messages.state = [
-          ...messages.state,
-          ChatMessage(
-            content: aiResponse,
-            isUser: false,
-            timestamp: DateTime.now(),
-            kinshipData: kinshipCards,
-          ),
-        ];
-      } catch (e) {
-        messages.state = [
-          ...messages.state,
-          ChatMessage(
-            content:
-                'Sorry, I couldn\'t process your request. Please try again.',
-            isUser: false,
-            timestamp: DateTime.now(),
-          ),
-        ];
-      } finally {
-        loading.state = false;
-      }
-    };
-  },
-);
+    } finally {
+      loading.state = false;
+    }
+  };
+});
 
 // ── Clear Session Provider ──────────────────────────────────────────
 
-final aiChatClearSessionProvider = Provider<Future<void> Function()>(
-  (ref) {
-    return () async {
-      final dio = ref.watch(dioProvider);
-      final sessionId = ref.read(aiChatSessionIdProvider);
+final aiChatClearSessionProvider = Provider<Future<void> Function()>((ref) {
+  return () async {
+    final dio = ref.watch(dioProvider);
+    final sessionId = ref.read(aiChatSessionIdProvider);
 
-      try {
-        await dio.delete(
-          '${EnvConfig.apiBaseUrl}/v1/ai-chat/$sessionId',
-        );
-      } catch (_) {
-        // Silently fail - session might not exist on server
-      }
+    try {
+      await dio.delete('${EnvConfig.apiBaseUrl}/v1/ai-chat/$sessionId');
+    } catch (_) {
+      // Silently fail - session might not exist on server
+    }
 
-      // Reset local state
-      ref.read(aiChatMessagesProvider.notifier).state = [];
-      ref.read(aiChatSessionIdProvider.notifier).state =
-          'session_${DateTime.now().millisecondsSinceEpoch}';
-    };
-  },
-);
+    // Reset local state
+    ref.read(aiChatMessagesProvider.notifier).state = [];
+    ref.read(aiChatSessionIdProvider.notifier).state =
+        'session_${DateTime.now().millisecondsSinceEpoch}';
+  };
+});

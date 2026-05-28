@@ -34,6 +34,8 @@ import 'package:shimmer/shimmer.dart';
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/constants/brand_spacing.dart';
+import '../../core/utils/device_tier.dart';
+import '../../core/utils/accessibility_utils.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // DK DESIGN TOKENS — stitch.zip Color System
@@ -49,23 +51,24 @@ class DKColors {
 
   // ── Brand ────────────────────────────────────────────────────────
   /// Kinrel Orange — #E8612A (backward-compat alias: brandPurple)
-  static const Color brandPurple = KinrelColors.orange;          // #E8612A
+  static const Color brandPurple = KinrelColors.orange; // #E8612A
   /// Burnt Ember — #C44A18 (backward-compat alias: brandDeepPurple)
-  static const Color brandDeepPurple = KinrelColors.ember;       // #C44A18
+  static const Color brandDeepPurple = KinrelColors.ember; // #C44A18
   /// Warm Amber — #F59240 (backward-compat alias: brandViolet)
-  static const Color brandViolet = KinrelColors.amber;           // #F59240
+  static const Color brandViolet = KinrelColors.amber; // #F59240
   static const Color brandGold = Color(0xFFD4AF37);
   static const Color brandBrightGold = Color(0xFFFFD700);
   static const Color brandCoral = Color(0xFFFF6B6B);
+
   /// Kinrel Orange — #E8612A (direct orange reference)
-  static const Color brandOrange = KinrelColors.orange;          // #E8612A
+  static const Color brandOrange = KinrelColors.orange; // #E8612A
   static const Color brandBlue = Color(0xFF3B82F6);
 
   // ── Dark theme surfaces ──────────────────────────────────────────
-  static const Color darkBg = KinrelColors.darkBackground;       // #131416
-  static const Color darkCard = KinrelColors.darkCard;           // #191B2C
-  static const Color darkElevated = KinrelColors.darkElevated;   // #202338
-  static const Color darkSurface = KinrelColors.darkSurface;     // #13141E
+  static const Color darkBg = KinrelColors.darkBackground; // #131416
+  static const Color darkCard = KinrelColors.darkCard; // #191B2C
+  static const Color darkElevated = KinrelColors.darkElevated; // #202338
+  static const Color darkSurface = KinrelColors.darkSurface; // #13141E
 
   // ── Light theme surfaces ─────────────────────────────────────────
   static const Color lightBg = Color(0xFFF5F7FA);
@@ -86,21 +89,21 @@ class DKColors {
   // ── Gradients ────────────────────────────────────────────────────
   /// CTA gradient — orange → amber (was purple → violet)
   static const LinearGradient ctaGradient = LinearGradient(
-    colors: [brandPurple, brandViolet],   // #E8612A → #F59240
+    colors: [brandPurple, brandViolet], // #E8612A → #F59240
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   /// Social gradient — blue → orange
   static const LinearGradient socialGradient = LinearGradient(
-    colors: [brandBlue, brandPurple],     // #3B82F6 → #E8612A
+    colors: [brandBlue, brandPurple], // #3B82F6 → #E8612A
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   /// Explore gradient — blue → amber
   static const LinearGradient exploreGradient = LinearGradient(
-    colors: [brandBlue, brandViolet],     // #3B82F6 → #F59240
+    colors: [brandBlue, brandViolet], // #3B82F6 → #F59240
     begin: Alignment.centerLeft,
     end: Alignment.centerRight,
   );
@@ -138,9 +141,7 @@ class DKColors {
 
   /// Returns the appropriate border color for the current theme.
   static Color borderColor(BuildContext context) =>
-      isLight(context)
-          ? const Color(0xFFE5E7EB)
-          : const Color(0xFF3A3A4A);
+      isLight(context) ? const Color(0xFFE5E7EB) : const Color(0xFF3A3A4A);
 
   /// Returns the primary brand color for the current theme.
   /// Orange in light mode, ember in dark mode.
@@ -194,7 +195,6 @@ class DKScaffold extends StatelessWidget {
 
   /// Whether to wrap the body in a [SafeArea]. Default true.
   final bool useSafeArea;
-
 
   @override
   Widget build(BuildContext context) {
@@ -251,6 +251,8 @@ class DKCard extends StatelessWidget {
     this.borderColor,
     this.backgroundColor,
     this.onTap,
+    this.onLongPress,
+    this.semanticLabel,
   });
 
   /// The card's content.
@@ -277,6 +279,12 @@ class DKCard extends StatelessWidget {
   /// Optional tap handler — makes the card interactive.
   final VoidCallback? onTap;
 
+  /// Optional long-press handler — makes the card interactive.
+  final VoidCallback? onLongPress;
+
+  /// Semantic label announced by screen readers when the card is interactive.
+  /// Provide a meaningful description (e.g. 'Sharma family, 12 members').
+  final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -292,46 +300,47 @@ class DKCard extends StatelessWidget {
             ),
           ]
         : isLight
-            ? [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ]
-            : null;
+        ? [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ]
+        : null;
 
     final decoration = BoxDecoration(
       color: gradient != null ? null : bgColor,
       gradient: gradient,
       borderRadius: BorderRadius.circular(radius),
-      border: border != null
-          ? Border.all(color: border, width: 1)
-          : null,
+      border: border != null ? Border.all(color: border, width: 1) : null,
       boxShadow: shadow,
     );
 
-    final cardChild = Padding(
-      padding: EdgeInsets.all(padding),
-      child: child,
-    );
+    final cardChild = Padding(padding: EdgeInsets.all(padding), child: child);
 
-    if (onTap != null) {
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(radius),
-          child: AnimatedContainer(
-            duration: KinrelMotion.fast,
-            decoration: decoration,
-            clipBehavior: Clip.antiAlias,
-            child: cardChild,
+    if (onTap != null || onLongPress != null) {
+      return Semantics(
+        button: onTap != null,
+        label: semanticLabel ?? (onTap != null ? 'Card' : null),
+        hint: onTap != null ? 'Double tap to open' : 'Long press for options',
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            onLongPress: onLongPress,
+            borderRadius: BorderRadius.circular(radius),
+            child: AnimatedContainer(
+              duration: KinrelMotion.fast,
+              decoration: decoration,
+              clipBehavior: Clip.antiAlias,
+              child: cardChild,
+            ),
           ),
         ),
       )
-          .animate(onPlay: (c) => c.forward())
-          .fadeIn(duration: KinrelMotion.normal);
+      .maybeAnimate(onPlay: (c) => c.forward())
+      .fadeIn(duration: KinrelMotion.normal);
     }
 
     return AnimatedContainer(
@@ -400,7 +409,6 @@ class DKButton extends StatefulWidget {
 
   /// Size variant. Default [DKButtonSize.md].
   final DKButtonSize size;
-
 
   @override
   State<DKButton> createState() => _DKButtonState();
@@ -504,7 +512,9 @@ class _DKButtonState extends State<DKButton> {
 
     // ── Build decoration ───────────────────────────────────────────
     final decoration = BoxDecoration(
-      color: isDisabled ? (bg?.withValues(alpha: 0.5) ?? DKColors.darkElevated) : bg,
+      color: isDisabled
+          ? (bg?.withValues(alpha: 0.5) ?? DKColors.darkElevated)
+          : bg,
       gradient: isDisabled ? null : bgGradient,
       borderRadius: BorderRadius.circular(_radius),
       border: border != null && !isDisabled
@@ -529,9 +539,7 @@ class _DKButtonState extends State<DKButton> {
     } else {
       final List<Widget> rowChildren = [];
       if (widget.icon != null) {
-        rowChildren.add(
-          Icon(widget.icon, size: _fontSize + 2, color: fg),
-        );
+        rowChildren.add(Icon(widget.icon, size: _fontSize + 2, color: fg));
         rowChildren.add(const SizedBox(width: 8));
       }
       rowChildren.add(
@@ -622,7 +630,6 @@ class DKAvatar extends StatelessWidget {
   /// Background color when no image is provided.
   final Color? backgroundColor;
 
-
   double get _diameter {
     switch (size) {
       case DKAvatarSize.sm:
@@ -652,12 +659,13 @@ class DKAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLight = DKColors.isLight(context);
-    final bg = backgroundColor ??
+    final bg =
+        backgroundColor ??
         (isLight
             ? DKColors.brandPurple.withValues(alpha: 0.1)
             : DKColors.brandDeepPurple.withValues(alpha: 0.3));
-    final border = borderColor ??
-        (isLight ? Colors.transparent : Color(0xFF3A3A4A));
+    final border =
+        borderColor ?? (isLight ? Colors.transparent : Color(0xFF3A3A4A));
     final fg = isLight ? DKColors.brandPurple : Colors.white;
 
     Widget avatar = Container(
@@ -666,15 +674,9 @@ class DKAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: imageUrl != null ? null : bg,
-        border: Border.all(
-          color: border,
-          width: borderColor != null ? 2.5 : 1,
-        ),
+        border: Border.all(color: border, width: borderColor != null ? 2.5 : 1),
         image: imageUrl != null
-            ? DecorationImage(
-                image: NetworkImage(imageUrl!),
-                fit: BoxFit.cover,
-              )
+            ? DecorationImage(image: NetworkImage(imageUrl!), fit: BoxFit.cover)
             : null,
       ),
       child: imageUrl != null
@@ -752,7 +754,6 @@ class DKSearchField extends StatelessWidget {
   /// Default false.
   final bool useGradient;
 
-
   @override
   Widget build(BuildContext context) {
     final isLight = DKColors.isLight(context);
@@ -770,9 +771,7 @@ class DKSearchField extends StatelessWidget {
       textColor = Colors.white;
       border = null;
     } else {
-      inputFillColor = isLight
-          ? DKColors.lightElevated
-          : DKColors.darkElevated;
+      inputFillColor = isLight ? DKColors.lightElevated : DKColors.darkElevated;
       hintColor = DKColors.textSecondary(context);
       iconColor = DKColors.textSecondary(context);
       textColor = DKColors.textPrimary(context);
@@ -813,7 +812,10 @@ class DKSearchField extends StatelessWidget {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(KinrelRadius.xl),
           borderSide: useGradient
-              ? BorderSide(color: Colors.white.withValues(alpha: 0.4), width: 1.5)
+              ? BorderSide(
+                  color: Colors.white.withValues(alpha: 0.4),
+                  width: 1.5,
+                )
               : BorderSide(color: DKColors.brandPurple, width: 1.5),
         ),
       ),
@@ -874,11 +876,11 @@ class DKGlassCard extends StatelessWidget {
   /// Blur sigma for the backdrop filter. Default 16.
   final double blurSigma;
 
-
   @override
   Widget build(BuildContext context) {
     final isLight = DKColors.isLight(context);
-    final border = borderColor ??
+    final border =
+        borderColor ??
         (isLight
             ? Colors.white.withValues(alpha: 0.3)
             : Colors.white.withValues(alpha: 0.12));
@@ -886,10 +888,7 @@ class DKGlassCard extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: BackdropFilter(
-        filter: ImageFilter.blur(
-          sigmaX: blurSigma,
-          sigmaY: blurSigma,
-        ),
+        filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
         child: Container(
           padding: EdgeInsets.all(padding),
           decoration: BoxDecoration(
@@ -930,7 +929,6 @@ class DKNavItem {
 
   /// Optional badge count to display.
   final int? badge;
-
 }
 
 /// 5-tab bottom navigation bar with theme-aware styling.
@@ -967,7 +965,6 @@ class DKBottomNav extends StatelessWidget {
   /// List of navigation items.
   final List<DKNavItem> items;
 
-
   @override
   Widget build(BuildContext context) {
     final isLight = DKColors.isLight(context);
@@ -982,9 +979,7 @@ class DKBottomNav extends StatelessWidget {
           top: Radius.circular(KinrelRadius.xl),
         ),
         border: isLight
-            ? const Border(
-                top: BorderSide(color: Color(0xFFE5E7EB), width: 1),
-              )
+            ? const Border(top: BorderSide(color: Color(0xFFE5E7EB), width: 1))
             : Border.all(color: Color(0xFF3A3A4A), width: 0.5),
         boxShadow: isLight
             ? [
@@ -1017,19 +1012,27 @@ class DKBottomNav extends StatelessWidget {
         final item = items[index];
         final isSelected = index == currentIndex;
         final activeColor = isLight
-            ? DKColors.brandOrange       // #E8612A — orange active
-            : DKColors.brandOrange;      // #E8612A — orange active
+            ? DKColors
+                  .brandOrange // #E8612A — orange active
+            : DKColors.brandOrange; // #E8612A — orange active
         final inactiveColor = isLight
             ? DKColors.textSecondaryDark
             : DKColors.textSecondaryLight;
 
-        return _DKNavItemWidget(
-          item: item,
+        // Accessibility: wrap each nav item with semantic tab
+        return semanticTab(
+          label: item.label,
+          index: index,
           isSelected: isSelected,
-          activeColor: activeColor,
-          inactiveColor: inactiveColor,
-          isLight: isLight,
-          onTap: () => onTap(index),
+          totalTabs: items.length,
+          child: _DKNavItemWidget(
+            item: item,
+            isSelected: isSelected,
+            activeColor: activeColor,
+            inactiveColor: inactiveColor,
+            isLight: isLight,
+            onTap: () => onTap(index),
+          ),
         );
       }),
     );
@@ -1053,7 +1056,6 @@ class _DKNavItemWidget extends StatelessWidget {
   final bool isLight;
   final VoidCallback onTap;
 
-
   @override
   Widget build(BuildContext context) {
     final color = isSelected ? activeColor : inactiveColor;
@@ -1063,6 +1065,7 @@ class _DKNavItemWidget extends StatelessWidget {
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: SizedBox(
+          // Accessibility: ensure minimum 48dp height for tap target
           height: 64,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1157,7 +1160,6 @@ class DKChatBubble extends StatelessWidget {
   /// Optional sender name (for AI messages).
   final String? senderName;
 
-
   @override
   Widget build(BuildContext context) {
     final isLight = DKColors.isLight(context);
@@ -1212,8 +1214,9 @@ class DKChatBubble extends StatelessWidget {
           border: border != null ? Border.all(color: border, width: 1) : null,
         ),
         child: Column(
-          crossAxisAlignment:
-              isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: isUser
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           children: [
             if (senderName != null && !isUser) ...[
               Text(
@@ -1222,7 +1225,9 @@ class DKChatBubble extends StatelessWidget {
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: isLight ? DKColors.brandDeepPurple : DKColors.brandPurple,
+                  color: isLight
+                      ? DKColors.brandDeepPurple
+                      : DKColors.brandPurple,
                   height: 1.3,
                 ),
               ),
@@ -1284,7 +1289,6 @@ class DKBadge extends StatelessWidget {
   /// Background color of the badge. Default red.
   final Color color;
 
-
   @override
   Widget build(BuildContext context) {
     if (count <= 0) return SizedBox.shrink();
@@ -1294,10 +1298,7 @@ class DKBadge extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       alignment: Alignment.center,
       child: Text(
         display,
@@ -1345,7 +1346,6 @@ class DKSuggestionChip extends StatelessWidget {
   /// Whether the chip is in a selected state. Default false.
   final bool isSelected;
 
-
   @override
   Widget build(BuildContext context) {
     final isLight = DKColors.isLight(context);
@@ -1370,10 +1370,7 @@ class DKSuggestionChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(KinrelRadius.xxl),
-          border: Border.all(
-            color: border,
-            width: isSelected ? 1.5 : 1,
-          ),
+          border: Border.all(color: border, width: isSelected ? 1.5 : 1),
         ),
         child: Text(
           label,
@@ -1422,7 +1419,6 @@ class DKTabToggle extends StatelessWidget {
   /// Callback when the selected tab changes.
   final ValueChanged<int> onChanged;
 
-
   @override
   Widget build(BuildContext context) {
     final isLight = DKColors.isLight(context);
@@ -1430,9 +1426,7 @@ class DKTabToggle extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: isLight
-            ? DKColors.lightElevated
-            : DKColors.darkElevated,
+        color: isLight ? DKColors.lightElevated : DKColors.darkElevated,
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
       ),
       child: Row(
@@ -1449,9 +1443,7 @@ class DKTabToggle extends StatelessWidget {
                 vertical: KinrelSpacing.sm,
               ),
               decoration: BoxDecoration(
-                color: isSelected
-                    ? DKColors.brandPurple
-                    : Colors.transparent,
+                color: isSelected ? DKColors.brandPurple : Colors.transparent,
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
               ),
               child: Text(
@@ -1510,7 +1502,6 @@ class DKTimelineNode extends StatelessWidget {
   /// Optional label below the circle.
   final String? label;
 
-
   @override
   Widget build(BuildContext context) {
     final isLight = DKColors.isLight(context);
@@ -1526,11 +1517,7 @@ class DKTimelineNode extends StatelessWidget {
             color: color.withValues(alpha: isLight ? 0.1 : 0.15),
             border: Border.all(color: color, width: 2),
           ),
-          child: Icon(
-            icon,
-            color: color,
-            size: size * 0.4,
-          ),
+          child: Icon(icon, color: color, size: size * 0.4),
         ),
         if (label != null) ...[
           const SizedBox(height: 4),
@@ -1585,7 +1572,6 @@ class DKStatChip extends StatelessWidget {
 
   /// Accent color for icon and value.
   final Color color;
-
 
   @override
   Widget build(BuildContext context) {
@@ -1673,7 +1659,6 @@ class DKEmptyState extends StatelessWidget {
   /// Optional CTA button callback.
   final VoidCallback? onAction;
 
-
   @override
   Widget build(BuildContext context) {
     final isLight = DKColors.isLight(context);
@@ -1685,19 +1670,15 @@ class DKEmptyState extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: iconColor.withValues(alpha: isLight ? 0.1 : 0.15),
-            ),
-            child: Icon(
-              icon,
-              size: 40,
-              color: iconColor,
-            ),
-          )
-              .animate(onPlay: (c) => c.forward())
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: iconColor.withValues(alpha: isLight ? 0.1 : 0.15),
+                ),
+                child: Icon(icon, size: 40, color: iconColor),
+              )
+              .maybeAnimate(onPlay: (c) => c.forward())
               .fadeIn(duration: 400.ms)
               .scale(
                 begin: const Offset(0.8, 0.8),
@@ -1707,42 +1688,42 @@ class DKEmptyState extends StatelessWidget {
               ),
           const SizedBox(height: KinrelSpacing.lg),
           Text(
-            title,
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: DKColors.textPrimary(context),
-              height: 1.3,
-            ),
-            textAlign: TextAlign.center,
-          )
-              .animate()
+                title,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: DKColors.textPrimary(context),
+                  height: 1.3,
+                ),
+                textAlign: TextAlign.center,
+              )
+              .maybeAnimate()
               .fadeIn(duration: 300.ms, delay: 100.ms)
               .slideY(begin: 0.1, end: 0, duration: 300.ms),
           const SizedBox(height: KinrelSpacing.sm),
           Text(
-            subtitle,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: DKColors.textSecondary(context),
-              height: 1.5,
-            ),
-            textAlign: TextAlign.center,
-          )
-              .animate()
+                subtitle,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: DKColors.textSecondary(context),
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              )
+              .maybeAnimate()
               .fadeIn(duration: 300.ms, delay: 200.ms)
               .slideY(begin: 0.1, end: 0, duration: 300.ms),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: KinrelSpacing.xl),
             DKButton(
-              label: actionLabel!,
-              variant: DKButtonVariant.primary,
-              onPressed: onAction,
-            )
-                .animate()
+                  label: actionLabel!,
+                  variant: DKButtonVariant.primary,
+                  onPressed: onAction,
+                )
+                .maybeAnimate()
                 .fadeIn(duration: 300.ms, delay: 300.ms)
                 .slideY(begin: 0.15, end: 0, duration: 300.ms),
           ],
@@ -1781,18 +1762,13 @@ class DKLoadingShimmer extends StatelessWidget {
   /// Border radius. Default 12.
   final double radius;
 
-
   @override
   Widget build(BuildContext context) {
     final isLight = DKColors.isLight(context);
 
     return Shimmer.fromColors(
-      baseColor: isLight
-          ? const Color(0xFFE0E0E0)
-          : DKColors.darkElevated,
-      highlightColor: isLight
-          ? const Color(0xFFF5F5F5)
-          : DKColors.darkSurface,
+      baseColor: isLight ? const Color(0xFFE0E0E0) : DKColors.darkElevated,
+      highlightColor: isLight ? const Color(0xFFF5F5F5) : DKColors.darkSurface,
       period: const Duration(milliseconds: 1500),
       child: Container(
         width: width,
@@ -1835,7 +1811,6 @@ class DKErrorState extends StatelessWidget {
   /// Optional custom icon. Default [Icons.error_outline_rounded].
   final IconData? icon;
 
-
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -1844,11 +1819,11 @@ class DKErrorState extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            icon ?? Icons.error_outline_rounded,
-            size: 48,
-            color: DKColors.brandCoral,
-          )
-              .animate(onPlay: (c) => c.forward())
+                icon ?? Icons.error_outline_rounded,
+                size: 48,
+                color: DKColors.brandCoral,
+              )
+              .maybeAnimate(onPlay: (c) => c.forward())
               .fadeIn(duration: 300.ms)
               .scale(
                 begin: const Offset(0.8, 0.8),
@@ -1867,17 +1842,15 @@ class DKErrorState extends StatelessWidget {
               height: 1.5,
             ),
             textAlign: TextAlign.center,
-          )
-              .animate()
-              .fadeIn(duration: 300.ms, delay: 100.ms),
+          ).maybeAnimate().fadeIn(duration: 300.ms, delay: 100.ms),
           const SizedBox(height: KinrelSpacing.xl),
           DKButton(
-            label: 'Try Again',
-            variant: DKButtonVariant.secondary,
-            icon: Icons.refresh_rounded,
-            onPressed: onRetry,
-          )
-              .animate()
+                label: 'Try Again',
+                variant: DKButtonVariant.secondary,
+                icon: Icons.refresh_rounded,
+                onPressed: onRetry,
+              )
+              .maybeAnimate()
               .fadeIn(duration: 300.ms, delay: 200.ms)
               .slideY(begin: 0.1, end: 0, duration: 300.ms),
         ],

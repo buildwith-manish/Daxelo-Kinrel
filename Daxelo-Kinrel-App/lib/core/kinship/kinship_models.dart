@@ -1,9 +1,6 @@
 /// Translation for a relationship in a specific language
 class KinshipTranslation {
-  const KinshipTranslation({
-    required this.native,
-    required this.latin,
-  });
+  const KinshipTranslation({required this.native, required this.latin});
 
   factory KinshipTranslation.fromJson(Map<String, dynamic> json) {
     return KinshipTranslation(
@@ -14,7 +11,6 @@ class KinshipTranslation {
 
   final String native;
   final String latin;
-
 
   Map<String, dynamic> toJson() => {'native': native, 'latin': latin};
 }
@@ -49,12 +45,14 @@ class KinshipRelationship {
       elderYounger: json['elderYounger'] as String? ?? '',
       relationshipCategory: json['relationshipCategory'] as String? ?? '',
       cousinType: json['cousinType'] as String?,
-      relationshipPath: (json['relationshipPath'] as List<dynamic>?)
+      relationshipPath:
+          (json['relationshipPath'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
       notes: json['notes'] as String?,
-      searchKeywords: (json['searchKeywords'] as List<dynamic>?)
+      searchKeywords:
+          (json['searchKeywords'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
@@ -74,7 +72,6 @@ class KinshipRelationship {
   final List<String> relationshipPath;
   final String? notes;
   final List<String> searchKeywords;
-
 }
 
 /// Root JSON structure
@@ -107,14 +104,17 @@ class KinshipData {
       version: json['version'] as String? ?? '',
       generatedAt: json['generatedAt'] as String? ?? '',
       totalRelationships: json['totalRelationships'] as int? ?? 0,
-      supportedLanguages: (json['supportedLanguages'] as List<dynamic>?)
+      supportedLanguages:
+          (json['supportedLanguages'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
       translations: translations,
-      relationships: (json['relationships'] as List<dynamic>?)
-              ?.map((e) =>
-                  KinshipRelationship.fromJson(e as Map<String, dynamic>))
+      relationships:
+          (json['relationships'] as List<dynamic>?)
+              ?.map(
+                (e) => KinshipRelationship.fromJson(e as Map<String, dynamic>),
+              )
               .toList() ??
           [],
     );
@@ -139,5 +139,4 @@ class KinshipSearchResult {
   final KinshipRelationship relationship;
   final double score;
   final String matchedField;
-
 }

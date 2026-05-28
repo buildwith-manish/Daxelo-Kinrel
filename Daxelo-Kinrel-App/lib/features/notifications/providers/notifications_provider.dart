@@ -15,12 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Notification category — drives the segmented control filter.
-enum NotificationCategory {
-  family,
-  celebrations,
-  engagement,
-  system,
-}
+enum NotificationCategory { family, celebrations, engagement, system }
 
 /// A single notification item.
 class NotificationModel {
@@ -69,10 +64,7 @@ class NotificationModel {
   /// that don't have a person avatar.
   final IconData? iconData;
 
-  NotificationModel copyWith({
-    bool? isRead,
-    bool? isPinned,
-  }) {
+  NotificationModel copyWith({bool? isRead, bool? isPinned}) {
     return NotificationModel(
       id: id,
       category: category,
@@ -106,15 +98,12 @@ class NotificationsState {
   final NotificationCategory? selectedCategory;
 
   /// Unread count.
-  int get unreadCount =>
-      notifications.where((n) => !n.isRead).length;
+  int get unreadCount => notifications.where((n) => !n.isRead).length;
 
   /// Filtered list based on [selectedCategory].
   List<NotificationModel> get filtered {
     if (selectedCategory == null) return notifications;
-    return notifications
-        .where((n) => n.category == selectedCategory)
-        .toList();
+    return notifications.where((n) => n.category == selectedCategory).toList();
   }
 
   NotificationsState copyWith({
@@ -123,8 +112,9 @@ class NotificationsState {
   }) {
     return NotificationsState(
       notifications: notifications ?? this.notifications,
-      selectedCategory:
-          selectedCategory != null ? selectedCategory() : this.selectedCategory,
+      selectedCategory: selectedCategory != null
+          ? selectedCategory()
+          : this.selectedCategory,
     );
   }
 }
@@ -159,8 +149,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
 
   /// Delete a notification by id.
   void deleteNotification(String id) {
-    final updated =
-        state.notifications.where((n) => n.id != id).toList();
+    final updated = state.notifications.where((n) => n.id != id).toList();
     state = state.copyWith(notifications: updated);
   }
 
@@ -175,9 +164,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
 
   /// Set the category filter. Pass `null` for "All".
   void setCategory(NotificationCategory? category) {
-    state = state.copyWith(
-      selectedCategory: () => category,
-    );
+    state = state.copyWith(selectedCategory: () => category);
   }
 
   // ── Demo Data ────────────────────────────────────────────────────
@@ -257,8 +244,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         id: 'n7',
         category: NotificationCategory.celebrations,
         title: "Vikram's birthday is next week",
-        body:
-            'Vikram Singh turns 45 next Tuesday. Plan something special!',
+        body: 'Vikram Singh turns 45 next Tuesday. Plan something special!',
         time: '5 hrs ago',
         isRead: true,
         avatarInitials: 'VS',
@@ -274,7 +260,10 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
             'You added 3 new members this week. Your Sharma Family tree now has 24 members.',
         time: '1 hr ago',
         isRead: false,
-        iconData: const IconData(0xe3af, fontFamily: 'MaterialIcons'), // Icons.trending_up
+        iconData: const IconData(
+          0xe3af,
+          fontFamily: 'MaterialIcons',
+        ), // Icons.trending_up
       ),
       NotificationModel(
         id: 'n9',
@@ -284,7 +273,10 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
             'Learn that your father\'s elder brother is called "Tau" and younger brother "Chacha" in Hindi.',
         time: '4 hrs ago',
         isRead: false,
-        iconData: const IconData(0xe86f, fontFamily: 'MaterialIcons'), // Icons.explore
+        iconData: const IconData(
+          0xe86f,
+          fontFamily: 'MaterialIcons',
+        ), // Icons.explore
       ),
       NotificationModel(
         id: 'n10',
@@ -294,7 +286,10 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
             'This week: Can you name all 8 terms for cousins in Marathi? Take the quiz now.',
         time: '6 hrs ago',
         isRead: true,
-        iconData: const IconData(0xe037, fontFamily: 'MaterialIcons'), // Icons.emoji_events
+        iconData: const IconData(
+          0xe037,
+          fontFamily: 'MaterialIcons',
+        ), // Icons.emoji_events
       ),
 
       // ── System ───────────────────────────────────────────────────
@@ -307,7 +302,10 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         time: '1 day ago',
         isRead: true,
         isPinned: true,
-        iconData: const IconData(0xe87e, fontFamily: 'MaterialIcons'), // Icons.waving_hand
+        iconData: const IconData(
+          0xe87e,
+          fontFamily: 'MaterialIcons',
+        ), // Icons.waving_hand
       ),
       NotificationModel(
         id: 'n12',
@@ -317,7 +315,10 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
             'Add your photo and birthday to help family members find and connect with you.',
         time: '1 day ago',
         isRead: true,
-        iconData: const IconData(0xe7fd, fontFamily: 'MaterialIcons'), // Icons.person
+        iconData: const IconData(
+          0xe7fd,
+          fontFamily: 'MaterialIcons',
+        ), // Icons.person
       ),
       NotificationModel(
         id: 'n13',
@@ -327,7 +328,10 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
             'New: Festival greeting cards, voice search for kinship terms, and bug fixes.',
         time: '2 days ago',
         isRead: true,
-        iconData: const IconData(0xe896, fontFamily: 'MaterialIcons'), // Icons.system_update
+        iconData: const IconData(
+          0xe896,
+          fontFamily: 'MaterialIcons',
+        ), // Icons.system_update
       ),
     ];
 
@@ -342,8 +346,8 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
 /// Global notifications provider.
 final notificationsProvider =
     StateNotifierProvider<NotificationsNotifier, NotificationsState>(
-  (ref) => NotificationsNotifier(),
-);
+      (ref) => NotificationsNotifier(),
+    );
 
 /// Convenience: unread count provider (can be watched independently).
 final unreadCountProvider = Provider<int>((ref) {

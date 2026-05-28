@@ -11,8 +11,11 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@/common/prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { Verify2FADto, Disable2FADto } from './dto/verify-2fa.dto';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
+import * as speakeasy from 'speakeasy';
 import { v4 as uuidv4 } from 'uuid';
 
 // ── In-memory refresh token store ────────────────────────────────────
@@ -36,6 +39,8 @@ interface RefreshTokenEntry {
  * - JWT access (15min) + refresh (7d) token pair with rotation
  * - In-memory refresh token store with periodic cleanup
  * - Google OAuth user creation/lookup
+ * - 2FA (TOTP) setup, verification, and disable
+ * - Password change with current password verification
  */
 @Injectable()
 export class AuthService {
@@ -196,6 +201,184 @@ export class AuthService {
   }
 
   // ═══════════════════════════════════════════════════════════════════
+  // Change Password
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * POST /api/auth/change-password
+   * Change password for an authenticated user.
+   * Verifies the current password, then updates to the new bcrypt-hashed password.
+   */
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, passwordHash: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (!user.passwordHash) {
+      throw new BadRequestException(
+        'No password set for this account. Please set a password first.',
+      );
+    }
+
+    // Verify current password
+    const isValid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!isValid) {
+      // Also try legacy SHA-256
+      const sha256Hash = this.hashSha256(dto.currentPassword);
+      if (sha256Hash !== user.passwordHash) {
+        throw new UnauthorizedException('Current password is incorrect');
+      }
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(this.BCRYPT_SALT_ROUNDS);
+    const newHash = await bcrypt.hash(dto.newPassword, salt);
+
+    // Update password
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newHash },
+    });
+
+    // Revoke all refresh tokens to force re-login on other devices
+    await this.revokeAllUserTokens(userId);
+
+    this.logger.log(`Password changed for user: ${userId}`);
+
+    return { message: 'Password changed successfully' };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Two-Factor Authentication (2FA)
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * POST /api/auth/2fa/setup
+   * Generate a TOTP secret and QR code URL for 2FA setup.
+   * The secret is stored on the user record but 2FA is NOT enabled until verified.
+   */
+  async setup2FA(userId: string) {
+    // Check if 2FA is already enabled
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, twoFactorEnabled: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.twoFactorEnabled) {
+      throw new BadRequestException('2FA is already enabled. Disable it first to set up again.');
+    }
+
+    const secret = speakeasy.generateSecret({
+      name: `KINREL (${user.email})`,
+      length: 20,
+    });
+
+    // Store secret temporarily (not yet enabled — user must verify first)
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorSecret: secret.base32 },
+    });
+
+    this.logger.log(`2FA setup initiated for user: ${userId}`);
+
+    return {
+      secret: secret.base32,
+      qrCodeUrl: secret.otpauth_url,
+    };
+  }
+
+  /**
+   * POST /api/auth/2fa/verify
+   * Verify a TOTP code to enable 2FA.
+   * Once verified, 2FA is enabled on the user account.
+   */
+  async verify2FA(userId: string, dto: Verify2FADto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, twoFactorSecret: true, twoFactorEnabled: true },
+    });
+
+    if (!user || !user.twoFactorSecret) {
+      throw new BadRequestException('2FA not set up. Call /auth/2fa/setup first.');
+    }
+
+    if (user.twoFactorEnabled) {
+      throw new BadRequestException('2FA is already enabled.');
+    }
+
+    const verified = speakeasy.totp.verify({
+      secret: user.twoFactorSecret,
+      encoding: 'base32',
+      token: dto.code,
+      window: 2,
+    });
+
+    if (!verified) {
+      throw new UnauthorizedException('Invalid 2FA code. Please try again.');
+    }
+
+    // Enable 2FA
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorEnabled: true },
+    });
+
+    this.logger.log(`2FA enabled for user: ${userId}`);
+
+    return { verified: true };
+  }
+
+  /**
+   * DELETE /api/auth/2fa
+   * Disable 2FA — requires the user's password for security.
+   */
+  async disable2FA(userId: string, dto: Disable2FADto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, passwordHash: true, twoFactorEnabled: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (!user.twoFactorEnabled) {
+      throw new BadRequestException('2FA is not enabled.');
+    }
+
+    // Verify password
+    if (!user.passwordHash) {
+      throw new BadRequestException(
+        'No password set for this account. Cannot verify identity.',
+      );
+    }
+
+    const isValid = await bcrypt.compare(dto.password, user.passwordHash);
+    if (!isValid) {
+      throw new UnauthorizedException('Password is incorrect');
+    }
+
+    // Disable 2FA and clear the secret
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorEnabled: false, twoFactorSecret: null },
+    });
+
+    this.logger.log(`2FA disabled for user: ${userId}`);
+
+    return { disabled: true };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // Token Refresh
   // ═══════════════════════════════════════════════════════════════════
 
@@ -318,6 +501,8 @@ export class AuthService {
         phone: true,
         preferredLanguage: true,
         role: true,
+        avatarUrl: true,
+        twoFactorEnabled: true,
         createdAt: true,
         updatedAt: true,
       },

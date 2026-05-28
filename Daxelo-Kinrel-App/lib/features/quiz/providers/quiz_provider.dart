@@ -19,7 +19,8 @@ class QuizQuestion {
       id: json['id'] as String? ?? '',
       type: json['type'] as String? ?? '',
       question: json['question'] as String? ?? '',
-      options: (json['options'] as List<dynamic>?)
+      options:
+          (json['options'] as List<dynamic>?)
               ?.map((e) => e as String)
               .toList() ??
           [],
@@ -36,7 +37,6 @@ class QuizQuestion {
   final int correctIndex;
   final String explanation;
   final Map<String, dynamic> kinshipData;
-
 }
 
 class QuizSession {
@@ -52,7 +52,8 @@ class QuizSession {
   factory QuizSession.fromJson(Map<String, dynamic> json) {
     return QuizSession(
       quizId: json['quizId'] as String? ?? '',
-      questions: (json['questions'] as List<dynamic>?)
+      questions:
+          (json['questions'] as List<dynamic>?)
               ?.map((e) => QuizQuestion.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
@@ -69,7 +70,6 @@ class QuizSession {
   final String category;
   final String difficulty;
   final String language;
-
 }
 
 class QuizResult {
@@ -91,7 +91,8 @@ class QuizResult {
       correctAnswers: json['correctAnswers'] as int? ?? 0,
       percentage: json['percentage'] as int? ?? 0,
       streak: json['streak'] as int? ?? 0,
-      results: (json['results'] as List<dynamic>?)
+      results:
+          (json['results'] as List<dynamic>?)
               ?.map((e) => QuestionResult.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
@@ -105,7 +106,6 @@ class QuizResult {
   final int percentage;
   final int streak;
   final List<QuestionResult> results;
-
 }
 
 class QuestionResult {
@@ -129,7 +129,6 @@ class QuestionResult {
   final bool correct;
   final int yourAnswer;
   final int correctAnswer;
-
 }
 
 class LeaderboardEntry {
@@ -156,7 +155,6 @@ class LeaderboardEntry {
   final int score;
   final int streak;
   final String avatar;
-
 }
 
 class DailyChallenge {
@@ -170,7 +168,8 @@ class DailyChallenge {
   factory DailyChallenge.fromJson(Map<String, dynamic> json) {
     return DailyChallenge(
       date: json['date'] as String? ?? '',
-      questions: (json['questions'] as List<dynamic>?)
+      questions:
+          (json['questions'] as List<dynamic>?)
               ?.map((e) => QuizQuestion.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
@@ -183,7 +182,6 @@ class DailyChallenge {
   final List<QuizQuestion> questions;
   final int totalParticipants;
   final double averageScore;
-
 }
 
 // ── Quiz State ─────────────────────────────────────────────────────────
@@ -210,7 +208,6 @@ class QuizStateData {
   final int? selectedAnswer;
   final bool? isCorrect;
   final bool isGenerating;
-
 
   QuizStateData copyWith({
     QuizState? state,
@@ -239,14 +236,13 @@ class QuizStateData {
 
 final quizStateProvider =
     StateNotifierProvider<QuizStateNotifier, QuizStateData>((ref) {
-  return QuizStateNotifier(ref);
-});
+      return QuizStateNotifier(ref);
+    });
 
 class QuizStateNotifier extends StateNotifier<QuizStateData> {
   QuizStateNotifier(this._ref) : super(QuizStateData());
 
   final Ref _ref;
-
 
   Future<void> generateQuiz({
     String? category,
@@ -268,7 +264,9 @@ class QuizStateNotifier extends StateNotifier<QuizStateData> {
         },
       );
 
-      final session = QuizSession.fromJson(response.data as Map<String, dynamic>);
+      final session = QuizSession.fromJson(
+        response.data as Map<String, dynamic>,
+      );
 
       state = state.copyWith(
         state: QuizState.playing,
@@ -330,10 +328,7 @@ class QuizStateNotifier extends StateNotifier<QuizStateData> {
 
       final result = QuizResult.fromJson(response.data as Map<String, dynamic>);
 
-      state = state.copyWith(
-        state: QuizState.results,
-        result: result,
-      );
+      state = state.copyWith(state: QuizState.results, result: result);
     } catch (e) {
       // If API call fails, calculate locally
       final questions = state.session!.questions;
@@ -344,12 +339,14 @@ class QuizStateNotifier extends StateNotifier<QuizStateData> {
         final yourAnswer = state.answers[i] ?? -1;
         final correct = yourAnswer == questions[i].correctIndex;
         if (correct) correctCount++;
-        results.add(QuestionResult(
-          questionIndex: i,
-          correct: correct,
-          yourAnswer: yourAnswer,
-          correctAnswer: questions[i].correctIndex,
-        ));
+        results.add(
+          QuestionResult(
+            questionIndex: i,
+            correct: correct,
+            yourAnswer: yourAnswer,
+            correctAnswer: questions[i].correctIndex,
+          ),
+        );
       }
 
       int streak = 0;
@@ -373,10 +370,7 @@ class QuizStateNotifier extends StateNotifier<QuizStateData> {
         results: results,
       );
 
-      state = state.copyWith(
-        state: QuizState.results,
-        result: localResult,
-      );
+      state = state.copyWith(state: QuizState.results, result: localResult);
     }
   }
 
@@ -399,15 +393,16 @@ class QuizStateNotifier extends StateNotifier<QuizStateData> {
 
 // ── Leaderboard Provider ───────────────────────────────────────────────
 
-final leaderboardProvider =
-    FutureProvider.family<Map<String, dynamic>, String>((ref, period) async {
-  final dio = ref.read(dioProvider);
-  final response = await dio.get(
-    '/v1/gamification/leaderboard',
-    queryParameters: {'period': period, 'limit': 10},
-  );
-  return response.data as Map<String, dynamic>;
-});
+final leaderboardProvider = FutureProvider.family<Map<String, dynamic>, String>(
+  (ref, period) async {
+    final dio = ref.read(dioProvider);
+    final response = await dio.get(
+      '/v1/gamification/leaderboard',
+      queryParameters: {'period': period, 'limit': 10},
+    );
+    return response.data as Map<String, dynamic>;
+  },
+);
 
 // ── Daily Challenge Provider ───────────────────────────────────────────
 

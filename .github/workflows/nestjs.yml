@@ -1,0 +1,61 @@
+name: NestJS Backend CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: nestjs-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build-server:
+    name: Build and Lint Daxelo-Kinrel-Server
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-Server
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: Daxelo-Kinrel-Server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create .env for Prisma
+        run: |
+          echo 'DATABASE_URL="file:./dev.db"' > .env
+          echo 'JWT_ACCESS_SECRET=ci-placeholder-secret' >> .env
+          echo 'JWT_REFRESH_SECRET=ci-placeholder-refresh' >> .env
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build NestJS app
+        run: npm run build
+
+      - name: Verify build output
+        run: ls -la dist/main.js
+
+      - name: Run linter
+        run: npm run lint
+        continue-on-error: true

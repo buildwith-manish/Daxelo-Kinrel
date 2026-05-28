@@ -575,7 +575,7 @@ export class NotificationService {
     // Find all spouse relationships where we can derive anniversary info
     const spouseRelationships = await this.prisma.relationship.findMany({
       where: {
-        type: 'spouse',
+        relationshipKey: 'spouse',
       },
       include: {
         fromPerson: {

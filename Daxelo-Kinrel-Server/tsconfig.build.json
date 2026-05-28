@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist"
+  },
+  "include": [
+    "src/main.ts",
+    "src/app.module.ts",
+    "src/common/**/*",
+    "src/modules/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "**/*spec.ts",
+    "src/app/**/*",
+    "src/components/**/*",
+    "src/hooks/**/*",
+    "src/styles/**/*",
+    "src/proxy.ts",
+    "src/lib/**/*"
+  ]
+}

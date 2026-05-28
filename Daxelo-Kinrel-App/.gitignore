@@ -14,6 +14,11 @@ flutter_*.png
 .env.local
 .env.*.local
 
+# Firebase — config files are SAFE to commit
+# API keys are restricted to com.daxelo.kinrel package/bundle by Firebase
+# They must be in the repo for CI/CD builds (Codemagic, GitHub Actions)
+# DO NOT gitignore these files!
+
 # IDE
 .idea/
 .vscode/

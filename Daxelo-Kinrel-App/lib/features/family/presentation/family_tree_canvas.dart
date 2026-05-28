@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/brand_colors.dart';
@@ -6,6 +7,8 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/graph/graph_service.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/utils/smart_preloader.dart';
+import '../../../core/utils/accessibility_utils.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // DATA MODELS
@@ -97,6 +100,111 @@ class LayoutResult {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// FORCE SIMULATION ISOLATE DATA TYPES
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Simple edge representation for isolate communication
+class _SimEdge {
+  const _SimEdge({required this.fromId, required this.toId});
+  final String fromId;
+  final String toId;
+}
+
+/// Input for the force simulation isolate
+class _ForceSimInput {
+  const _ForceSimInput({
+    required this.positions,
+    required this.velocities,
+    required this.edges,
+    required this.allIds,
+    required this.centerX,
+    required this.centerY,
+  });
+
+  final Map<String, Offset> positions;
+  final Map<String, Offset> velocities;
+  final List<_SimEdge> edges;
+  final List<String> allIds;
+  final double centerX;
+  final double centerY;
+}
+
+/// Output from the force simulation isolate
+class _ForceSimResult {
+  const _ForceSimResult({
+    required this.positions,
+    required this.velocities,
+  });
+
+  final Map<String, Offset> positions;
+  final Map<String, Offset> velocities;
+}
+
+/// Top-level function to run force-directed simulation in a background isolate
+_ForceSimResult _runForceSimulationIsolate(_ForceSimInput input) {
+  const double repulsionStrength = 6000;
+  const double attractionStrength = 0.004;
+  const double gravityStrength = 0.008;
+  const double damping = 0.82;
+  const double idealEdgeLength = 120;
+  const int maxSteps = 80;
+
+  final positions = Map<String, Offset>.from(input.positions);
+  final velocities = Map<String, Offset>.from(input.velocities);
+  final allIds = input.allIds;
+  final center = Offset(input.centerX, input.centerY);
+
+  for (int step = 0; step < maxSteps; step++) {
+    final forces = <String, Offset>{
+      for (final id in allIds) id: Offset.zero,
+    };
+
+    // Repulsion
+    for (int i = 0; i < allIds.length; i++) {
+      for (int j = i + 1; j < allIds.length; j++) {
+        final a = allIds[i];
+        final b = allIds[j];
+        final delta = positions[a]! - positions[b]!;
+        final dist = math.max(delta.distance, 0.1);
+        final force = repulsionStrength / (dist * dist);
+        final direction = delta / dist;
+        forces[a] = forces[a]! + direction * force;
+        forces[b] = forces[b]! - direction * force;
+      }
+    }
+
+    // Attraction
+    for (final edge in input.edges) {
+      if (!positions.containsKey(edge.fromId) ||
+          !positions.containsKey(edge.toId)) {
+        continue;
+      }
+      final delta = positions[edge.toId]! - positions[edge.fromId]!;
+      final dist = math.max(delta.distance, 0.1);
+      final force = attractionStrength * (dist - idealEdgeLength);
+      final direction = delta / dist;
+      forces[edge.fromId] = forces[edge.fromId]! + direction * force;
+      forces[edge.toId] = forces[edge.toId]! - direction * force;
+    }
+
+    // Gravity
+    for (final id in allIds) {
+      final delta = center - positions[id]!;
+      forces[id] = forces[id]! + delta * gravityStrength;
+    }
+
+    // Apply
+    for (final id in allIds) {
+      final vel = (velocities[id] ?? Offset.zero) + forces[id]!;
+      velocities[id] = vel * damping;
+      positions[id] = positions[id]! + velocities[id]!;
+    }
+  }
+
+  return _ForceSimResult(positions: positions, velocities: velocities);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // MAIN CANVAS WIDGET
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -145,6 +253,12 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
   final Map<String, Offset> _forcePositions = {};
   Map<String, Offset> _forceVelocities = {};
 
+  // ── Layout caching (F4-5: Cache node positions) ────────────────
+  Map<String, Offset> _cachedPositions = {}; // F4-5: Cached positions map
+  int _layoutVersion = 0;
+  LayoutResult? _cachedLayout;
+  bool _isAsyncComputing = false;
+
   // ── Layout constants ────────────────────────────────────────────
   static const double nodeRadius = 24.0;
   static const double horizontalGap = 80.0;
@@ -173,16 +287,60 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(FamilyTreeCanvas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.members, widget.members) ||
+        oldWidget.anchorPersonId != widget.anchorPersonId) {
+      _invalidateLayoutCache();
+    }
+  }
+
+  // ── Cache invalidation (F4-5) ──────────────────────────────────
+
+  void _invalidateLayoutCache() {
+    _cachedLayout = null;
+  }
+
+  /// Computes the visible viewport rect in graph coordinates
+  Rect _computeVisibleRect() {
+    final screenSize = MediaQuery.of(context).size;
+    final transform = _transformationController.value;
+    final inverse = Matrix4.identity()..copyInverse(transform);
+    final topLeft = MatrixUtils.transformPoint(inverse, Offset.zero);
+    final bottomRight = MatrixUtils.transformPoint(
+      inverse,
+      Offset(screenSize.width, screenSize.height),
+    );
+    return Rect.fromPoints(topLeft, bottomRight);
+  }
+
   // ══════════════════════════════════════════════════════════════════
   // BUILD
   // ══════════════════════════════════════════════════════════════════
 
   @override
   Widget build(BuildContext context) {
-    final treeRoots = _buildTree();
-    final activeMembers =
-        widget.members.where((p) => p.deletedAt == null).toList();
-    final layout = _computeLayout(treeRoots);
+    final activeMembers = widget.members
+        .where((p) => p.deletedAt == null)
+        .toList();
+
+    // F4-5: Use cached layout; only recompute when data/layout mode/filters change
+    if (_cachedLayout == null) {
+      final treeRoots = _buildTree();
+      _cachedLayout = _computeLayout(treeRoots);
+      _cachedPositions = Map<String, Offset>.from(_cachedLayout!.positions);
+      _layoutVersion++;
+
+      // F4-6: For > 300 nodes in force mode, trigger async force simulation
+      if (_layoutMode == GraphLayoutMode.force &&
+          _cachedLayout!.nodes.length > 300 &&
+          !_isAsyncComputing) {
+        _computeForceLayoutAsync(_cachedLayout!, _layoutVersion);
+      }
+    }
+
+    final layout = _cachedLayout!;
 
     return Container(
       color: const Color(0xFF131416),
@@ -199,9 +357,11 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
                 _currentScale = details.scale;
               });
             },
-            child: GestureDetector(
-              onTapUp: (details) =>
-                  _handleTap(details.localPosition, layout),
+            child: Semantics(
+              label: 'Family relationship graph with ${activeMembers.length} members',
+              hint: 'Pinch to zoom, drag to pan, tap a node to view member',
+              child: GestureDetector(
+              onTapUp: (details) => _handleTap(details.localPosition, layout),
               onLongPressStart: (details) =>
                   _handleLongPress(details.localPosition, layout),
               onDoubleTap: () {}, // Required for onDoubleTapDown to work
@@ -216,31 +376,32 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
                     _pulseController,
                   ]),
                   builder: (context, _) {
-                    return CustomPaint(
-                      painter: _ConstellationPainter(
-                        layout: layout,
-                        scale: _currentScale,
-                        selectedNodeId: _selectedNodeId,
-                        anchorPersonId: widget.anchorPersonId,
-                        showLabels: _showLabels,
-                        showGenBands: _showGenBands,
-                        ambientValue: _ambientController.value,
-                        pulseValue: _pulseController.value,
-                        members: widget.members,
+                    // F4-3: Wrap in RepaintBoundary
+                    return RepaintBoundary(
+                      child: CustomPaint(
+                        painter: _ConstellationPainter(
+                          layout: layout,
+                          scale: _currentScale,
+                          selectedNodeId: _selectedNodeId,
+                          anchorPersonId: widget.anchorPersonId,
+                          showLabels: _showLabels,
+                          showGenBands: _showGenBands,
+                          ambientValue: _ambientController.value,
+                          pulseValue: _pulseController.value,
+                          members: widget.members,
+                          visibleRect: _computeVisibleRect(),
+                        ),
                       ),
                     );
                   },
                 ),
               ),
             ),
+            ),
           ),
 
           // ── Language selector (top-left) ────────────────────────
-          Positioned(
-            top: 8,
-            left: 8,
-            child: _LanguageSelectorButton(),
-          ),
+          Positioned(top: 8, left: 8, child: _LanguageSelectorButton()),
 
           // ── Filter bar (top-center) ─────────────────────────────
           Positioned(
@@ -249,7 +410,12 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
             right: 52,
             child: _FilterBar(
               filters: _filters,
-              onFiltersChanged: (f) => setState(() => _filters = f),
+              onFiltersChanged: (f) {
+                setState(() {
+                  _filters = f;
+                  _invalidateLayoutCache();
+                });
+              },
             ),
           ),
 
@@ -270,6 +436,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
                   _layoutMode = mode;
                   _forcePositions.clear();
                   _forceVelocities.clear();
+                  _invalidateLayoutCache();
                 });
               },
               onToggleLabels: () {
@@ -305,6 +472,22 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
                 layout: layout,
                 transformationController: _transformationController,
                 canvasSize: const Size(canvasSize, canvasSize),
+              ),
+            ),
+
+          // ── Accessibility: Semantic overlay for graph nodes ────
+          // Positioned invisible Semantics nodes for each person in the
+          // graph so TalkBack/VoiceOver can navigate and announce them.
+          if (activeMembers.isNotEmpty)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: _AccessibilityNodeOverlay(
+                  layout: layout,
+                  members: widget.members,
+                  selectedNodeId: _selectedNodeId,
+                  anchorPersonId: widget.anchorPersonId,
+                  transformationController: _transformationController,
+                ),
               ),
             ),
 
@@ -348,6 +531,17 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
         (p) => p.id == tappedId,
         orElse: () => Person(id: tappedId!, familyId: '', name: 'Unknown'),
       );
+
+      // P8: Smart preloading — precache full-size photo on tap
+      try {
+        SmartPreloader.precacheSingleImage(
+          context: context,
+          imageUrl: person.photoUrl,
+        );
+      } catch (_) {
+        // Silently ignore — preloading is best-effort
+      }
+
       setState(() => _selectedNodeId = tappedId);
       widget.onNodeTap?.call(person);
     } else {
@@ -402,10 +596,11 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
       if (pos != null) {
         final screenSize = MediaQuery.of(context).size;
         setState(() {
-          _transformationController.value = Matrix4.identity()
-            ..setEntry(0, 3, screenSize.width / 2 - pos.dx * 1.5)
-            ..setEntry(1, 3, screenSize.height / 2 - pos.dy * 1.5)
-            ..scaleByDouble(1.5);
+          final m = Matrix4.identity();
+          m.setEntry(0, 3, screenSize.width / 2 - pos.dx * 1.5);
+          m.setEntry(1, 3, screenSize.height / 2 - pos.dy * 1.5);
+          m.scaleByDouble(1.5, 1.5, 1.0, 1.0);
+          _transformationController.value = m;
           _currentScale = 1.5;
         });
       }
@@ -429,7 +624,9 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
     final newScale = (_currentScale * 1.2).clamp(0.3, 3.0);
     final scaleFactor = newScale / _currentScale;
     setState(() {
-      _transformationController.value = current.scaledByDouble(scaleFactor);
+      final m = Matrix4.copy(current);
+      m.scaleByDouble(scaleFactor, scaleFactor, 1.0, 1.0);
+      _transformationController.value = m;
       _currentScale = newScale;
     });
   }
@@ -439,7 +636,9 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
     final newScale = (_currentScale / 1.2).clamp(0.3, 3.0);
     final scaleFactor = newScale / _currentScale;
     setState(() {
-      _transformationController.value = current.scaledByDouble(scaleFactor);
+      final m = Matrix4.copy(current);
+      m.scaleByDouble(scaleFactor, scaleFactor, 1.0, 1.0);
+      _transformationController.value = m;
       _currentScale = newScale;
     });
   }
@@ -452,16 +651,16 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
   }
 
   void _centerOnAnchor() {
-    final treeRoots = _buildTree();
-    final layout = _computeLayout(treeRoots);
-    final anchorPos = layout.positions[widget.anchorPersonId];
+    if (_cachedPositions.isEmpty) return;
+    final anchorPos = _cachedPositions[widget.anchorPersonId];
     if (anchorPos != null) {
       final screenSize = MediaQuery.of(context).size;
       setState(() {
-        _transformationController.value = Matrix4.identity()
-          ..setEntry(0, 3, screenSize.width / 2 - anchorPos.dx * 1.5)
-          ..setEntry(1, 3, screenSize.height / 2 - anchorPos.dy * 1.5)
-          ..scaleByDouble(1.5);
+        final m = Matrix4.identity();
+        m.setEntry(0, 3, screenSize.width / 2 - anchorPos.dx * 1.5);
+        m.setEntry(1, 3, screenSize.height / 2 - anchorPos.dy * 1.5);
+        m.scaleByDouble(1.5, 1.5, 1.0, 1.0);
+        _transformationController.value = m;
         _currentScale = 1.5;
       });
     }
@@ -472,8 +671,9 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
   // ══════════════════════════════════════════════════════════════════
 
   List<VisTreeNode> _buildTree() {
-    var activeMembers =
-        widget.members.where((p) => p.deletedAt == null).toList();
+    var activeMembers = widget.members
+        .where((p) => p.deletedAt == null)
+        .toList();
 
     if (!_filters.showDeceased) {
       activeMembers = activeMembers.where((p) => !p.isDeceased).toList();
@@ -572,10 +772,12 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
 
     for (final p in persons) {
       if (!usedIds.contains(p.id)) {
-        roots.add(VisTreeNode(
-          person: p,
-          lineage: p.id == widget.anchorPersonId ? 'self' : '',
-        ));
+        roots.add(
+          VisTreeNode(
+            person: p,
+            lineage: p.id == widget.anchorPersonId ? 'self' : '',
+          ),
+        );
         usedIds.add(p.id);
       }
     }
@@ -609,10 +811,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
 
       if (node.spouse != null && _filters.showMaritalLinks) {
         final spouseId = node.spouse!.id;
-        nodes[spouseId] = VisTreeNode(
-          person: node.spouse!,
-          lineage: 'marital',
-        );
+        nodes[spouseId] = VisTreeNode(person: node.spouse!, lineage: 'marital');
         lineages[spouseId] = 'marital';
         generations[spouseId] = depth;
         final spouseMember = memberMap[spouseId];
@@ -620,21 +819,25 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
           generations[spouseId] = spouseMember.generationIndex;
         }
 
-        edges.add(VisEdge(
-          fromId: id,
-          toId: spouseId,
-          type: EdgeType.spouse,
-          label: 'spouse',
-        ));
+        edges.add(
+          VisEdge(
+            fromId: id,
+            toId: spouseId,
+            type: EdgeType.spouse,
+            label: 'spouse',
+          ),
+        );
       }
 
       for (final child in node.children) {
-        edges.add(VisEdge(
-          fromId: id,
-          toId: child.person.id,
-          type: EdgeType.parentChild,
-          label: 'parent-child',
-        ));
+        edges.add(
+          VisEdge(
+            fromId: id,
+            toId: child.person.id,
+            type: EdgeType.parentChild,
+            label: 'parent-child',
+          ),
+        );
         collectNodes(child, depth + 1);
       }
     }
@@ -657,9 +860,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
 
       final type = rel.type.toLowerCase();
       EdgeType? edgeType;
-      if (type.contains('sibling') ||
-          type == 'brother' ||
-          type == 'sister') {
+      if (type.contains('sibling') || type == 'brother' || type == 'sister') {
         edgeType = EdgeType.sibling;
       } else if (type.contains('in_law') || type.contains('inlaw')) {
         edgeType = EdgeType.inLaw;
@@ -668,34 +869,47 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
       if (edgeType != null &&
           nodes.containsKey(rel.fromId) &&
           nodes.containsKey(rel.toId)) {
-        edges.add(VisEdge(
-          fromId: rel.fromId,
-          toId: rel.toId,
-          type: edgeType,
-          label: rel.type,
-        ));
+        edges.add(
+          VisEdge(
+            fromId: rel.fromId,
+            toId: rel.toId,
+            type: edgeType,
+            label: rel.type,
+          ),
+        );
         existingEdgeSet.add(key1);
         existingEdgeSet.add('${rel.toId}-${rel.fromId}');
       }
     }
 
     // Compute positions based on layout mode
+    // F4-6: For > 300 nodes in force mode, skip simulation (async will handle it)
     switch (_layoutMode) {
       case GraphLayoutMode.hierarchical:
         _computeHierarchicalLayout(
-            roots, positions, nodes, lineages, generations);
+          roots,
+          positions,
+          nodes,
+          lineages,
+          generations,
+        );
       case GraphLayoutMode.radial:
-        _computeRadialLayout(
-            roots, positions, nodes, lineages, generations);
+        _computeRadialLayout(roots, positions, nodes, lineages, generations);
       case GraphLayoutMode.force:
         _computeForceLayout(
-            roots, positions, nodes, edges, lineages, generations);
+          roots,
+          positions,
+          nodes,
+          edges,
+          lineages,
+          generations,
+          skipSimulation: nodes.length > 300,
+        );
     }
 
     // Ensure all nodes have positions
     for (final id in nodes.keys) {
-      positions.putIfAbsent(
-          id, () => Offset(canvasSize / 2, canvasSize / 2));
+      positions.putIfAbsent(id, () => Offset(canvasSize / 2, canvasSize / 2));
     }
 
     return LayoutResult(
@@ -722,17 +936,12 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
 
     double layoutSubtree(VisTreeNode node, double xOff, double yOff) {
       final hasSpouse = node.spouse != null;
-      final coupleWidth =
-          hasSpouse ? nodeRadius * 4 + 20 : nodeRadius * 2;
+      final coupleWidth = hasSpouse ? nodeRadius * 4 + 20 : nodeRadius * 2;
 
       if (node.children.isEmpty) {
-        positions[node.person.id] =
-            Offset(xOff + nodeRadius, yOff);
+        positions[node.person.id] = Offset(xOff + nodeRadius, yOff);
         if (hasSpouse) {
-          positions[node.spouse!.id] = Offset(
-            xOff + nodeRadius * 3 + 20,
-            yOff,
-          );
+          positions[node.spouse!.id] = Offset(xOff + nodeRadius * 3 + 20, yOff);
         }
         return coupleWidth;
       }
@@ -824,8 +1033,9 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
     Map<String, VisTreeNode> nodes,
     List<VisEdge> edges,
     Map<String, String> lineages,
-    Map<String, int> generations,
-  ) {
+    Map<String, int> generations, {
+    bool skipSimulation = false,
+  }) {
     const double repulsionStrength = 6000;
     const double attractionStrength = 0.004;
     const double gravityStrength = 0.008;
@@ -841,10 +1051,16 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
         !_forcePositions.keys.toSet().containsAll(allIds)) {
       final tempPositions = <String, Offset>{};
       _computeHierarchicalLayout(
-          roots, tempPositions, nodes, lineages, generations);
+        roots,
+        tempPositions,
+        nodes,
+        lineages,
+        generations,
+      );
 
       for (final id in allIds) {
-        _forcePositions[id] = tempPositions[id] ??
+        _forcePositions[id] =
+            tempPositions[id] ??
             Offset(
               center.dx + (math.Random().nextDouble() - 0.5) * 300,
               center.dy + (math.Random().nextDouble() - 0.5) * 300,
@@ -853,56 +1069,235 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
       _forceVelocities = {for (final id in allIds) id: Offset.zero};
     }
 
-    // Run simulation
-    for (int step = 0; step < maxSteps; step++) {
-      final forces = <String, Offset>{for (final id in allIds) id: Offset.zero};
+    // F4-6: Skip simulation for large graphs (handled async via compute)
+    if (!skipSimulation) {
+      // Run simulation
+      for (int step = 0; step < maxSteps; step++) {
+        final forces = <String, Offset>{
+          for (final id in allIds) id: Offset.zero,
+        };
 
-      // Repulsion
-      for (int i = 0; i < allIds.length; i++) {
-        for (int j = i + 1; j < allIds.length; j++) {
-          final a = allIds[i];
-          final b = allIds[j];
-          final delta = _forcePositions[a]! - _forcePositions[b]!;
+        // Repulsion
+        for (int i = 0; i < allIds.length; i++) {
+          for (int j = i + 1; j < allIds.length; j++) {
+            final a = allIds[i];
+            final b = allIds[j];
+            final delta = _forcePositions[a]! - _forcePositions[b]!;
+            final dist = math.max(delta.distance, 0.1);
+            final force = repulsionStrength / (dist * dist);
+            final direction = delta / dist;
+            forces[a] = forces[a]! + direction * force;
+            forces[b] = forces[b]! - direction * force;
+          }
+        }
+
+        // Attraction
+        for (final edge in edges) {
+          if (!_forcePositions.containsKey(edge.fromId) ||
+              !_forcePositions.containsKey(edge.toId)) {
+            continue;
+          }
+          final delta =
+              _forcePositions[edge.toId]! - _forcePositions[edge.fromId]!;
           final dist = math.max(delta.distance, 0.1);
-          final force = repulsionStrength / (dist * dist);
+          final force = attractionStrength * (dist - idealEdgeLength);
           final direction = delta / dist;
-          forces[a] = forces[a]! + direction * force;
-          forces[b] = forces[b]! - direction * force;
+          forces[edge.fromId] = forces[edge.fromId]! + direction * force;
+          forces[edge.toId] = forces[edge.toId]! - direction * force;
         }
-      }
 
-      // Attraction
-      for (final edge in edges) {
-        if (!_forcePositions.containsKey(edge.fromId) ||
-            !_forcePositions.containsKey(edge.toId)) {
-          continue;
+        // Gravity
+        for (final id in allIds) {
+          final delta = center - _forcePositions[id]!;
+          forces[id] = forces[id]! + delta * gravityStrength;
         }
-        final delta =
-            _forcePositions[edge.toId]! - _forcePositions[edge.fromId]!;
-        final dist = math.max(delta.distance, 0.1);
-        final force = attractionStrength * (dist - idealEdgeLength);
-        final direction = delta / dist;
-        forces[edge.fromId] = forces[edge.fromId]! + direction * force;
-        forces[edge.toId] = forces[edge.toId]! - direction * force;
-      }
 
-      // Gravity
-      for (final id in allIds) {
-        final delta = center - _forcePositions[id]!;
-        forces[id] = forces[id]! + delta * gravityStrength;
-      }
-
-      // Apply
-      for (final id in allIds) {
-        final vel = (_forceVelocities[id] ?? Offset.zero) + forces[id]!;
-        _forceVelocities[id] = vel * damping;
-        _forcePositions[id] = _forcePositions[id]! + _forceVelocities[id]!;
+        // Apply
+        for (final id in allIds) {
+          final vel = (_forceVelocities[id] ?? Offset.zero) + forces[id]!;
+          _forceVelocities[id] = vel * damping;
+          _forcePositions[id] = _forcePositions[id]! + _forceVelocities[id]!;
+        }
       }
     }
 
     for (final id in allIds) {
       positions[id] = _forcePositions[id]!;
     }
+  }
+
+  // ── F4-6: Async force layout for large graphs using compute() ────
+
+  Future<void> _computeForceLayoutAsync(
+    LayoutResult currentLayout,
+    int startVersion,
+  ) async {
+    _isAsyncComputing = true;
+
+    final allIds = currentLayout.nodes.keys.toList();
+    final simEdges = currentLayout.edges
+        .map((e) => _SimEdge(fromId: e.fromId, toId: e.toId))
+        .toList();
+
+    // Prepare initial positions from _forcePositions or current layout
+    final inputPositions = <String, Offset>{};
+    for (final id in allIds) {
+      inputPositions[id] = _forcePositions[id] ??
+          currentLayout.positions[id] ??
+          Offset(canvasSize / 2, canvasSize / 2);
+    }
+    final inputVelocities = <String, Offset>{};
+    for (final id in allIds) {
+      inputVelocities[id] = _forceVelocities[id] ?? Offset.zero;
+    }
+
+    final input = _ForceSimInput(
+      positions: inputPositions,
+      velocities: inputVelocities,
+      edges: simEdges,
+      allIds: allIds,
+      centerX: canvasSize / 2,
+      centerY: canvasSize / 2,
+    );
+
+    try {
+      final result = await compute(_runForceSimulationIsolate, input);
+
+      if (!mounted) {
+        _isAsyncComputing = false;
+        return;
+      }
+
+      // Only apply if layout hasn't been recomputed since we started
+      if (_layoutVersion == startVersion) {
+        _forcePositions
+          ..clear()
+          ..addAll(result.positions);
+        _forceVelocities
+          ..clear()
+          ..addAll(result.velocities);
+
+        // Rebuild cached layout with force-directed positions
+        final newPositions = Map<String, Offset>.from(currentLayout.positions);
+        for (final id in result.positions.keys) {
+          newPositions[id] = result.positions[id]!;
+        }
+
+        setState(() {
+          _cachedLayout = LayoutResult(
+            positions: newPositions,
+            nodes: currentLayout.nodes,
+            nodeLineages: currentLayout.nodeLineages,
+            edges: currentLayout.edges,
+            nodeGenerations: currentLayout.nodeGenerations,
+          );
+          _cachedPositions = Map<String, Offset>.from(newPositions);
+          _layoutVersion++;
+          _isAsyncComputing = false;
+        });
+      } else {
+        // Layout was invalidated while computing; discard result
+        _isAsyncComputing = false;
+      }
+    } catch (_) {
+      _isAsyncComputing = false;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ACCESSIBILITY NODE OVERLAY — Screen reader support for graph nodes
+// ═══════════════════════════════════════════════════════════════════════
+
+/// An invisible overlay that places [Semantics] nodes at each graph
+/// node position. This allows TalkBack / VoiceOver users to navigate
+/// the family tree by swiping through nodes, hearing each person's
+/// name and relation.
+///
+/// The overlay uses [IgnorePointer] so it does not intercept taps;
+/// real touch handling is done by the [GestureDetector] beneath.
+class _AccessibilityNodeOverlay extends StatelessWidget {
+  const _AccessibilityNodeOverlay({
+    required this.layout,
+    required this.members,
+    required this.selectedNodeId,
+    required this.anchorPersonId,
+    required this.transformationController,
+  });
+
+  final LayoutResult layout;
+  final List<Person> members;
+  final String? selectedNodeId;
+  final String? anchorPersonId;
+  final TransformationController transformationController;
+
+  @override
+  Widget build(BuildContext context) {
+    if (layout.positions.isEmpty) return const SizedBox.shrink();
+
+    final memberMap = {for (final m in members) m.id: m};
+    final screenSize = MediaQuery.of(context).size;
+
+    return Stack(
+      children: layout.positions.entries.map((entry) {
+        final id = entry.key;
+        final pos = entry.value;
+        final person = memberMap[id];
+        final name = person?.name ?? 'Unknown';
+        final lineage = layout.nodeLineages[id] ?? '';
+        final generation = layout.nodeGenerations[id];
+        final isSelected = id == selectedNodeId;
+        final isAnchor = id == anchorPersonId;
+
+        // Build a descriptive semantic label
+        final parts = <String>[name];
+        if (isAnchor) parts.add('You');
+        if (lineage.isNotEmpty && lineage != 'self') {
+          parts.add('${lineage} lineage');
+        }
+        if (generation != null) parts.add('Generation $generation');
+        if (isSelected) parts.add('Selected');
+
+        // Find edges involving this node for relation info
+        final relations = layout.edges
+            .where((e) => e.fromId == id || e.toId == id)
+            .map((e) {
+          final otherId = e.fromId == id ? e.toId : e.fromId;
+          final otherName = memberMap[otherId]?.name ?? 'Unknown';
+          final label = e.label ?? e.type.name;
+          return '$label: $otherName';
+        }).join('; ');
+
+        final semanticLabel = parts.join(', ');
+        final semanticHint = relations.isNotEmpty
+            ? 'Relations: $relations'
+            : 'No relations';
+
+        // Transform graph position to screen position
+        final transform = transformationController.value;
+        final screenPos = MatrixUtils.transformPoint(transform, pos);
+
+        // Only show nodes that are roughly on-screen
+        if (screenPos.dx < -100 ||
+            screenPos.dx > screenSize.width + 100 ||
+            screenPos.dy < -100 ||
+            screenPos.dy > screenSize.height + 100) {
+          return const SizedBox.shrink();
+        }
+
+        return Positioned(
+          left: screenPos.dx - 24,
+          top: screenPos.dy - 24,
+          child: Semantics(
+            button: true,
+            label: semanticLabel,
+            hint: semanticHint,
+            selected: isSelected,
+            child: const SizedBox(width: 48, height: 48),
+          ),
+        );
+      }).toList(),
+    );
   }
 }
 
@@ -921,6 +1316,7 @@ class _ConstellationPainter extends CustomPainter {
     required this.ambientValue,
     required this.pulseValue,
     required this.members,
+    required this.visibleRect,
   });
 
   final LayoutResult layout;
@@ -932,6 +1328,7 @@ class _ConstellationPainter extends CustomPainter {
   final double ambientValue;
   final double pulseValue;
   final List<Person> members;
+  final Rect visibleRect; // F4-2: Viewport rect for culling
 
   // ── Design constants ────────────────────────────────────────────
   static const double nodeRadius = 24.0;
@@ -951,6 +1348,21 @@ class _ConstellationPainter extends CustomPainter {
   static const Color parentChildEdgeColor = Color(0xFFF5F0EE);
   static const Color siblingEdgeColor = Color(0xFFF59240);
   static const Color inLawEdgeColor = Color(0xFFC9B4A8);
+
+  // ── F4-1: shouldRepaint with strict equality checks ─────────────
+
+  @override
+  bool shouldRepaint(covariant _ConstellationPainter oldDelegate) {
+    return !identical(oldDelegate.layout, layout) ||
+        oldDelegate.scale != scale ||
+        oldDelegate.selectedNodeId != selectedNodeId ||
+        oldDelegate.anchorPersonId != anchorPersonId ||
+        oldDelegate.showLabels != showLabels ||
+        oldDelegate.showGenBands != showGenBands ||
+        oldDelegate.ambientValue != ambientValue ||
+        oldDelegate.pulseValue != pulseValue ||
+        !identical(oldDelegate.members, members);
+  }
 
   // ── Helpers ─────────────────────────────────────────────────────
 
@@ -997,8 +1409,21 @@ class _ConstellationPainter extends CustomPainter {
       _drawGenerationBands(canvas, size);
     }
 
-    // ── Edges ────────────────────────────────────────────────────
+    // ── F4-2: Viewport culling ────────────────────────────────────
+    // Expand viewport rect by node radius + margin for culling
+    final cullRect = visibleRect.inflate(nodeRadiusSelected + 20);
+
+    // ── Edges (skip if BOTH endpoints outside viewport) ──────────
     for (final edge in layout.edges) {
+      final fromPos = layout.positions[edge.fromId];
+      final toPos = layout.positions[edge.toId];
+      if (fromPos == null || toPos == null) continue;
+
+      // Cull edges where both endpoints are outside the viewport
+      final fromVisible = cullRect.contains(fromPos);
+      final toVisible = cullRect.contains(toPos);
+      if (!fromVisible && !toVisible) continue;
+
       _drawEdge(canvas, edge);
     }
 
@@ -1014,6 +1439,10 @@ class _ConstellationPainter extends CustomPainter {
 
     for (final id in sortedIds) {
       final pos = layout.positions[id]!;
+
+      // Cull nodes whose center + radius is outside viewport
+      if (!cullRect.contains(pos)) continue;
+
       final ambient = _ambientOffset(id);
       _drawNode(canvas, id, pos + ambient);
     }
@@ -1041,8 +1470,8 @@ class _ConstellationPainter extends CustomPainter {
   void _drawGenerationBands(Canvas canvas, Size size) {
     if (layout.nodeGenerations.isEmpty) return;
 
-    final center = layout.positions[anchorPersonId] ??
-        layout.positions.values.first;
+    final center =
+        layout.positions[anchorPersonId] ?? layout.positions.values.first;
 
     final maxGen = layout.nodeGenerations.values.fold(0, math.max);
     final minGen = layout.nodeGenerations.values.fold(100, math.min);
@@ -1073,8 +1502,7 @@ class _ConstellationPainter extends CustomPainter {
         labelPainter.layout();
         labelPainter.paint(
           canvas,
-          Offset(center.dx - labelPainter.width / 2,
-              center.dy - radius - 14),
+          Offset(center.dx - labelPainter.width / 2, center.dy - radius - 14),
         );
       }
     }
@@ -1142,7 +1570,12 @@ class _ConstellationPainter extends CustomPainter {
   }
 
   void _drawEdgePath(
-      Canvas canvas, Offset start, Offset end, EdgeType type, Paint paint) {
+    Canvas canvas,
+    Offset start,
+    Offset end,
+    EdgeType type,
+    Paint paint,
+  ) {
     switch (type) {
       case EdgeType.parentChild:
         final midY = (start.dy + end.dy) / 2;
@@ -1160,10 +1593,7 @@ class _ConstellationPainter extends CustomPainter {
   }
 
   void _drawHeartAtMidpoint(Canvas canvas, Offset start, Offset end) {
-    final mid = Offset(
-      (start.dx + end.dx) / 2,
-      (start.dy + end.dy) / 2,
-    );
+    final mid = Offset((start.dx + end.dx) / 2, (start.dy + end.dy) / 2);
     final heartPainter = TextPainter(
       text: const TextSpan(
         text: '\u2764',
@@ -1174,13 +1604,18 @@ class _ConstellationPainter extends CustomPainter {
     heartPainter.layout();
     heartPainter.paint(
       canvas,
-      Offset(mid.dx - heartPainter.width / 2,
-          mid.dy - heartPainter.height / 2),
+      Offset(mid.dx - heartPainter.width / 2, mid.dy - heartPainter.height / 2),
     );
   }
 
-  void _drawDashedLine(Canvas canvas, Offset start, Offset end,
-      Paint paint, double dashLen, double gapLen) {
+  void _drawDashedLine(
+    Canvas canvas,
+    Offset start,
+    Offset end,
+    Paint paint,
+    double dashLen,
+    double gapLen,
+  ) {
     final dx = end.dx - start.dx;
     final dy = end.dy - start.dy;
     final distance = math.sqrt(dx * dx + dy * dy);
@@ -1198,8 +1633,14 @@ class _ConstellationPainter extends CustomPainter {
     }
   }
 
-  void _drawDottedLine(Canvas canvas, Offset start, Offset end,
-      Paint paint, double dotRadius, double spacing) {
+  void _drawDottedLine(
+    Canvas canvas,
+    Offset start,
+    Offset end,
+    Paint paint,
+    double dotRadius,
+    double spacing,
+  ) {
     final dx = end.dx - start.dx;
     final dy = end.dy - start.dy;
     final distance = math.sqrt(dx * dx + dy * dy);
@@ -1216,7 +1657,130 @@ class _ConstellationPainter extends CustomPainter {
     }
   }
 
-  // ── Node drawing ─────────────────────────────────────────────────
+  // ── Node drawing with Level-of-Detail (F4-4) ────────────────────
+
+  /// LOD 0: Circle only, no text, no avatar details (zoom < 0.35)
+  void _drawNodeLod0(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Color ringColor,
+    bool isDeceased,
+    bool isSelected,
+  ) {
+    // Minimal selection indicator
+    if (isSelected) {
+      final glowPaint = Paint()
+        ..color = const Color(0xFFE8612A).withValues(alpha: 0.25)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+      canvas.drawCircle(center, radius + 4, glowPaint);
+    }
+
+    // Generation ring
+    final ringPaint = Paint()
+      ..color = ringColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = ringWidth;
+    canvas.drawCircle(center, radius + ringWidth, ringPaint);
+
+    // Simplified body — flat color instead of gradient
+    final bodyPaint = Paint()
+      ..color = isDeceased
+          ? const Color(0xFF3A3A4E)
+          : ringColor.withValues(alpha: 0.7);
+    canvas.drawCircle(center, radius, bodyPaint);
+  }
+
+  /// LOD 1: Circle + name text only (zoom 0.35–0.7)
+  void _drawNodeLod1(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Color ringColor,
+    bool isDeceased,
+    String name,
+    bool isSelected,
+    bool isAnchor,
+  ) {
+    // Selection glow (simplified)
+    if (isSelected) {
+      final glowAlpha = 0.2 + pulseValue * 0.15;
+      final glowPaint = Paint()
+        ..color = const Color(0xFFE8612A).withValues(alpha: glowAlpha)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
+      canvas.drawCircle(center, radius + 8, glowPaint);
+    }
+
+    // Anchor glow
+    if (isAnchor && !isSelected) {
+      final anchorGlow = Paint()
+        ..color = KinrelColors.orangeGlowIntense
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+      canvas.drawCircle(center, radius + 5, anchorGlow);
+    }
+
+    // Generation ring
+    final ringPaint = Paint()
+      ..color = ringColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = ringWidth;
+    canvas.drawCircle(center, radius + ringWidth, ringPaint);
+
+    // Node body (gradient)
+    final gradient = _avatarGradient(isDeceased);
+    final bodyRect = Rect.fromCircle(center: center, radius: radius);
+    final bodyPaint = Paint()..shader = gradient.createShader(bodyRect);
+    canvas.drawCircle(center, radius, bodyPaint);
+
+    // Initial (simplified — just the letter)
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final initialPainter = TextPainter(
+      text: TextSpan(
+        text: initial,
+        style: TextStyle(
+          fontFamily: KinrelTypography.displayFont,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    initialPainter.layout();
+    initialPainter.paint(
+      canvas,
+      Offset(
+        center.dx - initialPainter.width / 2,
+        center.dy - initialPainter.height / 2,
+      ),
+    );
+
+    // Name label below node
+    if (showLabels) {
+      final namePainter = TextPainter(
+        text: TextSpan(
+          text: name,
+          style: TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: nameFontSize,
+            fontWeight: FontWeight.w500,
+            color: const Color(0xFFF5F0EE).withValues(alpha: 0.8),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '...',
+      );
+      namePainter.layout(maxWidth: 80);
+      namePainter.paint(
+        canvas,
+        Offset(
+          center.dx - namePainter.width / 2,
+          center.dy + radius + 6,
+        ),
+      );
+    }
+  }
 
   void _drawNode(Canvas canvas, String id, Offset center) {
     final isSelected = id == selectedNodeId;
@@ -1229,6 +1793,37 @@ class _ConstellationPainter extends CustomPainter {
 
     final effectiveRadius = isSelected ? nodeRadiusSelected : nodeRadius;
     final ringColor = _generationRingColor(generation);
+
+    // ── F4-4: Level-of-detail by zoom ────────────────────────────
+    if (scale < 0.35) {
+      // LOD 0: Circle only, no text, no avatar details
+      _drawNodeLod0(
+        canvas,
+        center,
+        effectiveRadius,
+        ringColor,
+        isDeceased,
+        isSelected,
+      );
+      return;
+    }
+
+    if (scale <= 0.7) {
+      // LOD 1: Circle + name text only
+      _drawNodeLod1(
+        canvas,
+        center,
+        effectiveRadius,
+        ringColor,
+        isDeceased,
+        name,
+        isSelected,
+        isAnchor,
+      );
+      return;
+    }
+
+    // ── LOD 2: Full detail (current behavior) ────────────────────
 
     // ── Selection glow (pulsing orange) ──────────────────────────
     if (isSelected) {
@@ -1257,8 +1852,7 @@ class _ConstellationPainter extends CustomPainter {
     // ── Node body (gradient circle) ─────────────────────────────
     final gradient = _avatarGradient(isDeceased);
     final bodyRect = Rect.fromCircle(center: center, radius: effectiveRadius);
-    final bodyPaint = Paint()
-      ..shader = gradient.createShader(bodyRect);
+    final bodyPaint = Paint()..shader = gradient.createShader(bodyRect);
     canvas.drawCircle(center, effectiveRadius, bodyPaint);
 
     // ── Deceased overlay ────────────────────────────────────────
@@ -1277,8 +1871,10 @@ class _ConstellationPainter extends CustomPainter {
       dovePainter.layout();
       dovePainter.paint(
         canvas,
-        Offset(center.dx - dovePainter.width / 2,
-            center.dy - dovePainter.height / 2),
+        Offset(
+          center.dx - dovePainter.width / 2,
+          center.dy - dovePainter.height / 2,
+        ),
       );
     } else {
       final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
@@ -1297,8 +1893,10 @@ class _ConstellationPainter extends CustomPainter {
       initialPainter.layout();
       initialPainter.paint(
         canvas,
-        Offset(center.dx - initialPainter.width / 2,
-            center.dy - initialPainter.height / 2),
+        Offset(
+          center.dx - initialPainter.width / 2,
+          center.dy - initialPainter.height / 2,
+        ),
       );
     }
 
@@ -1322,8 +1920,10 @@ class _ConstellationPainter extends CustomPainter {
       namePainter.layout(maxWidth: 80);
       namePainter.paint(
         canvas,
-        Offset(center.dx - namePainter.width / 2,
-            center.dy + effectiveRadius + 6),
+        Offset(
+          center.dx - namePainter.width / 2,
+          center.dy + effectiveRadius + 6,
+        ),
       );
     }
 
@@ -1346,8 +1946,10 @@ class _ConstellationPainter extends CustomPainter {
       kinshipPainter.layout(maxWidth: 100);
       kinshipPainter.paint(
         canvas,
-        Offset(center.dx - kinshipPainter.width / 2,
-            center.dy - effectiveRadius - 18),
+        Offset(
+          center.dx - kinshipPainter.width / 2,
+          center.dy - effectiveRadius - 18,
+        ),
       );
     }
 
@@ -1378,23 +1980,14 @@ class _ConstellationPainter extends CustomPainter {
           detailPainter.layout(maxWidth: 120);
           detailPainter.paint(
             canvas,
-            Offset(center.dx - detailPainter.width / 2,
-                center.dy + effectiveRadius + 22),
+            Offset(
+              center.dx - detailPainter.width / 2,
+              center.dy + effectiveRadius + 22,
+            ),
           );
         }
       }
     }
-  }
-
-  @override
-  bool shouldRepaint(covariant _ConstellationPainter oldDelegate) {
-    return oldDelegate.layout != layout ||
-        oldDelegate.scale != scale ||
-        oldDelegate.selectedNodeId != selectedNodeId ||
-        oldDelegate.showLabels != showLabels ||
-        oldDelegate.showGenBands != showGenBands ||
-        oldDelegate.ambientValue != ambientValue ||
-        oldDelegate.pulseValue != pulseValue;
   }
 }
 
@@ -1411,9 +2004,7 @@ class _LanguageSelectorButton extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1A1B2E).withValues(alpha: 0.85),
         shape: BoxShape.circle,
-        border: Border.all(
-          color: KinrelColors.orange.withValues(alpha: 0.2),
-        ),
+        border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.2)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.2),
@@ -1471,9 +2062,7 @@ class _GraphControls extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1A1B2E).withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(
-          color: KinrelColors.orange.withValues(alpha: 0.15),
-        ),
+        border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.15)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.25),
@@ -1485,49 +2074,55 @@ class _GraphControls extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _ControlButton(icon: Icons.add_rounded, onTap: onZoomIn),
+          _ControlButton(icon: Icons.add_rounded, onTap: onZoomIn, semanticLabel: 'Zoom in'),
           const _ControlDivider(),
-          _ControlButton(icon: Icons.remove_rounded, onTap: onZoomOut),
+          _ControlButton(icon: Icons.remove_rounded, onTap: onZoomOut, semanticLabel: 'Zoom out'),
           const _ControlDivider(),
           _ControlButton(
             icon: Icons.fit_screen_rounded,
             color: KinrelColors.orange,
             onTap: onFit,
+            semanticLabel: 'Fit to screen',
           ),
           const _ControlDivider(),
           _ControlButton(
             icon: Icons.person_pin_circle_rounded,
             color: KinrelColors.amber,
             onTap: onCenterYou,
+            semanticLabel: 'Center on you',
           ),
           const _ControlDivider(),
           _ControlButton(
             icon: layoutMode == GraphLayoutMode.force
                 ? Icons.bubble_chart_rounded
                 : layoutMode == GraphLayoutMode.hierarchical
-                    ? Icons.account_tree_rounded
-                    : Icons.radar_rounded,
+                ? Icons.account_tree_rounded
+                : Icons.radar_rounded,
             color: KinrelColors.orange,
             onTap: () {
-              final next = GraphLayoutMode.values[
-                  (layoutMode.index + 1) % GraphLayoutMode.values.length];
+              final next =
+                  GraphLayoutMode.values[(layoutMode.index + 1) %
+                      GraphLayoutMode.values.length];
               onToggleLayout(next);
             },
+            semanticLabel: 'Change layout, current: ${layoutMode.name}',
           ),
           const _ControlDivider(),
           _ControlButton(
             icon: showLabels ? Icons.label_rounded : Icons.label_off_rounded,
             onTap: onToggleLabels,
             isActive: showLabels,
+            semanticLabel: showLabels ? 'Hide labels' : 'Show labels',
           ),
           const _ControlDivider(),
           _ControlButton(
             icon: Icons.album_rounded,
             onTap: onToggleGenBands,
             isActive: showGenBands,
+            semanticLabel: showGenBands ? 'Hide generation bands' : 'Show generation bands',
           ),
           const _ControlDivider(),
-          _ControlButton(icon: Icons.share_rounded, onTap: onShare),
+          _ControlButton(icon: Icons.share_rounded, onTap: onShare, semanticLabel: 'Share graph'),
         ],
       ),
     );
@@ -1540,12 +2135,17 @@ class _ControlButton extends StatelessWidget {
     required this.onTap,
     this.color,
     this.isActive = false,
+    this.semanticLabel,
   });
 
   final IconData icon;
   final VoidCallback onTap;
   final Color? color;
   final bool isActive;
+
+  /// Accessibility: semantic label for screen readers.
+  /// Falls back to a generic label if not provided.
+  final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -1554,11 +2154,13 @@ class _ControlButton extends StatelessWidget {
         : color ?? const Color(0xFFF5F0EE).withValues(alpha: 0.7);
 
     return SizedBox(
-      width: 40,
-      height: 40,
+      // Accessibility: enforce minimum 48×48 dp tap target
+      width: 48,
+      height: 48,
       child: IconButton(
         padding: EdgeInsets.zero,
         icon: Icon(icon, color: effectiveColor, size: 18),
+        tooltip: semanticLabel,
         onPressed: onTap,
       ),
     );
@@ -1607,10 +2209,14 @@ class _AddNodeFab extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: const SizedBox(
-            width: 48,
-            height: 48,
-            child: Icon(Icons.add_rounded, color: Colors.white, size: 24),
+          child: semanticButton(
+            label: 'Add family member',
+            hint: 'Double tap to add a new person',
+            child: const SizedBox(
+              width: 48,
+              height: 48,
+              child: Icon(Icons.add_rounded, color: Colors.white, size: 24),
+            ),
           ),
         ),
       ),
@@ -1687,13 +2293,18 @@ class _EmptyConstellation extends StatelessWidget {
                     onTap: onAddFirst,
                     borderRadius: BorderRadius.circular(KinrelRadius.full),
                     child: const Padding(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 14,
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.add_rounded,
-                              color: Colors.white, size: 20),
+                          Icon(
+                            Icons.add_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                           SizedBox(width: 8),
                           Text(
                             'Add First Member',
@@ -1758,8 +2369,9 @@ class _ConstellationIllustrationPainter extends CustomPainter {
 
     for (int i = 0; i < points.length; i++) {
       final glowPaint = Paint()
-        ..color =
-            (i == 0 ? orangePaint : amberPaint).color.withValues(alpha: 0.3)
+        ..color = (i == 0 ? orangePaint : amberPaint).color.withValues(
+          alpha: 0.3,
+        )
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
       canvas.drawCircle(points[i], 10, glowPaint);
       canvas.drawCircle(points[i], 4, i == 0 ? orangePaint : amberPaint);
@@ -1776,10 +2388,7 @@ class _ConstellationIllustrationPainter extends CustomPainter {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _FilterBar extends StatelessWidget {
-  const _FilterBar({
-    required this.filters,
-    required this.onFiltersChanged,
-  });
+  const _FilterBar({required this.filters, required this.onFiltersChanged});
 
   final GraphFilters filters;
   final ValueChanged<GraphFilters> onFiltersChanged;
@@ -1794,9 +2403,7 @@ class _FilterBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1A1B2E).withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
-        border: Border.all(
-          color: KinrelColors.orange.withValues(alpha: 0.15),
-        ),
+        border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.15)),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -1817,7 +2424,8 @@ class _FilterBar extends StatelessWidget {
                       newGens.add(gen);
                     }
                     onFiltersChanged(
-                        filters.copyWith(visibleGenerations: newGens));
+                      filters.copyWith(visibleGenerations: newGens),
+                    );
                   },
                 ),
               ),
@@ -1927,25 +2535,17 @@ class _Minimap extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1A1B2E).withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(KinrelRadius.sm),
-        border: Border.all(
-          color: KinrelColors.orange.withValues(alpha: 0.2),
-        ),
+        border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.2)),
       ),
       child: CustomPaint(
-        painter: _MinimapPainter(
-          layout: layout,
-          canvasSize: canvasSize,
-        ),
+        painter: _MinimapPainter(layout: layout, canvasSize: canvasSize),
       ),
     );
   }
 }
 
 class _MinimapPainter extends CustomPainter {
-  _MinimapPainter({
-    required this.layout,
-    required this.canvasSize,
-  });
+  _MinimapPainter({required this.layout, required this.canvasSize});
 
   final LayoutResult layout;
   final Size canvasSize;

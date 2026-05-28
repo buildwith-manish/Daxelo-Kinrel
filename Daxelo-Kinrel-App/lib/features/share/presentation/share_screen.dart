@@ -29,23 +29,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:share_plus/share_plus.dart' as share_plus;
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../../core/utils/share_helper.dart';
 import '../providers/share_provider.dart';
+import '../../core/utils/device_tier.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────────
-const _cOrange = KinrelColors.orange;          // #E8612A
-const _cAmber = KinrelColors.amber;            // #F59240
-const _cGold = KinrelColors.gold;              // #D4AF37
-const _cBg = KinrelColors.darkSurface;         // #13141E
-const _cCard = KinrelColors.darkCard;          // #191B2C
-const _cElevated = KinrelColors.darkElevated;  // #202338
-const _cTextPrimary = KinrelColors.textWhite;  // #F5F0EE
+const _cOrange = KinrelColors.orange; // #E8612A
+const _cAmber = KinrelColors.amber; // #F59240
+const _cGold = KinrelColors.gold; // #D4AF37
+const _cBg = KinrelColors.darkSurface; // #13141E
+const _cCard = KinrelColors.darkCard; // #191B2C
+const _cElevated = KinrelColors.darkElevated; // #202338
+const _cTextPrimary = KinrelColors.textWhite; // #F5F0EE
 const _cTextSecondary = KinrelColors.textSilver; // #C9B4A8
-const _cTextDim = KinrelColors.textDim;        // #8A7A72
+const _cTextDim = KinrelColors.textDim; // #8A7A72
 const _cBorder = Color(0xFF3A3A4A);
 const _cWhatsApp = Color(0xFF25D366);
 const _cSMS = Color(0xFF3B82F6);
@@ -80,9 +83,14 @@ class _ShareScreenState extends ConsumerState<ShareScreen>
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         final tab = ShareTab.values[_tabController.index];
-        ref.read(shareProvider(
-          (familyId: widget.familyId, familyName: widget.familyName),
-        ).notifier).setTab(tab);
+        ref
+            .read(
+              shareProvider((
+                familyId: widget.familyId,
+                familyName: widget.familyName,
+              )).notifier,
+            )
+            .setTab(tab);
       }
     });
   }
@@ -95,24 +103,23 @@ class _ShareScreenState extends ConsumerState<ShareScreen>
 
   @override
   Widget build(BuildContext context) {
-    ref.watch(shareProvider(
-      (familyId: widget.familyId, familyName: widget.familyName),
-    ));
+    ref.watch(
+      shareProvider((familyId: widget.familyId, familyName: widget.familyName)),
+    );
 
     return DKScaffold(
       backgroundColor: _cBg,
       body: Column(
         children: [
           // ── Header ────────────────────────────────────────────────
-          _ShareHeader(familyName: widget.familyName)
-              .animate()
-              .fadeIn(duration: 300.ms)
-              .slideY(begin: -0.05, end: 0),
+          _ShareHeader(
+            familyName: widget.familyName,
+          ).maybeAnimate().fadeIn(duration: 300.ms).slideY(begin: -0.05, end: 0),
 
           // ── Tab Bar ───────────────────────────────────────────────
-          _ShareTabBar(tabController: _tabController)
-              .animate()
-              .fadeIn(duration: 300.ms, delay: 50.ms),
+          _ShareTabBar(
+            tabController: _tabController,
+          ).maybeAnimate().fadeIn(duration: 300.ms, delay: 50.ms),
 
           const SizedBox(height: 12),
 
@@ -198,11 +205,7 @@ class _ShareHeader extends StatelessWidget {
               color: _cOrange.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(KinrelRadius.md),
             ),
-            child: const Icon(
-              Icons.share_rounded,
-              color: _cOrange,
-              size: 22,
-            ),
+            child: const Icon(Icons.share_rounded, color: _cOrange, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -292,22 +295,19 @@ class _ShareTabBar extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _InviteTab extends ConsumerWidget {
-  const _InviteTab({
-    required this.familyId,
-    required this.familyName,
-  });
+  const _InviteTab({required this.familyId, required this.familyName});
 
   final String familyId;
   final String familyName;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final shareState = ref.watch(shareProvider(
-      (familyId: familyId, familyName: familyName),
-    ));
-    final notifier = ref.read(shareProvider(
-      (familyId: familyId, familyName: familyName),
-    ).notifier);
+    final shareState = ref.watch(
+      shareProvider((familyId: familyId, familyName: familyName)),
+    );
+    final notifier = ref.read(
+      shareProvider((familyId: familyId, familyName: familyName)).notifier,
+    );
     final primaryLink = shareState.primaryLink;
 
     return SingleChildScrollView(
@@ -338,10 +338,7 @@ class _InviteTab extends ConsumerWidget {
                   ),
                 );
               },
-            )
-                .animate()
-                .fadeIn(duration: 350.ms)
-                .slideY(begin: 0.06, end: 0),
+            ).maybeAnimate().fadeIn(duration: 350.ms).slideY(begin: 0.06, end: 0),
 
           const SizedBox(height: 20),
 
@@ -360,23 +357,25 @@ class _InviteTab extends ConsumerWidget {
 
           // ── 6 Share Method Cards (2-column grid) ──────────────────
           _ShareMethodGrid(
-            primaryLink: primaryLink,
-            onCopy: () {
-              if (primaryLink != null) {
-                Clipboard.setData(ClipboardData(text: primaryLink.deepLink));
-                notifier.markCopied();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Link copied to clipboard!'),
-                    backgroundColor: _cCard,
-                    behavior: SnackBarBehavior.floating,
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              }
-            },
-          )
-              .animate()
+                primaryLink: primaryLink,
+                onCopy: () {
+                  if (primaryLink != null) {
+                    Clipboard.setData(
+                      ClipboardData(text: primaryLink.deepLink),
+                    );
+                    notifier.markCopied();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Link copied to clipboard!'),
+                        backgroundColor: _cCard,
+                        behavior: SnackBarBehavior.floating,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
+              )
+              .maybeAnimate()
               .fadeIn(duration: 350.ms, delay: 100.ms)
               .slideY(begin: 0.06, end: 0),
 
@@ -433,13 +432,15 @@ class _InviteTab extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 10),
-            ...shareState.activeLinks.map((link) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _ActiveLinkTile(
-                link: link,
-                onDeactivate: () => notifier.deactivateLink(link.id),
+            ...shareState.activeLinks.map(
+              (link) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ActiveLinkTile(
+                  link: link,
+                  onDeactivate: () => notifier.deactivateLink(link.id),
+                ),
               ),
-            )),
+            ),
           ],
 
           // ── Expired Links ─────────────────────────────────────────
@@ -455,10 +456,12 @@ class _InviteTab extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 10),
-            ...shareState.expiredLinks.map((link) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _ExpiredLinkTile(link: link),
-            )),
+            ...shareState.expiredLinks.map(
+              (link) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ExpiredLinkTile(link: link),
+              ),
+            ),
           ],
         ],
       ),
@@ -488,10 +491,7 @@ class _InviteLinkCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: KinrelGradients.cardGradient,
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(
-          color: _cOrange.withValues(alpha: 0.15),
-          width: 1,
-        ),
+        border: Border.all(color: _cOrange.withValues(alpha: 0.15), width: 1),
         boxShadow: [
           BoxShadow(
             color: _cOrange.withValues(alpha: 0.05),
@@ -693,21 +693,48 @@ class _LinkInfoChip extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _ShareMethodGrid extends StatelessWidget {
-  const _ShareMethodGrid({
-    required this.primaryLink,
-    required this.onCopy,
-  });
+  const _ShareMethodGrid({required this.primaryLink, required this.onCopy});
 
   final InviteLink? primaryLink;
   final VoidCallback onCopy;
 
   static const _methods = [
-    (type: InviteMethod.link, label: 'Link', icon: Icons.link_rounded, color: _cOrange),
-    (type: InviteMethod.qrCode, label: 'QR Code', icon: Icons.qr_code_2_rounded, color: _cAmber),
-    (type: InviteMethod.whatsapp, label: 'WhatsApp', icon: Icons.chat_rounded, color: _cWhatsApp),
-    (type: InviteMethod.sms, label: 'SMS', icon: Icons.sms_rounded, color: _cSMS),
-    (type: InviteMethod.email, label: 'Email', icon: Icons.email_rounded, color: _cEmail),
-    (type: InviteMethod.copyLink, label: 'Copy Link', icon: Icons.copy_rounded, color: _cTextPrimary),
+    (
+      type: InviteMethod.link,
+      label: 'Link',
+      icon: Icons.link_rounded,
+      color: _cOrange,
+    ),
+    (
+      type: InviteMethod.qrCode,
+      label: 'QR Code',
+      icon: Icons.qr_code_2_rounded,
+      color: _cAmber,
+    ),
+    (
+      type: InviteMethod.whatsapp,
+      label: 'WhatsApp',
+      icon: Icons.chat_rounded,
+      color: _cWhatsApp,
+    ),
+    (
+      type: InviteMethod.sms,
+      label: 'SMS',
+      icon: Icons.sms_rounded,
+      color: _cSMS,
+    ),
+    (
+      type: InviteMethod.email,
+      label: 'Email',
+      icon: Icons.email_rounded,
+      color: _cEmail,
+    ),
+    (
+      type: InviteMethod.copyLink,
+      label: 'Copy Link',
+      icon: Icons.copy_rounded,
+      color: _cTextPrimary,
+    ),
   ];
 
   @override
@@ -719,14 +746,18 @@ class _ShareMethodGrid extends StatelessWidget {
       mainAxisSpacing: 10,
       crossAxisSpacing: 10,
       childAspectRatio: 2.4,
-      children: _methods.map((m) => _ShareMethodCard(
-        method: m.type,
-        label: m.label,
-        icon: m.icon,
-        color: m.color,
-        primaryLink: primaryLink,
-        onCopy: onCopy,
-      )).toList(),
+      children: _methods
+          .map(
+            (m) => _ShareMethodCard(
+              method: m.type,
+              label: m.label,
+              icon: m.icon,
+              color: m.color,
+              primaryLink: primaryLink,
+              onCopy: onCopy,
+            ),
+          )
+          .toList(),
     );
   }
 }
@@ -761,10 +792,7 @@ class _ShareMethodCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: _cCard,
           borderRadius: BorderRadius.circular(KinrelRadius.lg),
-          border: Border.all(
-            color: color.withValues(alpha: 0.12),
-            width: 1,
-          ),
+          border: Border.all(color: color.withValues(alpha: 0.12), width: 1),
         ),
         child: Row(
           children: [
@@ -788,11 +816,7 @@ class _ShareMethodCard extends StatelessWidget {
                 ),
               ),
             ),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 18,
-              color: _cTextDim,
-            ),
+            Icon(Icons.chevron_right_rounded, size: 18, color: _cTextDim),
           ],
         ),
       ),
@@ -887,10 +911,7 @@ class _ShareMethodCard extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _ActiveLinkTile extends StatelessWidget {
-  const _ActiveLinkTile({
-    required this.link,
-    required this.onDeactivate,
-  });
+  const _ActiveLinkTile({required this.link, required this.onDeactivate});
 
   final InviteLink link;
   final VoidCallback onDeactivate;
@@ -902,10 +923,7 @@ class _ActiveLinkTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: _cCard,
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(
-          color: _cWhatsApp.withValues(alpha: 0.08),
-          width: 1,
-        ),
+        border: Border.all(color: _cWhatsApp.withValues(alpha: 0.08), width: 1),
       ),
       child: Row(
         children: [
@@ -915,11 +933,7 @@ class _ActiveLinkTile extends StatelessWidget {
               color: _cWhatsApp.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(KinrelRadius.sm),
             ),
-            child: const Icon(
-              Icons.link_rounded,
-              color: _cWhatsApp,
-              size: 16,
-            ),
+            child: const Icon(Icons.link_rounded, color: _cWhatsApp, size: 16),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -998,10 +1012,7 @@ class _ExpiredLinkTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: _cCard,
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(
-          color: _cBorder.withValues(alpha: 0.5),
-          width: 1,
-        ),
+        border: Border.all(color: _cBorder.withValues(alpha: 0.5), width: 1),
       ),
       child: Row(
         children: [
@@ -1011,11 +1022,7 @@ class _ExpiredLinkTile extends StatelessWidget {
               color: _cTextDim.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(KinrelRadius.sm),
             ),
-            child: Icon(
-              Icons.link_off_rounded,
-              color: _cTextDim,
-              size: 16,
-            ),
+            child: Icon(Icons.link_off_rounded, color: _cTextDim, size: 16),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1098,11 +1105,7 @@ class _LinkDetailSheet extends StatelessWidget {
               color: _cOrange.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.link_rounded,
-              color: _cOrange,
-              size: 32,
-            ),
+            child: const Icon(Icons.link_rounded, color: _cOrange, size: 32),
           ),
           const SizedBox(height: 16),
 
@@ -1186,7 +1189,15 @@ class _LinkDetailSheet extends StatelessWidget {
 
           // Share button
           GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
+            onTap: () {
+              Navigator.of(context).pop();
+              if (link != null) {
+                ShareHelper.shareInvite(
+                  inviteCode: link!.code,
+                  familyName: link!.familyName,
+                );
+              }
+            },
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1198,7 +1209,11 @@ class _LinkDetailSheet extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.share_rounded, color: _cTextSecondary, size: 18),
+                  const Icon(
+                    Icons.share_rounded,
+                    color: _cTextSecondary,
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'Share via...',
@@ -1291,11 +1306,7 @@ class _QRCodeSheet extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     // QR code placeholder pattern
-                    Icon(
-                      Icons.qr_code_2_rounded,
-                      size: 80,
-                      color: _cBg,
-                    ),
+                    Icon(Icons.qr_code_2_rounded, size: 80, color: _cBg),
                   ],
                 ),
               ),
@@ -1338,7 +1349,11 @@ class _QRCodeSheet extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.save_alt_rounded, color: Colors.white, size: 18),
+                  const Icon(
+                    Icons.save_alt_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'Save QR Code',
@@ -1362,10 +1377,7 @@ class _QRCodeSheet extends StatelessWidget {
 // ── Dashed Border Painter ────────────────────────────────────────────
 
 class _DashedBorderPainter extends CustomPainter {
-  _DashedBorderPainter({
-    required this.color,
-    required this.borderRadius,
-  });
+  _DashedBorderPainter({required this.color, required this.borderRadius});
 
   final Color color;
   final double borderRadius;
@@ -1393,10 +1405,7 @@ class _DashedBorderPainter extends CustomPainter {
         final end = (distance + dashWidth) < metric.length
             ? distance + dashWidth
             : metric.length;
-        canvas.drawPath(
-          metric.extractPath(distance, end),
-          paint,
-        );
+        canvas.drawPath(metric.extractPath(distance, end), paint);
         distance += dashWidth + dashSpace;
       }
     }
@@ -1440,11 +1449,7 @@ class _WhatsAppSheet extends StatelessWidget {
               color: _cWhatsApp.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.chat_rounded,
-              color: _cWhatsApp,
-              size: 32,
-            ),
+            child: const Icon(Icons.chat_rounded, color: _cWhatsApp, size: 32),
           ),
           const SizedBox(height: 16),
 
@@ -1482,7 +1487,15 @@ class _WhatsAppSheet extends StatelessWidget {
 
           // Send via WhatsApp button
           GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
+            onTap: () {
+              Navigator.of(context).pop();
+              if (link != null) {
+                ShareHelper.shareInvite(
+                  inviteCode: link!.code,
+                  familyName: link!.familyName,
+                );
+              }
+            },
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1552,11 +1565,7 @@ class _SMSSheet extends StatelessWidget {
               color: _cSMS.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.sms_rounded,
-              color: _cSMS,
-              size: 32,
-            ),
+            child: const Icon(Icons.sms_rounded, color: _cSMS, size: 32),
           ),
           const SizedBox(height: 16),
           Text(
@@ -1589,7 +1598,15 @@ class _SMSSheet extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
+            onTap: () {
+              Navigator.of(context).pop();
+              if (link != null) {
+                ShareHelper.shareInvite(
+                  inviteCode: link!.code,
+                  familyName: link!.familyName,
+                );
+              }
+            },
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1659,11 +1676,7 @@ class _EmailSheet extends StatelessWidget {
               color: _cEmail.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.email_rounded,
-              color: _cEmail,
-              size: 32,
-            ),
+            child: const Icon(Icons.email_rounded, color: _cEmail, size: 32),
           ),
           const SizedBox(height: 16),
           Text(
@@ -1742,7 +1755,15 @@ class _EmailSheet extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           GestureDetector(
-            onTap: () => Navigator.of(context).pop(),
+            onTap: () {
+              Navigator.of(context).pop();
+              if (link != null) {
+                ShareHelper.shareInvite(
+                  inviteCode: link!.code,
+                  familyName: link!.familyName,
+                );
+              }
+            },
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1760,7 +1781,11 @@ class _EmailSheet extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.email_rounded, color: Colors.white, size: 20),
+                  const Icon(
+                    Icons.email_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'Open Email App',
@@ -1786,10 +1811,7 @@ class _EmailSheet extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _ShareCardTab extends ConsumerStatefulWidget {
-  const _ShareCardTab({
-    required this.familyId,
-    required this.familyName,
-  });
+  const _ShareCardTab({required this.familyId, required this.familyName});
 
   final String familyId;
   final String familyName;
@@ -1803,9 +1825,9 @@ class _ShareCardTabState extends ConsumerState<_ShareCardTab> {
 
   @override
   Widget build(BuildContext context) {
-    final shareState = ref.watch(shareProvider(
-      (familyId: widget.familyId, familyName: widget.familyName),
-    ));
+    final shareState = ref.watch(
+      shareProvider((familyId: widget.familyId, familyName: widget.familyName)),
+    );
     final cards = shareState.kinshipCards;
     if (cards.isEmpty) return _buildEmptyState();
 
@@ -1832,16 +1854,13 @@ class _ShareCardTabState extends ConsumerState<_ShareCardTab> {
               color: _cTextPrimary,
               letterSpacing: 0.3,
             ),
-          )
-              .animate()
-              .fadeIn(duration: 350.ms)
-              .slideY(begin: 0.06, end: 0),
+          ).maybeAnimate().fadeIn(duration: 350.ms).slideY(begin: 0.06, end: 0),
 
           const SizedBox(height: 16),
 
           // ── Beautiful Kinship Card ────────────────────────────────
           _KinshipCardWidget(card: card)
-              .animate()
+              .maybeAnimate()
               .fadeIn(duration: 400.ms, delay: 100.ms)
               .slideY(begin: 0.08, end: 0),
 
@@ -1882,9 +1901,7 @@ class _ShareCardTabState extends ConsumerState<_ShareCardTab> {
                           : null,
                       color: isSelected ? null : _cCard,
                       borderRadius: BorderRadius.circular(KinrelRadius.lg),
-                      border: isSelected
-                          ? null
-                          : Border.all(color: _cBorder),
+                      border: isSelected ? null : Border.all(color: _cBorder),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1955,7 +1972,11 @@ class _ShareCardTabState extends ConsumerState<_ShareCardTab> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.chat_rounded, color: Colors.white, size: 18),
+                        const Icon(
+                          Icons.chat_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Flexible(
                           child: Text(
@@ -1979,9 +2000,7 @@ class _ShareCardTabState extends ConsumerState<_ShareCardTab> {
               Expanded(
                 child: GestureDetector(
                   onTap: () {
-                    Clipboard.setData(
-                      ClipboardData(text: card.shareText),
-                    );
+                    Clipboard.setData(ClipboardData(text: card.shareText));
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text('Copied to clipboard!'),
@@ -2006,7 +2025,11 @@ class _ShareCardTabState extends ConsumerState<_ShareCardTab> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.share_rounded, color: Colors.white, size: 18),
+                        const Icon(
+                          Icons.share_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Flexible(
                           child: Text(
@@ -2096,18 +2119,11 @@ class _KinshipCardWidget extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(KinrelRadius.xl),
         gradient: LinearGradient(
-          colors: [
-            Color(0xFF1E1028),
-            Color(0xFF191B2C),
-            Color(0xFF1A1420),
-          ],
+          colors: [Color(0xFF1E1028), Color(0xFF191B2C), Color(0xFF1A1420)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border.all(
-          color: _cOrange.withValues(alpha: 0.2),
-          width: 1.5,
-        ),
+        border: Border.all(color: _cOrange.withValues(alpha: 0.2), width: 1.5),
         boxShadow: [
           BoxShadow(
             color: _cOrange.withValues(alpha: 0.08),
@@ -2147,10 +2163,7 @@ class _KinshipCardWidget extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
-                  colors: [
-                    _cAmber.withValues(alpha: 0.08),
-                    Colors.transparent,
-                  ],
+                  colors: [_cAmber.withValues(alpha: 0.08), Colors.transparent],
                 ),
               ),
             ),
@@ -2258,11 +2271,7 @@ class _KinshipCardWidget extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.route_rounded,
-                        size: 14,
-                        color: _cAmber,
-                      ),
+                      Icon(Icons.route_rounded, size: 14, color: _cAmber),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -2333,22 +2342,19 @@ class _KinshipCardWidget extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _ShareGraphTab extends ConsumerWidget {
-  const _ShareGraphTab({
-    required this.familyId,
-    required this.familyName,
-  });
+  const _ShareGraphTab({required this.familyId, required this.familyName});
 
   final String familyId;
   final String familyName;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final shareState = ref.watch(shareProvider(
-      (familyId: familyId, familyName: familyName),
-    ));
-    final notifier = ref.read(shareProvider(
-      (familyId: familyId, familyName: familyName),
-    ).notifier);
+    final shareState = ref.watch(
+      shareProvider((familyId: familyId, familyName: familyName)),
+    );
+    final notifier = ref.read(
+      shareProvider((familyId: familyId, familyName: familyName)).notifier,
+    );
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -2370,10 +2376,7 @@ class _ShareGraphTab extends ConsumerWidget {
               fontWeight: FontWeight.w700,
               color: _cTextPrimary,
             ),
-          )
-              .animate()
-              .fadeIn(duration: 350.ms)
-              .slideY(begin: 0.06, end: 0),
+          ).maybeAnimate().fadeIn(duration: 350.ms).slideY(begin: 0.06, end: 0),
 
           const SizedBox(height: 6),
 
@@ -2391,7 +2394,7 @@ class _ShareGraphTab extends ConsumerWidget {
 
           // ── Graph Preview Card ────────────────────────────────────
           _GraphPreviewCard(familyName: familyName)
-              .animate()
+              .maybeAnimate()
               .fadeIn(duration: 400.ms, delay: 100.ms)
               .slideY(begin: 0.08, end: 0),
 
@@ -2399,21 +2402,21 @@ class _ShareGraphTab extends ConsumerWidget {
 
           // ── Export Options ────────────────────────────────────────
           _ExportOptionsSection(
-            isExporting: shareState.isExporting,
-            onExport: () async {
-              await notifier.exportGraph();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Graph exported successfully!'),
-                    backgroundColor: _cCard,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              }
-            },
-          )
-              .animate()
+                isExporting: shareState.isExporting,
+                onExport: () async {
+                  await notifier.exportGraph();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Graph exported successfully!'),
+                        backgroundColor: _cCard,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                },
+              )
+              .maybeAnimate()
               .fadeIn(duration: 400.ms, delay: 200.ms)
               .slideY(begin: 0.08, end: 0),
 
@@ -2426,9 +2429,7 @@ class _ShareGraphTab extends ConsumerWidget {
             decoration: BoxDecoration(
               color: _cCard,
               borderRadius: BorderRadius.circular(KinrelRadius.lg),
-              border: Border.all(
-                color: _cBorder.withValues(alpha: 0.5),
-              ),
+              border: Border.all(color: _cBorder.withValues(alpha: 0.5)),
             ),
             child: Row(
               children: [
@@ -2480,17 +2481,9 @@ class _ShareGraphTab extends ConsumerWidget {
           // ── Share Graph Button ────────────────────────────────────
           GestureDetector(
             onTap: () {
-              Clipboard.setData(
-                ClipboardData(
-                  text: 'Check out the $familyName family graph on Kinrel! 🧡',
-                ),
-              );
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Share text copied to clipboard!'),
-                  backgroundColor: _cCard,
-                  behavior: SnackBarBehavior.floating,
-                ),
+              ShareHelper.shareFamily(
+                familyId: familyId,
+                familyName: familyName,
               );
             },
             child: Container(
@@ -2510,7 +2503,11 @@ class _ShareGraphTab extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.share_rounded, color: Colors.white, size: 20),
+                  const Icon(
+                    Icons.share_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     'Share Graph',
@@ -2548,18 +2545,11 @@ class _GraphPreviewCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(KinrelRadius.xl),
         gradient: LinearGradient(
-          colors: [
-            Color(0xFF191B2C),
-            Color(0xFF202338),
-            Color(0xFF1A1420),
-          ],
+          colors: [Color(0xFF191B2C), Color(0xFF202338), Color(0xFF1A1420)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border.all(
-          color: _cOrange.withValues(alpha: 0.12),
-          width: 1,
-        ),
+        border: Border.all(color: _cOrange.withValues(alpha: 0.12), width: 1),
       ),
       child: Stack(
         children: [
@@ -2584,10 +2574,7 @@ class _GraphPreviewCard extends StatelessWidget {
 
           // Graph nodes placeholder — generation rows
           Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 20,
-              vertical: 24,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
             child: Column(
               children: [
                 // Gen 2: Grandparents
@@ -2692,10 +2679,7 @@ class _GraphPreviewCard extends StatelessWidget {
 // ── Graph Generation Row ─────────────────────────────────────────────
 
 class _GraphGenRow extends StatelessWidget {
-  const _GraphGenRow({
-    required this.generation,
-    required this.nodes,
-  });
+  const _GraphGenRow({required this.generation, required this.nodes});
 
   final String generation;
   final List<_Graphnode> nodes;
@@ -2923,10 +2907,7 @@ class _ExportOptionTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: _cCard,
           borderRadius: BorderRadius.circular(KinrelRadius.lg),
-          border: Border.all(
-            color: color.withValues(alpha: 0.12),
-            width: 1,
-          ),
+          border: Border.all(color: color.withValues(alpha: 0.12), width: 1),
         ),
         child: Row(
           children: [
@@ -2973,11 +2954,7 @@ class _ExportOptionTile extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 20,
-              color: _cTextDim,
-            ),
+            Icon(Icons.chevron_right_rounded, size: 20, color: _cTextDim),
           ],
         ),
       ),

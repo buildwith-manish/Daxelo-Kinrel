@@ -18,15 +18,7 @@ import '../../../core/constants/brand_colors.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Types of documents stored in the family vault.
-enum DocumentType {
-  birth,
-  marriage,
-  death,
-  property,
-  academic,
-  legal,
-  photos,
-}
+enum DocumentType { birth, marriage, death, property, academic, legal, photos }
 
 // ═══════════════════════════════════════════════════════════════════════
 // Audit Log Entry
@@ -55,11 +47,11 @@ class AuditLogEntry {
       memberInitials ??
       (memberName.isNotEmpty
           ? memberName
-              .split(' ')
-              .where((s) => s.isNotEmpty)
-              .take(2)
-              .map((s) => s[0].toUpperCase())
-              .join()
+                .split(' ')
+                .where((s) => s.isNotEmpty)
+                .take(2)
+                .map((s) => s[0].toUpperCase())
+                .join()
           : '?');
 
   /// Format the timestamp for display.
@@ -73,8 +65,19 @@ class AuditLogEntry {
     if (diff.inDays < 7) return '${diff.inDays}d ago';
 
     const months = [
-      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${timestamp.day} ${months[timestamp.month]}';
   }
@@ -140,30 +143,30 @@ class VaultDocument {
       memberInitials ??
       (memberName.isNotEmpty
           ? memberName
-              .split(' ')
-              .where((s) => s.isNotEmpty)
-              .take(2)
-              .map((s) => s[0].toUpperCase())
-              .join()
+                .split(' ')
+                .where((s) => s.isNotEmpty)
+                .take(2)
+                .map((s) => s[0].toUpperCase())
+                .join()
           : '?');
 
   /// Accent color for the document type.
   Color get accentColor {
     switch (type) {
       case DocumentType.birth:
-        return KinrelColors.orange;      // #E8612A
+        return KinrelColors.orange; // #E8612A
       case DocumentType.marriage:
-        return KinrelColors.amber;       // #F59240
+        return KinrelColors.amber; // #F59240
       case DocumentType.death:
-        return KinrelColors.textSilver;  // #C9B4A8
+        return KinrelColors.textSilver; // #C9B4A8
       case DocumentType.property:
-        return KinrelColors.gold;        // #D4AF37
+        return KinrelColors.gold; // #D4AF37
       case DocumentType.academic:
-        return KinrelColors.blue;        // #3B82F6
+        return KinrelColors.blue; // #3B82F6
       case DocumentType.legal:
-        return KinrelColors.error;       // #F04E2A
+        return KinrelColors.error; // #F04E2A
       case DocumentType.photos:
-        return KinrelColors.success;     // #4CAF7A
+        return KinrelColors.success; // #4CAF7A
     }
   }
 
@@ -210,8 +213,19 @@ class VaultDocument {
   /// Format the upload date for display.
   String get formattedDate {
     const months = [
-      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${uploadDate.day} ${months[uploadDate.month]}, ${uploadDate.year}';
   }
@@ -219,7 +233,9 @@ class VaultDocument {
   /// Format file size for display.
   String get formattedFileSize {
     if (fileSize < 1024) return '$fileSize B';
-    if (fileSize < 1024 * 1024) return '${(fileSize / 1024).toStringAsFixed(1)} KB';
+    if (fileSize < 1024 * 1024) {
+      return '${(fileSize / 1024).toStringAsFixed(1)} KB';
+    }
     return '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
@@ -339,7 +355,9 @@ class DocumentsState {
       documents: documents ?? this.documents,
       auditLog: auditLog ?? this.auditLog,
       searchQuery: searchQuery ?? this.searchQuery,
-      selectedType: clearSelectedType ? null : (selectedType ?? this.selectedType),
+      selectedType: clearSelectedType
+          ? null
+          : (selectedType ?? this.selectedType),
       isLoading: isLoading,
       error: error,
     );
@@ -352,10 +370,8 @@ class DocumentsState {
 
 /// State notifier managing the documents vault state and operations.
 class DocumentsNotifier extends StateNotifier<DocumentsState> {
-  DocumentsNotifier() : super(DocumentsState(
-    documents: _demoDocuments,
-    auditLog: _demoAuditLog,
-  ));
+  DocumentsNotifier()
+    : super(DocumentsState(documents: _demoDocuments, auditLog: _demoAuditLog));
 
   /// Set the search query.
   void setSearchQuery(String query) {
@@ -373,10 +389,7 @@ class DocumentsNotifier extends StateNotifier<DocumentsState> {
 
   /// Clear all filters.
   void clearFilters() {
-    state = state.copyWith(
-      searchQuery: '',
-      clearSelectedType: true,
-    );
+    state = state.copyWith(searchQuery: '', clearSelectedType: true);
   }
 
   /// Add a new document to the vault.
@@ -408,7 +421,9 @@ class DocumentsNotifier extends StateNotifier<DocumentsState> {
   /// Remove a document from the vault.
   void removeDocument(String documentId) {
     final doc = state.documents.firstWhere((d) => d.id == documentId);
-    final updatedDocs = state.documents.where((d) => d.id != documentId).toList();
+    final updatedDocs = state.documents
+        .where((d) => d.id != documentId)
+        .toList();
     // Add audit log entry for deletion
     final logEntry = AuditLogEntry(
       id: 'log-${DateTime.now().millisecondsSinceEpoch}',
@@ -432,8 +447,8 @@ class DocumentsNotifier extends StateNotifier<DocumentsState> {
 /// Main documents vault provider.
 final documentsProvider =
     StateNotifierProvider<DocumentsNotifier, DocumentsState>((ref) {
-  return DocumentsNotifier();
-});
+      return DocumentsNotifier();
+    });
 
 // ═══════════════════════════════════════════════════════════════════════
 // Demo Data — Realistic Indian Family Documents

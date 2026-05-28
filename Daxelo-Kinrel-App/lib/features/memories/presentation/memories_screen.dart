@@ -59,12 +59,11 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
       body: Stack(
         children: [
           CustomScrollView(
+            cacheExtent: 500,
             physics: const BouncingScrollPhysics(),
             slivers: [
               // ── Header ────────────────────────────────────────────
-              SliverToBoxAdapter(
-                child: _buildHeader(),
-              ),
+              SliverToBoxAdapter(child: _buildHeader()),
 
               // ── On This Day (if any) ──────────────────────────────
               if (state.hasOnThisDay)
@@ -73,15 +72,11 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
                 ),
 
               // ── Filter Chips ──────────────────────────────────────
-              SliverToBoxAdapter(
-                child: _buildFilterChips(state),
-              ),
+              SliverToBoxAdapter(child: _buildFilterChips(state)),
 
               // ── Timeline ──────────────────────────────────────────
               if (state.filteredEvents.isEmpty)
-                SliverToBoxAdapter(
-                  child: _buildEmptyState(),
-                )
+                SliverToBoxAdapter(child: _buildEmptyState())
               else
                 _buildTimeline(state.filteredEvents),
             ],
@@ -136,39 +131,51 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
             ),
           ),
           // Pin count badge
-          Consumer(builder: (context, ref, _) {
-            final pinnedCount = ref.watch(memoriesProvider
-                .select((s) => s.events.where((e) => e.isPinned).length));
-            if (pinnedCount == 0) return const SizedBox.shrink();
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                gradient: KinrelGradients.igniteGradient,
-                borderRadius: BorderRadius.circular(KinrelRadius.full),
-                boxShadow: [
-                  BoxShadow(
-                    color: KinrelColors.orangeGlow,
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.push_pin_rounded, size: 14, color: Colors.white),
-                  const SizedBox(width: 4),
-                  Text(
-                    '$pinnedCount',
-                    style: KinrelTypography.labelSmall.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
+          Consumer(
+            builder: (context, ref, _) {
+              final pinnedCount = ref.watch(
+                memoriesProvider.select(
+                  (s) => s.events.where((e) => e.isPinned).length,
+                ),
+              );
+              if (pinnedCount == 0) return const SizedBox.shrink();
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  gradient: KinrelGradients.igniteGradient,
+                  borderRadius: BorderRadius.circular(KinrelRadius.full),
+                  boxShadow: [
+                    BoxShadow(
+                      color: KinrelColors.orangeGlow,
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
-                  ),
-                ],
-              ),
-            );
-          }),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.push_pin_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$pinnedCount',
+                      style: KinrelTypography.labelSmall.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -256,34 +263,40 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
           Row(
             children: [
               // Year filter
-              Expanded(child: _FilterChipButton(
-                label: state.filter.selectedYear != null
-                    ? '${state.filter.selectedYear}'
-                    : 'Year',
-                icon: Icons.calendar_today_rounded,
-                isActive: state.filter.selectedYear != null,
-                onTap: () => _showYearFilterSheet(state),
-              )),
+              Expanded(
+                child: _FilterChipButton(
+                  label: state.filter.selectedYear != null
+                      ? '${state.filter.selectedYear}'
+                      : 'Year',
+                  icon: Icons.calendar_today_rounded,
+                  isActive: state.filter.selectedYear != null,
+                  onTap: () => _showYearFilterSheet(state),
+                ),
+              ),
               const SizedBox(width: 8),
               // Event type filter
-              Expanded(child: _FilterChipButton(
-                label: state.filter.selectedType != null
-                    ? state.filter.selectedType!.typeLabel
-                    : 'Event Type',
-                icon: Icons.filter_list_rounded,
-                isActive: state.filter.selectedType != null,
-                onTap: () => _showTypeFilterSheet(state),
-              )),
+              Expanded(
+                child: _FilterChipButton(
+                  label: state.filter.selectedType != null
+                      ? state.filter.selectedType!.typeLabel
+                      : 'Event Type',
+                  icon: Icons.filter_list_rounded,
+                  isActive: state.filter.selectedType != null,
+                  onTap: () => _showTypeFilterSheet(state),
+                ),
+              ),
               const SizedBox(width: 8),
               // Member filter
-              Expanded(child: _FilterChipButton(
-                label: state.filter.selectedMember != null
-                    ? state.filter.selectedMember!.split(' ').first
-                    : 'Member',
-                icon: Icons.person_rounded,
-                isActive: state.filter.selectedMember != null,
-                onTap: () => _showMemberFilterSheet(state),
-              )),
+              Expanded(
+                child: _FilterChipButton(
+                  label: state.filter.selectedMember != null
+                      ? state.filter.selectedMember!.split(' ').first
+                      : 'Member',
+                  icon: Icons.person_rounded,
+                  isActive: state.filter.selectedMember != null,
+                  onTap: () => _showMemberFilterSheet(state),
+                ),
+              ),
             ],
           ),
           // Clear filters
@@ -293,7 +306,8 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
               child: Align(
                 alignment: Alignment.centerRight,
                 child: GestureDetector(
-                  onTap: () => ref.read(memoriesProvider.notifier).clearFilters(),
+                  onTap: () =>
+                      ref.read(memoriesProvider.notifier).clearFilters(),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -330,7 +344,9 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
       context: context,
       backgroundColor: KinrelColors.darkCard,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(KinrelRadius.xxl)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.xxl),
+        ),
       ),
       builder: (context) {
         return SafeArea(
@@ -351,7 +367,9 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
                     if (state.filter.selectedYear != null)
                       TextButton(
                         onPressed: () {
-                          ref.read(memoriesProvider.notifier).setYearFilter(null);
+                          ref
+                              .read(memoriesProvider.notifier)
+                              .setYearFilter(null);
                           Navigator.pop(context);
                         },
                         child: Text(
@@ -366,7 +384,9 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
               ),
               const Divider(color: Color(0xFF2A2A3D), height: 1),
               ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.4,
+                ),
                 child: ListView.builder(
                   shrinkWrap: true,
                   itemCount: years.length,
@@ -377,12 +397,20 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
                       title: Text(
                         '$year',
                         style: KinrelTypography.bodyLarge.copyWith(
-                          color: isSelected ? KinrelColors.orange : KinrelColors.textWhite,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+                          color: isSelected
+                              ? KinrelColors.orange
+                              : KinrelColors.textWhite,
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w400,
                         ),
                       ),
                       trailing: isSelected
-                          ? const Icon(Icons.check_rounded, color: KinrelColors.orange, size: 20)
+                          ? const Icon(
+                              Icons.check_rounded,
+                              color: KinrelColors.orange,
+                              size: 20,
+                            )
                           : null,
                       onTap: () {
                         ref.read(memoriesProvider.notifier).setYearFilter(year);
@@ -405,7 +433,9 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
       context: context,
       backgroundColor: KinrelColors.darkCard,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(KinrelRadius.xxl)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.xxl),
+        ),
       ),
       builder: (context) {
         return SafeArea(
@@ -426,7 +456,9 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
                     if (state.filter.selectedType != null)
                       TextButton(
                         onPressed: () {
-                          ref.read(memoriesProvider.notifier).setTypeFilter(null);
+                          ref
+                              .read(memoriesProvider.notifier)
+                              .setTypeFilter(null);
                           Navigator.pop(context);
                         },
                         child: Text(
@@ -441,7 +473,9 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
               ),
               const Divider(color: Color(0xFF2A2A3D), height: 1),
               ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.5,
+                ),
                 child: ListView.builder(
                   shrinkWrap: true,
                   itemCount: types.length,
@@ -456,17 +490,29 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
                           shape: BoxShape.circle,
                           color: type.accentColor.withValues(alpha: 0.15),
                         ),
-                        child: Icon(type.icon, size: 18, color: type.accentColor),
+                        child: Icon(
+                          type.icon,
+                          size: 18,
+                          color: type.accentColor,
+                        ),
                       ),
                       title: Text(
                         type.typeLabel,
                         style: KinrelTypography.bodyLarge.copyWith(
-                          color: isSelected ? type.accentColor : KinrelColors.textWhite,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+                          color: isSelected
+                              ? type.accentColor
+                              : KinrelColors.textWhite,
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w400,
                         ),
                       ),
                       trailing: isSelected
-                          ? Icon(Icons.check_rounded, color: type.accentColor, size: 20)
+                          ? Icon(
+                              Icons.check_rounded,
+                              color: type.accentColor,
+                              size: 20,
+                            )
                           : null,
                       onTap: () {
                         ref.read(memoriesProvider.notifier).setTypeFilter(type);
@@ -489,7 +535,9 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
       context: context,
       backgroundColor: KinrelColors.darkCard,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(KinrelRadius.xxl)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.xxl),
+        ),
       ),
       builder: (context) {
         return SafeArea(
@@ -510,7 +558,9 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
                     if (state.filter.selectedMember != null)
                       TextButton(
                         onPressed: () {
-                          ref.read(memoriesProvider.notifier).setMemberFilter(null);
+                          ref
+                              .read(memoriesProvider.notifier)
+                              .setMemberFilter(null);
                           Navigator.pop(context);
                         },
                         child: Text(
@@ -525,7 +575,9 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
               ),
               const Divider(color: Color(0xFF2A2A3D), height: 1),
               ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.4,
+                ),
                 child: ListView.builder(
                   shrinkWrap: true,
                   itemCount: members.length,
@@ -549,15 +601,25 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
                       title: Text(
                         member,
                         style: KinrelTypography.bodyLarge.copyWith(
-                          color: isSelected ? KinrelColors.orange : KinrelColors.textWhite,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+                          color: isSelected
+                              ? KinrelColors.orange
+                              : KinrelColors.textWhite,
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w400,
                         ),
                       ),
                       trailing: isSelected
-                          ? const Icon(Icons.check_rounded, color: KinrelColors.orange, size: 20)
+                          ? const Icon(
+                              Icons.check_rounded,
+                              color: KinrelColors.orange,
+                              size: 20,
+                            )
                           : null,
                       onTap: () {
-                        ref.read(memoriesProvider.notifier).setMemberFilter(member);
+                        ref
+                            .read(memoriesProvider.notifier)
+                            .setMemberFilter(member);
                         Navigator.pop(context);
                       },
                     );
@@ -588,7 +650,8 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
             event: event,
             isFirst: isFirst,
             isLast: isLast,
-            onPin: () => ref.read(memoriesProvider.notifier).togglePin(event.id),
+            onPin: () =>
+                ref.read(memoriesProvider.notifier).togglePin(event.id),
           );
         },
       ),
@@ -710,7 +773,9 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
       isScrollControlled: true,
       backgroundColor: KinrelColors.darkCard,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(KinrelRadius.xxl)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.xxl),
+        ),
       ),
       builder: (context) {
         return _AddMemorySheet();
@@ -777,7 +842,10 @@ class _OnThisDayCard extends StatelessWidget {
                 bottom: 8,
                 left: 10,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: KinrelColors.darkSurface.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(KinrelRadius.sm),
@@ -795,7 +863,10 @@ class _OnThisDayCard extends StatelessWidget {
                 top: 8,
                 right: 10,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     gradient: KinrelGradients.igniteGradient,
                     borderRadius: BorderRadius.circular(KinrelRadius.full),
@@ -899,7 +970,9 @@ class _FilterChipButton extends StatelessWidget {
               child: Text(
                 label,
                 style: KinrelTypography.labelSmall.copyWith(
-                  color: isActive ? KinrelColors.orange : KinrelColors.textSilver,
+                  color: isActive
+                      ? KinrelColors.orange
+                      : KinrelColors.textSilver,
                   fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -1040,7 +1113,10 @@ class _TimelineEventCard extends StatelessWidget {
                     children: [
                       // Type badge
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: event.accentColor.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(KinrelRadius.xs),
@@ -1048,7 +1124,11 @@ class _TimelineEventCard extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(event.icon, size: 12, color: event.accentColor),
+                            Icon(
+                              event.icon,
+                              size: 12,
+                              color: event.accentColor,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               event.typeLabel,
@@ -1236,10 +1316,7 @@ class _TimelineEventCard extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _AvatarRow extends StatelessWidget {
-  const _AvatarRow({
-    required this.members,
-    this.maxSize = 28,
-  });
+  const _AvatarRow({required this.members, this.maxSize = 28});
 
   final List<MemoryMember> members;
   final double maxSize;
@@ -1264,10 +1341,7 @@ class _AvatarRow extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: KinrelColors.darkElevated,
-                border: Border.all(
-                  color: KinrelColors.darkCard,
-                  width: 2,
-                ),
+                border: Border.all(color: KinrelColors.darkCard, width: 2),
               ),
               child: Center(
                 child: Text(
@@ -1293,10 +1367,7 @@ class _AvatarRow extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: KinrelColors.darkElevated,
-                border: Border.all(
-                  color: KinrelColors.darkCard,
-                  width: 2,
-                ),
+                border: Border.all(color: KinrelColors.darkCard, width: 2),
               ),
               child: Center(
                 child: Text(
@@ -1392,7 +1463,10 @@ class _AddMemorySheetState extends ConsumerState<_AddMemorySheet> {
                   onTap: () => setState(() => _selectedType = type),
                   child: AnimatedContainer(
                     duration: KinrelMotion.fast,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? type.accentColor.withValues(alpha: 0.2)
@@ -1408,13 +1482,23 @@ class _AddMemorySheetState extends ConsumerState<_AddMemorySheet> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(type.icon, size: 14, color: isSelected ? type.accentColor : KinrelColors.textDim),
+                        Icon(
+                          type.icon,
+                          size: 14,
+                          color: isSelected
+                              ? type.accentColor
+                              : KinrelColors.textDim,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           type.typeLabel,
                           style: KinrelTypography.labelSmall.copyWith(
-                            color: isSelected ? type.accentColor : KinrelColors.textSilver,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                            color: isSelected
+                                ? type.accentColor
+                                : KinrelColors.textSilver,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
                           ),
                         ),
                       ],
@@ -1450,7 +1534,10 @@ class _AddMemorySheetState extends ConsumerState<_AddMemorySheet> {
             GestureDetector(
               onTap: _pickDate,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: KinrelColors.darkElevated,
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
@@ -1458,7 +1545,11 @@ class _AddMemorySheetState extends ConsumerState<_AddMemorySheet> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.calendar_today_rounded, size: 18, color: KinrelColors.textDim),
+                    const Icon(
+                      Icons.calendar_today_rounded,
+                      size: 18,
+                      color: KinrelColors.textDim,
+                    ),
                     const SizedBox(width: 10),
                     Text(
                       _formatDate(_selectedDate),
@@ -1467,7 +1558,11 @@ class _AddMemorySheetState extends ConsumerState<_AddMemorySheet> {
                       ),
                     ),
                     const Spacer(),
-                    const Icon(Icons.chevron_right_rounded, size: 18, color: KinrelColors.textDim),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: KinrelColors.textDim,
+                    ),
                   ],
                 ),
               ),
@@ -1511,7 +1606,10 @@ class _AddMemorySheetState extends ConsumerState<_AddMemorySheet> {
         prefixIcon: Icon(icon, size: 20, color: KinrelColors.textDim),
         filled: true,
         fillColor: KinrelColors.darkElevated,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(KinrelRadius.md),
           borderSide: BorderSide.none,
@@ -1526,8 +1624,19 @@ class _AddMemorySheetState extends ConsumerState<_AddMemorySheet> {
 
   String _formatDate(DateTime date) {
     const months = [
-      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${date.day} ${months[date.month]} ${date.year}';
   }
@@ -1608,6 +1717,5 @@ class SliverChildBuilderWithFooter extends SliverChildDelegate {
 
   @override
   bool shouldRebuild(covariant SliverChildBuilderWithFooter oldDelegate) =>
-      childCount != oldDelegate.childCount ||
-      footer != oldDelegate.footer;
+      childCount != oldDelegate.childCount || footer != oldDelegate.footer;
 }

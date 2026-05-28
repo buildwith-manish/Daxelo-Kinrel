@@ -30,6 +30,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/kinship/kinship_models.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // DESIGN TOKENS
@@ -110,8 +111,24 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.ancestor,
     relationshipKey: 'father',
     reciprocalTerm: 'Son / Daughter',
-    culturalNote: 'Revered term; used with deep respect across all Indian cultures.',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'sd', 'en'],
+    culturalNote:
+        'Revered term; used with deep respect across all Indian cultures.',
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'sd',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: 'Mother',
@@ -123,8 +140,24 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.ancestor,
     relationshipKey: 'mother',
     reciprocalTerm: 'Son / Daughter',
-    culturalNote: 'One of the most sacred relationships in Indian culture. "Mata" is also used for goddesses.',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'sd', 'en'],
+    culturalNote:
+        'One of the most sacred relationships in Indian culture. "Mata" is also used for goddesses.',
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'sd',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: 'Son',
@@ -136,7 +169,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.descendant,
     relationshipKey: 'son',
     reciprocalTerm: 'Father / Mother',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: 'Daughter',
@@ -148,7 +195,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.descendant,
     relationshipKey: 'daughter',
     reciprocalTerm: 'Father / Mother',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: 'Husband',
@@ -160,7 +221,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.same,
     relationshipKey: 'husband',
     reciprocalTerm: 'Wife',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: 'Wife',
@@ -172,7 +247,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.same,
     relationshipKey: 'wife',
     reciprocalTerm: 'Husband',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: 'Elder Brother',
@@ -184,7 +273,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.same,
     relationshipKey: 'elder_brother',
     reciprocalTerm: 'Younger Sibling',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: 'Younger Brother',
@@ -196,7 +299,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.same,
     relationshipKey: 'younger_brother',
     reciprocalTerm: 'Elder Sibling',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: 'Elder Sister',
@@ -208,7 +325,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.same,
     relationshipKey: 'elder_sister',
     reciprocalTerm: 'Younger Sibling',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: 'Younger Sister',
@@ -220,7 +351,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.same,
     relationshipKey: 'younger_sister',
     reciprocalTerm: 'Elder Sibling',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
 
   // ── Parental — Paternal (8) ──────────────────────────────────────
@@ -234,7 +379,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.ancestor,
     relationshipKey: 'fathers_father',
     reciprocalTerm: 'Grandson / Granddaughter',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: "Father's mother",
@@ -246,7 +405,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.ancestor,
     relationshipKey: 'fathers_mother',
     reciprocalTerm: 'Grandson / Granddaughter',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: "Father's elder brother",
@@ -282,8 +455,23 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.ancestor,
     relationshipKey: 'fathers_younger_brother',
     reciprocalTerm: 'Nephew / Niece',
-    culturalNote: 'One of the most commonly used kinship terms. "Chacha" carries warmth and affection.',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    culturalNote:
+        'One of the most commonly used kinship terms. "Chacha" carries warmth and affection.',
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: "Father's younger brother's wife",
@@ -307,7 +495,8 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.ancestor,
     relationshipKey: 'fathers_sister',
     reciprocalTerm: 'Nephew / Niece',
-    culturalNote: 'Bua holds a special place — she is both father\'s sister and a beloved figure in the family.',
+    culturalNote:
+        'Bua holds a special place — she is both father\'s sister and a beloved figure in the family.',
     availableLanguages: ['hi', 'bn', 'mr', 'gu', 'pa', 'or', 'as', 'ur', 'en'],
   ),
   _KinshipTerm(
@@ -334,7 +523,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.ancestor,
     relationshipKey: 'mothers_father',
     reciprocalTerm: 'Grandson / Granddaughter',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: "Mother's mother",
@@ -346,7 +549,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.ancestor,
     relationshipKey: 'mothers_mother',
     reciprocalTerm: 'Grandson / Granddaughter',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: "Mother's brother",
@@ -358,8 +575,23 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.ancestor,
     relationshipKey: 'mothers_brother',
     reciprocalTerm: 'Nephew / Niece',
-    culturalNote: '"Mama" is widely used across India. In many families, mama has a duty to sponsor the sister\'s daughter\'s wedding.',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    culturalNote:
+        '"Mama" is widely used across India. In many families, mama has a duty to sponsor the sister\'s daughter\'s wedding.',
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: "Mother's brother's wife",
@@ -371,7 +603,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.ancestor,
     relationshipKey: 'mothers_brothers_wife',
     reciprocalTerm: 'Nephew / Niece',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: "Mother's sister",
@@ -383,7 +629,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.ancestor,
     relationshipKey: 'mothers_sister',
     reciprocalTerm: 'Nephew / Niece',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: "Mother's sister's husband",
@@ -433,7 +693,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.ancestor,
     relationshipKey: 'father_in_law',
     reciprocalTerm: 'Daughter-in-law / Son-in-law',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: 'Mother-in-law',
@@ -445,7 +719,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.ancestor,
     relationshipKey: 'mother_in_law',
     reciprocalTerm: 'Daughter-in-law / Son-in-law',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: "Husband's elder brother",
@@ -553,8 +841,23 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.descendant,
     relationshipKey: 'sons_wife',
     reciprocalTerm: 'Father-in-law / Mother-in-law',
-    culturalNote: '"Bahu" also means "bride" — the term carries cultural weight as the bringer of new lineage.',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    culturalNote:
+        '"Bahu" also means "bride" — the term carries cultural weight as the bringer of new lineage.',
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: "Daughter's husband",
@@ -566,7 +869,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.descendant,
     relationshipKey: 'daughters_husband',
     reciprocalTerm: 'Father-in-law / Mother-in-law',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
 
   // ── Cousins (6) ─────────────────────────────────────────────────
@@ -678,7 +995,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.descendant,
     relationshipKey: 'grandson',
     reciprocalTerm: 'Grandfather / Grandmother',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: 'Granddaughter',
@@ -690,7 +1021,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.descendant,
     relationshipKey: 'granddaughter',
     reciprocalTerm: 'Grandfather / Grandmother',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: "Nephew (brother's son)",
@@ -702,7 +1047,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.descendant,
     relationshipKey: 'brothers_son',
     reciprocalTerm: 'Uncle / Aunt',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: "Niece (brother's daughter)",
@@ -714,7 +1073,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.descendant,
     relationshipKey: 'brothers_daughter',
     reciprocalTerm: 'Uncle / Aunt',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: "Nephew (sister's son)",
@@ -726,7 +1099,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.descendant,
     relationshipKey: 'sisters_son',
     reciprocalTerm: 'Uncle (Mama) / Aunt (Mausi)',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
   _KinshipTerm(
     englishTerm: "Niece (sister's daughter)",
@@ -738,7 +1125,21 @@ const _allTerms = <_KinshipTerm>[
     generation: _GenerationLevel.descendant,
     relationshipKey: 'sisters_daughter',
     reciprocalTerm: 'Uncle (Mama) / Aunt (Mausi)',
-    availableLanguages: ['hi', 'bn', 'ta', 'te', 'mr', 'gu', 'kn', 'ml', 'pa', 'or', 'as', 'ur', 'en'],
+    availableLanguages: [
+      'hi',
+      'bn',
+      'ta',
+      'te',
+      'mr',
+      'gu',
+      'kn',
+      'ml',
+      'pa',
+      'or',
+      'as',
+      'ur',
+      'en',
+    ],
   ),
 ];
 
@@ -768,7 +1169,16 @@ const _languageChips = [
 // CATEGORY FILTER DATA
 // ═══════════════════════════════════════════════════════════════════════
 
-const _categoryChips = ['All', 'Core', 'Parental', 'Sibling', 'Cousin', 'In-Law', 'Extended', 'Ceremonial'];
+const _categoryChips = [
+  'All',
+  'Core',
+  'Parental',
+  'Sibling',
+  'Cousin',
+  'In-Law',
+  'Extended',
+  'Ceremonial',
+];
 
 // ═══════════════════════════════════════════════════════════════════════
 // RIVERPOD PROVIDERS
@@ -778,7 +1188,9 @@ const _categoryChips = ['All', 'Core', 'Parental', 'Sibling', 'Cousin', 'In-Law'
 final _exploreSearchProvider = StateProvider<String>((ref) => '');
 
 /// Kinship search results from the loaded JSON data
-final _exploreKinshipProvider = FutureProvider<List<KinshipSearchResult>>((ref) async {
+final _exploreKinshipProvider = FutureProvider<List<KinshipSearchResult>>((
+  ref,
+) async {
   final query = ref.watch(_exploreSearchProvider);
   if (query.isEmpty) return [];
   await ref.watch(kinshipInitializedProvider.future);
@@ -787,8 +1199,7 @@ final _exploreKinshipProvider = FutureProvider<List<KinshipSearchResult>>((ref) 
 });
 
 /// Search results provider — searches across all family members, families
-final _exploreResultsProvider =
-    FutureProvider<_ExploreResults>((ref) async {
+final _exploreResultsProvider = FutureProvider<_ExploreResults>((ref) async {
   final query = ref.watch(_exploreSearchProvider);
   if (query.isEmpty) return _ExploreResults.empty();
 
@@ -798,14 +1209,16 @@ final _exploreResultsProvider =
 
   for (final family in families) {
     if (family.name.toLowerCase().contains(query.toLowerCase())) {
-      matchingFamilies.add(_SearchResultItem(
-        id: family.id,
-        title: family.name,
-        subtitle: 'Family',
-        icon: Icons.family_restroom_rounded,
-        type: _ResultType.family,
-        familyId: family.id,
-      ));
+      matchingFamilies.add(
+        _SearchResultItem(
+          id: family.id,
+          title: family.name,
+          subtitle: 'Family',
+          icon: Icons.family_restroom_rounded,
+          type: _ResultType.family,
+          familyId: family.id,
+        ),
+      );
     }
 
     final slug = family.name
@@ -815,30 +1228,33 @@ final _exploreResultsProvider =
     if (slug.contains(query.toLowerCase())) {
       final alreadyListed = matchingFamilies.any((f) => f.id == family.id);
       if (!alreadyListed) {
-        matchingFamilies.add(_SearchResultItem(
-          id: family.id,
-          title: family.name,
-          subtitle: 'Family code match',
-          icon: Icons.family_restroom_rounded,
-          type: _ResultType.family,
-          familyId: family.id,
-        ));
+        matchingFamilies.add(
+          _SearchResultItem(
+            id: family.id,
+            title: family.name,
+            subtitle: 'Family code match',
+            icon: Icons.family_restroom_rounded,
+            type: _ResultType.family,
+            familyId: family.id,
+          ),
+        );
       }
     }
 
     try {
-      final members =
-          await ref.watch(familyMembersProvider(family.id).future);
+      final members = await ref.watch(familyMembersProvider(family.id).future);
       for (final member in members) {
         if (member.name.toLowerCase().contains(query.toLowerCase())) {
-          matchingMembers.add(_SearchResultItem(
-            id: member.id,
-            title: member.name,
-            subtitle: family.name,
-            icon: Icons.person_outline_rounded,
-            type: _ResultType.member,
-            familyId: family.id,
-          ));
+          matchingMembers.add(
+            _SearchResultItem(
+              id: member.id,
+              title: member.name,
+              subtitle: family.name,
+              icon: Icons.person_outline_rounded,
+              type: _ResultType.member,
+              familyId: family.id,
+            ),
+          );
         }
       }
     } catch (_) {
@@ -846,19 +1262,14 @@ final _exploreResultsProvider =
     }
   }
 
-  return _ExploreResults(
-    members: matchingMembers,
-    families: matchingFamilies,
-  );
+  return _ExploreResults(members: matchingMembers, families: matchingFamilies);
 });
 
 class _ExploreResults {
   const _ExploreResults({required this.members, required this.families});
 
-  factory _ExploreResults.empty() => const _ExploreResults(
-        members: [],
-        families: [],
-      );
+  factory _ExploreResults.empty() =>
+      const _ExploreResults(members: [], families: []);
 
   final List<_SearchResultItem> members;
   final List<_SearchResultItem> families;
@@ -897,13 +1308,17 @@ class ExploreScreen extends ConsumerStatefulWidget {
   ConsumerState<ExploreScreen> createState() => _ExploreScreenState();
 }
 
-class _ExploreScreenState extends ConsumerState<ExploreScreen> {
+class _ExploreScreenState extends ConsumerState<ExploreScreen>
+    with AutomaticKeepAliveClientMixin {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
   Timer? _debounce;
   String _selectedLanguage = 'All';
   String _selectedCategory = 'All';
   bool _isSearching = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void dispose() {
@@ -953,6 +1368,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required by AutomaticKeepAliveClientMixin
     return DKScaffold(
       backgroundColor: _Tokens.bg,
       body: CustomScrollView(
@@ -1019,25 +1435,22 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       sliver: SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final term = terms[index];
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _KinshipCard(
-                term: term,
-                onTap: () => _showDetailSheet(context, term),
-              ),
-            )
-                .animate(onPlay: (c) => c.forward())
-                .fadeIn(
-                  duration: 300.ms,
-                  delay: Duration(milliseconds: index * 30),
-                )
-                .slideY(begin: 0.03, end: 0, duration: 300.ms);
-          },
-          childCount: terms.length,
-        ),
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final term = terms[index];
+          return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _KinshipCard(
+                  term: term,
+                  onTap: () => _showDetailSheet(context, term),
+                ),
+              )
+              .maybeAnimate(onPlay: (c) => c.forward())
+              .fadeIn()
+                duration: 300.ms,
+                delay: Duration(milliseconds: index * 30),
+              )
+              .slideY(begin: 0.03, end: 0, duration: 300.ms);
+        }, childCount: terms.length),
       ),
     );
   }
@@ -1069,40 +1482,54 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
           delegate: SliverChildListDelegate([
             // Sample kinship term results (from local data)
             if (sampleResults.isNotEmpty) ...[
-              _SectionLabel(label: 'Kinship Terms', count: sampleResults.length),
+              _SectionLabel(
+                label: 'Kinship Terms',
+                count: sampleResults.length,
+              ),
               const SizedBox(height: 8),
-              ...sampleResults.map((term) => Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: KinrelSpacing.base, vertical: 5),
-                    child: _KinshipCard(
-                      term: term,
-                      onTap: () => _showDetailSheet(context, term),
-                    ),
-                  )),
+              ...sampleResults.map(
+                (term) => Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: KinrelSpacing.base,
+                    vertical: 5,
+                  ),
+                  child: _KinshipCard(
+                    term: term,
+                    onTap: () => _showDetailSheet(context, term),
+                  ),
+                ),
+              ),
               const SizedBox(height: 16),
             ],
 
             // JSON kinship search results
             if (kinshipResults.isNotEmpty) ...[
-              _SectionLabel(
-                  label: 'More Terms', count: kinshipResults.length),
+              _SectionLabel(label: 'More Terms', count: kinshipResults.length),
               const SizedBox(height: 8),
-              ...kinshipResults.take(5).map((result) => Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: KinrelSpacing.base, vertical: 4),
-                    child: _JsonKinshipResultCard(
-                      result: result,
-                      onTap: () => context.push(
-                          '/kinship/${result.relationship.relationshipKey}'),
+              ...kinshipResults
+                  .take(5)
+                  .map(
+                    (result) => Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: KinrelSpacing.base,
+                        vertical: 4,
+                      ),
+                      child: _JsonKinshipResultCard(
+                        result: result,
+                        onTap: () => context.push(
+                          '/kinship/${result.relationship.relationshipKey}',
+                        ),
+                      ),
                     ),
-                  )),
+                  ),
               if (kinshipResults.length > 5)
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: KinrelSpacing.base, vertical: 8),
+                    horizontal: KinrelSpacing.base,
+                    vertical: 8,
+                  ),
                   child: DKButton(
-                    label:
-                        'View all ${kinshipResults.length} kinship terms →',
+                    label: 'View all ${kinshipResults.length} kinship terms →',
                     variant: DKButtonVariant.secondary,
                     size: DKButtonSize.sm,
                     fullWidth: true,
@@ -1114,35 +1541,39 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
 
             // Family member results
             if (results.members.isNotEmpty) ...[
-              _SectionLabel(
-                  label: 'Members', count: results.members.length),
+              _SectionLabel(label: 'Members', count: results.members.length),
               const SizedBox(height: 8),
-              ...results.members.map((item) => Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: KinrelSpacing.base, vertical: 4),
-                    child: _SearchResultCard(
-                      item: item,
-                      onTap: () =>
-                          context.push('/family/${item.familyId}'),
-                    ),
-                  )),
+              ...results.members.map(
+                (item) => Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: KinrelSpacing.base,
+                    vertical: 4,
+                  ),
+                  child: _SearchResultCard(
+                    item: item,
+                    onTap: () => context.push('/family/${item.familyId}'),
+                  ),
+                ),
+              ),
               const SizedBox(height: 16),
             ],
 
             // Family results
             if (results.families.isNotEmpty) ...[
-              _SectionLabel(
-                  label: 'Families', count: results.families.length),
+              _SectionLabel(label: 'Families', count: results.families.length),
               const SizedBox(height: 8),
-              ...results.families.map((item) => Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: KinrelSpacing.base, vertical: 4),
-                    child: _SearchResultCard(
-                      item: item,
-                      onTap: () =>
-                          context.push('/family/${item.familyId}'),
-                    ),
-                  )),
+              ...results.families.map(
+                (item) => Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: KinrelSpacing.base,
+                    vertical: 4,
+                  ),
+                  child: _SearchResultCard(
+                    item: item,
+                    onTap: () => context.push('/family/${item.familyId}'),
+                  ),
+                ),
+              ),
             ],
           ]),
         );
@@ -1199,26 +1630,32 @@ class _SearchSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(
-          horizontal: KinrelSpacing.base, vertical: KinrelSpacing.sm),
+        horizontal: KinrelSpacing.base,
+        vertical: KinrelSpacing.sm,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 8),
           // Title
-          Text('Kinship Dictionary',
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: _Tokens.textPrimary,
-              )),
+          Text(
+            'Kinship Dictionary',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              color: _Tokens.textPrimary,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text('Explore 52 base terms across 15 languages',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 13,
-                color: _Tokens.textSecondary,
-              )),
+          Text(
+            'Explore 52 base terms across 15 languages',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 13,
+              color: _Tokens.textSecondary,
+            ),
+          ),
           const SizedBox(height: 14),
           // Search bar
           Container(
@@ -1236,8 +1673,7 @@ class _SearchSection extends StatelessWidget {
             child: Row(
               children: [
                 const SizedBox(width: 14),
-                Icon(Icons.search_rounded,
-                    size: 22, color: _Tokens.orange),
+                Icon(Icons.search_rounded, size: 22, color: _Tokens.orange),
                 const SizedBox(width: 10),
                 Expanded(
                   child: TextField(
@@ -1250,8 +1686,7 @@ class _SearchSection extends StatelessWidget {
                       color: _Tokens.textPrimary,
                     ),
                     decoration: InputDecoration(
-                      hintText:
-                          'Search relationships (bua, chacha, mama...)',
+                      hintText: 'Search relationships (bua, chacha, mama...)',
                       hintStyle: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 14,
@@ -1270,8 +1705,11 @@ class _SearchSection extends StatelessWidget {
                     onTap: onClear,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Icon(Icons.close_rounded,
-                          size: 20, color: _Tokens.textDim),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 20,
+                        color: _Tokens.textDim,
+                      ),
                     ),
                   ),
                 // Voice search button
@@ -1285,8 +1723,11 @@ class _SearchSection extends StatelessWidget {
                       color: _Tokens.orange.withValues(alpha: 0.15),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.mic_rounded,
-                        size: 18, color: _Tokens.orange),
+                    child: Icon(
+                      Icons.mic_rounded,
+                      size: 18,
+                      color: _Tokens.orange,
+                    ),
                   ),
                 ),
               ],
@@ -1303,10 +1744,7 @@ class _SearchSection extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _LanguageFilterRow extends StatelessWidget {
-  const _LanguageFilterRow({
-    required this.selected,
-    required this.onSelected,
-  });
+  const _LanguageFilterRow({required this.selected, required this.onSelected});
 
   final String selected;
   final ValueChanged<String> onSelected;
@@ -1341,10 +1779,7 @@ class _LanguageFilterRow extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _CategoryFilterRow extends StatelessWidget {
-  const _CategoryFilterRow({
-    required this.selected,
-    required this.onSelected,
-  });
+  const _CategoryFilterRow({required this.selected, required this.onSelected});
 
   final String selected;
   final ValueChanged<String> onSelected;
@@ -1425,10 +1860,7 @@ class _FilterChip extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _KinshipCard extends StatelessWidget {
-  const _KinshipCard({
-    required this.term,
-    required this.onTap,
-  });
+  const _KinshipCard({required this.term, required this.onTap});
 
   final _KinshipTerm term;
   final VoidCallback onTap;
@@ -1442,10 +1874,7 @@ class _KinshipCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: _Tokens.card,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: _Tokens.border,
-            width: 1,
-          ),
+          border: Border.all(color: _Tokens.border, width: 1),
         ),
         child: Row(
           children: [
@@ -1475,8 +1904,11 @@ class _KinshipCard extends StatelessWidget {
                       _GenerationBadge(generation: term.generation),
                       const SizedBox(width: 4),
                       // Speaker icon
-                      Icon(Icons.volume_up_rounded,
-                          size: 16, color: _Tokens.orange),
+                      Icon(
+                        Icons.volume_up_rounded,
+                        size: 16,
+                        color: _Tokens.orange,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -1511,7 +1943,9 @@ class _KinshipCard extends StatelessWidget {
                     children: term.availableLanguages.take(5).map((lang) {
                       return Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: _Tokens.elevated,
                           borderRadius: BorderRadius.circular(4),
@@ -1533,8 +1967,7 @@ class _KinshipCard extends StatelessWidget {
             ),
             // Chevron
             const SizedBox(width: 8),
-            Icon(Icons.chevron_right_rounded,
-                size: 20, color: _Tokens.textDim),
+            Icon(Icons.chevron_right_rounded, size: 20, color: _Tokens.textDim),
           ],
         ),
       ),
@@ -1558,8 +1991,9 @@ class _GenderIcon extends StatelessWidget {
       width: 18,
       height: 18,
       decoration: BoxDecoration(
-        color: (isMale ? _Tokens.maleBlue : _Tokens.femalePink)
-            .withValues(alpha: 0.15),
+        color: (isMale ? _Tokens.maleBlue : _Tokens.femalePink).withValues(
+          alpha: 0.15,
+        ),
         shape: BoxShape.circle,
       ),
       child: Center(
@@ -1620,10 +2054,7 @@ class _GenerationBadge extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({
-    required this.label,
-    required this.count,
-  });
+  const _SectionLabel({required this.label, required this.count});
 
   final String label;
   final int count;
@@ -1645,8 +2076,7 @@ class _SectionLabel extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
               color: _Tokens.orange.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
@@ -1672,10 +2102,7 @@ class _SectionLabel extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _JsonKinshipResultCard extends ConsumerWidget {
-  const _JsonKinshipResultCard({
-    required this.result,
-    required this.onTap,
-  });
+  const _JsonKinshipResultCard({required this.result, required this.onTap});
 
   final KinshipSearchResult result;
   final VoidCallback onTap;
@@ -1683,9 +2110,9 @@ class _JsonKinshipResultCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rel = result.relationship;
-    final termAsync = ref.watch(kinshipTermProvider(
-      (key: rel.relationshipKey, language: 'hindi'),
-    ));
+    final termAsync = ref.watch(
+      kinshipTermProvider((key: rel.relationshipKey, language: 'hindi')),
+    );
 
     return GestureDetector(
       onTap: onTap,
@@ -1694,10 +2121,7 @@ class _JsonKinshipResultCard extends ConsumerWidget {
         decoration: BoxDecoration(
           color: _Tokens.card,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: _Tokens.border,
-            width: 1,
-          ),
+          border: Border.all(color: _Tokens.border, width: 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1706,16 +2130,16 @@ class _JsonKinshipResultCard extends ConsumerWidget {
               children: [
                 // Category badge
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: _Tokens.orange.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    rel.relationshipCategory
-                        .replaceAll('_', ' ')
-                        .toUpperCase(),
+                    rel.relationshipCategory.replaceAll('_', ' ').toUpperCase(),
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 10,
@@ -1728,12 +2152,12 @@ class _JsonKinshipResultCard extends ConsumerWidget {
                 const Spacer(),
                 // Gender indicator
                 _GenderIcon(
-                    gender: rel.gender == 'male'
-                        ? _KinshipGender.male
-                        : _KinshipGender.female),
+                  gender: rel.gender == 'male'
+                      ? _KinshipGender.male
+                      : _KinshipGender.female,
+                ),
                 const SizedBox(width: 4),
-                Icon(Icons.volume_up_rounded,
-                    size: 16, color: _Tokens.orange),
+                Icon(Icons.volume_up_rounded, size: 16, color: _Tokens.orange),
               ],
             ),
             const SizedBox(height: 8),
@@ -1751,8 +2175,8 @@ class _JsonKinshipResultCard extends ConsumerWidget {
                   ),
                 );
               },
-              loading: () => DKLoadingShimmer(
-                  width: 120, height: 24, radius: 4),
+              loading: () =>
+                  DKLoadingShimmer(width: 120, height: 24, radius: 4),
               error: (_, __) => const SizedBox.shrink(),
             ),
             const SizedBox(height: 4),
@@ -1788,10 +2212,7 @@ class _JsonKinshipResultCard extends ConsumerWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _SearchResultCard extends StatelessWidget {
-  const _SearchResultCard({
-    required this.item,
-    required this.onTap,
-  });
+  const _SearchResultCard({required this.item, required this.onTap});
 
   final _SearchResultItem item;
   final VoidCallback onTap;
@@ -1805,10 +2226,7 @@ class _SearchResultCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: _Tokens.card,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: _Tokens.border,
-            width: 1,
-          ),
+          border: Border.all(color: _Tokens.border, width: 1),
         ),
         child: Row(
           children: [
@@ -1819,9 +2237,7 @@ class _SearchResultCard extends StatelessWidget {
                 color: _Tokens.orange.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: Icon(item.icon,
-                  size: 18,
-                  color: _Tokens.orange),
+              child: Icon(item.icon, size: 18, color: _Tokens.orange),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1848,8 +2264,7 @@ class _SearchResultCard extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded,
-                size: 20, color: _Tokens.textDim),
+            Icon(Icons.chevron_right_rounded, size: 20, color: _Tokens.textDim),
           ],
         ),
       ),
@@ -1862,10 +2277,7 @@ class _SearchResultCard extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({
-    required this.title,
-    required this.subtitle,
-  });
+  const _EmptyState({required this.title, required this.subtitle});
 
   final String title;
   final String subtitle;
@@ -1916,29 +2328,33 @@ class _EmptyState extends StatelessWidget {
             Wrap(
               spacing: 8,
               alignment: WrapAlignment.center,
-              children: [
-                'bua', 'chacha', 'mama', 'jethani', 'dada',
-              ].map((term) => Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _Tokens.elevated,
-                      borderRadius: BorderRadius.circular(KinrelRadius.full),
-                      border: Border.all(
-                        color: _Tokens.orange.withValues(alpha: 0.2),
-                        width: 0.5,
+              children: ['bua', 'chacha', 'mama', 'jethani', 'dada']
+                  .map(
+                    (term) => Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _Tokens.elevated,
+                        borderRadius: BorderRadius.circular(KinrelRadius.full),
+                        border: Border.all(
+                          color: _Tokens.orange.withValues(alpha: 0.2),
+                          width: 0.5,
+                        ),
+                      ),
+                      child: Text(
+                        term,
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 12,
+                          color: _Tokens.orange,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
-                    child: Text(
-                      term,
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 12,
-                        color: _Tokens.orange,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  )).toList(),
+                  )
+                  .toList(),
             ),
           ],
         ),
@@ -2002,10 +2418,7 @@ class _KinshipDetailSheet extends StatelessWidget {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             gradient: const LinearGradient(
-                              colors: [
-                                Color(0xFFE8612A),
-                                Color(0xFFF59240),
-                              ],
+                              colors: [Color(0xFFE8612A), Color(0xFFF59240)],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
@@ -2065,8 +2478,7 @@ class _KinshipDetailSheet extends StatelessWidget {
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color:
-                                    _Tokens.orange.withValues(alpha: 0.3),
+                                color: _Tokens.orange.withValues(alpha: 0.3),
                                 blurRadius: 12,
                                 spreadRadius: 1,
                               ),
@@ -2091,18 +2503,18 @@ class _KinshipDetailSheet extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: _Tokens.elevated,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: _Tokens.border,
-                        width: 1,
-                      ),
+                      border: Border.all(color: _Tokens.border, width: 1),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.menu_book_rounded,
-                                size: 16, color: _Tokens.orange),
+                            Icon(
+                              Icons.menu_book_rounded,
+                              size: 16,
+                              color: _Tokens.orange,
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               'Definition',
@@ -2144,10 +2556,11 @@ class _KinshipDetailSheet extends StatelessWidget {
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
-                                color: _Tokens.orange
-                                    .withValues(alpha: 0.12),
+                                color: _Tokens.orange.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -2176,18 +2589,18 @@ class _KinshipDetailSheet extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: _Tokens.elevated,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: _Tokens.border,
-                          width: 1,
-                        ),
+                        border: Border.all(color: _Tokens.border, width: 1),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.auto_stories_rounded,
-                                  size: 16, color: _Tokens.orange),
+                              Icon(
+                                Icons.auto_stories_rounded,
+                                size: 16,
+                                color: _Tokens.orange,
+                              ),
                               const SizedBox(width: 6),
                               Text(
                                 'Cultural Context',
@@ -2214,8 +2627,7 @@ class _KinshipDetailSheet extends StatelessWidget {
                       ),
                     ),
 
-                  if (term.culturalNote != null)
-                    const SizedBox(height: 12),
+                  if (term.culturalNote != null) const SizedBox(height: 12),
 
                   // ── Translations Card ────────────────────────────────
                   Container(
@@ -2224,18 +2636,18 @@ class _KinshipDetailSheet extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: _Tokens.elevated,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: _Tokens.border,
-                        width: 1,
-                      ),
+                      border: Border.all(color: _Tokens.border, width: 1),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.translate_rounded,
-                                size: 16, color: _Tokens.orange),
+                            Icon(
+                              Icons.translate_rounded,
+                              size: 16,
+                              color: _Tokens.orange,
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               'Translations',
@@ -2255,7 +2667,9 @@ class _KinshipDetailSheet extends StatelessWidget {
                           children: term.availableLanguages.map((lang) {
                             return Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 6),
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
                               decoration: BoxDecoration(
                                 color: _Tokens.card,
                                 borderRadius: BorderRadius.circular(8),
@@ -2297,8 +2711,11 @@ class _KinshipDetailSheet extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.swap_horiz_rounded,
-                              size: 18, color: _Tokens.orange),
+                          Icon(
+                            Icons.swap_horiz_rounded,
+                            size: 18,
+                            color: _Tokens.orange,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: RichText(
@@ -2328,94 +2745,98 @@ class _KinshipDetailSheet extends StatelessWidget {
                   const SizedBox(height: 12),
 
                   // ── Related Terms ────────────────────────────────────
-                  Builder(builder: (context) {
-                    final related = _allTerms
-                        .where((t) =>
-                            t.category == term.category &&
-                            t.relationshipKey != term.relationshipKey)
-                        .take(4)
-                        .toList();
-                    if (related.isEmpty) return const SizedBox.shrink();
+                  Builder(
+                    builder: (context) {
+                      final related = _allTerms
+                          .where(
+                            (t) =>
+                                t.category == term.category &&
+                                t.relationshipKey != term.relationshipKey,
+                          )
+                          .take(4)
+                          .toList();
+                      if (related.isEmpty) return const SizedBox.shrink();
 
-                    return Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: _Tokens.elevated,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: _Tokens.border,
-                          width: 1,
+                      return Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: _Tokens.elevated,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _Tokens.border, width: 1),
                         ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.family_restroom_rounded,
-                                  size: 16, color: _Tokens.orange),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Related Terms',
-                                style: TextStyle(
-                                  fontFamily: KinrelTypography.bodyFont,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.family_restroom_rounded,
+                                  size: 16,
                                   color: _Tokens.orange,
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: related.map((t) {
-                              return Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: _Tokens.card,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: _Tokens.border,
-                                    width: 1,
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Related Terms',
+                                  style: TextStyle(
+                                    fontFamily: KinrelTypography.bodyFont,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _Tokens.orange,
                                   ),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      t.nativeScript,
-                                      style: TextStyle(
-                                        fontFamily:
-                                            KinrelTypography.bodyFont,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: _Tokens.orange,
-                                      ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: related.map((t) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _Tokens.card,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: _Tokens.border,
+                                      width: 1,
                                     ),
-                                    Text(
-                                      t.transliteration,
-                                      style: TextStyle(
-                                        fontFamily:
-                                            KinrelTypography.bodyFont,
-                                        fontSize: 11,
-                                        color: _Tokens.textSecondary,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        t.nativeScript,
+                                        style: TextStyle(
+                                          fontFamily: KinrelTypography.bodyFont,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: _Tokens.orange,
+                                        ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
+                                      Text(
+                                        t.transliteration,
+                                        style: TextStyle(
+                                          fontFamily: KinrelTypography.bodyFont,
+                                          fontSize: 11,
+                                          color: _Tokens.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
 
                   const SizedBox(height: 40),
                 ],

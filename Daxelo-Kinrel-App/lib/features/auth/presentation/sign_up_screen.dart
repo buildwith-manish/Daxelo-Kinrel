@@ -9,6 +9,9 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/extensions/context_extensions.dart';
+import '../../../core/utils/form_validators.dart';
+import '../../../core/utils/api_error_mapper.dart';
+import '../../core/utils/device_tier.dart';
 
 class SignUpScreen extends ConsumerStatefulWidget {
   SignUpScreen({super.key});
@@ -24,10 +27,16 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _nameFocusNode = FocusNode();
+  final _emailFocusNode = FocusNode();
+  final _phoneFocusNode = FocusNode();
+  final _passwordFocusNode = FocusNode();
+  final _confirmPasswordFocusNode = FocusNode();
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _agreedToTerms = false;
+  String? _apiEmailError;
 
   // ── Country code state ─────────────────────────────────────────
   _CountryCode _selectedCountry = _countryCodes.first;
@@ -49,6 +58,11 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _nameFocusNode.dispose();
+    _emailFocusNode.dispose();
+    _phoneFocusNode.dispose();
+    _passwordFocusNode.dispose();
+    _confirmPasswordFocusNode.dispose();
     super.dispose();
   }
 
@@ -58,12 +72,22 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       return _PasswordStrength.none;
     }
     int score = 0;
-    if (password.length >= 8) score++;
-    if (password.length >= 12) score++;
+    if (password.length >= 8) {
+      score++;
+    }
+    if (password.length >= 12) {
+      score++;
+    }
     if (RegExp(r'[A-Z]').hasMatch(password) &&
-        RegExp(r'[a-z]').hasMatch(password)) score++;
-    if (RegExp(r'[0-9]').hasMatch(password)) score++;
-    if (RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(password)) score++;
+        RegExp(r'[a-z]').hasMatch(password)) {
+      score++;
+    }
+    if (RegExp(r'[0-9]').hasMatch(password)) {
+      score++;
+    }
+    if (RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(password)) {
+      score++;
+    }
 
     if (score <= 1) return _PasswordStrength.weak;
     if (score == 2) return _PasswordStrength.fair;
@@ -139,8 +163,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   Future<void> _signUp() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_agreedToTerms) {
-      context.showSnackBar('Please agree to the Terms of Service',
-          isError: true);
+      context.showSnackBar(
+        'Please agree to the Terms of Service',
+        isError: true,
+      );
       return;
     }
 
@@ -170,7 +196,23 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       }
     } catch (e) {
       if (mounted) {
-        context.showSnackBar(_cleanErrorMessage(e.toString()), isError: true);
+        final fieldErrors = mapApiError(e);
+        if (fieldErrors != null) {
+          if (fieldErrors.containsKey('email')) {
+            setState(() => _apiEmailError = fieldErrors['email']);
+            _formKey.currentState!.validate();
+          }
+          final formError = fieldErrors['form'];
+          if (formError != null) {
+            context.showSnackBar(formError, isError: true);
+          } else if (!fieldErrors.containsKey('email')) {
+            // Show the first field error as snackbar if no form-level error
+            final firstError = fieldErrors.values.first;
+            context.showSnackBar(firstError, isError: true);
+          }
+        } else {
+          context.showSnackBar(_cleanErrorMessage(e.toString()), isError: true);
+        }
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -231,55 +273,59 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   Widget build(BuildContext context) {
     final currentStrength = _passwordStrength(_passwordController.text);
 
-    return Scaffold(
-      backgroundColor: _bgColor,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: KinrelSpacing.xl,
-              vertical: KinrelSpacing.lg,
-            ),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+    return Theme(
+      data: Theme.of(context).copyWith(brightness: Brightness.dark),
+      child: Scaffold(
+        backgroundColor: _bgColor,
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: KinrelSpacing.xl,
+                vertical: KinrelSpacing.lg,
+              ),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                   // ── K-graph icon (48px) + Create Account ─────────
                   Column(
-                    children: [
-                      SizedBox(
-                        width: KinrelSpacing.logoMd,
-                        height: KinrelSpacing.logoMd,
-                        child: SvgPicture.asset(
-                          'assets/icons/kinrel-icon-primary.svg',
-                          width: KinrelSpacing.logoMd,
-                          height: KinrelSpacing.logoMd,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Create Account',
-                        textAlign: TextAlign.center,
-                        style: KinrelTypography.displayMedium.copyWith(
-                          fontSize: 26,
-                          color: _primaryText,
-                        ),
-                      ),
-                    ],
-                  ).animate().fadeIn(duration: 400.ms).slideY(
-                        begin: 0.15,
-                        end: 0,
-                        duration: 500.ms,
-                      ),
+                        children: [
+                          SizedBox(
+                            width: KinrelSpacing.logoMd,
+                            height: KinrelSpacing.logoMd,
+                            child: SvgPicture.asset(
+                              'assets/icons/kinrel-icon-primary.svg',
+                              width: KinrelSpacing.logoMd,
+                              height: KinrelSpacing.logoMd,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Create Account',
+                            textAlign: TextAlign.center,
+                            style: KinrelTypography.displayMedium.copyWith(
+                              fontSize: 26,
+                              color: _primaryText,
+                            ),
+                          ),
+                        ],
+                      )
+                      .maybeAnimate()
+                      .fadeIn(duration: 400.ms)
+                      .slideY(begin: 0.15, end: 0, duration: 500.ms),
 
                   const SizedBox(height: 28),
 
                   // ── Full Name field ─────────────────────────────
                   TextFormField(
                     controller: _nameController,
+                    focusNode: _nameFocusNode,
+                    keyboardType: TextInputType.name,
                     textCapitalization: TextCapitalization.words,
+                    textInputAction: TextInputAction.next,
                     cursorColor: _focusBorder,
                     style: TextStyle(
                       color: _primaryText,
@@ -290,8 +336,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       hintText: 'Full Name',
                       prefixIcon: Icons.person_outline_rounded,
                     ),
-                    validator: (v) =>
-                        v == null || v.isEmpty ? 'Name is required' : null,
+                    validator: (v) => nameValidator(v),
+                    onFieldSubmitted: (_) {
+                      _emailFocusNode.requestFocus();
+                    },
                   ),
 
                   const SizedBox(height: 14),
@@ -299,7 +347,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   // ── Email field ─────────────────────────────────
                   TextFormField(
                     controller: _emailController,
+                    focusNode: _emailFocusNode,
                     keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    textCapitalization: TextCapitalization.none,
                     autocorrect: false,
                     cursorColor: _focusBorder,
                     style: TextStyle(
@@ -312,9 +363,15 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       prefixIcon: Icons.email_outlined,
                     ),
                     validator: (v) {
-                      if (v == null || v.isEmpty) return 'Email is required';
-                      if (!v.contains('@')) return 'Enter a valid email';
-                      return null;
+                      if (_apiEmailError != null) {
+                        final err = _apiEmailError;
+                        _apiEmailError = null;
+                        return err;
+                      }
+                      return emailValidator(v);
+                    },
+                    onFieldSubmitted: (_) {
+                      _phoneFocusNode.requestFocus();
                     },
                   ),
 
@@ -323,7 +380,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   // ── Phone field with country code picker ─────────
                   TextFormField(
                     controller: _phoneController,
+                    focusNode: _phoneFocusNode,
                     keyboardType: TextInputType.phone,
+                    textInputAction: TextInputAction.next,
+                    textCapitalization: TextCapitalization.none,
                     cursorColor: _focusBorder,
                     style: TextStyle(
                       color: _primaryText,
@@ -338,6 +398,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             setState(() => _selectedCountry = code),
                       ),
                     ),
+                    onFieldSubmitted: (_) {
+                      _passwordFocusNode.requestFocus();
+                    },
                   ),
 
                   const SizedBox(height: 14),
@@ -345,7 +408,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   // ── Password field with strength indicator ───────
                   TextFormField(
                     controller: _passwordController,
+                    focusNode: _passwordFocusNode,
                     obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.next,
+                    textCapitalization: TextCapitalization.none,
                     cursorColor: _focusBorder,
                     style: TextStyle(
                       color: _primaryText,
@@ -364,16 +430,14 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           size: 20,
                         ),
                         onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword),
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
                       ),
                     ),
                     onChanged: (_) => setState(() {}),
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return 'Password is required';
-                      if (v.length < 8) {
-                        return 'Password must be at least 8 characters';
-                      }
-                      return null;
+                    validator: (v) => passwordValidator(v),
+                    onFieldSubmitted: (_) {
+                      _confirmPasswordFocusNode.requestFocus();
                     },
                   ),
 
@@ -409,8 +473,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           return Container(
                             width: 40,
                             height: 4,
-                            margin: EdgeInsets.only(
-                                right: index < 3 ? 6 : 0),
+                            margin: EdgeInsets.only(right: index < 3 ? 6 : 0),
                             decoration: BoxDecoration(
                               color: color,
                               borderRadius: BorderRadius.circular(2),
@@ -436,7 +499,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   // ── Confirm Password field ───────────────────────
                   TextFormField(
                     controller: _confirmPasswordController,
+                    focusNode: _confirmPasswordFocusNode,
                     obscureText: _obscureConfirmPassword,
+                    textInputAction: TextInputAction.done,
+                    textCapitalization: TextCapitalization.none,
                     cursorColor: _focusBorder,
                     style: TextStyle(
                       color: _primaryText,
@@ -454,20 +520,15 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           color: _hintColor,
                           size: 20,
                         ),
-                        onPressed: () => setState(() =>
-                            _obscureConfirmPassword =
-                                !_obscureConfirmPassword),
+                        onPressed: () => setState(
+                          () => _obscureConfirmPassword =
+                              !_obscureConfirmPassword,
+                        ),
                       ),
                     ),
-                    validator: (v) {
-                      if (v == null || v.isEmpty) {
-                        return 'Please confirm your password';
-                      }
-                      if (v != _passwordController.text) {
-                        return 'Passwords do not match';
-                      }
-                      return null;
-                    },
+                    validator: (v) =>
+                        confirmPasswordValidator(v, _passwordController.text),
+                    onFieldSubmitted: (_) => _signUp(),
                   ),
 
                   const SizedBox(height: 16),
@@ -486,8 +547,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           activeColor: KinrelColors.orange,
                           checkColor: Colors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(KinrelRadius.xs),
+                            borderRadius: BorderRadius.circular(
+                              KinrelRadius.xs,
+                            ),
                           ),
                           side: BorderSide(
                             color: _agreedToTerms
@@ -500,8 +562,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: GestureDetector(
-                          onTap: () => setState(
-                              () => _agreedToTerms = !_agreedToTerms),
+                          onTap: () =>
+                              setState(() => _agreedToTerms = !_agreedToTerms),
                           child: RichText(
                             text: TextSpan(
                               style: TextStyle(
@@ -548,14 +610,14 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         color: _isLoading
                             ? KinrelColors.orange.withValues(alpha: 0.5)
                             : null,
-                        borderRadius:
-                            BorderRadius.circular(KinrelRadius.full),
+                        borderRadius: BorderRadius.circular(KinrelRadius.full),
                         boxShadow: _isLoading
                             ? null
                             : [
                                 BoxShadow(
-                                  color: KinrelColors.orange
-                                      .withValues(alpha: 0.35),
+                                  color: KinrelColors.orange.withValues(
+                                    alpha: 0.35,
+                                  ),
                                   blurRadius: 16,
                                   offset: const Offset(0, 4),
                                 ),
@@ -567,11 +629,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                           backgroundColor: Colors.transparent,
                           foregroundColor: Colors.white,
                           disabledBackgroundColor: Colors.transparent,
-                          disabledForegroundColor:
-                              Colors.white.withValues(alpha: 0.6),
+                          disabledForegroundColor: Colors.white.withValues(
+                            alpha: 0.6,
+                          ),
                           shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(KinrelRadius.full),
+                            borderRadius: BorderRadius.circular(
+                              KinrelRadius.full,
+                            ),
                           ),
                           elevation: 0,
                         ),
@@ -591,12 +655,12 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                   Text(
                                     'Creating account...',
                                     style: TextStyle(
-                                      fontFamily:
-                                          KinrelTypography.displayFont,
+                                      fontFamily: KinrelTypography.displayFont,
                                       fontWeight: FontWeight.w600,
                                       fontSize: 16,
-                                      color: Colors.white
-                                          .withValues(alpha: 0.8),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.8,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -611,7 +675,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                               ),
                       ),
                     ),
-                  ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
+                  ).maybeAnimate().fadeIn(duration: 400.ms, delay: 200.ms),
 
                   const SizedBox(height: 28),
 
@@ -643,42 +707,21 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         ),
                       ),
                     ],
-                  ).animate().fadeIn(duration: 300.ms, delay: 300.ms),
+                  ).maybeAnimate().fadeIn(duration: 300.ms, delay: 300.ms),
 
                   const SizedBox(height: 20),
 
-                  // ── Google & Apple social auth buttons ────────────
-                  Row(
-                    children: [
-                      // Google
-                      Expanded(
-                        child: _SocialAuthButton(
-                          label: 'Google',
-                          icon: Icons.g_mobiledata_rounded,
-                          borderColor: _socialBorder,
-                          fillColor: _inputFill,
-                          textColor: _primaryText,
-                          onPressed: () {
-                            // TODO: Google sign in
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Apple
-                      Expanded(
-                        child: _SocialAuthButton(
-                          label: 'Apple',
-                          icon: Icons.apple,
-                          borderColor: _socialBorder,
-                          fillColor: _inputFill,
-                          textColor: _primaryText,
-                          onPressed: () {
-                            // TODO: Apple sign in
-                          },
-                        ),
-                      ),
-                    ],
-                  ).animate().fadeIn(duration: 300.ms, delay: 400.ms),
+                  // ── Google social auth button ─────────────────────
+                  _SocialAuthButton(
+                    label: 'Google',
+                    icon: Icons.g_mobiledata_rounded,
+                    borderColor: _socialBorder,
+                    fillColor: _inputFill,
+                    textColor: _primaryText,
+                    onPressed: () {
+                      // TODO: Google sign in
+                    },
+                  ).maybeAnimate().fadeIn(duration: 300.ms, delay: 400.ms),
 
                   const SizedBox(height: 28),
 
@@ -712,10 +755,11 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         ),
                       ),
                     ],
-                  ).animate().fadeIn(duration: 300.ms, delay: 500.ms),
+                  ).maybeAnimate().fadeIn(duration: 300.ms, delay: 500.ms),
 
                   const SizedBox(height: 16),
                 ],
+                ),
               ),
             ),
           ),
@@ -805,7 +849,12 @@ class _CountryCode {
 const List<_CountryCode> _countryCodes = [
   _CountryCode(name: 'India', code: 'IN', dialCode: '+91', flag: '🇮🇳'),
   _CountryCode(name: 'United States', code: 'US', dialCode: '+1', flag: '🇺🇸'),
-  _CountryCode(name: 'United Kingdom', code: 'GB', dialCode: '+44', flag: '🇬🇧'),
+  _CountryCode(
+    name: 'United Kingdom',
+    code: 'GB',
+    dialCode: '+44',
+    flag: '🇬🇧',
+  ),
   _CountryCode(name: 'Canada', code: 'CA', dialCode: '+1', flag: '🇨🇦'),
   _CountryCode(name: 'Australia', code: 'AU', dialCode: '+61', flag: '🇦🇺'),
   _CountryCode(name: 'UAE', code: 'AE', dialCode: '+971', flag: '🇦🇪'),
@@ -821,15 +870,17 @@ const List<_CountryCode> _countryCodes = [
   _CountryCode(name: 'Nepal', code: 'NP', dialCode: '+977', flag: '🇳🇵'),
   _CountryCode(name: 'Sri Lanka', code: 'LK', dialCode: '+94', flag: '🇱🇰'),
   _CountryCode(name: 'Malaysia', code: 'MY', dialCode: '+60', flag: '🇲🇾'),
-  _CountryCode(name: 'Saudi Arabia', code: 'SA', dialCode: '+966', flag: '🇸🇦'),
+  _CountryCode(
+    name: 'Saudi Arabia',
+    code: 'SA',
+    dialCode: '+966',
+    flag: '🇸🇦',
+  ),
   _CountryCode(name: 'Other', code: 'OT', dialCode: '+', flag: '🌍'),
 ];
 
 class _CountryCodePicker extends StatelessWidget {
-  const _CountryCodePicker({
-    required this.selected,
-    required this.onSelected,
-  });
+  const _CountryCodePicker({required this.selected, required this.onSelected});
 
   final _CountryCode selected;
   final ValueChanged<_CountryCode> onSelected;
@@ -843,10 +894,7 @@ class _CountryCodePicker extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              selected.flag,
-              style: const TextStyle(fontSize: 18),
-            ),
+            Text(selected.flag, style: const TextStyle(fontSize: 18)),
             const SizedBox(width: 4),
             Text(
               selected.dialCode,
@@ -863,11 +911,7 @@ class _CountryCodePicker extends StatelessWidget {
               size: 18,
             ),
             const SizedBox(width: 4),
-            Container(
-              width: 1,
-              height: 20,
-              color: const Color(0xFF3A3A4A),
-            ),
+            Container(width: 1, height: 20, color: const Color(0xFF3A3A4A)),
             const SizedBox(width: 8),
           ],
         ),
@@ -880,9 +924,7 @@ class _CountryCodePicker extends StatelessWidget {
       context: context,
       backgroundColor: const Color(0xFF202338),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(20),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
         return Column(
@@ -919,7 +961,10 @@ class _CountryCodePicker extends StatelessWidget {
                   final country = _countryCodes[index];
                   final isSelected = country.code == selected.code;
                   return ListTile(
-                    leading: Text(country.flag, style: const TextStyle(fontSize: 22)),
+                    leading: Text(
+                      country.flag,
+                      style: const TextStyle(fontSize: 22),
+                    ),
                     title: Text(
                       country.name,
                       style: TextStyle(
@@ -928,8 +973,9 @@ class _CountryCodePicker extends StatelessWidget {
                             : const Color(0xFFF5F0EE),
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 14,
-                        fontWeight:
-                            isSelected ? FontWeight.w600 : FontWeight.w400,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
                       ),
                     ),
                     trailing: Text(

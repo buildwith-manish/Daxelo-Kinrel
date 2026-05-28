@@ -81,8 +81,7 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen>
     });
 
     final membersAsync = ref.read(familyMembersProvider(widget.familyId));
-    final relsAsync =
-        ref.read(familyRelationshipsProvider(widget.familyId));
+    final relsAsync = ref.read(familyRelationshipsProvider(widget.familyId));
 
     membersAsync.whenData((members) {
       relsAsync.whenData((relationships) {
@@ -187,7 +186,8 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen>
     final fromPerson = _fromPersonId != null ? personMap[_fromPersonId] : null;
     final toPerson = _toPersonId != null ? personMap[_toPersonId] : null;
     final bothSelected = _fromPersonId != null && _toPersonId != null;
-    final isSamePerson = _fromPersonId != null &&
+    final isSamePerson =
+        _fromPersonId != null &&
         _toPersonId != null &&
         _fromPersonId == _toPersonId;
 
@@ -261,8 +261,10 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen>
                   _findPath();
                 },
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: KinrelColors.darkElevated,
                     borderRadius: BorderRadius.circular(20),
@@ -273,8 +275,11 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.swap_horiz,
-                          size: 16, color: KinrelColors.orange),
+                      Icon(
+                        Icons.swap_horiz,
+                        size: 16,
+                        color: KinrelColors.orange,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         'Swap',
@@ -364,8 +369,7 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen>
               animation: _resultAppearController,
               builder: (context, _) {
                 return Transform.translate(
-                  offset:
-                      Offset(0, 20 * (1 - _resultAppearController.value)),
+                  offset: Offset(0, 20 * (1 - _resultAppearController.value)),
                   child: Opacity(
                     opacity: _resultAppearController.value,
                     child: _HeroResultCard(
@@ -470,9 +474,7 @@ class _PersonSelectorCard extends StatelessWidget {
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 1.5,
-                color: isSelected
-                    ? KinrelColors.orange
-                    : KinrelColors.textDim,
+                color: isSelected ? KinrelColors.orange : KinrelColors.textDim,
               ),
             ),
             const SizedBox(height: 10),
@@ -650,19 +652,23 @@ class _PathVisualizationChain extends StatelessWidget {
     final nodes = <_PathNode>[];
     final fromPerson = personMap[fromPersonId];
     if (fromPerson != null) {
-      nodes.add(_PathNode(
-        personId: fromPersonId,
-        name: fromPerson.name,
-        isSource: true,
-      ));
+      nodes.add(
+        _PathNode(
+          personId: fromPersonId,
+          name: fromPerson.name,
+          isSource: true,
+        ),
+      );
     }
     for (int i = 0; i < steps.length; i++) {
-      nodes.add(_PathNode(
-        personId: steps[i].personId,
-        name: steps[i].personName,
-        edgeLabel: _formatEdgeLabel(steps[i].type),
-        isSource: i == steps.length - 1,
-      ));
+      nodes.add(
+        _PathNode(
+          personId: steps[i].personId,
+          name: steps[i].personName,
+          edgeLabel: _formatEdgeLabel(steps[i].type),
+          isSource: i == steps.length - 1,
+        ),
+      );
     }
 
     return Container(
@@ -673,9 +679,7 @@ class _PathVisualizationChain extends StatelessWidget {
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.06),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -906,8 +910,10 @@ class _HeroResultCard extends ConsumerWidget {
 
       // Try to get Hindi translation
       try {
-        final translation =
-            kinshipService.getKinshipTerm(resolvedRelationship.relationshipKey, 'hindi');
+        final translation = kinshipService.getKinshipTerm(
+          resolvedRelationship.relationshipKey,
+          'hindi',
+        );
         if (translation != null) {
           nativeTerm = translation.native;
           transliteration = translation.latin;
@@ -940,9 +946,7 @@ class _HeroResultCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(KinrelRadius.xl),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.06),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
         boxShadow: [
           BoxShadow(
             color: KinrelColors.orangeGlowSubtle,
@@ -1026,10 +1030,7 @@ class _HeroResultCard extends ConsumerWidget {
           // ── Full path description ─────────────────────────────
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 10,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: KinrelColors.darkElevated.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(KinrelRadius.sm),
@@ -1074,7 +1075,8 @@ class _HeroResultCard extends ConsumerWidget {
               // Degree of relation
               _InfoChip(
                 icon: Icons.device_hub_outlined,
-                label: '${degreeOfRelation ?? result.length}${_ordinalSuffix(degreeOfRelation ?? result.length)} degree',
+                label:
+                    '${degreeOfRelation ?? result.length}${_ordinalSuffix(degreeOfRelation ?? result.length)} degree',
               ),
             ],
           ),
@@ -1095,8 +1097,11 @@ class _HeroResultCard extends ConsumerWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.auto_stories_outlined,
-                      size: 16, color: KinrelColors.amber),
+                  Icon(
+                    Icons.auto_stories_outlined,
+                    size: 16,
+                    color: KinrelColors.amber,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -1177,9 +1182,11 @@ class _InfoChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon,
-                size: 13,
-                color: isButton ? KinrelColors.orange : KinrelColors.textDim),
+            Icon(
+              icon,
+              size: 13,
+              color: isButton ? KinrelColors.orange : KinrelColors.textDim,
+            ),
             const SizedBox(width: 4),
             Text(
               label,
@@ -1209,9 +1216,7 @@ class _SamePersonCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.06),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),
       child: Column(
         children: [
@@ -1274,9 +1279,7 @@ class _NoPathCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.06),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),
       child: Column(
         children: [
@@ -1321,10 +1324,7 @@ class _NoPathCard extends StatelessWidget {
           GestureDetector(
             onTap: onAddConnection,
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 10,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               decoration: BoxDecoration(
                 color: KinrelColors.orange.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(20),
@@ -1431,14 +1431,12 @@ class _PersonSelectorSheetState extends ConsumerState<_PersonSelectorSheet> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.search,
-                      size: 20, color: KinrelColors.orange),
+                  Icon(Icons.search, size: 20, color: KinrelColors.orange),
                   const SizedBox(width: 10),
                   Expanded(
                     child: TextField(
                       autofocus: true,
-                      onChanged: (v) =>
-                          setState(() => _searchQuery = v),
+                      onChanged: (v) => setState(() => _searchQuery = v),
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 14,
@@ -1452,8 +1450,9 @@ class _PersonSelectorSheetState extends ConsumerState<_PersonSelectorSheet> {
                           color: KinrelColors.textDim,
                         ),
                         border: InputBorder.none,
-                        contentPadding:
-                            const EdgeInsets.symmetric(vertical: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                        ),
                       ),
                     ),
                   ),
@@ -1486,8 +1485,7 @@ class _PersonSelectorSheetState extends ConsumerState<_PersonSelectorSheet> {
                       final person = filtered[index];
                       final isSelected =
                           person.id == widget.currentlySelectedId;
-                      final isOther =
-                          person.id == widget.otherSelectedId;
+                      final isOther = person.id == widget.otherSelectedId;
 
                       return _PersonListTile(
                         person: person,
@@ -1613,16 +1611,11 @@ class _PersonListTile extends StatelessWidget {
                   shape: BoxShape.circle,
                   color: KinrelColors.orange,
                 ),
-                child: const Icon(
-                  Icons.check,
-                  size: 14,
-                  color: Colors.white,
-                ),
+                child: const Icon(Icons.check, size: 14, color: Colors.white),
               )
             else if (isOther)
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: KinrelColors.darkElevated,
                   borderRadius: BorderRadius.circular(10),

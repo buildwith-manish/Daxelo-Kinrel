@@ -147,8 +147,10 @@ class MemberNote {
 
 /// Provider that fetches member detail by memberId.
 /// Falls back to demo data when Supabase is not available.
-final memberDetailProvider =
-    FutureProvider.family<MemberDetailModel, String>((ref, memberId) async {
+final memberDetailProvider = FutureProvider.family<MemberDetailModel, String>((
+  ref,
+  memberId,
+) async {
   // In production, this would fetch from Supabase.
   // For now, return demo data.
   return _demoData[memberId] ?? _buildDefaultDemoMember(memberId);

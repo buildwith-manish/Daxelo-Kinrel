@@ -31,19 +31,20 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/utils/device_tier.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/events_provider.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────────
-const _cOrange = KinrelColors.orange;       // #E8612A
-const _cAmber = KinrelColors.amber;         // #F59240
-const _cGold = KinrelColors.gold;           // #D4AF37
-const _cBg = KinrelColors.darkSurface;      // #13141E
-const _cCard = KinrelColors.darkCard;       // #191B2C
+const _cOrange = KinrelColors.orange; // #E8612A
+const _cAmber = KinrelColors.amber; // #F59240
+const _cGold = KinrelColors.gold; // #D4AF37
+const _cBg = KinrelColors.darkSurface; // #13141E
+const _cCard = KinrelColors.darkCard; // #191B2C
 const _cElevated = KinrelColors.darkElevated; // #202338
-const _cTextPrimary = KinrelColors.textWhite;  // #F5F0EE
+const _cTextPrimary = KinrelColors.textWhite; // #F5F0EE
 const _cTextSecondary = KinrelColors.textSilver; // #C9B4A8
-const _cTextDim = KinrelColors.textDim;     // #8A7A72
+const _cTextDim = KinrelColors.textDim; // #8A7A72
 const _cBorder = Color(0xFF3A3A4A);
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -86,7 +87,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
         children: [
           // ── Header ────────────────────────────────────────────────
           _EventsHeader()
-              .animate()
+              .maybeAnimate()
               .fadeIn(duration: 300.ms)
               .slideY(begin: -0.05, end: 0),
 
@@ -95,9 +96,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
             currentFilter: eventsState.filter,
             onFilterChanged: (filter) =>
                 ref.read(eventsProvider.notifier).setFilter(filter),
-          )
-              .animate()
-              .fadeIn(duration: 300.ms, delay: 50.ms),
+          ).maybeAnimate().fadeIn(duration: 300.ms, delay: 50.ms),
 
           const SizedBox(height: 12),
 
@@ -105,9 +104,9 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
           Expanded(
             child: filteredEvents.isEmpty
                 ? _EmptyState()
-                    .animate()
-                    .fadeIn(duration: 400.ms)
-                    .slideY(begin: 0.1, end: 0)
+                      .maybeAnimate()
+                      .fadeIn(duration: 400.ms)
+                      .slideY(begin: 0.1, end: 0)
                 : _EventsList(events: filteredEvents),
           ),
         ],
@@ -295,9 +294,7 @@ class _TabFilterBar extends StatelessWidget {
                   curve: KinrelMotion.easeOut,
                   margin: EdgeInsets.all(3),
                   decoration: BoxDecoration(
-                    gradient: isActive
-                        ? KinrelGradients.igniteGradient
-                        : null,
+                    gradient: isActive ? KinrelGradients.igniteGradient : null,
                     color: isActive ? null : Colors.transparent,
                     borderRadius: BorderRadius.circular(KinrelRadius.lg),
                   ),
@@ -307,8 +304,7 @@ class _TabFilterBar extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
-                      fontWeight:
-                          isActive ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                       color: isActive ? Colors.white : _cTextDim,
                     ),
                   ),
@@ -334,6 +330,7 @@ class _EventsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
+      cacheExtent: 500,
       padding: const EdgeInsets.fromLTRB(
         KinrelSpacing.base,
         0,
@@ -345,8 +342,11 @@ class _EventsList extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         return _EventCard(event: events[index])
-            .animate()
-            .fadeIn(duration: 350.ms, delay: Duration(milliseconds: index * 60))
+            .maybeAnimate()
+            .fadeIn(
+              duration: 350.ms,
+              delay: Duration(milliseconds: index * 60),
+            )
             .slideY(begin: 0.06, end: 0);
       },
     );
@@ -408,8 +408,11 @@ class _EventCard extends ConsumerWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.auto_awesome_rounded,
-                            size: 10, color: accentColor),
+                        Icon(
+                          Icons.auto_awesome_rounded,
+                          size: 10,
+                          color: accentColor,
+                        ),
                         const SizedBox(width: 3),
                         Text(
                           'Auto',
@@ -549,10 +552,7 @@ class _EventCard extends ConsumerWidget {
                 // Send Wishes (for birthday/anniversary)
                 if (event.type == EventType.birthday ||
                     event.type == EventType.anniversary)
-                  _SendWishesButton(
-                    event: event,
-                    accentColor: accentColor,
-                  ),
+                  _SendWishesButton(event: event, accentColor: accentColor),
               ],
             ),
           ],
@@ -567,13 +567,16 @@ class _EventCard extends ConsumerWidget {
         pageBuilder: (_, __, ___) => _EventDetailScreen(event: event),
         transitionsBuilder: (context, animation, _, child) {
           return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, 0.1),
-              end: Offset.zero,
-            ).animate(CurvedAnimation(
-              parent: animation,
-              curve: KinrelMotion.easeOut,
-            )),
+            position:
+                Tween<Offset>(
+                  begin: const Offset(0, 0.1),
+                  end: Offset.zero,
+                ).maybeAnimate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: KinrelMotion.easeOut,
+                  ),
+                ),
             child: FadeTransition(opacity: animation, child: child),
           );
         },
@@ -614,10 +617,7 @@ class _EventCard extends ConsumerWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _EventTypeBadge extends StatelessWidget {
-  const _EventTypeBadge({
-    required this.type,
-    required this.accentColor,
-  });
+  const _EventTypeBadge({required this.type, required this.accentColor});
 
   final EventType type;
   final Color accentColor;
@@ -686,10 +686,7 @@ class _EventTypeBadge extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _MemberAvatarRow extends StatelessWidget {
-  const _MemberAvatarRow({
-    required this.members,
-    required this.accentColor,
-  });
+  const _MemberAvatarRow({required this.members, required this.accentColor});
 
   final List<EventMember> members;
   final Color accentColor;
@@ -767,10 +764,7 @@ class _SmallAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: _cElevated,
-        border: Border.all(
-          color: borderColor ?? _cBorder,
-          width: 1.5,
-        ),
+        border: Border.all(color: borderColor ?? _cBorder, width: 1.5),
       ),
       alignment: Alignment.center,
       child: Text(
@@ -833,9 +827,7 @@ class _CountdownChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: isToday
-            ? accentColor.withValues(alpha: 0.15)
-            : _cElevated,
+        color: isToday ? accentColor.withValues(alpha: 0.15) : _cElevated,
         borderRadius: BorderRadius.circular(KinrelRadius.full),
         border: isToday
             ? Border.all(color: accentColor.withValues(alpha: 0.3), width: 1)
@@ -926,10 +918,7 @@ class _RSVPChip extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _SendWishesButton extends StatelessWidget {
-  const _SendWishesButton({
-    required this.event,
-    required this.accentColor,
-  });
+  const _SendWishesButton({required this.event, required this.accentColor});
 
   final EventModel event;
   final Color accentColor;
@@ -993,46 +982,49 @@ class _EmptyState extends StatelessWidget {
           children: [
             // Calendar illustration
             Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: _cOrange.withValues(alpha: 0.08),
-                shape: BoxShape.circle,
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Calendar base
-                  Icon(
-                    Icons.calendar_month_rounded,
-                    size: 64,
-                    color: _cOrange.withValues(alpha: 0.3),
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: _cOrange.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
                   ),
-                  // Small sparkle
-                  Positioned(
-                    top: 20,
-                    right: 22,
-                    child: Icon(
-                      Icons.auto_awesome_rounded,
-                      size: 20,
-                      color: _cGold.withValues(alpha: 0.6),
-                    ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Calendar base
+                      Icon(
+                        Icons.calendar_month_rounded,
+                        size: 64,
+                        color: _cOrange.withValues(alpha: 0.3),
+                      ),
+                      // Small sparkle
+                      Positioned(
+                        top: 20,
+                        right: 22,
+                        child: Icon(
+                          Icons.auto_awesome_rounded,
+                          size: 20,
+                          color: _cGold.withValues(alpha: 0.6),
+                        ),
+                      ),
+                      // Small heart
+                      Positioned(
+                        bottom: 22,
+                        left: 22,
+                        child: Icon(
+                          Icons.favorite_rounded,
+                          size: 16,
+                          color: _cAmber.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ],
                   ),
-                  // Small heart
-                  Positioned(
-                    bottom: 22,
-                    left: 22,
-                    child: Icon(
-                      Icons.favorite_rounded,
-                      size: 16,
-                      color: _cAmber.withValues(alpha: 0.5),
-                    ),
-                  ),
-                ],
-              ),
-            )
-                .animate(onPlay: (c) => c.repeat())
-                .shimmer(duration: 3000.ms, color: _cOrange.withValues(alpha: 0.06)),
+                )
+                .maybeAnimate(onPlay: (c) => c.repeat())
+                .shimmer(
+                  duration: DeviceTierCache.instance.shouldAnimate ? 3000.ms : Duration.zero,
+                  color: _cOrange.withValues(alpha: 0.06),
+                ),
 
             const SizedBox(height: 24),
 
@@ -1181,7 +1173,10 @@ class _EventDetailScreenState extends ConsumerState<_EventDetailScreen> {
                       accentColor: accentColor,
                     ),
                     const SizedBox(height: 12),
-                    _DetailMemberList(members: event.members, accentColor: accentColor),
+                    _DetailMemberList(
+                      members: event.members,
+                      accentColor: accentColor,
+                    ),
                     const SizedBox(height: 24),
                   ],
 
@@ -1210,13 +1205,9 @@ class _EventDetailScreenState extends ConsumerState<_EventDetailScreen> {
                   // ── Action Buttons ────────────────────────────────
                   Row(
                     children: [
-                      Expanded(
-                        child: _ShareEventButton(event: event),
-                      ),
+                      Expanded(child: _ShareEventButton(event: event)),
                       const SizedBox(width: 12),
-                      Expanded(
-                        child: _ReminderButton(event: event),
-                      ),
+                      Expanded(child: _ReminderButton(event: event)),
                     ],
                   ),
 
@@ -1234,10 +1225,7 @@ class _EventDetailScreenState extends ConsumerState<_EventDetailScreen> {
 // ── Hero Section ──────────────────────────────────────────────────────
 
 class _EventHeroSection extends StatelessWidget {
-  const _EventHeroSection({
-    required this.event,
-    required this.accentColor,
-  });
+  const _EventHeroSection({required this.event, required this.accentColor});
 
   final EventModel event;
   final Color accentColor;
@@ -1254,10 +1242,7 @@ class _EventHeroSection extends StatelessWidget {
             gradient: RadialGradient(
               center: Alignment.topCenter,
               radius: 1.0,
-              colors: [
-                accentColor.withValues(alpha: 0.15),
-                _cBg,
-              ],
+              colors: [accentColor.withValues(alpha: 0.15), _cBg],
               stops: const [0.0, 1.0],
             ),
           ),
@@ -1326,10 +1311,7 @@ class _EventHeroSection extends StatelessWidget {
 // ── Large Countdown Widget ────────────────────────────────────────────
 
 class _LargeCountdownWidget extends StatelessWidget {
-  const _LargeCountdownWidget({
-    required this.event,
-    required this.accentColor,
-  });
+  const _LargeCountdownWidget({required this.event, required this.accentColor});
 
   final EventModel event;
   final Color accentColor;
@@ -1373,10 +1355,7 @@ class _LargeCountdownWidget extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            accentColor.withValues(alpha: 0.08),
-            _cCard,
-          ],
+          colors: [accentColor.withValues(alpha: 0.08), _cCard],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
@@ -1402,37 +1381,59 @@ class _LargeCountdownWidget extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _CountdownUnit(value: days, label: 'Days', accentColor: accentColor),
+              _CountdownUnit(
+                value: days,
+                label: 'Days',
+                accentColor: accentColor,
+              ),
               const SizedBox(width: 12),
-              Text(':',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: _cTextDim,
-                  )),
+              Text(
+                ':',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: _cTextDim,
+                ),
+              ),
               const SizedBox(width: 12),
-              _CountdownUnit(value: hours, label: 'Hours', accentColor: accentColor),
+              _CountdownUnit(
+                value: hours,
+                label: 'Hours',
+                accentColor: accentColor,
+              ),
               const SizedBox(width: 12),
-              Text(':',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: _cTextDim,
-                  )),
+              Text(
+                ':',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: _cTextDim,
+                ),
+              ),
               const SizedBox(width: 12),
-              _CountdownUnit(value: minutes, label: 'Min', accentColor: accentColor),
+              _CountdownUnit(
+                value: minutes,
+                label: 'Min',
+                accentColor: accentColor,
+              ),
               const SizedBox(width: 12),
-              Text(':',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: _cTextDim,
-                  )),
+              Text(
+                ':',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: _cTextDim,
+                ),
+              ),
               const SizedBox(width: 12),
-              _CountdownUnit(value: seconds, label: 'Sec', accentColor: accentColor),
+              _CountdownUnit(
+                value: seconds,
+                label: 'Sec',
+                accentColor: accentColor,
+              ),
             ],
           ),
         ],
@@ -1580,10 +1581,7 @@ class _SectionTitle extends StatelessWidget {
 // ── RSVP List Section ─────────────────────────────────────────────────
 
 class _RSVPListSection extends StatelessWidget {
-  const _RSVPListSection({
-    required this.event,
-    required this.accentColor,
-  });
+  const _RSVPListSection({required this.event, required this.accentColor});
 
   final EventModel event;
   final Color accentColor;
@@ -1599,10 +1597,18 @@ class _RSVPListSection extends StatelessWidget {
       child: Row(
         children: [
           // Avatar row
-          ...event.members.take(4).map((m) => Padding(
-            padding: const EdgeInsets.only(right: 2),
-            child: _SmallAvatar(member: m, size: 32, borderColor: accentColor),
-          )),
+          ...event.members
+              .take(4)
+              .map(
+                (m) => Padding(
+                  padding: const EdgeInsets.only(right: 2),
+                  child: _SmallAvatar(
+                    member: m,
+                    size: 32,
+                    borderColor: accentColor,
+                  ),
+                ),
+              ),
           if (event.members.length > 4) ...[
             const SizedBox(width: 6),
             Text(
@@ -1626,10 +1632,7 @@ class _RSVPListSection extends StatelessWidget {
 }
 
 class _RSVPSummaryChip extends StatelessWidget {
-  const _RSVPSummaryChip({
-    required this.label,
-    required this.color,
-  });
+  const _RSVPSummaryChip({required this.label, required this.color});
 
   final String label;
   final Color color;
@@ -1658,10 +1661,7 @@ class _RSVPSummaryChip extends StatelessWidget {
 // ── Detail Member List ────────────────────────────────────────────────
 
 class _DetailMemberList extends StatelessWidget {
-  const _DetailMemberList({
-    required this.members,
-    required this.accentColor,
-  });
+  const _DetailMemberList({required this.members, required this.accentColor});
 
   final List<EventMember> members;
   final Color accentColor;
@@ -1750,10 +1750,7 @@ class _PhotoGalleryPlaceholder extends StatelessWidget {
 // ── Comments Section ──────────────────────────────────────────────────
 
 class _CommentsSection extends StatefulWidget {
-  const _CommentsSection({
-    required this.event,
-    required this.accentColor,
-  });
+  const _CommentsSection({required this.event, required this.accentColor});
 
   final EventModel event;
   final Color accentColor;
@@ -1791,7 +1788,9 @@ class _CommentsSectionState extends State<_CommentsSection> {
             ),
           )
         else
-          ...comments.map((c) => _CommentTile(comment: c, accentColor: widget.accentColor)),
+          ...comments.map(
+            (c) => _CommentTile(comment: c, accentColor: widget.accentColor),
+          ),
 
         const SizedBox(height: 12),
 
@@ -1847,7 +1846,11 @@ class _CommentsSectionState extends State<_CommentsSection> {
                   gradient: KinrelGradients.igniteGradient,
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
                 ),
-                child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                child: const Icon(
+                  Icons.send_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
               ),
             ),
           ],
@@ -1858,10 +1861,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
 }
 
 class _CommentTile extends StatelessWidget {
-  const _CommentTile({
-    required this.comment,
-    required this.accentColor,
-  });
+  const _CommentTile({required this.comment, required this.accentColor});
 
   final EventComment comment;
   final Color accentColor;
@@ -1873,7 +1873,11 @@ class _CommentTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SmallAvatar(member: comment.author, size: 28, borderColor: accentColor),
+          _SmallAvatar(
+            member: comment.author,
+            size: 28,
+            borderColor: accentColor,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -1986,7 +1990,11 @@ class _ReminderButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 18),
+            const Icon(
+              Icons.notifications_active_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
             const SizedBox(width: 8),
             Text(
               'Set Reminder',
@@ -2094,14 +2102,26 @@ class _ReminderOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, subtitle, icon) = switch (timing) {
-      ReminderTiming.oneWeekBefore =>
-        ('1 Week Before', 'Get notified 7 days ahead', Icons.event_rounded),
-      ReminderTiming.oneDayBefore =>
-        ('1 Day Before', 'Reminder 24 hours before', Icons.today_rounded),
-      ReminderTiming.dayOf =>
-        ('Day of Event', 'Morning reminder on the day', Icons.alarm_rounded),
-      ReminderTiming.custom =>
-        ('Custom', 'Set a custom reminder time', Icons.schedule_rounded),
+      ReminderTiming.oneWeekBefore => (
+        '1 Week Before',
+        'Get notified 7 days ahead',
+        Icons.event_rounded,
+      ),
+      ReminderTiming.oneDayBefore => (
+        '1 Day Before',
+        'Reminder 24 hours before',
+        Icons.today_rounded,
+      ),
+      ReminderTiming.dayOf => (
+        'Day of Event',
+        'Morning reminder on the day',
+        Icons.alarm_rounded,
+      ),
+      ReminderTiming.custom => (
+        'Custom',
+        'Set a custom reminder time',
+        Icons.schedule_rounded,
+      ),
     };
 
     return GestureDetector(
@@ -2113,9 +2133,7 @@ class _ReminderOption extends StatelessWidget {
           color: isActive ? accentColor.withValues(alpha: 0.08) : _cElevated,
           borderRadius: BorderRadius.circular(KinrelRadius.md),
           border: Border.all(
-            color: isActive
-                ? accentColor.withValues(alpha: 0.25)
-                : _cBorder,
+            color: isActive ? accentColor.withValues(alpha: 0.25) : _cBorder,
             width: 1,
           ),
         ),
@@ -2129,7 +2147,11 @@ class _ReminderOption extends StatelessWidget {
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(KinrelRadius.sm),
               ),
-              child: Icon(icon, size: 18, color: isActive ? accentColor : _cTextDim),
+              child: Icon(
+                icon,
+                size: 18,
+                color: isActive ? accentColor : _cTextDim,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -2167,7 +2189,9 @@ class _ReminderOption extends StatelessWidget {
               ),
               child: AnimatedAlign(
                 duration: KinrelMotion.fast,
-                alignment: isActive ? Alignment.centerRight : Alignment.centerLeft,
+                alignment: isActive
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft,
                 child: Container(
                   width: 20,
                   height: 20,
@@ -2314,8 +2338,7 @@ class _RSVPOption extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            if (isSelected)
-              Icon(Icons.check_rounded, size: 20, color: color),
+            if (isSelected) Icon(Icons.check_rounded, size: 20, color: color),
           ],
         ),
       ),
@@ -2338,7 +2361,8 @@ class _SendWishesSheet extends StatelessWidget {
     final options = <String>[];
     switch (event.type) {
       case EventType.birthday:
-        final name = event.members.firstOrNull?.name.split(' ').firstOrNull ?? 'dear';
+        final name =
+            event.members.firstOrNull?.name.split(' ').firstOrNull ?? 'dear';
         options.addAll([
           'Happy Birthday, $name! 🎂 Wishing you an amazing year ahead!',
           'Wishing you a wonderful birthday filled with joy and laughter! 🎉',
@@ -2399,19 +2423,21 @@ class _SendWishesSheet extends StatelessWidget {
           const SizedBox(height: 20),
 
           // Quick message options
-          ...options.map((msg) => _WishOption(
-            message: msg,
-            accentColor: event.accentColor,
-            onTap: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Wishes sent! 🎉'),
-                  backgroundColor: _cCard,
-                ),
-              );
-            },
-          )),
+          ...options.map(
+            (msg) => _WishOption(
+              message: msg,
+              accentColor: event.accentColor,
+              onTap: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Wishes sent! 🎉'),
+                    backgroundColor: _cCard,
+                  ),
+                );
+              },
+            ),
+          ),
 
           const SizedBox(height: 12),
 
@@ -2619,9 +2645,7 @@ class _CreateEventSheetState extends ConsumerState<_CreateEventSheet> {
                               fontWeight: isSelected
                                   ? FontWeight.w600
                                   : FontWeight.w500,
-                              color: isSelected
-                                  ? accentColor
-                                  : _cTextDim,
+                              color: isSelected ? accentColor : _cTextDim,
                             ),
                           ),
                         ],
@@ -2668,7 +2692,9 @@ class _CreateEventSheetState extends ConsumerState<_CreateEventSheet> {
                         context: context,
                         initialDate: _selectedDate,
                         firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+                        lastDate: DateTime.now().add(
+                          const Duration(days: 365 * 2),
+                        ),
                         builder: (ctx, child) => Theme(
                           data: Theme.of(ctx).copyWith(
                             colorScheme: ColorScheme.dark(
@@ -2695,7 +2721,11 @@ class _CreateEventSheetState extends ConsumerState<_CreateEventSheet> {
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.calendar_today_rounded, size: 16, color: _cTextDim),
+                          Icon(
+                            Icons.calendar_today_rounded,
+                            size: 16,
+                            color: _cTextDim,
+                          ),
                           const SizedBox(width: 10),
                           Text(
                             '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
@@ -2782,7 +2812,10 @@ class _CreateEventSheetState extends ConsumerState<_CreateEventSheet> {
                       : null,
                   isAllDay: _isAllDay,
                   isAutoGenerated: false,
-                  reminderTimings: [ReminderTiming.oneDayBefore, ReminderTiming.dayOf],
+                  reminderTimings: [
+                    ReminderTiming.oneDayBefore,
+                    ReminderTiming.dayOf,
+                  ],
                 );
                 ref.read(eventsProvider.notifier).addEvent(newEvent);
                 Navigator.pop(context);
@@ -2898,7 +2931,10 @@ class _InputField extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(KinrelRadius.md),
-          borderSide: BorderSide(color: _cOrange.withValues(alpha: 0.4), width: 1),
+          borderSide: BorderSide(
+            color: _cOrange.withValues(alpha: 0.4),
+            width: 1,
+          ),
         ),
       ),
     );

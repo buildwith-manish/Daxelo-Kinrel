@@ -17,7 +17,8 @@ class KinshipService {
   final Map<String, List<KinshipRelationship>> _byLineage = {};
   final Map<String, List<KinshipRelationship>> _byGender = {};
   final Map<int, List<KinshipRelationship>> _byGeneration = {};
-  final Map<String, KinshipRelationship> _searchIndex = {}; // lowercase keyword → relationship
+  final Map<String, KinshipRelationship> _searchIndex =
+      {}; // lowercase keyword → relationship
 
   bool _isLoaded = false;
   bool get isLoaded => _isLoaded;
@@ -30,7 +31,9 @@ class KinshipService {
     if (_isLoaded) return;
 
     try {
-      final jsonStr = await rootBundle.loadString('assets/data/indian_kinship.json');
+      final jsonStr = await rootBundle.loadString(
+        'assets/data/indian_kinship.json',
+      );
       final jsonData = jsonDecode(jsonStr) as Map<String, dynamic>;
       _data = KinshipData.fromJson(jsonData);
 
@@ -103,19 +106,19 @@ class KinshipService {
 
   /// Get all relationships in a category
   List<KinshipRelationship> getByCategory(String category) =>
-    _byCategory[category] ?? [];
+      _byCategory[category] ?? [];
 
   /// Get all relationships by lineage
   List<KinshipRelationship> getByLineage(String lineage) =>
-    _byLineage[lineage] ?? [];
+      _byLineage[lineage] ?? [];
 
   /// Get all relationships by gender
   List<KinshipRelationship> getByGender(String gender) =>
-    _byGender[gender] ?? [];
+      _byGender[gender] ?? [];
 
   /// Get all relationships by generation
   List<KinshipRelationship> getByGeneration(int generation) =>
-    _byGeneration[generation] ?? [];
+      _byGeneration[generation] ?? [];
 
   /// Get all translations for a relationship across all languages
   Map<String, KinshipTranslation>? getAllTranslations(String key) {
@@ -150,14 +153,20 @@ class KinshipService {
       // English term contains query
       if (rel.englishTerm.toLowerCase().contains(q)) {
         final s = q.length / rel.englishTerm.length * 80;
-        if (s > score) { score = s; matchedField = 'englishTerm'; }
+        if (s > score) {
+          score = s;
+          matchedField = 'englishTerm';
+        }
       }
 
       // Keywords match
       for (final kw in rel.searchKeywords) {
         if (kw.toLowerCase().contains(q)) {
           final s = q.length / kw.length * 60;
-          if (s > score) { score = s; matchedField = 'searchKeyword'; }
+          if (s > score) {
+            score = s;
+            matchedField = 'searchKeyword';
+          }
           break;
         }
       }
@@ -165,7 +174,10 @@ class KinshipService {
       // Key contains query
       if (rel.relationshipKey.toLowerCase().contains(q)) {
         final s = q.length / rel.relationshipKey.length * 40;
-        if (s > score) { score = s; matchedField = 'relationshipKey'; }
+        if (s > score) {
+          score = s;
+          matchedField = 'relationshipKey';
+        }
       }
 
       if (score > 0) {
@@ -194,8 +206,7 @@ class KinshipService {
   }
 
   /// Get all relationships
-  List<KinshipRelationship> getAllRelationships() =>
-    _data?.relationships ?? [];
+  List<KinshipRelationship> getAllRelationships() => _data?.relationships ?? [];
 
   /// Get meta information about the kinship database
   Map<String, dynamic> getMeta() {

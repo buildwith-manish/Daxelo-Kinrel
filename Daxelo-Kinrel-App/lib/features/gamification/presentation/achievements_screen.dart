@@ -26,6 +26,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/gamification_provider.dart';
+import '../../core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // AchievementsScreen
@@ -83,7 +84,8 @@ class _AchievementsScreenState extends ConsumerState<AchievementsScreen>
           SliverToBoxAdapter(
             child: _StreakCard(
               streak: gamification.streak,
-              onCheckIn: () => ref.read(gamificationProvider.notifier).checkIn(),
+              onCheckIn: () =>
+                  ref.read(gamificationProvider.notifier).checkIn(),
             ),
           ),
 
@@ -115,17 +117,14 @@ class _AchievementsScreenState extends ConsumerState<AchievementsScreen>
                 crossAxisSpacing: 12,
                 childAspectRatio: 0.72,
               ),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final badge = gamification.unlockedBadges[index];
-                  return _UnlockedBadgeCard(
-                    badge: badge,
-                    animDelay: index * 0.08,
-                    controller: _animController,
-                  );
-                },
-                childCount: gamification.unlockedBadges.length,
-              ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final badge = gamification.unlockedBadges[index];
+                return _UnlockedBadgeCard(
+                  badge: badge,
+                  animDelay: index * 0.08,
+                  controller: _animController,
+                );
+              }, childCount: gamification.unlockedBadges.length),
             ),
           ),
 
@@ -148,13 +147,10 @@ class _AchievementsScreenState extends ConsumerState<AchievementsScreen>
                 crossAxisSpacing: 12,
                 childAspectRatio: 0.72,
               ),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final badge = gamification.lockedBadges[index];
-                  return _LockedBadgeCard(badge: badge);
-                },
-                childCount: gamification.lockedBadges.length,
-              ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final badge = gamification.lockedBadges[index];
+                return _LockedBadgeCard(badge: badge);
+              }, childCount: gamification.lockedBadges.length),
             ),
           ),
 
@@ -171,16 +167,17 @@ class _AchievementsScreenState extends ConsumerState<AchievementsScreen>
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final step = gamification.suggestedSteps[index];
-                  return Padding(
-                    padding: EdgeInsets.only(bottom: index < gamification.suggestedSteps.length - 1 ? 12 : 0),
-                    child: _SuggestedStepCard(step: step),
-                  );
-                },
-                childCount: gamification.suggestedSteps.length,
-              ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final step = gamification.suggestedSteps[index];
+                return Padding(
+                  padding: EdgeInsets.only(
+                    bottom: index < gamification.suggestedSteps.length - 1
+                        ? 12
+                        : 0,
+                  ),
+                  child: _SuggestedStepCard(step: step),
+                );
+              }, childCount: gamification.suggestedSteps.length),
             ),
           ),
 
@@ -271,10 +268,12 @@ class _ProfileCompletionRing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final animatedPercent = Tween<double>(begin: 0, end: completion.percentage)
-        .animate(CurvedAnimation(
-      parent: animation,
-      curve: const Interval(0.2, 0.8, curve: Curves.easeOutCubic),
-    ));
+        .maybeAnimate(
+          CurvedAnimation(
+            parent: animation,
+            curve: const Interval(0.2, 0.8, curve: Curves.easeOutCubic),
+          ),
+        );
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -358,10 +357,7 @@ class _CircularProgressRing extends StatelessWidget {
           percentage: percentage,
           strokeWidth: strokeWidth,
           backgroundColor: const Color(0xFF2A2A3D),
-          gradientColors: const [
-            KinrelColors.orange,
-            KinrelColors.amber,
-          ],
+          gradientColors: const [KinrelColors.orange, KinrelColors.amber],
         ),
         child: Center(
           child: Text(
@@ -426,13 +422,7 @@ class _RingPainter extends CustomPainter {
         ..strokeWidth = strokeWidth
         ..strokeCap = StrokeCap.round;
 
-      canvas.drawArc(
-        rect,
-        startAngle,
-        sweepAngle,
-        false,
-        progressPaint,
-      );
+      canvas.drawArc(rect, startAngle, sweepAngle, false, progressPaint);
     }
   }
 
@@ -447,10 +437,7 @@ class _RingPainter extends CustomPainter {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _StreakCard extends StatelessWidget {
-  const _StreakCard({
-    required this.streak,
-    required this.onCheckIn,
-  });
+  const _StreakCard({required this.streak, required this.onCheckIn});
 
   final StreakData streak;
   final VoidCallback onCheckIn;
@@ -539,7 +526,10 @@ class _StreakCard extends StatelessWidget {
                 GestureDetector(
                   onTap: streak.todayCheckedIn ? null : onCheckIn,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       gradient: streak.todayCheckedIn
                           ? null
@@ -635,7 +625,9 @@ class _StreakCard extends StatelessWidget {
                       height: 32,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: isFilled ? KinrelGradients.igniteGradient : null,
+                        gradient: isFilled
+                            ? KinrelGradients.igniteGradient
+                            : null,
                         color: isFilled ? null : KinrelColors.darkElevated,
                         border: isFilled
                             ? null
@@ -665,7 +657,9 @@ class _StreakCard extends StatelessWidget {
                     Text(
                       ['M', 'T', 'W', 'T', 'F', 'S', 'S'][index],
                       style: KinrelTypography.micro.copyWith(
-                        color: isFilled ? KinrelColors.orange : KinrelColors.textDim,
+                        color: isFilled
+                            ? KinrelColors.orange
+                            : KinrelColors.textDim,
                       ),
                     ),
                   ],
@@ -684,9 +678,7 @@ class _StreakCard extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _TreeCompletenessCard extends StatelessWidget {
-  const _TreeCompletenessCard({
-    required this.completeness,
-  });
+  const _TreeCompletenessCard({required this.completeness});
 
   final TreeCompleteness completeness;
 
@@ -763,7 +755,9 @@ class _TreeCompletenessCard extends StatelessWidget {
                       child: Container(
                         decoration: BoxDecoration(
                           gradient: KinrelGradients.igniteGradient,
-                          borderRadius: BorderRadius.circular(KinrelRadius.full),
+                          borderRadius: BorderRadius.circular(
+                            KinrelRadius.full,
+                          ),
                           boxShadow: [
                             BoxShadow(
                               color: KinrelColors.orangeGlow,
@@ -783,9 +777,18 @@ class _TreeCompletenessCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _TreeStat(label: 'Members', value: '${completeness.totalMembers}'),
-                _TreeStat(label: 'Generations', value: '${completeness.generations}'),
-                _TreeStat(label: 'Relations', value: '${completeness.relationships}'),
+                _TreeStat(
+                  label: 'Members',
+                  value: '${completeness.totalMembers}',
+                ),
+                _TreeStat(
+                  label: 'Generations',
+                  value: '${completeness.generations}',
+                ),
+                _TreeStat(
+                  label: 'Relations',
+                  value: '${completeness.relationships}',
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -829,10 +832,7 @@ class _TreeCompletenessCard extends StatelessWidget {
 }
 
 class _TreeStat extends StatelessWidget {
-  const _TreeStat({
-    required this.label,
-    required this.value,
-  });
+  const _TreeStat({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -854,9 +854,7 @@ class _TreeStat extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           label,
-          style: KinrelTypography.micro.copyWith(
-            color: KinrelColors.textDim,
-          ),
+          style: KinrelTypography.micro.copyWith(color: KinrelColors.textDim),
         ),
       ],
     );
@@ -868,11 +866,7 @@ class _TreeStat extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.title,
-    this.count,
-    required this.icon,
-  });
+  const _SectionHeader({required this.title, this.count, required this.icon});
 
   final String title;
   final int? count;
@@ -884,11 +878,7 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
       child: Row(
         children: [
-          Icon(
-            icon,
-            size: 18,
-            color: KinrelColors.orange,
-          ),
+          Icon(icon, size: 18, color: KinrelColors.orange),
           const SizedBox(width: 8),
           Text(
             title,
@@ -989,7 +979,10 @@ class _UnlockedBadgeCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(KinrelRadius.lg),
                   onTap: () => _showBadgeDetail(context, badge),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                      horizontal: 8,
+                    ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -1102,11 +1095,7 @@ class _UnlockedBadgeCard extends StatelessWidget {
                   color: KinrelColors.darkCard,
                 ),
                 child: Center(
-                  child: Icon(
-                    badge.icon,
-                    size: 36,
-                    color: KinrelColors.orange,
-                  ),
+                  child: Icon(badge.icon, size: 36, color: KinrelColors.orange),
                 ),
               ),
             ),
@@ -1147,9 +1136,7 @@ class _UnlockedBadgeCard extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _LockedBadgeCard extends StatelessWidget {
-  const _LockedBadgeCard({
-    required this.badge,
-  });
+  const _LockedBadgeCard({required this.badge});
 
   final AchievementBadge badge;
 
@@ -1159,10 +1146,7 @@ class _LockedBadgeCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(
-          color: const Color(0xFF2A2A3D),
-          width: 1,
-        ),
+        border: Border.all(color: const Color(0xFF2A2A3D), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -1289,19 +1273,12 @@ class _LockedBadgeCard extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: KinrelColors.darkElevated,
-                border: Border.all(
-                  color: const Color(0xFF3A3A4A),
-                  width: 2,
-                ),
+                border: Border.all(color: const Color(0xFF3A3A4A), width: 2),
               ),
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  Icon(
-                    badge.icon,
-                    size: 32,
-                    color: const Color(0xFF4A4A5E),
-                  ),
+                  Icon(badge.icon, size: 32, color: const Color(0xFF4A4A5E)),
                   Positioned(
                     bottom: 4,
                     right: 4,
@@ -1336,10 +1313,7 @@ class _LockedBadgeCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: KinrelColors.darkElevated,
                 borderRadius: BorderRadius.circular(KinrelRadius.full),
-                border: Border.all(
-                  color: const Color(0xFF3A3A4A),
-                  width: 1,
-                ),
+                border: Border.all(color: const Color(0xFF3A3A4A), width: 1),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1381,9 +1355,7 @@ class _LockedBadgeCard extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _SuggestedStepCard extends StatelessWidget {
-  const _SuggestedStepCard({
-    required this.step,
-  });
+  const _SuggestedStepCard({required this.step});
 
   final SuggestedStep step;
 
@@ -1393,10 +1365,7 @@ class _SuggestedStepCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(
-          color: step.color.withValues(alpha: 0.2),
-          width: 1,
-        ),
+        border: Border.all(color: step.color.withValues(alpha: 0.2), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -1428,11 +1397,7 @@ class _SuggestedStepCard extends StatelessWidget {
                     color: step.color.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(KinrelRadius.md),
                   ),
-                  child: Icon(
-                    step.icon,
-                    size: 22,
-                    color: step.color,
-                  ),
+                  child: Icon(step.icon, size: 22, color: step.color),
                 ),
                 const SizedBox(width: 14),
                 // Text
@@ -1464,7 +1429,10 @@ class _SuggestedStepCard extends StatelessWidget {
                 // Action arrow or button
                 if (step.actionLabel != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       gradient: step.accentColor == 0xFFE8612A
                           ? KinrelGradients.igniteGradient
@@ -1496,5 +1464,3 @@ class _SuggestedStepCard extends StatelessWidget {
     );
   }
 }
-
-

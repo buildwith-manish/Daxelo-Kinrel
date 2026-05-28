@@ -9,6 +9,9 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/family/optimistic_actions.dart';
+import '../../../core/utils/form_validators.dart';
+import '../../../core/utils/api_error_mapper.dart';
 import 'relationship_picker_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────
@@ -154,7 +157,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   bool _canProceed() {
     switch (_currentStep) {
       case 0:
-        return _nameController.text.trim().isNotEmpty;
+        return nameValidator(_nameController.text) == null;
       case 1:
         return true; // Relationship is optional
       case 2:
@@ -319,7 +322,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           isDeceased: _isDeceased,
         );
       } else {
-        result = await createPerson(
+        result = await addMemberOptimistic(
           ref: ref,
           familyId: widget.familyId,
           name: _nameController.text.trim(),
@@ -357,8 +360,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       if (!mounted) return;
 
       // Success celebration
-      HapticFeedback.mediumImpact();
-      unawaited(_launchConfetti());
+      unawaited(HapticFeedback.mediumImpact());
+      _launchConfetti();
 
       setState(() {
         _isSubmitting = false;
@@ -377,12 +380,28 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     } catch (e) {
       if (mounted) {
         setState(() => _isSubmitting = false);
-        context.showSnackBar(
-          _isEditMode
-              ? 'Failed to update person: ${e.toString().split('\n').first}'
-              : 'Failed to add person: ${e.toString().split('\n').first}',
-          isError: true,
-        );
+        final fieldErrors = mapApiError(e);
+        if (fieldErrors != null) {
+          final formError = fieldErrors['form'];
+          if (formError != null) {
+            context.showSnackBar(formError, isError: true);
+          } else {
+            final firstError = fieldErrors.values.first;
+            context.showSnackBar(
+              _isEditMode
+                  ? 'Failed to update person: $firstError'
+                  : 'Failed to add person: $firstError',
+              isError: true,
+            );
+          }
+        } else {
+          context.showSnackBar(
+            _isEditMode
+                ? 'Failed to update person: ${e.toString().split('\n').first}'
+                : 'Failed to add person: ${e.toString().split('\n').first}',
+            isError: true,
+          );
+        }
       }
     }
   }
@@ -393,23 +412,25 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     final rng = math.Random();
     _confettiParticles.clear();
     for (int i = 0; i < 40; i++) {
-      _confettiParticles.add(_ConfettiParticle(
-        x: rng.nextDouble(),
-        y: -0.1 - rng.nextDouble() * 0.3,
-        vx: (rng.nextDouble() - 0.5) * 0.004,
-        vy: 0.002 + rng.nextDouble() * 0.004,
-        size: 4 + rng.nextDouble() * 6,
-        color: [
-          KinrelColors.orange,
-          KinrelColors.amber,
-          KinrelColors.brightGold,
-          KinrelColors.gold,
-          KinrelColors.coral,
-          Colors.white,
-        ][rng.nextInt(6)],
-        rotation: rng.nextDouble() * math.pi * 2,
-        rotationSpeed: (rng.nextDouble() - 0.5) * 0.15,
-      ));
+      _confettiParticles.add(
+        _ConfettiParticle(
+          x: rng.nextDouble(),
+          y: -0.1 - rng.nextDouble() * 0.3,
+          vx: (rng.nextDouble() - 0.5) * 0.004,
+          vy: 0.002 + rng.nextDouble() * 0.004,
+          size: 4 + rng.nextDouble() * 6,
+          color: [
+            KinrelColors.orange,
+            KinrelColors.amber,
+            KinrelColors.brightGold,
+            KinrelColors.gold,
+            KinrelColors.coral,
+            Colors.white,
+          ][rng.nextInt(6)],
+          rotation: rng.nextDouble() * math.pi * 2,
+          rotationSpeed: (rng.nextDouble() - 0.5) * 0.15,
+        ),
+      );
     }
     _confettiCtrl.forward(from: 0);
   }
@@ -505,8 +526,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     final title = _isEditMode
         ? 'Edit Person'
         : _showSuccess
-            ? 'Welcome! 🎉'
-            : _stepTitle;
+        ? 'Welcome! 🎉'
+        : _stepTitle;
 
     return Row(
       children: [
@@ -565,8 +586,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 color: isCompleted
                     ? KinrelColors.orange
                     : isActive
-                        ? KinrelColors.orange.withValues(alpha: 0.6)
-                        : KinrelColors.textDim.withValues(alpha: 0.2),
+                    ? KinrelColors.orange.withValues(alpha: 0.6)
+                    : KinrelColors.textDim.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -592,6 +613,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               controller: _nameController,
               hint: 'Full name',
               isLarge: true,
+              keyboardType: TextInputType.name,
+              textInputAction: TextInputAction.next,
+              textCapitalization: TextCapitalization.words,
+              validator: (v) => nameValidator(v),
             ),
             SizedBox(height: 16),
 
@@ -610,7 +635,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             // City
             _SectionLabel('City / Village'),
             SizedBox(height: 6),
-            _buildTextField(controller: _cityController, hint: 'City or village'),
+            _buildTextField(
+              controller: _cityController,
+              hint: 'City or village',
+            ),
             SizedBox(height: 16),
 
             // Gotra
@@ -622,7 +650,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             // Occupation
             _SectionLabel('Occupation'),
             SizedBox(height: 6),
-            _buildTextField(controller: _occupationController, hint: 'Occupation'),
+            _buildTextField(
+              controller: _occupationController,
+              hint: 'Occupation',
+            ),
             SizedBox(height: 16),
 
             // Deceased
@@ -678,6 +709,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             controller: _nameController,
             hint: 'Enter full name',
             isLarge: true,
+            keyboardType: TextInputType.name,
+            textInputAction: TextInputAction.next,
+            textCapitalization: TextCapitalization.words,
+            validator: (v) => nameValidator(v),
           ),
           SizedBox(height: 16),
 
@@ -791,6 +826,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       child: AbsorbPointer(
         child: TextFormField(
           controller: _dobController,
+          keyboardType: TextInputType.datetime,
+          textInputAction: TextInputAction.next,
+          textCapitalization: TextCapitalization.none,
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 15,
@@ -953,8 +991,11 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                       ),
                     ),
                   ),
-                  Icon(Icons.chevron_right,
-                      color: KinrelColors.textDim, size: 18),
+                  Icon(
+                    Icons.chevron_right,
+                    color: KinrelColors.textDim,
+                    size: 18,
+                  ),
                 ],
               ),
             ),
@@ -974,8 +1015,11 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               ),
               child: Row(
                 children: [
-                  Icon(Icons.visibility_outlined,
-                      color: KinrelColors.orange, size: 18),
+                  Icon(
+                    Icons.visibility_outlined,
+                    color: KinrelColors.orange,
+                    size: 18,
+                  ),
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -1088,12 +1132,16 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               _SectionLabel('Birth Place'),
               SizedBox(height: 6),
               _buildTextField(
-                  controller: _birthPlaceController, hint: 'Birth place'),
+                controller: _birthPlaceController,
+                hint: 'Birth place',
+              ),
               SizedBox(height: 14),
               _SectionLabel('Current City'),
               SizedBox(height: 6),
               _buildTextField(
-                  controller: _cityController, hint: 'Current city'),
+                controller: _cityController,
+                hint: 'Current city',
+              ),
             ],
           ),
 
@@ -1111,6 +1159,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 controller: _phoneController,
                 hint: 'Phone number',
                 keyboardType: TextInputType.phone,
+                textInputAction: TextInputAction.next,
+                textCapitalization: TextCapitalization.none,
               ),
               SizedBox(height: 14),
               _SectionLabel('Email'),
@@ -1119,6 +1169,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 controller: _emailController,
                 hint: 'Email address',
                 keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.done,
+                textCapitalization: TextCapitalization.none,
               ),
             ],
           ),
@@ -1134,7 +1186,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               _SectionLabel('Occupation'),
               SizedBox(height: 6),
               _buildTextField(
-                  controller: _occupationController, hint: 'Occupation'),
+                controller: _occupationController,
+                hint: 'Occupation',
+              ),
               SizedBox(height: 14),
               _SectionLabel('Gotra'),
               SizedBox(height: 6),
@@ -1170,14 +1224,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
-        border: Border.all(
-          color: KinrelColors.textDim.withValues(alpha: 0.08),
-        ),
+        border: Border.all(color: KinrelColors.textDim.withValues(alpha: 0.08)),
       ),
       child: Theme(
-        data: Theme.of(context).copyWith(
-          dividerColor: Colors.transparent,
-        ),
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           tilePadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           childrenPadding: EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -1194,9 +1244,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             ),
           ),
           trailing: Icon(
-            isExpanded
-                ? Icons.keyboard_arrow_up
-                : Icons.keyboard_arrow_down,
+            isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
             color: KinrelColors.textDim,
           ),
           children: children,
@@ -1235,7 +1283,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: _isDeceased ? KinrelColors.error : KinrelColors.textWhite,
+                    color: _isDeceased
+                        ? KinrelColors.error
+                        : KinrelColors.textWhite,
                   ),
                 ),
               ),
@@ -1255,13 +1305,15 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: KinrelColors.darkElevated,
-                  borderRadius:
-                      BorderRadius.circular(KinrelSpacing.radiusSm),
+                  borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.calendar_today_outlined,
-                        color: KinrelColors.textDim, size: 16),
+                    Icon(
+                      Icons.calendar_today_outlined,
+                      color: KinrelColors.textDim,
+                      size: 16,
+                    ),
                     SizedBox(width: 10),
                     Text(
                       _selectedDeathDate != null
@@ -1355,8 +1407,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 if (anchor != null && _effectiveRelationshipKey != null) ...[
                   SizedBox(height: 8),
                   Container(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: KinrelColors.orange.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
@@ -1463,9 +1514,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
-        border: Border.all(
-          color: KinrelColors.textDim.withValues(alpha: 0.1),
-        ),
+        border: Border.all(color: KinrelColors.textDim.withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
@@ -1507,11 +1556,11 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 style: OutlinedButton.styleFrom(
                   foregroundColor: KinrelColors.textSilver,
                   side: BorderSide(
-                      color: KinrelColors.textDim.withValues(alpha: 0.3)),
+                    color: KinrelColors.textDim.withValues(alpha: 0.3),
+                  ),
                   padding: EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusMd),
+                    borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
                   ),
                 ),
                 child: Text(
@@ -1532,8 +1581,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             child: _currentStep == _kStepCount - 1
                 ? _buildIgniteButton(
                     label: 'Add to Family',
-                    onPressed:
-                        _isSubmitting || !_canProceed() ? null : _submit,
+                    onPressed: _isSubmitting || !_canProceed() ? null : _submit,
                     isLoading: _isSubmitting,
                   )
                 : _buildIgniteButton(
@@ -1559,9 +1607,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     return Container(
       decoration: BoxDecoration(
         gradient: isDisabled ? null : KinrelGradients.igniteGradient,
-        color: isDisabled
-            ? KinrelColors.orange.withValues(alpha: 0.3)
-            : null,
+        color: isDisabled ? KinrelColors.orange.withValues(alpha: 0.3) : null,
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
       ),
       child: Material(
@@ -1602,11 +1648,19 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     bool isLarge = false,
     int maxLines = 1,
     TextInputType? keyboardType,
+    TextInputAction textInputAction = TextInputAction.done,
+    TextCapitalization textCapitalization = TextCapitalization.none,
+    String? Function(String?)? validator,
+    void Function(String)? onFieldSubmitted,
   }) {
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      textInputAction: textInputAction,
+      textCapitalization: textCapitalization,
+      validator: validator,
+      onFieldSubmitted: onFieldSubmitted,
       style: TextStyle(
         fontFamily: isLarge
             ? KinrelTypography.displayFont
@@ -1834,10 +1888,7 @@ class _PortraitCard extends StatelessWidget {
             gradient: isNew
                 ? KinrelGradients.igniteGradient
                 : LinearGradient(
-                    colors: [
-                      KinrelColors.darkElevated,
-                      KinrelColors.darkCard,
-                    ],
+                    colors: [KinrelColors.darkElevated, KinrelColors.darkCard],
                   ),
           ),
           child: Center(
@@ -1949,10 +2000,7 @@ class _ConfettiParticle {
 }
 
 class _ConfettiPainter extends CustomPainter {
-  _ConfettiPainter({
-    required this.particles,
-    required this.progress,
-  });
+  _ConfettiPainter({required this.particles, required this.progress});
 
   final List<_ConfettiParticle> particles;
   final double progress;

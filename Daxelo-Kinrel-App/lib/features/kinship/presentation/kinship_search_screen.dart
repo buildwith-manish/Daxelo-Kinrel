@@ -6,15 +6,19 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/supported_languages.dart';
+import '../../../core/kinship/country_kinship_models.dart';
+import '../../../core/kinship/country_kinship_provider.dart';
 import '../../../core/kinship/kinship_models.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../core/utils/device_tier.dart';
 
 class KinshipSearchScreen extends ConsumerStatefulWidget {
   KinshipSearchScreen({super.key});
 
   @override
-  ConsumerState<KinshipSearchScreen> createState() => _KinshipSearchScreenState();
+  ConsumerState<KinshipSearchScreen> createState() =>
+      _KinshipSearchScreenState();
 }
 
 class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
@@ -32,6 +36,7 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
     final searchResults = ref.watch(kinshipSearchResultsProvider);
     final categoriesAsync = ref.watch(kinshipCategoriesProvider);
     final selectedCategory = ref.watch(kinshipCategoryProvider);
+    final dataCountries = ref.watch(dataAvailableCountriesProvider);
 
     return DKScaffold(
       body: Column(
@@ -53,12 +58,87 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
             ),
           ),
 
+          // Browse by Country banner
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+            child: DKCard(
+              padding: 12,
+              gradient: DKColors.exploreGradient,
+              onTap: () => context.push('/kinship/global'),
+              child: Row(
+                children: [
+                  const Text('🌐', style: TextStyle(fontSize: 24)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Browse by Country',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.displayFont,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          '${dataCountries.length} countries • 50+ languages',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 11,
+                            color: Colors.white.withValues(alpha: 0.8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 16,
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          // Quick country flags row
+          if (dataCountries.isNotEmpty)
+            SizedBox(
+              height: 56,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: KinrelSpacing.base,
+                ),
+                itemCount: dataCountries.length > 10
+                    ? 10
+                    : dataCountries.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final country = dataCountries[index];
+                  return _QuickCountryChip(
+                    country: country,
+                    onTap: () =>
+                        context.push('/kinship/country/${country.countryCode}'),
+                  );
+                },
+              ),
+            ),
+
+          const SizedBox(height: 4),
+
           // Language selector chips
           SizedBox(
             height: 40,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+              padding: const EdgeInsets.symmetric(
+                horizontal: KinrelSpacing.base,
+              ),
               itemCount: SupportedLanguage.values.length,
               separatorBuilder: (_, __) => SizedBox(width: 6),
               itemBuilder: (context, index) {
@@ -80,7 +160,9 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(
-                    horizontal: KinrelSpacing.base, vertical: 4),
+                  horizontal: KinrelSpacing.base,
+                  vertical: 4,
+                ),
                 itemCount: categories.length + 1,
                 separatorBuilder: (_, __) => SizedBox(width: 6),
                 itemBuilder: (context, index) {
@@ -89,12 +171,16 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
                       label: 'All',
                       isSelected: selectedCategory == null,
                       onTap: () =>
-                          ref.read(kinshipCategoryProvider.notifier).state = null,
+                          ref.read(kinshipCategoryProvider.notifier).state =
+                              null,
                     );
                   }
                   final cat = categories[index - 1];
                   return DKSuggestionChip(
-                    label: cat.split('_').map((w) => w[0].toUpperCase() + w.substring(1)).join(' '),
+                    label: cat
+                        .split('_')
+                        .map((w) => w[0].toUpperCase() + w.substring(1))
+                        .join(' '),
                     isSelected: selectedCategory == cat,
                     onTap: () =>
                         ref.read(kinshipCategoryProvider.notifier).state = cat,
@@ -137,8 +223,9 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
                       result: result,
                       language: _selectedLanguage,
                       index: index,
-                      onTap: () => context
-                          .push('/kinship/${result.relationship.relationshipKey}'),
+                      onTap: () => context.push(
+                        '/kinship/${result.relationship.relationshipKey}',
+                      ),
                     );
                   },
                 );
@@ -150,7 +237,10 @@ class _KinshipSearchScreenState extends ConsumerState<KinshipSearchScreen> {
                   (_) => Padding(
                     padding: EdgeInsets.only(bottom: 8),
                     child: DKLoadingShimmer(
-                        width: double.infinity, height: 80, radius: KinrelRadius.card),
+                      width: double.infinity,
+                      height: 80,
+                      radius: KinrelRadius.card,
+                    ),
                   ),
                 ),
               ),
@@ -179,133 +269,135 @@ class _KinshipTermCard extends ConsumerWidget {
   final int index;
   final VoidCallback onTap;
 
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rel = result.relationship;
-    final termAsync = ref.watch(kinshipTermProvider(
-      (key: rel.relationshipKey, language: language.name),
-    ));
+    final termAsync = ref.watch(
+      kinshipTermProvider((key: rel.relationshipKey, language: language.name)),
+    );
 
     return DKCard(
-      borderColor: DKColors.brandPurple.withValues(alpha: 0.12),
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Title row with category badge
-          Row(
+          borderColor: DKColors.brandPurple.withValues(alpha: 0.12),
+          onTap: onTap,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding:
-                    EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: DKColors.brandPurple.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  rel.relationshipCategory.replaceAll('_', ' ').toUpperCase(),
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: DKColors.brandPurple,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-              Spacer(),
-              // Relationship key
-              Container(
-                padding:
-                    EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: DKColors.brandGold.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  rel.relationshipKey.replaceAll('_', ' '),
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.monoFont,
-                    fontSize: 9,
-                    color: DKColors.brandGold,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(Icons.chevron_right,
-                  color: DKColors.brandPurple.withValues(alpha: 0.5), size: 20),
-            ],
-          ),
-
-          const SizedBox(height: 10),
-
-          // English term
-          Text(
-            rel.englishTerm,
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: DKColors.textPrimary(context),
-            ),
-          ),
-
-          // Native translation
-          termAsync.when(
-            data: (translation) {
-              if (translation == null) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Row(
-                  children: [
-                    Text(
-                      translation.native,
-                      style: TextStyle(
-                        fontFamily: language.fontFamily,
-                        fontSize: 16,
-                        color: DKColors.brandPurple,
-                        fontWeight: FontWeight.w500,
-                      ),
+              // Title row with category badge
+              Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: DKColors.brandPurple.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      translation.latin,
+                    child: Text(
+                      rel.relationshipCategory
+                          .replaceAll('_', ' ')
+                          .toUpperCase(),
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 13,
-                        color: DKColors.textSecondary(context),
-                        fontStyle: FontStyle.italic,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: DKColors.brandPurple,
+                        letterSpacing: 0.5,
                       ),
                     ),
-                  ],
-                ),
-              );
-            },
-            loading: () => SizedBox.shrink(),
-            error: (_, __) => SizedBox.shrink(),
-          ),
+                  ),
+                  Spacer(),
+                  // Relationship key
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: DKColors.brandGold.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      rel.relationshipKey.replaceAll('_', ' '),
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.monoFont,
+                        fontSize: 9,
+                        color: DKColors.brandGold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.chevron_right,
+                    color: DKColors.brandPurple.withValues(alpha: 0.5),
+                    size: 20,
+                  ),
+                ],
+              ),
 
-          // Tags
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _TagChip(label: rel.gender),
-              const SizedBox(width: 6),
-              _TagChip(label: rel.lineage),
-              const SizedBox(width: 6),
-              if (rel.cousinType != null) ...[
-                _TagChip(label: rel.cousinType!),
-                const SizedBox(width: 6),
-              ],
-              _TagChip(label: 'Gen ${rel.generation}'),
+              const SizedBox(height: 10),
+
+              // English term
+              Text(
+                rel.englishTerm,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: DKColors.textPrimary(context),
+                ),
+              ),
+
+              // Native translation
+              termAsync.when(
+                data: (translation) {
+                  if (translation == null) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(
+                      children: [
+                        Text(
+                          translation.native,
+                          style: TextStyle(
+                            fontFamily: language.fontFamily,
+                            fontSize: 16,
+                            color: DKColors.brandPurple,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          translation.latin,
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 13,
+                            color: DKColors.textSecondary(context),
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                loading: () => SizedBox.shrink(),
+                error: (_, __) => SizedBox.shrink(),
+              ),
+
+              // Tags
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _TagChip(label: rel.gender),
+                  const SizedBox(width: 6),
+                  _TagChip(label: rel.lineage),
+                  const SizedBox(width: 6),
+                  if (rel.cousinType != null) ...[
+                    _TagChip(label: rel.cousinType!),
+                    const SizedBox(width: 6),
+                  ],
+                  _TagChip(label: 'Gen ${rel.generation}'),
+                ],
+              ),
             ],
           ),
-        ],
-      ),
-    )
-        .animate(onPlay: (c) => c.forward())
-        .fadeIn(
+        )
+        .maybeAnimate(onPlay: (c) => c.forward())
+        .fadeIn()
           duration: 300.ms,
           delay: Duration(milliseconds: index * 40),
         )
@@ -337,6 +429,56 @@ class _TagChip extends StatelessWidget {
           fontSize: 10,
           color: DKColors.textSecondary(context),
         ),
+      ),
+    );
+  }
+}
+
+/// Quick country chip for the horizontal scroll in kinship search
+class _QuickCountryChip extends StatelessWidget {
+  const _QuickCountryChip({required this.country, required this.onTap});
+
+  final KinshipCountry country;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: DKColors.brandOrange.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: DKColors.brandOrange.withValues(alpha: 0.2),
+                width: 1,
+              ),
+            ),
+            child: Center(
+              child: Text(
+                country.flagEmoji,
+                style: const TextStyle(fontSize: 18),
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            country.name.length > 6
+                ? '${country.name.substring(0, 5)}...'
+                : country.name,
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 9,
+              fontWeight: FontWeight.w500,
+              color: DKColors.textSecondary(context),
+            ),
+          ),
+        ],
       ),
     );
   }

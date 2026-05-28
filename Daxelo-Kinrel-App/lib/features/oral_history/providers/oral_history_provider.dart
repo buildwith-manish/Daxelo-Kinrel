@@ -22,8 +22,8 @@ import '../../../core/constants/brand_colors.dart';
 
 /// Categories for oral history stories.
 enum StoryCategory {
-  family_history,
-  life_event,
+  familyHistory,
+  lifeEvent,
   tradition,
   recipe,
   wisdom,
@@ -35,9 +35,9 @@ enum StoryCategory {
 extension StoryCategoryX on StoryCategory {
   String get label {
     switch (this) {
-      case StoryCategory.family_history:
+      case StoryCategory.familyHistory:
         return 'Family History';
-      case StoryCategory.life_event:
+      case StoryCategory.lifeEvent:
         return 'Life Event';
       case StoryCategory.tradition:
         return 'Tradition';
@@ -56,9 +56,9 @@ extension StoryCategoryX on StoryCategory {
 
   String get shortLabel {
     switch (this) {
-      case StoryCategory.family_history:
+      case StoryCategory.familyHistory:
         return 'Family';
-      case StoryCategory.life_event:
+      case StoryCategory.lifeEvent:
         return 'Life';
       case StoryCategory.tradition:
         return 'Tradition';
@@ -77,9 +77,9 @@ extension StoryCategoryX on StoryCategory {
 
   IconData get icon {
     switch (this) {
-      case StoryCategory.family_history:
+      case StoryCategory.familyHistory:
         return Icons.family_restroom_rounded;
-      case StoryCategory.life_event:
+      case StoryCategory.lifeEvent:
         return Icons.auto_stories_rounded;
       case StoryCategory.tradition:
         return Icons.temple_buddhist_rounded;
@@ -98,9 +98,9 @@ extension StoryCategoryX on StoryCategory {
 
   Color get accentColor {
     switch (this) {
-      case StoryCategory.family_history:
+      case StoryCategory.familyHistory:
         return KinrelColors.orange;
-      case StoryCategory.life_event:
+      case StoryCategory.lifeEvent:
         return KinrelColors.amber;
       case StoryCategory.tradition:
         return KinrelColors.gold;
@@ -154,6 +154,127 @@ const kSupportedLanguages = <SupportedLanguage>[
 ];
 
 // ═══════════════════════════════════════════════════════════════════════
+// Transcription Language Enum (Enhanced AI Detection)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Enum for all 15 supported transcription languages.
+/// Used by AI language detection during transcription.
+enum TranscriptionLanguage {
+  hi,
+  bn,
+  ta,
+  te,
+  mr,
+  gu,
+  kn,
+  ml,
+  pa,
+  ur,
+  en,
+  es,
+  ar,
+  zh,
+  ja,
+  hinglish, // Code-switching: Hindi + English
+}
+
+extension TranscriptionLanguageX on TranscriptionLanguage {
+  String get code {
+    switch (this) {
+      case TranscriptionLanguage.hinglish:
+        return 'hi-en';
+      default:
+        return name;
+    }
+  }
+
+  String get name {
+    switch (this) {
+      case TranscriptionLanguage.hi:
+        return 'Hindi';
+      case TranscriptionLanguage.bn:
+        return 'Bengali';
+      case TranscriptionLanguage.ta:
+        return 'Tamil';
+      case TranscriptionLanguage.te:
+        return 'Telugu';
+      case TranscriptionLanguage.mr:
+        return 'Marathi';
+      case TranscriptionLanguage.gu:
+        return 'Gujarati';
+      case TranscriptionLanguage.kn:
+        return 'Kannada';
+      case TranscriptionLanguage.ml:
+        return 'Malayalam';
+      case TranscriptionLanguage.pa:
+        return 'Punjabi';
+      case TranscriptionLanguage.ur:
+        return 'Urdu';
+      case TranscriptionLanguage.en:
+        return 'English';
+      case TranscriptionLanguage.es:
+        return 'Spanish';
+      case TranscriptionLanguage.ar:
+        return 'Arabic';
+      case TranscriptionLanguage.zh:
+        return 'Mandarin';
+      case TranscriptionLanguage.ja:
+        return 'Japanese';
+      case TranscriptionLanguage.hinglish:
+        return 'Hinglish';
+    }
+  }
+
+  String get nativeName {
+    switch (this) {
+      case TranscriptionLanguage.hi:
+        return 'हिन्दी';
+      case TranscriptionLanguage.bn:
+        return 'বাংলা';
+      case TranscriptionLanguage.ta:
+        return 'தமிழ்';
+      case TranscriptionLanguage.te:
+        return 'తెలుగు';
+      case TranscriptionLanguage.mr:
+        return 'मराठी';
+      case TranscriptionLanguage.gu:
+        return 'ગુજરાતી';
+      case TranscriptionLanguage.kn:
+        return 'ಕನ್ನಡ';
+      case TranscriptionLanguage.ml:
+        return 'മലയാളം';
+      case TranscriptionLanguage.pa:
+        return 'ਪੰਜਾਬੀ';
+      case TranscriptionLanguage.ur:
+        return 'اردو';
+      case TranscriptionLanguage.en:
+        return 'English';
+      case TranscriptionLanguage.es:
+        return 'Español';
+      case TranscriptionLanguage.ar:
+        return 'العربية';
+      case TranscriptionLanguage.zh:
+        return '中文';
+      case TranscriptionLanguage.ja:
+        return '日本語';
+      case TranscriptionLanguage.hinglish:
+        return 'हिन्दी+English';
+    }
+  }
+
+  /// Whether this language represents code-switching.
+  bool get isCodeSwitching => this == TranscriptionLanguage.hinglish;
+
+  /// Detect language from code string.
+  static TranscriptionLanguage? fromCode(String code) {
+    if (code == 'hi-en') return TranscriptionLanguage.hinglish;
+    return TranscriptionLanguage.values
+        .where((l) => l.code == code)
+        .firstOrNull;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // TranscriptionSegment Model
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -164,12 +285,14 @@ class TranscriptionSegment {
     required this.startTime,
     required this.endTime,
     required this.confidence,
+    this.englishTranslation,
   });
 
   final String text;
   final Duration startTime;
   final Duration endTime;
   final double confidence;
+  final String? englishTranslation;
 
   /// Formatted start time string (MM:SS).
   String get startTimeLabel {
@@ -185,17 +308,33 @@ class TranscriptionSegment {
     return '$m:$s';
   }
 
+  /// Confidence color: green=high, yellow=medium, red=low.
+  Color get confidenceColor {
+    if (confidence >= 0.85) return KinrelColors.success;
+    if (confidence >= 0.6) return KinrelColors.warning;
+    return KinrelColors.coral;
+  }
+
+  /// Confidence label.
+  String get confidenceLabel {
+    if (confidence >= 0.85) return 'High';
+    if (confidence >= 0.6) return 'Medium';
+    return 'Low';
+  }
+
   TranscriptionSegment copyWith({
     String? text,
     Duration? startTime,
     Duration? endTime,
     double? confidence,
+    String? englishTranslation,
   }) {
     return TranscriptionSegment(
       text: text ?? this.text,
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
       confidence: confidence ?? this.confidence,
+      englishTranslation: englishTranslation ?? this.englishTranslation,
     );
   }
 }
@@ -226,6 +365,7 @@ class StoryModel {
     this.playCount = 0,
     required this.createdAt,
     this.thumbnailUrl,
+    this.waveformData = const [],
   });
 
   final String id;
@@ -248,6 +388,9 @@ class StoryModel {
   final DateTime createdAt;
   final String? thumbnailUrl;
 
+  /// Waveform amplitude data for visualization (0.0–1.0).
+  final List<double> waveformData;
+
   /// Formatted duration string (M:SS or H:MM:SS).
   String get durationLabel {
     final h = audioDuration.inHours;
@@ -266,12 +409,30 @@ class StoryModel {
   }
 
   /// Whether the story has been transcribed.
-  bool get hasTranscription => transcription != null && transcription!.isNotEmpty;
+  bool get hasTranscription =>
+      transcription != null && transcription!.isNotEmpty;
 
   /// Language display name.
   String get languageName {
     final lang = kSupportedLanguages.where((l) => l.code == language);
     return lang.isNotEmpty ? lang.first.name : language;
+  }
+
+  /// Language native name.
+  String get languageNativeName {
+    final lang = kSupportedLanguages.where((l) => l.code == language);
+    return lang.isNotEmpty ? lang.first.nativeName : language;
+  }
+
+  /// Generate waveform data from seed if none provided.
+  List<double> get effectiveWaveformData {
+    if (waveformData.isNotEmpty) return waveformData;
+    // Generate deterministic pseudo-random waveform from id
+    final seed = id.hashCode;
+    return List.generate(60, (i) {
+      final v = ((seed * (i + 1) * 7 + 13) % 100) / 100.0;
+      return 0.15 + v * 0.75;
+    });
   }
 
   StoryModel copyWith({
@@ -294,6 +455,7 @@ class StoryModel {
     int? playCount,
     DateTime? createdAt,
     String? thumbnailUrl,
+    List<double>? waveformData,
   }) {
     return StoryModel(
       id: id ?? this.id,
@@ -315,6 +477,7 @@ class StoryModel {
       playCount: playCount ?? this.playCount,
       createdAt: createdAt ?? this.createdAt,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      waveformData: waveformData ?? this.waveformData,
     );
   }
 }
@@ -331,6 +494,8 @@ class RecordingState {
     this.duration = Duration.zero,
     this.amplitude = 0.0,
     this.amplitudes = const [],
+    this.isSaving = false,
+    this.quality = RecordingQuality.high,
   });
 
   final bool isRecording;
@@ -338,6 +503,8 @@ class RecordingState {
   final Duration duration;
   final double amplitude;
   final List<double> amplitudes;
+  final bool isSaving;
+  final RecordingQuality quality;
 
   /// Formatted duration string.
   String get durationLabel {
@@ -355,6 +522,8 @@ class RecordingState {
     Duration? duration,
     double? amplitude,
     List<double>? amplitudes,
+    bool? isSaving,
+    RecordingQuality? quality,
   }) {
     return RecordingState(
       isRecording: isRecording ?? this.isRecording,
@@ -362,12 +531,41 @@ class RecordingState {
       duration: duration ?? this.duration,
       amplitude: amplitude ?? this.amplitude,
       amplitudes: amplitudes ?? this.amplitudes,
+      isSaving: isSaving ?? this.isSaving,
+      quality: quality ?? this.quality,
     );
   }
 }
 
+/// Recording quality indicator.
+enum RecordingQuality { high, medium, low }
+
+extension RecordingQualityX on RecordingQuality {
+  String get label {
+    switch (this) {
+      case RecordingQuality.high:
+        return 'High';
+      case RecordingQuality.medium:
+        return 'Medium';
+      case RecordingQuality.low:
+        return 'Low';
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case RecordingQuality.high:
+        return KinrelColors.success;
+      case RecordingQuality.medium:
+        return KinrelColors.warning;
+      case RecordingQuality.low:
+        return KinrelColors.coral;
+    }
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════
-// Transcription State
+// Transcription State (Enhanced with Language Detection)
 // ═══════════════════════════════════════════════════════════════════════
 
 /// State tracking an active AI transcription session.
@@ -379,6 +577,14 @@ class TranscriptionState {
     this.language = '',
     this.segments = const [],
     this.error,
+    this.isDetectingLanguage = false,
+    this.detectedLanguage,
+    this.languageConfidence = 0.0,
+    this.isCodeSwitching = false,
+    this.detectionProgress = 0.0,
+    this.englishTranslation = '',
+    this.isTranslating = false,
+    this.translationProgress = 0.0,
   });
 
   final bool isTranscribing;
@@ -388,13 +594,36 @@ class TranscriptionState {
   final List<TranscriptionSegment> segments;
   final String? error;
 
+  // Language detection fields
+  final bool isDetectingLanguage;
+  final TranscriptionLanguage? detectedLanguage;
+  final double languageConfidence;
+  final bool isCodeSwitching;
+  final double detectionProgress;
+
+  // Translation fields
+  final String englishTranslation;
+  final bool isTranslating;
+  final double translationProgress;
+
   /// Whether transcription has completed with results.
   bool get hasResults => text.isNotEmpty && !isTranscribing;
 
+  /// Whether translation is available.
+  bool get hasTranslation => englishTranslation.isNotEmpty;
+
   /// Detected language display name.
   String get languageName {
+    if (detectedLanguage != null) return detectedLanguage!.name;
     final lang = kSupportedLanguages.where((l) => l.code == language);
     return lang.isNotEmpty ? lang.first.name : language;
+  }
+
+  /// Detected language native name.
+  String get languageNativeName {
+    if (detectedLanguage != null) return detectedLanguage!.nativeName;
+    final lang = kSupportedLanguages.where((l) => l.code == language);
+    return lang.isNotEmpty ? lang.first.nativeName : language;
   }
 
   TranscriptionState copyWith({
@@ -404,6 +633,14 @@ class TranscriptionState {
     String? language,
     List<TranscriptionSegment>? segments,
     String? error,
+    bool? isDetectingLanguage,
+    TranscriptionLanguage? Function()? detectedLanguage,
+    double? languageConfidence,
+    bool? isCodeSwitching,
+    double? detectionProgress,
+    String? englishTranslation,
+    bool? isTranslating,
+    double? translationProgress,
   }) {
     return TranscriptionState(
       isTranscribing: isTranscribing ?? this.isTranscribing,
@@ -412,8 +649,58 @@ class TranscriptionState {
       language: language ?? this.language,
       segments: segments ?? this.segments,
       error: error,
+      isDetectingLanguage: isDetectingLanguage ?? this.isDetectingLanguage,
+      detectedLanguage: detectedLanguage != null
+          ? detectedLanguage()
+          : this.detectedLanguage,
+      languageConfidence: languageConfidence ?? this.languageConfidence,
+      isCodeSwitching: isCodeSwitching ?? this.isCodeSwitching,
+      detectionProgress: detectionProgress ?? this.detectionProgress,
+      englishTranslation: englishTranslation ?? this.englishTranslation,
+      isTranslating: isTranslating ?? this.isTranslating,
+      translationProgress: translationProgress ?? this.translationProgress,
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Suggested Tags Helper
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Returns suggested tags based on story category.
+List<String> suggestedTagsForCategory(StoryCategory category) {
+  switch (category) {
+    case StoryCategory.familyHistory:
+      return ['family', 'ancestors', 'heritage', 'home', 'roots'];
+    case StoryCategory.lifeEvent:
+      return ['milestone', 'life', 'memory', 'turning-point', 'growth'];
+    case StoryCategory.tradition:
+      return ['ritual', 'festival', 'custom', 'ceremony', 'heritage'];
+    case StoryCategory.recipe:
+      return ['cooking', 'food', 'kitchen', 'secret-recipe', 'flavor'];
+    case StoryCategory.wisdom:
+      return ['advice', 'lesson', 'values', 'teaching', 'proverb'];
+    case StoryCategory.migration:
+      return ['journey', 'new-home', 'courage', 'adaptation', 'roots'];
+    case StoryCategory.celebration:
+      return ['wedding', 'birthday', 'festival', 'gathering', 'joy'];
+    case StoryCategory.other:
+      return ['story', 'memory', 'family', 'reflection'];
+  }
+}
+
+/// Returns suggested era based on narrator's relationship/age.
+String? suggestedEraForNarrator(String narratorName) {
+  if (narratorName.contains('Dadi') || narratorName.contains('Nani')) {
+    return '1950s';
+  }
+  if (narratorName.contains('Papa') || narratorName.contains('Mummy')) {
+    return '1980s';
+  }
+  if (narratorName == 'Self' || narratorName == 'You') {
+    return '2020s';
+  }
+  return null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -447,7 +734,7 @@ class OralHistoryState {
       result = result.where((s) => s.category == filter).toList();
     }
 
-    // Filter by search query
+    // Filter by search query (includes tags)
     if (searchQuery.isNotEmpty) {
       final query = searchQuery.toLowerCase();
       result = result.where((s) {
@@ -491,6 +778,46 @@ class OralHistoryState {
 
   /// Number of transcribed stories.
   int get transcribedCount => stories.where((s) => s.hasTranscription).length;
+
+  /// Language distribution map (language code → count).
+  Map<String, int> get languageDistribution {
+    final map = <String, int>{};
+    for (final story in stories) {
+      map[story.language] = (map[story.language] ?? 0) + 1;
+    }
+    return map;
+  }
+
+  /// Category distribution map.
+  Map<StoryCategory, int> get categoryDistribution {
+    final map = <StoryCategory, int>{};
+    for (final story in stories) {
+      map[story.category] = (map[story.category] ?? 0) + 1;
+    }
+    return map;
+  }
+
+  /// Most played story.
+  StoryModel? get mostPlayedStory {
+    if (stories.isEmpty) return null;
+    return stories.reduce((a, b) => a.playCount > b.playCount ? a : b);
+  }
+
+  /// Recently added stories (sorted by createdAt, newest first, max 5).
+  List<StoryModel> get recentlyAdded {
+    final sorted = stories.toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return sorted.take(5).toList();
+  }
+
+  /// All unique tags across stories.
+  List<String> get allTags {
+    final tags = <String>{};
+    for (final story in stories) {
+      tags.addAll(story.tags);
+    }
+    return tags.toList()..sort();
+  }
 
   OralHistoryState copyWith({
     List<StoryModel>? stories,
@@ -536,13 +863,15 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
         duration: Duration.zero,
         amplitude: 0.0,
         amplitudes: [],
+        isSaving: false,
       ),
     );
 
     // Simulate recording timer
     _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (state.recordingState.isRecording && !state.recordingState.isPaused) {
-        final newDuration = state.recordingState.duration + const Duration(seconds: 1);
+        final newDuration =
+            state.recordingState.duration + const Duration(seconds: 1);
         state = state.copyWith(
           recordingState: state.recordingState.copyWith(duration: newDuration),
         );
@@ -553,7 +882,10 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
     _amplitudeTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       if (state.recordingState.isRecording && !state.recordingState.isPaused) {
         final randomAmplitude = 0.2 + (DateTime.now().millisecond % 80) / 100.0;
-        final newAmplitudes = [...state.recordingState.amplitudes, randomAmplitude];
+        final newAmplitudes = [
+          ...state.recordingState.amplitudes,
+          randomAmplitude,
+        ];
         // Keep only last 50 amplitudes for waveform
         if (newAmplitudes.length > 50) {
           newAmplitudes.removeAt(0);
@@ -599,53 +931,180 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
     return recordedDuration;
   }
 
+  /// Set recording as saving.
+  void setRecordingSaving(bool isSaving) {
+    state = state.copyWith(
+      recordingState: state.recordingState.copyWith(isSaving: isSaving),
+    );
+  }
+
   // ── Transcription Methods ──────────────────────────────────────────
 
-  /// Transcribe the current recording using AI.
+  /// Transcribe the current recording using AI with language detection.
   Future<void> transcribeRecording() async {
+    // Phase 1: Language Detection
     state = state.copyWith(
       transcriptionState: const TranscriptionState(
         isTranscribing: true,
+        isDetectingLanguage: true,
+        detectionProgress: 0.0,
         progress: 0.0,
       ),
     );
 
-    // Simulate AI transcription with progress
-    for (var i = 0; i < 10; i++) {
-      await Future.delayed(const Duration(milliseconds: 300));
+    // Simulate language detection with progress
+    for (var i = 0; i < 5; i++) {
+      await Future.delayed(const Duration(milliseconds: 200));
       if (!state.transcriptionState.isTranscribing) return;
       state = state.copyWith(
         transcriptionState: state.transcriptionState.copyWith(
-          progress: (i + 1) / 10,
+          detectionProgress: (i + 1) / 5,
+        ),
+      );
+    }
+
+    // Determine detected language based on selected language
+    final lang = state.selectedLanguage;
+    final detectedLang =
+        TranscriptionLanguageX.fromCode(lang) ?? TranscriptionLanguage.en;
+    final isHinglish =
+        lang == 'hi' &&
+        (DateTime.now().millisecond % 3 == 0); // ~33% chance of code-switching
+
+    final finalDetectedLang = isHinglish
+        ? TranscriptionLanguage.hinglish
+        : detectedLang;
+    final confidence =
+        0.85 + (DateTime.now().millisecond % 15) / 100.0; // 0.85–0.99
+
+    // Set detected language
+    state = state.copyWith(
+      transcriptionState: state.transcriptionState.copyWith(
+        isDetectingLanguage: false,
+        detectionProgress: 1.0,
+        detectedLanguage: () => finalDetectedLang,
+        languageConfidence: confidence,
+        isCodeSwitching: finalDetectedLang.isCodeSwitching,
+      ),
+    );
+
+    // Phase 2: Transcription with progress
+    for (var i = 0; i < 8; i++) {
+      await Future.delayed(const Duration(milliseconds: 250));
+      if (!state.transcriptionState.isTranscribing) return;
+      state = state.copyWith(
+        transcriptionState: state.transcriptionState.copyWith(
+          progress: 0.1 + (i + 1) / 10,
         ),
       );
     }
 
     // Simulate transcription result based on selected language
-    final lang = state.selectedLanguage;
     final transcriptionTexts = {
-      'hi': 'यह हमारे परिवार की कहानी है। हमारे दादा जी ने इस घर को बहुत मेहनत से बनाया था। वे हमेशा कहते थे कि परिवार सबसे बड़ा धन है।',
-      'bn': 'এটি আমাদের পরিবারের গল্প। আমাদের দাদা অনেক কঠোর পরিশ্রম করে এই বাড়িটি তৈরি করেছিলেন।',
-      'ta': 'இது எங்கள் குடும்பத்தின் கதை. எங்கள் தாத்தா இந்த வீட்டை நிறைய கடினமாக கட்டினார்கள்.',
-      'en': 'This is our family story. Our grandfather built this house with great effort. He always said that family is the greatest wealth.',
+      'hi':
+          'यह हमारे परिवार की कहानी है। हमारे दादा जी ने इस घर को बहुत मेहनत से बनाया था। वे हमेशा कहते थे कि परिवार सबसे बड़ा धन है।',
+      'bn':
+          'এটি আমাদের পরিবারের গল্প। আমাদের দাদা অনেক কঠোর পরিশ্রম করে এই বাড়িটি তৈরি করেছিলেন।',
+      'ta':
+          'இது எங்கள் குடும்பத்தின் கதை. எங்கள் தாத்தா இந்த வீட்டை நிறைய கடினமாக கட்டினார்கள்.',
+      'en':
+          'This is our family story. Our grandfather built this house with great effort. He always said that family is the greatest wealth.',
     };
 
-    final demoSegments = [
-      TranscriptionSegment(
-        text: transcriptionTexts[lang] ?? transcriptionTexts['en']!,
-        startTime: Duration.zero,
-        endTime: state.recordingState.duration,
-        confidence: 0.95,
-      ),
-    ];
+    final fullText = transcriptionTexts[lang] ?? transcriptionTexts['en']!;
+
+    // Create timestamped segments with varying confidence
+    final sentences = fullText
+        .split(RegExp(r'[।.!]'))
+        .where((s) => s.trim().isNotEmpty)
+        .toList();
+
+    final totalSeconds = 120; // Simulated 2-minute recording
+    final segments = <TranscriptionSegment>[];
+    for (var i = 0; i < sentences.length; i++) {
+      final startSec = (i * totalSeconds / sentences.length).round();
+      final endSec = ((i + 1) * totalSeconds / sentences.length).round();
+      // Vary confidence per segment
+      final segConfidence = 0.7 + (i % 3) * 0.1; // 0.7, 0.8, 0.9 rotating
+      segments.add(
+        TranscriptionSegment(
+          text: sentences[i].trim(),
+          startTime: Duration(seconds: startSec),
+          endTime: Duration(seconds: endSec),
+          confidence: segConfidence,
+        ),
+      );
+    }
 
     state = state.copyWith(
       transcriptionState: TranscriptionState(
         isTranscribing: false,
         progress: 1.0,
-        text: transcriptionTexts[lang] ?? transcriptionTexts['en']!,
+        text: fullText,
         language: lang,
-        segments: demoSegments,
+        segments: segments,
+        detectedLanguage: finalDetectedLang,
+        languageConfidence: confidence,
+        isCodeSwitching: finalDetectedLang.isCodeSwitching,
+      ),
+    );
+  }
+
+  /// Simulate translation to English.
+  Future<void> translateToEnglish() async {
+    if (!state.transcriptionState.hasResults) return;
+
+    state = state.copyWith(
+      transcriptionState: state.transcriptionState.copyWith(
+        isTranslating: true,
+        translationProgress: 0.0,
+      ),
+    );
+
+    // Simulate translation progress
+    for (var i = 0; i < 6; i++) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      state = state.copyWith(
+        transcriptionState: state.transcriptionState.copyWith(
+          translationProgress: (i + 1) / 6,
+        ),
+      );
+    }
+
+    // Simulate English translation
+    final translations = {
+      'hi':
+          'This is our family\'s story. Our grandfather built this house with great hard work. He always used to say that family is the greatest wealth.',
+      'bn':
+          'This is our family\'s story. Our grandfather built this house with great hard work.',
+      'ta':
+          'This is our family\'s story. Our grandfather built this house with great difficulty.',
+      'en':
+          'This is our family story. Our grandfather built this house with great effort. He always said that family is the greatest wealth.',
+    };
+
+    final lang = state.transcriptionState.language;
+    final translation = translations[lang] ?? translations['en']!;
+
+    // Add translations to segments
+    final updatedSegments = state.transcriptionState.segments.map((seg) {
+      // Simple: first third of translation for first segment, etc.
+      final transParts = translation.split(RegExp(r'[.!?]'));
+      final idx = state.transcriptionState.segments.indexOf(seg);
+      final transText = idx < transParts.length
+          ? transParts[idx].trim()
+          : translation;
+      return seg.copyWith(
+        englishTranslation: transText.isNotEmpty ? '$transText.' : null,
+      );
+    }).toList();
+
+    state = state.copyWith(
+      transcriptionState: state.transcriptionState.copyWith(
+        isTranslating: false,
+        translationProgress: 1.0,
+        englishTranslation: translation,
+        segments: updatedSegments,
       ),
     );
   }
@@ -672,6 +1131,17 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
     final updatedStories = state.stories.map((s) {
       if (s.id == storyId) {
         return s.copyWith(isFavorite: !s.isFavorite);
+      }
+      return s;
+    }).toList();
+    state = state.copyWith(stories: updatedStories);
+  }
+
+  /// Increment the play count of a story.
+  void incrementPlayCount(String storyId) {
+    final updatedStories = state.stories.map((s) {
+      if (s.id == storyId) {
+        return s.copyWith(playCount: s.playCount + 1);
       }
       return s;
     }).toList();
@@ -710,8 +1180,8 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
 /// Main oral history provider.
 final oralHistoryProvider =
     StateNotifierProvider<OralHistoryNotifier, OralHistoryState>((ref) {
-  return OralHistoryNotifier();
-});
+      return OralHistoryNotifier();
+    });
 
 /// Computed provider: filtered stories based on current filter and search.
 final filteredStoriesProvider = Provider<List<StoryModel>>((ref) {
@@ -733,31 +1203,36 @@ final _demoStories = <StoryModel>[
   StoryModel(
     id: 'story-1',
     title: 'How Dada Built Sharma Haveli',
-    description: 'Dada Suresh Kumar Sharma recounts the three-year journey of building the family haveli in Jaipur, from laying the foundation stone in 1965 to the Griha Pravesh in 1968.',
+    description:
+        'Dada Suresh Kumar Sharma recounts the three-year journey of building the family haveli in Jaipur, from laying the foundation stone in 1965 to the Griha Pravesh in 1968.',
     narratorId: 'm15',
     narratorName: 'Suresh Kumar Sharma',
     familyId: 'fam-sharma',
     audioDuration: const Duration(minutes: 12, seconds: 34),
-    transcription: 'यह हमारे परिवार की कहानी है। हमारे दादा जी ने इस घर को बहुत मेहनत से बनाया था। 1965 में जब नींव रखी गई थी, तो पूरे मोहल्ले के लोग आए थे। हर ईंट हमने अपने हाथों से लगाई। तीन साल लगे, लेकिन जब घर बनकर तैयार हुआ, तो वो दिन कभी नहीं भूलूंगा।',
+    transcription:
+        'यह हमारे परिवार की कहानी है। हमारे दादा जी ने इस घर को बहुत मेहनत से बनाया था। 1965 में जब नींव रखी गई थी, तो पूरे मोहल्ले के लोग आए थे। हर ईंट हमने अपने हाथों से लगाई। तीन साल लगे, लेकिन जब घर बनकर तैयार हुआ, तो वो दिन कभी नहीं भूलूंगा।',
     language: 'hi',
     tags: ['haveli', 'Jaipur', 'construction', '1960s', 'Dada'],
     relatedPersonIds: ['m6', 'm7', 'm15'],
     era: '1960s',
-    category: StoryCategory.family_history,
+    category: StoryCategory.familyHistory,
     isFavorite: true,
     playCount: 47,
     createdAt: DateTime(2024, 10, 15),
+    waveformData: _generateWaveform('story-1'),
   ),
 
   StoryModel(
     id: 'story-2',
     title: 'Dadi\'s Secret Ghevar Recipe',
-    description: 'Kamla Sharma shares her legendary ghevar recipe that has been passed down through four generations of Sharma women. The secret is in the rabdi temperature!',
+    description:
+        'Kamla Sharma shares her legendary ghevar recipe that has been passed down through four generations of Sharma women. The secret is in the rabdi temperature!',
     narratorId: 'm6',
     narratorName: 'Kamla Sharma',
     familyId: 'fam-sharma',
     audioDuration: const Duration(minutes: 8, seconds: 22),
-    transcription: 'बेटा, घेवर बनाने का सबसे जरूरी बात यह है कि रबड़ी का तापमान सही होना चाहिए। मेरी सास ने मुझे सिखाया था, उनकी सास ने उन्हें। यह रेसिपी चार पीढ़ियों से चली आ रही है।',
+    transcription:
+        'बेटा, घेवर बनाने का सबसे जरूरी बात यह है कि रबड़ी का तापमान सही होना चाहिए। मेरी सास ने मुझे सिखाया था, उनकी सास ने उन्हें। यह रेसिपी चार पीढ़ियों से चली आ रही है।',
     language: 'hi',
     tags: ['recipe', 'ghevar', 'Rajasthani', 'sweet', 'Dadi'],
     relatedPersonIds: ['m6', 'm8', 'm14'],
@@ -766,17 +1241,20 @@ final _demoStories = <StoryModel>[
     isFavorite: true,
     playCount: 89,
     createdAt: DateTime(2024, 9, 20),
+    waveformData: _generateWaveform('story-2'),
   ),
 
   StoryModel(
     id: 'story-3',
     title: 'The Night We Left Lahore',
-    description: 'Saroj Devi recounts her family\'s journey from Lahore to Amritsar during Partition in 1947. A story of courage, loss, and new beginnings.',
+    description:
+        'Saroj Devi recounts her family\'s journey from Lahore to Amritsar during Partition in 1947. A story of courage, loss, and new beginnings.',
     narratorId: 'm9',
     narratorName: 'Saroj Devi',
     familyId: 'fam-sharma',
     audioDuration: const Duration(minutes: 23, seconds: 15),
-    transcription: 'It was August 1947. We had only one night to pack everything. My father said we could only take what we could carry. We left our home, our shop, everything. The train journey took three days. We lost count of the stops. But we found each other again in Amritsar.',
+    transcription:
+        'It was August 1947. We had only one night to pack everything. My father said we could only take what we could carry. We left our home, our shop, everything. The train journey took three days. We lost count of the stops. But we found each other again in Amritsar.',
     language: 'en',
     tags: ['Partition', 'Lahore', 'migration', '1947', 'freedom'],
     relatedPersonIds: ['m9', 'm4'],
@@ -785,17 +1263,20 @@ final _demoStories = <StoryModel>[
     isFavorite: false,
     playCount: 156,
     createdAt: DateTime(2024, 8, 14),
+    waveformData: _generateWaveform('story-3'),
   ),
 
   StoryModel(
     id: 'story-4',
     title: 'Why We Light the Akhand Jyot on Diwali',
-    description: 'Ravi Sharma explains the family tradition of keeping an eternal flame burning for 48 hours during Diwali, a practice started by his great-grandfather in 1920.',
+    description:
+        'Ravi Sharma explains the family tradition of keeping an eternal flame burning for 48 hours during Diwali, a practice started by his great-grandfather in 1920.',
     narratorId: 'm7',
     narratorName: 'Ravi Sharma',
     familyId: 'fam-sharma',
     audioDuration: const Duration(minutes: 6, seconds: 45),
-    transcription: 'Every Diwali, we light the Akhand Jyot and it burns for 48 hours without going out. My great-grandfather Pandit Raghunath Sharma started this in 1920. He believed that as long as the flame burns, the family stays united. So far, it never has gone out.',
+    transcription:
+        'Every Diwali, we light the Akhand Jyot and it burns for 48 hours without going out. My great-grandfather Pandit Raghunath Sharma started this in 1920. He believed that as long as the flame burns, the family stays united. So far, it never has gone out.',
     language: 'en',
     tags: ['Diwali', 'tradition', 'Akhand Jyot', '1920', 'puja'],
     relatedPersonIds: ['m7', 'm6', 'm15'],
@@ -804,17 +1285,20 @@ final _demoStories = <StoryModel>[
     isFavorite: false,
     playCount: 34,
     createdAt: DateTime(2024, 11, 1),
+    waveformData: _generateWaveform('story-4'),
   ),
 
   StoryModel(
     id: 'story-5',
     title: 'Nani Ma\'s Wisdom on Raising Children',
-    description: 'Saroj Devi shares her philosophy on raising children with kindness, patience, and the importance of family stories. "Every child needs to know where they come from."',
+    description:
+        'Saroj Devi shares her philosophy on raising children with kindness, patience, and the importance of family stories. "Every child needs to know where they come from."',
     narratorId: 'm9',
     narratorName: 'Saroj Devi',
     familyId: 'fam-sharma',
     audioDuration: const Duration(minutes: 15, seconds: 8),
-    transcription: 'बच्चों को प्यार से बड़ा करो, डर से नहीं। हर बच्चे को अपनी जड़ें पता होनी चाहिए। जब वो जानेंगे कि वो कहाँ से आए हैं, तभी वो सही दिशा में जा सकेंगे।',
+    transcription:
+        'बच्चों को प्यार से बड़ा करो, डर से नहीं। हर बच्चे को अपनी जड़ें पता होनी चाहिए। जब वो जानेंगे कि वो कहाँ से आए हैं, तभी वो सही दिशा में जा सकेंगे।',
     language: 'hi',
     tags: ['wisdom', 'parenting', 'children', 'values', 'Nani'],
     relatedPersonIds: ['m9', 'm4', 'm8'],
@@ -823,17 +1307,20 @@ final _demoStories = <StoryModel>[
     isFavorite: true,
     playCount: 72,
     createdAt: DateTime(2024, 7, 10),
+    waveformData: _generateWaveform('story-5'),
   ),
 
   StoryModel(
     id: 'story-6',
     title: 'Arjun & Priya\'s Wedding — The Full Story',
-    description: 'Sunita Sharma narrates the complete story of Arjun and Priya\'s wedding — from the first meeting arranged through family to the intimate pandemic-era ceremony at Jai Mahal Palace.',
+    description:
+        'Sunita Sharma narrates the complete story of Arjun and Priya\'s wedding — from the first meeting arranged through family to the intimate pandemic-era ceremony at Jai Mahal Palace.',
     narratorId: 'm8',
     narratorName: 'Sunita Sharma',
     familyId: 'fam-sharma',
     audioDuration: const Duration(minutes: 19, seconds: 42),
-    transcription: 'When we first heard about Priya\'s family, I knew she was perfect for Arjun. But 2020 was such a difficult year. We had planned a 500-guest wedding, but ended up with just 50. The pheras were livestreamed for relatives abroad. It was intimate, emotional, and absolutely beautiful.',
+    transcription:
+        'When we first heard about Priya\'s family, I knew she was perfect for Arjun. But 2020 was such a difficult year. We had planned a 500-guest wedding, but ended up with just 50. The pheras were livestreamed for relatives abroad. It was intimate, emotional, and absolutely beautiful.',
     language: 'en',
     tags: ['wedding', 'Arjun', 'Priya', 'pandemic', '2020'],
     relatedPersonIds: ['m8', 'm7', 'm1', 'm2'],
@@ -842,5 +1329,15 @@ final _demoStories = <StoryModel>[
     isFavorite: false,
     playCount: 63,
     createdAt: DateTime(2024, 12, 8),
+    waveformData: _generateWaveform('story-6'),
   ),
 ];
+
+/// Generate deterministic waveform data from a seed string.
+List<double> _generateWaveform(String seed) {
+  final hashCode = seed.hashCode;
+  return List.generate(60, (i) {
+    final v = ((hashCode * (i + 1) * 7 + 13 + i * i) % 100) / 100.0;
+    return 0.12 + v * 0.78;
+  });
+}

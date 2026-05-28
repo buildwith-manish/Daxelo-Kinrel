@@ -1,5 +1,6 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { FcmService } from './fcm.service';
 import { GetNotificationsDto } from './dto/get-notifications.dto';
 import { MarkReadDto } from './dto/mark-read.dto';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
@@ -8,7 +9,12 @@ import { randomUUID } from 'crypto';
 
 @Injectable()
 export class NotificationsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(NotificationsService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private fcmService: FcmService,
+  ) {}
 
   /**
    * GET /api/notifications — Get user's notifications with unread count
@@ -214,5 +220,120 @@ export class NotificationsService {
       'share.card_viewed': 'Someone viewed your shared card',
     };
     return bodies[type] ?? JSON.stringify(payload).substring(0, 200);
+  }
+
+  // ── FCM Push Notification Methods ──────────────────────────────────
+
+  /** Send a birthday reminder to all family members */
+  async sendBirthdayReminder(
+    memberId: string,
+    memberName: string,
+    familyId: string,
+    daysUntil: number,
+  ): Promise<number> {
+    // Find all family members
+    const familyMembers = await this.prisma.familyMember.findMany({
+      where: { familyId },
+      select: { userId: true },
+    });
+
+    const userIds = familyMembers.map((fm) => fm.userId).filter(Boolean);
+    if (userIds.length === 0) return 0;
+
+    // Check for duplicates — don't send same notification twice in same day
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const alreadySent = await this.prisma.notificationLog.findMany({
+      where: {
+        type: 'birthday_reminder',
+        referenceId: memberId,
+        sentAt: { gte: today },
+      },
+      select: { userId: true },
+    });
+    const sentUserIds = new Set(alreadySent.map((n) => n.userId));
+    const pendingUserIds = userIds.filter((id) => !sentUserIds.has(id));
+
+    if (pendingUserIds.length === 0) return 0;
+
+    const title = `${memberName}'s birthday is in ${daysUntil} day(s)!`;
+    const body = "Don't forget to wish them!";
+    const data: Record<string, string> = {
+      type: 'birthday_reminder',
+      memberId,
+      memberName,
+      daysUntil: String(daysUntil),
+    };
+
+    const successCount = await this.fcmService.sendToMultiple(pendingUserIds, title, body, data);
+
+    // Log each notification
+    for (const userId of pendingUserIds) {
+      try {
+        await this.prisma.notificationLog.create({
+          data: { userId, type: 'birthday_reminder', referenceId: memberId },
+        });
+      } catch (_) {
+        // Unique constraint violation — already sent today, skip
+      }
+    }
+
+    this.logger.log(
+      `Birthday reminder sent: ${memberName} (${successCount}/${pendingUserIds.length} delivered)`,
+    );
+    return successCount;
+  }
+
+  /** Send a new family member notification */
+  async sendNewMemberNotification(
+    familyId: string,
+    memberId: string,
+    addedByName: string,
+  ): Promise<number> {
+    const familyMembers = await this.prisma.familyMember.findMany({
+      where: { familyId },
+      select: { userId: true },
+    });
+
+    const userIds = familyMembers.map((fm) => fm.userId).filter(Boolean);
+    if (userIds.length === 0) return 0;
+
+    const title = 'New family member added!';
+    const body = `${addedByName} added a new member to the family`;
+    const data: Record<string, string> = {
+      type: 'new_family_member',
+      familyId,
+      memberId,
+      addedByName,
+    };
+
+    return this.fcmService.sendToMultiple(userIds, title, body, data);
+  }
+
+  /** Send a family event notification */
+  async sendFamilyEventNotification(
+    familyId: string,
+    eventId: string,
+    eventTitle: string,
+  ): Promise<number> {
+    const familyMembers = await this.prisma.familyMember.findMany({
+      where: { familyId },
+      select: { userId: true },
+    });
+
+    const userIds = familyMembers.map((fm) => fm.userId).filter(Boolean);
+    if (userIds.length === 0) return 0;
+
+    const title = `${eventTitle}`;
+    const body = 'A new family event has been scheduled!';
+    const data: Record<string, string> = {
+      type: 'family_event',
+      familyId,
+      eventId,
+      eventTitle,
+    };
+
+    return this.fcmService.sendToMultiple(userIds, title, body, data);
   }
 }

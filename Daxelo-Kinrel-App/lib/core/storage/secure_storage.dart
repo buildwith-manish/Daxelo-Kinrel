@@ -2,7 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Conditional import — flutter_secure_storage doesn't support web
 import 'secure_storage_stub.dart'
-    if (dart.library.io) 'secure_storage_io.dart' as impl;
+    if (dart.library.io) 'secure_storage_io.dart'
+    as impl;
 
 /// Secure storage for sensitive data (auth tokens, keys)
 /// On web: uses SharedPreferences (localStorage)

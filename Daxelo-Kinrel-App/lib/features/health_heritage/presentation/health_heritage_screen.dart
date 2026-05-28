@@ -3,19 +3,24 @@
 // DAXELO KINREL — Family Health Heritage Screen
 //
 // Features:
-//   - Header with medical icon in orange
+//   - Header with medical icon, export & risk calc buttons
 //   - Risk Score Card (circular progress, animated)
-//   - Health Insights Cards (horizontal scroll)
+//   - Health Insights Cards (horizontal scroll, "Take Action")
+//   - Inheritance Pattern Visualization
 //   - Category Breakdown (grid of category cards)
-//   - Conditions List (filterable, searchable)
-//   - Add Condition FAB (bottom sheet)
-//   - Generation Tree View toggle
+//   - Search + View Toggle (list / tree / timeline)
+//   - Conditions List / Generation Tree / Health Timeline
+//   - Add Condition FAB (enhanced bottom sheet)
+//   - Condition Detail Sheet (on tap)
+//   - Genetic Risk Calculator Sheet
+//   - Health Report Export
 //
 // Design: Dark theme primary, orange/amber accents
 
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/brand_colors.dart';
@@ -23,6 +28,13 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/health_heritage_provider.dart';
+import '../../core/utils/device_tier.dart';
+
+// ═══════════════════════════════════════════════════════════════════════
+// View mode enum
+// ═══════════════════════════════════════════════════════════════════════
+
+enum _ViewMode { list, tree, timeline }
 
 // ═══════════════════════════════════════════════════════════════════════
 // HealthHeritageScreen
@@ -39,7 +51,7 @@ class HealthHeritageScreen extends ConsumerStatefulWidget {
 class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _animController;
-  bool _isTreeView = false;
+  _ViewMode _viewMode = _ViewMode.list;
   final _searchController = TextEditingController();
 
   @override
@@ -65,6 +77,7 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
     final filteredConditions = ref.watch(filteredConditionsProvider);
     final insights = ref.watch(healthInsightsProvider);
     final byCategory = ref.watch(conditionsByCategoryProvider);
+    final inheritancePatterns = ref.watch(inheritancePatternsProvider);
 
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
@@ -76,21 +89,25 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
 
           // ── Risk Score Card ─────────────────────────────────────────
           SliverToBoxAdapter(
-            child: _RiskScoreCard(
-              summary: summary,
-              animation: _animController,
-            ),
+            child: _RiskScoreCard(summary: summary, animation: _animController),
           ),
 
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
           // ── Health Insights ─────────────────────────────────────────
           if (insights.isNotEmpty)
-            SliverToBoxAdapter(
-              child: _InsightsSection(insights: insights),
-            ),
+            SliverToBoxAdapter(child: _InsightsSection(insights: insights)),
 
           if (insights.isNotEmpty)
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+          // ── Inheritance Patterns ────────────────────────────────────
+          if (inheritancePatterns.isNotEmpty)
+            SliverToBoxAdapter(
+              child: _InheritancePatternSection(patterns: inheritancePatterns),
+            ),
+
+          if (inheritancePatterns.isNotEmpty)
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
           // ── Category Breakdown ──────────────────────────────────────
@@ -114,11 +131,12 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
 
           const SliverToBoxAdapter(child: SizedBox(height: 12)),
 
-          // ── Conditions ──────────────────────────────────────────────
-          if (_isTreeView)
-            _buildGenerationTree(heritageState)
-          else
-            _buildConditionsList(filteredConditions),
+          // ── Conditions View ─────────────────────────────────────────
+          switch (_viewMode) {
+            _ViewMode.list => _buildConditionsList(filteredConditions),
+            _ViewMode.tree => _buildGenerationTree(heritageState),
+            _ViewMode.timeline => _buildTimelineView(),
+          },
 
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
@@ -145,8 +163,7 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
                 decoration: BoxDecoration(
                   color: KinrelColors.darkCard,
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  border: Border.all(
-                      color: const Color(0xFF3A3A4A), width: 1),
+                  border: Border.all(color: const Color(0xFF3A3A4A), width: 1),
                 ),
                 child: const Icon(
                   Icons.arrow_back_ios_new_rounded,
@@ -186,6 +203,43 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
                 ),
               ),
             ),
+            // Export button
+            GestureDetector(
+              onTap: _showExportReport,
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: KinrelColors.darkCard,
+                  borderRadius: BorderRadius.circular(KinrelRadius.md),
+                  border: Border.all(color: const Color(0xFF3A3A4A), width: 1),
+                ),
+                child: const Icon(
+                  Icons.ios_share_rounded,
+                  color: KinrelColors.orange,
+                  size: 18,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Risk calculator button
+            GestureDetector(
+              onTap: _showGeneticRiskSheet,
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: KinrelColors.darkCard,
+                  borderRadius: BorderRadius.circular(KinrelRadius.md),
+                  border: Border.all(color: const Color(0xFF3A3A4A), width: 1),
+                ),
+                child: const Icon(
+                  Icons.science_rounded,
+                  color: KinrelColors.amber,
+                  size: 18,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -205,41 +259,15 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
               hint: 'Search conditions...',
               controller: _searchController,
               onChanged: (value) {
-                ref
-                    .read(healthHeritageProvider.notifier)
-                    .setSearchQuery(value);
+                ref.read(healthHeritageProvider.notifier).setSearchQuery(value);
               },
             ),
           ),
-          const SizedBox(width: 10),
-          // View toggle
-          GestureDetector(
-            onTap: () => setState(() => _isTreeView = !_isTreeView),
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: _isTreeView
-                    ? KinrelColors.orange.withValues(alpha: 0.15)
-                    : KinrelColors.darkCard,
-                borderRadius: BorderRadius.circular(KinrelRadius.md),
-                border: Border.all(
-                  color: _isTreeView
-                      ? KinrelColors.orange.withValues(alpha: 0.4)
-                      : const Color(0xFF3A3A4A),
-                  width: 1,
-                ),
-              ),
-              child: Icon(
-                _isTreeView
-                    ? Icons.account_tree_rounded
-                    : Icons.list_rounded,
-                color: _isTreeView
-                    ? KinrelColors.orange
-                    : KinrelColors.textSilver,
-                size: 20,
-              ),
-            ),
+          const SizedBox(width: 8),
+          // View mode toggle
+          _ViewModeToggle(
+            currentMode: _viewMode,
+            onModeChanged: (mode) => setState(() => _viewMode = mode),
           ),
           const SizedBox(width: 8),
           // Privacy toggle
@@ -302,20 +330,19 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       sliver: SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final condition = conditions[index];
-            return Padding(
-              padding: EdgeInsets.only(
-                  bottom: index < conditions.length - 1 ? 12 : 0),
-              child: _ConditionCard(
-                condition: condition,
-                animDelay: index * 0.05,
-              ),
-            );
-          },
-          childCount: conditions.length,
-        ),
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final condition = conditions[index];
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: index < conditions.length - 1 ? 12 : 0,
+            ),
+            child: _ConditionCard(
+              condition: condition,
+              animDelay: index * 0.05,
+              onTap: () => _showConditionDetailSheet(condition),
+            ),
+          );
+        }, childCount: conditions.length),
       ),
     );
   }
@@ -345,97 +372,127 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       sliver: SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, genIndex) {
-            final gen = sortedGens[genIndex];
-            final genConditions = byGeneration[gen] ?? [];
-            final genLabel = _generationLabel(gen);
+        delegate: SliverChildBuilderDelegate((context, genIndex) {
+          final gen = sortedGens[genIndex];
+          final genConditions = byGeneration[gen] ?? [];
+          final genLabel = _generationLabel(gen);
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Generation header
-                Row(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        gradient: KinrelGradients.igniteGradient,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: KinrelColors.orangeGlow,
-                            blurRadius: 8,
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          '$gen',
-                          style: KinrelTypography.labelSmall.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                          ),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      gradient: KinrelGradients.igniteGradient,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: KinrelColors.orangeGlow,
+                          blurRadius: 8,
                         ),
-                      ),
+                      ],
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
+                    child: Center(
                       child: Text(
-                        genLabel,
-                        style: KinrelTypography.headlineSmall.copyWith(
-                          color: KinrelColors.textWhite,
-                          fontWeight: FontWeight.w700,
+                        '$gen',
+                        style: KinrelTypography.labelSmall.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: KinrelColors.darkElevated,
-                        borderRadius:
-                            BorderRadius.circular(KinrelRadius.full),
-                        border: Border.all(
-                            color: const Color(0xFF3A3A4A), width: 1),
-                      ),
-                      child: Text(
-                        '${genConditions.length}',
-                        style: KinrelTypography.micro.copyWith(
-                          color: KinrelColors.textSilver,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                // Generation connector line
-                Container(
-                  margin: const EdgeInsets.only(left: 15),
-                  width: 2,
-                  height: genConditions.length * 16.0,
-                  decoration: BoxDecoration(
-                    gradient: KinrelGradients.timelineGradient,
-                    borderRadius: BorderRadius.circular(1),
                   ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      genLabel,
+                      style: KinrelTypography.headlineSmall.copyWith(
+                        color: KinrelColors.textWhite,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: KinrelColors.darkElevated,
+                      borderRadius: BorderRadius.circular(KinrelRadius.full),
+                      border: Border.all(
+                        color: const Color(0xFF3A3A4A),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      '${genConditions.length}',
+                      style: KinrelTypography.micro.copyWith(
+                        color: KinrelColors.textSilver,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Container(
+                margin: const EdgeInsets.only(left: 15),
+                width: 2,
+                height: genConditions.length * 16.0,
+                decoration: BoxDecoration(
+                  gradient: KinrelGradients.timelineGradient,
+                  borderRadius: BorderRadius.circular(1),
                 ),
-                const SizedBox(height: 8),
-                // Conditions in this generation
-                ...genConditions.map(
-                  (condition) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10, left: 30),
+              ),
+              const SizedBox(height: 8),
+              ...genConditions.map(
+                (condition) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10, left: 30),
+                  child: GestureDetector(
+                    onTap: () => _showConditionDetailSheet(condition),
                     child: _GenerationConditionCard(condition: condition),
                   ),
                 ),
-                if (genIndex < sortedGens.length - 1)
-                  const SizedBox(height: 20),
-              ],
-            );
-          },
-          childCount: sortedGens.length,
+              ),
+              if (genIndex < sortedGens.length - 1) const SizedBox(height: 20),
+            ],
+          );
+        }, childCount: sortedGens.length),
+      ),
+    );
+  }
+
+  // ── Timeline View ───────────────────────────────────────────────────
+
+  Widget _buildTimelineView() {
+    final events = ref.watch(healthTimelineProvider);
+    if (events.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+          child: Center(
+            child: Text(
+              'No events to display',
+              style: KinrelTypography.bodyMedium.copyWith(
+                color: KinrelColors.textSilver,
+              ),
+            ),
+          ),
         ),
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final event = events[index];
+          return _HealthTimelineEventCard(event: event, index: index);
+        }, childCount: events.length),
       ),
     );
   }
@@ -491,7 +548,193 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
           top: Radius.circular(KinrelRadius.xxl),
         ),
       ),
-      builder: (context) => _AddConditionSheet(ref: ref),
+      builder: (context) => const _AddConditionSheet(),
+    );
+  }
+
+  // ── Condition Detail Bottom Sheet ───────────────────────────────────
+
+  void _showConditionDetailSheet(HealthCondition condition) {
+    final allConditions = ref.read(healthHeritageProvider).conditions;
+    final related = allConditions
+        .where((c) => condition.relatedConditions.contains(c.id))
+        .toList();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.xxl),
+        ),
+      ),
+      builder: (context) => _ConditionDetailSheet(
+        condition: condition,
+        relatedConditions: related,
+        allConditions: allConditions,
+      ),
+    );
+  }
+
+  // ── Genetic Risk Calculator Sheet ───────────────────────────────────
+
+  void _showGeneticRiskSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.xxl),
+        ),
+      ),
+      builder: (context) => const _GeneticRiskCalculatorSheet(),
+    );
+  }
+
+  // ── Export Report ───────────────────────────────────────────────────
+
+  void _showExportReport() {
+    final heritageState = ref.read(healthHeritageProvider);
+    final notifier = ref.read(healthHeritageProvider.notifier);
+    final report = notifier.generateHealthReport(
+      heritageState.conditions,
+      heritageState.summary,
+    );
+    Clipboard.setData(ClipboardData(text: report));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: KinrelColors.darkElevated,
+        content: Text(
+          'Health report copied to clipboard!',
+          style: KinrelTypography.bodyMedium.copyWith(
+            color: KinrelColors.textWhite,
+          ),
+        ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(KinrelRadius.md),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// View Mode Toggle
+// ═══════════════════════════════════════════════════════════════════════
+
+class _ViewModeToggle extends StatelessWidget {
+  const _ViewModeToggle({
+    required this.currentMode,
+    required this.onModeChanged,
+  });
+
+  final _ViewMode currentMode;
+  final ValueChanged<_ViewMode> onModeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(KinrelRadius.md),
+        border: Border.all(color: const Color(0xFF3A3A4A), width: 1),
+      ),
+      child: PopupMenuButton<_ViewMode>(
+        padding: EdgeInsets.zero,
+        offset: const Offset(0, 48),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(KinrelRadius.md),
+        ),
+        color: KinrelColors.darkElevated,
+        onSelected: onModeChanged,
+        itemBuilder: (context) => [
+          PopupMenuItem(
+            value: _ViewMode.list,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.list_rounded,
+                  size: 16,
+                  color: currentMode == _ViewMode.list
+                      ? KinrelColors.orange
+                      : KinrelColors.textSilver,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'List',
+                  style: KinrelTypography.bodySmall.copyWith(
+                    color: currentMode == _ViewMode.list
+                        ? KinrelColors.orange
+                        : KinrelColors.textWhite,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: _ViewMode.tree,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.account_tree_rounded,
+                  size: 16,
+                  color: currentMode == _ViewMode.tree
+                      ? KinrelColors.orange
+                      : KinrelColors.textSilver,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Tree',
+                  style: KinrelTypography.bodySmall.copyWith(
+                    color: currentMode == _ViewMode.tree
+                        ? KinrelColors.orange
+                        : KinrelColors.textWhite,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: _ViewMode.timeline,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.timeline_rounded,
+                  size: 16,
+                  color: currentMode == _ViewMode.timeline
+                      ? KinrelColors.orange
+                      : KinrelColors.textSilver,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Timeline',
+                  style: KinrelTypography.bodySmall.copyWith(
+                    color: currentMode == _ViewMode.timeline
+                        ? KinrelColors.orange
+                        : KinrelColors.textWhite,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        child: Center(
+          child: Icon(
+            currentMode == _ViewMode.list
+                ? Icons.list_rounded
+                : currentMode == _ViewMode.tree
+                ? Icons.account_tree_rounded
+                : Icons.timeline_rounded,
+            color: KinrelColors.orange,
+            size: 20,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -501,10 +744,7 @@ class _HealthHeritageScreenState extends ConsumerState<HealthHeritageScreen>
 // ═══════════════════════════════════════════════════════════════════════
 
 class _RiskScoreCard extends StatelessWidget {
-  const _RiskScoreCard({
-    required this.summary,
-    required this.animation,
-  });
+  const _RiskScoreCard({required this.summary, required this.animation});
 
   final FamilyHealthSummary? summary;
   final Animation<double> animation;
@@ -515,126 +755,125 @@ class _RiskScoreCard extends StatelessWidget {
     final riskPercent = (riskScore * 100).round();
     final riskLevel = summary?.riskLevelText ?? 'Low';
 
-    final animatedPercent =
-        Tween<double>(begin: 0, end: riskScore * 100).animate(
-      CurvedAnimation(
-        parent: animation,
-        curve: const Interval(0.2, 0.8, curve: Curves.easeOutCubic),
-      ),
-    );
+    final animatedPercent = Tween<double>(begin: 0, end: riskScore * 100)
+        .maybeAnimate(
+          CurvedAnimation(
+            parent: animation,
+            curve: const Interval(0.2, 0.8, curve: Curves.easeOutCubic),
+          ),
+        );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(KinrelRadius.lg),
-          border: Border.all(
-            color: KinrelColors.orange.withValues(alpha: 0.3),
-            width: 1.5,
-          ),
-          gradient: const LinearGradient(
-            colors: [
-              Color(0xFF1E1412),
-              KinrelColors.darkCard,
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: KinrelColors.orangeGlow,
-              blurRadius: 20,
-              offset: const Offset(0, 4),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(KinrelRadius.lg),
+              border: Border.all(
+                color: KinrelColors.orange.withValues(alpha: 0.3),
+                width: 1.5,
+              ),
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1E1412), KinrelColors.darkCard],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: KinrelColors.orangeGlow,
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Circular risk indicator
-            AnimatedBuilder(
-              animation: animatedPercent,
-              builder: (context, child) {
-                return _RiskRing(
-                  percentage: animatedPercent.value,
-                  size: 100,
-                  strokeWidth: 8,
-                );
-              },
-            ),
-            const SizedBox(width: 20),
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Family Risk Score',
-                    style: KinrelTypography.headlineSmall.copyWith(
-                      color: KinrelColors.textWhite,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$riskPercent% overall risk based on ${summary?.totalConditions ?? 0} conditions',
-                    style: KinrelTypography.bodySmall.copyWith(
-                      color: KinrelColors.textSilver,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  // Risk level badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _riskLevelColor(riskLevel)
-                          .withValues(alpha: 0.15),
-                      borderRadius:
-                          BorderRadius.circular(KinrelRadius.full),
-                      border: Border.all(
-                        color: _riskLevelColor(riskLevel)
-                            .withValues(alpha: 0.4),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _riskLevelIcon(riskLevel),
-                          size: 14,
-                          color: _riskLevelColor(riskLevel),
+            child: Row(
+              children: [
+                AnimatedBuilder(
+                  animation: animatedPercent,
+                  builder: (context, child) {
+                    return _RiskRing(
+                      percentage: animatedPercent.value,
+                      size: 100,
+                      strokeWidth: 8,
+                    );
+                  },
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Family Risk Score',
+                        style: KinrelTypography.headlineSmall.copyWith(
+                          color: KinrelColors.textWhite,
+                          fontWeight: FontWeight.w700,
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '$riskLevel Risk',
-                          style: KinrelTypography.labelSmall.copyWith(
-                            color: _riskLevelColor(riskLevel),
-                            fontWeight: FontWeight.w700,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$riskPercent% overall risk based on ${summary?.totalConditions ?? 0} conditions',
+                        style: KinrelTypography.bodySmall.copyWith(
+                          color: KinrelColors.textSilver,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _riskLevelColor(
+                            riskLevel,
+                          ).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(
+                            KinrelRadius.full,
+                          ),
+                          border: Border.all(
+                            color: _riskLevelColor(
+                              riskLevel,
+                            ).withValues(alpha: 0.4),
+                            width: 1,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (summary?.hereditaryConditions != null &&
-                      summary!.hereditaryConditions > 0)
-                    Text(
-                      '${summary!.hereditaryConditions} hereditary conditions detected',
-                      style: KinrelTypography.bodySmall.copyWith(
-                        color: KinrelColors.orange,
-                        fontWeight: FontWeight.w600,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _riskLevelIcon(riskLevel),
+                              size: 14,
+                              color: _riskLevelColor(riskLevel),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '$riskLevel Risk',
+                              style: KinrelTypography.labelSmall.copyWith(
+                                color: _riskLevelColor(riskLevel),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                ],
-              ),
+                      const SizedBox(height: 8),
+                      if (summary?.hereditaryConditions != null &&
+                          summary!.hereditaryConditions > 0)
+                        Text(
+                          '${summary!.hereditaryConditions} hereditary conditions detected',
+                          style: KinrelTypography.bodySmall.copyWith(
+                            color: KinrelColors.orange,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-    )
-        .animate(onPlay: (c) => c.forward())
+          ),
+        )
+        .maybeAnimate(onPlay: (c) => c.forward())
         .fadeIn(duration: KinrelMotion.normal)
         .slideY(begin: 0.1, end: 0, duration: KinrelMotion.normal);
   }
@@ -695,10 +934,7 @@ class _RiskRing extends StatelessWidget {
           percentage: percentage,
           strokeWidth: strokeWidth,
           backgroundColor: const Color(0xFF2A2A3D),
-          gradientColors: const [
-            KinrelColors.orange,
-            KinrelColors.amber,
-          ],
+          gradientColors: const [KinrelColors.orange, KinrelColors.amber],
         ),
         child: Center(
           child: Text(
@@ -735,7 +971,6 @@ class _RiskRingPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = (size.width - strokeWidth) / 2;
 
-    // Background track
     final bgPaint = Paint()
       ..color = backgroundColor
       ..style = PaintingStyle.stroke
@@ -743,7 +978,6 @@ class _RiskRingPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
     canvas.drawCircle(center, radius, bgPaint);
 
-    // Progress arc
     if (percentage > 0) {
       final sweepAngle = (percentage / 100) * 2 * math.pi;
       final startAngle = -math.pi / 2;
@@ -790,8 +1024,11 @@ class _InsightsSection extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
           child: Row(
             children: [
-              Icon(Icons.lightbulb_outline_rounded,
-                  size: 18, color: KinrelColors.orange),
+              Icon(
+                Icons.lightbulb_outline_rounded,
+                size: 18,
+                color: KinrelColors.orange,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Health Insights',
@@ -802,8 +1039,7 @@ class _InsightsSection extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   gradient: KinrelGradients.igniteGradient,
                   borderRadius: BorderRadius.circular(KinrelRadius.full),
@@ -820,7 +1056,7 @@ class _InsightsSection extends StatelessWidget {
           ),
         ),
         SizedBox(
-          height: 140,
+          height: 150,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -846,13 +1082,13 @@ class _InsightCard extends StatelessWidget {
   Color _accentColor() {
     switch (insight.type) {
       case InsightType.warning:
-        return const Color(0xFFEF4444); // red/orange
+        return const Color(0xFFEF4444);
       case InsightType.recommendation:
-        return const Color(0xFF22C55E); // green
+        return const Color(0xFF22C55E);
       case InsightType.pattern:
-        return const Color(0xFF3B82F6); // blue
+        return const Color(0xFF3B82F6);
       case InsightType.trend:
-        return const Color(0xFF8B5CF6); // purple
+        return const Color(0xFF8B5CF6);
     }
   }
 
@@ -860,60 +1096,84 @@ class _InsightCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final accent = _accentColor();
     return Container(
-      width: 260,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(
-          color: accent.withValues(alpha: 0.3),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+          width: 260,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkCard,
+            borderRadius: BorderRadius.circular(KinrelRadius.lg),
+            border: Border.all(color: accent.withValues(alpha: 0.3), width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(KinrelRadius.sm),
-                ),
-                child: Icon(insight.icon, size: 16, color: accent),
+              Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(KinrelRadius.sm),
+                    ),
+                    child: Icon(insight.icon, size: 16, color: accent),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      insight.title,
+                      style: KinrelTypography.labelMedium.copyWith(
+                        color: KinrelColors.textWhite,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
+              const SizedBox(height: 6),
               Expanded(
                 child: Text(
-                  insight.title,
-                  style: KinrelTypography.labelMedium.copyWith(
-                    color: KinrelColors.textWhite,
-                    fontWeight: FontWeight.w700,
+                  insight.description,
+                  style: KinrelTypography.bodySmall.copyWith(
+                    color: KinrelColors.textSilver,
+                    height: 1.3,
                   ),
-                  maxLines: 1,
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (insight.actionLabel != null) ...[
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(KinrelRadius.full),
+                      border: Border.all(
+                        color: accent.withValues(alpha: 0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      insight.actionLabel!,
+                      style: KinrelTypography.micro.copyWith(
+                        color: accent,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: Text(
-              insight.description,
-              style: KinrelTypography.bodySmall.copyWith(
-                color: KinrelColors.textSilver,
-                height: 1.4,
-              ),
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    )
-        .animate(onPlay: (c) => c.forward())
+        )
+        .maybeAnimate(onPlay: (c) => c.forward())
         .fadeIn(
           duration: KinrelMotion.normal,
           delay: Duration(milliseconds: index * 80),
@@ -923,6 +1183,202 @@ class _InsightCard extends StatelessWidget {
           end: 0,
           duration: KinrelMotion.normal,
           delay: Duration(milliseconds: index * 80),
+        );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Inheritance Pattern Section
+// ═══════════════════════════════════════════════════════════════════════
+
+class _InheritancePatternSection extends StatelessWidget {
+  const _InheritancePatternSection({required this.patterns});
+
+  final List<InheritancePattern> patterns;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+          child: Row(
+            children: [
+              Icon(
+                Icons.account_tree_rounded,
+                size: 18,
+                color: KinrelColors.orange,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Inheritance Patterns',
+                style: KinrelTypography.headlineSmall.copyWith(
+                  color: KinrelColors.textWhite,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 130,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: patterns.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              return _InheritancePatternCard(
+                pattern: patterns[index],
+                index: index,
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InheritancePatternCard extends StatelessWidget {
+  const _InheritancePatternCard({required this.pattern, required this.index});
+
+  final InheritancePattern pattern;
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    final catColor = categoryColor(pattern.category);
+    final genLabels = ['GGP', 'GP', 'P', 'CG'];
+
+    return Container(
+          width: 240,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkCard,
+            borderRadius: BorderRadius.circular(KinrelRadius.lg),
+            border: Border.all(
+              color: catColor.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: catColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(KinrelRadius.sm),
+                    ),
+                    child: Icon(
+                      categoryIcon(pattern.category),
+                      size: 14,
+                      color: catColor,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      pattern.conditionName,
+                      style: KinrelTypography.labelMedium.copyWith(
+                        color: KinrelColors.textWhite,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Inheritance path: row of dots per generation
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(4, (genIndex) {
+                  final gen = genIndex + 1;
+                  final hasCondition = pattern.affectedMembers.containsKey(gen);
+                  final affected = pattern.affectedMembers[gen] ?? [];
+
+                  return Column(
+                    children: [
+                      // Dot
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: hasCondition
+                              ? KinrelColors.orange.withValues(alpha: 0.2)
+                              : const Color(0xFF2A2A3D),
+                          border: Border.all(
+                            color: hasCondition
+                                ? KinrelColors.orange
+                                : const Color(0xFF3A3A4A),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Center(
+                          child: hasCondition
+                              ? Icon(
+                                  Icons.circle,
+                                  size: 8,
+                                  color: KinrelColors.orange,
+                                )
+                              : affected.isEmpty
+                              ? Text(
+                                  '?',
+                                  style: KinrelTypography.micro.copyWith(
+                                    color: KinrelColors.textDim,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        genLabels[genIndex],
+                        style: KinrelTypography.micro.copyWith(
+                          color: hasCondition
+                              ? KinrelColors.orange
+                              : KinrelColors.textDim,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (hasCondition && affected.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            affected.first.split(' ').first,
+                            style: KinrelTypography.micro.copyWith(
+                              color: KinrelColors.textSilver,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                  );
+                }),
+              ),
+            ],
+          ),
+        )
+        .maybeAnimate(onPlay: (c) => c.forward())
+        .fadeIn(
+          duration: KinrelMotion.normal,
+          delay: Duration(milliseconds: index * 60),
+        )
+        .slideX(
+          begin: 0.15,
+          end: 0,
+          duration: KinrelMotion.normal,
+          delay: Duration(milliseconds: index * 60),
         );
   }
 }
@@ -953,8 +1409,11 @@ class _CategoryBreakdown extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
           child: Row(
             children: [
-              Icon(Icons.category_rounded,
-                  size: 18, color: KinrelColors.orange),
+              Icon(
+                Icons.category_rounded,
+                size: 18,
+                color: KinrelColors.orange,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Categories',
@@ -1014,68 +1473,68 @@ class _CategoryCard extends StatelessWidget {
     final label = categoryLabel(category);
 
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 80,
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? color.withValues(alpha: 0.15)
-              : KinrelColors.darkCard,
-          borderRadius: BorderRadius.circular(KinrelRadius.md),
-          border: Border.all(
-            color: isSelected
-                ? color.withValues(alpha: 0.5)
-                : const Color(0xFF3A3A4A),
-            width: isSelected ? 1.5 : 1,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.2),
-                    blurRadius: 12,
+          onTap: onTap,
+          child: Container(
+            width: 80,
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? color.withValues(alpha: 0.15)
+                  : KinrelColors.darkCard,
+              borderRadius: BorderRadius.circular(KinrelRadius.md),
+              border: Border.all(
+                color: isSelected
+                    ? color.withValues(alpha: 0.5)
+                    : const Color(0xFF3A3A4A),
+                width: isSelected ? 1.5 : 1,
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.2),
+                        blurRadius: 12,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
                   ),
-                ]
-              : null,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 16, color: color),
+                  child: Icon(icon, size: 16, color: color),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: isSelected ? color : KinrelColors.textWhite,
+                    height: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: KinrelTypography.micro.copyWith(
+                    color: isSelected ? color : KinrelColors.textDim,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              '$count',
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: isSelected ? color : KinrelColors.textWhite,
-                height: 1.0,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: KinrelTypography.micro.copyWith(
-                color: isSelected ? color : KinrelColors.textDim,
-              ),
-            ),
-          ],
-        ),
-      ),
-    )
-        .animate(onPlay: (c) => c.forward())
+          ),
+        )
+        .maybeAnimate(onPlay: (c) => c.forward())
         .fadeIn(
           duration: KinrelMotion.normal,
           delay: Duration(milliseconds: index * 50),
@@ -1091,205 +1550,214 @@ class _ConditionCard extends StatelessWidget {
   const _ConditionCard({
     required this.condition,
     required this.animDelay,
+    this.onTap,
   });
 
   final HealthCondition condition;
   final double animDelay;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final catColor = condition.categoryColorValue;
     final sevColor = condition.severityColorValue;
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(
-          color: condition.isHereditary
-              ? KinrelColors.orange.withValues(alpha: 0.2)
-              : const Color(0xFF2A2A3D),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          // Person avatar
-          DKAvatar(
-            initials: condition.diagnosedPersonName
-                .split(' ')
-                .map((n) => n.isNotEmpty ? n[0] : '')
-                .take(2)
-                .join(),
-            size: DKAvatarSize.sm,
-            borderColor: condition.isHereditary
-                ? KinrelColors.orange.withValues(alpha: 0.6)
-                : null,
-          ),
-          const SizedBox(width: 12),
-          // Info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: KinrelColors.darkCard,
+              borderRadius: BorderRadius.circular(KinrelRadius.lg),
+              border: Border.all(
+                color: condition.isHereditary
+                    ? KinrelColors.orange.withValues(alpha: 0.2)
+                    : const Color(0xFF2A2A3D),
+                width: 1,
+              ),
+            ),
+            child: Row(
               children: [
-                // Condition name + badges
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        condition.name,
-                        style: KinrelTypography.labelLarge.copyWith(
-                          color: KinrelColors.textWhite,
-                          fontWeight: FontWeight.w600,
+                DKAvatar(
+                  initials: condition.diagnosedPersonName
+                      .split(' ')
+                      .map((n) => n.isNotEmpty ? n[0] : '')
+                      .take(2)
+                      .join(),
+                  size: DKAvatarSize.sm,
+                  borderColor: condition.isHereditary
+                      ? KinrelColors.orange.withValues(alpha: 0.6)
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              condition.name,
+                              style: KinrelTypography.labelLarge.copyWith(
+                                color: KinrelColors.textWhite,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (condition.isHereditary)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: Icon(
+                                Icons.biotech_rounded,
+                                size: 14,
+                                color: KinrelColors.orange,
+                              ),
+                            ),
+                          if (condition.isPrivate)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: Icon(
+                                Icons.lock_outline_rounded,
+                                size: 12,
+                                color: KinrelColors.textDim,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        condition.diagnosedPersonName,
+                        style: KinrelTypography.bodySmall.copyWith(
+                          color: KinrelColors.textSilver,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    if (condition.isHereditary)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 6),
-                        child: Icon(
-                          Icons.biotech_rounded,
-                          size: 14,
-                          color: KinrelColors.orange,
-                        ),
-                      ),
-                    if (condition.isPrivate)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4),
-                        child: Icon(
-                          Icons.lock_outline_rounded,
-                          size: 12,
-                          color: KinrelColors.textDim,
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                // Person name
-                Text(
-                  condition.diagnosedPersonName,
-                  style: KinrelTypography.bodySmall.copyWith(
-                    color: KinrelColors.textSilver,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                // Badges row
-                Row(
-                  children: [
-                    // Category badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: catColor.withValues(alpha: 0.15),
-                        borderRadius:
-                            BorderRadius.circular(KinrelRadius.full),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(condition.icon, size: 10, color: catColor),
-                          const SizedBox(width: 3),
-                          Text(
-                            condition.categoryLabelValue,
-                            style: KinrelTypography.micro.copyWith(
-                              color: catColor,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    // Severity dot + label
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: sevColor.withValues(alpha: 0.12),
-                        borderRadius:
-                            BorderRadius.circular(KinrelRadius.full),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                      const SizedBox(height: 6),
+                      Row(
                         children: [
                           Container(
-                            width: 6,
-                            height: 6,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
-                              color: sevColor,
-                              shape: BoxShape.circle,
+                              color: catColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(
+                                KinrelRadius.full,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(condition.icon, size: 10, color: catColor),
+                                const SizedBox(width: 3),
+                                Text(
+                                  condition.categoryLabelValue,
+                                  style: KinrelTypography.micro.copyWith(
+                                    color: catColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            condition.severityLabelValue,
-                            style: KinrelTypography.micro.copyWith(
-                              color: sevColor,
-                              fontWeight: FontWeight.w600,
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: sevColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(
+                                KinrelRadius.full,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    color: sevColor,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  condition.severityLabelValue,
+                                  style: KinrelTypography.micro.copyWith(
+                                    color: sevColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (condition.ageOfOnset != null) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: KinrelColors.darkElevated,
+                                borderRadius: BorderRadius.circular(
+                                  KinrelRadius.full,
+                                ),
+                                border: Border.all(
+                                  color: const Color(0xFF3A3A4A),
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Text(
+                                'Age ${condition.ageOfOnset}',
+                                style: KinrelTypography.micro.copyWith(
+                                  color: KinrelColors.textSilver,
+                                ),
+                              ),
+                            ),
+                          ],
+                          const Spacer(),
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              color: KinrelColors.orange.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: KinrelColors.orange.withValues(
+                                  alpha: 0.3,
+                                ),
+                                width: 1,
+                              ),
+                            ),
+                            child: Center(
+                              child: Text(
+                                '${condition.generation}',
+                                style: KinrelTypography.micro.copyWith(
+                                  color: KinrelColors.orange,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    if (condition.ageOfOnset != null) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: KinrelColors.darkElevated,
-                          borderRadius:
-                              BorderRadius.circular(KinrelRadius.full),
-                          border: Border.all(
-                              color: const Color(0xFF3A3A4A), width: 0.5),
-                        ),
-                        child: Text(
-                          'Age ${condition.ageOfOnset}',
-                          style: KinrelTypography.micro.copyWith(
-                            color: KinrelColors.textSilver,
-                          ),
-                        ),
-                      ),
                     ],
-                    const Spacer(),
-                    // Generation indicator
-                    Container(
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        color: KinrelColors.orange.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color:
-                              KinrelColors.orange.withValues(alpha: 0.3),
-                          width: 1,
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '${condition.generation}',
-                          style: KinrelTypography.micro.copyWith(
-                            color: KinrelColors.orange,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    )
-        .animate(onPlay: (c) => c.forward())
+        )
+        .maybeAnimate(onPlay: (c) => c.forward())
         .fadeIn(
           duration: KinrelMotion.normal,
           delay: Duration(milliseconds: (animDelay * 1000).round()),
@@ -1331,17 +1799,12 @@ class _GenerationConditionCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Severity dot
           Container(
             width: 8,
             height: 8,
-            decoration: BoxDecoration(
-              color: sevColor,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: sevColor, shape: BoxShape.circle),
           ),
           const SizedBox(width: 10),
-          // Category icon
           Container(
             width: 24,
             height: 24,
@@ -1403,28 +1866,1052 @@ class _GenerationConditionCard extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Add Condition Bottom Sheet
+// Health Timeline Event Card
 // ═══════════════════════════════════════════════════════════════════════
 
-class _AddConditionSheet extends StatefulWidget {
-  const _AddConditionSheet({required this.ref});
+class _HealthTimelineEventCard extends StatelessWidget {
+  const _HealthTimelineEventCard({required this.event, required this.index});
 
-  final WidgetRef ref;
+  final HealthTimelineEvent event;
+  final int index;
 
   @override
-  State<_AddConditionSheet> createState() => _AddConditionSheetState();
+  Widget build(BuildContext context) {
+    final c = event.condition;
+    final catColor = c.categoryColorValue;
+    final sevColor = c.severityColorValue;
+
+    return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Timeline column
+              SizedBox(
+                width: 40,
+                child: Column(
+                  children: [
+                    Container(
+                      width: 14,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: catColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: catColor.withValues(alpha: 0.5),
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        width: 2,
+                        color: const Color(0xFF3A3A4A),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Event content
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: KinrelColors.darkCard,
+                    borderRadius: BorderRadius.circular(KinrelRadius.lg),
+                    border: Border.all(
+                      color: c.isHereditary
+                          ? KinrelColors.orange.withValues(alpha: 0.2)
+                          : const Color(0xFF2A2A3D),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: catColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(
+                                KinrelRadius.xs,
+                              ),
+                            ),
+                            child: Icon(c.icon, size: 12, color: catColor),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              c.name,
+                              style: KinrelTypography.labelSmall.copyWith(
+                                color: KinrelColors.textWhite,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          if (c.isHereditary)
+                            Icon(
+                              Icons.biotech_rounded,
+                              size: 12,
+                              color: KinrelColors.orange,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          DKAvatar(
+                            initials: c.diagnosedPersonName
+                                .split(' ')
+                                .map((n) => n.isNotEmpty ? n[0] : '')
+                                .take(2)
+                                .join(),
+                            size: DKAvatarSize.sm,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  c.diagnosedPersonName,
+                                  style: KinrelTypography.bodySmall.copyWith(
+                                    color: KinrelColors.textWhite,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  'Gen ${c.generation}${c.ageOfOnset != null ? " · Age ${c.ageOfOnset}" : ""}',
+                                  style: KinrelTypography.micro.copyWith(
+                                    color: KinrelColors.textSilver,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: sevColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(
+                                KinrelRadius.full,
+                              ),
+                            ),
+                            child: Text(
+                              c.severityLabelValue,
+                              style: KinrelTypography.micro.copyWith(
+                                color: sevColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        )
+        .maybeAnimate(onPlay: (c) => c.forward())
+        .fadeIn(
+          duration: KinrelMotion.normal,
+          delay: Duration(milliseconds: index * 50),
+        )
+        .slideX(
+          begin: 0.1,
+          end: 0,
+          duration: KinrelMotion.normal,
+          delay: Duration(milliseconds: index * 50),
+        );
+  }
 }
 
-class _AddConditionSheetState extends State<_AddConditionSheet> {
+// ═══════════════════════════════════════════════════════════════════════
+// Condition Detail Sheet
+// ═══════════════════════════════════════════════════════════════════════
+
+class _ConditionDetailSheet extends StatelessWidget {
+  const _ConditionDetailSheet({
+    required this.condition,
+    required this.relatedConditions,
+    required this.allConditions,
+  });
+
+  final HealthCondition condition;
+  final List<HealthCondition> relatedConditions;
+  final List<HealthCondition> allConditions;
+
+  @override
+  Widget build(BuildContext context) {
+    final catColor = condition.categoryColorValue;
+    final sevColor = condition.severityColorValue;
+
+    // Affected family members with same condition
+    final sameConditionMembers = allConditions
+        .where((c) => c.name == condition.name && c.id != condition.id)
+        .toList();
+
+    // Recommended screenings
+    final screenings = <String>[];
+    if (condition.isHereditary) {
+      screenings.add('Genetic counseling');
+      screenings.add('Family screening for ${condition.name}');
+    }
+    if (condition.category == HealthCategory.cardiovascular) {
+      screenings.add('Lipid profile');
+      screenings.add('ECG / Echo');
+    }
+    if (condition.category == HealthCategory.diabetes) {
+      screenings.add('HbA1c test');
+      screenings.add('Glucose tolerance test');
+    }
+    if (condition.category == HealthCategory.cancer) {
+      screenings.add('BRCA genetic test');
+      screenings.add('Regular mammography / screening');
+    }
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3A3A4A),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            // Header
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: catColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(KinrelRadius.md),
+                    border: Border.all(color: catColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Icon(condition.icon, color: catColor, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    condition.name,
+                    style: KinrelTypography.headlineMedium.copyWith(
+                      color: KinrelColors.textWhite,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Info badges
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _DetailBadge(
+                  label: condition.categoryLabelValue,
+                  color: catColor,
+                ),
+                _DetailBadge(
+                  label: condition.severityLabelValue,
+                  color: sevColor,
+                ),
+                if (condition.ageOfOnset != null)
+                  _DetailBadge(
+                    label: 'Age ${condition.ageOfOnset}',
+                    color: KinrelColors.amber,
+                  ),
+                if (condition.isHereditary)
+                  _DetailBadge(label: 'Hereditary', color: KinrelColors.orange),
+                if (condition.isPrivate)
+                  _DetailBadge(label: 'Private', color: KinrelColors.textDim),
+                _DetailBadge(
+                  label: 'Gen ${condition.generation}',
+                  color: KinrelColors.orange,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Person
+            Row(
+              children: [
+                DKAvatar(
+                  initials: condition.diagnosedPersonName
+                      .split(' ')
+                      .map((n) => n.isNotEmpty ? n[0] : '')
+                      .take(2)
+                      .join(),
+                  size: DKAvatarSize.sm,
+                  borderColor: condition.isHereditary
+                      ? KinrelColors.orange.withValues(alpha: 0.6)
+                      : null,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  condition.diagnosedPersonName,
+                  style: KinrelTypography.labelLarge.copyWith(
+                    color: KinrelColors.textWhite,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Notes
+            if (condition.notes != null && condition.notes!.isNotEmpty) ...[
+              Text(
+                'Notes',
+                style: KinrelTypography.labelMedium.copyWith(
+                  color: KinrelColors.textSilver,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: KinrelColors.darkElevated,
+                  borderRadius: BorderRadius.circular(KinrelRadius.md),
+                  border: Border.all(color: const Color(0xFF3A3A4A), width: 1),
+                ),
+                child: Text(
+                  condition.notes!,
+                  style: KinrelTypography.bodySmall.copyWith(
+                    color: KinrelColors.textWhite,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Affected family members
+            if (sameConditionMembers.isNotEmpty) ...[
+              Text(
+                'Other Affected Members',
+                style: KinrelTypography.labelMedium.copyWith(
+                  color: KinrelColors.textSilver,
+                ),
+              ),
+              const SizedBox(height: 6),
+              ...sameConditionMembers.map(
+                (c) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    children: [
+                      DKAvatar(
+                        initials: c.diagnosedPersonName
+                            .split(' ')
+                            .map((n) => n.isNotEmpty ? n[0] : '')
+                            .take(2)
+                            .join(),
+                        size: DKAvatarSize.sm,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${c.diagnosedPersonName} (Gen ${c.generation})',
+                        style: KinrelTypography.bodySmall.copyWith(
+                          color: KinrelColors.textWhite,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (c.ageOfOnset != null)
+                        Text(
+                          'Age ${c.ageOfOnset}',
+                          style: KinrelTypography.micro.copyWith(
+                            color: KinrelColors.textSilver,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Related conditions
+            if (relatedConditions.isNotEmpty) ...[
+              Text(
+                'Related Conditions',
+                style: KinrelTypography.labelMedium.copyWith(
+                  color: KinrelColors.textSilver,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: relatedConditions
+                    .map(
+                      (rc) => Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: rc.categoryColorValue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(
+                            KinrelRadius.full,
+                          ),
+                          border: Border.all(
+                            color: rc.categoryColorValue.withValues(alpha: 0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              rc.icon,
+                              size: 12,
+                              color: rc.categoryColorValue,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              rc.name,
+                              style: KinrelTypography.micro.copyWith(
+                                color: rc.categoryColorValue,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Recommended screenings
+            if (screenings.isNotEmpty) ...[
+              Text(
+                'Recommended Screenings',
+                style: KinrelTypography.labelMedium.copyWith(
+                  color: KinrelColors.textSilver,
+                ),
+              ),
+              const SizedBox(height: 6),
+              ...screenings.map(
+                (s) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.check_circle_outline_rounded,
+                        size: 14,
+                        color: const Color(0xFF22C55E),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        s,
+                        style: KinrelTypography.bodySmall.copyWith(
+                          color: KinrelColors.textWhite,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailBadge extends StatelessWidget {
+  const _DetailBadge({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(KinrelRadius.full),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
+      ),
+      child: Text(
+        label,
+        style: KinrelTypography.micro.copyWith(
+          color: color,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Genetic Risk Calculator Sheet
+// ═══════════════════════════════════════════════════════════════════════
+
+class _GeneticRiskCalculatorSheet extends ConsumerStatefulWidget {
+  const _GeneticRiskCalculatorSheet();
+
+  @override
+  ConsumerState<_GeneticRiskCalculatorSheet> createState() =>
+      _GeneticRiskCalculatorSheetState();
+}
+
+class _GeneticRiskCalculatorSheetState
+    extends ConsumerState<_GeneticRiskCalculatorSheet> {
+  String? _person1Id;
+  String? _person2Id;
+  GeneticRiskAssessment? _assessment;
+
+  @override
+  Widget build(BuildContext context) {
+    final members = ref.watch(uniqueFamilyMembersProvider);
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3A3A4A),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            // Title
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    gradient: KinrelGradients.igniteGradient,
+                    borderRadius: BorderRadius.circular(KinrelRadius.sm),
+                  ),
+                  child: const Icon(
+                    Icons.science_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Genetic Risk Calculator',
+                  style: KinrelTypography.headlineMedium.copyWith(
+                    color: KinrelColors.textWhite,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Person 1
+            Text(
+              'First Family Member',
+              style: KinrelTypography.labelMedium.copyWith(
+                color: KinrelColors.textSilver,
+              ),
+            ),
+            const SizedBox(height: 6),
+            _MemberDropdown(
+              members: members,
+              selectedId: _person1Id,
+              hint: 'Select member...',
+              onChanged: (id) => setState(() {
+                _person1Id = id;
+                _assessment = null;
+              }),
+            ),
+            const SizedBox(height: 14),
+
+            // Person 2
+            Text(
+              'Second Family Member',
+              style: KinrelTypography.labelMedium.copyWith(
+                color: KinrelColors.textSilver,
+              ),
+            ),
+            const SizedBox(height: 6),
+            _MemberDropdown(
+              members: members,
+              selectedId: _person2Id,
+              hint: 'Select member...',
+              onChanged: (id) => setState(() {
+                _person2Id = id;
+                _assessment = null;
+              }),
+            ),
+            const SizedBox(height: 16),
+
+            // Calculate button
+            SizedBox(
+              width: double.infinity,
+              child: GestureDetector(
+                onTap:
+                    _person1Id != null &&
+                        _person2Id != null &&
+                        _person1Id != _person2Id
+                    ? _calculate
+                    : null,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    gradient:
+                        _person1Id != null &&
+                            _person2Id != null &&
+                            _person1Id != _person2Id
+                        ? KinrelGradients.igniteGradient
+                        : LinearGradient(
+                            colors: [
+                              KinrelColors.darkElevated,
+                              KinrelColors.darkElevated,
+                            ],
+                          ),
+                    borderRadius: BorderRadius.circular(KinrelRadius.md),
+                  ),
+                  child: Center(
+                    child: Text(
+                      'Calculate Risk',
+                      style: KinrelTypography.labelLarge.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Results
+            if (_assessment != null) ...[
+              const SizedBox(height: 20),
+              _buildResults(),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResults() {
+    final a = _assessment!;
+    final riskColor = a.riskLevel == 'Low'
+        ? const Color(0xFF22C55E)
+        : a.riskLevel == 'Moderate'
+        ? const Color(0xFFF59E0B)
+        : a.riskLevel == 'High'
+        ? const Color(0xFFF97316)
+        : const Color(0xFFEF4444);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Overall risk
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: riskColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(KinrelRadius.lg),
+            border: Border.all(color: riskColor.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            children: [
+              Text(
+                '${a.overallRiskPercent.toStringAsFixed(1)}%',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 36,
+                  fontWeight: FontWeight.w800,
+                  color: riskColor,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${a.riskLevel} Risk for Children',
+                style: KinrelTypography.labelMedium.copyWith(
+                  color: riskColor,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Estimated risk for children of ${a.person1Name} & ${a.person2Name}',
+                style: KinrelTypography.bodySmall.copyWith(
+                  color: KinrelColors.textSilver,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Carrier alerts
+        if (a.carrierAlerts.isNotEmpty) ...[
+          Text(
+            '⚠️ Carrier Alerts',
+            style: KinrelTypography.labelMedium.copyWith(
+              color: const Color(0xFFEF4444),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          ...a.carrierAlerts.map(
+            (alert) => Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(KinrelRadius.md),
+                border: Border.all(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.2),
+                ),
+              ),
+              child: Text(
+                alert,
+                style: KinrelTypography.bodySmall.copyWith(
+                  color: const Color(0xFFEF4444),
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // Potential conditions
+        if (a.potentialConditions.isNotEmpty) ...[
+          Text(
+            'Conditions That Could Be Passed On',
+            style: KinrelTypography.labelMedium.copyWith(
+              color: KinrelColors.textSilver,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          ...a.potentialConditions.map(
+            (pc) => Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: KinrelColors.darkElevated,
+                borderRadius: BorderRadius.circular(KinrelRadius.md),
+                border: Border.all(color: const Color(0xFF3A3A4A)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          pc.conditionName,
+                          style: KinrelTypography.labelSmall.copyWith(
+                            color: KinrelColors.textWhite,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          '${pc.inheritanceMode} · From: ${pc.fromPerson}',
+                          style: KinrelTypography.micro.copyWith(
+                            color: KinrelColors.textDim,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: severityColor(pc.severity).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(KinrelRadius.full),
+                    ),
+                    child: Text(
+                      '${pc.riskPercent.toStringAsFixed(0)}%',
+                      style: KinrelTypography.micro.copyWith(
+                        color: severityColor(pc.severity),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // Recommendations
+        if (a.recommendations.isNotEmpty) ...[
+          Text(
+            'Recommendations',
+            style: KinrelTypography.labelMedium.copyWith(
+              color: KinrelColors.textSilver,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          ...a.recommendations.map(
+            (r) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.arrow_right_rounded,
+                    size: 16,
+                    color: KinrelColors.orange,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      r,
+                      style: KinrelTypography.bodySmall.copyWith(
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _calculate() {
+    if (_person1Id == null || _person2Id == null) return;
+    final notifier = ref.read(healthHeritageProvider.notifier);
+    final conditions = ref.read(healthHeritageProvider).conditions;
+    final assessment = notifier.calculateGeneticRisk(
+      conditions,
+      _person1Id!,
+      _person2Id!,
+    );
+    setState(() => _assessment = assessment);
+  }
+}
+
+class _MemberDropdown extends StatelessWidget {
+  const _MemberDropdown({
+    required this.members,
+    required this.selectedId,
+    required this.hint,
+    required this.onChanged,
+  });
+
+  final List<FamilyMember> members;
+  final String? selectedId;
+  final String hint;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = members.cast<FamilyMember?>().firstWhere(
+      (m) => m?.id == selectedId,
+      orElse: () => null,
+    );
+
+    return GestureDetector(
+      onTap: () => _showPicker(context),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: KinrelColors.darkElevated,
+          borderRadius: BorderRadius.circular(KinrelRadius.md),
+          border: Border.all(color: const Color(0xFF3A3A4A)),
+        ),
+        child: Row(
+          children: [
+            if (selected != null)
+              DKAvatar(
+                initials: selected.name
+                    .split(' ')
+                    .map((n) => n.isNotEmpty ? n[0] : '')
+                    .take(2)
+                    .join(),
+                size: DKAvatarSize.sm,
+              )
+            else
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: KinrelColors.darkCard,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFF3A3A4A)),
+                ),
+                child: Icon(
+                  Icons.person_outline_rounded,
+                  size: 16,
+                  color: KinrelColors.textDim,
+                ),
+              ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                selected?.name ?? hint,
+                style: KinrelTypography.bodyMedium.copyWith(
+                  color: selected != null
+                      ? KinrelColors.textWhite
+                      : KinrelColors.textDim,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.arrow_drop_down_rounded,
+              color: KinrelColors.textSilver,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkElevated,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.xxl),
+        ),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF3A3A4A),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ...members.map(
+              (m) => ListTile(
+                leading: DKAvatar(
+                  initials: m.name
+                      .split(' ')
+                      .map((n) => n.isNotEmpty ? n[0] : '')
+                      .take(2)
+                      .join(),
+                  size: DKAvatarSize.sm,
+                ),
+                title: Text(
+                  m.name,
+                  style: KinrelTypography.bodyMedium.copyWith(
+                    color: m.id == selectedId
+                        ? KinrelColors.orange
+                        : KinrelColors.textWhite,
+                  ),
+                ),
+                subtitle: Text(
+                  '${m.generationLabel} · ${m.conditionCount} conditions',
+                  style: KinrelTypography.bodySmall.copyWith(
+                    color: KinrelColors.textSilver,
+                  ),
+                ),
+                trailing: m.id == selectedId
+                    ? Icon(
+                        Icons.check_circle,
+                        color: KinrelColors.orange,
+                        size: 20,
+                      )
+                    : null,
+                onTap: () {
+                  onChanged(m.id);
+                  Navigator.of(ctx).pop();
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Enhanced Add Condition Bottom Sheet
+// ═══════════════════════════════════════════════════════════════════════
+
+class _AddConditionSheet extends ConsumerStatefulWidget {
+  const _AddConditionSheet();
+
+  @override
+  ConsumerState<_AddConditionSheet> createState() => _AddConditionSheetState();
+}
+
+class _AddConditionSheetState extends ConsumerState<_AddConditionSheet> {
   final _nameController = TextEditingController();
   final _notesController = TextEditingController();
   final _ageController = TextEditingController();
+  final _personController = TextEditingController();
   HealthCategory _selectedCategory = HealthCategory.other;
   Severity _selectedSeverity = Severity.moderate;
   bool _isHereditary = false;
   bool _isPrivate = false;
-  String _selectedPersonName = '';
-  final _personController = TextEditingController();
+  String? _selectedPersonId;
+  int _autoGeneration = 4;
+  List<String> _suggestions = [];
 
   static const _commonConditions = [
     'Type 2 Diabetes',
@@ -1453,8 +2940,6 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
     'Parkinson\'s Disease',
   ];
 
-  List<String> _suggestions = [];
-
   void _updateSuggestions(String query) {
     if (query.isEmpty) {
       setState(() => _suggestions = []);
@@ -1468,10 +2953,34 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
     });
   }
 
+  void _onPersonSelected(String name, String? personId) {
+    setState(() {
+      _personController.text = name;
+      _selectedPersonId = personId;
+    });
+    if (personId != null) {
+      // Auto-detect generation
+      final conditions = ref.read(healthHeritageProvider).conditions;
+      final existing = conditions.cast<HealthCondition?>().firstWhere(
+        (c) => c?.diagnosedPersonId == personId,
+        orElse: () => null,
+      );
+      if (existing != null) {
+        setState(() => _autoGeneration = existing.generation);
+      }
+    }
+  }
+
   void _submit() {
     if (_nameController.text.isEmpty || _personController.text.isEmpty) {
       return;
     }
+
+    // Panchang Easter egg: check if today is Tuesday or Saturday
+    final now = DateTime.now();
+    final isAuspicious =
+        now.weekday == DateTime.tuesday || now.weekday == DateTime.saturday;
+    final panchangNote = isAuspicious ? ' [Added on an auspicious day 🙏]' : '';
 
     final condition = HealthCondition(
       id: 'hc_${DateTime.now().millisecondsSinceEpoch}',
@@ -1479,17 +2988,40 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
       category: _selectedCategory,
       severity: _selectedSeverity,
       isHereditary: _isHereditary,
-      notes: _notesController.text.isEmpty ? null : _notesController.text,
-      diagnosedPersonId: 'person_custom',
+      notes: _notesController.text.isEmpty
+          ? null
+          : _notesController.text + panchangNote,
+      diagnosedPersonId: _selectedPersonId ?? 'person_custom',
       diagnosedPersonName: _personController.text,
       familyId: 'sharma_family',
-      ageOfOnset:
-          _ageController.text.isEmpty ? null : int.tryParse(_ageController.text),
+      ageOfOnset: _ageController.text.isEmpty
+          ? null
+          : int.tryParse(_ageController.text),
       isPrivate: _isPrivate,
-      generation: 4,
+      generation: _autoGeneration,
     );
 
-    widget.ref.read(healthHeritageProvider.notifier).addCondition(condition);
+    ref.read(healthHeritageProvider.notifier).addCondition(condition);
+
+    // Show panchang warning as Easter egg
+    if (isAuspicious) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: KinrelColors.darkElevated,
+          content: Text(
+            '🙏 Added on an auspicious day! May good health prevail.',
+            style: KinrelTypography.bodyMedium.copyWith(
+              color: KinrelColors.orange,
+            ),
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(KinrelRadius.md),
+          ),
+        ),
+      );
+    }
+
     Navigator.of(context).pop();
   }
 
@@ -1504,6 +3036,8 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final members = ref.watch(uniqueFamilyMembersProvider);
+
     return Padding(
       padding: EdgeInsets.only(
         left: 20,
@@ -1538,7 +3072,7 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
             ),
             const SizedBox(height: 20),
 
-            // Person name
+            // Person selector with link to family members
             Text(
               'Family Member',
               style: KinrelTypography.labelMedium.copyWith(
@@ -1546,10 +3080,21 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
               ),
             ),
             const SizedBox(height: 6),
-            _SheetTextField(
+            _PersonSelectorField(
               controller: _personController,
-              hint: 'e.g., Arjun Sharma',
+              members: members,
+              onSelected: _onPersonSelected,
             ),
+            if (_selectedPersonId != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Auto-detected: Generation $_autoGeneration',
+                  style: KinrelTypography.micro.copyWith(
+                    color: KinrelColors.orange,
+                  ),
+                ),
+              ),
             const SizedBox(height: 16),
 
             // Condition name with autocomplete
@@ -1571,8 +3116,7 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
                 decoration: BoxDecoration(
                   color: KinrelColors.darkElevated,
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  border: Border.all(
-                      color: const Color(0xFF3A3A4A), width: 1),
+                  border: Border.all(color: const Color(0xFF3A3A4A), width: 1),
                 ),
                 child: Column(
                   children: _suggestions.map((s) {
@@ -1587,7 +3131,6 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
                       onTap: () {
                         _nameController.text = s;
                         setState(() => _suggestions = []);
-                        // Auto-select category based on condition
                         _autoSelectCategory(s);
                       },
                     );
@@ -1604,7 +3147,7 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
                 color: KinrelColors.textSilver,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(width: 6),
             _CategorySelector(
               selected: _selectedCategory,
               onSelect: (cat) => setState(() => _selectedCategory = cat),
@@ -1640,30 +3183,63 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
             ),
             const SizedBox(height: 16),
 
-            // Toggles row
+            // Hereditary toggle with explanation
             Row(
               children: [
-                // Hereditary toggle
                 Expanded(
                   child: _ToggleChip(
                     label: 'Hereditary',
                     icon: Icons.biotech_rounded,
-                    value: _isHereditary,
-                    onChanged: (v) => setState(() => _isHereditary = v),
+                    isActive: _isHereditary,
+                    onTap: () => setState(() => _isHereditary = !_isHereditary),
                   ),
                 ),
-                const SizedBox(width: 12),
-                // Privacy toggle
+                const SizedBox(width: 10),
                 Expanded(
                   child: _ToggleChip(
                     label: 'Private',
                     icon: Icons.lock_outline_rounded,
-                    value: _isPrivate,
-                    onChanged: (v) => setState(() => _isPrivate = v),
+                    isActive: _isPrivate,
+                    onTap: () => setState(() => _isPrivate = !_isPrivate),
                   ),
                 ),
               ],
             ),
+            if (_isHereditary)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: KinrelColors.orange.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(KinrelRadius.md),
+                    border: Border.all(
+                      color: KinrelColors.orange.withValues(alpha: 0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 14,
+                        color: KinrelColors.orange,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Marking as hereditary will include this condition in genetic risk calculations and inheritance pattern visualizations.',
+                          style: KinrelTypography.bodySmall.copyWith(
+                            color: KinrelColors.orange.withValues(alpha: 0.8),
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             const SizedBox(height: 16),
 
             // Notes
@@ -1677,17 +3253,39 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
             _SheetTextField(
               controller: _notesController,
               hint: 'Additional details...',
-              maxLines: 2,
+              maxLines: 3,
             ),
             const SizedBox(height: 20),
 
             // Submit button
-            DKButton(
-              label: 'Add Condition',
-              variant: DKButtonVariant.gradient,
-              icon: Icons.add_rounded,
-              fullWidth: true,
-              onPressed: _submit,
+            SizedBox(
+              width: double.infinity,
+              child: GestureDetector(
+                onTap: _submit,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    gradient: KinrelGradients.igniteGradient,
+                    borderRadius: BorderRadius.circular(KinrelRadius.md),
+                    boxShadow: [
+                      BoxShadow(
+                        color: KinrelColors.orangeGlow,
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      'Add Condition',
+                      style: KinrelTypography.labelLarge.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -1696,41 +3294,138 @@ class _AddConditionSheetState extends State<_AddConditionSheet> {
   }
 
   void _autoSelectCategory(String conditionName) {
-    final lower = conditionName.toLowerCase();
-    if (lower.contains('diabetes')) {
+    final name = conditionName.toLowerCase();
+    if (name.contains('diabetes')) {
       setState(() => _selectedCategory = HealthCategory.diabetes);
-    } else if (lower.contains('hypertension') || lower.contains('blood pressure') || lower.contains('coronary') || lower.contains('heart')) {
+    } else if (name.contains('hypertension') ||
+        name.contains('coronary') ||
+        name.contains('heart')) {
       setState(() => _selectedCategory = HealthCategory.cardiovascular);
-    } else if (lower.contains('cancer') || lower.contains('brca')) {
+    } else if (name.contains('cancer') || name.contains('brca')) {
       setState(() => _selectedCategory = HealthCategory.cancer);
-    } else if (lower.contains('asthma') || lower.contains('respiratory')) {
+    } else if (name.contains('asthma') || name.contains('copd')) {
       setState(() => _selectedCategory = HealthCategory.respiratory);
-    } else if (lower.contains('alzheimer') || lower.contains('dementia') || lower.contains('parkinson') || lower.contains('epilepsy')) {
-      setState(() => _selectedCategory = HealthCategory.neurological);
-    } else if (lower.contains('thyroid') || lower.contains('lupus') || lower.contains('arthritis') || lower.contains('celiac')) {
-      setState(() => _selectedCategory = HealthCategory.autoimmune);
-    } else if (lower.contains('depression') || lower.contains('anxiety')) {
-      setState(() => _selectedCategory = HealthCategory.mental_health);
-    } else if (lower.contains('thalassemia') || lower.contains('sickle') || lower.contains('genetic')) {
+    } else if (name.contains('thalassemia') ||
+        name.contains('sickle') ||
+        name.contains('color blind')) {
       setState(() => _selectedCategory = HealthCategory.genetic);
-    } else if (lower.contains('allergy')) {
-      setState(() => _selectedCategory = HealthCategory.allergy);
-    } else if (lower.contains('glaucoma') || lower.contains('color blind') || lower.contains('eye')) {
-      setState(() => _selectedCategory = HealthCategory.eye);
-    } else if (lower.contains('osteoporosis') || lower.contains('bone')) {
-      setState(() => _selectedCategory = HealthCategory.bone);
-    } else if (lower.contains('kidney')) {
-      setState(() => _selectedCategory = HealthCategory.kidney);
-    } else if (lower.contains('liver') || lower.contains('cirrhosis')) {
-      setState(() => _selectedCategory = HealthCategory.liver);
-    } else if (lower.contains('migraine')) {
+    } else if (name.contains('thyroid')) {
+      setState(() => _selectedCategory = HealthCategory.autoimmune);
+    } else if (name.contains('depression') || name.contains('anxiety')) {
+      setState(() => _selectedCategory = HealthCategory.mentalHealth);
+    } else if (name.contains('alzheimer') ||
+        name.contains('parkinson') ||
+        name.contains('epilepsy')) {
       setState(() => _selectedCategory = HealthCategory.neurological);
+    } else if (name.contains('glaucoma') || name.contains('cataract')) {
+      setState(() => _selectedCategory = HealthCategory.eye);
+    } else if (name.contains('kidney')) {
+      setState(() => _selectedCategory = HealthCategory.kidney);
+    } else if (name.contains('liver') || name.contains('cirrhosis')) {
+      setState(() => _selectedCategory = HealthCategory.liver);
+    } else if (name.contains('osteoporosis') || name.contains('arthritis')) {
+      setState(() => _selectedCategory = HealthCategory.bone);
     }
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Sheet Text Field
+// Person Selector Field
+// ═══════════════════════════════════════════════════════════════════════
+
+class _PersonSelectorField extends StatelessWidget {
+  const _PersonSelectorField({
+    required this.controller,
+    required this.members,
+    required this.onSelected,
+  });
+
+  final TextEditingController controller;
+  final List<FamilyMember> members;
+  final void Function(String name, String? personId) onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _showMemberPicker(context),
+      child: AbsorbPointer(
+        child: _SheetTextField(
+          controller: controller,
+          hint: 'Select family member or type name...',
+          suffixIcon: Icons.people_outline_rounded,
+        ),
+      ),
+    );
+  }
+
+  void _showMemberPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkElevated,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.xxl),
+        ),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF3A3A4A),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Text(
+              'Select Family Member',
+              style: KinrelTypography.headlineSmall.copyWith(
+                color: KinrelColors.textWhite,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...members.map(
+              (m) => ListTile(
+                leading: DKAvatar(
+                  initials: m.name
+                      .split(' ')
+                      .map((n) => n.isNotEmpty ? n[0] : '')
+                      .take(2)
+                      .join(),
+                  size: DKAvatarSize.sm,
+                ),
+                title: Text(
+                  m.name,
+                  style: KinrelTypography.bodyMedium.copyWith(
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                subtitle: Text(
+                  '${m.generationLabel} · ${m.conditionCount} conditions',
+                  style: KinrelTypography.bodySmall.copyWith(
+                    color: KinrelColors.textSilver,
+                  ),
+                ),
+                onTap: () {
+                  onSelected(m.name, m.id);
+                  Navigator.of(ctx).pop();
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Shared Sheet Widgets
 // ═══════════════════════════════════════════════════════════════════════
 
 class _SheetTextField extends StatelessWidget {
@@ -1738,121 +3433,122 @@ class _SheetTextField extends StatelessWidget {
     required this.controller,
     required this.hint,
     this.onChanged,
-    this.maxLines = 1,
     this.keyboardType,
+    this.maxLines = 1,
+    this.suffixIcon,
   });
 
   final TextEditingController controller;
   final String hint;
   final ValueChanged<String>? onChanged;
-  final int maxLines;
   final TextInputType? keyboardType;
+  final int maxLines;
+  final IconData? suffixIcon;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
       onChanged: onChanged,
-      maxLines: maxLines,
       keyboardType: keyboardType,
-      style: TextStyle(
-        fontFamily: KinrelTypography.bodyFont,
-        fontSize: 14,
+      maxLines: maxLines,
+      style: KinrelTypography.bodyMedium.copyWith(
         color: KinrelColors.textWhite,
       ),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(
-          fontFamily: KinrelTypography.bodyFont,
-          fontSize: 14,
+        hintStyle: KinrelTypography.bodyMedium.copyWith(
           color: KinrelColors.textDim,
         ),
         filled: true,
         fillColor: KinrelColors.darkElevated,
         contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14, vertical: 12),
+          horizontal: 14,
+          vertical: 12,
+        ),
         border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(KinrelRadius.md),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(KinrelRadius.md),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(KinrelRadius.md),
           borderSide: BorderSide(
-              color: KinrelColors.orange.withValues(alpha: 0.5), width: 1.5),
+            color: KinrelColors.orange.withValues(alpha: 0.5),
+            width: 1.5,
+          ),
         ),
+        suffixIcon: suffixIcon != null
+            ? Icon(suffixIcon, color: KinrelColors.textDim, size: 18)
+            : null,
       ),
     );
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Category Selector
-// ═══════════════════════════════════════════════════════════════════════
-
 class _CategorySelector extends StatelessWidget {
-  const _CategorySelector({
-    required this.selected,
-    required this.onSelect,
-  });
+  const _CategorySelector({required this.selected, required this.onSelect});
 
   final HealthCategory selected;
   final ValueChanged<HealthCategory> onSelect;
 
+  static const _cats = HealthCategory.values;
+
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: HealthCategory.values.map((cat) {
-        final isSelected = cat == selected;
-        final color = categoryColor(cat);
-        return GestureDetector(
-          onTap: () => onSelect(cat),
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 8, vertical: 5),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? color.withValues(alpha: 0.2)
-                  : KinrelColors.darkElevated,
-              borderRadius: BorderRadius.circular(KinrelRadius.full),
-              border: Border.all(
+    return SizedBox(
+      height: 40,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _cats.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (context, index) {
+          final cat = _cats[index];
+          final color = categoryColor(cat);
+          final isSelected = selected == cat;
+          return GestureDetector(
+            onTap: () => onSelect(cat),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
                 color: isSelected
-                    ? color.withValues(alpha: 0.5)
-                    : const Color(0xFF3A3A4A),
-                width: 1,
+                    ? color.withValues(alpha: 0.15)
+                    : KinrelColors.darkElevated,
+                borderRadius: BorderRadius.circular(KinrelRadius.full),
+                border: Border.all(
+                  color: isSelected
+                      ? color.withValues(alpha: 0.5)
+                      : const Color(0xFF3A3A4A),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(categoryIcon(cat), size: 12, color: color),
+                  const SizedBox(width: 4),
+                  Text(
+                    categoryLabel(cat),
+                    style: KinrelTypography.micro.copyWith(
+                      color: isSelected ? color : KinrelColors.textSilver,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(categoryIcon(cat), size: 12, color: color),
-                const SizedBox(width: 4),
-                Text(
-                  categoryLabel(cat),
-                  style: KinrelTypography.micro.copyWith(
-                    color: isSelected ? color : KinrelColors.textDim,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
+          );
+        },
+      ),
     );
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Severity Selector
-// ═══════════════════════════════════════════════════════════════════════
-
 class _SeveritySelector extends StatelessWidget {
-  const _SeveritySelector({
-    required this.selected,
-    required this.onSelect,
-  });
+  const _SeveritySelector({required this.selected, required this.onSelect});
 
   final Severity selected;
   final ValueChanged<Severity> onSelect;
@@ -1861,8 +3557,8 @@ class _SeveritySelector extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: Severity.values.map((sev) {
-        final isSelected = sev == selected;
         final color = severityColor(sev);
+        final isSelected = selected == sev;
         return Expanded(
           child: GestureDetector(
             onTap: () => onSelect(sev),
@@ -1871,7 +3567,7 @@ class _SeveritySelector extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 8),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? color.withValues(alpha: 0.2)
+                    ? color.withValues(alpha: 0.15)
                     : KinrelColors.darkElevated,
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
                 border: Border.all(
@@ -1882,27 +3578,12 @@ class _SeveritySelector extends StatelessWidget {
                 ),
               ),
               child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      severityLabel(sev),
-                      style: KinrelTypography.labelSmall.copyWith(
-                        color: isSelected ? color : KinrelColors.textDim,
-                        fontWeight:
-                            isSelected ? FontWeight.w700 : FontWeight.w500,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  severityLabel(sev),
+                  style: KinrelTypography.micro.copyWith(
+                    color: isSelected ? color : KinrelColors.textSilver,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -1913,36 +3594,32 @@ class _SeveritySelector extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Toggle Chip
-// ═══════════════════════════════════════════════════════════════════════
-
 class _ToggleChip extends StatelessWidget {
   const _ToggleChip({
     required this.label,
     required this.icon,
-    required this.value,
-    required this.onChanged,
+    required this.isActive,
+    required this.onTap,
   });
 
   final String label;
   final IconData icon;
-  final bool value;
-  final ValueChanged<bool> onChanged;
+  final bool isActive;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => onChanged(!value),
+      onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: value
-              ? KinrelColors.orange.withValues(alpha: 0.15)
+          color: isActive
+              ? KinrelColors.orange.withValues(alpha: 0.12)
               : KinrelColors.darkElevated,
           borderRadius: BorderRadius.circular(KinrelRadius.md),
           border: Border.all(
-            color: value
+            color: isActive
                 ? KinrelColors.orange.withValues(alpha: 0.4)
                 : const Color(0xFF3A3A4A),
             width: 1,
@@ -1951,15 +3628,17 @@ class _ToggleChip extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon,
-                size: 16,
-                color: value ? KinrelColors.orange : KinrelColors.textDim),
+            Icon(
+              icon,
+              size: 14,
+              color: isActive ? KinrelColors.orange : KinrelColors.textDim,
+            ),
             const SizedBox(width: 6),
             Text(
               label,
               style: KinrelTypography.labelSmall.copyWith(
-                color: value ? KinrelColors.orange : KinrelColors.textDim,
-                fontWeight: value ? FontWeight.w700 : FontWeight.w500,
+                color: isActive ? KinrelColors.orange : KinrelColors.textSilver,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],

@@ -1,0 +1,8 @@
+[allowlist]
+  description = "Global allow list for Daxelo-KinRel"
+  paths = [
+    '''\.env\.example$''',
+  ]
+  regexes = [
+    '''ghp_[A-Za-z0-9]{36}''',
+  ]

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -12,6 +14,7 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/storage/secure_storage.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../core/utils/device_tier.dart';
 
 // ── Design Tokens (matching profile_screen) ────────────────────────
 const Color _bg = Color(0xFF131416);
@@ -34,7 +37,8 @@ class SettingsScreen extends ConsumerStatefulWidget {
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen>
+    with AutomaticKeepAliveClientMixin {
   // ── Toggle Providers ───────────────────────────────────────────
   final _twoFactorProvider = StateProvider<bool>((ref) => false);
   final _pushNotifProvider = StateProvider<bool>((ref) => true);
@@ -44,7 +48,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _biometricLockProvider = StateProvider<bool>((ref) => false);
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context); // Required by AutomaticKeepAliveClientMixin
     final fontScale = ref.watch(fontScaleProvider);
     final selectedLanguage = ref.watch(selectedLanguageProvider);
     final themeMode = ref.watch(themeModeProvider);
@@ -79,7 +87,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             _SettingsRow(
               icon: Icons.link_outlined,
               label: 'Linked accounts',
-              subtitle: 'Google, Apple',
+              subtitle: 'Google',
               onTap: () {},
             ),
             _divider(),
@@ -110,8 +118,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ThemeMode.system: 'System',
               },
               value: themeMode,
-              onChanged: (v) =>
-                  ref.read(themeModeProvider.notifier).state = v,
+              onChanged: (v) => ref.read(themeModeProvider.notifier).state = v,
             ),
             _divider(),
             _SettingsRow(
@@ -119,16 +126,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               label: 'App language',
               subtitle:
                   '${selectedLanguage.nativeName} (${selectedLanguage.name})',
-              onTap: () =>
-                  _showLanguagePicker(context, ref, selectedLanguage),
+              onTap: () => _showLanguagePicker(context, ref, selectedLanguage),
             ),
             _divider(),
             _SettingsFontScaleRow(
               icon: Icons.text_fields,
               label: 'Font size',
               value: fontScale,
-              onChanged: (v) =>
-                  ref.read(fontScaleProvider.notifier).state = v,
+              onChanged: (v) => ref.read(fontScaleProvider.notifier).state = v,
             ),
           ]),
           const SizedBox(height: 24),
@@ -313,6 +318,108 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ]),
           const SizedBox(height: 16),
 
+          // ── Developer / Debug ──────────────────────────────────
+          if (kDebugMode) ...[
+            _buildSectionHeader('Developer'),
+            const SizedBox(height: 8),
+            _buildSectionCard([
+              _SettingsRow(
+                icon: Icons.bug_report,
+                label: 'Test Crash (Crashlytics)',
+                subtitle: 'Force a crash to verify reporting',
+                iconColor: KinrelColors.error,
+                labelColor: KinrelColors.error,
+                onTap: () {
+                  // Show confirmation before crashing the app
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      backgroundColor: _cardBg,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          KinrelRadius.dialog,
+                        ),
+                        side: const BorderSide(color: _borderSubtle),
+                      ),
+                      title: const Text(
+                        '⚠️ Force Crash?',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          color: KinrelColors.error,
+                        ),
+                      ),
+                      content: const Text(
+                        'This will crash the app immediately.\n\n'
+                        'After the crash:\n'
+                        '1. Reopen the app\n'
+                        '2. Wait 5 minutes\n'
+                        '3. Check Firebase Console → Crashlytics\n\n'
+                        'The crash report will appear in your dashboard.',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          color: _textPrimary,
+                          fontSize: 14,
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(color: _textDim),
+                          ),
+                        ),
+                        DKButton(
+                          label: 'Crash App',
+                          variant: DKButtonVariant.primary,
+                          size: DKButtonSize.sm,
+                          onPressed: () {
+                            FirebaseCrashlytics.instance.crash();
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              _divider(),
+              _SettingsRow(
+                icon: Icons.error_outline,
+                label: 'Test Non-Fatal Error',
+                subtitle: 'Log an error without crashing',
+                onTap: () {
+                  FirebaseCrashlytics.instance.recordError(
+                    'Test non-fatal error from Kinrel Settings',
+                    StackTrace.current,
+                    reason: 'Manual test from Developer settings',
+                  );
+                  context.showSnackBar(
+                    '✅ Non-fatal error logged — check Firebase Console',
+                  );
+                },
+              ),
+              _divider(),
+              _SettingsRow(
+                icon: Icons.message_outlined,
+                label: 'Test Custom Log',
+                subtitle: 'Add a log message to Crashlytics',
+                onTap: () {
+                  FirebaseCrashlytics.instance.log(
+                    '🧪 Test log from Kinrel Settings at ${DateTime.now()}',
+                  );
+                  FirebaseCrashlytics.instance.setCustomKey(
+                    'test_key',
+                    'test_value_${DateTime.now().millisecondsSinceEpoch}',
+                  );
+                  context.showSnackBar(
+                    '✅ Custom log + key sent to Crashlytics',
+                  );
+                },
+              ),
+            ]),
+            const SizedBox(height: 24),
+          ],
+
           // ── Footer ──────────────────────────────────────────────
           Center(
             child: Text(
@@ -369,9 +476,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           letterSpacing: 0.8,
         ),
       ),
-    )
-        .animate(onPlay: (c) => c.forward())
-        .fadeIn(duration: 300.ms);
+    ).maybeAnimate(onPlay: (c) => c.forward()).fadeIn(duration: 300.ms);
   }
 
   // ── Section Card ──────────────────────────────────────────────────
@@ -431,9 +536,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: isSelected
-                        ? _orange
-                        : KinrelColors.darkElevated,
+                    color: isSelected ? _orange : KinrelColors.darkElevated,
                     borderRadius: BorderRadius.circular(KinrelRadius.sm),
                   ),
                   child: Center(
@@ -443,9 +546,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: isSelected
-                            ? Colors.white
-                            : _textDim,
+                        color: isSelected ? Colors.white : _textDim,
                       ),
                     ),
                   ),
@@ -455,8 +556,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     color: isSelected ? _orange : _textPrimary,
-                    fontWeight:
-                        isSelected ? FontWeight.w600 : FontWeight.w400,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                   ),
                 ),
                 subtitle: Text(
@@ -481,10 +581,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: _textDim),
-            ),
+            child: const Text('Cancel', style: TextStyle(color: _textDim)),
           ),
         ],
       ),
@@ -534,10 +631,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: _textDim),
-            ),
+            child: const Text('Cancel', style: TextStyle(color: _textDim)),
           ),
           DKButton(
             label: 'Update',
@@ -821,8 +915,7 @@ class _SettingsSegmentedRow<T> extends StatelessWidget {
                                 fontWeight: isSelected
                                     ? FontWeight.w600
                                     : FontWeight.w400,
-                                color:
-                                    isSelected ? Colors.white : _textDim,
+                                color: isSelected ? Colors.white : _textDim,
                               ),
                             ),
                           ),
@@ -893,8 +986,7 @@ class _SettingsFontScaleRow extends StatelessWidget {
                             duration: const Duration(milliseconds: 200),
                             padding: const EdgeInsets.symmetric(vertical: 7),
                             decoration: BoxDecoration(
-                              color:
-                                  isSelected ? _orange : Colors.transparent,
+                              color: isSelected ? _orange : Colors.transparent,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -906,8 +998,7 @@ class _SettingsFontScaleRow extends StatelessWidget {
                                 fontWeight: isSelected
                                     ? FontWeight.w600
                                     : FontWeight.w400,
-                                color:
-                                    isSelected ? Colors.white : _textDim,
+                                color: isSelected ? Colors.white : _textDim,
                               ),
                             ),
                           ),
@@ -926,10 +1017,7 @@ class _SettingsFontScaleRow extends StatelessWidget {
 }
 
 class _SettingsDeleteRow extends StatelessWidget {
-  const _SettingsDeleteRow({
-    required this.label,
-    this.onTap,
-  });
+  const _SettingsDeleteRow({required this.label, this.onTap});
 
   final String label;
   final VoidCallback? onTap;
@@ -945,8 +1033,11 @@ class _SettingsDeleteRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
           child: Row(
             children: [
-              const Icon(Icons.delete_forever_outlined,
-                  color: KinrelColors.error, size: 20),
+              const Icon(
+                Icons.delete_forever_outlined,
+                color: KinrelColors.error,
+                size: 20,
+              ),
               const SizedBox(width: 14),
               Expanded(
                 child: Text(
@@ -959,11 +1050,7 @@ class _SettingsDeleteRow extends StatelessWidget {
                   ),
                 ),
               ),
-              const Icon(
-                Icons.chevron_right,
-                color: _chevronColor,
-                size: 20,
-              ),
+              const Icon(Icons.chevron_right, color: _chevronColor, size: 20),
             ],
           ),
         ),

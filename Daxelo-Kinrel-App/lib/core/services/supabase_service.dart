@@ -10,20 +10,25 @@ final _log = Logger(printer: PrettyPrinter(methodCount: 0));
 
 // Hardcoded fallback credentials (anon key is safe for client-side use)
 const String _hardcodedSupabaseUrl = 'https://promxswvsnvilplmrtsj.supabase.co';
-const String _hardcodedSupabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY';
+const String _hardcodedSupabaseAnonKey =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY';
 
 bool _supabaseInitialized = false;
 bool get isSupabaseInitialized => _supabaseInitialized;
 
 String _resolveSupabaseUrl() {
   final appConfigUrl = AppConfig.supabaseUrl;
-  if (appConfigUrl.isNotEmpty && appConfigUrl.startsWith('https://')) return appConfigUrl;
+  if (appConfigUrl.isNotEmpty && appConfigUrl.startsWith('https://')) {
+    return appConfigUrl;
+  }
   return _hardcodedSupabaseUrl;
 }
 
 String _resolveSupabaseAnonKey() {
   final appConfigKey = AppConfig.supabaseAnonKey;
-  if (appConfigKey.isNotEmpty && appConfigKey.startsWith('eyJ')) return appConfigKey;
+  if (appConfigKey.isNotEmpty && appConfigKey.startsWith('eyJ')) {
+    return appConfigKey;
+  }
   return _hardcodedSupabaseAnonKey;
 }
 
@@ -78,7 +83,9 @@ Future<bool> initSupabase() async {
   final anonKey = _resolveSupabaseAnonKey();
   _log.i('🔧 Initializing Supabase...');
   _log.i('   URL: $url');
-  _log.i('   Anon Key: ${anonKey.isNotEmpty ? "SET (length: ${anonKey.length})" : "EMPTY"}');
+  _log.i(
+    '   Anon Key: ${anonKey.isNotEmpty ? "SET (length: ${anonKey.length})" : "EMPTY"}',
+  );
 
   if (url.isEmpty || anonKey.isEmpty) {
     _log.e('❌ Supabase URL or Anon Key is empty!');
@@ -116,7 +123,9 @@ Future<bool> initSupabase() async {
       _log.i('✅ Supabase initialized successfully (attempt $attempts)');
       return true;
     } catch (e) {
-      _log.e('❌ Supabase initialization failed (attempt $attempts/$maxAttempts): $e');
+      _log.e(
+        '❌ Supabase initialization failed (attempt $attempts/$maxAttempts): $e',
+      );
       if (attempts < maxAttempts) {
         final delay = Duration(seconds: attempts * 5);
         _log.i('🔄 Retrying in ${delay.inSeconds}s...');
@@ -131,7 +140,8 @@ Future<bool> initSupabase() async {
 
 /// Retry helper with exponential backoff for cold starts.
 /// Supabase free tier can take 10-30+ seconds to wake from paused state.
-Future<T> withRetry<T>(Future<T> Function() fn, {
+Future<T> withRetry<T>(
+  Future<T> Function() fn, {
   int maxAttempts = 5,
   Duration initialDelay = const Duration(seconds: 3),
   String operationName = 'operation',
@@ -145,7 +155,8 @@ Future<T> withRetry<T>(Future<T> Function() fn, {
       return await fn();
     } catch (e) {
       final errStr = e.toString();
-      final isNetworkError = errStr.contains('SocketException') ||
+      final isNetworkError =
+          errStr.contains('SocketException') ||
           errStr.contains('Failed host lookup') ||
           errStr.contains('AuthRetryableFetchException') ||
           errStr.contains('Connection refused') ||
@@ -160,7 +171,9 @@ Future<T> withRetry<T>(Future<T> Function() fn, {
 
       if (!isNetworkError || attempt >= maxAttempts) rethrow;
 
-      _log.w('⚠️ $operationName attempt $attempt failed (network error), retrying in ${delay.inSeconds}s...');
+      _log.w(
+        '⚠️ $operationName attempt $attempt failed (network error), retrying in ${delay.inSeconds}s...',
+      );
       _log.w('   Error: $e');
       await Future.delayed(delay);
       delay = Duration(seconds: (delay.inSeconds * 1.5).round());
@@ -232,10 +245,7 @@ class AuthService {
       );
     }
     return withRetry(
-      () => client.auth.signInWithPassword(
-        email: email,
-        password: password,
-      ),
+      () => client.auth.signInWithPassword(email: email, password: password),
       operationName: 'Sign in',
     );
   }

@@ -25,4 +25,5 @@ final Map<String, String> languageNameToCode = {
 String? languageNameFromCode(String code) => languageCodeToName[code];
 
 /// Get locale code from language name
-String? languageCodeFromName(String name) => languageNameToCode[name.toLowerCase()];
+String? languageCodeFromName(String name) =>
+    languageNameToCode[name.toLowerCase()];

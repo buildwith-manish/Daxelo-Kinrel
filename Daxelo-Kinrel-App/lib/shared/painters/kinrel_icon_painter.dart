@@ -46,7 +46,6 @@ class _PaletteColors {
   final bool showBg;
   final bool showGlow;
   final bool isOutline;
-
 }
 
 _PaletteColors _resolvePalette(KinrelIconPalette palette) {
@@ -55,9 +54,9 @@ _PaletteColors _resolvePalette(KinrelIconPalette palette) {
       return const _PaletteColors(
         bg: KinrelColors.card,
         bgInner: Color(0xFF23263E),
-        primary: KinrelColors.orange,       // #E8612A — Kinrel Orange
-        secondary: KinrelColors.amber,      // #F59240 — Warm Amber
-        accent: KinrelColors.ember,         // #C44A18 — Burnt Ember
+        primary: KinrelColors.orange, // #E8612A — Kinrel Orange
+        secondary: KinrelColors.amber, // #F59240 — Warm Amber
+        accent: KinrelColors.ember, // #C44A18 — Burnt Ember
         showBg: true,
         showGlow: true,
         isOutline: false,
@@ -88,9 +87,9 @@ _PaletteColors _resolvePalette(KinrelIconPalette palette) {
       return const _PaletteColors(
         bg: Colors.transparent,
         bgInner: Colors.transparent,
-        primary: KinrelColors.orange,       // #E8612A
-        secondary: KinrelColors.amber,      // #F59240
-        accent: KinrelColors.ember,         // #C44A18
+        primary: KinrelColors.orange, // #E8612A
+        secondary: KinrelColors.amber, // #F59240
+        accent: KinrelColors.ember, // #C44A18
         showBg: false,
         showGlow: false,
         isOutline: true,
@@ -117,7 +116,6 @@ class KinrelIconPainter extends CustomPainter {
   final KinrelIconPalette palette;
   final bool animated;
   final double animationValue;
-
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -299,11 +297,7 @@ class KinrelIconPainter extends CustomPainter {
           dashGap: s * 0.03,
         );
       } else {
-        canvas.drawLine(
-          Offset(from.x, from.y),
-          Offset(to.x, to.y),
-          paint,
-        );
+        canvas.drawLine(Offset(from.x, from.y), Offset(to.x, to.y), paint);
       }
     }
 
@@ -406,10 +400,7 @@ class KinrelIconPainter extends CustomPainter {
 
       if (draw) {
         canvas.drawLine(
-          Offset(
-            start.dx + unitDx * covered,
-            start.dy + unitDy * covered,
-          ),
+          Offset(start.dx + unitDx * covered, start.dy + unitDy * covered),
           Offset(
             start.dx + unitDx * endCovered,
             start.dy + unitDy * endCovered,
@@ -433,8 +424,7 @@ class KinrelIconPainter extends CustomPainter {
     required double dashWidth,
     required double dashGap,
   }) {
-    final segmentAngle =
-        (dashWidth + dashGap) / radius; // angle per dash+gap
+    final segmentAngle = (dashWidth + dashGap) / radius; // angle per dash+gap
     final dashAngle = dashWidth / radius;
 
     double angle = 0;
@@ -466,7 +456,6 @@ class _Node {
   final double y;
   final double r;
   final Color color;
-
 }
 
 class _Edge {
@@ -477,5 +466,4 @@ class _Edge {
   final Color color;
   final double width;
   final bool dashed;
-
 }

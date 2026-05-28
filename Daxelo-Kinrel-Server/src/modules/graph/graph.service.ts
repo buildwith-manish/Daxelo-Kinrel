@@ -321,7 +321,7 @@ export class GraphService {
       personMap.set(person.id, {
         id: person.id,
         name: person.name,
-        relationship: person.relationship,
+        relationship: null,
         dateOfBirth: person.dateOfBirth,
         isDeceased: person.isDeceased,
         privacyLevel: person.privacyLevel,
@@ -341,9 +341,9 @@ export class GraphService {
 
       for (const rel of person.relationshipsFrom) {
         if (rel.toPerson?.deletedAt) continue;
-        if (rel.type === 'spouse') {
+        if (rel.relationshipKey === 'spouse') {
           entry.spouseId = rel.toPersonId;
-        } else if (['father', 'mother', 'parent'].includes(rel.type)) {
+        } else if (['father', 'mother', 'parent'].includes(rel.relationshipKey)) {
           // person is parent of toPerson
           const childEntry = personMap.get(rel.toPersonId);
           if (childEntry) {
@@ -354,9 +354,9 @@ export class GraphService {
 
       for (const rel of person.relationshipsTo) {
         if (rel.fromPerson?.deletedAt) continue;
-        if (rel.type === 'spouse') {
+        if (rel.relationshipKey === 'spouse') {
           entry.spouseId = rel.fromPersonId;
-        } else if (['child', 'son', 'daughter'].includes(rel.type)) {
+        } else if (['child', 'son', 'daughter'].includes(rel.relationshipKey)) {
           // fromPerson is child of person (person is parent)
           entry.childrenIds.push(rel.fromPersonId);
         }
@@ -517,7 +517,7 @@ export class GraphService {
       adjacency.get(rel.fromPersonId)!.push({
         personId: rel.toPersonId,
         relationshipId: rel.id,
-        type: rel.type,
+        type: rel.relationshipKey,
         direction: 'from',
       });
 
@@ -525,7 +525,7 @@ export class GraphService {
       adjacency.get(rel.toPersonId)!.push({
         personId: rel.fromPersonId,
         relationshipId: rel.id,
-        type: inverseType(rel.type),
+        type: inverseType(rel.relationshipKey),
         direction: 'to',
       });
     }

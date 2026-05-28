@@ -62,8 +62,11 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
         leading: Padding(
           padding: const EdgeInsets.only(left: 8),
           child: IconButton(
-            icon: Icon(Icons.arrow_back_ios_new_rounded,
-                color: KinrelColors.textWhite, size: 20),
+            icon: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: KinrelColors.textWhite,
+              size: 20,
+            ),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),
@@ -97,9 +100,11 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.delete_outline_rounded,
-                color: KinrelColors.textSilver.withValues(alpha: 0.7),
-                size: 20),
+            icon: Icon(
+              Icons.delete_outline_rounded,
+              color: KinrelColors.textSilver.withValues(alpha: 0.7),
+              size: 20,
+            ),
             onPressed: () {
               ref.read(aiChatClearSessionProvider)();
             },
@@ -134,11 +139,13 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
           // ── Messages List ────────────────────────────────────────
           Expanded(
             child: messages.isEmpty
-                ? _EmptyState(onSuggestionTap: (suggestion) {
-                    _textController.text = suggestion;
-                    ref.read(aiChatSendMessageProvider)(suggestion);
-                    _scrollToBottom();
-                  })
+                ? _EmptyState(
+                    onSuggestionTap: (suggestion) {
+                      _textController.text = suggestion;
+                      ref.read(aiChatSendMessageProvider)(suggestion);
+                      _scrollToBottom();
+                    },
+                  )
                 : ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(
@@ -148,10 +155,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
                     itemCount: messages.length,
                     itemBuilder: (context, index) {
                       final msg = messages[index];
-                      return _ChatBubble(
-                        message: msg,
-                        isUser: msg.isUser,
-                      );
+                      return _ChatBubble(message: msg, isUser: msg.isUser);
                     },
                   ),
           ),
@@ -238,10 +242,12 @@ class _EmptyState extends ConsumerWidget {
                 alignment: WrapAlignment.center,
                 children: suggestions
                     .take(4)
-                    .map((s) => _SuggestionChip(
-                          text: s,
-                          onTap: () => onSuggestionTap(s),
-                        ))
+                    .map(
+                      (s) => _SuggestionChip(
+                        text: s,
+                        onTap: () => onSuggestionTap(s),
+                      ),
+                    )
                     .toList(),
               ),
               loading: () => SizedBox.shrink(),
@@ -257,14 +263,10 @@ class _EmptyState extends ConsumerWidget {
 // ── Suggestion Chips Row ─────────────────────────────────────────────
 
 class _SuggestionChips extends StatelessWidget {
-  const _SuggestionChips({
-    required this.suggestions,
-    required this.onTap,
-  });
+  const _SuggestionChips({required this.suggestions, required this.onTap});
 
   final List<String> suggestions;
   final void Function(String) onTap;
-
 
   @override
   Widget build(BuildContext context) {
@@ -293,7 +295,6 @@ class _SuggestionChip extends StatelessWidget {
   final String text;
   final VoidCallback onTap;
 
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -303,9 +304,7 @@ class _SuggestionChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: KinrelColors.darkCard,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: KinrelColors.purple.withValues(alpha: 0.3),
-          ),
+          border: Border.all(color: KinrelColors.purple.withValues(alpha: 0.3)),
         ),
         child: Text(
           text,
@@ -329,37 +328,28 @@ class _ChatBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isUser;
 
-
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(bottom: KinrelSpacing.md),
       child: Column(
-        crossAxisAlignment:
-            isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isUser
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           // Bubble
           Container(
             constraints: BoxConstraints(
               maxWidth: MediaQuery.of(context).size.width * 0.8,
             ),
-            padding: EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 12,
-            ),
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: isUser
-                  ? KinrelColors.purple
-                  : KinrelColors.darkCard,
+              color: isUser ? KinrelColors.purple : KinrelColors.darkCard,
               borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
-                bottomLeft: isUser
-                    ? Radius.circular(16)
-                    : Radius.circular(4),
-                bottomRight: isUser
-                    ? Radius.circular(4)
-                    : Radius.circular(16),
+                bottomLeft: isUser ? Radius.circular(16) : Radius.circular(4),
+                bottomRight: isUser ? Radius.circular(4) : Radius.circular(16),
               ),
               border: isUser
                   ? null
@@ -369,8 +359,7 @@ class _ChatBubble extends StatelessWidget {
               boxShadow: isUser
                   ? [
                       BoxShadow(
-                        color:
-                            KinrelColors.purple.withValues(alpha: 0.2),
+                        color: KinrelColors.purple.withValues(alpha: 0.2),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -423,14 +412,12 @@ class _ChatBubble extends StatelessWidget {
           ),
 
           // Kinship cards
-          if (message.kinshipData != null &&
-              message.kinshipData!.isNotEmpty)
-            ...message.kinshipData!.map(
-              (k) => _KinshipCard(data: k),
-            ),
+          if (message.kinshipData != null && message.kinshipData!.isNotEmpty)
+            ...message.kinshipData!.map((k) => _KinshipCard(data: k)),
 
           // Timestamp
-          Padding(padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
             child: Text(
               _formatTime(message.timestamp),
               style: const TextStyle(
@@ -459,7 +446,6 @@ class _KinshipCard extends StatelessWidget {
 
   final KinshipCardData data;
 
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -468,9 +454,7 @@ class _KinshipCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: KinrelColors.darkElevated,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: KinrelColors.amber.withValues(alpha: 0.25),
-        ),
+        border: Border.all(color: KinrelColors.amber.withValues(alpha: 0.25)),
         boxShadow: [
           BoxShadow(
             color: KinrelColors.amber.withValues(alpha: 0.06),
@@ -499,7 +483,7 @@ class _KinshipCard extends StatelessWidget {
               ),
               SizedBox(width: 10),
               Expanded(
-                child: Column (
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -524,14 +508,13 @@ class _KinshipCard extends StatelessWidget {
               ),
               // Gender badge
               Container(
-                padding:
-                    EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: data.gender == 'male'
                       ? KinrelColors.info.withValues(alpha: 0.12)
                       : data.gender == 'female'
-                          ? KinrelColors.holiPink.withValues(alpha: 0.12)
-                          : KinrelColors.amber.withValues(alpha: 0.12),
+                      ? KinrelColors.holiPink.withValues(alpha: 0.12)
+                      : KinrelColors.amber.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -543,8 +526,8 @@ class _KinshipCard extends StatelessWidget {
                     color: data.gender == 'male'
                         ? KinrelColors.info
                         : data.gender == 'female'
-                            ? KinrelColors.holiPink
-                            : KinrelColors.amber,
+                        ? KinrelColors.holiPink
+                        : KinrelColors.amber,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -557,10 +540,7 @@ class _KinshipCard extends StatelessWidget {
           // Lineage & Category row
           Row(
             children: [
-              _InfoBadge(
-                label: data.lineage,
-                color: KinrelColors.purple,
-              ),
+              _InfoBadge(label: data.lineage, color: KinrelColors.purple),
               SizedBox(width: 8),
               _InfoBadge(
                 label: data.relationshipCategory.replaceAll('_', ' '),
@@ -568,7 +548,7 @@ class _KinshipCard extends StatelessWidget {
               ),
             ],
           ),
-    // Translations
+          // Translations
           if (data.translations.isNotEmpty) ...[
             const SizedBox(height: 12),
             Text(
@@ -587,8 +567,7 @@ class _KinshipCard extends StatelessWidget {
               runSpacing: 6,
               children: data.translations.entries.take(4).map((entry) {
                 return Container(
-                  padding: EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 5),
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                   decoration: BoxDecoration(
                     color: KinrelColors.darkSurface.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(8),
@@ -596,7 +575,8 @@ class _KinshipCard extends StatelessWidget {
                       color: KinrelColors.darkSurface.withValues(alpha: 0.6),
                     ),
                   ),
-                  child: Row(mainAxisSize: MainAxisSize.min,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         entry.key.toUpperCase(),
@@ -606,7 +586,8 @@ class _KinshipCard extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                           color: KinrelColors.purple,
                           letterSpacing: 0.3,
-                        ),),
+                        ),
+                      ),
                       SizedBox(width: 6),
                       Text(
                         entry.value.native,
@@ -634,7 +615,6 @@ class _InfoBadge extends StatelessWidget {
 
   final String label;
   final Color color;
-
 
   @override
   Widget build(BuildContext context) {
@@ -696,10 +676,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 10,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               color: KinrelColors.darkCard,
               borderRadius: BorderRadius.circular(16),
@@ -722,9 +699,14 @@ class _TypingIndicatorState extends State<_TypingIndicator>
                     return Row(
                       mainAxisSize: MainAxisSize.min,
                       children: List.generate(3, (index) {
-                        final progress =
-                            (_controller.value * 3 - index) % 1.0;
-                        final scale = 0.5 + 0.5 * (1 - (progress - 0.5).abs() * 2).clamp(0.0, 1.0);
+                        final progress = (_controller.value * 3 - index) % 1.0;
+                        final scale =
+                            0.5 +
+                            0.5 *
+                                (1 - (progress - 0.5).abs() * 2).clamp(
+                                  0.0,
+                                  1.0,
+                                );
                         return Container(
                           margin: const EdgeInsets.symmetric(horizontal: 2),
                           child: Transform.scale(
@@ -734,8 +716,9 @@ class _TypingIndicatorState extends State<_TypingIndicator>
                               height: 6,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: KinrelColors.purple
-                                    .withValues(alpha: 0.4 + 0.6 * scale),
+                                color: KinrelColors.purple.withValues(
+                                  alpha: 0.4 + 0.6 * scale,
+                                ),
                               ),
                             ),
                           ),
@@ -767,7 +750,6 @@ class _InputBar extends StatelessWidget {
   final FocusNode focusNode;
   final VoidCallback onSend;
   final bool isLoading;
-
 
   @override
   Widget build(BuildContext context) {
@@ -834,17 +816,17 @@ class _InputBar extends StatelessWidget {
                   gradient: isLoading
                       ? null
                       : const LinearGradient(
-                          colors: [KinrelColors.purple, KinrelColors.brightViolet],
+                          colors: [
+                            KinrelColors.purple,
+                            KinrelColors.brightViolet,
+                          ],
                         ),
-                  color: isLoading
-                      ? KinrelColors.darkSurface
-                      : null,
+                  color: isLoading ? KinrelColors.darkSurface : null,
                   boxShadow: isLoading
                       ? null
                       : [
                           BoxShadow(
-                            color: KinrelColors.purple
-                                .withValues(alpha: 0.3),
+                            color: KinrelColors.purple.withValues(alpha: 0.3),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),

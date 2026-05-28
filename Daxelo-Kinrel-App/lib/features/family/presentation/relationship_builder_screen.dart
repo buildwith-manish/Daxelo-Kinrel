@@ -29,7 +29,6 @@ class RelationshipBuilderScreen extends ConsumerStatefulWidget {
   final String familyId;
   final String familyName;
 
-
   @override
   ConsumerState<RelationshipBuilderScreen> createState() =>
       _RelationshipBuilderScreenState();
@@ -122,10 +121,8 @@ class _RelationshipBuilderScreenState
 
           if (detail.members.isEmpty) {
             return _EmptyState(
-              onAddMember: () => AddPersonSheet.show(
-                context,
-                familyId: widget.familyId,
-              ),
+              onAddMember: () =>
+                  AddPersonSheet.show(context, familyId: widget.familyId),
             );
           }
 
@@ -133,10 +130,8 @@ class _RelationshipBuilderScreenState
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => AddPersonSheet.show(
-          context,
-          familyId: widget.familyId,
-        ),
+        onPressed: () =>
+            AddPersonSheet.show(context, familyId: widget.familyId),
         backgroundColor: KinrelColors.purple,
         child: Icon(Icons.person_add, color: Colors.white),
       ),
@@ -150,7 +145,9 @@ class _RelationshipBuilderScreenState
     // Build relationship map for each person
     final personRels = <String, List<String>>{};
     for (final rel in relationships) {
-      personRels.putIfAbsent(rel.fromPersonId, () => []).add(rel.relationshipKey);
+      personRels
+          .putIfAbsent(rel.fromPersonId, () => [])
+          .add(rel.relationshipKey);
       personRels.putIfAbsent(rel.toPersonId, () => []).add(rel.relationshipKey);
     }
 
@@ -213,9 +210,7 @@ class _RelationshipBuilderScreenState
       decoration: BoxDecoration(
         color: instructionColor.withValues(alpha: 0.08),
         border: Border(
-          bottom: BorderSide(
-            color: instructionColor.withValues(alpha: 0.2),
-          ),
+          bottom: BorderSide(color: instructionColor.withValues(alpha: 0.2)),
         ),
       ),
       child: Row(
@@ -235,16 +230,10 @@ class _RelationshipBuilderScreenState
           ),
           // Selection indicators
           if (_selectedPerson1Id != null)
-            _SelectionBadge(
-              label: '1st',
-              color: KinrelColors.purple,
-            ),
+            _SelectionBadge(label: '1st', color: KinrelColors.purple),
           if (_selectedPerson2Id != null) ...[
             SizedBox(width: 6),
-            _SelectionBadge(
-              label: '2nd',
-              color: KinrelColors.amber,
-            ),
+            _SelectionBadge(label: '2nd', color: KinrelColors.amber),
           ],
         ],
       ),
@@ -274,7 +263,11 @@ class _RelationshipBuilderScreenState
 
     final person1 = detail.members.firstWhere(
       (p) => p.id == _selectedPerson1Id,
-      orElse: () => person2,
+      orElse: () => Person(
+        id: _selectedPerson1Id ?? '',
+        familyId: widget.familyId,
+        name: 'Unknown',
+      ),
     );
 
     // Get existing relationship types for person1
@@ -377,20 +370,19 @@ class _PersonCard extends StatelessWidget {
   final Animation<double> glowAnimation;
   final VoidCallback onTap;
 
-
   @override
   Widget build(BuildContext context) {
     final borderColor = isSelected1
         ? KinrelColors.purple
         : isSelected2
-            ? KinrelColors.amber
-            : KinrelColors.darkSurface.withValues(alpha: 0.5);
+        ? KinrelColors.amber
+        : KinrelColors.darkSurface.withValues(alpha: 0.5);
 
     final bgColor = isSelected1
         ? KinrelColors.purple.withValues(alpha: 0.08)
         : isSelected2
-            ? KinrelColors.amber.withValues(alpha: 0.08)
-            : KinrelColors.darkCard;
+        ? KinrelColors.amber.withValues(alpha: 0.08)
+        : KinrelColors.darkCard;
 
     return AnimatedBuilder(
       animation: glowAnimation,
@@ -411,8 +403,9 @@ class _PersonCard extends StatelessWidget {
               boxShadow: isGlowing
                   ? [
                       BoxShadow(
-                        color: KinrelColors.purpleGlow
-                            .withValues(alpha: 0.3 + glowValue * 0.4),
+                        color: KinrelColors.purpleGlow.withValues(
+                          alpha: 0.3 + glowValue * 0.4,
+                        ),
                         blurRadius: 8 + glowValue * 16,
                         spreadRadius: glowValue * 4,
                       ),
@@ -444,23 +437,17 @@ class _PersonCard extends StatelessWidget {
                             ],
                           )
                         : isSelected1
-                            ? KinrelGradients.igniteGradient
-                            : isSelected2
-                                ? LinearGradient(
-                                    colors: [
-                                      KinrelColors.amber,
-                                      KinrelColors.purple,
-                                    ],
-                                  )
-                                : KinrelGradients.igniteGradient,
+                        ? KinrelGradients.igniteGradient
+                        : isSelected2
+                        ? LinearGradient(
+                            colors: [KinrelColors.amber, KinrelColors.purple],
+                          )
+                        : KinrelGradients.igniteGradient,
                     shape: BoxShape.circle,
                   ),
                   child: Center(
                     child: person.isDeceased
-                        ? Text(
-                            '🕊️',
-                            style: TextStyle(fontSize: 18),
-                          )
+                        ? Text('🕊️', style: TextStyle(fontSize: 18))
                         : Text(
                             person.name.isNotEmpty
                                 ? person.name[0].toUpperCase()
@@ -479,8 +466,7 @@ class _PersonCard extends StatelessWidget {
                 // Selection badge
                 if (isSelected1)
                   Container(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: KinrelColors.purple,
                       borderRadius: BorderRadius.circular(10),
@@ -497,8 +483,7 @@ class _PersonCard extends StatelessWidget {
                   )
                 else if (isSelected2)
                   Container(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: KinrelColors.amber,
                       borderRadius: BorderRadius.circular(10),
@@ -521,8 +506,8 @@ class _PersonCard extends StatelessWidget {
                   person.gender == 'female'
                       ? Icons.female
                       : person.gender == 'male'
-                          ? Icons.male
-                          : Icons.person,
+                      ? Icons.male
+                      : Icons.person,
                   size: 16,
                   color: KinrelColors.textDim,
                 ),
@@ -548,7 +533,8 @@ class _PersonCard extends StatelessWidget {
             // Relationship key
             if (person.gender != null) ...[
               SizedBox(height: 2),
-              Text(person.gender!.toUpperCase(),
+              Text(
+                person.gender!.toUpperCase(),
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
@@ -568,7 +554,9 @@ class _PersonCard extends StatelessWidget {
                 children: relationshipTags.take(3).map((tag) {
                   return Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: KinrelColors.darkSurface.withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(4),
@@ -597,7 +585,6 @@ class _SelectionBadge extends StatelessWidget {
   final String label;
   final Color color;
 
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -624,7 +611,6 @@ class _EmptyState extends StatelessWidget {
 
   final VoidCallback onAddMember;
 
-
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -643,11 +629,7 @@ class _EmptyState extends StatelessWidget {
                 width: 120,
                 height: 120,
                 child: Center(
-                  child: Icon(
-                    Icons.add,
-                    size: 40,
-                    color: KinrelColors.textDim,
-                  ),
+                  child: Icon(Icons.add, size: 40, color: KinrelColors.textDim),
                 ),
               ),
             ),
@@ -680,11 +662,9 @@ class _EmptyState extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: KinrelColors.purple,
                 foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 12),
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 shape: RoundedRectangleBorder(
-                  borderRadius:
-                      BorderRadius.circular(KinrelSpacing.radiusSm),
+                  borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
                 ),
               ),
             ),
@@ -700,7 +680,6 @@ class _ErrorState extends StatelessWidget {
 
   final String message;
   final VoidCallback onRetry;
-
 
   @override
   Widget build(BuildContext context) {
@@ -745,7 +724,6 @@ class _DottedCirclePainter extends CustomPainter {
   _DottedCirclePainter({required this.color});
 
   final Color color;
-
 
   @override
   void paint(Canvas canvas, Size size) {

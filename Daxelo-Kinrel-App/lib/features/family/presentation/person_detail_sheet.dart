@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -68,10 +69,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(
-      length: _tabLabels.length,
-      vsync: this,
-    );
+    _tabController = TabController(length: _tabLabels.length, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         setState(() {});
@@ -103,8 +101,10 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
     for (final rel in relationships) {
       if (rel.toPersonId == widget.person.id ||
           rel.fromPersonId == widget.person.id) {
-        final translation =
-            service.getKinshipTerm(rel.relationshipKey, 'hindi');
+        final translation = service.getKinshipTerm(
+          rel.relationshipKey,
+          'hindi',
+        );
         if (translation != null) {
           return translation.native;
         }
@@ -153,10 +153,12 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
     if (relationships == null) return 0;
 
     return relationships
-        .where((r) =>
-            (r.fromPersonId == widget.person.id ||
-                r.toPersonId == widget.person.id) &&
-            r.isActive)
+        .where(
+          (r) =>
+              (r.fromPersonId == widget.person.id ||
+                  r.toPersonId == widget.person.id) &&
+              r.isActive,
+        )
         .length;
   }
 
@@ -181,18 +183,24 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
 
       if (rel.fromPersonId == widget.person.id) {
         // This person is the source — look for the target
-        relatedPerson = members.where((m) => m.id == rel.toPersonId).firstOrNull;
+        relatedPerson = members
+            .where((m) => m.id == rel.toPersonId)
+            .firstOrNull;
       } else if (rel.toPersonId == widget.person.id) {
         // This person is the target — look for the source
-        relatedPerson = members.where((m) => m.id == rel.fromPersonId).firstOrNull;
+        relatedPerson = members
+            .where((m) => m.id == rel.fromPersonId)
+            .firstOrNull;
       }
 
       if (relatedPerson != null) {
         // Try to get native kinship term
         final service = widget.kinshipService;
         if (service != null && service.isLoaded) {
-          final translation =
-              service.getKinshipTerm(rel.relationshipKey, 'hindi');
+          final translation = service.getKinshipTerm(
+            rel.relationshipKey,
+            'hindi',
+          );
           if (translation != null) {
             kinshipLabel = translation.native;
           } else {
@@ -322,10 +330,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
             shape: BoxShape.circle,
             gradient: person.isDeceased
                 ? LinearGradient(
-                    colors: [
-                      KinrelColors.textDim,
-                      KinrelColors.darkSurface,
-                    ],
+                    colors: [KinrelColors.textDim, KinrelColors.darkSurface],
                   )
                 : KinrelGradients.igniteGradient,
           ),
@@ -337,10 +342,18 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
             ),
             child: person.photoUrl != null && person.photoUrl!.isNotEmpty
                 ? ClipOval(
-                    child: Image.network(
-                      person.photoUrl!,
+                    child: CachedNetworkImage(
+                      imageUrl: person.photoUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _buildInitials(person),
+                      memCacheWidth: 300,
+                      memCacheHeight: 300,
+                      fadeInDuration: const Duration(milliseconds: 150),
+                      imageBuilder: (ctx, img) => Image(
+                        image: img,
+                        semanticLabel: '${person.name}\'s photo',
+                      ),
+                      placeholder: (_, __) => _buildInitials(person),
+                      errorWidget: (_, __, ___) => _buildInitials(person),
                     ),
                   )
                 : _buildInitials(person),
@@ -396,8 +409,11 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.location_on_outlined,
-                  size: 14, color: KinrelColors.textDim), // #8A7A72
+              Icon(
+                Icons.location_on_outlined,
+                size: 14,
+                color: KinrelColors.textDim,
+              ), // #8A7A72
               SizedBox(width: 4),
               Text(
                 person.city!,
@@ -511,9 +527,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
         indicator: BoxDecoration(
           color: KinrelColors.orange.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
-          border: Border.all(
-            color: KinrelColors.orange.withValues(alpha: 0.3),
-          ),
+          border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.3)),
         ),
         indicatorSize: TabBarIndicatorSize.tab,
         indicatorPadding: EdgeInsets.all(3),
@@ -546,8 +560,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
             title: 'Personal Details',
             icon: Icons.person_outline,
             children: [
-              if (person.dateOfBirth != null &&
-                  person.dateOfBirth!.isNotEmpty)
+              if (person.dateOfBirth != null && person.dateOfBirth!.isNotEmpty)
                 _InfoRow(
                   icon: Icons.calendar_today_outlined,
                   label: 'Date of Birth',
@@ -784,8 +797,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                   side: BorderSide(color: KinrelColors.orange),
                   padding: EdgeInsets.symmetric(vertical: 10),
                   shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusSm),
+                    borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
                   ),
                   textStyle: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -813,11 +825,11 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                 style: OutlinedButton.styleFrom(
                   foregroundColor: KinrelColors.orange,
                   side: BorderSide(
-                      color: KinrelColors.orange.withValues(alpha: 0.5)),
+                    color: KinrelColors.orange.withValues(alpha: 0.5),
+                  ),
                   padding: EdgeInsets.symmetric(vertical: 10),
                   shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusSm),
+                    borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
                   ),
                   textStyle: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -844,10 +856,10 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                 padding: EdgeInsets.zero,
                 style: IconButton.styleFrom(
                   side: BorderSide(
-                      color: KinrelColors.orange.withValues(alpha: 0.5)),
+                    color: KinrelColors.orange.withValues(alpha: 0.5),
+                  ),
                   shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusSm),
+                    borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
                   ),
                 ),
               ),
@@ -869,10 +881,10 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                 padding: EdgeInsets.zero,
                 style: IconButton.styleFrom(
                   side: BorderSide(
-                      color: KinrelColors.textDim.withValues(alpha: 0.3)),
+                    color: KinrelColors.textDim.withValues(alpha: 0.3),
+                  ),
                   shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusSm),
+                    borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
                   ),
                 ),
               ),
@@ -898,8 +910,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                   foregroundColor: KinrelColors.textDim,
                   padding: EdgeInsets.symmetric(vertical: 8),
                   shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusSm),
+                    borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
                   ),
                   textStyle: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -919,8 +930,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                   foregroundColor: KinrelColors.error,
                   padding: EdgeInsets.symmetric(vertical: 8),
                   shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(KinrelSpacing.radiusSm),
+                    borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
                   ),
                   textStyle: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
@@ -1111,9 +1121,7 @@ class _StatCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: KinrelColors.darkCard, // #191B2C
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: KinrelColors.textDim.withValues(alpha: 0.06),
-        ),
+        border: Border.all(color: KinrelColors.textDim.withValues(alpha: 0.06)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1174,9 +1182,7 @@ class _InfoCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: KinrelColors.darkCard, // #191B2C
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
-        border: Border.all(
-          color: KinrelColors.textDim.withValues(alpha: 0.06),
-        ),
+        border: Border.all(color: KinrelColors.textDim.withValues(alpha: 0.06)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1196,10 +1202,7 @@ class _InfoCard extends StatelessWidget {
               ),
             ],
           ),
-          if (children.isNotEmpty) ...[
-            SizedBox(height: 12),
-            ...children,
-          ],
+          if (children.isNotEmpty) ...[SizedBox(height: 12), ...children],
         ],
       ),
     );
@@ -1347,8 +1350,11 @@ class _RelationTile extends StatelessWidget {
                 ),
 
                 // Chevron
-                Icon(Icons.chevron_right,
-                    color: KinrelColors.textDim, size: 18),
+                Icon(
+                  Icons.chevron_right,
+                  color: KinrelColors.textDim,
+                  size: 18,
+                ),
               ],
             ),
           ),
@@ -1357,5 +1363,3 @@ class _RelationTile extends StatelessWidget {
     );
   }
 }
-
-

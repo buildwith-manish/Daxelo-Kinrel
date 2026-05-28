@@ -56,7 +56,8 @@ class KinrelLogo extends StatelessWidget {
     this.size = LogoSize.md,
     this.layout = LogoLayout.horizontal,
     this.showByDaxelo = false,
-    this.palette = KinrelIconPalette.purple, // orange palette (backward-compat name)
+    this.palette =
+        KinrelIconPalette.purple, // orange palette (backward-compat name)
     this.animated = false,
   });
 
@@ -75,42 +76,41 @@ class KinrelLogo extends StatelessWidget {
   /// Whether to animate the icon. Default false.
   final bool animated;
 
-
   // ── Size Mappings ─────────────────────────────────────────────────
 
   double get iconSize => switch (size) {
-        LogoSize.xs => KinrelSpacing.logoXs,
-        LogoSize.sm => KinrelSpacing.logoSm,
-        LogoSize.md => KinrelSpacing.logoMd,
-        LogoSize.lg => KinrelSpacing.logoLg,
-        LogoSize.xl => KinrelSpacing.logoXl,
-      };
+    LogoSize.xs => KinrelSpacing.logoXs,
+    LogoSize.sm => KinrelSpacing.logoSm,
+    LogoSize.md => KinrelSpacing.logoMd,
+    LogoSize.lg => KinrelSpacing.logoLg,
+    LogoSize.xl => KinrelSpacing.logoXl,
+  };
 
   double get _scale => switch (size) {
-        LogoSize.xs => KinrelSpacing.logoScaleXs,
-        LogoSize.sm => KinrelSpacing.logoScaleSm,
-        LogoSize.md => KinrelSpacing.logoScaleMd,
-        LogoSize.lg => KinrelSpacing.logoScaleLg,
-        LogoSize.xl => KinrelSpacing.logoScaleXl,
-      };
+    LogoSize.xs => KinrelSpacing.logoScaleXs,
+    LogoSize.sm => KinrelSpacing.logoScaleSm,
+    LogoSize.md => KinrelSpacing.logoScaleMd,
+    LogoSize.lg => KinrelSpacing.logoScaleLg,
+    LogoSize.xl => KinrelSpacing.logoScaleXl,
+  };
 
   double get wordmarkFontSize => 28 * _scale;
 
   // ── Text Colors per Palette ───────────────────────────────────────
 
   Color get _textColor => switch (palette) {
-        KinrelIconPalette.purple => KinrelColors.textPrimary,
-        KinrelIconPalette.light => Color(0xFF1A0A00),
-        KinrelIconPalette.mono => Color(0xFF1F2937),
-        KinrelIconPalette.outline => KinrelColors.textPrimary,
-      };
+    KinrelIconPalette.purple => KinrelColors.textPrimary,
+    KinrelIconPalette.light => Color(0xFF1A0A00),
+    KinrelIconPalette.mono => Color(0xFF1F2937),
+    KinrelIconPalette.outline => KinrelColors.textPrimary,
+  };
 
   Color get _subtitleColor => switch (palette) {
-        KinrelIconPalette.purple => KinrelColors.textSecondary,
-        KinrelIconPalette.light => Color(0xFF7A5040),
-        KinrelIconPalette.mono => Color(0xFF6B7280),
-        KinrelIconPalette.outline => KinrelColors.textSecondary,
-      };
+    KinrelIconPalette.purple => KinrelColors.textSecondary,
+    KinrelIconPalette.light => Color(0xFF7A5040),
+    KinrelIconPalette.mono => Color(0xFF6B7280),
+    KinrelIconPalette.outline => KinrelColors.textSecondary,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -124,8 +124,9 @@ class KinrelLogo extends StatelessWidget {
         ? iconSize * 0.25
         : iconSize * 0.18;
 
-    final letterSpacing =
-        (size == LogoSize.xs || size == LogoSize.sm) ? 0.08 : 0.14;
+    final letterSpacing = (size == LogoSize.xs || size == LogoSize.sm)
+        ? 0.08
+        : 0.14;
 
     final wordmark = _buildWordmark(letterSpacing);
 

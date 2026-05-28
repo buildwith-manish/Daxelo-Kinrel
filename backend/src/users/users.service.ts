@@ -74,6 +74,18 @@ export class UsersService {
   }
 
   /**
+   * Update user's FCM token for push notifications
+   */
+  async updateFcmToken(userId: string, fcmToken: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { fcmToken },
+    });
+
+    return { success: true, message: 'FCM token updated' };
+  }
+
+  /**
    * Delete user account with cascade
    */
   async deleteAccount(userId: string) {

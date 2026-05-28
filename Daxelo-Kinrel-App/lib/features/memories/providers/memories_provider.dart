@@ -125,11 +125,11 @@ class MemoryMember {
       initials ??
       (name.isNotEmpty
           ? name
-              .split(' ')
-              .where((s) => s.isNotEmpty)
-              .take(2)
-              .map((s) => s[0].toUpperCase())
-              .join()
+                .split(' ')
+                .where((s) => s.isNotEmpty)
+                .take(2)
+                .map((s) => s[0].toUpperCase())
+                .join()
           : '?');
 }
 
@@ -184,23 +184,23 @@ class MemoryEvent {
   Color get accentColor {
     switch (type) {
       case MemoryEventType.birth:
-        return KinrelColors.orange;       // #E8612A
+        return KinrelColors.orange; // #E8612A
       case MemoryEventType.death:
-        return KinrelColors.textSilver;   // #C9B4A8 — solemn
+        return KinrelColors.textSilver; // #C9B4A8 — solemn
       case MemoryEventType.marriage:
-        return KinrelColors.amber;        // #F59240
+        return KinrelColors.amber; // #F59240
       case MemoryEventType.anniversary:
-        return KinrelColors.gold;         // #D4AF37
+        return KinrelColors.gold; // #D4AF37
       case MemoryEventType.graduation:
-        return KinrelColors.info;         // #60A5FA
+        return KinrelColors.info; // #60A5FA
       case MemoryEventType.achievement:
-        return KinrelColors.brightGold;   // #FFD700
+        return KinrelColors.brightGold; // #FFD700
       case MemoryEventType.migration:
-        return KinrelColors.success;      // #4CAF7A
+        return KinrelColors.success; // #4CAF7A
       case MemoryEventType.festival:
-        return KinrelColors.orange;       // #E8612A
+        return KinrelColors.orange; // #E8612A
       case MemoryEventType.custom:
-        return KinrelColors.textDim;      // #8A7A72
+        return KinrelColors.textDim; // #8A7A72
     }
   }
 
@@ -279,8 +279,19 @@ class MemoryEvent {
   /// Formatted date string for display.
   String get formattedDate {
     const months = [
-      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${date.day} ${months[date.month]} ${date.year}';
   }
@@ -356,13 +367,25 @@ class OnThisDayMemory {
   final String? groupBy;
 
   /// Formatted "X years ago" string.
-  String get yearsAgoLabel => '$yearsAgo ${yearsAgo == 1 ? 'year' : 'years'} ago';
+  String get yearsAgoLabel =>
+      '$yearsAgo ${yearsAgo == 1 ? 'year' : 'years'} ago';
 
   /// Formatted original date.
   String get formattedDate {
     const months = [
-      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${originalDate.day} ${months[originalDate.month]} ${originalDate.year}';
   }
@@ -390,7 +413,8 @@ class MemoriesFilter {
   final String? selectedMember;
 
   /// Whether no filters are active.
-  bool get isClear => selectedYear == null && selectedType == null && selectedMember == null;
+  bool get isClear =>
+      selectedYear == null && selectedType == null && selectedMember == null;
 
   MemoriesFilter copyWith({
     int? selectedYear,
@@ -403,7 +427,9 @@ class MemoriesFilter {
     return MemoriesFilter(
       selectedYear: clearYear ? null : (selectedYear ?? this.selectedYear),
       selectedType: clearType ? null : (selectedType ?? this.selectedType),
-      selectedMember: clearMember ? null : (selectedMember ?? this.selectedMember),
+      selectedMember: clearMember
+          ? null
+          : (selectedMember ?? this.selectedMember),
     );
   }
 }
@@ -432,7 +458,8 @@ class MemoriesState {
 
   /// All available years for filtering.
   List<int> get availableYears {
-    final years = events.map((e) => e.year).toSet().toList()..sort((a, b) => b.compareTo(a));
+    final years = events.map((e) => e.year).toSet().toList()
+      ..sort((a, b) => b.compareTo(a));
     return years;
   }
 
@@ -458,8 +485,9 @@ class MemoriesState {
       result = result.where((e) => e.type == filter.selectedType).toList();
     }
     if (filter.selectedMember != null) {
-      result = result.where((e) =>
-          e.members.any((m) => m.name == filter.selectedMember)).toList();
+      result = result
+          .where((e) => e.members.any((m) => m.name == filter.selectedMember))
+          .toList();
     }
 
     // Pinned events first, then chronological (newest first)
@@ -509,10 +537,10 @@ class MemoriesState {
 
 /// State notifier managing the memories list and operations.
 class MemoriesNotifier extends StateNotifier<MemoriesState> {
-  MemoriesNotifier() : super(MemoriesState(
-    events: _demoEvents,
-    onThisDayMemories: _demoOnThisDay,
-  ));
+  MemoriesNotifier()
+    : super(
+        MemoriesState(events: _demoEvents, onThisDayMemories: _demoOnThisDay),
+      );
 
   /// Set the year filter.
   void setYearFilter(int? year) {
@@ -540,9 +568,7 @@ class MemoriesNotifier extends StateNotifier<MemoriesState> {
 
   /// Clear all filters.
   void clearFilters() {
-    state = state.copyWith(
-      filter: const MemoriesFilter(),
-    );
+    state = state.copyWith(filter: const MemoriesFilter());
   }
 
   /// Toggle pin on an event.
@@ -567,10 +593,11 @@ class MemoriesNotifier extends StateNotifier<MemoriesState> {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Main memories provider.
-final memoriesProvider =
-    StateNotifierProvider<MemoriesNotifier, MemoriesState>((ref) {
-  return MemoriesNotifier();
-});
+final memoriesProvider = StateNotifierProvider<MemoriesNotifier, MemoriesState>(
+  (ref) {
+    return MemoriesNotifier();
+  },
+);
 
 // ═══════════════════════════════════════════════════════════════════════
 // Demo Data — Realistic Indian Family Timeline Events
@@ -583,11 +610,10 @@ final _demoEvents = <MemoryEvent>[
     title: 'Arjun moved to Bangalore',
     type: MemoryEventType.migration,
     date: DateTime(2024, 11, 15),
-    description: 'Arjun relocated to Bangalore for his new role at Infosys. The family gathered for a farewell dinner in Jaipur.',
+    description:
+        'Arjun relocated to Bangalore for his new role at Infosys. The family gathered for a farewell dinner in Jaipur.',
     location: 'Bangalore, Karnataka',
-    members: [
-      MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
-    ],
+    members: [MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS')],
     isPinned: true,
   ),
 
@@ -596,7 +622,8 @@ final _demoEvents = <MemoryEvent>[
     title: 'Diwali Celebration at Dadi\'s House',
     type: MemoryEventType.festival,
     date: DateTime(2024, 11, 1),
-    description: 'The whole Sharma family gathered for Diwali puja and fireworks. Little Aarav lit his first diya! 🪔',
+    description:
+        'The whole Sharma family gathered for Diwali puja and fireworks. Little Aarav lit his first diya! 🪔',
     location: 'Sharma Haveli, Jaipur',
     members: [
       MemoryMember(id: 'm6', name: 'Kamla Sharma', initials: 'KS'),
@@ -612,11 +639,10 @@ final _demoEvents = <MemoryEvent>[
     title: 'Priya earned her MBA',
     type: MemoryEventType.graduation,
     date: DateTime(2024, 6, 20),
-    description: 'Priya graduated with an MBA from IIM Ahmedabad. The family is so proud! 🎓',
+    description:
+        'Priya graduated with an MBA from IIM Ahmedabad. The family is so proud! 🎓',
     location: 'IIM Ahmedabad, Gujarat',
-    members: [
-      MemoryMember(id: 'm2', name: 'Priya Sharma', initials: 'PS'),
-    ],
+    members: [MemoryMember(id: 'm2', name: 'Priya Sharma', initials: 'PS')],
   ),
 
   MemoryEvent(
@@ -624,7 +650,8 @@ final _demoEvents = <MemoryEvent>[
     title: 'Ravi received Padma Shri Award',
     type: MemoryEventType.achievement,
     date: DateTime(2024, 1, 26),
-    description: 'Ravi Sharma was honored with the Padma Shri for his contributions to education in rural Rajasthan. A proud moment for the entire family! 🏅',
+    description:
+        'Ravi Sharma was honored with the Padma Shri for his contributions to education in rural Rajasthan. A proud moment for the entire family! 🏅',
     location: 'Rashtrapati Bhavan, New Delhi',
     members: [
       MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
@@ -639,7 +666,8 @@ final _demoEvents = <MemoryEvent>[
     title: 'Aarav Sharma was born',
     type: MemoryEventType.birth,
     date: DateTime(2023, 8, 12),
-    description: 'Welcome to the family, Aarav! Born at 3:42 AM, 3.2 kg. The youngest Sharma has arrived! 👶',
+    description:
+        'Welcome to the family, Aarav! Born at 3:42 AM, 3.2 kg. The youngest Sharma has arrived! 👶',
     location: 'Fortis Hospital, Jaipur',
     members: [
       MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
@@ -653,7 +681,8 @@ final _demoEvents = <MemoryEvent>[
     title: 'Rajesh & Meera\'s Wedding',
     type: MemoryEventType.marriage,
     date: DateTime(2023, 2, 14),
-    description: 'A grand Gujarati-Rajasthani fusion wedding! Baraat with 12 bands, mehndi ceremony, and a 3-day celebration. 💍',
+    description:
+        'A grand Gujarati-Rajasthani fusion wedding! Baraat with 12 bands, mehndi ceremony, and a 3-day celebration. 💍',
     location: 'JW Marriott, Jaipur',
     members: [
       MemoryMember(id: 'm5', name: 'Rajesh Patel', initials: 'RP'),
@@ -669,7 +698,8 @@ final _demoEvents = <MemoryEvent>[
     title: 'Holi at the Farmhouse',
     type: MemoryEventType.festival,
     date: DateTime(2023, 3, 8),
-    description: 'Colors, thandai, and dancing! The annual Holi party at the Kukas farmhouse was unforgettable. 🎨',
+    description:
+        'Colors, thandai, and dancing! The annual Holi party at the Kukas farmhouse was unforgettable. 🎨',
     location: 'Sharma Farmhouse, Kukas',
     members: [
       MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
@@ -682,11 +712,10 @@ final _demoEvents = <MemoryEvent>[
     title: 'Neha graduated from AIIMS',
     type: MemoryEventType.graduation,
     date: DateTime(2023, 5, 28),
-    description: 'Dr. Neha Sharma! Graduated from AIIMS New Delhi with top honors. The family celebrates the newest doctor! 🩺',
+    description:
+        'Dr. Neha Sharma! Graduated from AIIMS New Delhi with top honors. The family celebrates the newest doctor! 🩺',
     location: 'AIIMS, New Delhi',
-    members: [
-      MemoryMember(id: 'm14', name: 'Neha Sharma', initials: 'NS'),
-    ],
+    members: [MemoryMember(id: 'm14', name: 'Neha Sharma', initials: 'NS')],
   ),
 
   // ── 2022 ──────────────────────────────────────────────────────────
@@ -695,7 +724,8 @@ final _demoEvents = <MemoryEvent>[
     title: 'Ravi & Sunita — 35th Anniversary',
     type: MemoryEventType.anniversary,
     date: DateTime(2022, 12, 10),
-    description: 'Celebrating 35 years of love and togetherness! A surprise party organized by the kids. 💕',
+    description:
+        'Celebrating 35 years of love and togetherness! A surprise party organized by the kids. 💕',
     location: 'Sharma Residence, Jaipur',
     members: [
       MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
@@ -711,11 +741,10 @@ final _demoEvents = <MemoryEvent>[
     title: 'Dinesh Patel moved to London',
     type: MemoryEventType.migration,
     date: DateTime(2022, 9, 5),
-    description: 'Dinesh moved to London for his software engineering role at Barclays. Missing his garba nights in Ahmedabad!',
+    description:
+        'Dinesh moved to London for his software engineering role at Barclays. Missing his garba nights in Ahmedabad!',
     location: 'London, UK',
-    members: [
-      MemoryMember(id: 'm12', name: 'Dinesh Patel', initials: 'DP'),
-    ],
+    members: [MemoryMember(id: 'm12', name: 'Dinesh Patel', initials: 'DP')],
   ),
 
   MemoryEvent(
@@ -723,7 +752,8 @@ final _demoEvents = <MemoryEvent>[
     title: 'Griha Pravesh — New Sharma Home',
     type: MemoryEventType.custom,
     date: DateTime(2022, 4, 3),
-    description: 'Housewarming puja at the new Sharma residence in Malviya Nagar. Vastu puja followed by lunch for 200 guests. 🏠🙏',
+    description:
+        'Housewarming puja at the new Sharma residence in Malviya Nagar. Vastu puja followed by lunch for 200 guests. 🏠🙏',
     location: 'Malviya Nagar, Jaipur',
     members: [
       MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
@@ -737,7 +767,8 @@ final _demoEvents = <MemoryEvent>[
     title: 'Arjun & Priya\'s Wedding',
     type: MemoryEventType.marriage,
     date: DateTime(2020, 12, 8),
-    description: 'An intimate Rajasthani wedding during challenging times. The pheras were livestreamed for family abroad. 💍',
+    description:
+        'An intimate Rajasthani wedding during challenging times. The pheras were livestreamed for family abroad. 💍',
     location: 'Jai Mahal Palace, Jaipur',
     members: [
       MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
@@ -754,11 +785,10 @@ final _demoEvents = <MemoryEvent>[
     title: 'Sunita opened her own clinic',
     type: MemoryEventType.achievement,
     date: DateTime(2018, 7, 1),
-    description: 'Dr. Sunita Sharma opened "Sharma Wellness Clinic" in C-Scheme, Jaipur. 15 years of practice led to this dream! 🏥',
+    description:
+        'Dr. Sunita Sharma opened "Sharma Wellness Clinic" in C-Scheme, Jaipur. 15 years of practice led to this dream! 🏥',
     location: 'C-Scheme, Jaipur',
-    members: [
-      MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS'),
-    ],
+    members: [MemoryMember(id: 'm8', name: 'Sunita Sharma', initials: 'SS')],
   ),
 
   // ── 2015 ──────────────────────────────────────────────────────────
@@ -767,7 +797,8 @@ final _demoEvents = <MemoryEvent>[
     title: 'Suresh Kumar Sharma (Dada) passed away',
     type: MemoryEventType.death,
     date: DateTime(2015, 3, 22),
-    description: 'Dada left us peacefully at age 78, surrounded by family. His legacy of kindness and wisdom lives on in all of us. 🙏',
+    description:
+        'Dada left us peacefully at age 78, surrounded by family. His legacy of kindness and wisdom lives on in all of us. 🙏',
     location: 'Sharma Haveli, Jaipur',
     members: [
       MemoryMember(id: 'm15', name: 'Suresh Kumar Sharma', initials: 'SKS'),
@@ -782,7 +813,8 @@ final _demoEvents = <MemoryEvent>[
     title: 'Arjun graduated from IIT Delhi',
     type: MemoryEventType.graduation,
     date: DateTime(2012, 5, 25),
-    description: 'B.Tech in Computer Science from IIT Delhi. Dadi distributed mithai to the entire mohalla! 🎓',
+    description:
+        'B.Tech in Computer Science from IIT Delhi. Dadi distributed mithai to the entire mohalla! 🎓',
     location: 'IIT Delhi',
     members: [
       MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
@@ -796,7 +828,8 @@ final _demoEvents = <MemoryEvent>[
     title: 'Neha Sharma was born',
     type: MemoryEventType.birth,
     date: DateTime(1995, 11, 3),
-    description: 'Welcome Neha! The second child of Ravi and Sunita. Dada said she has her grandmother\'s eyes. 👶',
+    description:
+        'Welcome Neha! The second child of Ravi and Sunita. Dada said she has her grandmother\'s eyes. 👶',
     location: 'SMS Hospital, Jaipur',
     members: [
       MemoryMember(id: 'm14', name: 'Neha Sharma', initials: 'NS'),
@@ -811,7 +844,8 @@ final _demoEvents = <MemoryEvent>[
     title: 'Arjun Sharma was born',
     type: MemoryEventType.birth,
     date: DateTime(1992, 6, 15),
-    description: 'The eldest son of Ravi and Sunita arrives! Dada performed the naming ceremony. 👶',
+    description:
+        'The eldest son of Ravi and Sunita arrives! Dada performed the naming ceremony. 👶',
     location: 'SMS Hospital, Jaipur',
     members: [
       MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
@@ -826,7 +860,8 @@ final _demoEvents = <MemoryEvent>[
     title: 'Ravi & Sunita\'s Wedding',
     type: MemoryEventType.marriage,
     date: DateTime(1987, 12, 10),
-    description: 'An arranged marriage that became a love story. The baraat came from Jodhpur with 200 guests. 💍',
+    description:
+        'An arranged marriage that became a love story. The baraat came from Jodhpur with 200 guests. 💍',
     location: 'Jodhpur, Rajasthan',
     members: [
       MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
@@ -850,7 +885,8 @@ final _demoOnThisDay = <OnThisDayMemory>[
     title: 'Diwali at Dadi\'s House',
     originalDate: DateTime(2020, 11, 14),
     yearsAgo: _now.year - 2020,
-    description: 'A quieter Diwali during the pandemic, but the family video call lit up the night! 🪔',
+    description:
+        'A quieter Diwali during the pandemic, but the family video call lit up the night! 🪔',
     groupBy: 'Festival',
     members: [
       MemoryMember(id: 'm6', name: 'Kamla Sharma', initials: 'KS'),
@@ -863,11 +899,10 @@ final _demoOnThisDay = <OnThisDayMemory>[
     title: 'Priya\'s Mehndi Ceremony',
     originalDate: DateTime(2020, 12, 7),
     yearsAgo: _now.year - 2020,
-    description: 'Beautiful mehndi designs and the ladies sang traditional wedding songs. 💕',
+    description:
+        'Beautiful mehndi designs and the ladies sang traditional wedding songs. 💕',
     groupBy: 'Priya Sharma',
-    members: [
-      MemoryMember(id: 'm2', name: 'Priya Sharma', initials: 'PS'),
-    ],
+    members: [MemoryMember(id: 'm2', name: 'Priya Sharma', initials: 'PS')],
   ),
 
   OnThisDayMemory(
@@ -875,11 +910,10 @@ final _demoOnThisDay = <OnThisDayMemory>[
     title: 'Arjun\'s first day at Infosys',
     originalDate: DateTime(2012, 7, 16),
     yearsAgo: _now.year - 2012,
-    description: 'Nervous but excited — Arjun joined Infosys as a software engineer. The beginning of a great career! 💼',
+    description:
+        'Nervous but excited — Arjun joined Infosys as a software engineer. The beginning of a great career! 💼',
     groupBy: 'Arjun Sharma',
-    members: [
-      MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS'),
-    ],
+    members: [MemoryMember(id: 'm1', name: 'Arjun Sharma', initials: 'AS')],
   ),
 
   OnThisDayMemory(
@@ -887,7 +921,8 @@ final _demoOnThisDay = <OnThisDayMemory>[
     title: 'Family trip to Udaipur',
     originalDate: DateTime(2018, 11, 10),
     yearsAgo: _now.year - 2018,
-    description: 'The whole Sharma clan at Lake Pichola. A magical sunset boat ride! 🏰',
+    description:
+        'The whole Sharma clan at Lake Pichola. A magical sunset boat ride! 🏰',
     groupBy: 'Family Trip',
     members: [
       MemoryMember(id: 'm7', name: 'Ravi Sharma', initials: 'RS'),
@@ -902,7 +937,8 @@ final _demoOnThisDay = <OnThisDayMemory>[
     title: 'Nani\'s 70th Birthday Surprise',
     originalDate: DateTime(2016, 3, 15),
     yearsAgo: _now.year - 2016,
-    description: 'A surprise party for Nani Saroj! She was so happy she cried. The cake had 70 candles! 🎂',
+    description:
+        'A surprise party for Nani Saroj! She was so happy she cried. The cake had 70 candles! 🎂',
     groupBy: 'Saroj Devi',
     members: [
       MemoryMember(id: 'm9', name: 'Saroj Devi', initials: 'SD'),

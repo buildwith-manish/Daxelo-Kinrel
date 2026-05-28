@@ -1,14 +1,33 @@
 :80 {
         encode gzip
 
+        # API requests → NestJS backend on port 3001
+        handle /api/* {
+                reverse_proxy localhost:3001 {
+                        header_up Connection {http.upgrade}
+                        header_up Upgrade {http.upgrade}
+                }
+        }
+
+        # WebSocket connections → NestJS backend
+        handle /socket.io/* {
+                reverse_proxy localhost:3001 {
+                        header_up Connection {http.upgrade}
+                        header_up Upgrade {http.upgrade}
+                }
+        }
+
         # Flutter web app static files
         handle /flutter/* {
                 uri strip_prefix /flutter
                 reverse_proxy localhost:8080
         }
 
-        # Default: Next.js app
+        # Default: Next.js frontend on port 3000
         handle {
-                reverse_proxy localhost:3000
+                reverse_proxy localhost:3000 {
+                        header_up Connection {http.upgrade}
+                        header_up Upgrade {http.upgrade}
+                }
         }
 }

@@ -2,6 +2,10 @@
     <!-- Required for Supabase auth, API calls, and image loading -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- P3-F3: Required for push notifications on Android 13+ (API 33) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="KINREL"
         android:name="${applicationName}"
@@ -9,6 +13,17 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config">
+
+        <!-- P3-F3: Firebase Cloud Messaging default notification channel & icon -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_launcher" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="kinrel_notifications" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_name"
+            android:value="KINREL Notifications" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -32,7 +47,26 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- P3-F2: Deep link intent-filter for https://kinrel.app (universal links) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="kinrel.app"/>
+            </intent-filter>
+            <!-- P3-F2: Deep link intent-filter for kinrel:// custom scheme -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="kinrel"/>
+            </intent-filter>
         </activity>
+        <!-- Image Cropper (v8+) — required for crop functionality on Android -->
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/UCrop.CropTheme"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

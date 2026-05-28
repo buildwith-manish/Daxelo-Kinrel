@@ -23,7 +23,9 @@ final kinshipMetaProvider = FutureProvider<Map<String, dynamic>>((ref) async {
 /// Search provider
 final kinshipSearchProvider = StateProvider<String>((ref) => '');
 
-final kinshipSearchResultsProvider = FutureProvider<List<KinshipSearchResult>>((ref) async {
+final kinshipSearchResultsProvider = FutureProvider<List<KinshipSearchResult>>((
+  ref,
+) async {
   await ref.watch(kinshipInitializedProvider.future);
   final query = ref.watch(kinshipSearchProvider);
   if (query.isEmpty) return [];
@@ -34,13 +36,14 @@ final kinshipSearchResultsProvider = FutureProvider<List<KinshipSearchResult>>((
 /// Category provider
 final kinshipCategoryProvider = StateProvider<String?>((ref) => null);
 
-final kinshipCategoryResultsProvider = FutureProvider<List<KinshipRelationship>>((ref) async {
-  await ref.watch(kinshipInitializedProvider.future);
-  final category = ref.watch(kinshipCategoryProvider);
-  if (category == null) return [];
-  final service = ref.watch(kinshipServiceProvider);
-  return service.getByCategory(category);
-});
+final kinshipCategoryResultsProvider =
+    FutureProvider<List<KinshipRelationship>>((ref) async {
+      await ref.watch(kinshipInitializedProvider.future);
+      final category = ref.watch(kinshipCategoryProvider);
+      if (category == null) return [];
+      final service = ref.watch(kinshipServiceProvider);
+      return service.getByCategory(category);
+    });
 
 /// All categories provider
 final kinshipCategoriesProvider = FutureProvider<List<String>>((ref) async {
@@ -50,21 +53,30 @@ final kinshipCategoriesProvider = FutureProvider<List<String>>((ref) async {
 });
 
 /// Single term lookup provider
-final kinshipTermProvider = FutureProvider.family<KinshipTranslation?, ({String key, String language})>((ref, params) async {
-  await ref.watch(kinshipInitializedProvider.future);
-  final service = ref.watch(kinshipServiceProvider);
-  return service.getKinshipTerm(params.key, params.language);
-});
+final kinshipTermProvider =
+    FutureProvider.family<KinshipTranslation?, ({String key, String language})>(
+      (ref, params) async {
+        await ref.watch(kinshipInitializedProvider.future);
+        final service = ref.watch(kinshipServiceProvider);
+        return service.getKinshipTerm(params.key, params.language);
+      },
+    );
 
 /// All translations for a key
-final kinshipAllTranslationsProvider = FutureProvider.family<Map<String, KinshipTranslation>?, String>((ref, key) async {
-  await ref.watch(kinshipInitializedProvider.future);
-  final service = ref.watch(kinshipServiceProvider);
-  return service.getAllTranslations(key);
-});
+final kinshipAllTranslationsProvider =
+    FutureProvider.family<Map<String, KinshipTranslation>?, String>((
+      ref,
+      key,
+    ) async {
+      await ref.watch(kinshipInitializedProvider.future);
+      final service = ref.watch(kinshipServiceProvider);
+      return service.getAllTranslations(key);
+    });
 
 /// All relationships provider
-final allRelationshipsProvider = FutureProvider<List<KinshipRelationship>>((ref) async {
+final allRelationshipsProvider = FutureProvider<List<KinshipRelationship>>((
+  ref,
+) async {
   await ref.watch(kinshipInitializedProvider.future);
   final service = ref.watch(kinshipServiceProvider);
   return service.getAllRelationships();

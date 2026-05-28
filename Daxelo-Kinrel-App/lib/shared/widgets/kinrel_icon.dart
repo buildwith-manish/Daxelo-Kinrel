@@ -50,7 +50,6 @@ class KinrelIcon extends StatelessWidget {
   /// Optional semantic label for accessibility.
   final String? semanticLabel;
 
-
   @override
   Widget build(BuildContext context) {
     return Semantics(
@@ -63,10 +62,7 @@ class KinrelIcon extends StatelessWidget {
             ? _AnimatedKinrelIcon(size: size, palette: palette)
             : CustomPaint(
                 size: Size(size, size),
-                painter: KinrelIconPainter(
-                  palette: palette,
-                  animated: false,
-                ),
+                painter: KinrelIconPainter(palette: palette, animated: false),
               ),
       ),
     );
@@ -75,14 +71,10 @@ class KinrelIcon extends StatelessWidget {
 
 /// Animated variant that drives a repeating ripple on the center hub node.
 class _AnimatedKinrelIcon extends StatefulWidget {
-  const _AnimatedKinrelIcon({
-    required this.size,
-    required this.palette,
-  });
+  const _AnimatedKinrelIcon({required this.size, required this.palette});
 
   final double size;
   final KinrelIconPalette palette;
-
 
   @override
   State<_AnimatedKinrelIcon> createState() => _AnimatedKinrelIconState();

@@ -6,13 +6,16 @@ class AppException implements Exception {
   final int? statusCode;
   final dynamic originalError;
 
-
   @override
   String toString() => 'AppException: $message';
 }
 
 class ServerException extends AppException {
-  ServerException({required super.message, super.statusCode, super.originalError});
+  ServerException({
+    required super.message,
+    super.statusCode,
+    super.originalError,
+  });
 }
 
 class NetworkException extends AppException {
@@ -20,7 +23,11 @@ class NetworkException extends AppException {
 }
 
 class AuthException extends AppException {
-  AuthException({required super.message, super.statusCode, super.originalError});
+  AuthException({
+    required super.message,
+    super.statusCode,
+    super.originalError,
+  });
 }
 
 class CacheException extends AppException {

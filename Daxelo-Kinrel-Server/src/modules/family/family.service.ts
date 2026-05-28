@@ -379,7 +379,6 @@ export class FamilyService {
       data: {
         familyId,
         name: dto.name,
-        relationship: normalizedKey,
         dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
         gotra: dto.gotra,
         occupation: dto.occupation,
@@ -627,7 +626,7 @@ export class FamilyService {
         familyId,
         fromPersonId: dto.fromPersonId,
         toPersonId: dto.toPersonId,
-        type: normalizedType,
+        relationshipKey: normalizedType,
       },
     });
 
@@ -647,7 +646,7 @@ export class FamilyService {
           familyId,
           fromPersonId: dto.fromPersonId,
           toPersonId: dto.toPersonId,
-          type: normalizedType,
+          relationshipKey: normalizedType,
           direction: 'from',
         },
         include: {
@@ -662,7 +661,7 @@ export class FamilyService {
           familyId,
           fromPersonId: dto.toPersonId,
           toPersonId: dto.fromPersonId,
-          type: inverseType,
+          relationshipKey: inverseType,
         },
       });
 
@@ -672,7 +671,7 @@ export class FamilyService {
             familyId,
             fromPersonId: dto.toPersonId,
             toPersonId: dto.fromPersonId,
-            type: inverseType,
+            relationshipKey: inverseType,
             direction: 'from',
           },
         });
@@ -725,14 +724,14 @@ export class FamilyService {
       });
 
       // Find and delete the inverse relationship
-      const inverseType = getInverseRelationship(relationship.type);
+      const inverseType = getInverseRelationship(relationship.relationshipKey);
 
       const inverse = await tx.relationship.findFirst({
         where: {
           familyId,
           fromPersonId: relationship.toPersonId,
           toPersonId: relationship.fromPersonId,
-          type: inverseType,
+          relationshipKey: inverseType,
         },
       });
 
@@ -754,7 +753,7 @@ export class FamilyService {
           familyId,
           fromPersonId: relationship.fromPersonId,
           toPersonId: relationship.toPersonId,
-          type: relationship.type,
+          type: relationship.relationshipKey,
         }),
       },
     });
@@ -779,35 +778,26 @@ export class FamilyService {
         id: true,
         isDeceased: true,
         dateOfBirth: true,
-        relationship: true,
+        gender: true,
       },
     });
 
     const relationships = await this.prisma.relationship.findMany({
       where: { familyId },
-      select: { type: true },
+      select: { relationshipKey: true },
     });
 
     const totalCount = persons.length;
     const livingCount = persons.filter((p) => !p.isDeceased).length;
     const deceasedCount = persons.filter((p) => p.isDeceased).length;
 
-    // Gender distribution using kinship terms
-    const { getByGender } = await import('@/lib/kinship');
-    const maleKeys = new Set(getByGender('male').map((r: any) => r.relationshipKey));
-    const femaleKeys = new Set(getByGender('female').map((r: any) => r.relationshipKey));
-
+    // Gender distribution using Person gender field
     const genderDistribution: Record<string, number> = { male: 0, female: 0, unknown: 0 };
     for (const person of persons) {
-      if (person.relationship) {
-        const rel = person.relationship.toLowerCase();
-        if (maleKeys.has(rel)) {
-          genderDistribution.male++;
-        } else if (femaleKeys.has(rel)) {
-          genderDistribution.female++;
-        } else {
-          genderDistribution.unknown++;
-        }
+      if (person.gender === 'male') {
+        genderDistribution.male++;
+      } else if (person.gender === 'female') {
+        genderDistribution.female++;
       } else {
         genderDistribution.unknown++;
       }
@@ -833,21 +823,9 @@ export class FamilyService {
     // Top relationship types from Relationship model
     const relTypeCounts: Record<string, number> = {};
     for (const rel of relationships) {
-      relTypeCounts[rel.type] = (relTypeCounts[rel.type] || 0) + 1;
+      relTypeCounts[rel.relationshipKey] = (relTypeCounts[rel.relationshipKey] || 0) + 1;
     }
     const topRelTypes = Object.entries(relTypeCounts)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-      .map(([type, count]) => ({ type, count }));
-
-    // Top relationship types from Person model
-    const relationshipCounts: Record<string, number> = {};
-    for (const person of persons) {
-      if (person.relationship) {
-        relationshipCounts[person.relationship] = (relationshipCounts[person.relationship] || 0) + 1;
-      }
-    }
-    const topRelationshipTypes = Object.entries(relationshipCounts)
       .sort(([, a], [, b]) => b - a)
       .slice(0, 10)
       .map(([type, count]) => ({ type, count }));
@@ -859,7 +837,7 @@ export class FamilyService {
       genderDistribution,
       generationRange,
       averageAge: avgAge,
-      topRelationshipTypes: topRelTypes.length > 0 ? topRelTypes : topRelationshipTypes,
+      topRelationshipTypes: topRelTypes,
       totalRelationships: relationships.length,
       memberCount: await this.prisma.familyMember.count({ where: { familyId } }),
     };

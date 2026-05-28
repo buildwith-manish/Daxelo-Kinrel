@@ -1,12 +1,14 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Delete,
   Body,
   UseGuards,
   HttpCode,
   HttpStatus,
+  Request,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -37,6 +39,19 @@ export class UsersController {
     @Body() dto: UpdateUserDto,
   ) {
     return this.usersService.updateProfile(user.id, dto);
+  }
+
+  /**
+   * POST /api/users/me/fcm-token
+   * Update the user's FCM token for push notifications
+   */
+  @Post('me/fcm-token')
+  @HttpCode(HttpStatus.OK)
+  async updateFcmToken(
+    @Request() req: any,
+    @Body() body: { fcmToken: string },
+  ) {
+    return this.usersService.updateFcmToken(req.user.id, body.fcmToken);
   }
 
   /**

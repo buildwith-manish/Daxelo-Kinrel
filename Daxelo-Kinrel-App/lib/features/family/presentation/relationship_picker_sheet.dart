@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/constants/supported_languages.dart';
 import '../../../core/extensions/context_extensions.dart';
-import '../../../core/kinship/kinship_models.dart';
+import '../../../core/kinship/kinship_models.dart'
+    show KinshipRelationship, KinshipSearchResult;
 import '../../../core/kinship/kinship_service.dart';
 import '../../../core/kinship/kinship_provider.dart';
 
@@ -30,7 +32,6 @@ class RelationshipPickerSheet extends ConsumerStatefulWidget {
   /// Existing relationships of personA (relationshipType strings)
   /// Used to determine smart suggestions
   final List<String> existingRelationshipTypes;
-
 
   /// Show the picker and return selected relationship key
   static Future<String?> show(
@@ -65,6 +66,8 @@ class _RelationshipPickerSheetState
     extends ConsumerState<RelationshipPickerSheet> {
   final _searchController = TextEditingController();
   String _query = '';
+  String? _selectedKey;
+  SupportedLanguage _selectedLanguage = SupportedLanguage.hindi;
   final _scrollController = ScrollController();
 
   // Common quick-select relationships
@@ -103,23 +106,26 @@ class _RelationshipPickerSheetState
     final suggestions = <String>[];
 
     // If no parents linked, suggest father/mother
-    final hasParent = existing
-        .any((t) => ['father', 'mother', 'parent'].contains(t));
+    final hasParent = existing.any(
+      (t) => ['father', 'mother', 'parent'].contains(t),
+    );
     if (!hasParent) {
       suggestions.addAll(['father', 'mother']);
     }
 
     // If no spouse linked, suggest husband/wife
-    final hasSpouse =
-        existing.any((t) => ['spouse', 'husband', 'wife'].contains(t));
+    final hasSpouse = existing.any(
+      (t) => ['spouse', 'husband', 'wife'].contains(t),
+    );
     if (!hasSpouse) {
       suggestions.addAll(['husband', 'wife']);
     }
 
     // If has parents but no siblings, suggest brother/sister
     if (hasParent) {
-      final hasSibling = existing
-          .any((t) => ['brother', 'sister', 'sibling'].contains(t));
+      final hasSibling = existing.any(
+        (t) => ['brother', 'sister', 'sibling'].contains(t),
+      );
       if (!hasSibling) {
         suggestions.addAll(['brother', 'sister']);
       }
@@ -137,7 +143,8 @@ class _RelationshipPickerSheetState
 
     // Always suggest grandparents if not present
     final hasGrandparent = existing.any(
-        (t) => ['grandfather', 'grandmother', 'grandparent'].contains(t));
+      (t) => ['grandfather', 'grandmother', 'grandparent'].contains(t),
+    );
     if (!hasGrandparent) {
       suggestions.addAll(['grandfather', 'grandmother']);
     }
@@ -213,9 +220,7 @@ class _RelationshipPickerSheetState
           // Quick-select chips
           if (_suggestedKeys.isNotEmpty)
             Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: KinrelSpacing.base,
-              ),
+              padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
               child: _buildQuickChips(),
             ),
 
@@ -223,9 +228,7 @@ class _RelationshipPickerSheetState
 
           // Search field
           Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: KinrelSpacing.base,
-            ),
+            padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
             child: TextField(
               controller: _searchController,
               onChanged: (v) => setState(() => _query = v),
@@ -237,12 +240,18 @@ class _RelationshipPickerSheetState
               decoration: InputDecoration(
                 hintText: 'Search kinship terms...',
                 hintStyle: TextStyle(color: KinrelColors.textDim),
-                prefixIcon:
-                    Icon(Icons.search, color: KinrelColors.purple, size: 20),
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: KinrelColors.purple,
+                  size: 20,
+                ),
                 suffixIcon: _query.isNotEmpty
                     ? IconButton(
-                        icon: Icon(Icons.clear,
-                            color: KinrelColors.textDim, size: 18),
+                        icon: Icon(
+                          Icons.clear,
+                          color: KinrelColors.textDim,
+                          size: 18,
+                        ),
                         onPressed: () {
                           _searchController.clear();
                           setState(() => _query = '');
@@ -252,20 +261,25 @@ class _RelationshipPickerSheetState
                 filled: true,
                 fillColor: KinrelColors.darkElevated,
                 border: OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(KinrelSpacing.radiusSm),
+                  borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
               ),
             ),
           ),
           SizedBox(height: 8),
 
-          // Results
+          // Results / Kinship panel
           Expanded(
-            child: _query.isEmpty ? _buildSuggestionsList() : _buildSearchResults(),
+            child: _selectedKey != null
+                ? _buildKinshipPanel()
+                : (_query.isEmpty
+                      ? _buildSuggestionsList()
+                      : _buildSearchResults()),
           ),
         ],
       ),
@@ -279,6 +293,14 @@ class _RelationshipPickerSheetState
     return 'Select Relationship';
   }
 
+  void _selectRelationship(String key) {
+    setState(() {
+      _selectedKey = key;
+      _query = '';
+      _searchController.clear();
+    });
+  }
+
   Widget _buildQuickChips() {
     final kinshipService = ref.read(kinshipServiceProvider);
     final chips = _suggestedKeys.take(8).toList();
@@ -289,10 +311,7 @@ class _RelationshipPickerSheetState
       children: chips.map((key) {
         final rel = kinshipService.getRelationship(key);
         final label = rel?.englishTerm ?? key.snakeToTitle;
-        return _QuickChip(
-          label: label,
-          onTap: () => Navigator.of(context).pop(key),
-        );
+        return _QuickChip(label: label, onTap: () => _selectRelationship(key));
       }).toList(),
     );
   }
@@ -307,9 +326,7 @@ class _RelationshipPickerSheetState
 
     return ListView(
       controller: _scrollController,
-      padding: const EdgeInsets.symmetric(
-        horizontal: KinrelSpacing.base,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       children: [
         // Common relationships section
         if (availableQuickKeys.isNotEmpty) ...[
@@ -326,7 +343,7 @@ class _RelationshipPickerSheetState
                 label: label,
                 genderIcon: genderIcon,
                 lineage: rel?.lineage,
-                onTap: () => Navigator.of(context).pop(key),
+                onTap: () => _selectRelationship(key),
               );
             }).toList(),
           ),
@@ -365,10 +382,9 @@ class _RelationshipPickerSheetState
     final searchAsync = ref.watch(kinshipSearchResultsProvider);
 
     return searchAsync.when(
-      loading: () => Center(
-        child: CircularProgressIndicator(color: KinrelColors.purple),
-      ),
-    error: (e, _) => Center(
+      loading: () =>
+          Center(child: CircularProgressIndicator(color: KinrelColors.purple)),
+      error: (e, _) => Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -412,9 +428,7 @@ class _RelationshipPickerSheetState
         }
 
         return ListView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: KinrelSpacing.base,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
           children: [
             for (final entry in grouped.entries) ...[
               _SectionHeader(title: entry.key.snakeToTitle),
@@ -424,7 +438,7 @@ class _RelationshipPickerSheetState
                   relationship: result.relationship,
                   kinshipService: ref.read(kinshipServiceProvider),
                   onTap: () =>
-                      Navigator.of(context).pop(result.relationship.relationshipKey),
+                      _selectRelationship(result.relationship.relationshipKey),
                 ),
               SizedBox(height: 8),
             ],
@@ -444,6 +458,401 @@ class _RelationshipPickerSheetState
         return Icons.person;
     }
   }
+
+  /// Panel shown after a relationship is selected, displaying kinship
+  /// term details and a confirm button.
+  Widget _buildKinshipPanel() {
+    final kinshipService = ref.read(kinshipServiceProvider);
+    final relationship = kinshipService.getRelationship(_selectedKey!);
+    final englishLabel =
+        relationship?.englishTerm ?? _selectedKey!.snakeToTitle;
+
+    // Languages to show in the selector
+    const panelLanguages = <SupportedLanguage>[
+      SupportedLanguage.hindi,
+      SupportedLanguage.bengali,
+      SupportedLanguage.telugu,
+      SupportedLanguage.marathi,
+      SupportedLanguage.tamil,
+      SupportedLanguage.gujarati,
+      SupportedLanguage.kannada,
+      SupportedLanguage.malayalam,
+      SupportedLanguage.english,
+    ];
+
+    return Column(
+      children: [
+        // ── Selected relationship summary ──
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(
+            horizontal: KinrelSpacing.base,
+            vertical: KinrelSpacing.md,
+          ),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkElevated,
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(KinrelRadius.md),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                _genderIcon(relationship?.gender),
+                size: 20,
+                color: KinrelColors.orange,
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  englishLabel,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+              ),
+              if (relationship?.lineage.isNotEmpty ?? false)
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: KinrelColors.orange.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(KinrelRadius.xs),
+                  ),
+                  child: Text(
+                    relationship!.lineage.snakeToTitle,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: KinrelColors.orange,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+
+        // ── Scrollable kinship details ──
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: KinrelSpacing.base,
+              vertical: KinrelSpacing.md,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Language selector chips
+                SizedBox(
+                  height: 38,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: panelLanguages.length,
+                    separatorBuilder: (_, __) => SizedBox(width: 6),
+                    itemBuilder: (_, index) {
+                      final lang = panelLanguages[index];
+                      final isSelected = lang == _selectedLanguage;
+                      return GestureDetector(
+                        onTap: () => setState(() => _selectedLanguage = lang),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? KinrelColors.orange
+                                : KinrelColors.darkElevated,
+                            borderRadius: BorderRadius.circular(
+                              KinrelRadius.sm,
+                            ),
+                            border: isSelected
+                                ? null
+                                : Border.all(color: KinrelColors.darkSurface),
+                          ),
+                          child: Text(
+                            lang.nativeName,
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isSelected
+                                  ? KinrelColors.textWhite
+                                  : KinrelColors.textSilver,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                SizedBox(height: KinrelSpacing.md),
+
+                // Kinship term display
+                _KinshipTermCard(
+                  selectedKey: _selectedKey!,
+                  selectedLanguage: _selectedLanguage,
+                  englishLabel: englishLabel,
+                ),
+                SizedBox(height: KinrelSpacing.lg),
+
+                // All translations row
+                _AllTranslationsRow(selectedKey: _selectedKey!),
+                SizedBox(height: KinrelSpacing.xl),
+
+                // Confirm button
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: KinrelGradients.igniteGradient,
+                      borderRadius: BorderRadius.circular(KinrelRadius.md),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(KinrelRadius.md),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(KinrelRadius.md),
+                        onTap: () => Navigator.of(context).pop(_selectedKey),
+                        child: Center(
+                          child: Text(
+                            'Select This Relationship',
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: KinrelColors.textWhite,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: KinrelSpacing.sm),
+
+                // Cancel / back link
+                Center(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _selectedKey = null),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        'Choose a different relationship',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 13,
+                          color: KinrelColors.textDim,
+                          decoration: TextDecoration.underline,
+                          decorationColor: KinrelColors.textDim,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: KinrelSpacing.base),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Card showing the kinship term for the selected language
+class _KinshipTermCard extends ConsumerWidget {
+  const _KinshipTermCard({
+    required this.selectedKey,
+    required this.selectedLanguage,
+    required this.englishLabel,
+  });
+
+  final String selectedKey;
+  final SupportedLanguage selectedLanguage;
+  final String englishLabel;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final translationAsync = ref.watch(
+      kinshipTermProvider((key: selectedKey, language: selectedLanguage.name)),
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(KinrelSpacing.base),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkElevated,
+        borderRadius: BorderRadius.circular(KinrelRadius.md),
+        border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // English term header
+          Text(
+            englishLabel,
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: KinrelColors.textSilver,
+            ),
+          ),
+          SizedBox(height: 8),
+
+          // Native term (large)
+          translationAsync.when(
+            loading: () => SizedBox(
+              height: 32,
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: KinrelColors.orange,
+                  ),
+                ),
+              ),
+            ),
+            error: (_, __) => Text(
+              '—',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: KinrelColors.textDim,
+              ),
+            ),
+            data: (translation) {
+              if (translation == null) {
+                return Text(
+                  'Not available',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 16,
+                    color: KinrelColors.textDim,
+                  ),
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    translation.native,
+                    style: TextStyle(
+                      fontFamily: selectedLanguage.fontFamily,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: KinrelColors.orange,
+                    ),
+                  ),
+                  if (translation.latin.isNotEmpty) ...[
+                    SizedBox(height: 4),
+                    Text(
+                      translation.latin,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 16,
+                        fontStyle: FontStyle.italic,
+                        color: KinrelColors.textSilver,
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
+
+          // Relationship key (mono)
+          SizedBox(height: 8),
+          Text(
+            selectedKey,
+            style: TextStyle(
+              fontFamily: KinrelTypography.monoFont,
+              fontSize: 11,
+              color: KinrelColors.textDim,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Horizontal scroll showing all available translations as small chips
+class _AllTranslationsRow extends ConsumerWidget {
+  const _AllTranslationsRow({required this.selectedKey});
+
+  final String selectedKey;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final allTranslationsAsync = ref.watch(
+      kinshipAllTranslationsProvider(selectedKey),
+    );
+
+    return allTranslationsAsync.when(
+      loading: () => SizedBox.shrink(),
+      error: (_, __) => SizedBox.shrink(),
+      data: (translations) {
+        if (translations == null || translations.isEmpty) {
+          return SizedBox.shrink();
+        }
+
+        final entries = translations.entries.toList();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'OTHER LANGUAGES',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.gold,
+                letterSpacing: 1,
+              ),
+            ),
+            SizedBox(height: 6),
+            SizedBox(
+              height: 32,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: entries.length,
+                separatorBuilder: (_, __) => SizedBox(width: 6),
+                itemBuilder: (_, index) {
+                  final entry = entries[index];
+                  final lang = SupportedLanguage.fromName(entry.key);
+                  return Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: KinrelColors.darkSurface,
+                      borderRadius: BorderRadius.circular(KinrelRadius.xs),
+                      border: Border.all(color: KinrelColors.darkElevated),
+                    ),
+                    child: Text(
+                      '${lang.nativeName}: ${entry.value.native}',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: KinrelColors.textSilver,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 // ── Sub-widgets ────────────────────────────────────────────────────
@@ -453,7 +862,6 @@ class _QuickChip extends StatelessWidget {
 
   final String label;
   final VoidCallback onTap;
-
 
   @override
   Widget build(BuildContext context) {
@@ -499,7 +907,6 @@ class _SuggestionChip extends StatelessWidget {
   final String? lineage;
   final VoidCallback onTap;
 
-
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -533,8 +940,7 @@ class _SuggestionChip extends StatelessWidget {
               if (lineage != null && lineage!.isNotEmpty) ...[
                 SizedBox(width: 6),
                 Container(
-                  padding:
-                      EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: _lineageColor(lineage!).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
@@ -606,7 +1012,6 @@ class _CategoryTile extends StatelessWidget {
   final int count;
   final VoidCallback onTap;
 
-
   @override
   Widget build(BuildContext context) {
     return ListTile(
@@ -633,7 +1038,7 @@ class _CategoryTile extends StatelessWidget {
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11,
-          color: KinrelColors.textDim,
+                color: KinrelColors.textDim,
               ),
             ),
           ),
@@ -658,11 +1063,12 @@ class _ContextualRelationshipTile extends StatelessWidget {
   final KinshipService kinshipService;
   final VoidCallback onTap;
 
-
   @override
   Widget build(BuildContext context) {
-    final nativeTranslation =
-        kinshipService.getKinshipTerm(relationship.relationshipKey, 'hindi');
+    final nativeTranslation = kinshipService.getKinshipTerm(
+      relationship.relationshipKey,
+      'hindi',
+    );
 
     return ListTile(
       dense: true,
@@ -696,7 +1102,9 @@ class _ContextualRelationshipTile extends StatelessWidget {
             Container(
               padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: _lineageColor(relationship.lineage).withValues(alpha: 0.15),
+                color: _lineageColor(
+                  relationship.lineage,
+                ).withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
@@ -710,7 +1118,7 @@ class _ContextualRelationshipTile extends StatelessWidget {
                 ),
               ),
             ),
-          ],
+        ],
       ),
       subtitle: nativeTranslation != null
           ? Text(

@@ -6,6 +6,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../providers/referral_provider.dart';
+import '../../core/utils/device_tier.dart';
 
 class ReferralScreen extends ConsumerStatefulWidget {
   ReferralScreen({super.key});
@@ -46,14 +47,21 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
     });
   }
 
-  Animation<double> _fade(double a, double b) => Tween<double>(begin: 0, end: 1)
-      .animate(CurvedAnimation(
-          parent: _staggerCtrl, curve: Interval(a, b, curve: Curves.easeOutCubic)));
+  Animation<double> _fade(double a, double b) =>
+      Tween<double>(begin: 0, end: 1).animate(
+        CurvedAnimation(
+          parent: _staggerCtrl,
+          curve: Interval(a, b, curve: Curves.easeOutCubic),
+        ),
+      );
 
   Animation<Offset> _slide(double a, double b) =>
-      Tween<Offset>(begin: Offset(0, 0.15), end: Offset.zero)
-          .animate(CurvedAnimation(
-              parent: _staggerCtrl, curve: Interval(a, b, curve: Curves.easeOutCubic)));
+      Tween<Offset>(begin: Offset(0, 0.15), end: Offset.zero).animate(
+        CurvedAnimation(
+          parent: _staggerCtrl,
+          curve: Interval(a, b, curve: Curves.easeOutCubic),
+        ),
+      );
 
   @override
   void dispose() {
@@ -144,7 +152,8 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
 
   Widget _buildReferralCodeCard(ReferralState state) {
     final code = state.code?.code ?? 'KINREL-****';
-    final shareText = state.code?.shareText ??
+    final shareText =
+        state.code?.shareText ??
         'Join me on KINREL! Discover your family relationships in 15 Indian languages. Use my code: $code';
 
     return Container(
@@ -174,21 +183,27 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
               borderRadius: BorderRadius.circular(20),
               color: KinrelColors.purple.withValues(alpha: 0.15),
               border: Border.all(
-                  color: KinrelColors.purple.withValues(alpha: 0.4)),
+                color: KinrelColors.purple.withValues(alpha: 0.4),
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.card_giftcard_rounded,
-                    color: KinrelColors.purple, size: 14),
+                Icon(
+                  Icons.card_giftcard_rounded,
+                  color: KinrelColors.purple,
+                  size: 14,
+                ),
                 SizedBox(width: 6),
-                Text('Your Referral Code',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: KinrelColors.purple,
-                    )),
+                Text(
+                  'Your Referral Code',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: KinrelColors.purple,
+                  ),
+                ),
               ],
             ),
           ),
@@ -200,7 +215,9 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
               width: 24,
               height: 24,
               child: CircularProgressIndicator(
-                  color: KinrelColors.purple, strokeWidth: 2.5),
+                color: KinrelColors.purple,
+                strokeWidth: 2.5,
+              ),
             )
           else
             SelectableText(
@@ -237,13 +254,19 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                         borderRadius: BorderRadius.circular(12),
                         color: KinrelColors.darkElevated,
                         border: Border.all(
-                            color: KinrelColors.darkSurface.withValues(alpha: 0.6)),
+                          color: KinrelColors.darkSurface.withValues(
+                            alpha: 0.6,
+                          ),
+                        ),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.copy_rounded,
-                              color: KinrelColors.textSilver, size: 18),
+                          Icon(
+                            Icons.copy_rounded,
+                            color: KinrelColors.textSilver,
+                            size: 18,
+                          ),
                           SizedBox(width: 8),
                           Text(
                             'Copy Code',
@@ -279,13 +302,17 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                         gradient: LinearGradient(
-                            colors: [KinrelColors.purple, KinrelColors.amber]),
+                          colors: [KinrelColors.purple, KinrelColors.amber],
+                        ),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.share_rounded,
-                              color: Colors.white, size: 18),
+                          Icon(
+                            Icons.share_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                           SizedBox(width: 8),
                           Text(
                             'Share',
@@ -448,8 +475,11 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                       ),
                       child: Center(
                         child: isUnlocked
-                            ? Icon(Icons.check_rounded,
-                                color: KinrelColors.success, size: 20)
+                            ? Icon(
+                                Icons.check_rounded,
+                                color: KinrelColors.success,
+                                size: 20,
+                              )
                             : Text(
                                 '${tier.referrals}',
                                 style: TextStyle(
@@ -483,11 +513,14 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                                 SizedBox(width: 8),
                                 Container(
                                   padding: EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(8),
-                                    color: KinrelColors.amber
-                                        .withValues(alpha: 0.12),
+                                    color: KinrelColors.amber.withValues(
+                                      alpha: 0.12,
+                                    ),
                                   ),
                                   child: Text(
                                     tier.badge!,
@@ -565,23 +598,27 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
     // Fallback with hardcoded tiers if API is unavailable
     final tiers = [
       const RewardTier(
-          referrals: 5,
-          reward: 'Premium 1 month free',
-          description: 'Unlock Premium features for 1 month'),
+        referrals: 5,
+        reward: 'Premium 1 month free',
+        description: 'Unlock Premium features for 1 month',
+      ),
       const RewardTier(
-          referrals: 10,
-          reward: 'Premium 3 months free',
-          description: 'Unlock Premium features for 3 months'),
+        referrals: 10,
+        reward: 'Premium 3 months free',
+        description: 'Unlock Premium features for 3 months',
+      ),
       const RewardTier(
-          referrals: 25,
-          reward: 'Premium 1 year free',
-          badge: 'Family Champion',
-          description: '1 year of Premium + exclusive badge'),
+        referrals: 25,
+        reward: 'Premium 1 year free',
+        badge: 'Family Champion',
+        description: '1 year of Premium + exclusive badge',
+      ),
       RewardTier(
-          referrals: 50,
-          reward: 'Lifetime Premium',
-          badge: 'Kinrel Ambassador',
-          description: 'Lifetime Premium + exclusive badge'),
+        referrals: 50,
+        reward: 'Lifetime Premium',
+        badge: 'Kinrel Ambassador',
+        description: 'Lifetime Premium + exclusive badge',
+      ),
     ];
 
     return _buildRewardTiers(RewardsData(tiers: tiers), state);
@@ -600,12 +637,16 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
           color: KinrelColors.darkCard,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-              color: KinrelColors.darkSurface.withValues(alpha: 0.6)),
+            color: KinrelColors.darkSurface.withValues(alpha: 0.6),
+          ),
         ),
         child: Column(
           children: [
-            Icon(Icons.group_add_outlined,
-                color: KinrelColors.textDim, size: 32),
+            Icon(
+              Icons.group_add_outlined,
+              color: KinrelColors.textDim,
+              size: 32,
+            ),
             SizedBox(height: 12),
             Text(
               'No referrals yet',
@@ -635,8 +676,9 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(14),
-        border:
-            Border.all(color: KinrelColors.darkSurface.withValues(alpha: 0.6)),
+        border: Border.all(
+          color: KinrelColors.darkSurface.withValues(alpha: 0.6),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -652,8 +694,11 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                     shape: BoxShape.circle,
                     color: KinrelColors.purple.withValues(alpha: 0.12),
                   ),
-                  child: Icon(Icons.person_rounded,
-                      color: KinrelColors.purple, size: 18),
+                  child: Icon(
+                    Icons.person_rounded,
+                    color: KinrelColors.purple,
+                    size: 18,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -680,8 +725,11 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
                     ],
                   ),
                 ),
-                Icon(Icons.check_circle_rounded,
-                    color: KinrelColors.success, size: 18),
+                Icon(
+                  Icons.check_circle_rounded,
+                  color: KinrelColors.success,
+                  size: 18,
+                ),
               ],
             ),
           );
@@ -743,10 +791,11 @@ class _AnimSection extends StatelessWidget {
   final Animation<Offset> slide;
   final Widget child;
 
-
   @override
   Widget build(BuildContext context) => FadeTransition(
-      opacity: fade, child: SlideTransition(position: slide, child: child));
+    opacity: fade,
+    child: SlideTransition(position: slide, child: child),
+  );
 }
 
 // ── PressDown feedback ───────────────────────────────────────────────
@@ -756,7 +805,6 @@ class _PressDown extends StatefulWidget {
 
   final Widget child;
   final VoidCallback onTap;
-
 
   @override
   State<_PressDown> createState() => _PressDownState();
@@ -771,9 +819,13 @@ class _PressDownState extends State<_PressDown>
   void initState() {
     super.initState();
     _c = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 100));
-    _sc = Tween<double>(begin: 1.0, end: 0.95).animate(
-        CurvedAnimation(parent: _c, curve: Curves.easeInOut));
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+    );
+    _sc = Tween<double>(
+      begin: 1.0,
+      end: 0.95,
+    ).animate(CurvedAnimation(parent: _c, curve: Curves.easeInOut));
   }
 
   @override
@@ -784,17 +836,16 @@ class _PressDownState extends State<_PressDown>
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-        onTapDown: (_) => _c.forward(),
-        onTapUp: (_) {
-          _c.reverse();
-          widget.onTap();
-        },
-        onTapCancel: () => _c.reverse(),
-        child: AnimatedBuilder(
-          animation: _sc,
-          builder: (_, child) =>
-              Transform.scale(scale: _sc.value, child: child),
-          child: widget.child,
-        ),
-      );
+    onTapDown: (_) => _c.forward(),
+    onTapUp: (_) {
+      _c.reverse();
+      widget.onTap();
+    },
+    onTapCancel: () => _c.reverse(),
+    child: AnimatedBuilder(
+      animation: _sc,
+      builder: (_, child) => Transform.scale(scale: _sc.value, child: child),
+      child: widget.child,
+    ),
+  );
 }

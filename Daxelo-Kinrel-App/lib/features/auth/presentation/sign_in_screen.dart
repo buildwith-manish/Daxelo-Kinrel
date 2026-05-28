@@ -9,6 +9,9 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/extensions/context_extensions.dart';
+import '../../../core/utils/form_validators.dart';
+import '../../../core/utils/api_error_mapper.dart';
+import '../../core/utils/device_tier.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
   SignInScreen({super.key});
@@ -21,8 +24,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _emailFocusNode = FocusNode();
+  final _passwordFocusNode = FocusNode();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  String? _apiEmailError;
 
   // ── Design tokens (orange brand) ────────────────────────────────
   static const _bgColor = Color(0xFF13141E);
@@ -38,6 +44,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _emailFocusNode.dispose();
+    _passwordFocusNode.dispose();
     super.dispose();
   }
 
@@ -89,7 +97,23 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       if (mounted) context.go('/home');
     } catch (e) {
       if (mounted) {
-        context.showSnackBar(_cleanErrorMessage(e.toString()), isError: true);
+        final fieldErrors = mapApiError(e);
+        if (fieldErrors != null) {
+          if (fieldErrors.containsKey('email')) {
+            setState(() => _apiEmailError = fieldErrors['email']);
+            _formKey.currentState!.validate();
+          }
+          final formError = fieldErrors['form'];
+          if (formError != null) {
+            context.showSnackBar(formError, isError: true);
+          }
+          final emailError = fieldErrors['email'];
+          if (emailError != null && !fieldErrors.containsKey('form')) {
+            context.showSnackBar(emailError, isError: true);
+          }
+        } else {
+          context.showSnackBar(_cleanErrorMessage(e.toString()), isError: true);
+        }
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -146,70 +170,75 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bgColor,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: KinrelSpacing.xl,
-              vertical: KinrelSpacing.lg,
-            ),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+    return Theme(
+      data: Theme.of(context).copyWith(brightness: Brightness.dark),
+      child: Scaffold(
+        backgroundColor: _bgColor,
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: KinrelSpacing.xl,
+                vertical: KinrelSpacing.lg,
+              ),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                   // ── K-graph icon + KINREL wordmark ───────────────
                   Column(
-                    children: [
-                      SizedBox(
-                        width: KinrelSpacing.logoLg,
-                        height: KinrelSpacing.logoLg,
-                        child: SvgPicture.asset(
-                          'assets/icons/kinrel-icon-primary.svg',
-                          width: KinrelSpacing.logoLg,
-                          height: KinrelSpacing.logoLg,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      ShaderMask(
-                        shaderCallback: (bounds) =>
-                            KinrelGradients.wordmarkGradient.createShader(bounds),
-                        child: Text(
-                          'KINREL',
-                          style: KinrelTypography.appName.copyWith(
-                            fontSize: 28,
-                            letterSpacing: 3.92, // 28 * 0.14
-                            color: Colors.white, // base for ShaderMask
+                        children: [
+                          SizedBox(
+                            width: KinrelSpacing.logoLg,
+                            height: KinrelSpacing.logoLg,
+                            child: SvgPicture.asset(
+                              'assets/icons/kinrel-icon-primary.svg',
+                              width: KinrelSpacing.logoLg,
+                              height: KinrelSpacing.logoLg,
+                            ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Welcome back',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 15,
-                          color: _secondaryText,
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ).animate().fadeIn(duration: 400.ms).slideY(
-                        begin: 0.15,
-                        end: 0,
-                        duration: 500.ms,
-                      ),
+                          const SizedBox(height: 16),
+                          ShaderMask(
+                            shaderCallback: (bounds) => KinrelGradients
+                                .wordmarkGradient
+                                .createShader(bounds),
+                            child: Text(
+                              'KINREL',
+                              style: KinrelTypography.appName.copyWith(
+                                fontSize: 28,
+                                letterSpacing: 3.92, // 28 * 0.14
+                                color: Colors.white, // base for ShaderMask
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Welcome back',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 15,
+                              color: _secondaryText,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      )
+                      .maybeAnimate()
+                      .fadeIn(duration: 400.ms)
+                      .slideY(begin: 0.15, end: 0, duration: 500.ms),
 
                   const SizedBox(height: 32),
 
                   // ── Email / username field ───────────────────────
                   TextFormField(
                     controller: _emailController,
+                    focusNode: _emailFocusNode,
                     keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    textCapitalization: TextCapitalization.none,
                     autocorrect: false,
                     cursorColor: _focusBorder,
                     style: TextStyle(
@@ -222,9 +251,15 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       prefixIcon: Icons.email_outlined,
                     ),
                     validator: (v) {
-                      if (v == null || v.isEmpty) return 'Email is required';
-                      if (!v.contains('@')) return 'Enter a valid email';
-                      return null;
+                      if (_apiEmailError != null) {
+                        final err = _apiEmailError;
+                        _apiEmailError = null;
+                        return err;
+                      }
+                      return emailValidator(v);
+                    },
+                    onFieldSubmitted: (_) {
+                      _passwordFocusNode.requestFocus();
                     },
                   ),
 
@@ -233,7 +268,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   // ── Password field with show/hide toggle ─────────
                   TextFormField(
                     controller: _passwordController,
+                    focusNode: _passwordFocusNode,
                     obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.done,
+                    textCapitalization: TextCapitalization.none,
                     cursorColor: _focusBorder,
                     style: TextStyle(
                       color: _primaryText,
@@ -252,16 +290,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           size: 20,
                         ),
                         onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword),
+                          () => _obscurePassword = !_obscurePassword,
+                        ),
                       ),
                     ),
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return 'Password is required';
-                      if (v.length < 6) {
-                        return 'Password must be at least 6 characters';
-                      }
-                      return null;
-                    },
+                    validator: (v) => requiredField(v, 'Password'),
+                    onFieldSubmitted: (_) => _signIn(),
                   ),
 
                   const SizedBox(height: 8),
@@ -275,7 +309,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       },
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 4, vertical: 4),
+                          horizontal: 4,
+                          vertical: 4,
+                        ),
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
@@ -304,14 +340,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         color: _isLoading
                             ? KinrelColors.orange.withValues(alpha: 0.5)
                             : null,
-                        borderRadius:
-                            BorderRadius.circular(KinrelRadius.full),
+                        borderRadius: BorderRadius.circular(KinrelRadius.full),
                         boxShadow: _isLoading
                             ? null
                             : [
                                 BoxShadow(
-                                  color: KinrelColors.orange
-                                      .withValues(alpha: 0.35),
+                                  color: KinrelColors.orange.withValues(
+                                    alpha: 0.35,
+                                  ),
                                   blurRadius: 16,
                                   offset: const Offset(0, 4),
                                 ),
@@ -323,11 +359,13 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           backgroundColor: Colors.transparent,
                           foregroundColor: Colors.white,
                           disabledBackgroundColor: Colors.transparent,
-                          disabledForegroundColor:
-                              Colors.white.withValues(alpha: 0.6),
+                          disabledForegroundColor: Colors.white.withValues(
+                            alpha: 0.6,
+                          ),
                           shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(KinrelRadius.full),
+                            borderRadius: BorderRadius.circular(
+                              KinrelRadius.full,
+                            ),
                           ),
                           elevation: 0,
                         ),
@@ -347,12 +385,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                   Text(
                                     'Connecting...',
                                     style: TextStyle(
-                                      fontFamily:
-                                          KinrelTypography.displayFont,
+                                      fontFamily: KinrelTypography.displayFont,
                                       fontWeight: FontWeight.w600,
                                       fontSize: 16,
-                                      color: Colors.white
-                                          .withValues(alpha: 0.8),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.8,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -367,7 +405,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                               ),
                       ),
                     ),
-                  ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
+                  ).maybeAnimate().fadeIn(duration: 400.ms, delay: 200.ms),
 
                   const SizedBox(height: 28),
 
@@ -399,42 +437,21 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         ),
                       ),
                     ],
-                  ).animate().fadeIn(duration: 300.ms, delay: 300.ms),
+                  ).maybeAnimate().fadeIn(duration: 300.ms, delay: 300.ms),
 
                   const SizedBox(height: 20),
 
-                  // ── Google & Apple social auth buttons ────────────
-                  Row(
-                    children: [
-                      // Google
-                      Expanded(
-                        child: _SocialAuthButton(
-                          label: 'Google',
-                          icon: Icons.g_mobiledata_rounded,
-                          borderColor: _socialBorder,
-                          fillColor: _inputFill,
-                          textColor: _primaryText,
-                          onPressed: () {
-                            // TODO: Google sign in
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Apple
-                      Expanded(
-                        child: _SocialAuthButton(
-                          label: 'Apple',
-                          icon: Icons.apple,
-                          borderColor: _socialBorder,
-                          fillColor: _inputFill,
-                          textColor: _primaryText,
-                          onPressed: () {
-                            // TODO: Apple sign in
-                          },
-                        ),
-                      ),
-                    ],
-                  ).animate().fadeIn(duration: 300.ms, delay: 400.ms),
+                  // ── Google social auth button ─────────────────────
+                  _SocialAuthButton(
+                    label: 'Google',
+                    icon: Icons.g_mobiledata_rounded,
+                    borderColor: _socialBorder,
+                    fillColor: _inputFill,
+                    textColor: _primaryText,
+                    onPressed: () {
+                      // TODO: Google sign in
+                    },
+                  ).maybeAnimate().fadeIn(duration: 300.ms, delay: 400.ms),
 
                   const SizedBox(height: 32),
 
@@ -468,10 +485,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         ),
                       ),
                     ],
-                  ).animate().fadeIn(duration: 300.ms, delay: 500.ms),
+                  ).maybeAnimate().fadeIn(duration: 300.ms, delay: 500.ms),
 
                   const SizedBox(height: 16),
                 ],
+                ),
               ),
             ),
           ),

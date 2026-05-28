@@ -22,7 +22,6 @@ class VoiceSearchState {
   final String? error;
   final SupportedLanguage selectedLanguage;
 
-
   VoiceSearchState copyWith({
     bool? isRecording,
     bool? isLoading,
@@ -62,7 +61,8 @@ class KinshipVoiceResult {
       lineage: json['lineage'] as String? ?? '',
       generation: json['generation']?.toString() ?? '',
       relationshipCategory: json['relationshipCategory'] as String? ?? '',
-      searchKeywords: (json['searchKeywords'] as List<dynamic>?)
+      searchKeywords:
+          (json['searchKeywords'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
@@ -78,14 +78,10 @@ class KinshipVoiceResult {
   final String relationshipCategory;
   final List<String> searchKeywords;
   final Map<String, dynamic> translations;
-
 }
 
 class VoiceLookupResult {
-  const VoiceLookupResult({
-    required this.transcription,
-    required this.term,
-  });
+  const VoiceLookupResult({required this.transcription, required this.term});
 
   factory VoiceLookupResult.fromJson(Map<String, dynamic> json) {
     return VoiceLookupResult(
@@ -96,7 +92,6 @@ class VoiceLookupResult {
 
   final String transcription;
   final Map<String, dynamic> term;
-
 }
 
 // ── Providers ───────────────────────────────────────────────────
@@ -106,7 +101,6 @@ class VoiceSearchNotifier extends StateNotifier<VoiceSearchState> {
   VoiceSearchNotifier(this._dio) : super(VoiceSearchState());
 
   final Dio _dio;
-
 
   /// Set recording state
   void setRecording(bool isRecording) {
@@ -130,16 +124,16 @@ class VoiceSearchNotifier extends StateNotifier<VoiceSearchState> {
     try {
       final response = await _dio.post(
         '/v1/ai-voice/transcribe',
-        data: {
-          'audio': base64Audio,
-          'language': state.selectedLanguage.code,
-        },
+        data: {'audio': base64Audio, 'language': state.selectedLanguage.code},
       );
 
       final data = response.data as Map<String, dynamic>;
       final transcription = data['transcription'] as String? ?? '';
-      final resultsList = (data['results']?['results'] as List<dynamic>?)
-              ?.map((e) => KinshipVoiceResult.fromJson(e as Map<String, dynamic>))
+      final resultsList =
+          (data['results']?['results'] as List<dynamic>?)
+              ?.map(
+                (e) => KinshipVoiceResult.fromJson(e as Map<String, dynamic>),
+              )
               .toList() ??
           [];
 
@@ -149,7 +143,8 @@ class VoiceSearchNotifier extends StateNotifier<VoiceSearchState> {
         results: resultsList,
       );
     } on DioException catch (e) {
-      final message = e.response?.data?['message'] as String? ??
+      final message =
+          e.response?.data?['message'] as String? ??
           'Voice search failed. Please try again.';
       state = state.copyWith(isLoading: false, error: message);
     } catch (e) {
@@ -167,20 +162,20 @@ class VoiceSearchNotifier extends StateNotifier<VoiceSearchState> {
     try {
       final response = await _dio.post(
         '/v1/ai-voice/lookup',
-        data: {
-          'audio': base64Audio,
-          'language': state.selectedLanguage.code,
-        },
+        data: {'audio': base64Audio, 'language': state.selectedLanguage.code},
       );
 
-      final lookupResult = VoiceLookupResult.fromJson(response.data as Map<String, dynamic>);
+      final lookupResult = VoiceLookupResult.fromJson(
+        response.data as Map<String, dynamic>,
+      );
       state = state.copyWith(
         isLoading: false,
         transcription: lookupResult.transcription,
         results: [],
       );
     } on DioException catch (e) {
-      final message = e.response?.data?['message'] as String? ??
+      final message =
+          e.response?.data?['message'] as String? ??
           'Voice lookup failed. Please try again.';
       state = state.copyWith(isLoading: false, error: message);
     } catch (e) {
@@ -195,6 +190,6 @@ class VoiceSearchNotifier extends StateNotifier<VoiceSearchState> {
 /// Voice search provider
 final voiceSearchProvider =
     StateNotifierProvider<VoiceSearchNotifier, VoiceSearchState>((ref) {
-  final dio = ref.watch(dioProvider);
-  return VoiceSearchNotifier(dio);
-});
+      final dio = ref.watch(dioProvider);
+      return VoiceSearchNotifier(dio);
+    });

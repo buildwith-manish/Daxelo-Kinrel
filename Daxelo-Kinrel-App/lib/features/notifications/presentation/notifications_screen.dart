@@ -38,8 +38,11 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 }
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late final AnimationController _emptyAnimController;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -60,6 +63,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required by AutomaticKeepAliveClientMixin
     final notifState = ref.watch(notificationsProvider);
     final filtered = notifState.filtered;
     final unreadCount = notifState.unreadCount;
@@ -111,11 +115,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
 
           // Unread badge
           if (unreadCount > 0)
-            DKBadge(
-              count: unreadCount,
-              size: 22,
-              color: KinrelColors.orange,
-            ),
+            DKBadge(count: unreadCount, size: 22, color: KinrelColors.orange),
 
           const Spacer(),
 
@@ -151,7 +151,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
       _SegmentItem(label: 'All', category: null),
       _SegmentItem(label: 'Family', category: NotificationCategory.family),
       _SegmentItem(
-          label: 'Celebrations', category: NotificationCategory.celebrations),
+        label: 'Celebrations',
+        category: NotificationCategory.celebrations,
+      ),
       _SegmentItem(label: 'System', category: NotificationCategory.system),
     ];
 
@@ -179,11 +181,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
                   curve: KinrelMotion.easeOut,
                   margin: EdgeInsets.all(3),
                   decoration: BoxDecoration(
-                    color: isActive
-                        ? KinrelColors.orange
-                        : Colors.transparent,
-                    borderRadius:
-                        BorderRadius.circular(KinrelRadius.lg),
+                    color: isActive ? KinrelColors.orange : Colors.transparent,
+                    borderRadius: BorderRadius.circular(KinrelRadius.lg),
                   ),
                   alignment: Alignment.center,
                   child: Text(
@@ -191,11 +190,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
-                      fontWeight:
-                          isActive ? FontWeight.w600 : FontWeight.w400,
-                      color: isActive
-                          ? Colors.white
-                          : KinrelColors.textSilver,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                      color: isActive ? Colors.white : KinrelColors.textSilver,
                       height: 1.2,
                     ),
                   ),
@@ -219,8 +215,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
       child: Align(
         alignment: Alignment.centerRight,
         child: GestureDetector(
-          onTap: () =>
-              ref.read(notificationsProvider.notifier).markAllRead(),
+          onTap: () => ref.read(notificationsProvider.notifier).markAllRead(),
           child: Padding(
             padding: const EdgeInsets.all(4),
             child: Text(
@@ -243,6 +238,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
 
   Widget _buildNotificationList(List<NotificationModel> notifications) {
     return ListView.builder(
+      cacheExtent: 500,
       padding: EdgeInsets.symmetric(
         horizontal: KinrelSpacing.base,
         vertical: KinrelSpacing.sm,
@@ -292,8 +288,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
                     color: KinrelColors.orange.withValues(alpha: 0.1),
                     boxShadow: [
                       BoxShadow(
-                        color: KinrelColors.orange
-                            .withValues(alpha: glowAlpha),
+                        color: KinrelColors.orange.withValues(alpha: glowAlpha),
                         blurRadius: 30,
                         spreadRadius: 5,
                       ),
@@ -395,10 +390,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
 // ═══════════════════════════════════════════════════════════════════════
 
 class _SegmentItem {
-  const _SegmentItem({
-    required this.label,
-    required this.category,
-  });
+  const _SegmentItem({required this.label, required this.category});
 
   final String label;
   final NotificationCategory? category;
@@ -591,16 +583,9 @@ class _NotificationItem extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: iconColor.withValues(alpha: 0.15),
-        border: Border.all(
-          color: iconColor.withValues(alpha: 0.3),
-          width: 1,
-        ),
+        border: Border.all(color: iconColor.withValues(alpha: 0.3), width: 1),
       ),
-      child: Icon(
-        icon,
-        size: 20,
-        color: iconColor,
-      ),
+      child: Icon(icon, size: 20, color: iconColor),
     );
   }
 
@@ -633,9 +618,7 @@ class _NotificationItem extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            notification.isPinned
-                ? Icons.push_pin
-                : Icons.push_pin_outlined,
+            notification.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
             color: KinrelColors.gold,
             size: 22,
           ),
@@ -720,8 +703,10 @@ class _NotificationItem extends StatelessWidget {
 
               if (!notification.isRead)
                 ListTile(
-                  leading: Icon(Icons.done_rounded,
-                      color: KinrelColors.success),
+                  leading: Icon(
+                    Icons.done_rounded,
+                    color: KinrelColors.success,
+                  ),
                   title: Text(
                     'Mark as read',
                     style: TextStyle(
@@ -729,13 +714,11 @@ class _NotificationItem extends StatelessWidget {
                       color: KinrelColors.textWhite,
                     ),
                   ),
-                  onTap: () =>
-                      Navigator.pop(context, _SwipeAction.markRead),
+                  onTap: () => Navigator.pop(context, _SwipeAction.markRead),
                 ),
 
               ListTile(
-                leading:
-                    Icon(Icons.delete_outline, color: KinrelColors.error),
+                leading: Icon(Icons.delete_outline, color: KinrelColors.error),
                 title: Text(
                   'Delete',
                   style: TextStyle(
@@ -743,8 +726,7 @@ class _NotificationItem extends StatelessWidget {
                     color: KinrelColors.textWhite,
                   ),
                 ),
-                onTap: () =>
-                    Navigator.pop(context, _SwipeAction.delete),
+                onTap: () => Navigator.pop(context, _SwipeAction.delete),
               ),
 
               ListTile(
@@ -781,18 +763,13 @@ class _CategoryTag extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color) = switch (category) {
       NotificationCategory.family => ('Family', KinrelColors.orange),
-      NotificationCategory.celebrations =>
-        ('Celebrations', KinrelColors.gold),
-      NotificationCategory.engagement =>
-        ('Engagement', KinrelColors.amber),
+      NotificationCategory.celebrations => ('Celebrations', KinrelColors.gold),
+      NotificationCategory.engagement => ('Engagement', KinrelColors.amber),
       NotificationCategory.system => ('System', KinrelColors.textDim),
     };
 
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: KinrelSpacing.sm,
-        vertical: 2,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.sm, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(KinrelRadius.xs),

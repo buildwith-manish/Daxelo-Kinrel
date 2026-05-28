@@ -21,19 +21,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Message type — drives the bubble content and layout.
-enum MessageType {
-  text,
-  photo,
-  voiceNote,
-  familyEvent,
-}
+enum MessageType { text, photo, voiceNote, familyEvent }
 
 /// A single emoji reaction on a message.
 class MessageReaction {
-  const MessageReaction({
-    required this.emoji,
-    required this.userId,
-  });
+  const MessageReaction({required this.emoji, required this.userId});
 
   /// The emoji character (e.g., '❤️', '😂', '👍').
   final String emoji;
@@ -216,8 +208,7 @@ class ChatState {
   final bool isLoading;
 
   /// Number of online members.
-  int get onlineCount =>
-      members.where((m) => m.isOnline).length;
+  int get onlineCount => members.where((m) => m.isOnline).length;
 
   /// Total members in the chat.
   int get totalMembers => members.length;
@@ -236,7 +227,9 @@ class ChatState {
       members: members ?? this.members,
       isTyping: isTyping ?? this.isTyping,
       typingUserName: typingUserName ?? this.typingUserName,
-      replyToMessage: clearReplyTo ? null : (replyToMessage ?? this.replyToMessage),
+      replyToMessage: clearReplyTo
+          ? null
+          : (replyToMessage ?? this.replyToMessage),
       isLoading: isLoading,
     );
   }
@@ -288,10 +281,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     );
 
     final updated = [message, ...state.messages];
-    state = state.copyWith(
-      messages: updated,
-      clearReplyTo: true,
-    );
+    state = state.copyWith(messages: updated, clearReplyTo: true);
   }
 
   /// Set the message to reply to.
@@ -348,10 +338,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   /// Simulate typing indicator.
   void simulateTyping() {
-    state = state.copyWith(
-      isTyping: true,
-      typingUserName: 'Maa',
-    );
+    state = state.copyWith(isTyping: true, typingUserName: 'Maa');
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
         state = state.copyWith(isTyping: false, typingUserName: null);
@@ -371,10 +358,25 @@ class ChatNotifier extends StateNotifier<ChatState> {
       OnlineMember(id: 'u_maa', name: 'Maa', initials: 'MA', isOnline: true),
       OnlineMember(id: 'u_papa', name: 'Papa', initials: 'PA', isOnline: true),
       OnlineMember(id: 'u_didi', name: 'Didi', initials: 'DI', isOnline: false),
-      OnlineMember(id: 'u_bhaiya', name: 'Bhaiya', initials: 'BH', isOnline: true),
-      OnlineMember(id: 'u_chachi', name: 'Chachi', initials: 'CH', isOnline: false),
+      OnlineMember(
+        id: 'u_bhaiya',
+        name: 'Bhaiya',
+        initials: 'BH',
+        isOnline: true,
+      ),
+      OnlineMember(
+        id: 'u_chachi',
+        name: 'Chachi',
+        initials: 'CH',
+        isOnline: false,
+      ),
       OnlineMember(id: 'u_nani', name: 'Nani', initials: 'NA', isOnline: false),
-      OnlineMember(id: 'u_cousin_1', name: 'Rahul Bhaiya', initials: 'RB', isOnline: true),
+      OnlineMember(
+        id: 'u_cousin_1',
+        name: 'Rahul Bhaiya',
+        initials: 'RB',
+        isOnline: true,
+      ),
     ];
 
     final messages = <ChatMessage>[
@@ -383,7 +385,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
         id: 'msg_001',
         senderId: 'u_papa',
         senderName: 'Papa',
-        content: 'Sabko good evening! Kal Sharma ji ka dinner hai, sab yaad hai na?',
+        content:
+            'Sabko good evening! Kal Sharma ji ka dinner hai, sab yaad hai na?',
         messageType: MessageType.text,
         timestamp: yesterday.add(const Duration(hours: 19, minutes: 15)),
         isRead: true,
@@ -394,7 +397,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
         id: 'msg_002',
         senderId: 'u_maa',
         senderName: 'Maa',
-        content: 'Haan yaad hai. Main kheer bana rahi hoon, aur kuch chahiye toh batao',
+        content:
+            'Haan yaad hai. Main kheer bana rahi hoon, aur kuch chahiye toh batao',
         messageType: MessageType.text,
         timestamp: yesterday.add(const Duration(hours: 19, minutes: 18)),
         isRead: true,
@@ -431,21 +435,21 @@ class ChatNotifier extends StateNotifier<ChatState> {
         id: 'msg_005',
         senderId: 'u_didi',
         senderName: 'Didi',
-        content: 'Guys main thoda late aaungi, office ka kaam hai. But I\'ll try to come by 8!',
+        content:
+            'Guys main thoda late aaungi, office ka kaam hai. But I\'ll try to come by 8!',
         messageType: MessageType.text,
         timestamp: yesterday.add(const Duration(hours: 19, minutes: 30)),
         isRead: true,
         isOnline: false,
         senderInitials: 'DI',
-        reactions: [
-          MessageReaction(emoji: '👍', userId: 'u_papa'),
-        ],
+        reactions: [MessageReaction(emoji: '👍', userId: 'u_papa')],
       ),
       ChatMessage(
         id: 'msg_006',
         senderId: 'u_papa',
         senderName: 'Papa',
-        content: 'Koi baat nahi beta, jo bhi time pe aao. Pehle kaam khatam karo',
+        content:
+            'Koi baat nahi beta, jo bhi time pe aao. Pehle kaam khatam karo',
         messageType: MessageType.text,
         timestamp: yesterday.add(const Duration(hours: 19, minutes: 32)),
         isRead: true,
@@ -458,7 +462,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
         id: 'msg_007',
         senderId: 'u_maa',
         senderName: 'Maa',
-        content: 'Good morning sabko! 🙏 Aaj subah mandir jana hai, kaun aa raha hai?',
+        content:
+            'Good morning sabko! 🙏 Aaj subah mandir jana hai, kaun aa raha hai?',
         messageType: MessageType.text,
         timestamp: today.add(const Duration(hours: 6, minutes: 30)),
         isRead: true,
@@ -492,7 +497,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         senderInitials: 'BH',
         reactions: [
           MessageReaction(emoji: '😂', userId: 'u_didi'),
-          MessageReaction( emoji: '😠', userId: 'u_maa'),
+          MessageReaction(emoji: '😠', userId: 'u_maa'),
         ],
       ),
       ChatMessage(
@@ -523,7 +528,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
         id: 'msg_012',
         senderId: 'u_chachi',
         senderName: 'Chachi',
-        content: 'Arey listen! Ramesh ki engagement final ho gayi — 14th ko! 🎉💍',
+        content:
+            'Arey listen! Ramesh ki engagement final ho gayi — 14th ko! 🎉💍',
         messageType: MessageType.text,
         timestamp: today.add(const Duration(hours: 10, minutes: 15)),
         isRead: true,
@@ -551,7 +557,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
         id: 'msg_014',
         senderId: 'u_chachi',
         senderName: 'Chachi',
-        content: 'Gupta ji ki beti — Priya. Meerut mein rehte hain. Bahut acche parivaar hain',
+        content:
+            'Gupta ji ki beti — Priya. Meerut mein rehte hain. Bahut acche parivaar hain',
         messageType: MessageType.text,
         timestamp: today.add(const Duration(hours: 10, minutes: 22)),
         isRead: true,
@@ -632,15 +639,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
         id: 'msg_019',
         senderId: 'u_cousin_1',
         senderName: 'Rahul Bhaiya',
-        content: 'Bhai log, aaj evening cricket khelni hai? Ground pe milte hain 5 baje 🏏',
+        content:
+            'Bhai log, aaj evening cricket khelni hai? Ground pe milte hain 5 baje 🏏',
         messageType: MessageType.text,
         timestamp: today.add(const Duration(hours: 14, minutes: 30)),
         isRead: true,
         isOnline: true,
         senderInitials: 'RB',
-        reactions: [
-          MessageReaction(emoji: '🏏', userId: 'u_bhaiya'),
-        ],
+        reactions: [MessageReaction(emoji: '🏏', userId: 'u_bhaiya')],
       ),
       ChatMessage(
         id: 'msg_020',
@@ -653,14 +659,16 @@ class ChatNotifier extends StateNotifier<ChatState> {
         isOnline: true,
         senderInitials: 'BH',
         replyToId: 'msg_019',
-        replyToContent: 'Bhai log, aaj evening cricket khelni hai? Ground pe milte hain 5 baje 🏏',
+        replyToContent:
+            'Bhai log, aaj evening cricket khelni hai? Ground pe milte hain 5 baje 🏏',
         replyToSenderName: 'Rahul Bhaiya',
       ),
       ChatMessage(
         id: 'msg_021',
         senderId: 'u_didi',
         senderName: 'Didi',
-        content: 'Holi ke liye colour aur pichkari ka list bana do. Kal market jaana hai',
+        content:
+            'Holi ke liye colour aur pichkari ka list bana do. Kal market jaana hai',
         messageType: MessageType.text,
         timestamp: today.add(const Duration(hours: 15, minutes: 10)),
         isRead: false,
@@ -671,7 +679,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
         id: 'msg_022',
         senderId: 'u_maa',
         senderName: 'Maa',
-        content: 'Haan beta, main list bana dungi. Gulal ka special order bhi karna hai Sharma uncle ke yahan se — unka colour bahut accha aata hai',
+        content:
+            'Haan beta, main list bana dungi. Gulal ka special order bhi karna hai Sharma uncle ke yahan se — unka colour bahut accha aata hai',
         messageType: MessageType.text,
         timestamp: today.add(const Duration(hours: 15, minutes: 15)),
         isRead: false,
@@ -682,7 +691,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
         id: 'msg_023',
         senderId: 'u_papa',
         senderName: 'Papa',
-        content: 'Aur suno, Holi ke din potluck rakhne ka plan hai. Har family ek dish banayegi. Kya banayega each of you? 🤔',
+        content:
+            'Aur suno, Holi ke din potluck rakhne ka plan hai. Har family ek dish banayegi. Kya banayega each of you? 🤔',
         messageType: MessageType.text,
         timestamp: today.add(const Duration(hours: 15, minutes: 30)),
         isRead: false,
@@ -693,7 +703,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
         id: 'msg_024',
         senderId: 'u_chachi',
         senderName: 'Chachi',
-        content: 'Main gujiya aur thandai banaungi! Traditional Holi special 😊',
+        content:
+            'Main gujiya aur thandai banaungi! Traditional Holi special 😊',
         messageType: MessageType.text,
         timestamp: today.add(const Duration(hours: 15, minutes: 35)),
         isRead: false,
@@ -718,9 +729,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Family chat provider — parameterized by family ID.
-final chatProvider = StateNotifierProvider.family<ChatNotifier, ChatState, String>(
-  (ref, familyId) => ChatNotifier(familyId: familyId),
-);
+final chatProvider =
+    StateNotifierProvider.family<ChatNotifier, ChatState, String>(
+      (ref, familyId) => ChatNotifier(familyId: familyId),
+    );
 
 /// Convenience: online member count for a family chat.
 final chatOnlineCountProvider = Provider.family<int, String>((ref, familyId) {

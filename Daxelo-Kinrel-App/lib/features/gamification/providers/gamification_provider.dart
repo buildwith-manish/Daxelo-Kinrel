@@ -24,15 +24,42 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class BadgeIcons {
   BadgeIcons._();
 
-  static const IconData sprout = IconData(0xe549, fontFamily: 'MaterialIcons');     // eco / sprout
-  static const IconData leaf = IconData(0xe3ab, fontFamily: 'MaterialIcons');       // nature / leaf
-  static const IconData tree = IconData(0xe3c0, fontFamily: 'MaterialIcons');       // park / tree
-  static const IconData book = IconData(0xe865, fontFamily: 'MaterialIcons');       // menu_book / book
-  static const IconData map = IconData(0xe56c, fontFamily: 'MaterialIcons');        // map / map
-  static const IconData building = IconData(0xe8c1, fontFamily: 'MaterialIcons');   // account_balance / building
-  static const IconData link = IconData(0xe3bc, fontFamily: 'MaterialIcons');       // link / link
-  static const IconData lightning = IconData(0xe430, fontFamily: 'MaterialIcons');  // bolt / lightning
-  static const IconData globe = IconData(0xe55b, fontFamily: 'MaterialIcons');      // public / globe
+  static const IconData sprout = IconData(
+    0xe549,
+    fontFamily: 'MaterialIcons',
+  ); // eco / sprout
+  static const IconData leaf = IconData(
+    0xe3ab,
+    fontFamily: 'MaterialIcons',
+  ); // nature / leaf
+  static const IconData tree = IconData(
+    0xe3c0,
+    fontFamily: 'MaterialIcons',
+  ); // park / tree
+  static const IconData book = IconData(
+    0xe865,
+    fontFamily: 'MaterialIcons',
+  ); // menu_book / book
+  static const IconData map = IconData(
+    0xe56c,
+    fontFamily: 'MaterialIcons',
+  ); // map / map
+  static const IconData building = IconData(
+    0xe8c1,
+    fontFamily: 'MaterialIcons',
+  ); // account_balance / building
+  static const IconData link = IconData(
+    0xe3bc,
+    fontFamily: 'MaterialIcons',
+  ); // link / link
+  static const IconData lightning = IconData(
+    0xe430,
+    fontFamily: 'MaterialIcons',
+  ); // bolt / lightning
+  static const IconData globe = IconData(
+    0xe55b,
+    fontFamily: 'MaterialIcons',
+  ); // public / globe
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -76,16 +103,23 @@ class AchievementBadge {
   String get formattedUnlockDate {
     if (unlockedDate == null) return '';
     final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[unlockedDate!.month - 1]} ${unlockedDate!.day}, ${unlockedDate!.year}';
   }
 
-  AchievementBadge copyWith({
-    bool? isUnlocked,
-    DateTime? unlockedDate,
-  }) {
+  AchievementBadge copyWith({bool? isUnlocked, DateTime? unlockedDate}) {
     return AchievementBadge(
       id: id,
       name: name,
@@ -144,8 +178,18 @@ class StreakData {
   String get formattedLastCheckIn {
     if (lastCheckInDate == null) return 'Never';
     final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[lastCheckInDate!.month - 1]} ${lastCheckInDate!.day}, ${lastCheckInDate!.year}';
   }
@@ -394,7 +438,8 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
         ? state.streak
         : state.streak.copyWith(
             currentStreak: state.streak.currentStreak + 1,
-            longestStreak: state.streak.currentStreak + 1 > state.streak.longestStreak
+            longestStreak:
+                state.streak.currentStreak + 1 > state.streak.longestStreak
                 ? state.streak.currentStreak + 1
                 : state.streak.longestStreak,
             lastCheckInDate: now,
@@ -425,7 +470,8 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
       AchievementBadge(
         id: 'first_steps',
         name: 'First Steps',
-        description: 'You added your first family member — every great tree starts with a single branch!',
+        description:
+            'You added your first family member — every great tree starts with a single branch!',
         icon: BadgeIcons.sprout,
         isUnlocked: true,
         unlockedDate: null, // Will be set below
@@ -434,7 +480,8 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
       AchievementBadge(
         id: 'growing_family',
         name: 'Growing Family',
-        description: '10 members and counting — your family tree is taking shape!',
+        description:
+            '10 members and counting — your family tree is taking shape!',
         icon: BadgeIcons.leaf,
         isUnlocked: true,
         unlockedDate: null,
@@ -443,7 +490,8 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
       AchievementBadge(
         id: 'generation_mapper',
         name: 'Generation Mapper',
-        description: '3 generations mapped — you\'re bridging the past and present!',
+        description:
+            '3 generations mapped — you\'re bridging the past and present!',
         icon: BadgeIcons.map,
         isUnlocked: true,
         unlockedDate: null,
@@ -557,8 +605,12 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
       SuggestedStep(
         id: 'add_parents',
         title: "Add Your Parents' Details",
-        description: 'Filling in parent information unlocks the Deep Roots badge and brings your tree to 70%.',
-        icon: const IconData(0xef3d, fontFamily: 'MaterialIcons'), // family_restroom
+        description:
+            'Filling in parent information unlocks the Deep Roots badge and brings your tree to 70%.',
+        icon: const IconData(
+          0xef3d,
+          fontFamily: 'MaterialIcons',
+        ), // family_restroom
         accentColor: 0xFFE8612A,
         actionLabel: 'Add Parents',
         route: '/families',
@@ -566,15 +618,20 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
       SuggestedStep(
         id: 'daily_checkin',
         title: 'Complete Today\'s Check-In',
-        description: 'Keep your 7-day streak alive! Daily check-ins earn you bonus points toward the Super Connector badge.',
-        icon: const IconData(0xe7ed, fontFamily: 'MaterialIcons'), // check_circle
+        description:
+            'Keep your 7-day streak alive! Daily check-ins earn you bonus points toward the Super Connector badge.',
+        icon: const IconData(
+          0xe7ed,
+          fontFamily: 'MaterialIcons',
+        ), // check_circle
         accentColor: 0xFFF59240,
         actionLabel: 'Check In Now',
       ),
       SuggestedStep(
         id: 'learn_languages',
         title: 'Explore Kinship in a New Language',
-        description: 'You\'ve used Hindi and English — try Marathi or Bengali to unlock the Linguist badge!',
+        description:
+            'You\'ve used Hindi and English — try Marathi or Bengali to unlock the Linguist badge!',
         icon: const IconData(0xe55b, fontFamily: 'MaterialIcons'), // public
         accentColor: 0xFFD4AF37,
         actionLabel: 'Explore Terms',
@@ -599,8 +656,8 @@ class GamificationNotifier extends StateNotifier<GamificationState> {
 /// Global gamification provider.
 final gamificationProvider =
     StateNotifierProvider<GamificationNotifier, GamificationState>(
-  (ref) => GamificationNotifier(),
-);
+      (ref) => GamificationNotifier(),
+    );
 
 /// Convenience: unlocked badge count provider.
 final unlockedBadgeCountProvider = Provider<int>((ref) {

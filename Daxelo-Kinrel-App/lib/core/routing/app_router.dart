@@ -1,10 +1,10 @@
 // lib/core/routing/app_router.dart
 //
-// DAXELO KINREL — App Router
+// DAXELO KINREL — App Router (P2 — Instant Navigation)
 //
 // 5-tab bottom navigation:
 //   1. Home      → /home
-//   2. Kinship   → /kinship-search
+//   2. Search    → /search
 //   3. Graph     → /families
 //   4. Alerts    → /notifications
 //   5. Me        → /profile
@@ -12,6 +12,30 @@
 // Additional deep-link routes for all features.
 // Uses DKBottomNav with semi-transparent background, orange active,
 // gold indicator, badge support on Alerts tab.
+//
+// ── P2 Optimizations ─────────────────────────────────────────────
+// • CustomTransitionPage with 200ms FadeTransition + Curves.easeOut
+//   for ALL non-shell routes (33% faster than Flutter default 300ms)
+// • Instant (0ms) transitions for ShellRoute tab switches
+// • Prefetch wrappers for 3 most-visited routes (/families, /family/:id, /profile)
+// • AutomaticKeepAliveClientMixin on all tab screens
+//
+// ── go() vs push() Recommendations ────────────────────────────────
+// Use go() when the target replaces the current stack context:
+//   • Bottom nav tab switches (already using go())
+//   • After sign-in → /home
+//   • After sign-out → /sign-in
+//   • Deep links that should reset the stack
+//
+// Use push() when the target is a detail/child of the current screen:
+//   • /family/:id from /families (user may go back)
+//   • /member/:id from any list
+//   • /families/create from /families
+//   • /profile/edit from /profile
+//   • Any modal-like screen (path-finder, add-person, etc.)
+//
+// Rule of thumb: If the user expects a back button, use push().
+//               If it's a top-level context switch, use go().
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -31,13 +55,33 @@ import '../../features/family/presentation/relationship_builder_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/profile/presentation/profile_edit_screen.dart';
+import '../../features/profile/presentation/quiet_hours_screen.dart';
+import '../../features/profile/presentation/sessions_screen.dart';
+import '../../features/profile/presentation/delete_account_screen.dart';
+import '../../features/profile/presentation/members_added_screen.dart';
+import '../../features/profile/presentation/change_password_screen.dart';
+import '../../features/profile/presentation/linked_accounts_screen.dart';
+import '../../features/profile/presentation/two_factor_screen.dart';
+import '../../features/profile/presentation/help_center_screen.dart';
+import '../../features/profile/presentation/contact_support_screen.dart';
+import '../../features/profile/presentation/report_bug_screen.dart';
+import '../../features/profile/presentation/legal_screen.dart';
+import '../../features/profile/presentation/my_families_screen.dart';
+import '../../features/profile/presentation/invitations_screen.dart';
+import '../../features/profile/presentation/blocked_users_screen.dart';
+import '../../features/profile/presentation/relations_screen.dart';
 import '../../features/ai_chat/presentation/ai_chat_screen.dart';
 import '../../features/voice_search/presentation/voice_search_screen.dart';
 import '../../features/festival_cards/presentation/festival_cards_screen.dart';
 import '../../features/quiz/presentation/quiz_screen.dart';
 import '../../features/referral/presentation/referral_screen.dart';
-import '../../features/kinship/presentation/kinship_search_screen.dart';
+// import '../../features/kinship/presentation/kinship_search_screen.dart';
+import '../../features/search/presentation/search_screen.dart';
 import '../../features/kinship/presentation/kinship_detail_screen.dart';
+import '../../features/kinship/presentation/global_kinship_screen.dart';
+import '../../features/kinship/presentation/cross_cultural_comparison_screen.dart';
+import '../../features/kinship/presentation/country_kinship_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/events/presentation/events_screen.dart';
 import '../../features/memories/presentation/memories_screen.dart';
@@ -46,10 +90,142 @@ import '../../features/share/presentation/share_screen.dart';
 import '../../features/gamification/presentation/achievements_screen.dart';
 import '../../features/documents/presentation/documents_screen.dart';
 import '../services/supabase_service.dart';
+import '../services/crashlytics_service.dart';
+import '../services/deep_link_service.dart';
 import '../../shared/widgets/dk_components.dart';
+import '../../core/family/family_provider.dart';
+import '../../features/profile/data/profile_provider.dart';
 
 /// Key for accessing the router's navigator state
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
+
+// ═══════════════════════════════════════════════════════════════════════
+// P2 — CustomTransitionPage Helpers
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Fast page transition: 200ms fade with Curves.easeOut.
+/// 33% faster than Flutter's default 300ms MaterialPage transition.
+CustomTransitionPage<void> _fastFadePage({
+  required LocalKey key,
+  required Widget child,
+}) {
+  return CustomTransitionPage(
+    key: key,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 200),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      return FadeTransition(
+        opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+        child: child,
+      );
+    },
+  );
+}
+
+/// Instant page transition: 0ms — used for ShellRoute tab switches
+/// where the shell itself handles the visual transition.
+CustomTransitionPage<void> _instantPage({
+  required LocalKey key,
+  required Widget child,
+}) {
+  return CustomTransitionPage(
+    key: key,
+    child: child,
+    transitionDuration: Duration.zero,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      return child;
+    },
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// P2 — Prefetch Wrappers for Most-Visited Routes
+// ═══════════════════════════════════════════════════════════════════════
+//
+// These wrappers warm up Riverpod providers in initState, so the
+// data fetch begins one frame before the screen is built. Combined
+// with the 200ms page transition, data often arrives while the
+// transition is still playing — perceived as instant.
+
+/// Prefetches family list data for /families route.
+class _PrefetchFamilyList extends ConsumerStatefulWidget {
+  const _PrefetchFamilyList({required this.child});
+  final Widget child;
+
+  @override
+  ConsumerState<_PrefetchFamilyList> createState() =>
+      _PrefetchFamilyListState();
+}
+
+class _PrefetchFamilyListState extends ConsumerState<_PrefetchFamilyList> {
+  @override
+  void initState() {
+    super.initState();
+    // Warm up the family list provider — data starts fetching immediately
+    Future.microtask(() {
+      if (mounted) {
+        ref.read(familyListProvider.future);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+/// Prefetches family detail data for /family/:id route.
+class _PrefetchFamilyDetail extends ConsumerStatefulWidget {
+  const _PrefetchFamilyDetail({
+    required this.child,
+    required this.familyId,
+  });
+  final Widget child;
+  final String familyId;
+
+  @override
+  ConsumerState<_PrefetchFamilyDetail> createState() =>
+      _PrefetchFamilyDetailState();
+}
+
+class _PrefetchFamilyDetailState extends ConsumerState<_PrefetchFamilyDetail> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      if (mounted) {
+        ref.read(familyDetailProvider(widget.familyId).future);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+/// Prefetches profile data for /profile route.
+class _PrefetchProfile extends ConsumerStatefulWidget {
+  const _PrefetchProfile({required this.child});
+  final Widget child;
+
+  @override
+  ConsumerState<_PrefetchProfile> createState() => _PrefetchProfileState();
+}
+
+class _PrefetchProfileState extends ConsumerState<_PrefetchProfile> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      if (mounted) {
+        ref.read(profileProvider.notifier).loadProfile();
+        ref.read(profileProvider.notifier).loadStats();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
 
 /// Router provider — uses a single GoRouter instance that doesn't
 /// rebuild on auth state changes. This prevents the app from
@@ -63,13 +239,17 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/splash',
     debugLogDiagnostics: true,
     redirect: (context, state) {
+      // ── P3-F1: Log navigation breadcrumb for crash context ───────
+      logNavigationBreadcrumb(state.matchedLocation);
+
       // Don't redirect away from splash — it handles its own navigation
       final isSplash = state.matchedLocation == '/splash';
       if (isSplash) return null;
 
       final authState = ref.read(isAuthenticatedProvider);
       final isOnboarding = state.matchedLocation == '/onboarding';
-      final isAuth = state.matchedLocation == '/sign-in' ||
+      final isAuth =
+          state.matchedLocation == '/sign-in' ||
           state.matchedLocation == '/sign-up';
       final isProtected = !isSplash && !isOnboarding && !isAuth;
 
@@ -87,174 +267,382 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      // ── Auth / Onboarding (fast 200ms fade) ────────────────────────
       GoRoute(
         path: '/splash',
-        builder: (context, state) => SplashScreen(),
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: SplashScreen()),
       ),
       GoRoute(
         path: '/onboarding',
-        builder: (context, state) => OnboardingScreen(),
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: OnboardingScreen()),
       ),
       GoRoute(
         path: '/sign-in',
-        builder: (context, state) => SignInScreen(),
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: SignInScreen()),
       ),
       GoRoute(
         path: '/sign-up',
-        builder: (context, state) => SignUpScreen(),
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: SignUpScreen()),
       ),
-      // ── Shell routes (show bottom navigation) ───────────────────
+
+      // ── Shell routes (show bottom navigation) ─────────────────────
+      // Tab switches use 0ms instant transitions — the shell handles
+      // the visual feedback, so no page animation is needed.
       ShellRoute(
-        builder: (context, state, child) =>
-            RoutePersistenceShell(child: child),
+        builder: (context, state, child) => RoutePersistenceShell(child: child),
         routes: [
           GoRoute(
             path: '/home',
-            builder: (context, state) => HomeScreen(),
+            pageBuilder: (context, state) =>
+                _instantPage(key: state.pageKey, child: HomeScreen()),
           ),
+          // GoRoute(
+          //   path: '/kinship-search',
+          //   pageBuilder: (context, state) =>
+          //       _instantPage(key: state.pageKey, child: KinshipSearchScreen()),
+          // ),
           GoRoute(
-            path: '/kinship-search',
-            builder: (context, state) => KinshipSearchScreen(),
+            path: '/search',
+            pageBuilder: (context, state) =>
+                _instantPage(key: state.pageKey, child: SearchScreen()),
           ),
           GoRoute(
             path: '/families',
-            builder: (context, state) => FamilyListScreen(),
+            pageBuilder: (context, state) => _instantPage(
+              key: state.pageKey,
+              child: _PrefetchFamilyList(child: FamilyListScreen()),
+            ),
           ),
           GoRoute(
             path: '/notifications',
-            builder: (context, state) => const NotificationsScreen(),
+            pageBuilder: (context, state) => _instantPage(
+              key: state.pageKey,
+              child: const NotificationsScreen(),
+            ),
           ),
           GoRoute(
             path: '/explore',
-            builder: (context, state) => ExploreScreen(),
+            pageBuilder: (context, state) =>
+                _instantPage(key: state.pageKey, child: ExploreScreen()),
           ),
           GoRoute(
             path: '/profile',
-            builder: (context, state) => ProfileScreen(),
+            pageBuilder: (context, state) => _instantPage(
+              key: state.pageKey,
+              child: _PrefetchProfile(child: ProfileScreen()),
+            ),
           ),
           // Keep /settings in shell for backward compat
           GoRoute(
             path: '/settings',
-            builder: (context, state) => SettingsScreen(),
+            pageBuilder: (context, state) =>
+                _instantPage(key: state.pageKey, child: SettingsScreen()),
           ),
         ],
       ),
+
+      // ── Family Routes (200ms fast fade + prefetch) ────────────────
       GoRoute(
         path: '/families/create',
-        builder: (context, state) => CreateFamilyScreen(),
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: CreateFamilyScreen()),
       ),
       GoRoute(
         path: '/family/:id',
-        builder: (context, state) => FamilyDetailScreen(
-          familyId: state.pathParameters['id']!,
-        ),
+        pageBuilder: (context, state) {
+          final familyId = state.pathParameters['id']!;
+          return _fastFadePage(
+            key: state.pageKey,
+            child: _PrefetchFamilyDetail(
+              familyId: familyId,
+              child: FamilyDetailScreen(familyId: familyId),
+            ),
+          );
+        },
       ),
       GoRoute(
         path: '/family/:id/path-finder',
-        builder: (context, state) => PathFinderScreen(
-          familyId: state.pathParameters['id']!,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: PathFinderScreen(familyId: state.pathParameters['id']!),
         ),
       ),
       GoRoute(
         path: '/family/:id/add-person',
-        builder: (context, state) => _AddPersonScreen(
-          familyId: state.pathParameters['id']!,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: _AddPersonScreen(familyId: state.pathParameters['id']!),
         ),
       ),
       GoRoute(
         path: '/family/:id/add-member',
-        builder: (context, state) => _AddPersonScreen(
-          familyId: state.pathParameters['id']!,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: _AddPersonScreen(familyId: state.pathParameters['id']!),
         ),
       ),
       GoRoute(
         path: '/family/:id/link',
-        builder: (context, state) => RelationshipBuilderScreen(
-          familyId: state.pathParameters['id']!,
-          familyName: state.uri.queryParameters['name'] ?? 'Family',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: RelationshipBuilderScreen(
+            familyId: state.pathParameters['id']!,
+            familyName: state.uri.queryParameters['name'] ?? 'Family',
+          ),
         ),
       ),
 
       // ── Person Detail Screen ────────────────────────────────────
       GoRoute(
         path: '/member/:id',
-        builder: (context, state) => PersonDetailScreen(
-          memberId: state.pathParameters['id']!,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: PersonDetailScreen(memberId: state.pathParameters['id']!),
         ),
       ),
 
       // ── Family Chat ─────────────────────────────────────────────
       GoRoute(
         path: '/family/:id/chat',
-        builder: (context, state) => ChatScreen(
-          familyId: state.pathParameters['id']!,
-          familyName: state.uri.queryParameters['name'] ?? 'Family',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: ChatScreen(
+            familyId: state.pathParameters['id']!,
+            familyName: state.uri.queryParameters['name'] ?? 'Family',
+          ),
         ),
       ),
 
       // ── Events & Celebrations ──────────────────────────────────
       GoRoute(
         path: '/events',
-        builder: (context, state) => const EventsScreen(),
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const EventsScreen()),
       ),
 
       // ── Memories & Timeline ─────────────────────────────────────
       GoRoute(
         path: '/memories',
-        builder: (context, state) => const MemoriesScreen(),
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const MemoriesScreen()),
       ),
 
       // ── AI-Powered Features ─────────────────────────────────────
       GoRoute(
         path: '/ai-chat',
-        builder: (context, state) => AiChatScreen(),
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: AiChatScreen()),
       ),
       GoRoute(
         path: '/voice-search',
-        builder: (context, state) => VoiceSearchScreen(),
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: VoiceSearchScreen()),
       ),
       GoRoute(
         path: '/festival-cards',
-        builder: (context, state) => FestivalCardsScreen(),
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: FestivalCardsScreen()),
       ),
 
       // ── Kinship Dictionary ──────────────────────────────────────
       GoRoute(
+        path: '/kinship/global',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const GlobalKinshipScreen()),
+      ),
+      GoRoute(
+        path: '/kinship/compare',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const CrossCulturalComparisonScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/kinship/country/:code',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: CountryKinshipDetailScreen(
+            countryCode: state.pathParameters['code']!,
+          ),
+        ),
+      ),
+      GoRoute(
         path: '/kinship/:key',
-        builder: (context, state) => KinshipDetailScreen(
-          relationshipKey: state.pathParameters['key']!,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: KinshipDetailScreen(
+            relationshipKey: state.pathParameters['key']!,
+          ),
         ),
       ),
 
       // ── Growth & Engagement ─────────────────────────────────────
       GoRoute(
         path: '/quiz',
-        builder: (context, state) => QuizScreen(),
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: QuizScreen()),
       ),
       GoRoute(
         path: '/referral',
-        builder: (context, state) => ReferralScreen(),
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: ReferralScreen()),
       ),
 
       // ── Share & Invite ──────────────────────────────────────────
       GoRoute(
         path: '/family/:id/share',
-        builder: (context, state) => ShareScreen(
-          familyId: state.pathParameters['id']!,
-          familyName: state.uri.queryParameters['name'] ?? 'Family',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: ShareScreen(
+            familyId: state.pathParameters['id']!,
+            familyName: state.uri.queryParameters['name'] ?? 'Family',
+          ),
         ),
+      ),
+
+      // ── P3-F2: Deep Link — Share route (/share/:id) ──────────────
+      // Maps https://kinrel.app/share/:id to the ShareScreen.
+      // Preloads family name from Isar cache for instant display.
+      GoRoute(
+        path: '/share/:id',
+        pageBuilder: (context, state) {
+          final familyId = state.pathParameters['id']!;
+          return _fastFadePage(
+            key: state.pageKey,
+            child: _DeepLinkShareScreen(familyId: familyId),
+          );
+        },
+      ),
+
+      // ── P3-F2: Deep Link — Invite route (/invite/:code) ──────────
+      // Maps https://kinrel.app/invite/:code to the InvitationsScreen.
+      // Users opening an invite link land here to accept the invitation.
+      GoRoute(
+        path: '/invite/:code',
+        pageBuilder: (context, state) {
+          final inviteCode = state.pathParameters['code']!;
+          return _fastFadePage(
+            key: state.pageKey,
+            child: InvitationsScreen(inviteCode: inviteCode),
+          );
+        },
       ),
 
       // ── Gamification & Achievements ─────────────────────────────
       GoRoute(
         path: '/achievements',
-        builder: (context, state) => const AchievementsScreen(),
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const AchievementsScreen()),
       ),
 
       // ── Document Vault ───────────────────────────────────────────
       GoRoute(
         path: '/documents',
-        builder: (context, state) => const DocumentsScreen(),
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const DocumentsScreen()),
+      ),
+
+      // ── Profile Feature Screens ──────────────────────────────────
+      GoRoute(
+        path: '/profile/change-password',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const ChangePasswordScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/profile/linked-accounts',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const LinkedAccountsScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/profile/2fa-setup',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const TwoFactorScreen()),
+      ),
+      GoRoute(
+        path: '/profile/quiet-hours',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const QuietHoursScreen()),
+      ),
+      GoRoute(
+        path: '/profile/sessions',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const SessionsScreen()),
+      ),
+      GoRoute(
+        path: '/profile/delete-account',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const DeleteAccountScreen()),
+      ),
+      GoRoute(
+        path: '/profile/members-added',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const MembersAddedScreen()),
+      ),
+      GoRoute(
+        path: '/profile/edit',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: ProfileEditScreen(
+            focusField: state.uri.queryParameters['focus'],
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/profile/help',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const HelpCenterScreen()),
+      ),
+      GoRoute(
+        path: '/profile/contact-support',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const ContactSupportScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/profile/report-bug',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const ReportBugScreen()),
+      ),
+      GoRoute(
+        path: '/legal/terms',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const LegalScreen(type: 'terms')),
+      ),
+      GoRoute(
+        path: '/legal/privacy',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const LegalScreen(type: 'privacy'),
+        ),
+      ),
+      GoRoute(
+        path: '/profile/my-families',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const MyFamiliesScreen()),
+      ),
+      GoRoute(
+        path: '/profile/invitations',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const InvitationsScreen()),
+      ),
+      GoRoute(
+        path: '/profile/blocked',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const BlockedUsersScreen()),
+      ),
+      GoRoute(
+        path: '/profile/relations',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const RelationsScreen()),
       ),
     ],
   );
@@ -266,17 +654,13 @@ class _AddPersonScreen extends ConsumerWidget {
 
   final String familyId;
 
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(
         title: Text(
           'Add Family Member',
-          style: TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600),
         ),
         leading: IconButton(
           icon: Icon(Icons.arrow_back),
@@ -298,7 +682,6 @@ class _AddPersonForm extends ConsumerStatefulWidget {
   const _AddPersonForm({required this.familyId});
 
   final String familyId;
-
 
   @override
   ConsumerState<_AddPersonForm> createState() => _AddPersonFormState();
@@ -375,16 +758,13 @@ class MainShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: child,
-      bottomNavigationBar: const _BottomNav(),
-    );
+    return Scaffold(body: child, bottomNavigationBar: const _BottomNav());
   }
 }
 
 /// 5-tab bottom navigation:
 /// 0. Home      (home icon)
-/// 1. Kinship   (menu_book icon)
+/// 1. Search    (search icon)
 /// 2. Graph     (family_restroom icon)
 /// 3. Alerts    (notifications icon with badge)
 /// 4. Me        (person icon)
@@ -398,9 +778,9 @@ class _BottomNav extends StatelessWidget {
       label: 'Home',
     ),
     DKNavItem(
-      icon: Icons.menu_book_outlined,
-      activeIcon: Icons.menu_book_rounded,
-      label: 'Kinship',
+      icon: Icons.search_outlined,
+      activeIcon: Icons.search_rounded,
+      label: 'Search',
     ),
     DKNavItem(
       icon: Icons.family_restroom_outlined,
@@ -434,7 +814,7 @@ class _BottomNav extends StatelessWidget {
   /// Map current route to bottom nav index.
   int _currentIndex(String location) {
     if (location.startsWith('/home')) return 0;
-    if (location.startsWith('/kinship-search')) return 1;
+    if (location.startsWith('/search')) return 1;
     if (location.startsWith('/families')) return 2;
     if (location.startsWith('/notifications')) return 3;
     if (location.startsWith('/explore')) return 0;
@@ -449,7 +829,7 @@ class _BottomNav extends StatelessWidget {
       case 0:
         context.go('/home');
       case 1:
-        context.go('/kinship-search');
+        context.go('/search');
       case 2:
         context.go('/families');
       case 3:
@@ -457,5 +837,65 @@ class _BottomNav extends StatelessWidget {
       case 4:
         context.go('/profile');
     }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// P3-F2: Deep Link Navigation Helpers
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Navigates to the correct GoRouter location for a deep link.
+///
+/// This function is called by [DeepLinkService] when a deep link is received.
+/// It uses `go()` for top-level routes (replaces stack) and `push()` for
+/// detail screens (user can go back).
+///
+/// Must be called with a valid [GoRouter] instance and a location string
+/// produced by [DeepLinkRoute.toLocation].
+void navigateToDeepLink(GoRouter router, String location) {
+  logNavigationBreadcrumb('deep_link_navigate:$location');
+
+  // For deep links, use go() to reset the navigation stack.
+  // This is the recommended pattern for deep links per the routing guide:
+  // "Deep links that should reset the stack" → use go()
+  router.go(location);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// P3-F2: Deep Link Share Screen with Isar Cache Preloading
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Wrapper screen for the `/share/:id` deep link route.
+///
+/// When a user opens a deep link like `https://kinrel.app/share/abc123`,
+/// this screen preloads the family name from Isar cache (instant display)
+/// while the API fetches the full data in the background.
+///
+/// Once the family name is available (from cache or API), it renders
+/// the actual [ShareScreen] with the correct parameters.
+class _DeepLinkShareScreen extends ConsumerWidget {
+  const _DeepLinkShareScreen({required this.familyId});
+
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Try to get family name from cache instantly
+    final cachedName = ref.watch(deepLinkFamilyNameProvider(familyId));
+
+    return cachedName.when(
+      data: (name) => ShareScreen(
+        familyId: familyId,
+        familyName: name ?? 'Family',
+      ),
+      loading: () => ShareScreen(
+        familyId: familyId,
+        familyName: 'Family',
+      ),
+      error: (_, __) => ShareScreen(
+        familyId: familyId,
+        familyName: 'Family',
+      ),
+    );
   }
 }

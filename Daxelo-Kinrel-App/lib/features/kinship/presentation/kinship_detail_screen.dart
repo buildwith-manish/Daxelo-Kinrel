@@ -10,20 +10,18 @@ import '../../../core/constants/supported_languages.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../core/utils/device_tier.dart';
 
 class KinshipDetailScreen extends ConsumerWidget {
-  KinshipDetailScreen({
-    super.key,
-    required this.relationshipKey,
-  });
+  KinshipDetailScreen({super.key, required this.relationshipKey});
 
   final String relationshipKey;
 
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final allTranslationsAsync =
-        ref.watch(kinshipAllTranslationsProvider(relationshipKey));
+    final allTranslationsAsync = ref.watch(
+      kinshipAllTranslationsProvider(relationshipKey),
+    );
 
     return DKScaffold(
       appBar: AppBar(
@@ -72,7 +70,9 @@ class KinshipDetailScreen extends ConsumerWidget {
                       if (rel != null)
                         Container(
                           padding: EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: DKColors.brandPurple.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(6),
@@ -95,15 +95,15 @@ class KinshipDetailScreen extends ConsumerWidget {
 
                       // Large kinship term display
                       Text(
-                        rel?.englishTerm ?? relationshipKey.snakeToTitle,
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.displayFont,
-                          fontSize: 32,
-                          fontWeight: FontWeight.w700,
-                          color: DKColors.textPrimary(context),
-                        ),
-                      )
-                          .animate(onPlay: (c) => c.forward())
+                            rel?.englishTerm ?? relationshipKey.snakeToTitle,
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.displayFont,
+                              fontSize: 32,
+                              fontWeight: FontWeight.w700,
+                              color: DKColors.textPrimary(context),
+                            ),
+                          )
+                          .maybeAnimate(onPlay: (c) => c.forward())
                           .fadeIn(duration: 400.ms)
                           .slideY(begin: 0.1, end: 0, duration: 400.ms),
 
@@ -128,25 +128,31 @@ class KinshipDetailScreen extends ConsumerWidget {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: KinrelSpacing.base),
+                      horizontal: KinrelSpacing.base,
+                    ),
                     child: Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: [
                         _MetaChip(icon: Icons.person, label: rel.gender),
                         _MetaChip(
-                            icon: Icons.family_restroom, label: rel.lineage),
+                          icon: Icons.family_restroom,
+                          label: rel.lineage,
+                        ),
                         _MetaChip(
-                            icon: Icons.format_list_numbered,
-                            label: 'Generation ${rel.generation}'),
+                          icon: Icons.format_list_numbered,
+                          label: 'Generation ${rel.generation}',
+                        ),
                         _MetaChip(
-                            icon: Icons.category, label: rel.relationType),
+                          icon: Icons.category,
+                          label: rel.relationType,
+                        ),
                         if (rel.cousinType != null)
-                          _MetaChip(
-                              icon: Icons.people, label: rel.cousinType!),
+                          _MetaChip(icon: Icons.people, label: rel.cousinType!),
                         _MetaChip(
-                            icon: Icons.compare_arrows,
-                            label: rel.elderYounger),
+                          icon: Icons.compare_arrows,
+                          label: rel.elderYounger,
+                        ),
                       ],
                     ),
                   ),
@@ -159,7 +165,8 @@ class KinshipDetailScreen extends ConsumerWidget {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: KinrelSpacing.base),
+                      horizontal: KinrelSpacing.base,
+                    ),
                     child: DKCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -177,28 +184,35 @@ class KinshipDetailScreen extends ConsumerWidget {
                           Wrap(
                             spacing: 4,
                             crossAxisAlignment: WrapCrossAlignment.center,
-                            children:
-                                rel.relationshipPath.asMap().entries.expand((entry) {
-                              final step = entry.value;
-                              final isLast =
-                                  entry.key == rel.relationshipPath.length - 1;
-                              return [
-                                DKSuggestionChip(
-                                  label: step,
-                                  isSelected: isLast,
-                                  onTap: () {},
-                                ),
-                                if (!isLast)
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 2),
-                                    child: Icon(Icons.arrow_forward,
-                                        size: 16,
-                                        color: DKColors.brandPurple
-                                            .withValues(alpha: 0.5)),
-                                  ),
-                              ];
-                            }).toList(),
+                            children: rel.relationshipPath
+                                .asMap()
+                                .entries
+                                .expand((entry) {
+                                  final step = entry.value;
+                                  final isLast =
+                                      entry.key ==
+                                      rel.relationshipPath.length - 1;
+                                  return [
+                                    DKSuggestionChip(
+                                      label: step,
+                                      isSelected: isLast,
+                                      onTap: () {},
+                                    ),
+                                    if (!isLast)
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 2,
+                                        ),
+                                        child: Icon(
+                                          Icons.arrow_forward,
+                                          size: 16,
+                                          color: DKColors.brandPurple
+                                              .withValues(alpha: 0.5),
+                                        ),
+                                      ),
+                                  ];
+                                })
+                                .toList(),
                           ),
                         ],
                       ),
@@ -212,7 +226,8 @@ class KinshipDetailScreen extends ConsumerWidget {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: KinrelSpacing.base),
+                    horizontal: KinrelSpacing.base,
+                  ),
                   child: Text(
                     'Translations',
                     style: TextStyle(
@@ -230,67 +245,65 @@ class KinshipDetailScreen extends ConsumerWidget {
               // Translations grid
               SliverPadding(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: KinrelSpacing.base),
+                  horizontal: KinrelSpacing.base,
+                ),
                 sliver: SliverGrid(
-                  gridDelegate:
-                      SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     mainAxisSpacing: 8,
                     crossAxisSpacing: 8,
                     childAspectRatio: 2.2,
                   ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final lang = SupportedLanguage.values[index];
-                      final translation = translations[lang.name];
-                      if (translation == null) return const SizedBox.shrink();
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final lang = SupportedLanguage.values[index];
+                    final translation = translations[lang.name];
+                    if (translation == null) return const SizedBox.shrink();
 
-                      return DKCard(
-                        padding: 10,
-                        borderColor:
-                            DKColors.brandPurple.withValues(alpha: 0.08),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              lang.nativeName,
-                              style: TextStyle(
-                                fontFamily: KinrelTypography.bodyFont,
-                                fontSize: 10,
-                                color: DKColors.textSecondary(context),
+                    return DKCard(
+                          padding: 10,
+                          borderColor: DKColors.brandPurple.withValues(
+                            alpha: 0.08,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                lang.nativeName,
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.bodyFont,
+                                  fontSize: 10,
+                                  color: DKColors.textSecondary(context),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              translation.native,
-                              style: TextStyle(
-                                fontFamily: lang.fontFamily,
-                                fontSize: 16,
-                                color: DKColors.brandPurple,
-                                fontWeight: FontWeight.w500,
+                              const SizedBox(height: 2),
+                              Text(
+                                translation.native,
+                                style: TextStyle(
+                                  fontFamily: lang.fontFamily,
+                                  fontSize: 16,
+                                  color: DKColors.brandPurple,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
-                            ),
-                            Text(
-                              translation.latin,
-                              style: TextStyle(
-                                fontFamily: KinrelTypography.bodyFont,
-                                fontSize: 11,
-                                color: DKColors.textSecondary(context),
-                                fontStyle: FontStyle.italic,
+                              Text(
+                                translation.latin,
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.bodyFont,
+                                  fontSize: 11,
+                                  color: DKColors.textSecondary(context),
+                                  fontStyle: FontStyle.italic,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      )
-                          .animate(onPlay: (c) => c.forward())
-                          .fadeIn(
-                            duration: 300.ms,
-                            delay: Duration(milliseconds: index * 30),
-                          );
-                    },
-                    childCount: SupportedLanguage.values.length,
-                  ),
+                            ],
+                          ),
+                        )
+                        .maybeAnimate(onPlay: (c) => c.forward())
+                        .fadeIn()
+                          duration: 300.ms,
+                          delay: Duration(milliseconds: index * 30),
+                        );
+                  }, childCount: SupportedLanguage.values.length),
                 ),
               ),
 
@@ -321,7 +334,8 @@ class KinshipDetailScreen extends ConsumerWidget {
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: KinrelSpacing.base),
+                      horizontal: KinrelSpacing.base,
+                    ),
                     itemCount: _getRelatedTerms(relationshipKey).length,
                     separatorBuilder: (_, __) => SizedBox(width: 8),
                     itemBuilder: (context, index) {
@@ -330,34 +344,35 @@ class KinshipDetailScreen extends ConsumerWidget {
                         width: 140,
                         child: DKCard(
                           padding: 10,
-                          borderColor:
-                              DKColors.brandGold.withValues(alpha: 0.15),
+                          borderColor: DKColors.brandGold.withValues(
+                            alpha: 0.15,
+                          ),
                           onTap: () => context.push('/kinship/$term'),
                           child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              term.snakeToTitle,
-                              style: TextStyle(
-                                fontFamily: KinrelTypography.displayFont,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: DKColors.textPrimary(context),
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                term.snakeToTitle,
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.displayFont,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: DKColors.textPrimary(context),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Tap to view',
-                              style: TextStyle(
-                                fontFamily: KinrelTypography.bodyFont,
-                                fontSize: 11,
-                                color: DKColors.brandGold,
+                              const SizedBox(height: 4),
+                              Text(
+                                'Tap to view',
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.bodyFont,
+                                  fontSize: 11,
+                                  color: DKColors.brandGold,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
                       );
                     },
                   ),
@@ -373,13 +388,21 @@ class KinshipDetailScreen extends ConsumerWidget {
           children: [
             DKLoadingShimmer(width: 200, height: 32),
             const SizedBox(height: 12),
-            DKLoadingShimmer(width: double.infinity, height: 60, radius: KinrelRadius.card),
+            DKLoadingShimmer(
+              width: double.infinity,
+              height: 60,
+              radius: KinrelRadius.card,
+            ),
             const SizedBox(height: 12),
             ...List.generate(
-              6, (_) => Padding(
-                padding:  const EdgeInsets.only(bottom: 8),
+              6,
+              (_) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
                 child: DKLoadingShimmer(
-                    width: double.infinity, height: 50, radius: KinrelRadius.md),
+                  width: double.infinity,
+                  height: 50,
+                  radius: KinrelRadius.md,
+                ),
               ),
             ),
           ],
@@ -398,9 +421,17 @@ class KinshipDetailScreen extends ConsumerWidget {
     final parts = key.split('_');
     final related = <String>[];
     if (parts.contains('paternal')) {
-      related.addAll(['maternal_${parts.last}', key.replaceAll('father', 'grandfather'), key.replaceAll('mother', 'grandmother')]);
+      related.addAll([
+        'maternal_${parts.last}',
+        key.replaceAll('father', 'grandfather'),
+        key.replaceAll('mother', 'grandmother'),
+      ]);
     } else if (parts.contains('maternal')) {
-      related.addAll(['paternal_${parts.last}', key.replaceAll('father', 'grandfather'), key.replaceAll('mother', 'grandmother')]);
+      related.addAll([
+        'paternal_${parts.last}',
+        key.replaceAll('father', 'grandfather'),
+        key.replaceAll('mother', 'grandmother'),
+      ]);
     } else {
       related.addAll(['paternal_$key', 'maternal_$key']);
     }

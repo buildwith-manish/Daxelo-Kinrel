@@ -20,8 +20,8 @@ class FestivalTemplate {
       colorTheme: json['colorTheme'] as String? ?? '#FFD700',
       defaultMessageTemplates:
           (json['defaultMessageTemplates'] as List<dynamic>?)
-                  ?.map((e) => e.toString())
-                  .toList() ??
+              ?.map((e) => e.toString())
+              .toList() ??
           [],
     );
   }
@@ -30,7 +30,6 @@ class FestivalTemplate {
   final String icon;
   final String colorTheme;
   final List<String> defaultMessageTemplates;
-
 }
 
 enum CardStyle { traditional, modern, elegant }
@@ -59,7 +58,6 @@ class FestivalCardsState {
   final CardStyle selectedStyle;
   final String kinshipTermInput;
   final String relationshipKeyInput;
-
 
   FestivalCardsState copyWith({
     bool? isGenerating,
@@ -91,8 +89,9 @@ class FestivalCardsState {
 // ── Providers ───────────────────────────────────────────────────
 
 /// Festival templates provider
-final festivalTemplatesProvider =
-    FutureProvider<List<FestivalTemplate>>((ref) async {
+final festivalTemplatesProvider = FutureProvider<List<FestivalTemplate>>((
+  ref,
+) async {
   final dio = ref.watch(dioProvider);
   try {
     final response = await dio.get('/v1/ai-cards/templates');
@@ -113,7 +112,6 @@ class FestivalCardsNotifier extends StateNotifier<FestivalCardsState> {
   FestivalCardsNotifier(this._dio) : super(FestivalCardsState());
 
   final Dio _dio;
-
 
   /// Select a festival
   void selectFestival(FestivalTemplate? template) {
@@ -171,7 +169,8 @@ class FestivalCardsNotifier extends StateNotifier<FestivalCardsState> {
         kinshipTerm: data['kinshipTerm'] as String?,
       );
     } on DioException catch (e) {
-      final message = e.response?.data?['message'] as String? ??
+      final message =
+          e.response?.data?['message'] as String? ??
           'Failed to generate card. Please try again.';
       state = state.copyWith(isGenerating: false, error: message);
     } catch (e) {
@@ -205,7 +204,8 @@ class FestivalCardsNotifier extends StateNotifier<FestivalCardsState> {
         imageBase64: data['imageBase64'] as String? ?? '',
       );
     } on DioException catch (e) {
-      final message = e.response?.data?['message'] as String? ??
+      final message =
+          e.response?.data?['message'] as String? ??
           'Failed to generate card. Please try again.';
       state = state.copyWith(isGenerating: false, error: message);
     } catch (e) {
@@ -235,9 +235,9 @@ class FestivalCardsNotifier extends StateNotifier<FestivalCardsState> {
 /// Festival cards provider
 final festivalCardsProvider =
     StateNotifierProvider<FestivalCardsNotifier, FestivalCardsState>((ref) {
-  final dio = ref.watch(dioProvider);
-  return FestivalCardsNotifier(dio);
-});
+      final dio = ref.watch(dioProvider);
+      return FestivalCardsNotifier(dio);
+    });
 
 // ── Fallback Templates ──────────────────────────────────────────
 

@@ -19,7 +19,11 @@ model User {
   id                String   @id @default(cuid())
   email             String   @unique
   name              String?
-  passwordHash      String?  // SHA-256 hash for credentials auth
+  username          String?  @unique // Unique @username for display
+  passwordHash      String?  // bcrypt hash for credentials auth (was SHA-256, now auto-upgraded)
+  avatarUrl         String?  // User profile avatar (base64 data URL or remote URL)
+  twoFactorEnabled  Boolean  @default(false) // Whether 2FA is enabled
+  twoFactorSecret   String?  // TOTP base32 secret for 2FA
   preferredLanguage String   @default("en")
   role              String   @default("user") // user, admin, agent
   phone             String?
@@ -152,7 +156,7 @@ model SupportTicket {
   resolutionType  String?  // resolved, wont_fix, duplicate, no_response, out_of_scope
 
   // Subscription reference
-  subscription    Subscription?  @relation("SupportTicketSubscription", fields: [userId], references: [userId], map: "SupportTicket_subscription_userId_fkey")
+  subscription    Subscription?  @relation("SupportTicketSubscription", fields: [userId], references: [userId])
 
   // Assignment
   assignedAgentId String?
@@ -460,6 +464,7 @@ model Family {
 
   // ── Graph-First Redesign Fields ──
   familyCode      String   @unique @default(cuid()) // Shareable family ID like Instagram handle
+  username        String?  @unique // Unique @username for display (e.g. @sharmw)
   avatarUrl       String?
   region          String?
   privacyMode     String   @default("private") // private/invite/link
@@ -476,9 +481,11 @@ model Family {
   familyInvites   FamilyInvite[]
   graphLayouts    GraphLayoutState[]
   graphChangeLogs GraphChangeLog[]
+  feedPosts       FamilyPost[]
 
   @@index([name])
   @@index([familyCode])
+  @@index([username])
 }
 
 model FamilyMember {
@@ -519,11 +526,14 @@ model Person {
   isAnchor        Boolean  @default(false)
   photoUrl        String?
   gender          String?  // male, female, other
+  username        String?  // Unique @username for display
 
   family          Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   relationshipsFrom Relationship[] @relation("RelationshipFrom")
   relationshipsTo   Relationship[] @relation("RelationshipTo")
+
+  feedPosts       FamilyPost[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -532,6 +542,7 @@ model Person {
   @@index([familyId, dateOfBirth])
   @@index([deletedAt])
   @@index([familyId, generationIndex])
+  @@index([username])
 }
 
 // WhatsApp Template Management
@@ -885,6 +896,26 @@ model Relationship {
   @@index([fromPersonId])
   @@index([toPersonId])
   @@index([relationshipKey])
+}
+
+// ── Family Feed (Instagram-style family moments) ──────────────────────
+
+model FamilyPost {
+  id          String   @id @default(cuid())
+  familyId    String
+  authorId    String   // Person ID who authored/is the subject of this post
+  postType    String   // "relationship_discovered" | "member_joined" | "milestone" | "connection_added" | "invite_shared"
+  content     String   @default("{}") // JSON string for each post type's flexible data
+  reactions   String   @default("{}") // JSON: { heart: 0, comment: 0, isHearted: false, isSaved: false }
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  family      Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  author      Person   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([familyId, createdAt])
+  @@index([postType])
+  @@index([authorId])
 }
 
 // ══════════════════════════════════════════════════════════════════════

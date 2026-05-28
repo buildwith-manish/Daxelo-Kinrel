@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -43,10 +44,7 @@ import '../providers/member_detail_provider.dart';
 // ─────────────────────────────────────────────────────────────────────
 
 class PersonDetailScreen extends ConsumerStatefulWidget {
-  const PersonDetailScreen({
-    super.key,
-    required this.memberId,
-  });
+  const PersonDetailScreen({super.key, required this.memberId});
 
   final String memberId;
 
@@ -68,10 +66,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(
-      length: _tabLabels.length,
-      vsync: this,
-    );
+    _tabController = TabController(length: _tabLabels.length, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         setState(() => _selectedTab = _tabController.index);
@@ -100,9 +95,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
         error: (err, _) => _buildError(err),
         data: (detail) => _buildContent(detail),
       ),
-      floatingActionButton: _selectedTab == 3
-          ? _buildAddNoteFAB()
-          : null,
+      floatingActionButton: _selectedTab == 3 ? _buildAddNoteFAB() : null,
     );
   }
 
@@ -176,9 +169,16 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
               value: 'share',
               child: Row(
                 children: [
-                  Icon(Icons.share_outlined, size: 18, color: KinrelColors.textSilver),
+                  Icon(
+                    Icons.share_outlined,
+                    size: 18,
+                    color: KinrelColors.textSilver,
+                  ),
                   SizedBox(width: 10),
-                  Text('Share Profile', style: TextStyle(color: KinrelColors.textWhite)),
+                  Text(
+                    'Share Profile',
+                    style: TextStyle(color: KinrelColors.textWhite),
+                  ),
                 ],
               ),
             ),
@@ -186,9 +186,16 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
               value: 'deceased',
               child: Row(
                 children: [
-                  Icon(Icons.cloud_outlined, size: 18, color: KinrelColors.textSilver),
+                  Icon(
+                    Icons.cloud_outlined,
+                    size: 18,
+                    color: KinrelColors.textSilver,
+                  ),
                   SizedBox(width: 10),
-                  Text('Mark as Deceased', style: TextStyle(color: KinrelColors.textSilver)),
+                  Text(
+                    'Mark as Deceased',
+                    style: TextStyle(color: KinrelColors.textSilver),
+                  ),
                 ],
               ),
             ),
@@ -196,9 +203,16 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
               value: 'delete',
               child: Row(
                 children: [
-                  Icon(Icons.delete_outline, size: 18, color: KinrelColors.error),
+                  Icon(
+                    Icons.delete_outline,
+                    size: 18,
+                    color: KinrelColors.error,
+                  ),
                   SizedBox(width: 10),
-                  Text('Delete Member', style: TextStyle(color: KinrelColors.error)),
+                  Text(
+                    'Delete Member',
+                    style: TextStyle(color: KinrelColors.error),
+                  ),
                 ],
               ),
             ),
@@ -333,10 +347,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
             shape: BoxShape.circle,
             gradient: detail.isDeceased
                 ? LinearGradient(
-                    colors: [
-                      KinrelColors.textDim,
-                      KinrelColors.darkSurface,
-                    ],
+                    colors: [KinrelColors.textDim, KinrelColors.darkSurface],
                   )
                 : KinrelGradients.igniteGradient, // Orange ring
           ),
@@ -348,10 +359,18 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
             ),
             child: detail.photoUrl != null && detail.photoUrl!.isNotEmpty
                 ? ClipOval(
-                    child: Image.network(
-                      detail.photoUrl!,
+                    child: CachedNetworkImage(
+                      imageUrl: detail.photoUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
+                      memCacheWidth: 300,
+                      memCacheHeight: 300,
+                      fadeInDuration: const Duration(milliseconds: 150),
+                      imageBuilder: (ctx, img) => Image(
+                        image: img,
+                        semanticLabel: '${detail.name}\'s photo',
+                      ),
+                      placeholder: (_, __) => _buildAvatarInitials(detail),
+                      errorWidget: (_, __, ___) =>
                           _buildAvatarInitials(detail),
                     ),
                   )
@@ -413,7 +432,11 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.cake_outlined, size: 14, color: KinrelColors.textSilver),
+              Icon(
+                Icons.cake_outlined,
+                size: 14,
+                color: KinrelColors.textSilver,
+              ),
               SizedBox(width: 6),
               Text(
                 detail.age != null
@@ -435,8 +458,11 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.location_on_outlined,
-                  size: 14, color: KinrelColors.textDim),
+              Icon(
+                Icons.location_on_outlined,
+                size: 14,
+                color: KinrelColors.textDim,
+              ),
               SizedBox(width: 4),
               Text(
                 detail.currentCity!,
@@ -464,7 +490,11 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.cloud_outlined, size: 14, color: KinrelColors.textDim),
+                Icon(
+                  Icons.cloud_outlined,
+                  size: 14,
+                  color: KinrelColors.textDim,
+                ),
                 SizedBox(width: 6),
                 Text(
                   'Deceased',
@@ -655,8 +685,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
           SizedBox(height: 10),
 
           // Location Card
-          if (detail.birthplace != null ||
-              detail.currentCity != null)
+          if (detail.birthplace != null || detail.currentCity != null)
             _InfoCard(
               title: 'Location',
               icon: Icons.location_on_outlined,
@@ -700,8 +729,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
                     label: 'Email',
                     value: detail.email!,
                   ),
-                if (detail.occupation != null &&
-                    detail.occupation!.isNotEmpty)
+                if (detail.occupation != null && detail.occupation!.isNotEmpty)
                   _InfoRow(
                     icon: Icons.work_outline,
                     label: 'Occupation',
@@ -833,9 +861,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
-      child: Column(
-        children: _buildTimelineItems(detail.timelineEvents),
-      ),
+      child: Column(children: _buildTimelineItems(detail.timelineEvents)),
     );
   }
 
@@ -909,8 +935,9 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
                     color: KinrelColors.darkCard,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: _getEventBorderColor(event.eventType)
-                          .withValues(alpha: 0.2),
+                      color: _getEventBorderColor(
+                        event.eventType,
+                      ).withValues(alpha: 0.2),
                     ),
                   ),
                   child: Column(
@@ -922,12 +949,16 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
                           // Event type badge
                           Container(
                             padding: EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
-                              color: _getEventBorderColor(event.eventType)
-                                  .withValues(alpha: 0.15),
-                              borderRadius:
-                                  BorderRadius.circular(KinrelRadius.full),
+                              color: _getEventBorderColor(
+                                event.eventType,
+                              ).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(
+                                KinrelRadius.full,
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -935,8 +966,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
                                 Icon(
                                   _getEventIcon(event.eventType),
                                   size: 12,
-                                  color: _getEventBorderColor(
-                                      event.eventType),
+                                  color: _getEventBorderColor(event.eventType),
                                 ),
                                 SizedBox(width: 4),
                                 Text(
@@ -946,7 +976,8 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
                                     fontSize: 9,
                                     fontWeight: FontWeight.w500,
                                     color: _getEventBorderColor(
-                                        event.eventType),
+                                      event.eventType,
+                                    ),
                                     letterSpacing: 0.5,
                                   ),
                                 ),
@@ -1071,8 +1102,11 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
                   SizedBox(height: 10),
                   Row(
                     children: [
-                      Icon(Icons.person_outline,
-                          size: 12, color: KinrelColors.textDim),
+                      Icon(
+                        Icons.person_outline,
+                        size: 12,
+                        color: KinrelColors.textDim,
+                      ),
                       SizedBox(width: 4),
                       Text(
                         note.author,
@@ -1174,8 +1208,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(KinrelRadius.md),
-              borderSide:
-                  BorderSide(color: KinrelColors.orange, width: 1.5),
+              borderSide: BorderSide(color: KinrelColors.orange, width: 1.5),
             ),
           ),
         ),
@@ -1196,9 +1229,10 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
                     MemberNote(
                       id: 'note_${DateTime.now().millisecondsSinceEpoch}',
                       content: controller.text.trim(),
-                      createdAt: DateTime.now()
-                          .toIso8601String()
-                          .substring(0, 10),
+                      createdAt: DateTime.now().toIso8601String().substring(
+                        0,
+                        10,
+                      ),
                       author: 'You',
                     ),
                   );
@@ -1423,8 +1457,19 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
     try {
       final dt = DateTime.parse(isoDate);
       final months = [
-        '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        '',
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
       ];
       return '${dt.day} ${months[dt.month]} ${dt.year}';
     } catch (_) {
@@ -1489,9 +1534,7 @@ class _StatCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: KinrelColors.darkCard, // #191B2C
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: KinrelColors.textDim.withValues(alpha: 0.06),
-        ),
+        border: Border.all(color: KinrelColors.textDim.withValues(alpha: 0.06)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1552,9 +1595,7 @@ class _InfoCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: KinrelColors.darkCard, // #191B2C
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
-        border: Border.all(
-          color: KinrelColors.textDim.withValues(alpha: 0.06),
-        ),
+        border: Border.all(color: KinrelColors.textDim.withValues(alpha: 0.06)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1574,10 +1615,7 @@ class _InfoCard extends StatelessWidget {
               ),
             ],
           ),
-          if (children.isNotEmpty) ...[
-            SizedBox(height: 12),
-            ...children,
-          ],
+          if (children.isNotEmpty) ...[SizedBox(height: 12), ...children],
         ],
       ),
     );
@@ -1636,10 +1674,7 @@ class _InfoRow extends StatelessWidget {
 
 /// Relation tile with avatar, name, and kinship.
 class _RelationTile extends StatelessWidget {
-  const _RelationTile({
-    required this.relation,
-    required this.onTap,
-  });
+  const _RelationTile({required this.relation, required this.onTap});
 
   final MemberRelation relation;
   final VoidCallback onTap;

@@ -33,21 +33,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../core/constants/brand_colors.dart';
+import '../../../core/utils/device_tier.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/documents_provider.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────────
-const _cOrange = KinrelColors.orange;           // #E8612A
-const _cAmber = KinrelColors.amber;             // #F59240
-const _cGold = KinrelColors.gold;               // #D4AF37
-const _cBg = KinrelColors.darkSurface;          // #13141E
-const _cCard = KinrelColors.darkCard;           // #191B2C
-const _cElevated = KinrelColors.darkElevated;   // #202338
-const _cTextPrimary = KinrelColors.textWhite;   // #F5F0EE
+const _cOrange = KinrelColors.orange; // #E8612A
+const _cAmber = KinrelColors.amber; // #F59240
+const _cGold = KinrelColors.gold; // #D4AF37
+const _cBg = KinrelColors.darkSurface; // #13141E
+const _cCard = KinrelColors.darkCard; // #191B2C
+const _cElevated = KinrelColors.darkElevated; // #202338
+const _cTextPrimary = KinrelColors.textWhite; // #F5F0EE
 const _cTextSecondary = KinrelColors.textSilver; // #C9B4A8
-const _cTextDim = KinrelColors.textDim;         // #8A7A72
+const _cTextDim = KinrelColors.textDim; // #8A7A72
 const _cBorder = Color(0xFF3A3A4A);
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -81,7 +82,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
         children: [
           // ── Header ────────────────────────────────────────────────
           const _VaultHeader()
-              .animate()
+              .maybeAnimate()
               .fadeIn(duration: 300.ms)
               .slideY(begin: -0.05, end: 0),
 
@@ -90,9 +91,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
             controller: _searchController,
             onChanged: (query) =>
                 ref.read(documentsProvider.notifier).setSearchQuery(query),
-          )
-              .animate()
-              .fadeIn(duration: 300.ms, delay: 50.ms),
+          ).maybeAnimate().fadeIn(duration: 300.ms, delay: 50.ms),
 
           const SizedBox(height: 12),
 
@@ -105,9 +104,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                 ref.read(documentsProvider.notifier).setSelectedType(null),
             documentsByType: docsState.documentsByType,
             totalDocuments: docsState.documents.length,
-          )
-              .animate()
-              .fadeIn(duration: 300.ms, delay: 100.ms),
+          ).maybeAnimate().fadeIn(duration: 300.ms, delay: 100.ms),
 
           const SizedBox(height: 12),
 
@@ -116,9 +113,7 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
             encryptedCount: docsState.encryptedCount,
             totalDocuments: docsState.documents.length,
             auditLog: docsState.recentAuditLog,
-          )
-              .animate()
-              .fadeIn(duration: 300.ms, delay: 120.ms),
+          ).maybeAnimate().fadeIn(duration: 300.ms, delay: 120.ms),
 
           const SizedBox(height: 12),
 
@@ -126,9 +121,9 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
           Expanded(
             child: filteredDocs.isEmpty
                 ? _EmptyState()
-                    .animate()
-                    .fadeIn(duration: 400.ms)
-                    .slideY(begin: 0.1, end: 0)
+                      .maybeAnimate()
+                      .fadeIn(duration: 400.ms)
+                      .slideY(begin: 0.1, end: 0)
                 : _DocumentGrid(documents: filteredDocs),
           ),
         ],
@@ -150,7 +145,11 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
           onPressed: () => _showUploadSheet(context),
           backgroundColor: Colors.transparent,
           elevation: 0,
-          icon: const Icon(Icons.cloud_upload_rounded, color: Colors.white, size: 22),
+          icon: const Icon(
+            Icons.cloud_upload_rounded,
+            color: Colors.white,
+            size: 22,
+          ),
           label: Text(
             'Upload Document',
             style: TextStyle(
@@ -215,11 +214,7 @@ class _VaultHeader extends StatelessWidget {
               color: _cOrange.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(KinrelRadius.md),
             ),
-            child: const Icon(
-              Icons.shield_rounded,
-              color: _cOrange,
-              size: 22,
-            ),
+            child: const Icon(Icons.shield_rounded, color: _cOrange, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -282,10 +277,7 @@ class _VaultHeader extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _SearchBar extends StatelessWidget {
-  const _SearchBar({
-    required this.controller,
-    required this.onChanged,
-  });
+  const _SearchBar({required this.controller, required this.onChanged});
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
@@ -356,17 +348,36 @@ class _CategoryChips extends StatelessWidget {
   static const _chipData = [
     (type: null, label: 'All', icon: Icons.folder_rounded),
     (type: DocumentType.birth, label: 'Birth', icon: Icons.child_care_rounded),
-    (type: DocumentType.marriage, label: 'Marriage', icon: Icons.favorite_rounded),
+    (
+      type: DocumentType.marriage,
+      label: 'Marriage',
+      icon: Icons.favorite_rounded,
+    ),
     (type: DocumentType.death, label: 'Death', icon: Icons.church_rounded),
     (type: DocumentType.property, label: 'Property', icon: Icons.home_rounded),
-    (type: DocumentType.academic, label: 'Academic', icon: Icons.school_rounded),
+    (
+      type: DocumentType.academic,
+      label: 'Academic',
+      icon: Icons.school_rounded,
+    ),
     (type: DocumentType.legal, label: 'Legal', icon: Icons.gavel_rounded),
-    (type: DocumentType.photos, label: 'Photos', icon: Icons.photo_library_rounded),
+    (
+      type: DocumentType.photos,
+      label: 'Photos',
+      icon: Icons.photo_library_rounded,
+    ),
   ];
 
   Color _chipColor(DocumentType? type) {
     if (type == null) return _cOrange;
-    return VaultDocument(id: '', title: '', type: type, memberName: '', uploadDate: DateTime.now(), fileSize: 0).accentColor;
+    return VaultDocument(
+      id: '',
+      title: '',
+      type: type,
+      memberName: '',
+      uploadDate: DateTime.now(),
+      fileSize: 0,
+    ).accentColor;
   }
 
   int _chipCount(DocumentType? type) {
@@ -402,9 +413,7 @@ class _CategoryChips extends StatelessWidget {
               curve: KinrelMotion.easeOut,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                gradient: isSelected
-                    ? KinrelGradients.igniteGradient
-                    : null,
+                gradient: isSelected ? KinrelGradients.igniteGradient : null,
                 color: isSelected ? null : _cCard,
                 borderRadius: BorderRadius.circular(KinrelRadius.full),
                 border: isSelected
@@ -425,14 +434,19 @@ class _CategoryChips extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w500,
                       color: isSelected ? Colors.white : _cTextSecondary,
                     ),
                   ),
                   if (count > 0) ...[
                     const SizedBox(width: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
                       decoration: BoxDecoration(
                         color: isSelected
                             ? Colors.white.withValues(alpha: 0.2)
@@ -485,10 +499,7 @@ class _SecuritySection extends StatelessWidget {
         decoration: BoxDecoration(
           color: _cCard,
           borderRadius: BorderRadius.circular(KinrelRadius.lg),
-          border: Border.all(
-            color: _cOrange.withValues(alpha: 0.12),
-            width: 1,
-          ),
+          border: Border.all(color: _cOrange.withValues(alpha: 0.12), width: 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -547,7 +558,11 @@ class _SecuritySection extends StatelessWidget {
             // ── Authorized access text ──────────────────────────────
             Row(
               children: [
-                Icon(Icons.lock_outline_rounded, size: 13, color: _cOrange.withValues(alpha: 0.7)),
+                Icon(
+                  Icons.lock_outline_rounded,
+                  size: 13,
+                  color: _cOrange.withValues(alpha: 0.7),
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -727,8 +742,11 @@ class _DocumentGrid extends StatelessWidget {
       itemCount: documents.length,
       itemBuilder: (context, index) {
         return _DocumentCard(document: documents[index])
-            .animate()
-            .fadeIn(duration: 350.ms, delay: Duration(milliseconds: index * 40))
+            .maybeAnimate()
+            .fadeIn(
+              duration: 350.ms,
+              delay: Duration(milliseconds: index * 40),
+            )
             .slideY(begin: 0.06, end: 0);
       },
     );
@@ -782,7 +800,10 @@ class _DocumentCard extends ConsumerWidget {
                     // ── Type badge ───────────────────────────────────
                     Row(
                       children: [
-                        _TypeBadge(type: document.type, accentColor: accentColor),
+                        _TypeBadge(
+                          type: document.type,
+                          accentColor: accentColor,
+                        ),
                         const Spacer(),
                         // Security badge (lock icon)
                         if (document.isEncrypted)
@@ -855,7 +876,11 @@ class _DocumentCard extends ConsumerWidget {
                     // ── Bottom row: Upload date + File size ──────────
                     Row(
                       children: [
-                        Icon(Icons.schedule_rounded, size: 10, color: _cTextDim),
+                        Icon(
+                          Icons.schedule_rounded,
+                          size: 10,
+                          color: _cTextDim,
+                        ),
                         const SizedBox(width: 3),
                         Expanded(
                           child: Text(
@@ -876,7 +901,11 @@ class _DocumentCard extends ConsumerWidget {
 
                     Row(
                       children: [
-                        Icon(Icons.insert_drive_file_rounded, size: 10, color: _cTextDim),
+                        Icon(
+                          Icons.insert_drive_file_rounded,
+                          size: 10,
+                          color: _cTextDim,
+                        ),
                         const SizedBox(width: 3),
                         Text(
                           document.formattedFileSize,
@@ -892,7 +921,9 @@ class _DocumentCard extends ConsumerWidget {
                           onTap: () {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text('Downloading ${document.title}...'),
+                                content: Text(
+                                  'Downloading ${document.title}...',
+                                ),
                                 backgroundColor: _cCard,
                               ),
                             );
@@ -1047,10 +1078,26 @@ class _DocumentCard extends ConsumerWidget {
             const SizedBox(height: 10),
 
             // Member options
-            _ShareMemberOption(name: 'Arjun Sharma', initials: 'AS', accentColor: accentColor),
-            _ShareMemberOption(name: 'Priya Sharma', initials: 'PS', accentColor: accentColor),
-            _ShareMemberOption(name: 'Ravi Sharma', initials: 'RS', accentColor: accentColor),
-            _ShareMemberOption(name: 'Sunita Sharma', initials: 'SS', accentColor: accentColor),
+            _ShareMemberOption(
+              name: 'Arjun Sharma',
+              initials: 'AS',
+              accentColor: accentColor,
+            ),
+            _ShareMemberOption(
+              name: 'Priya Sharma',
+              initials: 'PS',
+              accentColor: accentColor,
+            ),
+            _ShareMemberOption(
+              name: 'Ravi Sharma',
+              initials: 'RS',
+              accentColor: accentColor,
+            ),
+            _ShareMemberOption(
+              name: 'Sunita Sharma',
+              initials: 'SS',
+              accentColor: accentColor,
+            ),
 
             const SizedBox(height: 20),
 
@@ -1086,7 +1133,11 @@ class _DocumentCard extends ConsumerWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.share_rounded, color: Colors.white, size: 18),
+                        const Icon(
+                          Icons.share_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Share with Permission',
@@ -1187,7 +1238,11 @@ class _ShareMemberOptionState extends State<_ShareMemberOption> {
                 ),
               ),
               child: _isSelected
-                  ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                  ? const Icon(
+                      Icons.check_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    )
                   : null,
             ),
           ],
@@ -1202,10 +1257,7 @@ class _ShareMemberOptionState extends State<_ShareMemberOption> {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _ThumbnailPreview extends StatelessWidget {
-  const _ThumbnailPreview({
-    required this.document,
-    required this.accentColor,
-  });
+  const _ThumbnailPreview({required this.document, required this.accentColor});
 
   final VaultDocument document;
   final Color accentColor;
@@ -1302,17 +1354,21 @@ class _ThumbnailPreview extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _TypeBadge extends StatelessWidget {
-  const _TypeBadge({
-    required this.type,
-    required this.accentColor,
-  });
+  const _TypeBadge({required this.type, required this.accentColor});
 
   final DocumentType type;
   final Color accentColor;
 
   @override
   Widget build(BuildContext context) {
-    final doc = VaultDocument(id: '', title: '', type: type, memberName: '', uploadDate: DateTime.now(), fileSize: 0);
+    final doc = VaultDocument(
+      id: '',
+      title: '',
+      type: type,
+      memberName: '',
+      uploadDate: DateTime.now(),
+      fileSize: 0,
+    );
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1356,55 +1412,58 @@ class _EmptyState extends StatelessWidget {
           children: [
             // Vault illustration
             Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: _cOrange.withValues(alpha: 0.08),
-                shape: BoxShape.circle,
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Vault/shield base
-                  Icon(
-                    Icons.shield_rounded,
-                    size: 64,
-                    color: _cOrange.withValues(alpha: 0.3),
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: _cOrange.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
                   ),
-                  // Lock icon in center
-                  Positioned(
-                    bottom: 32,
-                    child: Icon(
-                      Icons.lock_outline_rounded,
-                      size: 24,
-                      color: _cOrange.withValues(alpha: 0.5),
-                    ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Vault/shield base
+                      Icon(
+                        Icons.shield_rounded,
+                        size: 64,
+                        color: _cOrange.withValues(alpha: 0.3),
+                      ),
+                      // Lock icon in center
+                      Positioned(
+                        bottom: 32,
+                        child: Icon(
+                          Icons.lock_outline_rounded,
+                          size: 24,
+                          color: _cOrange.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      // Small sparkle
+                      Positioned(
+                        top: 20,
+                        right: 22,
+                        child: Icon(
+                          Icons.auto_awesome_rounded,
+                          size: 20,
+                          color: _cGold.withValues(alpha: 0.6),
+                        ),
+                      ),
+                      // Document icon
+                      Positioned(
+                        bottom: 18,
+                        left: 22,
+                        child: Icon(
+                          Icons.description_rounded,
+                          size: 18,
+                          color: _cAmber.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ],
                   ),
-                  // Small sparkle
-                  Positioned(
-                    top: 20,
-                    right: 22,
-                    child: Icon(
-                      Icons.auto_awesome_rounded,
-                      size: 20,
-                      color: _cGold.withValues(alpha: 0.6),
-                    ),
-                  ),
-                  // Document icon
-                  Positioned(
-                    bottom: 18,
-                    left: 22,
-                    child: Icon(
-                      Icons.description_rounded,
-                      size: 18,
-                      color: _cAmber.withValues(alpha: 0.5),
-                    ),
-                  ),
-                ],
-              ),
-            )
-                .animate(onPlay: (c) => c.repeat())
-                .shimmer(duration: 3000.ms, color: _cOrange.withValues(alpha: 0.06)),
+                )
+                .maybeAnimate(onPlay: (c) => c.repeat())
+                .shimmer(
+                  duration: DeviceTierCache.instance.shouldAnimate ? 3000.ms : Duration.zero,
+                  color: _cOrange.withValues(alpha: 0.06),
+                ),
 
             const SizedBox(height: 24),
 
@@ -1452,7 +1511,10 @@ class _EmptyState extends StatelessWidget {
                 // Trigger FAB-like action
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   gradient: KinrelGradients.igniteGradient,
                   borderRadius: BorderRadius.circular(KinrelRadius.full),
@@ -1467,7 +1529,11 @@ class _EmptyState extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.cloud_upload_rounded, color: Colors.white, size: 18),
+                    const Icon(
+                      Icons.cloud_upload_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       'Upload First Document',
@@ -1558,20 +1624,37 @@ class _DocumentDetailSheet extends StatelessWidget {
           const SizedBox(height: 20),
 
           // Document details
-          _DetailRow(icon: Icons.person_outline_rounded, label: 'Member', value: document.memberName),
-          _DetailRow(icon: Icons.calendar_today_rounded, label: 'Uploaded', value: document.formattedDate),
-          _DetailRow(icon: Icons.insert_drive_file_rounded, label: 'Size', value: document.formattedFileSize),
           _DetailRow(
-            icon: document.isEncrypted ? Icons.lock_rounded : Icons.lock_open_rounded,
+            icon: Icons.person_outline_rounded,
+            label: 'Member',
+            value: document.memberName,
+          ),
+          _DetailRow(
+            icon: Icons.calendar_today_rounded,
+            label: 'Uploaded',
+            value: document.formattedDate,
+          ),
+          _DetailRow(
+            icon: Icons.insert_drive_file_rounded,
+            label: 'Size',
+            value: document.formattedFileSize,
+          ),
+          _DetailRow(
+            icon: document.isEncrypted
+                ? Icons.lock_rounded
+                : Icons.lock_open_rounded,
             label: 'Encryption',
             value: document.isEncrypted ? 'AES-256 Encrypted' : 'Not Encrypted',
-            valueColor: document.isEncrypted ? KinrelColors.success : KinrelColors.error,
+            valueColor: document.isEncrypted
+                ? KinrelColors.success
+                : KinrelColors.error,
           ),
           if (document.sharedWith.isNotEmpty)
             _DetailRow(
               icon: Icons.group_rounded,
               label: 'Shared with',
-              value: '${document.sharedCount} member${document.sharedCount > 1 ? 's' : ''}',
+              value:
+                  '${document.sharedCount} member${document.sharedCount > 1 ? 's' : ''}',
             ),
 
           const SizedBox(height: 20),
@@ -1619,7 +1702,11 @@ class _DocumentDetailSheet extends StatelessWidget {
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              icon: Icon(Icons.delete_outline_rounded, size: 16, color: KinrelColors.error),
+              icon: Icon(
+                Icons.delete_outline_rounded,
+                size: 16,
+                color: KinrelColors.error,
+              ),
               label: Text(
                 'Delete Document',
                 style: TextStyle(
@@ -1749,7 +1836,8 @@ class _UploadDocumentSheet extends ConsumerStatefulWidget {
   const _UploadDocumentSheet();
 
   @override
-  ConsumerState<_UploadDocumentSheet> createState() => _UploadDocumentSheetState();
+  ConsumerState<_UploadDocumentSheet> createState() =>
+      _UploadDocumentSheetState();
 }
 
 class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
@@ -1760,12 +1848,24 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
 
   static const _typeOptions = [
     (type: DocumentType.birth, label: 'Birth', icon: Icons.child_care_rounded),
-    (type: DocumentType.marriage, label: 'Marriage', icon: Icons.favorite_rounded),
+    (
+      type: DocumentType.marriage,
+      label: 'Marriage',
+      icon: Icons.favorite_rounded,
+    ),
     (type: DocumentType.death, label: 'Death', icon: Icons.church_rounded),
     (type: DocumentType.property, label: 'Property', icon: Icons.home_rounded),
-    (type: DocumentType.academic, label: 'Academic', icon: Icons.school_rounded),
+    (
+      type: DocumentType.academic,
+      label: 'Academic',
+      icon: Icons.school_rounded,
+    ),
     (type: DocumentType.legal, label: 'Legal', icon: Icons.gavel_rounded),
-    (type: DocumentType.photos, label: 'Photos', icon: Icons.photo_library_rounded),
+    (
+      type: DocumentType.photos,
+      label: 'Photos',
+      icon: Icons.photo_library_rounded,
+    ),
   ];
 
   @override
@@ -1776,7 +1876,14 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
   }
 
   Color _typeColor(DocumentType type) {
-    return VaultDocument(id: '', title: '', type: type, memberName: '', uploadDate: DateTime.now(), fileSize: 0).accentColor;
+    return VaultDocument(
+      id: '',
+      title: '',
+      type: type,
+      memberName: '',
+      uploadDate: DateTime.now(),
+      fileSize: 0,
+    ).accentColor;
   }
 
   @override
@@ -1855,7 +1962,10 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
                   child: AnimatedContainer(
                     duration: KinrelMotion.fast,
                     curve: KinrelMotion.easeOut,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 7,
+                    ),
                     decoration: BoxDecoration(
                       gradient: isSelected
                           ? LinearGradient(
@@ -1884,7 +1994,9 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
                           style: TextStyle(
                             fontFamily: KinrelTypography.bodyFont,
                             fontSize: 12,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
                             color: isSelected ? Colors.white : _cTextSecondary,
                           ),
                         ),
@@ -1974,7 +2086,11 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
                   horizontal: 14,
                   vertical: 12,
                 ),
-                suffixIcon: Icon(Icons.person_search_rounded, color: _cOrange, size: 20),
+                suffixIcon: Icon(
+                  Icons.person_search_rounded,
+                  color: _cOrange,
+                  size: 20,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(KinrelRadius.md),
                   borderSide: BorderSide.none,
@@ -2071,13 +2187,19 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           )
                         : Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.cloud_upload_rounded, color: Colors.white, size: 20),
+                              const Icon(
+                                Icons.cloud_upload_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                               const SizedBox(width: 8),
                               Text(
                                 'Upload & Encrypt',
@@ -2100,7 +2222,11 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.shield_rounded, size: 12, color: _cOrange.withValues(alpha: 0.6)),
+                Icon(
+                  Icons.shield_rounded,
+                  size: 12,
+                  color: _cOrange.withValues(alpha: 0.6),
+                ),
                 const SizedBox(width: 4),
                 Text(
                   'Document will be encrypted with AES-256 before storage',

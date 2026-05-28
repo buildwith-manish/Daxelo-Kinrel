@@ -21,7 +21,6 @@ class ReferralCode {
   final String code;
   final String shareUrl;
   final String shareText;
-
 }
 
 class ReferralApplication {
@@ -42,7 +41,6 @@ class ReferralApplication {
   final bool success;
   final String referrerId;
   final String reward;
-
 }
 
 class ReferralStats {
@@ -57,13 +55,14 @@ class ReferralStats {
     return ReferralStats(
       code: json['code'] as String? ?? '',
       totalReferrals: json['totalReferrals'] as int? ?? 0,
-      rewards: (json['rewards'] as List<dynamic>?)
+      rewards:
+          (json['rewards'] as List<dynamic>?)
               ?.map((e) => e as String)
               .toList() ??
           [],
-      recentReferrals: (json['recentReferrals'] as List<dynamic>?)
-              ?.map(
-                  (e) => RecentReferral.fromJson(e as Map<String, dynamic>))
+      recentReferrals:
+          (json['recentReferrals'] as List<dynamic>?)
+              ?.map((e) => RecentReferral.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
     );
@@ -73,14 +72,10 @@ class ReferralStats {
   final int totalReferrals;
   final List<String> rewards;
   final List<RecentReferral> recentReferrals;
-
 }
 
 class RecentReferral {
-  const RecentReferral({
-    required this.name,
-    required this.date,
-  });
+  const RecentReferral({required this.name, required this.date});
 
   factory RecentReferral.fromJson(Map<String, dynamic> json) {
     return RecentReferral(
@@ -91,7 +86,6 @@ class RecentReferral {
 
   final String name;
   final String date;
-
 }
 
 class RewardTier {
@@ -115,7 +109,6 @@ class RewardTier {
   final String reward;
   final String? badge;
   final String description;
-
 }
 
 class RewardsData {
@@ -123,7 +116,8 @@ class RewardsData {
 
   factory RewardsData.fromJson(Map<String, dynamic> json) {
     return RewardsData(
-      tiers: (json['tiers'] as List<dynamic>?)
+      tiers:
+          (json['tiers'] as List<dynamic>?)
               ?.map((e) => RewardTier.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
@@ -131,7 +125,6 @@ class RewardsData {
   }
 
   final List<RewardTier> tiers;
-
 }
 
 // ── Referral State ──────────────────────────────────────────────────────
@@ -150,7 +143,6 @@ class ReferralState {
   final bool isGenerating;
   final bool isApplying;
   final String? error;
-
 
   ReferralState copyWith({
     ReferralCode? code,
@@ -171,16 +163,16 @@ class ReferralState {
 
 // ── Providers ──────────────────────────────────────────────────────────
 
-final referralProvider =
-    StateNotifierProvider<ReferralNotifier, ReferralState>((ref) {
-  return ReferralNotifier(ref);
-});
+final referralProvider = StateNotifierProvider<ReferralNotifier, ReferralState>(
+  (ref) {
+    return ReferralNotifier(ref);
+  },
+);
 
 class ReferralNotifier extends StateNotifier<ReferralState> {
   ReferralNotifier(this._ref) : super(ReferralState());
 
   final Ref _ref;
-
 
   Future<void> generateCode(String userId) async {
     state = state.copyWith(isGenerating: true, error: null);
@@ -192,8 +184,7 @@ class ReferralNotifier extends StateNotifier<ReferralState> {
         data: {'userId': userId},
       );
 
-      final code =
-          ReferralCode.fromJson(response.data as Map<String, dynamic>);
+      final code = ReferralCode.fromJson(response.data as Map<String, dynamic>);
 
       state = state.copyWith(code: code, isGenerating: false);
 
@@ -215,8 +206,9 @@ class ReferralNotifier extends StateNotifier<ReferralState> {
         queryParameters: {'userId': userId},
       );
 
-      final stats =
-          ReferralStats.fromJson(response.data as Map<String, dynamic>);
+      final stats = ReferralStats.fromJson(
+        response.data as Map<String, dynamic>,
+      );
 
       state = state.copyWith(stats: stats);
     } catch (e) {

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "643588134212",
+    "project_id": "daxelo-kinrel-d8ccf",
+    "storage_bucket": "daxelo-kinrel-d8ccf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:643588134212:android:ee88b744fc8da5bcaf7311",
+        "android_client_info": {
+          "package_name": "com.daxelo.kinrel"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBg29TMdNVuWlC09cMzUeYrFUF_8PrTY_A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

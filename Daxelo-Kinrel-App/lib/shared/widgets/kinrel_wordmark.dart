@@ -60,7 +60,6 @@ class KinrelWordmark extends StatelessWidget {
   /// Optional subtitle "by Daxelo" shown below the wordmark.
   final bool showSubtitle;
 
-
   @override
   Widget build(BuildContext context) {
     // Brand spec: tighter tracking at small sizes

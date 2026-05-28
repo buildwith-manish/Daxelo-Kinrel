@@ -9,7 +9,10 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/supported_languages.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/utils/form_validators.dart';
+import '../../../core/utils/api_error_mapper.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../core/utils/device_tier.dart';
 
 class CreateFamilyScreen extends ConsumerStatefulWidget {
   CreateFamilyScreen({super.key});
@@ -26,6 +29,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
 
   final _nameController = TextEditingController();
   final _codeController = TextEditingController();
+  final _usernameController = TextEditingController();
   SupportedLanguage? _selectedLanguage;
   String _selectedRegion = 'North India';
   bool _isCustomCode = false;
@@ -47,6 +51,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
     _nameController.removeListener(_onNameChanged);
     _nameController.dispose();
     _codeController.dispose();
+    _usernameController.dispose();
     _personNameController.dispose();
     _birthYearController.dispose();
     _pageController.dispose();
@@ -62,23 +67,46 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
       final suffix = _generateCodeSuffix();
       _codeController.text = slug.isEmpty ? '' : '$slug-$suffix';
     }
+    // Auto-generate username from family name
+    if (_usernameController.text.isEmpty ||
+        _usernameController.text == _lastAutoUsername) {
+      final username = _nameController.text
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9_]'), '')
+          .replaceAll(RegExp(r'^[^a-z]+'), '');
+      _lastAutoUsername = username;
+      _usernameController.text = username;
+    }
   }
+
+  String _lastAutoUsername = '';
 
   String _generateCodeSuffix() {
     final random = Random();
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
     return String.fromCharCodes(
-      Iterable.generate(4, (_) => chars.codeUnitAt(random.nextInt(chars.length))),
+      Iterable.generate(
+        4,
+        (_) => chars.codeUnitAt(random.nextInt(chars.length)),
+      ),
     );
   }
 
-  String get _fullFamilyCode => 'kinrel.co/f/${_codeController.text}';
+  String get _fullFamilyCode => _usernameController.text.isNotEmpty
+      ? 'kinrel.co/f/@${_usernameController.text}'
+      : 'kinrel.co/f/${_codeController.text}';
 
-  bool get _canProceedStep1 =>
-      _nameController.text.trim().isNotEmpty &&
-      _codeController.text.trim().isNotEmpty;
+  bool get _canProceedStep1 {
+    final nameError = familyNameValidator(_nameController.text);
+    final codeEmpty = _codeController.text.trim().isEmpty;
+    final usernameError = usernameValidator(_usernameController.text);
+    return nameError == null && !codeEmpty && usernameError == null;
+  }
 
-  bool get _canProceedStep3 => _personNameController.text.trim().isNotEmpty;
+  bool get _canProceedStep3 {
+    final nameError = nameValidator(_personNameController.text);
+    return nameError == null;
+  }
 
   void _nextStep() {
     if (_currentStep < _totalSteps - 1) {
@@ -98,7 +126,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeOutCubic,
       );
-      setState(() => _currentStep--    );
+      setState(() => _currentStep--);
     } else {
       context.pop();
     }
@@ -119,8 +147,9 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
         privacyMode: _privacyMode == _PrivacyMode.private
             ? 'private'
             : _privacyMode == _PrivacyMode.inviteOnly
-                ? 'invite'
-                : 'link',
+            ? 'invite'
+            : 'link',
+        username: _usernameController.text.trim(),
       );
 
       final birthYear = int.tryParse(_birthYearController.text.trim());
@@ -136,27 +165,40 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
       if (!mounted) return;
       setState(() => _isSubmitting = false);
 
-      context.showSnackBar('Family "${family.name}" created! You\'re the anchor!');
+      context.showSnackBar(
+        'Family "${family.name}" created! You\'re the anchor!',
+      );
       context.go('/family/${family.id}');
     } catch (e) {
       if (mounted) {
         setState(() => _isSubmitting = false);
 
-        String errorMsg = e.toString();
-        if (errorMsg.startsWith('Exception: ')) {
-          errorMsg = errorMsg.substring(11);
-        }
-        if (errorMsg.contains('row-level security')) {
-          errorMsg = 'Permission denied. Please contact support.';
-        } else if (errorMsg.contains('JWT expired')) {
-          errorMsg = 'Session expired. Please sign in again.';
-        } else if (errorMsg.contains('SocketException')) {
-          errorMsg = 'No internet connection. Please try again.';
-        } else if (errorMsg.contains('timed out')) {
-          errorMsg = 'Connection timed out. Please try again.';
-        }
+        final fieldErrors = mapApiError(e);
+        if (fieldErrors != null) {
+          final formError = fieldErrors['form'];
+          if (formError != null) {
+            context.showSnackBar(formError, isError: true);
+          } else {
+            final firstError = fieldErrors.values.first;
+            context.showSnackBar('Failed: $firstError', isError: true);
+          }
+        } else {
+          String errorMsg = e.toString();
+          if (errorMsg.startsWith('Exception: ')) {
+            errorMsg = errorMsg.substring(11);
+          }
+          if (errorMsg.contains('row-level security')) {
+            errorMsg = 'Permission denied. Please contact support.';
+          } else if (errorMsg.contains('JWT expired')) {
+            errorMsg = 'Session expired. Please sign in again.';
+          } else if (errorMsg.contains('SocketException')) {
+            errorMsg = 'No internet connection. Please try again.';
+          } else if (errorMsg.contains('timed out')) {
+            errorMsg = 'Connection timed out. Please try again.';
+          }
 
-        context.showSnackBar('Failed: $errorMsg', isError: true);
+          context.showSnackBar('Failed: $errorMsg', isError: true);
+        }
       }
     }
   }
@@ -165,10 +207,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
   Widget build(BuildContext context) {
     return DKScaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: _prevStep,
-        ),
+        leading: IconButton(icon: Icon(Icons.arrow_back), onPressed: _prevStep),
         title: Text(
           'Create Family',
           style: TextStyle(
@@ -191,6 +230,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
                 _Step1FamilyIdentity(
                   nameController: _nameController,
                   codeController: _codeController,
+                  usernameController: _usernameController,
                   fullFamilyCode: _fullFamilyCode,
                   selectedLanguage: _selectedLanguage,
                   selectedRegion: _selectedRegion,
@@ -213,8 +253,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
                   nameController: _personNameController,
                   birthYearController: _birthYearController,
                   selectedGender: _selectedGender,
-                  onGenderChanged: (g) =>
-                      setState(() => _selectedGender = g),
+                  onGenderChanged: (g) => setState(() => _selectedGender = g),
                   canProceed: _canProceedStep3,
                 ),
               ],
@@ -230,8 +269,8 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
             canProceed: _currentStep == 0
                 ? _canProceedStep1
                 : _currentStep == 2
-                    ? _canProceedStep3
-                    : true,
+                ? _canProceedStep3
+                : true,
             isSubmitting: _isSubmitting,
           ),
         ],
@@ -243,20 +282,18 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
 // ── Step Indicator ────────────────────────────────────────────────
 
 class _StepIndicator extends StatelessWidget {
-  const _StepIndicator({
-    required this.currentStep,
-    required this.totalSteps,
-  });
+  const _StepIndicator({required this.currentStep, required this.totalSteps});
 
   final int currentStep;
   final int totalSteps;
-
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(
-          horizontal: KinrelSpacing.base, vertical: KinrelSpacing.md),
+        horizontal: KinrelSpacing.base,
+        vertical: KinrelSpacing.md,
+      ),
       child: Row(
         children: List.generate(totalSteps * 2 - 1, (index) {
           if (index.isOdd) {
@@ -286,16 +323,15 @@ class _StepIndicator extends StatelessWidget {
               color: isCompleted
                   ? DKColors.brandPurple
                   : isCurrent
-                      ? DKColors.brandPurple.withValues(alpha: 0.2)
-                      : DKColors.elevatedColor(context),
+                  ? DKColors.brandPurple.withValues(alpha: 0.2)
+                  : DKColors.elevatedColor(context),
               border: isCurrent
                   ? Border.all(color: DKColors.brandPurple, width: 2)
                   : null,
             ),
             child: Center(
               child: isCompleted
-                  ? Icon(Icons.check_rounded,
-                      size: 16, color: Colors.white)
+                  ? Icon(Icons.check_rounded, size: 16, color: Colors.white)
                   : Text(
                       '${stepIndex + 1}',
                       style: TextStyle(
@@ -321,6 +357,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
   const _Step1FamilyIdentity({
     required this.nameController,
     required this.codeController,
+    required this.usernameController,
     required this.fullFamilyCode,
     required this.selectedLanguage,
     required this.selectedRegion,
@@ -332,6 +369,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
 
   final TextEditingController nameController;
   final TextEditingController codeController;
+  final TextEditingController usernameController;
   final String fullFamilyCode;
   final SupportedLanguage? selectedLanguage;
   final String selectedRegion;
@@ -339,7 +377,6 @@ class _Step1FamilyIdentity extends StatelessWidget {
   final ValueChanged<String> onRegionChanged;
   final VoidCallback onEditCode;
   final bool canProceed;
-
 
   @override
   Widget build(BuildContext context) {
@@ -350,31 +387,32 @@ class _Step1FamilyIdentity extends StatelessWidget {
         children: [
           // Decorative family illustration
           Center(
-            child: Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [
-                    DKColors.brandPurple.withValues(alpha: 0.15),
-                    DKColors.brandViolet.withValues(alpha: 0.08),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [
+                        DKColors.brandPurple.withValues(alpha: 0.15),
+                        DKColors.brandViolet.withValues(alpha: 0.08),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                      color: DKColors.brandPurple.withValues(alpha: 0.2),
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.family_restroom_rounded,
+                    size: 36,
+                    color: DKColors.brandPurple,
+                  ),
                 ),
-                border: Border.all(
-                  color: DKColors.brandPurple.withValues(alpha: 0.2),
-                  width: 2,
-                ),),
-              child: Icon(
-                Icons.family_restroom_rounded,
-                size: 36,
-                color: DKColors.brandPurple,
-              ),
-            ),
-          )
-              .animate(onPlay: (c) => c.forward())
+              )
+              .maybeAnimate(onPlay: (c) => c.forward())
               .fadeIn(duration: 500.ms)
               .scale(
                 begin: const Offset(0.8, 0.8),
@@ -419,6 +457,9 @@ class _Step1FamilyIdentity extends StatelessWidget {
           const SizedBox(height: 8),
           TextField(
             controller: nameController,
+            keyboardType: TextInputType.name,
+            textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.next,
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 28,
@@ -440,10 +481,63 @@ class _Step1FamilyIdentity extends StatelessWidget {
                 borderRadius: BorderRadius.circular(KinrelRadius.input),
                 borderSide: BorderSide.none,
               ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
             ),
             autofocus: true,
+          ),
+          const SizedBox(height: 16),
+
+          // Family @username
+          Text(
+            'Family @username',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: DKColors.textSecondary(context),
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: usernameController,
+            keyboardType: TextInputType.text,
+            textInputAction: TextInputAction.done,
+            textCapitalization: TextCapitalization.none,
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: DKColors.textPrimary(context),
+            ),
+            decoration: InputDecoration(
+              prefixText: '@ ',
+              prefixStyle: TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: DKColors.brandPurple,
+              ),
+              hintText: 'e.g. sharma_family',
+              hintStyle: TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: DKColors.textSecondary(context).withValues(alpha: 0.3),
+              ),
+              filled: true,
+              fillColor: DKColors.elevatedColor(context),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(KinrelRadius.input),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
+            ),
           ),
           const SizedBox(height: 16),
 
@@ -480,8 +574,11 @@ class _Step1FamilyIdentity extends StatelessWidget {
             borderColor: DKColors.brandPurple.withValues(alpha: 0.1),
             child: Row(
               children: [
-                Icon(Icons.link_rounded,
-                    size: 16, color: DKColors.textSecondary(context)),
+                Icon(
+                  Icons.link_rounded,
+                  size: 16,
+                  color: DKColors.textSecondary(context),
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -553,7 +650,6 @@ class _Step2PrivacySetup extends StatelessWidget {
   final ValueChanged<_PrivacyMode> onPrivacyChanged;
   final String familyName;
 
-
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -605,8 +701,7 @@ class _Step2PrivacySetup extends StatelessWidget {
           _PrivacyCard(
             icon: Icons.mail_outline_rounded,
             title: 'Invite-Only',
-            description:
-                'Family members can join by invitation or family code',
+            description: 'Family members can join by invitation or family code',
             mode: _PrivacyMode.inviteOnly,
             selectedMode: privacyMode,
             onTap: () => onPrivacyChanged(_PrivacyMode.inviteOnly),
@@ -615,8 +710,7 @@ class _Step2PrivacySetup extends StatelessWidget {
           _PrivacyCard(
             icon: Icons.link_rounded,
             title: 'Link-Sharing',
-            description:
-                'Anyone with the family link can request to join',
+            description: 'Anyone with the family link can request to join',
             mode: _PrivacyMode.linkSharing,
             selectedMode: privacyMode,
             onTap: () => onPrivacyChanged(_PrivacyMode.linkSharing),
@@ -637,7 +731,9 @@ class _Step2PrivacySetup extends StatelessWidget {
           const SizedBox(height: 12),
           Center(
             child: DKAvatar(
-              initials: familyName.isNotEmpty ? familyName[0].toUpperCase() : '',
+              initials: familyName.isNotEmpty
+                  ? familyName[0].toUpperCase()
+                  : '',
               size: DKAvatarSize.xl,
               borderColor: DKColors.brandGold.withValues(alpha: 0.4),
               backgroundColor: DKColors.brandPurple,
@@ -676,7 +772,6 @@ class _Step3AddYourself extends StatelessWidget {
   final String? selectedGender;
   final ValueChanged<String?> onGenderChanged;
   final bool canProceed;
-
 
   @override
   Widget build(BuildContext context) {
@@ -746,6 +841,9 @@ class _Step3AddYourself extends StatelessWidget {
           const SizedBox(height: 8),
           TextField(
             controller: nameController,
+            keyboardType: TextInputType.name,
+            textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.next,
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 20,
@@ -766,8 +864,10 @@ class _Step3AddYourself extends StatelessWidget {
                 borderRadius: BorderRadius.circular(KinrelRadius.input),
                 borderSide: BorderSide.none,
               ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
             ),
             autofocus: true,
           ),
@@ -787,6 +887,7 @@ class _Step3AddYourself extends StatelessWidget {
           TextField(
             controller: birthYearController,
             keyboardType: TextInputType.number,
+            textInputAction: TextInputAction.done,
             maxLength: 4,
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -796,7 +897,8 @@ class _Step3AddYourself extends StatelessWidget {
             decoration: InputDecoration(
               hintText: 'e.g., 1990',
               hintStyle: TextStyle(
-                  color: DKColors.textSecondary(context).withValues(alpha: 0.5)),
+                color: DKColors.textSecondary(context).withValues(alpha: 0.5),
+              ),
               filled: true,
               fillColor: DKColors.elevatedColor(context),
               border: OutlineInputBorder(
@@ -804,8 +906,10 @@ class _Step3AddYourself extends StatelessWidget {
                 borderSide: BorderSide.none,
               ),
               counterText: '',
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
             ),
           ),
           const SizedBox(height: 20),
@@ -829,8 +933,7 @@ class _Step3AddYourself extends StatelessWidget {
               return DKSuggestionChip(
                 label: gender,
                 isSelected: isSelected,
-                onTap: () =>
-                    onGenderChanged(isSelected ? null : gender),
+                onTap: () => onGenderChanged(isSelected ? null : gender),
               );
             }).toList(),
           ),
@@ -859,7 +962,6 @@ class _BottomNav extends StatelessWidget {
   final bool canProceed;
   final bool isSubmitting;
 
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -887,9 +989,7 @@ class _BottomNav extends StatelessWidget {
             Expanded(
               flex: 2,
               child: DKButton(
-                label: currentStep == totalSteps - 1
-                    ? 'Create Family'
-                    : 'Next',
+                label: currentStep == totalSteps - 1 ? 'Create Family' : 'Next',
                 variant: currentStep == totalSteps - 1
                     ? DKButtonVariant.gradient
                     : DKButtonVariant.primary,
@@ -925,7 +1025,6 @@ class _PrivacyCard extends StatelessWidget {
   final _PrivacyMode selectedMode;
   final VoidCallback onTap;
 
-
   @override
   Widget build(BuildContext context) {
     final isSelected = mode == selectedMode;
@@ -947,11 +1046,13 @@ class _PrivacyCard extends StatelessWidget {
                   ? DKColors.brandPurple.withValues(alpha: 0.15)
                   : DKColors.elevatedColor(context),
             ),
-            child: Icon(icon,
-                size: 20,
-                color: isSelected
-                    ? DKColors.brandPurple
-                    : DKColors.textSecondary(context)),
+            child: Icon(
+              icon,
+              size: 20,
+              color: isSelected
+                  ? DKColors.brandPurple
+                  : DKColors.textSecondary(context),
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -983,8 +1084,11 @@ class _PrivacyCard extends StatelessWidget {
             ),
           ),
           if (isSelected)
-            Icon(Icons.check_circle_rounded,
-                color: DKColors.brandPurple, size: 22),
+            Icon(
+              Icons.check_circle_rounded,
+              color: DKColors.brandPurple,
+              size: 22,
+            ),
         ],
       ),
     );
@@ -1002,7 +1106,6 @@ class _LanguageDropdown extends StatelessWidget {
   final SupportedLanguage? selectedLanguage;
   final ValueChanged<SupportedLanguage?> onChanged;
 
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1010,8 +1113,7 @@ class _LanguageDropdown extends StatelessWidget {
       decoration: BoxDecoration(
         color: DKColors.elevatedColor(context),
         borderRadius: BorderRadius.circular(KinrelRadius.input),
-        border: Border.all(
-            color: DKColors.brandPurple.withValues(alpha: 0.1)),
+        border: Border.all(color: DKColors.brandPurple.withValues(alpha: 0.1)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<SupportedLanguage>(
@@ -1076,7 +1178,6 @@ class _RegionDropdown extends StatelessWidget {
     'Diaspora (Global)',
   ];
 
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1084,8 +1185,7 @@ class _RegionDropdown extends StatelessWidget {
       decoration: BoxDecoration(
         color: DKColors.elevatedColor(context),
         borderRadius: BorderRadius.circular(KinrelRadius.input),
-        border: Border.all(
-            color: DKColors.brandPurple.withValues(alpha: 0.1)),
+        border: Border.all(color: DKColors.brandPurple.withValues(alpha: 0.1)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
