@@ -395,11 +395,14 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     );
 
     // 5. Preload bottom nav tabs (500ms delay to not compete with initial load)
+    // CRITICAL: Each async call MUST have .catchError() — if these throw
+    // without being caught, the error escapes the try-catch as an uncaught
+    // async error in the guarded zone, causing a crash (blank screen).
     Future.delayed(const Duration(milliseconds: 500), () {
       try {
-        ref.read(familyListProvider.future);
-        ref.read(profileProvider.notifier).loadProfile();
-        ref.read(profileProvider.notifier).loadStats();
+        ref.read(familyListProvider.future).catchError((_) {});
+        ref.read(profileProvider.notifier).loadProfile().catchError((_) {});
+        ref.read(profileProvider.notifier).loadStats().catchError((_) {});
         debugPrint('🚀 Bottom nav tabs preloaded');
       } catch (e) {
         debugPrint('⚠️ Bottom nav preload failed: $e');

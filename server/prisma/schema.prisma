@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Family {
+  id               String   @id @default(uuid())
+  name             String
+  username         String?  @unique
+  familyCode       String   @unique
+  avatarUrl        String?
+  region           String?
+  privacyMode      String   @default("public")
+  isOnboarded      Boolean  @default(false)
+  anchorPersonId   String?
+  memberCount      Int      @default(0)
+  generationCount  Int      @default(0)
+  lastActivityAt   DateTime @default(now())
+  createdBy        String
+  description      String?
+  primaryLanguage  String   @default("en")
+  gotra            String?
+  originVillage    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  persons        Person[]
+  relationships  Relationship[]
+  familyMembers  FamilyMember[]
+}
+
+model Person {
+  id              String    @id @default(uuid())
+  name            String
+  familyId        String
+  gender          String?
+  birthYear       Int?
+  isAnchor        Boolean   @default(false)
+  generationIndex Int?
+  deletedAt       DateTime?
+  city            String?
+  gotra           String?
+  isDeceased      Boolean   @default(false)
+  privacyLevel    String    @default("public")
+  occupation      String?
+  notes           String?
+  sideOfFamily    String?
+  photoUrl        String?
+  dateOfBirth     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  family                   Family          @relation(fields: [familyId], references: [id])
+  fromRelationships        Relationship[]  @relation("FromPerson")
+  toRelationships          Relationship[]  @relation("ToPerson")
+}
+
+model Relationship {
+  id              String    @id @default(uuid())
+  familyId        String
+  fromPersonId    String
+  toPersonId      String
+  type            String
+  relationshipKey String?
+  direction       String?
+  isActive        Boolean   @default(true)
+  label           String?
+  verifiedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  family     Family  @relation(fields: [familyId], references: [id])
+  fromPerson Person  @relation("FromPerson", fields: [fromPersonId], references: [id])
+  toPerson   Person  @relation("ToPerson", fields: [toPersonId], references: [id])
+}
+
+model FamilyMember {
+  id       String   @id @default(uuid())
+  familyId String
+  userId   String
+  role     String   @default("member")
+  joinedAt DateTime @default(now())
+
+  family Family @relation(fields: [familyId], references: [id])
+
+  @@unique([familyId, userId])
+}
+
+model User {
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  name               String?
+  phone              String?
+  avatarUrl          String?
+  bio                String?
+  dateOfBirth        String?
+  gender             String?
+  username           String?   @unique
+  preferredLanguage  String    @default("en")
+  profileVisibility  String    @default("public")
+  invitePermission   String    @default("anyone")
+  twoFactorEnabled   Boolean   @default(false)
+  twoFactorSecret    String?
+  authProvider       String    @default("supabase")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model Invitation {
+  id         String   @id @default(uuid())
+  familyId   String
+  familyName String?
+  invitedBy  String
+  inviteeId  String
+  code       String   @unique
+  role       String   @default("member")
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model SupportTicket {
+  id        String   @id @default(uuid())
+  userId    String
+  subject   String
+  message   String
+  status    String   @default("open")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Session {
+  id         String   @id @default(uuid())
+  userId     String
+  token      String?
+  device     String?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+}

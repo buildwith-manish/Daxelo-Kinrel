@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/database/isar_database.dart';
-import '../../../core/database/collections/cached_profile.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/storage/secure_storage.dart';

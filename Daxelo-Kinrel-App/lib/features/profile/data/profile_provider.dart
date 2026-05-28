@@ -391,15 +391,60 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     // Fallback to direct API call (original behavior)
     try {
       final response = await _dio.get('/api/users/me');
-      final profile = ProfileModel.fromJson(
-        _extractUserData(response.data as Map<String, dynamic>),
-      );
+
+      // ── Defensive: Ensure response.data is a proper Map ──
+      // The backend might return an unexpected format (HTML error page,
+      // string, list, etc.). Never assume the structure.
+      final rawData = response.data;
+      if (rawData == null) {
+        debugPrint('⚠️ loadProfile: API returned null data');
+        state = state.copyWith(isLoading: false);
+        return;
+      }
+
+      // Safely convert response data to Map<String, dynamic>
+      Map<String, dynamic> userData;
+      try {
+        if (rawData is Map<String, dynamic>) {
+          userData = _extractUserData(rawData);
+        } else if (rawData is Map) {
+          // Convert Map<dynamic, dynamic> to Map<String, dynamic> safely
+          final converted = <String, dynamic>{};
+          for (final entry in rawData.entries) {
+            converted[entry.key.toString()] = entry.value;
+          }
+          userData = _extractUserData(converted);
+        } else {
+          debugPrint('⚠️ loadProfile: Unexpected response type: ${rawData.runtimeType}');
+          state = state.copyWith(isLoading: false);
+          return;
+        }
+      } catch (e) {
+        debugPrint('⚠️ loadProfile: Failed to parse response data: $e');
+        state = state.copyWith(isLoading: false);
+        return;
+      }
+
+      final profile = ProfileModel.fromJson(userData);
       state = state.copyWith(profile: profile, isLoading: false);
     } on DioException catch (e) {
-      final message =
-          e.response?.data?['message'] ?? e.message ?? 'Failed to load profile';
-      state = state.copyWith(isLoading: false, error: message.toString());
+      // Safely extract error message without type casting issues
+      String message;
+      try {
+        final errorData = e.response?.data;
+        if (errorData is Map) {
+          message = errorData['message']?.toString() ??
+              e.message ??
+              'Failed to load profile';
+        } else {
+          message = e.message ?? 'Failed to load profile';
+        }
+      } catch (_) {
+        message = e.message ?? 'Failed to load profile';
+      }
+      state = state.copyWith(isLoading: false, error: message);
     } catch (e) {
+      debugPrint('⚠️ loadProfile unexpected error: $e');
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
@@ -424,9 +469,36 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     // Fallback to direct API call (original behavior)
     try {
       final response = await _dio.get('/api/users/me/stats');
-      final stats = UserStatsModel.fromJson(
-        response.data as Map<String, dynamic>,
-      );
+
+      // ── Defensive: Ensure response.data is a proper Map ──
+      final rawData = response.data;
+      if (rawData == null) {
+        debugPrint('⚠️ loadStats: API returned null data');
+        await _loadStatsFromSupabase();
+        return;
+      }
+
+      Map<String, dynamic> statsData;
+      try {
+        if (rawData is Map<String, dynamic>) {
+          statsData = rawData;
+        } else if (rawData is Map) {
+          statsData = <String, dynamic>{};
+          for (final entry in rawData.entries) {
+            statsData[entry.key.toString()] = entry.value;
+          }
+        } else {
+          debugPrint('⚠️ loadStats: Unexpected response type: ${rawData.runtimeType}');
+          await _loadStatsFromSupabase();
+          return;
+        }
+      } catch (e) {
+        debugPrint('⚠️ loadStats: Failed to parse response data: $e');
+        await _loadStatsFromSupabase();
+        return;
+      }
+
+      final stats = UserStatsModel.fromJson(statsData);
       state = state.copyWith(stats: stats);
     } on DioException catch (e) {
       debugPrint('⚠️ loadStats backend error, trying Supabase: ${e.message}');

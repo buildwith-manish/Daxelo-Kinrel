@@ -69,10 +69,10 @@ enum AppEnvironment {
 
   /// API base URL for this environment
   String get apiBaseUrl => switch (this) {
-        AppEnvironment.dev => 'http://10.0.2.2:3000/api', // Android emulator → host
+        AppEnvironment.dev => 'http://10.0.2.2:3001', // Android emulator → NestJS on host
         AppEnvironment.staging =>
-          'https://daxelo-kinrel-staging.onrender.com/api',
-        AppEnvironment.prod => 'https://daxelo-kinrel-server.onrender.com/api',
+          'https://daxelo-kinrel-staging.onrender.com',
+        AppEnvironment.prod => 'https://daxelo-kinrel-server.onrender.com',
       };
 
   /// Supabase URL for this environment

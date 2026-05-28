@@ -64,7 +64,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         curve: Curves.easeOutCubic,
       );
     } else {
-      setState(() => _showQuickSetup = true);
+      // Skip Quick Setup — go directly to sign-in.
+      // Name and family setup happen AFTER login.
+      _completeOnboarding();
     }
   }
 

@@ -224,8 +224,10 @@ class _PrefetchProfileState extends ConsumerState<_PrefetchProfile> {
     super.initState();
     Future.microtask(() {
       if (mounted) {
-        ref.read(profileProvider.notifier).loadProfile();
-        ref.read(profileProvider.notifier).loadStats();
+        // CRITICAL: Each async call MUST have .catchError() to prevent
+        // uncaught async errors that crash the app (blank screen).
+        ref.read(profileProvider.notifier).loadProfile().catchError((_) {});
+        ref.read(profileProvider.notifier).loadStats().catchError((_) {});
       }
     });
   }

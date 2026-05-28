@@ -17,7 +17,7 @@ class AppConfig {
   static const String _fallbackSupabaseAnonKey =
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY';
   static const String _fallbackApiBaseUrl =
-      'https://daxelo-kinrel-server.onrender.com';
+      'http://10.0.2.2:3001';
 
   /// Safely read a value from dotenv, returning null if dotenv is not
   /// initialized or the key is absent (instead of throwing NotInitializedError).
