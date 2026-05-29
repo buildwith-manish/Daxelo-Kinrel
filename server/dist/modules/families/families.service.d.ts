@@ -1,0 +1,75 @@
+import { PrismaService } from '../../prisma/prisma.service';
+import { CreateFamilyDto } from './dto/create-family.dto';
+import { UpdateFamilyDto } from './dto/update-family.dto';
+export declare class FamiliesService {
+    private prisma;
+    constructor(prisma: PrismaService);
+    create(userId: string, dto: CreateFamilyDto): Promise<{
+        id: string;
+        name: string;
+        familyCode: string;
+        username: string | null;
+        description: string | null;
+        primaryLanguage: string;
+        gotra: string | null;
+        originVillage: string | null;
+        privacyMode: string;
+        anchorPersonId: string | null;
+        memberCount: number;
+        generationCount: number;
+        createdBy: string | null;
+        avatarUrl: string | null;
+        region: string | null;
+        isOnboarded: boolean;
+        lastActivityAt: Date;
+        createdAt: Date;
+    }>;
+    findAll(userId: string): Promise<any>;
+    findOne(userId: string, familyId: string): Promise<{
+        id: string;
+        name: string;
+        familyCode: string;
+        username: string | null;
+        description: string | null;
+        primaryLanguage: string;
+        gotra: string | null;
+        originVillage: string | null;
+        privacyMode: string;
+        anchorPersonId: string | null;
+        memberCount: number;
+        generationCount: number;
+        createdBy: string | null;
+        avatarUrl: string | null;
+        region: string | null;
+        isOnboarded: boolean;
+        lastActivityAt: Date;
+        createdAt: Date;
+    }>;
+    update(userId: string, familyId: string, dto: UpdateFamilyDto): Promise<{
+        id: string;
+        name: string;
+        familyCode: string;
+        username: string | null;
+        description: string | null;
+        primaryLanguage: string;
+        gotra: string | null;
+        originVillage: string | null;
+        privacyMode: string;
+        anchorPersonId: string | null;
+        memberCount: number;
+        generationCount: number;
+        createdBy: string | null;
+        avatarUrl: string | null;
+        region: string | null;
+        isOnboarded: boolean;
+        lastActivityAt: Date;
+        createdAt: Date;
+    }>;
+    remove(userId: string, familyId: string): Promise<{
+        deleted: boolean;
+        familyId: string;
+    }>;
+    requireFamilyMember(userId: string, familyId: string): Promise<any>;
+    requireFamilyRole(userId: string, familyId: string, minRole: string): Promise<any>;
+    private formatFamily;
+}

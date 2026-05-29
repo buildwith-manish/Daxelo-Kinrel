@@ -1,111 +1,54 @@
-# =============================================================================
-# DAXELO KINREL — Root .gitignore
-# =============================================================================
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# Environment — NEVER commit these
-.env
-.env.*
-!.env.example
-.env.local
-.env.production
-.env.staging
-**/.env
-**/.env.local
-server/.env
-Daxelo-Kinrel-App/.env
-
-# Dependencies
-node_modules/
-.pnp
+# dependencies
+node_modules
+/.pnp
 .pnp.*
 .yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
-# Databases
-*.db
-*.db-journal
-*.sqlite
-*.sqlite3
-db/
-**/db/custom.db
+# testing
+/coverage
 
-# Logs
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+local-*
+.claude
+.z-ai-config
 *.log
 dev.log
 dev.out.log
+test
+prompt
+
 server.log
-
-# NestJS build
-Daxelo-Kinrel-Server/dist/
-server/dist/
-server/node_modules/
-
-# Flutter
-Daxelo-Kinrel-App/build/
-Daxelo-Kinrel-App/.dart_tool/
-Daxelo-Kinrel-App/.flutter-plugins
-Daxelo-Kinrel-App/.flutter-plugins-dependencies
-Daxelo-Kinrel-App/.packages
-Daxelo-Kinrel-App/.pub-cache/
-Daxelo-Kinrel-App/.pub/
-Daxelo-Kinrel-App/ios/Pods/
-Daxelo-Kinrel-App/ios/.symlinks/
-Daxelo-Kinrel-App/android/.gradle/
-Daxelo-Kinrel-App/android/app/build/
-Daxelo-Kinrel-App/lib/**/*.g.dart
-Daxelo-Kinrel-App/lib/**/*.freezed.dart
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-*.pem
-
-# Android signing — NEVER commit keystore files
-*.jks
-*.keystore
-Daxelo-Kinrel-App/android/key.properties
-Daxelo-Kinrel-App/android/app/upload-keystore.jks
-
-# TypeScript
-*.tsbuildinfo
-
-# Debug
-npm-debug.log*
-yarn-debug.log*
-.pnpm-debug.log*
-
-# =============================================================================
-# Dev Platform / AI Context (NOT part of the app)
-# =============================================================================
-.zscripts/
-agent-ctx/
-skills/
-upload/
-download/
-examples/
-docs/runbooks/
-style_dictionary/
-.claude
-.z-ai-config
-worklog.md
-worklog_new.md
-local-*
-
-# =============================================================================
-# Legacy directories (removed during restructuring - only ignore at root level)
-# =============================================================================
-/flutter_app/
-/src/
-/prisma/
-/public/
-/mini-services/
-/db/
-.next/
-.env
-upload/
+# Skills directory
+/skills/

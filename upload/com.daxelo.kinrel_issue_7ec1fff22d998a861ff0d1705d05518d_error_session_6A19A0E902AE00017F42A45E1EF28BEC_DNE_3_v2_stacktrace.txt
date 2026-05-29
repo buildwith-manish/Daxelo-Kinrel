@@ -1,0 +1,12 @@
+# Crashlytics - 
+# Application: com.daxelo.kinrel
+# Platform: android
+# Version: 1.0.0 (1)
+# Issue: 7ec1fff22d998a861ff0d1705d05518d
+# Session: 6A19A0E902AE00017F42A45E1EF28BEC_DNE_3_v2
+# Date: Fri May 29 2026 19:51:32 GMT+0530 (India Standard Time)
+
+Non-fatal Exception: io.flutter.plugins.firebase.crashlytics.FlutterError: NetworkError: GET /api/users/me. Error thrown method=GET, path=/api/users/me, statusCode=404, errorType=badResponse.
+       at DioMixin.request(dio_mixin.dart:364)
+       at DioMixin.get(dio_mixin.dart:71)
+       at ProfileNotifier.loadProfile(profile_provider.dart:393)
