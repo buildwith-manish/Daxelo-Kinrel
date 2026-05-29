@@ -26,10 +26,14 @@ jobs:
 
       - name: Install Android SDK & NDK
         run: |
-          # Flutter 3.44.0 requires Android SDK 36 and BuildTools 28.0.3
-          yes | sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973" 2>/dev/null || true
-          # Also install the latest cmdline-tools in case they're missing
-          yes | sdkmanager --licenses 2>/dev/null || true
+          # Set ANDROID_HOME (already set on GitHub runners, but be explicit)
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          # Install NDK and required SDK platforms
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.0.12077973" "platforms;android-36" "build-tools;36.0.0"
+          # Accept all licenses
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          # Verify NDK installed
+          ls "$ANDROID_HOME/ndk/" || echo "NDK directory not found"
 
       - name: Cache Gradle packages
         uses: actions/cache@v4
