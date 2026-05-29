@@ -23,13 +23,19 @@ subprojects {
 // ─── Compatibility fixes for Flutter plugins ────────────────────────
 // All subproject configuration that does NOT require afterEvaluate.
 subprojects {
-    // ── Force consistent Kotlin JVM target across all subprojects ─────
-    // Without this, plugins like sentry_flutter may compile with a
-    // different JVM target than the app (e.g., 1.8 vs 17).
+    // ── Force consistent JVM target across all subprojects ─────────────
+    // Without this, plugins may have mismatched Java (11) and Kotlin (17)
+    // JVM targets, causing "Inconsistent JVM-target compatibility" errors.
+    // Both Java and Kotlin MUST target the same JVM version.
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         compilerOptions {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         }
+    }
+    // Force Java compile tasks to also target JVM 17
+    tasks.withType<JavaCompile>().configureEach {
+        sourceCompatibility = JavaVersion.VERSION_17.toString()
+        targetCompatibility = JavaVersion.VERSION_17.toString()
     }
 
     // ── Inject namespace for older Flutter plugins ────────────────────
@@ -49,8 +55,6 @@ subprojects {
 
             // ── Force compileSdk = 36 for subprojects with old SDK ────
             // Flutter 3.44.0 requires compileSdk 36.
-            // Use withPlugin callback instead of afterEvaluate to avoid
-            // "project already evaluated" error from evaluationDependsOn.
             if (androidExt.compileSdk ?: 0 < 34) {
                 androidExt.compileSdk = 36
             }
