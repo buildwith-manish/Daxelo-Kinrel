@@ -12,6 +12,7 @@
 // timeline gradient (#E8612A → #F59240), glow nodes.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/brand_colors.dart';
@@ -59,7 +60,7 @@ class _MemoriesScreenState extends ConsumerState<MemoriesScreen>
       body: Stack(
         children: [
           CustomScrollView(
-            cacheExtent: 500,
+            scrollCacheExtent: ScrollCacheExtent.pixels(500),
             physics: const BouncingScrollPhysics(),
             slivers: [
               // ── Header ────────────────────────────────────────────

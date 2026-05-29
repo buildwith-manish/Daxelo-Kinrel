@@ -25,6 +25,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -330,7 +331,7 @@ class _EventsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView.separated(
-      cacheExtent: 500,
+      scrollCacheExtent: ScrollCacheExtent.pixels(500),
       padding: const EdgeInsets.fromLTRB(
         KinrelSpacing.base,
         0,

@@ -34,7 +34,6 @@ import 'package:shimmer/shimmer.dart';
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/constants/brand_spacing.dart';
-import '../../core/utils/device_tier.dart';
 import '../../core/utils/accessibility_utils.dart';
 
 // ═══════════════════════════════════════════════════════════════════════

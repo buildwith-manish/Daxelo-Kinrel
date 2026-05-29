@@ -21,7 +21,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/sync/connectivity_service.dart';
 import '../utils/accessibility_utils.dart';
-import '../utils/error_boundary.dart';
 
 // ---------------------------------------------------------------------------
 // Provider — tracks recent network request failures

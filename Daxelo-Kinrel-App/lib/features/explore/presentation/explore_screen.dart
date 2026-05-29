@@ -30,7 +30,6 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/kinship/kinship_models.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../../core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // DESIGN TOKENS

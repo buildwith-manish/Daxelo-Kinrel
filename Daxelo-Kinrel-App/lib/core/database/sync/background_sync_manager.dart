@@ -15,7 +15,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'sync_engine.dart';
-import 'sync_engine_provider.dart';
 import 'connectivity_service.dart';
 import '../../services/supabase_service.dart';
 

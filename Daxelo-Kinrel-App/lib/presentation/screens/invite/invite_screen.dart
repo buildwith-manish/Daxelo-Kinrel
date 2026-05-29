@@ -421,7 +421,7 @@ class _InviteScreenState extends ConsumerState<InviteScreen>
               // Invitee info
               Expanded(
                 child: Text(
-                  invite.familyName ?? '',
+                  invite.familyName,
                   style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
@@ -783,7 +783,7 @@ class _PendingInviteCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  invitation.familyName ?? '',
+                  invitation.familyName,
                   style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 15,
@@ -795,7 +795,7 @@ class _PendingInviteCard extends ConsumerWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Invited by ${invitation.inviterName ?? ''}',
+                  'Invited by ${invitation.inviterName}',
                   style: const TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,

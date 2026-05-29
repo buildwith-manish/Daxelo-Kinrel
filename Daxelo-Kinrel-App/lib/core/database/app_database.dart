@@ -551,11 +551,11 @@ class AppDatabase extends _$AppDatabase {
 
   // ── Sync Metadata ─────────────────────────────────────────────────
 
-  Future<SyncMetadataDatum?> getSyncMetadata(String entityType) =>
+  Future<SyncMetadataData?> getSyncMetadata(String entityType) =>
       (select(syncMetadata)..where((t) => t.entityType.equals(entityType)))
           .getSingleOrNull();
 
-  Future<List<SyncMetadataDatum>> getAllSyncMetadata() =>
+  Future<List<SyncMetadataData>> getAllSyncMetadata() =>
       select(syncMetadata).get();
 
   Future<void> upsertSyncMetadata(SyncMetadataCompanion metadata) =>

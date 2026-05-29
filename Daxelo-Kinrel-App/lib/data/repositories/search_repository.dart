@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 
@@ -391,8 +390,8 @@ class SearchRepository {
             'families': results.families.map((f) => f.toJson()).toList(),
             'total': results.totalCount,
           }),
-          cachedAt: Value(DateTime.now()),
-          ttlSeconds: const Value(120), // 2 minutes
+          cachedAt: DateTime.now(),
+          ttlSeconds: 120, // 2 minutes
         ),
       );
     } catch (e) {

@@ -318,9 +318,9 @@ class GraphService {
           toPersonId: toPersonId,
           path: pathJson,
           kinshipTerm: Value(result.composedKinshipTerm),
-          distance: Value(result.length),
-          computedAt: Value(now),
-          expiresAt: Value(expiresAt),
+          distance: result.length,
+          computedAt: now,
+          expiresAt: expiresAt,
         ),
       );
     } catch (e) {
@@ -514,13 +514,6 @@ class GraphService {
 
     // For compound paths, try to look up the composed key in the kinship service
     // e.g., ["father", "brother"] → "fathers_brother" → try lookup
-    final composedKey = path.map((s) {
-      // Handle possessive: "father" → "fathers", "mother" → "mothers"
-      if (s == 'child') return 'childs';
-      if (s.endsWith('s')) return s;
-      if (s.endsWith('y')) return '${s.substring(0, s.length - 1)}ies';
-      return '${s}s';
-    }).join('_');
 
     // Try to resolve via kinship service
     final resolved = _kinshipService.resolvePathToKey(path);

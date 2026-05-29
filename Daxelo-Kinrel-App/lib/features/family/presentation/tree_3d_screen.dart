@@ -29,7 +29,6 @@ import '../../../core/kinship/kinship_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/graph/graph_service.dart';
 import 'family_tree_canvas.dart';
-import '../../../core/utils/device_tier.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // LAYOUT MODE ENUM

@@ -11,7 +11,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 
 import '../../../core/networking/dio_client.dart';
-import '../../../core/services/supabase_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Notification Types

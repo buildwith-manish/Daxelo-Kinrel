@@ -9,7 +9,6 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/kinship/country_kinship_models.dart';
 import '../../../core/kinship/country_kinship_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../../core/utils/device_tier.dart';
 
 /// Global Kinship Screen — Country-first approach to world kinship
 ///

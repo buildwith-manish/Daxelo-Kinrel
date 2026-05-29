@@ -125,7 +125,6 @@ void main() {
       }
 
       // Tap the share row
-      shareRow:
       final shareRowFinder = find.text('Share Kinrel with friends');
       if (shareRowFinder.evaluate().isNotEmpty) {
         await tapAndSettle(tester, shareRowFinder.first);

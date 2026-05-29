@@ -4,7 +4,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 // Hive removed — using Drift (AppDatabase) via IsarDatabase wrapper
@@ -25,7 +25,6 @@ import 'core/services/supabase_service.dart';
 import 'core/storage/local_cache.dart';
 import 'core/storage/secure_storage.dart';
 import 'core/theme/theme_provider.dart';
-import 'core/database/sync/sync_engine_provider.dart';
 import 'core/database/sync/background_sync_manager.dart';
 import 'core/network/socket_service.dart';
 import 'core/utils/device_tier.dart';
@@ -428,7 +427,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     // async error in the guarded zone, causing a crash (blank screen).
     Future.delayed(const Duration(milliseconds: 500), () {
       try {
-        ref.read(familyListProvider.future).catchError((_) {});
+        ref.read(familyListProvider.future).catchError((_) => <Family>[]);
         ref.read(profileProvider.notifier).loadProfile().catchError((_) {});
         ref.read(profileProvider.notifier).loadStats().catchError((_) {});
         debugPrint('🚀 Bottom nav tabs preloaded');

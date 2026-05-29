@@ -39,7 +39,6 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen>
   // Plan definitions
   static const _monthlyPrice = 99.0; // ₹99/month
   static const _yearlyPrice = 799.0; // ₹799/year
-  static const _monthlySavings = 0.0;
   static const _yearlySavingsPercent = 33; // 33% savings
 
   @override

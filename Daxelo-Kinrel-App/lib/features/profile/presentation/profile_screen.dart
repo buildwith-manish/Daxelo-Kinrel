@@ -35,9 +35,7 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/profile_provider.dart';
 import '../../../core/utils/share_helper.dart';
-import '../../../core/family/family_id_provider.dart';
 import '../../../core/family/family_provider.dart';
-import '../../../core/utils/device_tier.dart';
 import '../../../presentation/widgets/skeletons/profile_skeleton.dart';
 import '../../family/providers/family_invite_provider.dart';
 

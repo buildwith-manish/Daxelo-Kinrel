@@ -8,9 +8,10 @@ on:
   pull_request:
     branches:
       - main
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      - develop
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *'  # 2 AM UTC daily
 
 jobs:
   gitleaks:

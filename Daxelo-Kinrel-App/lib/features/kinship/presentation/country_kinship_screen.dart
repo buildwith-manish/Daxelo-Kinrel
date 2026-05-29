@@ -12,7 +12,6 @@ import '../../../core/kinship/country_kinship_provider.dart';
 import '../../../core/kinship/global_kinship_models.dart';
 import '../../../core/kinship/global_kinship_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../../core/utils/device_tier.dart';
 
 /// Country Kinship Detail Screen — Shows kinship terms for a specific country
 ///

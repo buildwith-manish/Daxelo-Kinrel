@@ -200,9 +200,6 @@ void main() {
 
       // Either we navigated to family detail or got a snackbar
       // (If Supabase is not available, the creation will fail with an error)
-      final hasResult = snackBar.evaluate().isNotEmpty ||
-          familyDetail.evaluate().isNotEmpty ||
-          successText.evaluate().isNotEmpty;
 
       // This test is best-effort: it verifies the flow completes
       // (either success or a handled error)
@@ -221,7 +218,6 @@ void main() {
       // If there are families, the list should show family cards
       // Each family card shows the family name
       final familyCards = find.byType(Card);
-      final familyList = find.byType(ListView);
 
       // Verify the family list screen is showing
       final myFamiliesHeader = find.text('My Families');

@@ -27,7 +27,6 @@ import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../feed/presentation/family_feed.dart';
 import '../../feed/providers/feed_provider.dart';
-import '../../../core/utils/device_tier.dart';
 import '../../../core/utils/accessibility_utils.dart';
 
 // ── Color shortcuts for the Command Center ──────────────────────

@@ -535,9 +535,7 @@ class DeepLinkFamilyPreview {
 /// deepLinkService.init(context);
 /// ```
 class DeepLinkService {
-  DeepLinkService(this._ref);
-
-  final Ref _ref;
+  DeepLinkService();
   StreamSubscription<Uri>? _linkSubscription;
   final _appLinks = AppLinks();
   bool _initialized = false;
@@ -663,7 +661,7 @@ class DeepLinkService {
 
 /// Provider for the DeepLinkService singleton.
 final deepLinkServiceProvider = Provider<DeepLinkService>((ref) {
-  final service = DeepLinkService(ref);
+  final service = DeepLinkService();
   ref.onDispose(() => service.dispose());
   return service;
 });

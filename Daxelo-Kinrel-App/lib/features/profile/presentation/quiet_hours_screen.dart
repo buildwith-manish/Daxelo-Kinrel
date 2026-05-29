@@ -39,7 +39,6 @@ class _QuietHoursScreenState extends ConsumerState<QuietHoursScreen> {
   TimeOfDay _endTime = const TimeOfDay(hour: 8, minute: 0);
   bool _isSaving = false;
 
-  static const String _prefsKey = 'quiet_hours';
   static const String _keyEnabled = 'enabled';
   static const String _keyStartHour = 'startHour';
   static const String _keyStartMinute = 'startMinute';

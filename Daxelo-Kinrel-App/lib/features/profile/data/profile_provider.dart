@@ -67,6 +67,9 @@ class ProfileModel {
     this.invitePermission = 'anyone',
     this.twoFactorEnabled = false,
     this.authProvider = 'email',
+    this.occupation,
+    this.education,
+    this.privacySettings,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -89,6 +92,9 @@ class ProfileModel {
       invitePermission: _parseString(json['invitePermission'], fallback: 'anyone'),
       twoFactorEnabled: _parseBool(json['twoFactorEnabled']),
       authProvider: _parseString(json['authProvider'], fallback: 'email'),
+      occupation: json['occupation'] as String?,
+      education: json['education'] as String?,
+      privacySettings: json['privacySettings'] as String?,
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
@@ -883,9 +889,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
         phone: user.userMetadata?['phone'] as String?,
         avatarUrl: user.userMetadata?['avatar_url'] as String?,
         preferredLanguage: user.userMetadata?['preferred_language'] as String? ?? 'en',
-        createdAt: user.createdAt != null
-            ? DateTime.tryParse(user.createdAt!) ?? DateTime.now()
-            : DateTime.now(),
+        createdAt: DateTime.tryParse(user.createdAt) ?? DateTime.now(),
         updatedAt: DateTime.now(),
       );
 

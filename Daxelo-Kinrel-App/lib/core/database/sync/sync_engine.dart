@@ -33,7 +33,6 @@ import '../../networking/dio_client.dart';
 import '../../services/crashlytics_service.dart';
 import '../../services/supabase_service.dart';
 import 'connectivity_service.dart';
-import 'offline_queue.dart';
 import 'cache_invalidation.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -358,9 +357,6 @@ const Duration _periodicSyncInterval = Duration(minutes: 5);
 const int _maxBatchSize = 50;
 
 /// Maximum number of records requested per page from the server.
-const int _pageSize = 100;
-
-/// Maximum number of retries before a pending operation is marked as failed.
 const int _maxRetries = 5;
 
 /// Maximum conflict log entries to keep (oldest are pruned).
@@ -398,7 +394,6 @@ class SyncEngine {
   Dio get _dio => _ref.read(dioProvider);
   ConnectivityService get _connectivity =>
       _ref.read(connectivityServiceProvider);
-  OfflineQueueManager get _offlineQueue => _ref.read(offlineQueueProvider);
 
   // ── State ────────────────────────────────────────────────────────────
 
@@ -642,7 +637,7 @@ class SyncEngine {
     final errorMessages = <String>[];
 
     _updateStatus(isSyncing: true, currentPhase: SyncEventType.started);
-    _emitEvent(const SyncEvent(
+    _emitEvent(SyncEvent(
       type: SyncEventType.started,
       message: familyId != null
           ? 'Starting delta sync for family'

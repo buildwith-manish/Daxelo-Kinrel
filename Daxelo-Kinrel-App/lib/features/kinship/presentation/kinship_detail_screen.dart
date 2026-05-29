@@ -10,7 +10,6 @@ import '../../../core/constants/supported_languages.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../../core/utils/device_tier.dart';
 
 class KinshipDetailScreen extends ConsumerWidget {
   KinshipDetailScreen({super.key, required this.relationshipKey});

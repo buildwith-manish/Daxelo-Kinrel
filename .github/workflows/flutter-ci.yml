@@ -1,0 +1,47 @@
+name: Flutter CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Daxelo-Kinrel-App/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Daxelo-Kinrel-App/**'
+  workflow_dispatch:
+
+jobs:
+  analyze-and-test:
+    name: Analyze & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: cd Daxelo-Kinrel-App && flutter pub get
+
+      - name: Generate Drift code
+        run: cd Daxelo-Kinrel-App && dart run build_runner build
+
+      - name: Analyze Dart code
+        run: cd Daxelo-Kinrel-App && flutter analyze --no-fatal-infos
+
+      - name: Run tests
+        run: cd Daxelo-Kinrel-App && flutter test

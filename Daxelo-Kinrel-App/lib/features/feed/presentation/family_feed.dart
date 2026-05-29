@@ -15,7 +15,6 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/feed_provider.dart';
-import '../../../core/utils/device_tier.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────
 const _cOrange = KinrelColors.orange;

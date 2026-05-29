@@ -32,6 +32,10 @@ on:
           - 'false'
           - 'true'
 
+concurrency:
+  group: vps-deploy
+  cancel-in-progress: false
+
 env:
   DEPLOY_DIR: /opt/kinrel
   REPO_DIR: /opt/kinrel/repo
@@ -51,7 +55,7 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_key
           chmod 600 ~/.ssh/vps_key
-          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
 
       - name: Deploy to VPS
         env:
@@ -59,43 +63,45 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER || 'ubuntu' }}
           FORCE_REBUILD: ${{ github.event.inputs.force_rebuild || 'false' }}
         run: |
-          SSH_CMD="ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=no ${VPS_USER}@${VPS_HOST}"
-          
+          SSH_CMD="ssh -i ~/.ssh/vps_key -o StrictHostKeyChecking=accept-new ${VPS_USER}@${VPS_HOST}"
+
           echo "🚀 Starting deployment to ${VPS_HOST}..."
-          
+
           # Pull latest code
           echo "📦 Pulling latest code..."
           $SSH_CMD "cd ${REPO_DIR} && git fetch origin main && git reset --hard origin/main"
-          
-          # Run Prisma migrations
+
+          # Run Prisma migrations (fail deployment if migration fails)
           echo "🗄️ Running Prisma migrations..."
-          $SSH_CMD "cd ${REPO_DIR}/server && npx prisma migrate deploy" || true
-          
+          $SSH_CMD "cd ${REPO_DIR}/server && npx prisma migrate deploy"
+
           # Deploy Docker stack
           echo "🐳 Deploying Docker stack..."
           BUILD_FLAG=""
           if [[ "${FORCE_REBUILD}" == "true" ]]; then
             BUILD_FLAG="--build"
           fi
-          
+
           $SSH_CMD "cd ${DEPLOY_DIR} && docker compose -f ${REPO_DIR}/deploy/docker-compose.prod.yml --env-file ${DEPLOY_DIR}/.env.production up -d ${BUILD_FLAG}"
-          
-          # Wait for health check
+
+          # Wait for health check with retry
           echo "⏳ Waiting for health check..."
-          sleep 15
-          
-          # Verify deployment
-          echo "🔍 Verifying deployment..."
-          HEALTH=$($SSH_CMD "curl -s http://localhost/api/health 2>/dev/null || curl -s http://localhost:3001/api/health 2>/dev/null || echo 'FAILED'")
-          echo "Health response: ${HEALTH}"
-          
-          if echo "${HEALTH}" | grep -q '"status"'; then
-            echo "✅ Deployment successful!"
-          else
-            echo "⚠️ Health check failed — check VPS logs"
-            $SSH_CMD "cd ${DEPLOY_DIR} && docker compose -f ${REPO_DIR}/deploy/docker-compose.prod.yml logs --tail=50 api"
-            exit 1
-          fi
+          for i in $(seq 1 10); do
+            HEALTH=$($SSH_CMD "curl -s http://localhost:3000/api/health 2>/dev/null || echo 'FAILED'")
+            if echo "${HEALTH}" | grep -q '"status"'; then
+              echo "✅ Healthy after ${i} attempts"
+              break
+            fi
+            if [ "$i" -eq 10 ]; then
+              echo "❌ Health check failed after 10 attempts"
+              $SSH_CMD "cd ${DEPLOY_DIR} && docker compose -f ${REPO_DIR}/deploy/docker-compose.prod.yml logs --tail=50 api"
+              exit 1
+            fi
+            echo "  Attempt ${i}/10 failed, retrying in 10s..."
+            sleep 10
+          done
+
+          echo "✅ Deployment successful!"
 
       - name: Cleanup SSH Key
         if: always()

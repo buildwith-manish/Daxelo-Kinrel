@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,7 +20,6 @@ import 'family_tree_canvas.dart';
 import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
 import 'relationship_builder_screen.dart';
-import '../../../core/utils/device_tier.dart';
 import '../../../core/utils/error_boundary.dart';
 import '../../../core/utils/smart_preloader.dart';
 import '../../../core/utils/share_helper.dart';
@@ -916,7 +916,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                 )
               : ListView.builder(
                   controller: _scrollController,
-                  cacheExtent: 500,
+                  scrollCacheExtent: ScrollCacheExtent.pixels(500),
                   padding: const EdgeInsets.symmetric(
                     horizontal: KinrelSpacing.base,
                   ),
@@ -1006,7 +1006,7 @@ class _ActivityTab extends StatelessWidget {
     }
 
     return ListView.builder(
-      cacheExtent: 500,
+      scrollCacheExtent: ScrollCacheExtent.pixels(500),
       padding: EdgeInsets.all(KinrelSpacing.base),
       itemCount: activities.length,
       itemBuilder: (context, index) {

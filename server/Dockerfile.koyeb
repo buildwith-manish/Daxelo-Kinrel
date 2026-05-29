@@ -46,7 +46,7 @@ WORKDIR /app
 
 # Set production environment
 ENV NODE_ENV=production
-ENV PORT=3001
+ENV PORT=3000
 
 # Copy package files and install PRODUCTION dependencies only
 # This keeps the image small — no TypeScript, no NestJS CLI, no dev tools
@@ -70,7 +70,7 @@ RUN chown -R nestjs:nodejs /app
 USER nestjs
 
 # Expose the application port
-EXPOSE 3001
+EXPOSE 3000
 
 # Health check — Koyeb uses this to determine service health
 # --start-period=30s: NestJS bootstrap can take time on nano instances
@@ -78,7 +78,7 @@ EXPOSE 3001
 # --timeout=5s: Fail if no response in 5 seconds
 # --retries=3: Mark unhealthy after 3 consecutive failures
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
 
 # Start the application
 # Using node directly (not npm) to avoid unnecessary npm process overhead

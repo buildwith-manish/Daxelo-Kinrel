@@ -216,28 +216,6 @@ class SearchNotifier extends StateNotifier<SearchState> {
     }
   }
 
-  /// Perform the actual search using the repository (local only).
-  void _performSearch() {
-    try {
-      // First try exact search
-      var results = _repository.searchAll(state.query, state.filter);
-
-      // If no exact matches, try fuzzy search
-      if (results.isEmpty) {
-        results = _repository.searchFuzzy(state.query, state.filter);
-      }
-
-      state = state.copyWith(results: results, isLoading: false, error: null);
-
-      // Save to recent searches if we got results
-      if (results.isNotEmpty && state.query.trim().isNotEmpty) {
-        saveRecentSearch(state.query.trim());
-      }
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-    }
-  }
-
   /// Load recent searches from Isar (if available) or Hive.
   void loadRecentSearches() {
     // Try Isar first

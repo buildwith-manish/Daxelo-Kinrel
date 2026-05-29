@@ -1,13 +1,11 @@
-import { IsOptional, IsString, IsNumber, IsEnum, Min, Max } from 'class-validator';
-import { Transform, Type } from 'class-transformer';
+import { IsOptional, IsNumber, IsEnum, Min, Max } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateQuizDto {
   @IsOptional()
-  @IsString()
   @IsEnum(['kinship_basic', 'kinship_advanced', 'family_traditions', 'languages'])
   category?: string;
 
-  @IsString()
   @IsEnum(['hi', 'en', 'mr', 'ta', 'te', 'kn', 'bn', 'gu'])
   language!: string;
 
@@ -18,7 +16,6 @@ export class CreateQuizDto {
   count!: number;
 
   @IsOptional()
-  @IsString()
   @IsEnum(['easy', 'medium', 'hard'])
   difficulty?: string;
 }

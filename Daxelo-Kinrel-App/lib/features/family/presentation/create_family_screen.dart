@@ -12,7 +12,6 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../../core/utils/device_tier.dart';
 
 class CreateFamilyScreen extends ConsumerStatefulWidget {
   CreateFamilyScreen({super.key});

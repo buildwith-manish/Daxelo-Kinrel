@@ -13,7 +13,6 @@
 
 import 'dart:async';
 import 'dart:convert';
-import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,7 +26,6 @@ import '../../../core/database/app_database.dart';
 
 // ── Table name constants ──────────────────────────────────────────
 const _kFamilyTable = 'Family';
-const _kPersonTable = 'Person';
 
 // ── Username validation ──────────────────────────────────────────
 
@@ -230,8 +228,8 @@ class UsernameNotifier extends StateNotifier<UsernameCheckState> {
         ApiCacheEntriesCompanion.insert(
           key: key,
           responseBody: jsonEncode({'available': available, 'username': username}),
-          cachedAt: Value(DateTime.now()),
-          ttlSeconds: const Value(300), // 5 minutes
+          cachedAt: DateTime.now(),
+          ttlSeconds: 300, // 5 minutes
         ),
       );
     } catch (e) {

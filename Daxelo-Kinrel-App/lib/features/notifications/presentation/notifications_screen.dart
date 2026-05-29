@@ -17,6 +17,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/brand_colors.dart';
@@ -238,7 +239,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
 
   Widget _buildNotificationList(List<NotificationModel> notifications) {
     return ListView.builder(
-      cacheExtent: 500,
+      scrollCacheExtent: ScrollCacheExtent.pixels(500),
       padding: EdgeInsets.symmetric(
         horizontal: KinrelSpacing.base,
         vertical: KinrelSpacing.sm,

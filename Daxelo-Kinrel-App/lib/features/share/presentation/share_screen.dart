@@ -29,7 +29,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:share_plus/share_plus.dart' as share_plus;
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -37,7 +36,6 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/utils/share_helper.dart';
 import '../providers/share_provider.dart';
-import '../../../core/utils/device_tier.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────────
 const _cOrange = KinrelColors.orange; // #E8612A

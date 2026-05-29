@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:go_router/go_router.dart';
@@ -12,7 +13,6 @@ import '../../../core/constants/supported_languages.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../../core/utils/device_tier.dart';
 import '../../../presentation/widgets/skeletons/family_list_skeleton.dart';
 
 class FamilyListScreen extends ConsumerStatefulWidget {
@@ -41,7 +41,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
         ),
         data: (families) {
           return CustomScrollView(
-            cacheExtent: 500,
+            scrollCacheExtent: ScrollCacheExtent.pixels(500),
             physics: const BouncingScrollPhysics(),
             slivers: [
               // Header

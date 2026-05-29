@@ -97,8 +97,6 @@ class _FamilyTreeWidgetState extends ConsumerState<FamilyTreeWidget>
     with TickerProviderStateMixin {
   // ── View state ──────────────────────────────────────────────────
   double _scale = 1.0;
-  Offset _panOffset = Offset.zero;
-  Offset _lastPanOffset = Offset.zero;
 
   // ── Tree state ──────────────────────────────────────────────────
   TreeNode? _treeRoot;
@@ -107,7 +105,6 @@ class _FamilyTreeWidgetState extends ConsumerState<FamilyTreeWidget>
 
   // ── Animation ───────────────────────────────────────────────────
   late AnimationController _expandController;
-  Map<String, Animation<double>> _expandAnimations = {};
 
   // ── Transformation controller ───────────────────────────────────
   final TransformationController _transformationController =

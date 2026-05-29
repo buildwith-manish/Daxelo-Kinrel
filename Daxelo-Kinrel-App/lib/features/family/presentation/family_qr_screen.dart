@@ -19,6 +19,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -298,11 +299,11 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
                     size: 200,
                     backgroundColor: Colors.white,
                     eyeStyle: QrEyeStyle(
-                      eyeShape: QrEyeShape.roundedOuter,
+                      eyeShape: QrEyeShape.circle,
                       color: Color(0xFF131416),
                     ),
                     dataModuleStyle: QrDataModuleStyle(
-                      dataModuleShape: QrDataModuleShape.roundedOuter,
+                      dataModuleShape: QrDataModuleShape.circle,
                       color: Color(0xFF131416),
                     ),
                     errorStateBuilder: (context, error) {
@@ -883,11 +884,12 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
   /// Save QR code as image to device gallery / downloads
   Future<void> _saveQRCode() async {
     try {
-      final boundary = _qrKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) {
+      final renderObject = _qrKey.currentContext?.findRenderObject();
+      if (renderObject == null) {
         context.showSnackBar('Could not capture QR code', isError: true);
         return;
       }
+      final boundary = renderObject as RenderRepaintBoundary;
 
       final image = await boundary.toImage(pixelRatio: 3.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);

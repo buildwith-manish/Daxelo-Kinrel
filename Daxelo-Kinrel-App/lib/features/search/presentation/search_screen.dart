@@ -9,6 +9,7 @@
 // Design tokens: KinrelColors, KinrelTypography, KinrelSpacing, KinrelRadius
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
@@ -21,7 +22,6 @@ import '../../../core/family/family_provider.dart';
 import '../../../data/repositories/search_repository.dart';
 import '../../../presentation/providers/search_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../../core/utils/device_tier.dart';
 import '../../../presentation/widgets/skeletons/search_skeleton.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -205,7 +205,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   Widget _buildRecentSearches(SearchState state) {
     final searches = state.recentSearches;
     return ListView.builder(
-      cacheExtent: 500,
+      scrollCacheExtent: ScrollCacheExtent.pixels(500),
       padding: const EdgeInsets.symmetric(
         horizontal: KinrelSpacing.base,
         vertical: KinrelSpacing.sm,
@@ -362,7 +362,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     }
 
     return ListView.builder(
-      cacheExtent: 500,
+      scrollCacheExtent: ScrollCacheExtent.pixels(500),
       padding: const EdgeInsets.symmetric(
         horizontal: KinrelSpacing.base,
         vertical: KinrelSpacing.sm,

@@ -9,7 +9,6 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/kinship/global_kinship_models.dart';
 import '../../../core/kinship/global_kinship_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../../core/utils/device_tier.dart';
 
 /// Cross-Cultural Comparison Screen
 ///
