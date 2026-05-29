@@ -19,15 +19,9 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
-// ─── Compatibility fixes for legacy Flutter plugins ─────────────────────
-// AGP 9.0+ requires every Android library to declare a namespace and
-// compile against API 34+. Some older plugins (e.g. isar_flutter_libs 3.1.0)
-// don't meet these requirements.
-//
-// Strategy: use pluginManager.withPlugin for namespace injection (fires when
-// the library plugin is applied, before the subproject's android block runs),
-// and a guarded afterEvaluate for compileSdk override (fires after the
-// subproject's android block sets compileSdk=30, so our override wins).
+// ─── Compatibility fixes for Flutter plugins ────────────────────────
+// Some Flutter plugins may not declare a namespace or compile against
+// a recent enough SDK. Inject namespace and bump compileSdk if needed.
 subprojects {
     pluginManager.withPlugin("com.android.library") {
         val androidExt = extensions.findByType<com.android.build.api.dsl.LibraryExtension>()
@@ -46,21 +40,18 @@ subprojects {
         }
     }
 
-    // Force compileSdk = 36 for all Android library subprojects whose
-    // compileSdk < 34 (e.g. isar_flutter_libs at 30). Must run AFTER the
-    // subproject's own android {} block to win the override.
-    // Guard: evaluationDependsOn(":app") can cause :app to be already
-    // evaluated when we reach this point, so skip afterEvaluate for it.
+    // Force compileSdk = 35 for all Android library subprojects whose
+    // compileSdk < 34. Must run AFTER the subproject's own android {} block.
     if (project.state.executed) {
         val androidExt = extensions.findByType<com.android.build.api.dsl.LibraryExtension>()
         if (androidExt != null && (androidExt.compileSdk ?: 0) < 34) {
-            androidExt.compileSdk = 36
+            androidExt.compileSdk = 35
         }
     } else {
         afterEvaluate {
             val androidExt = extensions.findByType<com.android.build.api.dsl.LibraryExtension>()
             if (androidExt != null && (androidExt.compileSdk ?: 0) < 34) {
-                androidExt.compileSdk = 36
+                androidExt.compileSdk = 35
             }
         }
     }
