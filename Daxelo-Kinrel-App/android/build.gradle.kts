@@ -22,16 +22,6 @@ subprojects {
 
 // ─── Compatibility fixes for Flutter plugins ────────────────────────
 subprojects {
-    // ── Force consistent JVM 17 target across all subprojects ──────────
-    // Using Kotlin JVM Toolchain to ensure Java and Kotlin compile
-    // with the same target. This prevents "Inconsistent JVM-target
-    // compatibility" errors from plugins like in_app_review and
-    // sentry_flutter that default to JVM 11 for Java.
-    pluginManager.withPlugin("org.jetbrains.kotlin.android") {
-        extensions.findByType<org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension>()
-            ?.jvmToolchain(17)
-    }
-
     // ── Inject namespace for older Flutter plugins ────────────────────
     pluginManager.withPlugin("com.android.library") {
         val androidExt = extensions.findByType<com.android.build.api.dsl.LibraryExtension>()
