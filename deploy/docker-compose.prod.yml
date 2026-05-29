@@ -1,0 +1,138 @@
+# ────────────────────────────────────────────────────────────────────────
+# Daxelo-Kinrel — Production Docker Compose
+# ────────────────────────────────────────────────────────────────────────
+# Usage:
+#   docker compose -f deploy/docker-compose.prod.yml up -d
+#
+# Prerequisites:
+#   - .env.production file in the deploy/ directory with all required vars
+#   - SSL certificates mounted at /etc/nginx/ssl/ (or remove 443 mapping)
+#   - Supabase PostgreSQL instance running externally
+#
+# Architecture:
+#   Client → Nginx (80/443) → API (3001) → Supabase PostgreSQL (external)
+#                                 ↕
+#                              Redis (6379)
+# ────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── Nginx Reverse Proxy ──────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: kinrel-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../nginx/conf.d:/etc/nginx/conf.d:ro
+      - nginx_logs:/var/log/nginx
+      - nginx_ssl:/etc/nginx/ssl:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - kinrel-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:80/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── API Server (NestJS) ──────────────────────────────────────────────
+  api:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+    container_name: kinrel-api
+    restart: unless-stopped
+    # ── CRITICAL: Override PORT to 3001 ──────────────────────────────
+    # main.ts defaults to PORT 3000, but Dockerfile EXPOSEs 3001 and
+    # the healthcheck targets 3001. Without this override, the app
+    # starts on 3000 inside the container while Docker maps 3001,
+    # causing a port mismatch and failed health checks.
+    environment:
+      - PORT=3001
+    env_file:
+      - .env.production
+    ports:
+      - "3001:3001"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - kinrel-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── Redis ────────────────────────────────────────────────────────────
+  # Currently used for session storage; CacheService is in-memory but
+  # Redis is included for future cache migration and Socket.IO adapter.
+  redis:
+    image: redis:7-alpine
+    container_name: kinrel-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 192mb
+      --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - kinrel-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ── Volumes ────────────────────────────────────────────────────────────
+volumes:
+  redis_data:
+    driver: local
+  nginx_logs:
+    driver: local
+  nginx_ssl:
+    driver: local
+
+# ── Network ────────────────────────────────────────────────────────────
+networks:
+  kinrel-network:
+    driver: bridge

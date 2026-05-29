@@ -1,0 +1,15 @@
+[Unit]
+Description=Daxelo-Kinrel Docker Stack
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/kinrel
+ExecStart=/usr/bin/docker compose -f /opt/kinrel/repo/deploy/docker-compose.prod.yml --env-file /opt/kinrel/.env.production up -d
+ExecStop=/usr/bin/docker compose -f /opt/kinrel/repo/deploy/docker-compose.prod.yml --env-file /opt/kinrel/.env.production down
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target
