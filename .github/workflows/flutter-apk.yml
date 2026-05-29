@@ -22,12 +22,28 @@ jobs:
         with:
           flutter-version: '3.44.0'
           channel: stable
+          cache: true
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            Daxelo-Kinrel-App/android/.gradle
+          key: gradle-${{ runner.os }}-${{ hashFiles('Daxelo-Kinrel-App/android/**/*.gradle*', 'Daxelo-Kinrel-App/android/**/*.kts') }}
+          restore-keys: gradle-${{ runner.os }}-
 
       - name: Get dependencies
         run: cd Daxelo-Kinrel-App && flutter pub get
 
       - name: Generate Drift code
         run: cd Daxelo-Kinrel-App && dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze Dart code
+        run: cd Daxelo-Kinrel-App && flutter analyze --no-fatal-infos --no-fatal-warnings
+        # --no-fatal-infos --no-fatal-warnings: only fail on actual errors
+        # Warnings and info won't block the build
 
       - name: Build APK
         run: cd Daxelo-Kinrel-App && flutter build apk --release
