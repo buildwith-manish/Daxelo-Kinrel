@@ -55,32 +55,32 @@ class _QuietHoursScreenState extends ConsumerState<QuietHoursScreen> {
   Future<void> _loadFromPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      if (box.containsKey(_keyEnabled)) {
+      if (prefs.containsKey(_keyEnabled)) {
         setState(() {
-          _enabled = box.get(_keyEnabled, defaultValue: false) as bool;
+          _enabled = prefs.getBool(_keyEnabled) ?? false;
           _startTime = TimeOfDay(
-            hour: box.get(_keyStartHour, defaultValue: 22) as int,
-            minute: box.get(_keyStartMinute, defaultValue: 0) as int,
+            hour: prefs.getInt(_keyStartHour) ?? 22,
+            minute: prefs.getInt(_keyStartMinute) ?? 0,
           );
           _endTime = TimeOfDay(
-            hour: box.get(_keyEndHour, defaultValue: 8) as int,
-            minute: box.get(_keyEndMinute, defaultValue: 0) as int,
+            hour: prefs.getInt(_keyEndHour) ?? 8,
+            minute: prefs.getInt(_keyEndMinute) ?? 0,
           );
         });
       }
     } catch (_) {
-      // Use defaults if Hive read fails
+      // Use defaults if read fails
     }
   }
 
   Future<void> _saveToPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await box.put(_keyEnabled, _enabled);
-      await box.put(_keyStartHour, _startTime.hour);
-      await box.put(_keyStartMinute, _startTime.minute);
-      await box.put(_keyEndHour, _endTime.hour);
-      await box.put(_keyEndMinute, _endTime.minute);
+      await prefs.setBool(_keyEnabled, _enabled);
+      await prefs.setInt(_keyStartHour, _startTime.hour);
+      await prefs.setInt(_keyStartMinute, _startTime.minute);
+      await prefs.setInt(_keyEndHour, _endTime.hour);
+      await prefs.setInt(_keyEndMinute, _endTime.minute);
     } catch (_) {
       // Silently fail — backend is the source of truth
     }

@@ -1000,7 +1000,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   Future<void> _selectLanguage(String code) async {
     // Save to Hive
     final prefs = await SharedPreferences.getInstance();
-    await box.put('preferred_language', code);
+    await prefs.setString('preferred_language', code);
 
     // Update locale provider for immediate UI update
     ref.read(localeProvider.notifier).state = Locale(code);
@@ -1097,7 +1097,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   Future<void> _persistToggle(String key, bool value) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await box.put(key, value);
+      await prefs.setBool(key, value);
     } catch (_) {}
   }
 
@@ -1557,7 +1557,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   Future<void> _rateApp() async {
     // Mark that user was asked to rate
     final prefs = await SharedPreferences.getInstance();
-    await box.put('has_rated', true);
+    await prefs.setBool('has_rated', true);
 
     // Try Play Store first, then App Store
     final Uri playStoreUri = Uri.parse(

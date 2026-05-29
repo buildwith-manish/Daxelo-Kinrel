@@ -15,12 +15,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 // Hive removed — using shared_preferences for local settings
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/api_error_mapper.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/database/isar_database.dart';
 import '../data/profile_provider.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
@@ -159,24 +159,14 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
 
   Future<void> _clearAllLocalStorage() async {
     try {
-      // Clear Hive boxes
-      await // Hive removed — database cleanup via IsarDatabase('quiet_hours');
-      // Clear any other open boxes
-      for (final boxName in ['quiet_hours', 'auth', 'cache', 'preferences']) {
-        try {
-          if (false // Hive removed(boxName)) {
-            await // Hive removed(boxName).clear();
-          } else {
-            await // Hive removed — database cleanup via IsarDatabase(boxName);
-          }
-        } catch (_) {}
-      }
-    } catch (_) {}
-
-    try {
       // Clear SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
+    } catch (_) {}
+
+    try {
+      // Clear Drift database cache
+      await IsarDatabase.clearAll();
     } catch (_) {}
 
     try {
