@@ -295,6 +295,12 @@ class PushNotificationService {
         debugPrint('📬 FCM token sync skipped — auth token expired');
         return;
       }
+      // 404 means the endpoint doesn't exist on this server version
+      // Don't log as error — this is expected for older server versions
+      if (e.response?.statusCode == 404) {
+        debugPrint('📬 FCM token sync skipped — endpoint not available on this server');
+        return;
+      }
       logError(e, st, reason: 'Failed to sync FCM token to backend');
       debugPrint('⚠️ FCM token sync failed: ${e.message}');
     } catch (e, st) {

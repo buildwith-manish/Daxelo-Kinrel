@@ -428,6 +428,17 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       final profile = ProfileModel.fromJson(userData);
       state = state.copyWith(profile: profile, isLoading: false);
     } on DioException catch (e) {
+      // ── Fallback: Create profile from Supabase user data when API fails ──
+      // This prevents the app from crashing when the backend is unreachable
+      // or returns auth errors (401/404). We build a basic profile from
+      // the Supabase auth session so the UI can still render.
+      final statusCode = e.response?.statusCode;
+      if (statusCode == 401 || statusCode == 404 || statusCode == 403) {
+        debugPrint('⚠️ loadProfile: Auth error ($statusCode), falling back to Supabase user data');
+        await _loadProfileFromSupabase();
+        return;
+      }
+
       // Safely extract error message without type casting issues
       String message;
       try {
@@ -442,10 +453,21 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       } catch (_) {
         message = e.message ?? 'Failed to load profile';
       }
+
+      // For network errors, try Supabase fallback before setting error state
+      if (e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.unknown) {
+        debugPrint('⚠️ loadProfile: Network error, falling back to Supabase user data');
+        await _loadProfileFromSupabase();
+        return;
+      }
+
       state = state.copyWith(isLoading: false, error: message);
     } catch (e) {
       debugPrint('⚠️ loadProfile unexpected error: $e');
-      state = state.copyWith(isLoading: false, error: e.toString());
+      // Try Supabase fallback before giving up
+      await _loadProfileFromSupabase();
     }
   }
 
@@ -576,6 +598,50 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     } catch (e) {
       debugPrint('⚠️ loadStatsFromSupabase error: $e');
       // Leave stats as default (0s) — don't crash
+    }
+  }
+
+  // ── Load Profile from Supabase Auth (Fallback) ──────────────────
+
+  /// Creates a basic profile from Supabase Auth user data when the
+  /// NestJS backend is unreachable or returns auth errors.
+  /// This prevents the app from showing a blank/crashed state.
+  Future<void> _loadProfileFromSupabase() async {
+    try {
+      final client = _ref.read(supabaseProvider);
+      if (client == null) {
+        state = state.copyWith(isLoading: false);
+        return;
+      }
+
+      final user = client.auth.currentUser;
+      if (user == null) {
+        state = state.copyWith(isLoading: false);
+        return;
+      }
+
+      // Build a basic profile from Supabase user data
+      final profile = ProfileModel(
+        id: user.id,
+        email: user.email ?? '',
+        name: user.userMetadata?['name'] as String? ??
+            user.userMetadata?['full_name'] as String? ??
+            user.email?.split('@')[0],
+        phone: user.userMetadata?['phone'] as String?,
+        avatarUrl: user.userMetadata?['avatar_url'] as String?,
+        preferredLanguage: user.userMetadata?['preferred_language'] as String? ?? 'en',
+        createdAt: user.createdAt != null
+            ? DateTime.tryParse(user.createdAt!) ?? DateTime.now()
+            : DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      state = state.copyWith(profile: profile, isLoading: false);
+      debugPrint('✅ loadProfile: Using Supabase user data as fallback');
+    } catch (e) {
+      debugPrint('⚠️ loadProfileFromSupabase error: $e');
+      // Don't set error state — just leave isLoading as false
+      state = state.copyWith(isLoading: false);
     }
   }
 

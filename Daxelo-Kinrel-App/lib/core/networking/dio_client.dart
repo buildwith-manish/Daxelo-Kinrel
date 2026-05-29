@@ -294,12 +294,26 @@ class _ErrorInterceptor extends Interceptor {
 /// Placed LAST in the interceptor chain so it sees the final error state
 /// after retries and transformations. Only logs metadata (method, path,
 /// statusCode, errorType) — NEVER logs request/response bodies (may contain PII).
+///
+/// Skips logging for expected/normal status codes:
+///   - 401 (Unauthorized): expected when auth token is expired or invalid
+///   - 404 (Not Found): expected for missing endpoints or resources
+///   - 403 (Forbidden): expected when user lacks permissions
 class _ErrorLoggingInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
+    final statusCode = err.response?.statusCode;
+
+    // Skip logging for expected/normal auth and routing errors
+    // These are not real errors — they're expected responses that the
+    // app handles gracefully (fallback to Supabase data, etc.)
+    if (statusCode == 401 || statusCode == 404 || statusCode == 403) {
+      handler.next(err);
+      return;
+    }
+
     final method = err.requestOptions.method;
     final path = err.requestOptions.path;
-    final statusCode = err.response?.statusCode;
     final errorType = err.type.name;
 
     logError(

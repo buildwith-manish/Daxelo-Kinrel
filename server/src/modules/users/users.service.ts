@@ -707,4 +707,70 @@ export class UsersService {
       enabled: !!(pref.quietHoursStart && pref.quietHoursEnd),
     };
   }
+
+  // ── Register / Update FCM Token ────────────────────────────────
+
+  async registerFcmToken(
+    userId: string,
+    data: { fcmToken: string; deviceType?: string },
+  ) {
+    if (!data.fcmToken || data.fcmToken.trim().length === 0) {
+      throw new BadRequestException('FCM token is required');
+    }
+
+    // Upsert: create or update the FCM token
+    const existing = await this.prisma.fcmToken.findUnique({
+      where: { token: data.fcmToken },
+    });
+
+    if (existing) {
+      // Update the existing token's userId and lastUsedAt
+      await this.prisma.fcmToken.update({
+        where: { token: data.fcmToken },
+        data: {
+          userId,
+          deviceType: data.deviceType || existing.deviceType,
+          lastUsedAt: new Date(),
+        },
+      });
+    } else {
+      // Create a new FCM token record
+      await this.prisma.fcmToken.create({
+        data: {
+          token: data.fcmToken,
+          userId,
+          deviceType: data.deviceType || 'unknown',
+        },
+      });
+    }
+
+    return { success: true, message: 'FCM token registered' };
+  }
+
+  // ── Delete FCM Token ───────────────────────────────────────────
+
+  async deleteFcmToken(userId: string, fcmToken: string) {
+    if (!fcmToken) {
+      throw new BadRequestException('FCM token is required');
+    }
+
+    const existing = await this.prisma.fcmToken.findUnique({
+      where: { token: fcmToken },
+    });
+
+    if (!existing) {
+      return { success: true, message: 'FCM token not found (already removed)' };
+    }
+
+    // Only allow deleting own tokens
+    if (existing.userId !== userId) {
+      throw new UnauthorizedException('Cannot delete another user\'s FCM token');
+    }
+
+    await this.prisma.fcmToken.delete({
+      where: { token: fcmToken },
+    });
+
+    return { success: true, message: 'FCM token deleted' };
+  }
 }

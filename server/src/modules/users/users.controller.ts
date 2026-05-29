@@ -175,4 +175,24 @@ export class UsersController {
   async getQuietHours(@CurrentUser('id') userId: string) {
     return this.usersService.getQuietHours(userId);
   }
+
+  // ── Register / Update FCM Token ──────────────────────────────────
+  @Post('me/fcm-token')
+  @HttpCode(HttpStatus.OK)
+  async registerFcmToken(
+    @CurrentUser('id') userId: string,
+    @Body() body: { fcmToken: string; deviceType?: string },
+  ) {
+    return this.usersService.registerFcmToken(userId, body);
+  }
+
+  // ── Delete FCM Token ─────────────────────────────────────────────
+  @Delete('me/fcm-token')
+  @HttpCode(HttpStatus.OK)
+  async deleteFcmToken(
+    @CurrentUser('id') userId: string,
+    @Body() body: { fcmToken: string },
+  ) {
+    return this.usersService.deleteFcmToken(userId, body.fcmToken);
+  }
 }
