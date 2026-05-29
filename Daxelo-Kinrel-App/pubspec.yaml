@@ -92,6 +92,7 @@ dependencies:
   # QR Code generation
   qr_flutter: ^4.1.0
   window_manager: ^0.4.3
+  sentry_flutter: ^8.11.0
 
   # Timezone support (required by flutter_local_notifications scheduling)
   timezone: ^0.10.1

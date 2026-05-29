@@ -11,6 +11,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/database/isar_database.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/app_config.dart';
@@ -212,28 +213,41 @@ void main() async {
     });
   }
 
-  // ── Run app inside guarded zone ────────────────────────────────────
+  // ── Run app with Sentry crash reporting ────────────────────────────
   // IMPORTANT: We ALWAYS call runApp() — no matter what failed above.
   // A broken app is better than a blank screen.
-  runZonedGuarded<Future<void>>(
-    () async {
-      runApp(ProviderScope(child: KinrelApp()));
+  await SentryFlutter.init(
+    (options) {
+      options.dsn = const String.fromEnvironment(
+        'SENTRY_DSN',
+        defaultValue: '',
+      );
+      options.tracesSampleRate = 0.1;
+      options.environment = const String.fromEnvironment(
+        'ENV',
+        defaultValue: 'development',
+      );
     },
-    (error, stack) {
-      try {
-        _attachStateContext(error.toString());
-        if (isCrashlyticsAvailable) {
-          FirebaseCrashlytics.instance.recordError(
-            error,
-            stack,
-            reason: 'Uncaught async error in guarded zone',
-            fatal: true,
-          );
-        }
-      } catch (_) {}
-      debugPrint('🔴 [Uncaught async error]: $error');
-      debugPrint('   Stack: $stack');
-    },
+    appRunner: () => runZonedGuarded<Future<void>>(
+      () async {
+        runApp(ProviderScope(child: KinrelApp()));
+      },
+      (error, stack) {
+        try {
+          _attachStateContext(error.toString());
+          if (isCrashlyticsAvailable) {
+            FirebaseCrashlytics.instance.recordError(
+              error,
+              stack,
+              reason: 'Uncaught async error in guarded zone',
+              fatal: true,
+            );
+          }
+        } catch (_) {}
+        debugPrint('🔴 [Uncaught async error]: $error');
+        debugPrint('   Stack: $stack');
+      },
+    ),
   );
 }
 
