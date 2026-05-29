@@ -1,15 +1,9 @@
-import 'package:isar/isar.dart';
-
-part 'app_settings_entry.g.dart';
-
-/// Isar collection for app settings that benefit from local caching.
+/// Data class for app settings that benefit from local caching.
 /// Stores key-value pairs for settings like language, theme preferences, etc.
-@Collection()
 class AppSettingsEntry {
-  Id isarId = Isar.autoIncrement;
+  int? isarId;
 
   /// Setting key (unique)
-  @Index(unique: true, replace: true)
   late String key;
 
   /// Setting value (stored as string, deserialize on read)

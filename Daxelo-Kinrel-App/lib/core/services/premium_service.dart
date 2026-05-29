@@ -12,7 +12,8 @@
 //   await PremiumService.setPremium(true);
 
 import 'package:dio/dio.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+// Hive removed — using Drift via IsarDatabase
+import '../database/isar_database.dart';
 import 'package:flutter/foundation.dart';
 
 import 'crashlytics_service.dart';
@@ -30,7 +31,7 @@ class PremiumService {
   /// Check if the user has premium status from local Hive cache.
   static Future<bool> isPremium() async {
     try {
-      final box = Hive.box(_settingsBox);
+      // Hive.box replaced with Drift — uses IsarDatabase.instance
       return box.get(_premiumKey, defaultValue: false) as bool;
     } catch (e) {
       debugPrint('⚠️ PremiumService.isPremium failed: $e');
@@ -41,7 +42,7 @@ class PremiumService {
   /// Set premium status in local Hive cache.
   static Future<void> setPremium(bool value) async {
     try {
-      final box = Hive.box(_settingsBox);
+      // Hive.box replaced with Drift — uses IsarDatabase.instance
       await box.put(_premiumKey, value);
       debugPrint('🟡 PremiumService: premium set to $value');
     } catch (e) {
@@ -52,7 +53,7 @@ class PremiumService {
   /// Set premium expiry date in local Hive cache.
   static Future<void> setPremiumExpiry(DateTime? expiry) async {
     try {
-      final box = Hive.box(_settingsBox);
+      // Hive.box replaced with Drift — uses IsarDatabase.instance
       if (expiry != null) {
         await box.put(_premiumExpiryKey, expiry.toIso8601String());
       } else {
@@ -69,7 +70,7 @@ class PremiumService {
     if (!premium) return false;
 
     try {
-      final box = Hive.box(_settingsBox);
+      // Hive.box replaced with Drift — uses IsarDatabase.instance
       final expiryStr = box.get(_premiumExpiryKey) as String?;
       if (expiryStr == null) return true; // No expiry = lifetime
 
@@ -129,7 +130,7 @@ class PremiumService {
   /// Clear premium data from local cache.
   static Future<void> clear() async {
     try {
-      final box = Hive.box(_settingsBox);
+      // Hive.box replaced with Drift — uses IsarDatabase.instance
       await box.delete(_premiumKey);
       await box.delete(_premiumExpiryKey);
     } catch (_) {}

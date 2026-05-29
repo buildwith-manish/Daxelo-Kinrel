@@ -1,8 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
-import 'package:isar/isar.dart';
+import 'package:drift/drift.dart';
 
 import '../isar_database.dart';
+import '../app_database.dart';
 import '../collections/cached_family.dart';
 import '../collections/cached_person.dart';
 import '../collections/cached_relationship.dart';
@@ -16,10 +17,10 @@ import '../../services/supabase_service.dart';
 /// Offline-first repository for family data.
 ///
 /// Strategy:
-/// - **Read**: Check Isar cache first. If fresh data exists, return it
+/// - **Read**: Check Drift cache first. If fresh data exists, return it
 ///   immediately. Then silently refresh from Supabase in the background.
 /// - **Write**: Write to Supabase first (if online). If offline, queue
-///   the operation for later sync and write optimistically to Isar.
+///   the operation for later sync and write optimistically to Drift.
 ///
 /// This ensures the UI always shows cached data instantly while
 /// keeping the cache up-to-date in the background.
@@ -28,7 +29,7 @@ class OfflineFamilyRepository {
 
   OfflineFamilyRepository(this._ref);
 
-  Isar get _isar => _ref.read(isarProvider);
+  AppDatabase get _db => _ref.read(isarProvider);
   bool get _isOnline => _ref.read(connectivityServiceProvider).isOnline;
 
   // ── Family List ─────────────────────────────────────────────────
@@ -52,10 +53,13 @@ class OfflineFamilyRepository {
     return _fetchFamiliesFromNetwork();
   }
 
-  /// Get cached families from Isar.
+  /// Get cached families from Drift.
   Future<List<Family>> _getCachedFamilies() async {
-    final cached = await _isar.cachedFamilys.where().findAll();
-    return cached.map((f) => Family.fromJson(f.toJson())).toList();
+    final rows = await _db.getAllFamilies();
+    return rows.map((row) {
+      final data = _jsonDecode(row.data);
+      return Family.fromJson(data);
+    }).toList();
   }
 
   /// Fetch families from Supabase and cache the result.
@@ -124,35 +128,19 @@ class OfflineFamilyRepository {
     });
   }
 
-  /// Cache families to Isar.
+  /// Cache families to Drift.
   Future<void> _cacheFamilies(List<Family> families) async {
     if (!IsarDatabase.isInitialized) return;
 
-    await _isar.writeTxn(() async {
-      for (final family in families) {
-        final cached = CachedFamily.fromJson({
-          'id': family.id,
-          'name': family.name,
-          'description': family.description,
-          'primaryLanguage': family.primaryLanguage,
-          'gotra': family.gotra,
-          'originVillage': family.originVillage,
-          'createdBy': family.createdBy,
-          'createdAt': family.createdAt?.toIso8601String(),
-          'familyCode': family.familyCode,
-          'avatarUrl': family.avatarUrl,
-          'region': family.region,
-          'privacyMode': family.privacyMode,
-          'isOnboarded': family.isOnboarded,
-          'anchorPersonId': family.anchorPersonId,
-          'memberCount': family.memberCount,
-          'generationCount': family.generationCount,
-          'lastActivityAt': family.lastActivityAt?.toIso8601String(),
-          'username': family.username,
-        });
-        await _isar.cachedFamilys.put(cached);
-      }
-    });
+    for (final family in families) {
+      final json = family.toJson();
+      await _db.upsertFamily(CachedFamiliesCompanion(
+        id: Value(family.id),
+        name: Value(family.name),
+        data: Value(_jsonEncode(json)),
+        cachedAt: Value(DateTime.now()),
+      ));
+    }
   }
 
   // ── Family Members ──────────────────────────────────────────────
@@ -175,12 +163,11 @@ class OfflineFamilyRepository {
   }
 
   Future<List<Person>> _getCachedMembers(String familyId) async {
-    final cached = await _isar.cachedPersons
-        .where()
-        .filter()
-        .familyIdEqualTo(familyId)
-        .findAll();
-    return cached.map((p) => Person.fromJson(p.toJson())).toList();
+    final rows = await _db.getPersonsByFamily(familyId);
+    return rows.map((row) {
+      final data = _jsonDecode(row.data);
+      return Person.fromJson(data);
+    }).toList();
   }
 
   Future<List<Person>> _fetchMembersFromNetwork(String familyId) async {
@@ -217,43 +204,20 @@ class OfflineFamilyRepository {
   Future<void> _cacheMembers(String familyId, List<Person> members) async {
     if (!IsarDatabase.isInitialized) return;
 
-    await _isar.writeTxn(() async {
-      // Remove old cached members for this family
-      final old = await _isar.cachedPersons
-          .where()
-          .filter()
-          .familyIdEqualTo(familyId)
-          .findAll();
-      for (final m in old) {
-        await _isar.cachedPersons.delete(m.isarId);
-      }
+    // Remove old cached members for this family
+    await _db.deletePersonsByFamily(familyId);
 
-      // Add new cached members
-      for (final member in members) {
-        final cached = CachedPerson.fromJson({
-          'id': member.id,
-          'familyId': member.familyId,
-          'name': member.name,
-          'gender': member.gender,
-          'dateOfBirth': member.dateOfBirth,
-          'city': member.city,
-          'gotra': member.gotra,
-          'isDeceased': member.isDeceased,
-          'deletedAt': member.deletedAt,
-          'createdAt': member.createdAt?.toIso8601String(),
-          'birthYear': member.birthYear,
-          'occupation': member.occupation,
-          'privacyLevel': member.privacyLevel,
-          'notes': member.notes,
-          'sideOfFamily': member.sideOfFamily,
-          'generationIndex': member.generationIndex,
-          'isAnchor': member.isAnchor,
-          'photoUrl': member.photoUrl,
-          'username': member.username,
-        });
-        await _isar.cachedPersons.put(cached);
-      }
-    });
+    // Add new cached members
+    for (final member in members) {
+      final json = member.toJson();
+      await _db.upsertPerson(CachedPersonsCompanion(
+        id: Value(member.id),
+        familyId: Value(member.familyId),
+        name: Value(member.name),
+        data: Value(_jsonEncode(json)),
+        cachedAt: Value(DateTime.now()),
+      ));
+    }
   }
 
   // ── Family Relationships ────────────────────────────────────────
@@ -280,12 +244,11 @@ class OfflineFamilyRepository {
   Future<List<FamilyRelationship>> _getCachedRelationships(
     String familyId,
   ) async {
-    final cached = await _isar.cachedRelationships
-        .where()
-        .filter()
-        .familyIdEqualTo(familyId)
-        .findAll();
-    return cached.map((r) => FamilyRelationship.fromJson(r.toJson())).toList();
+    final rows = await _db.getRelationshipsByFamily(familyId);
+    return rows.map((row) {
+      final data = _jsonDecode(row.data);
+      return FamilyRelationship.fromJson(data);
+    }).toList();
   }
 
   Future<List<FamilyRelationship>> _fetchRelationshipsFromNetwork(
@@ -329,33 +292,22 @@ class OfflineFamilyRepository {
   ) async {
     if (!IsarDatabase.isInitialized) return;
 
-    await _isar.writeTxn(() async {
-      // Remove old cached relationships for this family
-      final old = await _isar.cachedRelationships
-          .where()
-          .filter()
-          .familyIdEqualTo(familyId)
-          .findAll();
-      for (final r in old) {
-        await _isar.cachedRelationships.delete(r.isarId);
-      }
+    // Remove old cached relationships for this family
+    await _db.deleteRelationshipsByFamily(familyId);
 
-      // Add new cached relationships
-      for (final rel in relationships) {
-        final cached = CachedRelationship.fromJson({
-          'id': rel.id,
-          'familyId': rel.familyId,
-          'fromPersonId': rel.fromPersonId,
-          'toPersonId': rel.toPersonId,
-          'relationshipKey': rel.relationshipKey,
-          'direction': rel.direction,
-          'isActive': rel.isActive,
-          'label': rel.label,
-          'createdAt': rel.createdAt?.toIso8601String(),
-        });
-        await _isar.cachedRelationships.put(cached);
-      }
-    });
+    // Add new cached relationships
+    for (final rel in relationships) {
+      final json = rel.toJson();
+      await _db.upsertRelationship(CachedRelationshipsCompanion(
+        id: Value(rel.id),
+        fromId: Value(rel.fromPersonId),
+        toId: Value(rel.toPersonId),
+        relationshipType: Value(rel.relationshipKey),
+        kinshipName: Value(rel.label),
+        data: Value(_jsonEncode(json)),
+        cachedAt: Value(DateTime.now()),
+      ));
+    }
   }
 
   // ── Recently Viewed Profiles ────────────────────────────────────
@@ -369,54 +321,37 @@ class OfflineFamilyRepository {
   }) async {
     if (!IsarDatabase.isInitialized) return;
 
-    await _isar.writeTxn(() async {
-      // Remove existing entry for this person (will be re-added at top)
-      final existing = await _isar.recentlyViewedProfiles
-          .where()
-          .filter()
-          .personIdEqualTo(personId)
-          .findAll();
-      for (final e in existing) {
-        await _isar.recentlyViewedProfiles.delete(e.isarId);
-      }
+    // Remove existing entry for this person (will be re-added at top)
+    await _db.deleteRecentlyViewedByPerson(personId);
 
-      // Add new entry
-      final entry = RecentlyViewedProfile.create(
-        personId: personId,
-        familyId: familyId,
-        personName: personName,
-        photoUrl: photoUrl,
-      );
-      await _isar.recentlyViewedProfiles.put(entry);
-
-      // Keep only the last 20 entries
-      final all = await _isar.recentlyViewedProfiles
-          .where()
-          .sortByViewedAtDesc()
-          .findAll();
-      if (all.length > 20) {
-        for (int i = 20; i < all.length; i++) {
-          await _isar.recentlyViewedProfiles.delete(all[i].isarId);
-        }
-      }
-    });
+    // Add new entry
+    await _db.upsertRecentlyViewed(RecentlyViewedProfilesCompanion(
+      personId: Value(personId),
+      familyId: Value(familyId),
+      personName: Value(personName),
+      photoUrl: Value(photoUrl),
+      viewedAt: Value(DateTime.now()),
+    ));
   }
 
   /// Get recently viewed profiles.
   Future<List<RecentlyViewedProfile>> getRecentlyViewed() async {
     if (!IsarDatabase.isInitialized) return [];
 
-    return _isar.recentlyViewedProfiles
-        .where()
-        .sortByViewedAtDesc()
-        .findAll();
+    // Convert Drift rows to the data class
+    final rows = await _db.getRecentlyViewed();
+    return rows.map((row) => RecentlyViewedProfile()
+      ..personId = row.personId
+      ..familyId = row.familyId
+      ..personName = row.personName
+      ..photoUrl = row.photoUrl
+      ..viewedAt = row.viewedAt.toIso8601String()
+    ).toList();
   }
 
   // ── Write Operations with Offline Queue ─────────────────────────
 
   /// Create a person with offline support.
-  /// If online: write to Supabase + update cache.
-  /// If offline: queue the operation + write optimistically to cache.
   Future<Person> createPersonOffline({
     required String familyId,
     required String name,
@@ -693,6 +628,14 @@ class OfflineFamilyRepository {
       (i) => ((timestamp.hashCode + random + i) % 36).toRadixString(36),
     ).join();
     return 'c$timestamp$rand'.substring(0, 25);
+  }
+
+  static Map<String, dynamic> _jsonDecode(String data) {
+    return json.decode(data) as Map<String, dynamic>;
+  }
+
+  static String _jsonEncode(Map<String, dynamic> data) {
+    return json.encode(data);
   }
 }
 

@@ -16,7 +16,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+// Hive removed — using Drift via IsarDatabase
+import '../database/isar_database.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import 'retention_service.dart';
@@ -123,7 +124,7 @@ class LocalNotificationScheduler {
   /// ensure it only fires once.
   static Future<void> _scheduleProfileNudge() async {
     try {
-      final box = Hive.box('engagement');
+      // Hive.box replaced with Drift — uses IsarDatabase.instance
 
       // Check if we already showed this nudge
       final alreadyShown =

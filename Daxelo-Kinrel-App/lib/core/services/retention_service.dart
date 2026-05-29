@@ -10,7 +10,8 @@
 //
 // All writes are fire-and-forget — never block the UI.
 
-import 'package:hive_flutter/hive_flutter.dart';
+// Hive removed — using Drift via IsarDatabase
+import '../database/isar_database.dart';
 import 'package:flutter/foundation.dart';
 
 class RetentionService {
@@ -31,7 +32,7 @@ class RetentionService {
   /// Increments app_opens counter and updates last_open timestamp.
   static Future<void> recordAppOpen() async {
     try {
-      final box = Hive.box(_boxName);
+      // Hive.box replaced with Drift — uses IsarDatabase.instance
       final opens = box.get(_keyAppOpens, defaultValue: 0) as int;
       await box.put(_keyAppOpens, opens + 1);
       await box.put(_keyLastOpen, DateTime.now().toIso8601String());
@@ -43,7 +44,7 @@ class RetentionService {
   /// Record a graph view event.
   static Future<void> recordGraphView() async {
     try {
-      final box = Hive.box(_boxName);
+      // Hive.box replaced with Drift — uses IsarDatabase.instance
       final views = box.get(_keyGraphViews, defaultValue: 0) as int;
       await box.put(_keyGraphViews, views + 1);
     } catch (e) {
@@ -54,7 +55,7 @@ class RetentionService {
   /// Record a member added event.
   static Future<void> recordMemberAdded() async {
     try {
-      final box = Hive.box(_boxName);
+      // Hive.box replaced with Drift — uses IsarDatabase.instance
       final added = box.get(_keyMembersAdded, defaultValue: 0) as int;
       await box.put(_keyMembersAdded, added + 1);
     } catch (e) {
@@ -65,7 +66,7 @@ class RetentionService {
   /// Record an invite link sent event.
   static Future<void> recordInviteSent() async {
     try {
-      final box = Hive.box(_boxName);
+      // Hive.box replaced with Drift — uses IsarDatabase.instance
       final sent = box.get(_keyInviteLinksSent, defaultValue: 0) as int;
       await box.put(_keyInviteLinksSent, sent + 1);
     } catch (e) {
@@ -78,7 +79,7 @@ class RetentionService {
   /// Get all engagement stats as a typed map.
   static EngagementStats getStats() {
     try {
-      final box = Hive.box(_boxName);
+      // Hive.box replaced with Drift — uses IsarDatabase.instance
       return EngagementStats(
         appOpens: box.get(_keyAppOpens, defaultValue: 0) as int,
         lastOpen: box.get(_keyLastOpen) as String?,
@@ -95,7 +96,7 @@ class RetentionService {
   /// Check if the user has been inactive for the given number of days.
   static bool isInactiveForDays(int days) {
     try {
-      final box = Hive.box(_boxName);
+      // Hive.box replaced with Drift — uses IsarDatabase.instance
       final lastOpenStr = box.get(_keyLastOpen) as String?;
       if (lastOpenStr == null) return true;
 
@@ -113,7 +114,7 @@ class RetentionService {
   /// Get the member count from engagement tracking.
   static int getMembersAdded() {
     try {
-      final box = Hive.box(_boxName);
+      // Hive.box replaced with Drift — uses IsarDatabase.instance
       return box.get(_keyMembersAdded, defaultValue: 0) as int;
     } catch (_) {
       return 0;
@@ -123,7 +124,7 @@ class RetentionService {
   /// Clear all engagement data (debug only).
   static Future<void> clearAll() async {
     try {
-      final box = Hive.box(_boxName);
+      // Hive.box replaced with Drift — uses IsarDatabase.instance
       await box.clear();
       debugPrint('🗑️ RetentionService: All engagement data cleared');
     } catch (e) {

@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:isar/isar.dart';
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart';
 
 import '../isar_database.dart';
+import '../app_database.dart';
 import '../collections/cached_profile.dart';
 import '../collections/search_history_entry.dart';
 import '../collections/api_cache_entry.dart';
@@ -17,16 +18,16 @@ import '../../services/supabase_service.dart';
 /// Offline-first repository for profile data.
 ///
 /// Strategy:
-/// - **Read**: Check Isar cache first. If fresh, return immediately.
+/// - **Read**: Check Drift cache first. If fresh, return immediately.
 ///   Then silently refresh from API in the background.
 /// - **Write**: Write to API first (if online). If offline, queue
-///   the operation for later sync and write optimistically to Isar.
+///   the operation for later sync and write optimistically to Drift.
 class OfflineProfileRepository {
   final Ref _ref;
 
   OfflineProfileRepository(this._ref);
 
-  Isar get _isar => _ref.read(isarProvider);
+  AppDatabase get _db => _ref.read(isarProvider);
   Dio get _dio => _ref.read(dioProvider);
   bool get _isOnline => _ref.read(connectivityServiceProvider).isOnline;
 
@@ -55,14 +56,10 @@ class OfflineProfileRepository {
     final userId = _getCurrentUserId();
     if (userId == null) return null;
 
-    final cached = await _isar.cachedProfiles
-        .where()
-        .filter()
-        .idEqualTo(userId)
-        .findFirst();
-
-    if (cached == null) return null;
-    return ProfileModel.fromJson(cached.toJson());
+    final row = await _db.getProfile(userId);
+    if (row == null) return null;
+    final data = jsonDecode(row.data) as Map<String, dynamic>;
+    return ProfileModel.fromJson(data);
   }
 
   Future<ProfileModel?> _fetchProfileFromNetwork() async {
@@ -103,10 +100,12 @@ class OfflineProfileRepository {
   Future<void> _cacheProfile(ProfileModel profile) async {
     if (!IsarDatabase.isInitialized) return;
 
-    await _isar.writeTxn(() async {
-      final cached = CachedProfile.fromJson(profile.toJson());
-      await _isar.cachedProfiles.put(cached);
-    });
+    await _db.upsertProfile(CachedProfilesCompanion(
+      id: Value(profile.id),
+      familyId: const Value(''),
+      data: Value(jsonEncode(profile.toJson())),
+      cachedAt: Value(DateTime.now()),
+    ));
   }
 
   /// Update the user's profile with offline support.
@@ -141,14 +140,6 @@ class OfflineProfileRepository {
     final userId = _getCurrentUserId();
     if (userId == null) return false;
 
-    // Update cache optimistically
-    final cached = await _getCachedProfile();
-    if (cached != null) {
-      final updatedJson = cached.toJson()..addAll(data);
-      final updatedProfile = ProfileModel.fromJson(updatedJson);
-      await _cacheProfile(updatedProfile);
-    }
-
     // Queue for sync
     await _ref.read(offlineQueueProvider).enqueue(
           operationType: 'update',
@@ -168,20 +159,23 @@ class OfflineProfileRepository {
     if (!IsarDatabase.isInitialized) return _fetchStatsFromNetwork();
 
     // Try API cache first
-    final cachedEntry = await _isar.apiCacheEntrys
-        .where()
-        .keyEqualTo('/api/users/me/stats')
-        .findFirst();
+    final cachedEntry = await _db.getApiCacheEntry('/api/users/me/stats');
 
-    if (cachedEntry != null && cachedEntry.isFresh) {
-      if (_isOnline) {
-        _refreshStatsInBackground();
+    if (cachedEntry != null) {
+      final cachedTime = cachedEntry.cachedAt;
+      final expiresAt = cachedTime.add(Duration(seconds: cachedEntry.ttlSeconds));
+      final isFresh = DateTime.now().isBefore(expiresAt);
+
+      if (isFresh) {
+        if (_isOnline) {
+          _refreshStatsInBackground();
+        }
+        try {
+          return UserStatsModel.fromJson(
+            jsonDecode(cachedEntry.responseBody) as Map<String, dynamic>,
+          );
+        } catch (_) {}
       }
-      try {
-        return UserStatsModel.fromJson(
-          jsonDecode(cachedEntry.responseBody) as Map<String, dynamic>,
-        );
-      } catch (_) {}
     }
 
     return _fetchStatsFromNetwork();
@@ -196,14 +190,12 @@ class OfflineProfileRepository {
 
       // Cache the result
       if (IsarDatabase.isInitialized) {
-        await _isar.writeTxn(() async {
-          final entry = ApiCacheEntry.create(
-            key: '/api/users/me/stats',
-            responseBody: jsonEncode(response.data),
-            ttlSeconds: 300, // 5 minutes
-          );
-          await _isar.apiCacheEntrys.put(entry);
-        });
+        await _db.upsertApiCacheEntry(ApiCacheEntriesCompanion(
+          key: const Value('/api/users/me/stats'),
+          responseBody: Value(jsonEncode(response.data)),
+          cachedAt: Value(DateTime.now()),
+          ttlSeconds: const Value(300), // 5 minutes
+        ));
       }
 
       return stats;
@@ -280,47 +272,23 @@ class OfflineProfileRepository {
   }) async {
     if (!IsarDatabase.isInitialized) return;
 
-    await _isar.writeTxn(() async {
-      // Remove duplicate entries
-      final existing = await _isar.searchHistoryEntrys
-          .where()
-          .filter()
-          .queryEqualTo(query)
-          .findAll();
-      for (final e in existing) {
-        await _isar.searchHistoryEntrys.delete(e.isarId);
-      }
+    // Remove duplicate entries
+    await _db.deleteSearchHistoryByQuery(query);
 
-      // Add new entry
-      final entry = SearchHistoryEntry.create(
-        query: query,
-        filterType: filterType,
-        resultCount: resultCount,
-      );
-      await _isar.searchHistoryEntrys.put(entry);
-
-      // Keep only the last 50 entries
-      final all = await _isar.searchHistoryEntrys
-          .where()
-          .sortBySearchedAtDesc()
-          .findAll();
-      if (all.length > 50) {
-        for (int i = 50; i < all.length; i++) {
-          await _isar.searchHistoryEntrys.delete(all[i].isarId);
-        }
-      }
-    });
+    // Add new entry
+    await _db.upsertSearchHistory(SearchHistoryEntriesCompanion(
+      query: Value(query),
+      searchedAt: Value(DateTime.now()),
+      filterType: Value(filterType),
+      resultCount: Value(resultCount),
+    ));
   }
 
   /// Get recent search history.
   Future<List<String>> getSearchHistory({int limit = 10}) async {
     if (!IsarDatabase.isInitialized) return [];
 
-    final entries = await _isar.searchHistoryEntrys
-        .where()
-        .sortBySearchedAtDesc()
-        .limit(limit)
-        .findAll();
+    final entries = await _db.getSearchHistory(limit: limit);
 
     return entries.map((e) => e.query).toList();
   }
@@ -329,9 +297,7 @@ class OfflineProfileRepository {
   Future<void> clearSearchHistory() async {
     if (!IsarDatabase.isInitialized) return;
 
-    await _isar.writeTxn(() async {
-      await _isar.searchHistoryEntrys.clear();
-    });
+    await _db.clearSearchHistory();
   }
 
   // ── Helpers ─────────────────────────────────────────────────────

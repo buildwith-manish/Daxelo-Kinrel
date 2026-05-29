@@ -1,15 +1,9 @@
-import 'package:isar/isar.dart';
-
-part 'api_cache_entry.g.dart';
-
-/// Isar collection for caching API responses.
+/// Data class for caching API responses.
 /// Provides a generic key-value cache with TTL support for any API endpoint.
-@Collection()
 class ApiCacheEntry {
-  Id isarId = Isar.autoIncrement;
+  int? isarId;
 
   /// Cache key (typically the API endpoint path + query params)
-  @Index(unique: true, replace: true)
   late String key;
 
   /// Cached response body as JSON string

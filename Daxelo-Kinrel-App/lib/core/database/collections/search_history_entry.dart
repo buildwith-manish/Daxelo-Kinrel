@@ -1,15 +1,8 @@
-import 'package:isar/isar.dart';
-
-part 'search_history_entry.g.dart';
-
-/// Isar collection for search history entries.
-/// Replaces the Hive-based search history with a more robust Isar collection.
-@Collection()
+/// Data class for search history entries.
 class SearchHistoryEntry {
-  Id isarId = Isar.autoIncrement;
+  int? isarId;
 
   /// The search query text
-  @Index()
   late String query;
 
   /// When this search was performed

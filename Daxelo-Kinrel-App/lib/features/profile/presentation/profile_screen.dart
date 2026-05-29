@@ -18,7 +18,8 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:hive/hive.dart';
+// Hive removed — using shared_preferences for local settings
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -998,7 +999,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   Future<void> _selectLanguage(String code) async {
     // Save to Hive
-    final box = await Hive.openBox('settings');
+    final prefs = await SharedPreferences.getInstance();
     await box.put('preferred_language', code);
 
     // Update locale provider for immediate UI update
@@ -1095,7 +1096,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   Future<void> _persistToggle(String key, bool value) async {
     try {
-      final box = await Hive.openBox('settings');
+      final prefs = await SharedPreferences.getInstance();
       await box.put(key, value);
     } catch (_) {}
   }
@@ -1555,7 +1556,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   Future<void> _rateApp() async {
     // Mark that user was asked to rate
-    final box = await Hive.openBox('settings');
+    final prefs = await SharedPreferences.getInstance();
     await box.put('has_rated', true);
 
     // Try Play Store first, then App Store

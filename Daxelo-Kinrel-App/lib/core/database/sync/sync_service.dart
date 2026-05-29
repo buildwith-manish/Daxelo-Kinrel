@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:isar/isar.dart';
 
 import '../isar_database.dart';
-import '../collections/api_cache_entry.dart';
 import 'connectivity_service.dart';
 import 'offline_queue.dart';
 
@@ -100,24 +98,26 @@ class SyncService {
   Future<void> _cleanupExpiredCache() async {
     if (!IsarDatabase.isInitialized) return;
 
-    final isar = IsarDatabase.instance;
-    final expiredIds = <Id>[];
+    final db = IsarDatabase.instance;
+    final allEntries = await db.getAllApiCacheEntries();
+    int removedCount = 0;
 
-    // Get all entry IDs and check freshness
-    final allIds = isar.apiCacheEntrys.where().findAllSync();
-    for (final entry in allIds) {
-      if (!entry.isFresh) {
-        expiredIds.add(entry.isarId);
+    for (final entry in allEntries) {
+      final cachedTime = DateTime.tryParse(entry.cachedAt.toIso8601String());
+      if (cachedTime == null) {
+        await db.deleteApiCacheEntry(entry.id);
+        removedCount++;
+        continue;
+      }
+      final expiresAt = cachedTime.add(Duration(seconds: entry.ttlSeconds));
+      if (DateTime.now().isAfter(expiresAt)) {
+        await db.deleteApiCacheEntry(entry.id);
+        removedCount++;
       }
     }
 
-    if (expiredIds.isNotEmpty) {
-      await isar.writeTxn(() async {
-        for (final id in expiredIds) {
-          await isar.apiCacheEntrys.delete(id);
-        }
-      });
-      debugPrint('🗑️ Cleaned up ${expiredIds.length} expired cache entries');
+    if (removedCount > 0) {
+      debugPrint('🗑️ Cleaned up $removedCount expired cache entries');
     }
   }
 

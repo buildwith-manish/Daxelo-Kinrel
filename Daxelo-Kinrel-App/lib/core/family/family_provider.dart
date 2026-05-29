@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+// Hive removed — using Drift via IsarDatabase
 
 import '../services/supabase_service.dart';
 import '../services/analytics_service.dart';

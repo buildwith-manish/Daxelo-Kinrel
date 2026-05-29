@@ -6,16 +6,17 @@
 // silent delta sync on reconnect, and Riverpod provider invalidation.
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:isar/isar.dart';
+import 'package:drift/drift.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/env_config.dart';
 import '../database/isar_database.dart';
-import '../database/collections/app_settings_entry.dart';
+import '../database/app_database.dart';
 import '../database/collections/cached_person.dart';
 import '../database/collections/cached_family.dart';
 import '../database/collections/cached_relationship.dart';
@@ -475,103 +476,90 @@ class SocketService {
     return null;
   }
 
-  /// Merge the sync response into Isar silently.
-  /// Uses CachedXxx.fromJson() factories and relies on the
-  /// @Index(unique: true, replace: true) annotation for deduplication.
+  /// Merge the sync response into Drift silently.
   Future<void> _mergeSyncResponse(_SyncResponse sync) async {
     if (!IsarDatabase.isInitialized) return;
 
-    final isar = IsarDatabase.instance;
+    final db = IsarDatabase.instance;
     final affectedFamilyIds = <String>{};
 
-    await isar.writeTxn(() async {
-      // Merge families — put() with unique replace index handles upserts
-      for (final familyJson in sync.familyMeta) {
-        try {
-          final familyId = familyJson['id'] as String? ?? '';
-          if (familyId.isEmpty) continue;
+    // Merge families
+    for (final familyJson in sync.familyMeta) {
+      try {
+        final familyId = familyJson['id'] as String? ?? '';
+        if (familyId.isEmpty) continue;
 
-          final cached = CachedFamily.fromJson(familyJson);
-          await isar.cachedFamilys.put(cached);
-          affectedFamilyIds.add(familyId);
-        } catch (e) {
-          debugPrint('[SocketService] Error merging family: $e');
-        }
+        final cached = CachedFamily.fromJson(familyJson);
+        await db.upsertFamily(CachedFamiliesCompanion(
+          id: Value(cached.id),
+          name: Value(cached.name),
+          data: Value(_jsonEncode(cached.toJson())),
+          cachedAt: Value(DateTime.now()),
+        ));
+        affectedFamilyIds.add(familyId);
+      } catch (e) {
+        debugPrint('[SocketService] Error merging family: $e');
       }
+    }
 
-      // Merge persons
-      for (final personJson in sync.members) {
-        try {
-          final personId = personJson['id'] as String? ?? '';
-          final familyId = personJson['familyId'] as String? ?? '';
-          if (personId.isEmpty) continue;
+    // Merge persons
+    for (final personJson in sync.members) {
+      try {
+        final personId = personJson['id'] as String? ?? '';
+        final familyId = personJson['familyId'] as String? ?? '';
+        if (personId.isEmpty) continue;
 
-          // Skip soft-deleted persons — remove from cache
-          final deletedAt = personJson['deletedAt'] as String?;
-          if (deletedAt != null) {
-            // Find and delete existing cached entry by iterating
-            final allPersons = await isar.cachedPersons.where().findAll();
-            for (final p in allPersons) {
-              if (p.id == personId) {
-                await isar.cachedPersons.delete(p.isarId);
-              }
-            }
-            affectedFamilyIds.add(familyId);
-            continue;
-          }
-
-          final cached = CachedPerson.fromJson(personJson);
-          // Check if entry already exists to preserve isarId for update
-          final allPersons = await isar.cachedPersons.where().findAll();
-          for (final p in allPersons) {
-            if (p.id == personId) {
-              cached.isarId = p.isarId;
-              break;
-            }
-          }
-          await isar.cachedPersons.put(cached);
+        // Skip soft-deleted persons — remove from cache
+        final deletedAt = personJson['deletedAt'] as String?;
+        if (deletedAt != null) {
+          await db.deletePerson(personId);
           affectedFamilyIds.add(familyId);
-        } catch (e) {
-          debugPrint('[SocketService] Error merging person: $e');
+          continue;
         }
+
+        final cached = CachedPerson.fromJson(personJson);
+        await db.upsertPerson(CachedPersonsCompanion(
+          id: Value(cached.id),
+          familyId: Value(cached.familyId),
+          name: Value(cached.name),
+          data: Value(_jsonEncode(cached.toJson())),
+          cachedAt: Value(DateTime.now()),
+        ));
+        affectedFamilyIds.add(familyId);
+      } catch (e) {
+        debugPrint('[SocketService] Error merging person: $e');
       }
+    }
 
-      // Merge relationships (from events array)
-      for (final relJson in sync.events) {
-        try {
-          final relId = relJson['id'] as String? ?? '';
-          final familyId = relJson['familyId'] as String? ?? '';
-          if (relId.isEmpty) continue;
+    // Merge relationships (from events array)
+    for (final relJson in sync.events) {
+      try {
+        final relId = relJson['id'] as String? ?? '';
+        final familyId = relJson['familyId'] as String? ?? '';
+        if (relId.isEmpty) continue;
 
-          final isActive = relJson['isActive'] as bool? ?? true;
-          if (!isActive) {
-            // Remove inactive relationships from cache
-            final allRels = await isar.cachedRelationships.where().findAll();
-            for (final r in allRels) {
-              if (r.id == relId) {
-                await isar.cachedRelationships.delete(r.isarId);
-              }
-            }
-            affectedFamilyIds.add(familyId);
-            continue;
-          }
-
-          final cached = CachedRelationship.fromJson(relJson);
-          // Check if entry already exists to preserve isarId for update
-          final allRels = await isar.cachedRelationships.where().findAll();
-          for (final r in allRels) {
-            if (r.id == relId) {
-              cached.isarId = r.isarId;
-              break;
-            }
-          }
-          await isar.cachedRelationships.put(cached);
+        final isActive = relJson['isActive'] as bool? ?? true;
+        if (!isActive) {
+          await db.deleteRelationship(relId);
           affectedFamilyIds.add(familyId);
-        } catch (e) {
-          debugPrint('[SocketService] Error merging relationship: $e');
+          continue;
         }
+
+        final cached = CachedRelationship.fromJson(relJson);
+        await db.upsertRelationship(CachedRelationshipsCompanion(
+          id: Value(cached.id),
+          fromId: Value(cached.fromPersonId),
+          toId: Value(cached.toPersonId),
+          relationshipType: Value(cached.relationshipKey),
+          kinshipName: Value(cached.label),
+          data: Value(_jsonEncode(cached.toJson())),
+          cachedAt: Value(DateTime.now()),
+        ));
+        affectedFamilyIds.add(familyId);
+      } catch (e) {
+        debugPrint('[SocketService] Error merging relationship: $e');
       }
-    });
+    }
   }
 
   /// Invalidate Riverpod providers for all families affected by the sync.
@@ -601,54 +589,26 @@ class SocketService {
 
   // ── Timestamp Persistence ────────────────────────────────────────
 
-  /// Read lastSyncTimestamp from Isar AppSettingsEntry.
+  /// Read lastSyncTimestamp from Drift UserSettings.
   Future<String?> _getLastSyncTimestamp() async {
     if (!IsarDatabase.isInitialized) return null;
 
     try {
-      final isar = IsarDatabase.instance;
-      // Use findAll() and filter in Dart to avoid generated code issues
-      final allSettings = await isar.appSettingsEntrys.where().findAll();
-      for (final entry in allSettings) {
-        if (entry.key == 'lastSyncTimestamp') {
-          return entry.value;
-        }
-      }
-      return null;
+      final db = IsarDatabase.instance;
+      return db.getSetting('lastSyncTimestamp');
     } catch (e) {
       debugPrint('[SocketService] Error reading lastSyncTimestamp: $e');
       return null;
     }
   }
 
-  /// Save lastSyncTimestamp to Isar AppSettingsEntry.
+  /// Save lastSyncTimestamp to Drift UserSettings.
   Future<void> _saveLastSyncTimestamp(String timestamp) async {
     if (!IsarDatabase.isInitialized) return;
 
     try {
-      final isar = IsarDatabase.instance;
-      await isar.writeTxn(() async {
-        // Find existing entry
-        final allSettings = await isar.appSettingsEntrys.where().findAll();
-        Id? existingIsarId;
-        for (final entry in allSettings) {
-          if (entry.key == 'lastSyncTimestamp') {
-            existingIsarId = entry.isarId;
-            break;
-          }
-        }
-
-        final entry = AppSettingsEntry.create(
-          key: 'lastSyncTimestamp',
-          value: timestamp,
-        );
-
-        if (existingIsarId != null) {
-          entry.isarId = existingIsarId;
-        }
-
-        await isar.appSettingsEntrys.put(entry);
-      });
+      final db = IsarDatabase.instance;
+      await db.setSetting('lastSyncTimestamp', timestamp);
     } catch (e) {
       debugPrint('[SocketService] Error saving lastSyncTimestamp: $e');
     }
@@ -695,6 +655,11 @@ class SocketService {
   /// Dispose resources.
   void dispose() {
     disconnect();
+  }
+
+  /// JSON encode helper for merge operations.
+  static String _jsonEncode(Map<String, dynamic> data) {
+    return json.encode(data);
   }
 }
 

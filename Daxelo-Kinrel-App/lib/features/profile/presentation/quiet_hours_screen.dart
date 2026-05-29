@@ -10,7 +10,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:hive/hive.dart';
+// Hive removed — using shared_preferences for local settings
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/extensions/context_extensions.dart';
@@ -38,7 +39,7 @@ class _QuietHoursScreenState extends ConsumerState<QuietHoursScreen> {
   TimeOfDay _endTime = const TimeOfDay(hour: 8, minute: 0);
   bool _isSaving = false;
 
-  static const String _hiveBox = 'quiet_hours';
+  static const String _prefsKey = 'quiet_hours';
   static const String _keyEnabled = 'enabled';
   static const String _keyStartHour = 'startHour';
   static const String _keyStartMinute = 'startMinute';
@@ -48,12 +49,12 @@ class _QuietHoursScreenState extends ConsumerState<QuietHoursScreen> {
   @override
   void initState() {
     super.initState();
-    _loadFromHive();
+    _loadFromPrefs();
   }
 
-  Future<void> _loadFromHive() async {
+  Future<void> _loadFromPrefs() async {
     try {
-      final box = await Hive.openBox(_hiveBox);
+      final prefs = await SharedPreferences.getInstance();
       if (box.containsKey(_keyEnabled)) {
         setState(() {
           _enabled = box.get(_keyEnabled, defaultValue: false) as bool;
@@ -72,9 +73,9 @@ class _QuietHoursScreenState extends ConsumerState<QuietHoursScreen> {
     }
   }
 
-  Future<void> _saveToHive() async {
+  Future<void> _saveToPrefs() async {
     try {
-      final box = await Hive.openBox(_hiveBox);
+      final prefs = await SharedPreferences.getInstance();
       await box.put(_keyEnabled, _enabled);
       await box.put(_keyStartHour, _startTime.hour);
       await box.put(_keyStartMinute, _startTime.minute);
@@ -156,7 +157,7 @@ class _QuietHoursScreenState extends ConsumerState<QuietHoursScreen> {
     if (!mounted) return;
 
     if (success) {
-      await _saveToHive();
+      await _saveToPrefs();
       if (mounted) {
         context.showSnackBar('Quiet hours saved successfully');
       }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+// Hive removed — using Drift via IsarDatabase
 import 'package:in_app_review/in_app_review.dart';
 
 import '../database/isar_database.dart';
@@ -32,7 +32,7 @@ class RatingService {
     _isForeground = true;
 
     // Set install date on first launch
-    final box = Hive.box('preferences');
+    // Hive.box replaced with Drift — uses IsarDatabase.instance
     if (box.get('install_date') == null) {
       await box.put('install_date', DateTime.now().toIso8601String());
     }
@@ -64,7 +64,7 @@ class RatingService {
       if (sessionDuration.inMinutes < 3) return;
 
       // Condition 3: User using app for at least 7 days
-      final box = Hive.box('preferences');
+      // Hive.box replaced with Drift — uses IsarDatabase.instance
       final installDateStr = box.get('install_date') as String?;
       if (installDateStr == null) return;
       final installDate = DateTime.tryParse(installDateStr);
@@ -78,11 +78,11 @@ class RatingService {
 
       // Condition 5: User has added at least 3 family members
       if (IsarDatabase.isInitialized) {
-        final isar = IsarDatabase.instance;
-        final memberCount = isar.cachedPersons.countSync();
+        final db = IsarDatabase.instance;
+        final memberCount = await db.personCount();
         if (memberCount < 3) return;
       } else {
-        return; // Can't verify member count without Isar
+        return; // Can't verify member count without database
       }
 
       // All conditions met — prompt for review
@@ -103,7 +103,7 @@ class RatingService {
   /// Only works in debug mode via assert.
   Future<void> reset() async {
     assert(() {
-      final box = Hive.box('preferences');
+      // Hive.box replaced with Drift — uses IsarDatabase.instance
       box.delete('rating_prompted');
       box.delete('install_date');
       _sessionStart = DateTime.now();

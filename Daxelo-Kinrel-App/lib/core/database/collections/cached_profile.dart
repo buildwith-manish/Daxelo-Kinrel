@@ -1,15 +1,27 @@
-import 'package:isar/isar.dart';
-
-part 'cached_profile.g.dart';
-
-/// Isar collection for caching user profile data locally.
+/// Data class for caching user profile data locally.
 /// Mirrors the ProfileModel from profile_provider.dart.
-@Collection()
 class CachedProfile {
-  Id isarId = Isar.autoIncrement;
+  CachedProfile({
+    required this.id,
+    required this.email,
+    this.name,
+    this.phone,
+    this.avatarUrl,
+    this.bio,
+    this.dateOfBirth,
+    this.gender,
+    this.username,
+    this.preferredLanguage = 'en',
+    this.profileVisibility = 'public',
+    this.invitePermission = 'anyone',
+    this.twoFactorEnabled = false,
+    this.authProvider = 'email',
+    required this.createdAt,
+    required this.updatedAt,
+    required this.cachedAt,
+  });
 
   /// User ID (unique business key — one profile per user)
-  @Index(unique: true, replace: true)
   late String id;
 
   late String email;
@@ -58,27 +70,28 @@ class CachedProfile {
 
   /// Create from the domain ProfileModel's JSON representation
   static CachedProfile fromJson(Map<String, dynamic> json) {
-    return CachedProfile()
-      ..id = json['id'] as String? ?? ''
-      ..email = json['email'] as String? ?? ''
-      ..name = json['name'] as String?
-      ..phone = json['phone'] as String?
-      ..avatarUrl = json['avatarUrl'] as String?
-      ..bio = json['bio'] as String?
-      ..dateOfBirth = json['dateOfBirth']?.toString()
-      ..gender = json['gender'] as String?
-      ..username = json['username'] as String?
-      ..preferredLanguage = json['preferredLanguage'] as String? ?? 'en'
-      ..profileVisibility = json['profileVisibility'] as String? ?? 'public'
-      ..invitePermission = json['invitePermission'] as String? ?? 'anyone'
-      ..twoFactorEnabled = json['twoFactorEnabled'] as bool? ?? false
-      ..authProvider = json['authProvider'] as String? ?? 'email'
-      ..createdAt = json['createdAt'] != null
+    return CachedProfile(
+      id: json['id'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      name: json['name'] as String?,
+      phone: json['phone'] as String?,
+      avatarUrl: json['avatarUrl'] as String?,
+      bio: json['bio'] as String?,
+      dateOfBirth: json['dateOfBirth']?.toString(),
+      gender: json['gender'] as String?,
+      username: json['username'] as String?,
+      preferredLanguage: json['preferredLanguage'] as String? ?? 'en',
+      profileVisibility: json['profileVisibility'] as String? ?? 'public',
+      invitePermission: json['invitePermission'] as String? ?? 'anyone',
+      twoFactorEnabled: json['twoFactorEnabled'] as bool? ?? false,
+      authProvider: json['authProvider'] as String? ?? 'email',
+      createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'].toString()).toIso8601String()
-          : DateTime.now().toIso8601String()
-      ..updatedAt = json['updatedAt'] != null
+          : DateTime.now().toIso8601String(),
+      updatedAt: json['updatedAt'] != null
           ? DateTime.parse(json['updatedAt'].toString()).toIso8601String()
-          : DateTime.now().toIso8601String()
-      ..cachedAt = DateTime.now().toIso8601String();
+          : DateTime.now().toIso8601String(),
+      cachedAt: DateTime.now().toIso8601String(),
+    );
   }
 }

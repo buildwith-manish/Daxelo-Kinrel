@@ -1,19 +1,12 @@
-import 'package:isar/isar.dart';
-
-part 'recently_viewed_profile.g.dart';
-
-/// Isar collection for recently viewed person profiles.
+/// Data class for recently viewed person profiles.
 /// Enables quick access to recently viewed family members.
-@Collection()
 class RecentlyViewedProfile {
-  Id isarId = Isar.autoIncrement;
+  int? isarId;
 
   /// Person ID
-  @Index()
   late String personId;
 
   /// Family ID the person belongs to
-  @Index()
   late String familyId;
 
   /// Person name (for display without loading full data)
@@ -23,7 +16,6 @@ class RecentlyViewedProfile {
   String? photoUrl;
 
   /// When this profile was last viewed
-  @Index()
   late String viewedAt;
 
   /// Create a new recently viewed entry

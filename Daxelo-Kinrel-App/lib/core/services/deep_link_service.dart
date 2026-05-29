@@ -25,7 +25,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_links/app_links.dart';
-import 'package:isar/isar.dart';
+// Isar import removed — using Drift via IsarDatabase wrapper
 import 'package:share_plus/share_plus.dart' as share_plus;
 
 import '../database/isar_database.dart';
@@ -287,11 +287,7 @@ Future<DeepLinkCacheResult?> preloadFromCache(DeepLinkRoute route) async {
       case kPathFamily:
       case kPathShare:
         if (route.id != null) {
-          final cached = await isar.cachedFamilys
-              .where()
-              .filter()
-              .idEqualTo(route.id!)
-              .findFirst();
+          final cached = await isar.getFamily(route.id!);
           if (cached != null) {
             return DeepLinkCacheResult(
               type: 'family',
@@ -304,11 +300,7 @@ Future<DeepLinkCacheResult?> preloadFromCache(DeepLinkRoute route) async {
 
       case kPathMember:
         if (route.id != null) {
-          final cached = await isar.cachedPersons
-              .where()
-              .filter()
-              .idEqualTo(route.id!)
-              .findFirst();
+          final cached = await isar.getPerson(route.id!);
           if (cached != null) {
             return DeepLinkCacheResult(
               type: 'member',
@@ -322,11 +314,7 @@ Future<DeepLinkCacheResult?> preloadFromCache(DeepLinkRoute route) async {
       case kPathInvite:
         // Invite codes map to families — look up by familyCode
         if (route.id != null) {
-          final cached = await isar.cachedFamilys
-              .where()
-              .filter()
-              .familyCodeEqualTo(route.id!)
-              .findFirst();
+          final cached = await isar.getFamilyByCode(route.id!);
           if (cached != null) {
             return DeepLinkCacheResult(
               type: 'family',
@@ -484,11 +472,7 @@ final deepLinkFamilyNameProvider = FutureProvider.family<String?, String>((
 
   try {
     final isar = IsarDatabase.instance;
-    final cached = await isar.cachedFamilys
-        .where()
-        .filter()
-        .idEqualTo(familyId)
-        .findFirst();
+    final cached = await isar.getFamily(familyId);
     return cached?.name;
   } catch (_) {
     return null;
@@ -505,11 +489,7 @@ final deepLinkMemberNameProvider = FutureProvider.family<String?, String>((
 
   try {
     final isar = IsarDatabase.instance;
-    final cached = await isar.cachedPersons
-        .where()
-        .filter()
-        .idEqualTo(memberId)
-        .findFirst();
+    final cached = await isar.getPerson(memberId);
     return cached?.name;
   } catch (_) {
     return null;

@@ -5,7 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+// Hive removed — using Drift (AppDatabase) via IsarDatabase wrapper
+import 'core/database/isar_database.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -81,15 +82,13 @@ void main() async {
     );
   };
 
-  // ── 2. Initialize Hive FIRST (before anything that might use it) ──
+  // ── 2. Initialize Drift database (replaces Hive) ──
   try {
-    await Hive.initFlutter();
-    await Hive.openBox('engagement');
-    await Hive.openBox('settings');
-    debugPrint('✅ Hive initialized');
+    await IsarDatabase.initialize();
+    debugPrint('✅ Drift database initialized (replaces Hive)');
   } catch (e) {
-    debugPrint('⚠️ Hive initialization failed: $e');
-    // Continue — Hive failures should not prevent the app from starting
+    debugPrint('⚠️ Drift database initialization failed: $e');
+    // Continue — DB failures should not prevent the app from starting
   }
 
   // ── 3. Load environment variables (with safe fallback) ────────────
@@ -153,13 +152,7 @@ void main() async {
     ]);
   } catch (_) {}
 
-  // ── 8. Initialize Isar database (safe) ───────────────────────────
-  try {
-    await IsarDatabase.initialize();
-    debugPrint('✅ Isar database initialized');
-  } catch (e) {
-    debugPrint('⚠️ Isar initialization failed, continuing without offline cache: $e');
-  }
+  // ── 8. Drift database already initialized in step 2 ──
 
   // ── 9. Initialize Supabase BEFORE runApp ─────────────────────────
   // CRITICAL: Supabase MUST be initialized before runApp so that
@@ -455,10 +448,13 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
 
     // ── Record app open for retention tracking ──────────────────────
     try {
-      final engagementBox = Hive.box('engagement');
-      final opens = engagementBox.get('app_opens', defaultValue: 0);
-      await engagementBox.put('app_opens', opens + 1);
-      await engagementBox.put('last_open', DateTime.now().toIso8601String());
+      if (IsarDatabase.isInitialized) {
+        final db = IsarDatabase.instance;
+        final opensStr = await db.getSetting('app_opens');
+        final opens = int.tryParse(opensStr ?? '0') ?? 0;
+        await db.setSetting('app_opens', '${opens + 1}');
+        await db.setSetting('last_open', DateTime.now().toIso8601String());
+      }
     } catch (_) {}
 
     // ── Initialize Rating Service ────────────────────────────────

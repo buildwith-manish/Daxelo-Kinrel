@@ -27,13 +27,12 @@ dependencies:
   supabase_flutter: ^2.8.4
   
   # Storage
-  hive: ^2.2.3
-  hive_flutter: ^1.1.0
   flutter_secure_storage: ^9.2.4
 
   # Local Database (Offline-First)
-  isar: ^3.1.0+1
-  isar_flutter_libs: ^3.1.0+1
+  drift: ^2.22.0
+  sqlite3_flutter_libs: ^0.5.0
+  drift_flutter: ^0.2.0
   
   # Localization
   flutter_localizations:
@@ -104,7 +103,7 @@ dev_dependencies:
   
   # Code Generation
   build_runner: ^2.4.13
-  isar_generator: ^3.1.0+1
+  drift_dev: ^2.22.0
   
   # Linting
   flutter_lints: ^5.0.0

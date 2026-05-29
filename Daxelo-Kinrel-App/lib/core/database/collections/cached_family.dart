@@ -1,15 +1,29 @@
-import 'package:isar/isar.dart';
-
-part 'cached_family.g.dart';
-
-/// Isar collection for caching Family data locally.
-/// Mirrors the Family model from family_provider.dart but optimized for Isar.
-@Collection()
+/// Data class for caching Family data locally.
+/// Mirrors the Family model from family_provider.dart.
 class CachedFamily {
-  Id isarId = Isar.autoIncrement;
+  CachedFamily({
+    required this.id,
+    required this.name,
+    this.description,
+    this.primaryLanguage,
+    this.gotra,
+    this.originVillage,
+    this.createdBy,
+    this.createdAt,
+    this.familyCode,
+    this.avatarUrl,
+    this.region,
+    this.privacyMode,
+    this.isOnboarded = false,
+    this.anchorPersonId,
+    this.memberCount = 0,
+    this.generationCount = 1,
+    this.lastActivityAt,
+    this.username,
+    required this.cachedAt,
+  });
 
   /// Supabase document ID (unique business key)
-  @Index(unique: true, replace: true)
   late String id;
 
   late String name;
@@ -20,7 +34,7 @@ class CachedFamily {
   String? originVillage;
   String? createdBy;
 
-  /// Stored as ISO8601 string since Isar doesn't have native DateTime
+  /// Stored as ISO8601 string
   String? createdAt;
 
   String? familyCode;
@@ -64,25 +78,26 @@ class CachedFamily {
 
   /// Create from the domain Family model's JSON representation
   static CachedFamily fromJson(Map<String, dynamic> json) {
-    return CachedFamily()
-      ..id = json['id']?.toString() ?? ''
-      ..name = json['name'] as String? ?? 'Unnamed Family'
-      ..description = json['description'] as String?
-      ..primaryLanguage = json['primaryLanguage'] as String?
-      ..gotra = json['gotra'] as String?
-      ..originVillage = json['originVillage'] as String?
-      ..createdBy = json['createdBy'] as String?
-      ..createdAt = json['createdAt']?.toString()
-      ..familyCode = json['familyCode'] as String?
-      ..avatarUrl = json['avatarUrl'] as String?
-      ..region = json['region'] as String?
-      ..privacyMode = json['privacyMode'] as String?
-      ..isOnboarded = json['isOnboarded'] as bool? ?? false
-      ..anchorPersonId = json['anchorPersonId'] as String?
-      ..memberCount = json['memberCount'] as int? ?? 0
-      ..generationCount = json['generationCount'] as int? ?? 1
-      ..lastActivityAt = json['lastActivityAt']?.toString()
-      ..username = json['username'] as String?
-      ..cachedAt = DateTime.now().toIso8601String();
+    return CachedFamily(
+      id: json['id']?.toString() ?? '',
+      name: json['name'] as String? ?? 'Unnamed Family',
+      description: json['description'] as String?,
+      primaryLanguage: json['primaryLanguage'] as String?,
+      gotra: json['gotra'] as String?,
+      originVillage: json['originVillage'] as String?,
+      createdBy: json['createdBy'] as String?,
+      createdAt: json['createdAt']?.toString(),
+      familyCode: json['familyCode'] as String?,
+      avatarUrl: json['avatarUrl'] as String?,
+      region: json['region'] as String?,
+      privacyMode: json['privacyMode'] as String?,
+      isOnboarded: json['isOnboarded'] as bool? ?? false,
+      anchorPersonId: json['anchorPersonId'] as String?,
+      memberCount: json['memberCount'] as int? ?? 0,
+      generationCount: json['generationCount'] as int? ?? 1,
+      lastActivityAt: json['lastActivityAt']?.toString(),
+      username: json['username'] as String?,
+      cachedAt: DateTime.now().toIso8601String(),
+    );
   }
 }

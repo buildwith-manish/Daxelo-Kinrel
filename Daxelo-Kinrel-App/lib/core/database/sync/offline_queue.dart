@@ -1,22 +1,23 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:isar/isar.dart';
+import 'package:drift/drift.dart';
 
 import '../isar_database.dart';
+import '../app_database.dart';
 import '../collections/pending_operation.dart';
 import '../sync/connectivity_service.dart';
 import '../../services/supabase_service.dart';
 
 /// Manages offline write operations that need to be synced when online.
-/// Stores failed write operations in Isar and retries them when
+/// Stores failed write operations in Drift and retries them when
 /// connectivity is restored.
 class OfflineQueueManager {
   final Ref _ref;
 
   OfflineQueueManager(this._ref);
 
-  Isar get _isar => _ref.read(isarProvider);
+  AppDatabase get _db => _ref.read(isarProvider);
   ConnectivityService get _connectivity => _ref.read(connectivityServiceProvider);
   bool get _isOnline => _connectivity.isOnline;
 
@@ -37,9 +38,17 @@ class OfflineQueueManager {
       priority: priority,
     );
 
-    await _isar.writeTxn(() async {
-      await _isar.pendingOperations.put(op);
-    });
+    await _db.upsertPendingOperation(PendingOperationsCompanion(
+      operationType: Value(op.operationType),
+      collection: Value(op.collection),
+      recordId: Value(op.recordId),
+      payload: Value(op.payload),
+      createdAt: Value(DateTime.parse(op.createdAt)),
+      retryCount: Value(op.retryCount),
+      lastRetryAt: Value(op.lastRetryAt != null ? DateTime.parse(op.lastRetryAt!) : null),
+      priority: Value(op.priority),
+      isProcessing: Value(op.isProcessing),
+    ));
 
     debugPrint(
       '📥 Queued offline operation: $operationType on $collection'
@@ -53,15 +62,7 @@ class OfflineQueueManager {
     if (!_isOnline) return 0;
 
     // Get all non-processing operations, sorted by priority then creation time
-    final pending = await _isar.pendingOperations
-        .where()
-        .filter()
-        .isProcessingEqualTo(false)
-        .and()
-        .retryCountLessThan(PendingOperation.maxRetries)
-        .sortByPriority()
-        .thenByCreatedAt()
-        .findAll();
+    final pending = await _db.getPendingOperations();
 
     if (pending.isEmpty) return 0;
 
@@ -72,34 +73,46 @@ class OfflineQueueManager {
 
     for (final op in pending) {
       // Mark as processing
-      await _isar.writeTxn(() async {
-        op.isProcessing = true;
-        await _isar.pendingOperations.put(op);
-      });
+      await _db.upsertPendingOperation(PendingOperationsCompanion(
+        id: Value(op.id),
+        operationType: Value(op.operationType),
+        collection: Value(op.collection),
+        recordId: Value(op.recordId),
+        payload: Value(op.payload),
+        createdAt: Value(op.createdAt),
+        retryCount: Value(op.retryCount),
+        lastRetryAt: Value(op.lastRetryAt),
+        priority: Value(op.priority),
+        isProcessing: const Value(true),
+      ));
 
       try {
         await _executeOperation(op);
 
         // Success — remove from queue
-        await _isar.writeTxn(() async {
-          await _isar.pendingOperations.delete(op.isarId);
-        });
+        await _db.deletePendingOperation(op.id);
 
         successCount++;
         debugPrint('✅ Synced: ${op.operationType} on ${op.collection}');
       } catch (e) {
         // Failed — increment retry count and mark as not processing
-        await _isar.writeTxn(() async {
-          op.retryCount++;
-          op.lastRetryAt = DateTime.now().toIso8601String();
-          op.isProcessing = false;
-          await _isar.pendingOperations.put(op);
-        });
+        await _db.upsertPendingOperation(PendingOperationsCompanion(
+          id: Value(op.id),
+          operationType: Value(op.operationType),
+          collection: Value(op.collection),
+          recordId: Value(op.recordId),
+          payload: Value(op.payload),
+          createdAt: Value(op.createdAt),
+          retryCount: Value(op.retryCount + 1),
+          lastRetryAt: Value(DateTime.now()),
+          priority: Value(op.priority),
+          isProcessing: const Value(false),
+        ));
 
         failCount++;
         debugPrint(
           '⚠️ Failed to sync: ${op.operationType} on ${op.collection}'
-          ' (retry ${op.retryCount}/${PendingOperation.maxRetries}): $e',
+          ' (retry ${op.retryCount + 1}/${PendingOperation.maxRetries}): $e',
         );
 
         // If we get a network error, stop processing (we're probably offline again)
@@ -173,36 +186,24 @@ class OfflineQueueManager {
 
   /// Remove operations that have exceeded the maximum retry count.
   Future<void> _cleanExpiredOperations() async {
-    final expired = await _isar.pendingOperations
-        .where()
-        .filter()
-        .retryCountGreaterThan(PendingOperation.maxRetries - 1)
-        .findAll();
+    final expired = await _db.getExpiredOperations();
 
     if (expired.isNotEmpty) {
-      await _isar.writeTxn(() async {
-        for (final op in expired) {
-          await _isar.pendingOperations.delete(op.isarId);
-        }
-      });
+      for (final op in expired) {
+        await _db.deletePendingOperation(op.id);
+      }
       debugPrint('🗑️ Removed ${expired.length} expired operations');
     }
   }
 
   /// Get the count of pending operations.
   Future<int> getPendingCount() async {
-    return _isar.pendingOperations
-        .where()
-        .filter()
-        .retryCountLessThan(PendingOperation.maxRetries)
-        .count();
+    return _db.pendingOperationCount();
   }
 
   /// Clear all pending operations (e.g., on logout).
   Future<void> clearAll() async {
-    await _isar.writeTxn(() async {
-      await _isar.pendingOperations.clear();
-    });
+    await _db.clearPendingOperations();
   }
 }
 

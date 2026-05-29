@@ -1,12 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:isar/isar.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:drift/drift.dart';
 
-// Import + Export all Isar collections so:
-// - This file can use the schemas and generated extensions (import)
-// - Any file that imports isar_database.dart also gets access to
-//   the collection extensions (e.g. GetCachedProfileCollection.cachedProfiles)
+import 'app_database.dart';
+
+// Import + Export all collection data classes (now plain Dart classes)
 import 'collections/cached_family.dart';
 import 'collections/cached_person.dart';
 import 'collections/cached_relationship.dart';
@@ -27,13 +25,13 @@ export 'collections/app_settings_entry.dart';
 export 'collections/pending_operation.dart';
 export 'collections/api_cache_entry.dart';
 
-/// Isar database initialization and management service.
-/// Provides a singleton Isar instance configured with all collections.
+/// Database initialization and management service.
+/// Provides a singleton AppDatabase instance (migrated from Isar to Drift).
 class IsarDatabase {
-  static Isar? _instance;
+  static AppDatabase? _instance;
 
-  /// Get the Isar instance. Throws if not initialized.
-  static Isar get instance {
+  /// Get the AppDatabase instance. Throws if not initialized.
+  static AppDatabase get instance {
     if (_instance == null) {
       throw StateError(
         'IsarDatabase not initialized. Call IsarDatabase.initialize() first.',
@@ -42,48 +40,32 @@ class IsarDatabase {
     return _instance!;
   }
 
-  /// Check if Isar has been initialized.
+  /// Check if the database has been initialized.
   static bool get isInitialized => _instance != null;
 
-  /// Initialize the Isar database with all collections.
+  /// Initialize the database with all tables.
   /// Must be called before any database operations.
   /// Should be called in main() before runApp().
   static Future<void> initialize() async {
     if (_instance != null) {
-      debugPrint('🔧 Isar already initialized, skipping...');
+      debugPrint('🔧 Database already initialized, skipping...');
       return;
     }
 
-    debugPrint('🔧 Initializing Isar database...');
+    debugPrint('🔧 Initializing Drift database...');
 
-    final dir = await getApplicationDocumentsDirectory();
+    _instance = AppDatabase();
 
-    _instance = await Isar.open(
-      [
-        CachedFamilySchema,
-        CachedPersonSchema,
-        CachedRelationshipSchema,
-        CachedProfileSchema,
-        SearchHistoryEntrySchema,
-        RecentlyViewedProfileSchema,
-        AppSettingsEntrySchema,
-        PendingOperationSchema,
-        ApiCacheEntrySchema,
-      ],
-      directory: dir.path,
-      inspector: kDebugMode,
-    );
-
-    debugPrint('✅ Isar database initialized successfully');
+    debugPrint('✅ Drift database initialized successfully');
   }
 
-  /// Close the Isar database instance.
+  /// Close the database instance.
   /// Should be called when the app is shutting down.
   static Future<void> close() async {
     if (_instance != null) {
       await _instance!.close();
       _instance = null;
-      debugPrint('🔧 Isar database closed');
+      debugPrint('🔧 Database closed');
     }
   }
 
@@ -92,55 +74,35 @@ class IsarDatabase {
   static Future<void> clearCache({bool includePendingOps = false}) async {
     if (_instance == null) return;
 
-    await _instance!.writeTxn(() async {
-      await _instance!.cachedFamilys.clear();
-      await _instance!.cachedPersons.clear();
-      await _instance!.cachedRelationships.clear();
-      await _instance!.cachedProfiles.clear();
-      await _instance!.searchHistoryEntrys.clear();
-      await _instance!.recentlyViewedProfiles.clear();
-      await _instance!.apiCacheEntrys.clear();
-      if (includePendingOps) {
-        await _instance!.pendingOperations.clear();
-      }
-    });
+    await _instance!.clearAllCache();
+    if (includePendingOps) {
+      await _instance!.clearPendingOperations();
+    }
 
-    debugPrint('🔧 Isar cache cleared');
+    debugPrint('🔧 Database cache cleared');
   }
 
   /// Clear all data including pending operations (full reset).
   static Future<void> clearAll() async {
-    await clearCache(includePendingOps: true);
-    await _instance!.appSettingsEntrys.clear();
+    await _instance!.clearAll();
   }
 
   /// Get cache statistics for debugging.
   static Future<Map<String, int>> getStats() async {
     if (_instance == null) return {};
-
-    return {
-      'families': await _instance!.cachedFamilys.count(),
-      'persons': await _instance!.cachedPersons.count(),
-      'relationships': await _instance!.cachedRelationships.count(),
-      'profiles': await _instance!.cachedProfiles.count(),
-      'searchHistory': await _instance!.searchHistoryEntrys.count(),
-      'recentlyViewed': await _instance!.recentlyViewedProfiles.count(),
-      'pendingOps': await _instance!.pendingOperations.count(),
-      'apiCache': await _instance!.apiCacheEntrys.count(),
-      'settings': await _instance!.appSettingsEntrys.count(),
-    };
+    return _instance!.getStats();
   }
 
   /// Prevent instantiation
   IsarDatabase._();
 }
 
-/// Riverpod provider for the Isar instance.
-final isarProvider = Provider<Isar>((ref) {
+/// Riverpod provider for the AppDatabase instance.
+final isarProvider = Provider<AppDatabase>((ref) {
   return IsarDatabase.instance;
 });
 
-/// Provider that checks if Isar is initialized.
+/// Provider that checks if the database is initialized.
 final isIsarInitializedProvider = Provider<bool>((ref) {
   return IsarDatabase.isInitialized;
 });

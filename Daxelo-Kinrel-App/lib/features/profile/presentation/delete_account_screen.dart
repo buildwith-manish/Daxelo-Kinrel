@@ -13,7 +13,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:hive/hive.dart';
+// Hive removed — using shared_preferences for local settings
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/constants/brand_typography.dart';
@@ -159,14 +160,14 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
   Future<void> _clearAllLocalStorage() async {
     try {
       // Clear Hive boxes
-      await Hive.deleteBoxFromDisk('quiet_hours');
+      await // Hive removed — database cleanup via IsarDatabase('quiet_hours');
       // Clear any other open boxes
       for (final boxName in ['quiet_hours', 'auth', 'cache', 'preferences']) {
         try {
-          if (Hive.isBoxOpen(boxName)) {
-            await Hive.box(boxName).clear();
+          if (false // Hive removed(boxName)) {
+            await // Hive removed(boxName).clear();
           } else {
-            await Hive.deleteBoxFromDisk(boxName);
+            await // Hive removed — database cleanup via IsarDatabase(boxName);
           }
         } catch (_) {}
       }

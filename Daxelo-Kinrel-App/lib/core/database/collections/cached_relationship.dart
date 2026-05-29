@@ -1,19 +1,23 @@
-import 'package:isar/isar.dart';
-
-part 'cached_relationship.g.dart';
-
-/// Isar collection for caching FamilyRelationship data locally.
+/// Data class for caching FamilyRelationship data locally.
 /// Mirrors the FamilyRelationship model from family_provider.dart.
-@Collection()
 class CachedRelationship {
-  Id isarId = Isar.autoIncrement;
+  CachedRelationship({
+    required this.id,
+    required this.familyId,
+    required this.fromPersonId,
+    required this.toPersonId,
+    required this.relationshipKey,
+    this.direction = 'from',
+    this.isActive = true,
+    this.label,
+    this.createdAt,
+    required this.cachedAt,
+  });
 
   /// Supabase document ID (unique business key)
-  @Index(unique: true, replace: true)
   late String id;
 
   /// Family ID for querying relationships by family
-  @Index()
   late String familyId;
 
   late String fromPersonId;
@@ -43,16 +47,17 @@ class CachedRelationship {
 
   /// Create from the domain FamilyRelationship model's JSON representation
   static CachedRelationship fromJson(Map<String, dynamic> json) {
-    return CachedRelationship()
-      ..id = json['id']?.toString() ?? ''
-      ..familyId = json['familyId']?.toString() ?? ''
-      ..fromPersonId = json['fromPersonId']?.toString() ?? ''
-      ..toPersonId = json['toPersonId']?.toString() ?? ''
-      ..relationshipKey = json['relationshipKey'] as String? ?? ''
-      ..direction = json['direction'] as String? ?? 'from'
-      ..isActive = json['isActive'] as bool? ?? true
-      ..label = json['label'] as String?
-      ..createdAt = json['createdAt']?.toString()
-      ..cachedAt = DateTime.now().toIso8601String();
+    return CachedRelationship(
+      id: json['id']?.toString() ?? '',
+      familyId: json['familyId']?.toString() ?? '',
+      fromPersonId: json['fromPersonId']?.toString() ?? '',
+      toPersonId: json['toPersonId']?.toString() ?? '',
+      relationshipKey: json['relationshipKey'] as String? ?? '',
+      direction: json['direction'] as String? ?? 'from',
+      isActive: json['isActive'] as bool? ?? true,
+      label: json['label'] as String?,
+      createdAt: json['createdAt']?.toString(),
+      cachedAt: DateTime.now().toIso8601String(),
+    );
   }
 }

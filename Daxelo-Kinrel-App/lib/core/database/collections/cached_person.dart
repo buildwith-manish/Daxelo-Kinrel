@@ -1,19 +1,33 @@
-import 'package:isar/isar.dart';
-
-part 'cached_person.g.dart';
-
-/// Isar collection for caching Person data locally.
-/// Mirrors the Person model from family_provider.dart but optimized for Isar.
-@Collection()
+/// Data class for caching Person data locally.
+/// Mirrors the Person model from family_provider.dart.
 class CachedPerson {
-  Id isarId = Isar.autoIncrement;
+  CachedPerson({
+    required this.id,
+    required this.familyId,
+    required this.name,
+    this.gender,
+    this.dateOfBirth,
+    this.city,
+    this.gotra,
+    this.isDeceased = false,
+    this.deletedAt,
+    this.createdAt,
+    this.birthYear,
+    this.occupation,
+    this.privacyLevel,
+    this.notes,
+    this.sideOfFamily,
+    this.generationIndex = 0,
+    this.isAnchor = false,
+    this.photoUrl,
+    this.username,
+    required this.cachedAt,
+  });
 
   /// Supabase document ID (unique business key)
-  @Index(unique: true, replace: true)
   late String id;
 
   /// Family ID for querying all members of a family
-  @Index()
   late String familyId;
 
   late String name;
@@ -67,26 +81,27 @@ class CachedPerson {
 
   /// Create from the domain Person model's JSON representation
   static CachedPerson fromJson(Map<String, dynamic> json) {
-    return CachedPerson()
-      ..id = json['id']?.toString() ?? ''
-      ..familyId = json['familyId']?.toString() ?? ''
-      ..name = json['name'] as String? ?? 'Unknown'
-      ..gender = json['gender'] as String?
-      ..dateOfBirth = json['dateOfBirth']?.toString()
-      ..city = json['city'] as String?
-      ..gotra = json['gotra'] as String?
-      ..isDeceased = json['isDeceased'] as bool? ?? false
-      ..deletedAt = json['deletedAt']?.toString()
-      ..createdAt = json['createdAt']?.toString()
-      ..birthYear = json['birthYear'] as int?
-      ..occupation = json['occupation'] as String?
-      ..privacyLevel = json['privacyLevel'] as String?
-      ..notes = json['notes'] as String?
-      ..sideOfFamily = json['sideOfFamily'] as String?
-      ..generationIndex = json['generationIndex'] as int? ?? 0
-      ..isAnchor = json['isAnchor'] as bool? ?? false
-      ..photoUrl = json['photoUrl'] as String?
-      ..username = json['username'] as String?
-      ..cachedAt = DateTime.now().toIso8601String();
+    return CachedPerson(
+      id: json['id']?.toString() ?? '',
+      familyId: json['familyId']?.toString() ?? '',
+      name: json['name'] as String? ?? 'Unknown',
+      gender: json['gender'] as String?,
+      dateOfBirth: json['dateOfBirth']?.toString(),
+      city: json['city'] as String?,
+      gotra: json['gotra'] as String?,
+      isDeceased: json['isDeceased'] as bool? ?? false,
+      deletedAt: json['deletedAt']?.toString(),
+      createdAt: json['createdAt']?.toString(),
+      birthYear: json['birthYear'] as int?,
+      occupation: json['occupation'] as String?,
+      privacyLevel: json['privacyLevel'] as String?,
+      notes: json['notes'] as String?,
+      sideOfFamily: json['sideOfFamily'] as String?,
+      generationIndex: json['generationIndex'] as int? ?? 0,
+      isAnchor: json['isAnchor'] as bool? ?? false,
+      photoUrl: json['photoUrl'] as String?,
+      username: json['username'] as String?,
+      cachedAt: DateTime.now().toIso8601String(),
+    );
   }
 }

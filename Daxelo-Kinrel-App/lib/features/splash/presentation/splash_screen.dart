@@ -214,20 +214,24 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   /// If found, set _hasCachedProfile = true so we can navigate faster.
   void _checkIsarCache() {
     if (!IsarDatabase.isInitialized) {
-      debugPrint('📦 Isar not initialized — skipping cache check');
+      debugPrint('📦 Database not initialized — skipping cache check');
       return;
     }
     try {
-      final isar = IsarDatabase.instance;
-      final profileCount = isar.cachedProfiles.countSync();
-      if (profileCount > 0) {
-        _hasCachedProfile = true;
-        debugPrint('📦 Isar cache: found $profileCount cached profile(s)');
-      } else {
-        debugPrint('📦 Isar cache: no cached profiles');
-      }
+      final db = IsarDatabase.instance;
+      // Drift async count — fire and forget, update state when ready
+      db.profileCount().then((profileCount) {
+        if (profileCount > 0) {
+          _hasCachedProfile = true;
+          debugPrint('📦 Drift cache: found $profileCount cached profile(s)');
+        } else {
+          debugPrint('📦 Drift cache: no cached profiles');
+        }
+      }).catchError((e) {
+        debugPrint('📦 Drift cache check failed: $e');
+      });
     } catch (e) {
-      debugPrint('📦 Isar cache check failed: $e');
+      debugPrint('📦 Drift cache check failed: $e');
       // Don't crash — just treat as no cache
     }
   }
