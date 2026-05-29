@@ -16,7 +16,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/env_config.dart';
 import '../database/isar_database.dart';
-import '../database/app_database.dart';
+import '../database/app_database.dart' hide CachedFamily, CachedPerson, CachedRelationship;
 import '../database/collections/cached_person.dart';
 import '../database/collections/cached_family.dart';
 import '../database/collections/cached_relationship.dart';

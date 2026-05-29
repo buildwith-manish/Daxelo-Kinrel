@@ -6,9 +6,6 @@ import 'package:drift/drift.dart';
 
 import '../isar_database.dart';
 import '../app_database.dart';
-import '../collections/cached_profile.dart';
-import '../collections/search_history_entry.dart';
-import '../collections/api_cache_entry.dart';
 import '../sync/connectivity_service.dart';
 import '../sync/offline_queue.dart';
 import '../../../features/profile/data/profile_provider.dart';

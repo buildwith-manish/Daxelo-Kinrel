@@ -16,8 +16,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-// Hive removed — using Drift via IsarDatabase
-import '../database/isar_database.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import 'retention_service.dart';
@@ -76,7 +75,7 @@ class LocalNotificationScheduler {
   /// Schedule all retention notifications based on current engagement data.
   ///
   /// Should be called once after the user signs in and the
-  /// engagement box is available. Safe to call multiple times —
+  /// engagement data is available. Safe to call multiple times —
   /// existing scheduled notifications are replaced.
   static Future<void> scheduleAll() async {
     if (!_initialized) {
@@ -100,7 +99,7 @@ class LocalNotificationScheduler {
   /// if the user hasn't opened the app in 3+ days.
   static Future<void> _scheduleInactiveNudge() async {
     // Only schedule if inactive for 3+ days
-    if (!RetentionService.isInactiveForDays(3)) {
+    if (!await RetentionService.isInactiveForDays(3)) {
       // Cancel any previously scheduled nudge
       await _cancel(_idInactiveNudge);
       return;
@@ -124,18 +123,17 @@ class LocalNotificationScheduler {
   /// ensure it only fires once.
   static Future<void> _scheduleProfileNudge() async {
     try {
-      // Hive.box replaced with Drift — uses IsarDatabase.instance
+      final prefs = await SharedPreferences.getInstance();
 
       // Check if we already showed this nudge
-      final alreadyShown =
-          box.get('profile_nudge_shown', defaultValue: false) as bool;
+      final alreadyShown = prefs.getBool('profile_nudge_shown') ?? false;
       if (alreadyShown) {
         await _cancel(_idProfileNudge);
         return;
       }
 
       // Check if user has been active for 7+ days
-      final lastOpenStr = box.get('last_open') as String?;
+      final lastOpenStr = prefs.getString('last_open');
       if (lastOpenStr == null) return;
 
       final firstOpen = DateTime.tryParse(lastOpenStr);
@@ -145,7 +143,7 @@ class LocalNotificationScheduler {
       if (daysSinceFirst < 7) return;
 
       // Check if user has fewer than 5 members
-      final membersAdded = RetentionService.getMembersAdded();
+      final membersAdded = await RetentionService.getMembersAdded();
       if (membersAdded >= 5) return;
 
       // Schedule for tomorrow at 10 AM
@@ -162,7 +160,7 @@ class LocalNotificationScheduler {
       );
 
       // Mark as shown so it doesn't reschedule
-      await box.put('profile_nudge_shown', true);
+      await prefs.setBool('profile_nudge_shown', true);
     } catch (e, st) {
       logError(e, st, reason: 'LocalNotificationScheduler._scheduleProfileNudge failed');
     }

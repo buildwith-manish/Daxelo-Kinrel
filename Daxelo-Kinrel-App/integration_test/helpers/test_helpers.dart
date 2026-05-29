@@ -10,6 +10,8 @@
 // Usage:
 //   import 'helpers/test_helpers.dart';
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -68,16 +70,16 @@ Future<void> waitFor(
 /// Useful for waiting for loading indicators to go away.
 Future<void> waitForGone(
   WidgetTester tester,
-  Finder, [
+  Finder theFinder, [
   Duration timeout = const Duration(seconds: 10),
 ]) async {
   final end = DateTime.now().add(timeout);
   while (DateTime.now().isBefore(end)) {
     await tester.pump(const Duration(milliseconds: 100));
-    if (finder.evaluate().isEmpty) return;
+    if (theFinder.evaluate().isEmpty) return;
   }
   throw TimeoutException(
-    'Timed out waiting for ${finder.description} to disappear',
+    'Timed out waiting for ${theFinder.description} to disappear',
     timeout,
   );
 }
@@ -189,11 +191,11 @@ Future<void> enterTextByHint(
 ) async {
   final field = find.widgetWithText(TextFormField, hintText);
   if (field.evaluate().isEmpty) {
-    // Try finding by hint text in decoration
+    // Try finding by hint text via InputDecorator
     final hintFinder = find.byWidgetPredicate(
       (widget) =>
-          widget is TextFormField &&
-          widget.decoration?.hintText == hintText,
+          widget is InputDecorator &&
+          widget.decoration.hintText == hintText,
     );
     await tester.tap(hintFinder);
   } else {

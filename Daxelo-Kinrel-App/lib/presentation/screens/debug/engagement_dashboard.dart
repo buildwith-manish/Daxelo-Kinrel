@@ -30,7 +30,6 @@ import '../../../core/services/referral_service.dart';
 import '../../../core/utils/device_tier.dart';
 import '../../../core/networking/dio_client.dart';
 import '../../../core/storage/secure_storage.dart';
-import '../../../core/database/isar_database.dart';
 
 class EngagementDashboard extends ConsumerStatefulWidget {
   const EngagementDashboard({super.key});
@@ -54,7 +53,7 @@ class _EngagementDashboardState extends ConsumerState<EngagementDashboard> {
   }
 
   Future<void> _loadStats() async {
-    final stats = RetentionService.getStats();
+    final stats = await RetentionService.getStats();
     final premium = await PremiumService.isPremium();
     final remoteConfig = RemoteConfigService.instance.getAllValues();
 

@@ -5,9 +5,11 @@ import 'package:drift/drift.dart';
 
 import '../isar_database.dart';
 import '../app_database.dart';
-import '../collections/pending_operation.dart';
 import '../sync/connectivity_service.dart';
 import '../../services/supabase_service.dart';
+
+/// Maximum number of retry attempts before giving up on a pending operation.
+const int _maxRetries = 5;
 
 /// Manages offline write operations that need to be synced when online.
 /// Stores failed write operations in Drift and retries them when
@@ -30,24 +32,16 @@ class OfflineQueueManager {
     Map<String, dynamic>? payload,
     int priority = 1,
   }) async {
-    final op = PendingOperation.create(
-      operationType: operationType,
-      collection: collection,
-      recordId: recordId,
-      payload: payload != null ? jsonEncode(payload) : null,
-      priority: priority,
-    );
-
     await _db.upsertPendingOperation(PendingOperationsCompanion(
-      operationType: Value(op.operationType),
-      collection: Value(op.collection),
-      recordId: Value(op.recordId),
-      payload: Value(op.payload),
-      createdAt: Value(DateTime.parse(op.createdAt)),
-      retryCount: Value(op.retryCount),
-      lastRetryAt: Value(op.lastRetryAt != null ? DateTime.parse(op.lastRetryAt!) : null),
-      priority: Value(op.priority),
-      isProcessing: Value(op.isProcessing),
+      operationType: Value(operationType),
+      collection: Value(collection),
+      recordId: Value(recordId),
+      payload: Value(payload != null ? jsonEncode(payload) : null),
+      createdAt: Value(DateTime.now()),
+      retryCount: const Value(0),
+      lastRetryAt: const Value.absent(),
+      priority: Value(priority),
+      isProcessing: const Value(false),
     ));
 
     debugPrint(
@@ -112,7 +106,7 @@ class OfflineQueueManager {
         failCount++;
         debugPrint(
           '⚠️ Failed to sync: ${op.operationType} on ${op.collection}'
-          ' (retry ${op.retryCount + 1}/${PendingOperation.maxRetries}): $e',
+          ' (retry ${op.retryCount + 1}/$_maxRetries): $e',
         );
 
         // If we get a network error, stop processing (we're probably offline again)

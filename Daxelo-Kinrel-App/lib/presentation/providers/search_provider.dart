@@ -120,10 +120,12 @@ class SearchNotifier extends StateNotifier<SearchState> {
     _loadRecentSearchesFromHive();
   }
 
-  void _loadRecentSearchesFromHive() {
+  Future<void> _loadRecentSearchesFromHive() async {
     try {
-      final searches = _localCache.getRecentSearches();
-      state = state.copyWith(recentSearches: searches);
+      final searches = await _localCache.getRecentSearches();
+      if (mounted) {
+        state = state.copyWith(recentSearches: searches);
+      }
     } catch (_) {
       // Ignore cache read errors
     }

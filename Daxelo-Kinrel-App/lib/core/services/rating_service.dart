@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// Hive removed — using Drift via IsarDatabase
 import 'package:in_app_review/in_app_review.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../database/isar_database.dart';
-import '../database/collections/cached_person.dart';
 
 /// In-App Rating Service — follows Play Store best practices.
 ///
@@ -32,9 +31,9 @@ class RatingService {
     _isForeground = true;
 
     // Set install date on first launch
-    // Hive.box replaced with Drift — uses IsarDatabase.instance
-    if (box.get('install_date') == null) {
-      await box.put('install_date', DateTime.now().toIso8601String());
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString('install_date') == null) {
+      await prefs.setString('install_date', DateTime.now().toIso8601String());
     }
   }
 
@@ -63,9 +62,10 @@ class RatingService {
       final sessionDuration = DateTime.now().difference(_sessionStart!);
       if (sessionDuration.inMinutes < 3) return;
 
+      final prefs = await SharedPreferences.getInstance();
+
       // Condition 3: User using app for at least 7 days
-      // Hive.box replaced with Drift — uses IsarDatabase.instance
-      final installDateStr = box.get('install_date') as String?;
+      final installDateStr = prefs.getString('install_date');
       if (installDateStr == null) return;
       final installDate = DateTime.tryParse(installDateStr);
       if (installDate == null) return;
@@ -73,7 +73,7 @@ class RatingService {
       if (daysSinceInstall < 7) return;
 
       // Condition 4: Not been prompted before
-      final alreadyPrompted = box.get('rating_prompted', defaultValue: false) as bool;
+      final alreadyPrompted = prefs.getBool('rating_prompted') ?? false;
       if (alreadyPrompted) return;
 
       // Condition 5: User has added at least 3 family members
@@ -91,7 +91,7 @@ class RatingService {
         await inAppReview.requestReview();
 
         // Mark as prompted (never show again)
-        await box.put('rating_prompted', true);
+        await prefs.setBool('rating_prompted', true);
       }
     } catch (e) {
       // Never crash — rating prompt is non-critical
@@ -103,12 +103,13 @@ class RatingService {
   /// Only works in debug mode via assert.
   Future<void> reset() async {
     assert(() {
-      // Hive.box replaced with Drift — uses IsarDatabase.instance
-      box.delete('rating_prompted');
-      box.delete('install_date');
       _sessionStart = DateTime.now();
       return true;
     }(), 'RatingService.reset() is only available in debug mode');
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('rating_prompted');
+    await prefs.remove('install_date');
   }
 }
 

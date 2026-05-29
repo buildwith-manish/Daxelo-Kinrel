@@ -25,7 +25,6 @@ import 'core/services/supabase_service.dart';
 import 'core/storage/local_cache.dart';
 import 'core/storage/secure_storage.dart';
 import 'core/theme/theme_provider.dart';
-import 'core/database/isar_database.dart';
 import 'core/database/sync/sync_service.dart';
 import 'core/network/socket_service.dart';
 import 'core/utils/device_tier.dart';

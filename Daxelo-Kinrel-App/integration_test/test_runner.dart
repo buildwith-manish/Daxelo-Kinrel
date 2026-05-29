@@ -28,6 +28,7 @@
 // show warnings but will NOT fail. The tests are designed to be
 // resilient and verify UI flow rather than API success.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 

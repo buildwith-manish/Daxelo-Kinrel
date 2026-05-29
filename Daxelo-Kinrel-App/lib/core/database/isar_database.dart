@@ -1,29 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:drift/drift.dart';
 
 import 'app_database.dart';
 
-// Import + Export all collection data classes (now plain Dart classes)
-import 'collections/cached_family.dart';
-import 'collections/cached_person.dart';
-import 'collections/cached_relationship.dart';
-import 'collections/cached_profile.dart';
-import 'collections/search_history_entry.dart';
-import 'collections/recently_viewed_profile.dart';
-import 'collections/app_settings_entry.dart';
-import 'collections/pending_operation.dart';
-import 'collections/api_cache_entry.dart';
-
-export 'collections/cached_family.dart';
-export 'collections/cached_person.dart';
-export 'collections/cached_relationship.dart';
-export 'collections/cached_profile.dart';
-export 'collections/search_history_entry.dart';
-export 'collections/recently_viewed_profile.dart';
-export 'collections/app_settings_entry.dart';
-export 'collections/pending_operation.dart';
-export 'collections/api_cache_entry.dart';
+// Drift-generated data classes (CachedFamily, PendingOperation, etc.)
+// are available via app_database.dart — no need to import collections.
 
 /// Database initialization and management service.
 /// Provides a singleton AppDatabase instance (migrated from Isar to Drift).

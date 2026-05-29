@@ -29,8 +29,6 @@ import 'package:app_links/app_links.dart';
 import 'package:share_plus/share_plus.dart' as share_plus;
 
 import '../database/isar_database.dart';
-import '../database/collections/cached_family.dart';
-import '../database/collections/cached_person.dart';
 import '../services/crashlytics_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════

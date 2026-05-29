@@ -1,12 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:drift/drift.dart';
 
 import '../isar_database.dart';
-import '../collections/cached_family.dart';
-import '../collections/cached_person.dart';
-import '../collections/cached_relationship.dart';
-import '../collections/cached_profile.dart';
-import '../collections/api_cache_entry.dart';
 
 /// Smart cache invalidation strategies.
 /// Provides fine-grained cache invalidation to avoid stale data

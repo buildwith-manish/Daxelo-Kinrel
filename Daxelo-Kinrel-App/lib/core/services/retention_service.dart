@@ -2,22 +2,19 @@
 //
 // DAXELO KINREL — Retention Service (P5-F4)
 //
-// Tracks user engagement signals in the Hive 'engagement' box
-// (already opened in main.dart). Used for:
+// Tracks user engagement signals via SharedPreferences.
+// Used for:
 //   - Retention analytics (app opens, graph views, members added)
 //   - Local notification scheduling decisions
 //   - Debug engagement dashboard
 //
 // All writes are fire-and-forget — never block the UI.
 
-// Hive removed — using Drift via IsarDatabase
-import '../database/isar_database.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 
 class RetentionService {
   RetentionService._();
-
-  static const _boxName = 'engagement';
 
   // ── Key Constants ───────────────────────────────────────────────
   static const _keyAppOpens = 'app_opens';
@@ -32,10 +29,10 @@ class RetentionService {
   /// Increments app_opens counter and updates last_open timestamp.
   static Future<void> recordAppOpen() async {
     try {
-      // Hive.box replaced with Drift — uses IsarDatabase.instance
-      final opens = box.get(_keyAppOpens, defaultValue: 0) as int;
-      await box.put(_keyAppOpens, opens + 1);
-      await box.put(_keyLastOpen, DateTime.now().toIso8601String());
+      final prefs = await SharedPreferences.getInstance();
+      final opens = prefs.getInt(_keyAppOpens) ?? 0;
+      await prefs.setInt(_keyAppOpens, opens + 1);
+      await prefs.setString(_keyLastOpen, DateTime.now().toIso8601String());
     } catch (e) {
       debugPrint('⚠️ RetentionService.recordAppOpen failed: $e');
     }
@@ -44,9 +41,9 @@ class RetentionService {
   /// Record a graph view event.
   static Future<void> recordGraphView() async {
     try {
-      // Hive.box replaced with Drift — uses IsarDatabase.instance
-      final views = box.get(_keyGraphViews, defaultValue: 0) as int;
-      await box.put(_keyGraphViews, views + 1);
+      final prefs = await SharedPreferences.getInstance();
+      final views = prefs.getInt(_keyGraphViews) ?? 0;
+      await prefs.setInt(_keyGraphViews, views + 1);
     } catch (e) {
       debugPrint('⚠️ RetentionService.recordGraphView failed: $e');
     }
@@ -55,9 +52,9 @@ class RetentionService {
   /// Record a member added event.
   static Future<void> recordMemberAdded() async {
     try {
-      // Hive.box replaced with Drift — uses IsarDatabase.instance
-      final added = box.get(_keyMembersAdded, defaultValue: 0) as int;
-      await box.put(_keyMembersAdded, added + 1);
+      final prefs = await SharedPreferences.getInstance();
+      final added = prefs.getInt(_keyMembersAdded) ?? 0;
+      await prefs.setInt(_keyMembersAdded, added + 1);
     } catch (e) {
       debugPrint('⚠️ RetentionService.recordMemberAdded failed: $e');
     }
@@ -66,9 +63,9 @@ class RetentionService {
   /// Record an invite link sent event.
   static Future<void> recordInviteSent() async {
     try {
-      // Hive.box replaced with Drift — uses IsarDatabase.instance
-      final sent = box.get(_keyInviteLinksSent, defaultValue: 0) as int;
-      await box.put(_keyInviteLinksSent, sent + 1);
+      final prefs = await SharedPreferences.getInstance();
+      final sent = prefs.getInt(_keyInviteLinksSent) ?? 0;
+      await prefs.setInt(_keyInviteLinksSent, sent + 1);
     } catch (e) {
       debugPrint('⚠️ RetentionService.recordInviteSent failed: $e');
     }
@@ -77,15 +74,15 @@ class RetentionService {
   // ── Read Methods ────────────────────────────────────────────────
 
   /// Get all engagement stats as a typed map.
-  static EngagementStats getStats() {
+  static Future<EngagementStats> getStats() async {
     try {
-      // Hive.box replaced with Drift — uses IsarDatabase.instance
+      final prefs = await SharedPreferences.getInstance();
       return EngagementStats(
-        appOpens: box.get(_keyAppOpens, defaultValue: 0) as int,
-        lastOpen: box.get(_keyLastOpen) as String?,
-        graphViews: box.get(_keyGraphViews, defaultValue: 0) as int,
-        membersAdded: box.get(_keyMembersAdded, defaultValue: 0) as int,
-        inviteLinksSent: box.get(_keyInviteLinksSent, defaultValue: 0) as int,
+        appOpens: prefs.getInt(_keyAppOpens) ?? 0,
+        lastOpen: prefs.getString(_keyLastOpen),
+        graphViews: prefs.getInt(_keyGraphViews) ?? 0,
+        membersAdded: prefs.getInt(_keyMembersAdded) ?? 0,
+        inviteLinksSent: prefs.getInt(_keyInviteLinksSent) ?? 0,
       );
     } catch (e) {
       debugPrint('⚠️ RetentionService.getStats failed: $e');
@@ -94,10 +91,10 @@ class RetentionService {
   }
 
   /// Check if the user has been inactive for the given number of days.
-  static bool isInactiveForDays(int days) {
+  static Future<bool> isInactiveForDays(int days) async {
     try {
-      // Hive.box replaced with Drift — uses IsarDatabase.instance
-      final lastOpenStr = box.get(_keyLastOpen) as String?;
+      final prefs = await SharedPreferences.getInstance();
+      final lastOpenStr = prefs.getString(_keyLastOpen);
       if (lastOpenStr == null) return true;
 
       final lastOpen = DateTime.tryParse(lastOpenStr);
@@ -112,10 +109,10 @@ class RetentionService {
   }
 
   /// Get the member count from engagement tracking.
-  static int getMembersAdded() {
+  static Future<int> getMembersAdded() async {
     try {
-      // Hive.box replaced with Drift — uses IsarDatabase.instance
-      return box.get(_keyMembersAdded, defaultValue: 0) as int;
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getInt(_keyMembersAdded) ?? 0;
     } catch (_) {
       return 0;
     }
@@ -124,8 +121,12 @@ class RetentionService {
   /// Clear all engagement data (debug only).
   static Future<void> clearAll() async {
     try {
-      // Hive.box replaced with Drift — uses IsarDatabase.instance
-      await box.clear();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_keyAppOpens);
+      await prefs.remove(_keyLastOpen);
+      await prefs.remove(_keyGraphViews);
+      await prefs.remove(_keyMembersAdded);
+      await prefs.remove(_keyInviteLinksSent);
       debugPrint('🗑️ RetentionService: All engagement data cleared');
     } catch (e) {
       debugPrint('⚠️ RetentionService.clearAll failed: $e');

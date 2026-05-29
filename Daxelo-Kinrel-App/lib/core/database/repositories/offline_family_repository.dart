@@ -1,13 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:drift/drift.dart';
 
 import '../isar_database.dart';
 import '../app_database.dart';
-import '../collections/cached_family.dart';
-import '../collections/cached_person.dart';
-import '../collections/cached_relationship.dart';
-import '../collections/recently_viewed_profile.dart';
 import '../sync/connectivity_service.dart';
 import '../sync/offline_queue.dart';
 import '../sync/cache_invalidation.dart';
@@ -338,15 +335,8 @@ class OfflineFamilyRepository {
   Future<List<RecentlyViewedProfile>> getRecentlyViewed() async {
     if (!IsarDatabase.isInitialized) return [];
 
-    // Convert Drift rows to the data class
-    final rows = await _db.getRecentlyViewed();
-    return rows.map((row) => RecentlyViewedProfile()
-      ..personId = row.personId
-      ..familyId = row.familyId
-      ..personName = row.personName
-      ..photoUrl = row.photoUrl
-      ..viewedAt = row.viewedAt.toIso8601String()
-    ).toList();
+    // Return the Drift rows directly — they already have the right shape
+    return _db.getRecentlyViewed();
   }
 
   // ── Write Operations with Offline Queue ─────────────────────────

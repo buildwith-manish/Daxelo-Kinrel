@@ -2,7 +2,7 @@
 //
 // DAXELO KINREL — Premium Service (P5)
 //
-// Manages premium subscription status locally (Hive 'settings' box)
+// Manages premium subscription status locally (SharedPreferences)
 // and from the backend. Provides canAddMember() check against
 // RemoteConfig maxFreeMembers limit.
 //
@@ -12,8 +12,7 @@
 //   await PremiumService.setPremium(true);
 
 import 'package:dio/dio.dart';
-// Hive removed — using Drift via IsarDatabase
-import '../database/isar_database.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 
 import 'crashlytics_service.dart';
@@ -22,42 +21,41 @@ import 'remote_config_service.dart';
 class PremiumService {
   PremiumService._();
 
-  static const _settingsBox = 'settings';
   static const _premiumKey = 'is_premium';
   static const _premiumExpiryKey = 'premium_expiry';
 
-  // ── Local Status (Hive) ─────────────────────────────────────────
+  // ── Local Status ────────────────────────────────────────────────
 
-  /// Check if the user has premium status from local Hive cache.
+  /// Check if the user has premium status from local cache.
   static Future<bool> isPremium() async {
     try {
-      // Hive.box replaced with Drift — uses IsarDatabase.instance
-      return box.get(_premiumKey, defaultValue: false) as bool;
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_premiumKey) ?? false;
     } catch (e) {
       debugPrint('⚠️ PremiumService.isPremium failed: $e');
       return false;
     }
   }
 
-  /// Set premium status in local Hive cache.
+  /// Set premium status in local cache.
   static Future<void> setPremium(bool value) async {
     try {
-      // Hive.box replaced with Drift — uses IsarDatabase.instance
-      await box.put(_premiumKey, value);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_premiumKey, value);
       debugPrint('🟡 PremiumService: premium set to $value');
     } catch (e) {
       debugPrint('⚠️ PremiumService.setPremium failed: $e');
     }
   }
 
-  /// Set premium expiry date in local Hive cache.
+  /// Set premium expiry date in local cache.
   static Future<void> setPremiumExpiry(DateTime? expiry) async {
     try {
-      // Hive.box replaced with Drift — uses IsarDatabase.instance
+      final prefs = await SharedPreferences.getInstance();
       if (expiry != null) {
-        await box.put(_premiumExpiryKey, expiry.toIso8601String());
+        await prefs.setString(_premiumExpiryKey, expiry.toIso8601String());
       } else {
-        await box.delete(_premiumExpiryKey);
+        await prefs.remove(_premiumExpiryKey);
       }
     } catch (e) {
       debugPrint('⚠️ PremiumService.setPremiumExpiry failed: $e');
@@ -70,8 +68,8 @@ class PremiumService {
     if (!premium) return false;
 
     try {
-      // Hive.box replaced with Drift — uses IsarDatabase.instance
-      final expiryStr = box.get(_premiumExpiryKey) as String?;
+      final prefs = await SharedPreferences.getInstance();
+      final expiryStr = prefs.getString(_premiumExpiryKey);
       if (expiryStr == null) return true; // No expiry = lifetime
 
       final expiry = DateTime.tryParse(expiryStr);
@@ -130,9 +128,9 @@ class PremiumService {
   /// Clear premium data from local cache.
   static Future<void> clear() async {
     try {
-      // Hive.box replaced with Drift — uses IsarDatabase.instance
-      await box.delete(_premiumKey);
-      await box.delete(_premiumExpiryKey);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_premiumKey);
+      await prefs.remove(_premiumExpiryKey);
     } catch (_) {}
   }
 }

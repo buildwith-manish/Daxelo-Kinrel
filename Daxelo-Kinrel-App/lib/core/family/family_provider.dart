@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// Hive removed — using Drift via IsarDatabase
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/supabase_service.dart';
 import '../services/analytics_service.dart';
@@ -106,6 +106,28 @@ class Family {
 
   /// Display-friendly username with @ prefix
   String get displayUsername => username != null ? '@$username' : '';
+
+  /// Convert to JSON map for serialization/caching.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'primaryLanguage': primaryLanguage,
+        'gotra': gotra,
+        'originVillage': originVillage,
+        'createdBy': createdBy,
+        'createdAt': createdAt?.toIso8601String(),
+        'familyCode': familyCode,
+        'avatarUrl': avatarUrl,
+        'region': region,
+        'privacyMode': privacyMode,
+        'isOnboarded': isOnboarded,
+        'anchorPersonId': anchorPersonId,
+        'memberCount': memberCount,
+        'generationCount': generationCount,
+        'lastActivityAt': lastActivityAt?.toIso8601String(),
+        'username': username,
+      };
 }
 
 class Person {
@@ -184,6 +206,29 @@ class Person {
   /// Display-friendly username with @ prefix
   String get displayUsername => username != null ? '@$username' : '';
 
+  /// Convert to JSON map for serialization/caching.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'familyId': familyId,
+        'name': name,
+        'gender': gender,
+        'dateOfBirth': dateOfBirth,
+        'city': city,
+        'gotra': gotra,
+        'isDeceased': isDeceased,
+        'deletedAt': deletedAt,
+        'createdAt': createdAt?.toIso8601String(),
+        'birthYear': birthYear,
+        'occupation': occupation,
+        'privacyLevel': privacyLevel,
+        'notes': notes,
+        'sideOfFamily': sideOfFamily,
+        'generationIndex': generationIndex,
+        'isAnchor': isAnchor,
+        'photoUrl': photoUrl,
+        'username': username,
+      };
+
   /// Convert to GraphPerson for graph visualization.
   /// Uses the first relationship as the relationship label.
   GraphPerson toGraphPerson() {
@@ -241,6 +286,19 @@ class FamilyRelationship {
   ({String fromId, String toId, String type}) toGraphEdge() {
     return (fromId: fromPersonId, toId: toPersonId, type: relationshipKey);
   }
+
+  /// Convert to JSON map for serialization/caching.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'familyId': familyId,
+        'fromPersonId': fromPersonId,
+        'toPersonId': toPersonId,
+        'relationshipKey': relationshipKey,
+        'direction': direction,
+        'isActive': isActive,
+        'label': label,
+        'createdAt': createdAt?.toIso8601String(),
+      };
 }
 
 class FamilyDetail {
@@ -697,9 +755,9 @@ Future<Person> createPerson({
 
   // P5-F4: Record member added for retention tracking
   try {
-    final engagementBox = Hive.box('engagement');
-    final count = engagementBox.get('members_added', defaultValue: 0);
-    await engagementBox.put('members_added', count + 1);
+    final prefs = await SharedPreferences.getInstance();
+    final count = prefs.getInt('members_added') ?? 0;
+    await prefs.setInt('members_added', count + 1);
   } catch (_) {}
 
   return Person.fromJson(response);

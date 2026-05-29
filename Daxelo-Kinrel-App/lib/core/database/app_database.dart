@@ -96,7 +96,7 @@ class PendingOperations extends Table {
   IntColumn get retryCount => integer().withDefault(const Constant(0))();
   DateTimeColumn get lastRetryAt => dateTime().nullable()();
   IntColumn get priority => integer().withDefault(const Constant(1))();
-  BoolColumn get isProcessing => bool().withDefault(const Constant(false))();
+  BoolColumn get isProcessing => boolean().withDefault(const Constant(false))();
 }
 
 class ApiCacheEntries extends Table {
