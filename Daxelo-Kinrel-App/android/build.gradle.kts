@@ -21,21 +21,36 @@ subprojects {
 }
 
 // ─── Compatibility fixes for Flutter plugins ────────────────────────
-// All subproject configuration that does NOT require afterEvaluate.
 subprojects {
     // ── Force consistent JVM target across all subprojects ─────────────
     // Without this, plugins may have mismatched Java (11) and Kotlin (17)
     // JVM targets, causing "Inconsistent JVM-target compatibility" errors.
-    // Both Java and Kotlin MUST target the same JVM version.
+    // We set compileOptions on the Android extension which propagates to
+    // both Java and Kotlin compile tasks.
+    pluginManager.withPlugin("com.android.library") {
+        val androidExt = extensions.findByType<com.android.build.api.dsl.LibraryExtension>()
+        if (androidExt != null) {
+            androidExt.compileOptions {
+                sourceCompatibility = JavaVersion.VERSION_17
+                targetCompatibility = JavaVersion.VERSION_17
+            }
+        }
+    }
+    pluginManager.withPlugin("com.android.application") {
+        val androidExt = extensions.findByType<com.android.build.api.dsl.ApplicationExtension>()
+        if (androidExt != null) {
+            androidExt.compileOptions {
+                sourceCompatibility = JavaVersion.VERSION_17
+                targetCompatibility = JavaVersion.VERSION_17
+            }
+        }
+    }
+
+    // Also force Kotlin JVM target via task configuration
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         compilerOptions {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         }
-    }
-    // Force Java compile tasks to also target JVM 17
-    tasks.withType<JavaCompile>().configureEach {
-        sourceCompatibility = JavaVersion.VERSION_17.toString()
-        targetCompatibility = JavaVersion.VERSION_17.toString()
     }
 
     // ── Inject namespace for older Flutter plugins ────────────────────
