@@ -4,12 +4,15 @@
 
 # Environment — NEVER commit these
 .env
+.env.*
+!.env.example
 .env.local
 .env.production
 .env.staging
 **/.env
 **/.env.local
-!.env.example
+server/.env
+Daxelo-Kinrel-App/.env
 
 # Dependencies
 node_modules/
