@@ -5,12 +5,14 @@ import {
   IsInt,
   IsDateString,
   IsIn,
+  MaxLength,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class UpdateMemberDto {
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   name?: string;
 
   @IsOptional()
@@ -23,10 +25,12 @@ export class UpdateMemberDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   city?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   gotra?: string;
 
   @IsOptional()
@@ -41,6 +45,7 @@ export class UpdateMemberDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   occupation?: string;
 
   @IsOptional()
@@ -49,6 +54,7 @@ export class UpdateMemberDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   notes?: string;
 
   @IsOptional()
@@ -71,5 +77,6 @@ export class UpdateMemberDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(30)
   username?: string;
 }

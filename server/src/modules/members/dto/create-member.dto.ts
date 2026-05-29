@@ -6,12 +6,14 @@ import {
   IsInt,
   IsDateString,
   IsIn,
+  MaxLength,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class CreateMemberDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(100)
   name!: string;
 
   @IsOptional()
@@ -24,10 +26,12 @@ export class CreateMemberDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   city?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   gotra?: string;
 
   @IsOptional()

@@ -4,11 +4,138 @@
 //
 // Manages notification state using Riverpod StateNotifierProvider.
 // Supports mark as read, mark all read, delete, and pin operations.
-// Includes realistic demo data for Family, Celebrations, Engagement,
-// and System notification types.
+// Includes notification types, preferences, and grouping.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
+
+import '../../../core/networking/dio_client.dart';
+import '../../../core/services/supabase_service.dart';
+
+// ═══════════════════════════════════════════════════════════════════════
+// Notification Types
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Typed notification categories for the app.
+/// Each type maps to a specific user interaction or system event.
+enum NotificationType {
+  familyInvite,
+  acceptedInvite,
+  rejectedInvite,
+  newMember,
+  birthday,
+  anniversary,
+  relationshipUpdate,
+  usernameChange,
+  familyIdGenerated,
+  memberJoined,
+}
+
+/// Map from NotificationType to display-friendly label.
+const Map<NotificationType, String> notificationTypeLabels = {
+  NotificationType.familyInvite: 'Family Invite',
+  NotificationType.acceptedInvite: 'Invite Accepted',
+  NotificationType.rejectedInvite: 'Invite Rejected',
+  NotificationType.newMember: 'New Member',
+  NotificationType.birthday: 'Birthday',
+  NotificationType.anniversary: 'Anniversary',
+  NotificationType.relationshipUpdate: 'Relationship Update',
+  NotificationType.usernameChange: 'Username Change',
+  NotificationType.familyIdGenerated: 'Family ID Generated',
+  NotificationType.memberJoined: 'Member Joined',
+};
+
+/// Map from NotificationType to NotificationCategory.
+const Map<NotificationType, NotificationCategory> notificationTypeCategory = {
+  NotificationType.familyInvite: NotificationCategory.family,
+  NotificationType.acceptedInvite: NotificationCategory.family,
+  NotificationType.rejectedInvite: NotificationCategory.family,
+  NotificationType.newMember: NotificationCategory.family,
+  NotificationType.birthday: NotificationCategory.celebrations,
+  NotificationType.anniversary: NotificationCategory.celebrations,
+  NotificationType.relationshipUpdate: NotificationCategory.family,
+  NotificationType.usernameChange: NotificationCategory.system,
+  NotificationType.familyIdGenerated: NotificationCategory.system,
+  NotificationType.memberJoined: NotificationCategory.family,
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// Notification Preferences
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Per-type notification preference.
+class NotificationPreference {
+  const NotificationPreference({
+    this.push = true,
+    this.inApp = true,
+    this.email = false,
+  });
+
+  /// Whether to send push notifications for this type.
+  final bool push;
+
+  /// Whether to show in-app notifications for this type.
+  final bool inApp;
+
+  /// Whether to send email notifications for this type.
+  final bool email;
+
+  NotificationPreference copyWith({
+    bool? push,
+    bool? inApp,
+    bool? email,
+  }) {
+    return NotificationPreference(
+      push: push ?? this.push,
+      inApp: inApp ?? this.inApp,
+      email: email ?? this.email,
+    );
+  }
+
+  factory NotificationPreference.fromJson(Map<String, dynamic> json) {
+    return NotificationPreference(
+      push: json['push'] as bool? ?? true,
+      inApp: json['inApp'] as bool? ?? true,
+      email: json['email'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'push': push,
+    'inApp': inApp,
+    'email': email,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Notification Grouping
+// ═══════════════════════════════════════════════════════════════════════
+
+/// A group of notifications keyed by familyId and type.
+class NotificationGroup {
+  const NotificationGroup({
+    required this.familyId,
+    required this.type,
+    required this.notifications,
+  });
+
+  /// The family ID this group belongs to (empty string for non-family).
+  final String familyId;
+
+  /// The NotificationType for this group.
+  final NotificationType type;
+
+  /// The notifications in this group.
+  final List<NotificationModel> notifications;
+
+  /// Count of unread notifications in this group.
+  int get unreadCount => notifications.where((n) => !n.isRead).length;
+
+  /// The most recent notification in this group.
+  NotificationModel get latest =>
+      notifications.isNotEmpty ? notifications.first : throw StateError('Empty group');
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // Models
@@ -30,6 +157,8 @@ class NotificationModel {
     this.avatarInitials,
     this.avatarColor,
     this.iconData,
+    this.notificationType,
+    this.familyId,
   });
 
   /// Unique identifier.
@@ -64,6 +193,12 @@ class NotificationModel {
   /// that don't have a person avatar.
   final IconData? iconData;
 
+  /// The specific notification type (for grouping and preferences).
+  final NotificationType? notificationType;
+
+  /// The family ID this notification relates to (for grouping).
+  final String? familyId;
+
   NotificationModel copyWith({bool? isRead, bool? isPinned}) {
     return NotificationModel(
       id: id,
@@ -76,6 +211,8 @@ class NotificationModel {
       avatarInitials: avatarInitials,
       avatarColor: avatarColor,
       iconData: iconData,
+      notificationType: notificationType,
+      familyId: familyId,
     );
   }
 }
@@ -89,6 +226,8 @@ class NotificationsState {
   const NotificationsState({
     this.notifications = const [],
     this.selectedCategory,
+    this.notificationPreferences = const {},
+    this.isLoadingPreferences = false,
   });
 
   /// All notifications (unfiltered).
@@ -96,6 +235,12 @@ class NotificationsState {
 
   /// Currently selected filter. `null` means "All".
   final NotificationCategory? selectedCategory;
+
+  /// Per-type notification preferences.
+  final Map<NotificationType, NotificationPreference> notificationPreferences;
+
+  /// Whether preferences are currently loading from the server.
+  final bool isLoadingPreferences;
 
   /// Unread count.
   int get unreadCount => notifications.where((n) => !n.isRead).length;
@@ -106,15 +251,49 @@ class NotificationsState {
     return notifications.where((n) => n.category == selectedCategory).toList();
   }
 
+  /// Group notifications by familyId and notificationType.
+  List<NotificationGroup> get grouped {
+    final groupMap = <String, List<NotificationModel>>{};
+
+    for (final notification in notifications) {
+      final familyId = notification.familyId ?? '_no_family';
+      final typeKey = notification.notificationType?.name ?? '_no_type';
+      final groupKey = '${familyId}_$typeKey';
+
+      groupMap.putIfAbsent(groupKey, () => []).add(notification);
+    }
+
+    return groupMap.entries.map((entry) {
+      final parts = entry.key.split('_');
+      final familyId = parts[0] == '_no' ? '' : parts[0];
+      final typeName = parts.length > 1 ? parts.sublist(1).join('_') : '_no_type';
+
+      return NotificationGroup(
+        familyId: familyId,
+        type: NotificationType.values.firstWhere(
+          (t) => t.name == typeName,
+          orElse: () => NotificationType.newMember,
+        ),
+        notifications: entry.value,
+      );
+    }).toList();
+  }
+
   NotificationsState copyWith({
     List<NotificationModel>? notifications,
     NotificationCategory? Function()? selectedCategory,
+    Map<NotificationType, NotificationPreference>? notificationPreferences,
+    bool? isLoadingPreferences,
   }) {
     return NotificationsState(
       notifications: notifications ?? this.notifications,
       selectedCategory: selectedCategory != null
           ? selectedCategory()
           : this.selectedCategory,
+      notificationPreferences:
+          notificationPreferences ?? this.notificationPreferences,
+      isLoadingPreferences:
+          isLoadingPreferences ?? this.isLoadingPreferences,
     );
   }
 }
@@ -124,9 +303,14 @@ class NotificationsState {
 // ═══════════════════════════════════════════════════════════════════════
 
 class NotificationsNotifier extends StateNotifier<NotificationsState> {
-  NotificationsNotifier() : super(const NotificationsState()) {
+  NotificationsNotifier(this._ref) : super(const NotificationsState()) {
     _loadDemoData();
   }
+
+  final Ref _ref;
+
+  // ── Helper: get the configured Dio client ──────────────────────
+  Dio get _dio => _ref.read(dioProvider);
 
   // ── Actions ──────────────────────────────────────────────────────
 
@@ -167,6 +351,78 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
     state = state.copyWith(selectedCategory: () => category);
   }
 
+  // ── Notification Preferences ─────────────────────────────────────
+
+  /// Get notification preferences from the server.
+  /// Falls back to defaults if the API is unavailable.
+  Future<Map<NotificationType, NotificationPreference>>
+      getNotificationPreferences() async {
+    try {
+      final response = await _dio.get('/api/users/me/notification-preferences');
+      final data = response.data;
+
+      if (data is Map<String, dynamic>) {
+        final prefs = <NotificationType, NotificationPreference>{};
+        for (final type in NotificationType.values) {
+          final typeData = data[type.name];
+          if (typeData is Map<String, dynamic>) {
+            prefs[type] = NotificationPreference.fromJson(typeData);
+          } else {
+            prefs[type] = const NotificationPreference();
+          }
+        }
+        state = state.copyWith(notificationPreferences: prefs);
+        return prefs;
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to load notification preferences: $e');
+    }
+
+    // Return defaults
+    final defaults = <NotificationType, NotificationPreference>{};
+    for (final type in NotificationType.values) {
+      defaults[type] = const NotificationPreference();
+    }
+    state = state.copyWith(notificationPreferences: defaults);
+    return defaults;
+  }
+
+  /// Update notification preference for a specific type.
+  Future<bool> updateNotificationPreference(
+    NotificationType type, {
+    bool push = true,
+    bool inApp = true,
+    bool email = false,
+  }) async {
+    final newPref = NotificationPreference(
+      push: push,
+      inApp: inApp,
+      email: email,
+    );
+
+    // Optimistic update
+    final updatedPrefs = Map<NotificationType, NotificationPreference>.from(
+      state.notificationPreferences,
+    );
+    updatedPrefs[type] = newPref;
+    state = state.copyWith(notificationPreferences: updatedPrefs);
+
+    try {
+      await _dio.patch(
+        '/api/users/me/notification-preferences',
+        data: {
+          type.name: newPref.toJson(),
+        },
+      );
+      return true;
+    } catch (e) {
+      debugPrint('⚠️ Failed to update notification preference: $e');
+      // Roll back — reload preferences
+      await getNotificationPreferences();
+      return false;
+    }
+  }
+
   // ── Demo Data ────────────────────────────────────────────────────
 
   void _loadDemoData() {
@@ -182,6 +438,8 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         isRead: false,
         avatarInitials: 'PS',
         avatarColor: 0xFFE8612A,
+        notificationType: NotificationType.newMember,
+        familyId: 'family_sharma',
       ),
       NotificationModel(
         id: 'n2',
@@ -193,6 +451,8 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         isRead: false,
         avatarInitials: 'AK',
         avatarColor: 0xFFF59240,
+        notificationType: NotificationType.relationshipUpdate,
+        familyId: 'family_kapoor',
       ),
       NotificationModel(
         id: 'n3',
@@ -204,6 +464,8 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         isRead: true,
         avatarInitials: 'KP',
         avatarColor: 0xFF4CAF7A,
+        notificationType: NotificationType.memberJoined,
+        familyId: 'family_patel',
       ),
       NotificationModel(
         id: 'n4',
@@ -215,6 +477,8 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         isRead: true,
         avatarInitials: 'RV',
         avatarColor: 0xFF3B82F6,
+        notificationType: NotificationType.relationshipUpdate,
+        familyId: 'family_verma',
       ),
 
       // ── Celebrations ─────────────────────────────────────────────
@@ -228,6 +492,8 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         isRead: false,
         avatarInitials: 'AD',
         avatarColor: 0xFFD4AF37,
+        notificationType: NotificationType.birthday,
+        familyId: 'family_desai',
       ),
       NotificationModel(
         id: 'n6',
@@ -239,6 +505,8 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         isRead: false,
         avatarInitials: 'NM',
         avatarColor: 0xFFFF69B4,
+        notificationType: NotificationType.anniversary,
+        familyId: 'family_mehta',
       ),
       NotificationModel(
         id: 'n7',
@@ -249,6 +517,8 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         isRead: true,
         avatarInitials: 'VS',
         avatarColor: 0xFF2E8B57,
+        notificationType: NotificationType.birthday,
+        familyId: 'family_singh',
       ),
 
       // ── Engagement ───────────────────────────────────────────────
@@ -346,10 +616,21 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
 /// Global notifications provider.
 final notificationsProvider =
     StateNotifierProvider<NotificationsNotifier, NotificationsState>(
-      (ref) => NotificationsNotifier(),
+      (ref) => NotificationsNotifier(ref),
     );
 
 /// Convenience: unread count provider (can be watched independently).
 final unreadCountProvider = Provider<int>((ref) {
   return ref.watch(notificationsProvider).unreadCount;
+});
+
+/// Convenience: notification preferences provider.
+final notificationPreferencesProvider =
+    Provider<Map<NotificationType, NotificationPreference>>((ref) {
+  return ref.watch(notificationsProvider).notificationPreferences;
+});
+
+/// Convenience: grouped notifications provider.
+final groupedNotificationsProvider = Provider<List<NotificationGroup>>((ref) {
+  return ref.watch(notificationsProvider).grouped;
 });

@@ -300,6 +300,9 @@ class AppDatabase extends _$AppDatabase {
   Future<void> upsertProfile(CachedProfilesCompanion profile) =>
       into(cachedProfiles).insertOnConflictUpdate(profile);
 
+  Future<void> deleteProfile(String id) =>
+      (delete(cachedProfiles)..where((t) => t.id.equals(id))).go();
+
   Future<void> clearProfiles() => delete(cachedProfiles).go();
 
   Future<int> profileCount() =>
@@ -316,6 +319,9 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> upsertFamily(CachedFamiliesCompanion family) =>
       into(cachedFamilies).insertOnConflictUpdate(family);
+
+  Future<void> deleteFamily(String id) =>
+      (delete(cachedFamilies)..where((t) => t.id.equals(id))).go();
 
   Future<void> clearFamilies() => delete(cachedFamilies).go();
 
@@ -664,4 +670,50 @@ class AppDatabase extends _$AppDatabase {
       into(cachedFamilyIds).insertOnConflictUpdate(entry);
 
   Future<void> clearFamilyIds() => delete(cachedFamilyIds).go();
+
+  Future<List<CachedFamilyId>> getAllCachedFamilyIds() =>
+      select(cachedFamilyIds).get();
+
+  // ── API Cache Convenience Methods ──────────────────────────────────
+
+  /// Cache an API response by key with optional TTL.
+  /// If [expiresIn] is provided, sets ttlSeconds accordingly.
+  Future<void> cacheApiEntry(String key, String responseBody, {Duration? expiresIn}) {
+    final ttl = expiresIn != null ? expiresIn.inSeconds : 3600; // default 1 hour
+    return upsertApiCacheEntry(ApiCacheEntriesCompanion(
+      key: Value(key),
+      responseBody: Value(responseBody),
+      cachedAt: Value(DateTime.now()),
+      ttlSeconds: Value(ttl),
+    ));
+  }
+
+  /// Get a cached API entry by key, checking TTL.
+  /// Returns null if entry doesn't exist or has expired.
+  Future<String?> getCachedApiEntry(String key) async {
+    final entry = await getApiCacheEntry(key);
+    if (entry == null) return null;
+    // Check if expired
+    final expiresAt = entry.cachedAt.add(Duration(seconds: entry.ttlSeconds));
+    if (DateTime.now().isAfter(expiresAt)) {
+      await deleteApiCacheEntry(entry.id);
+      return null;
+    }
+    return entry.responseBody;
+  }
+
+  /// Get all cached API entries matching a key prefix.
+  /// Checks TTL and returns only non-expired entries (just the responseBody).
+  Future<List<String>> getCachedApiEntriesWithPrefix(String prefix) async {
+    final allEntries = await getAllApiCacheEntries();
+    final now = DateTime.now();
+    final results = <String>[];
+    for (final entry in allEntries) {
+      if (!entry.key.startsWith(prefix)) continue;
+      final expiresAt = entry.cachedAt.add(Duration(seconds: entry.ttlSeconds));
+      if (now.isAfter(expiresAt)) continue;
+      results.add(entry.responseBody);
+    }
+    return results;
+  }
 }

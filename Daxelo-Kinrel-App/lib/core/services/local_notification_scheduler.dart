@@ -26,6 +26,9 @@ import 'crashlytics_service.dart';
 const int _idInactiveNudge = 5001;
 const int _idProfileNudge = 5002;
 const int _idWeeklyDigest = 5003;
+// Birthday/anniversary reminders use IDs 6000–6999 (offset by person index)
+const int _idBirthdayBase = 6000;
+const int _idAnniversaryBase = 6500;
 
 // ── Channel ─────────────────────────────────────────────────────────
 const String _channelId = 'daxelo_family';
@@ -70,6 +73,138 @@ class LocalNotificationScheduler {
     }
   }
 
+  // ── Birthday & Anniversary Reminders ──────────────────────────────
+
+  /// Schedule birthday reminders for all family members.
+  /// Reminders are scheduled 1 day before the birthday at 9:00 AM local time.
+  ///
+  /// [members] is a list of maps with 'id', 'name', and 'dateOfBirth' keys.
+  static Future<void> scheduleBirthdayReminders(
+      List<Map<String, dynamic>> members) async {
+    if (!_initialized) {
+      await initialize();
+      if (!_initialized) return;
+    }
+
+    // Cancel any previously scheduled birthday reminders
+    for (int i = 0; i < 100; i++) {
+      await _cancel(_idBirthdayBase + i);
+    }
+
+    final now = DateTime.now();
+    int index = 0;
+
+    for (final member in members) {
+      if (index >= 500) break; // Safety limit
+
+      final dobStr = member['dateOfBirth'] as String?;
+      if (dobStr == null) continue;
+
+      final dob = DateTime.tryParse(dobStr);
+      if (dob == null) continue;
+
+      // Calculate this year's birthday
+      var thisYearBirthday = DateTime(now.year, dob.month, dob.day);
+
+      // If the birthday already passed this year, schedule for next year
+      if (thisYearBirthday.isBefore(now)) {
+        thisYearBirthday = DateTime(now.year + 1, dob.month, dob.day);
+      }
+
+      // Schedule 1 day before at 9:00 AM
+      final reminderDate = DateTime(
+        thisYearBirthday.year,
+        thisYearBirthday.month,
+        thisYearBirthday.day - 1,
+        9,
+        0,
+      );
+
+      // If the reminder date is in the past, skip
+      if (reminderDate.isBefore(now)) continue;
+
+      final name = member['name'] as String? ?? 'Someone';
+
+      await _scheduleNotification(
+        id: _idBirthdayBase + index,
+        title: '🎂 Birthday tomorrow: $name',
+        body:
+            '$name\'s birthday is tomorrow! Send them a Kinrel greeting.',
+        scheduledDate: reminderDate,
+        isRepeating: false,
+      );
+
+      index++;
+    }
+
+    debugPrint('📬 Scheduled $index birthday reminders');
+  }
+
+  /// Schedule anniversary reminders for all couples in families.
+  /// Reminders are scheduled 1 day before the anniversary at 9:00 AM local time.
+  ///
+  /// [anniversaries] is a list of maps with 'names', 'date', and 'familyName' keys.
+  static Future<void> scheduleAnniversaryReminders(
+      List<Map<String, dynamic>> anniversaries) async {
+    if (!_initialized) {
+      await initialize();
+      if (!_initialized) return;
+    }
+
+    // Cancel any previously scheduled anniversary reminders
+    for (int i = 0; i < 100; i++) {
+      await _cancel(_idAnniversaryBase + i);
+    }
+
+    final now = DateTime.now();
+    int index = 0;
+
+    for (final ann in anniversaries) {
+      if (index >= 500) break; // Safety limit
+
+      final dateStr = ann['date'] as String?;
+      if (dateStr == null) continue;
+
+      final annDate = DateTime.tryParse(dateStr);
+      if (annDate == null) continue;
+
+      // Calculate this year's anniversary
+      var thisYearAnniversary = DateTime(now.year, annDate.month, annDate.day);
+
+      // If already passed, schedule for next year
+      if (thisYearAnniversary.isBefore(now)) {
+        thisYearAnniversary = DateTime(now.year + 1, annDate.month, annDate.day);
+      }
+
+      // Schedule 1 day before at 9:00 AM
+      final reminderDate = DateTime(
+        thisYearAnniversary.year,
+        thisYearAnniversary.month,
+        thisYearAnniversary.day - 1,
+        9,
+        0,
+      );
+
+      if (reminderDate.isBefore(now)) continue;
+
+      final names = ann['names'] as String? ?? 'Couple';
+      final familyName = ann['familyName'] as String? ?? '';
+
+      await _scheduleNotification(
+        id: _idAnniversaryBase + index,
+        title: '💍 Anniversary tomorrow: $names',
+        body:
+            '$names celebrate their anniversary tomorrow${familyName.isNotEmpty ? ' in the $familyName family' : ''}!',
+        scheduledDate: reminderDate,
+        isRepeating: false,
+      );
+
+      index++;
+    }
+
+    debugPrint('📬 Scheduled $index anniversary reminders');
+  }
+
   // ── Schedule All ─────────────────────────────────────────────────
 
   /// Schedule all retention notifications based on current engagement data.
@@ -90,6 +225,22 @@ class LocalNotificationScheduler {
       debugPrint('📬 All retention notifications scheduled');
     } catch (e, st) {
       logError(e, st, reason: 'LocalNotificationScheduler.scheduleAll failed');
+    }
+  }
+
+  /// Schedule all notifications including birthday/anniversary reminders.
+  /// Call this after loading family members data.
+  static Future<void> scheduleAllWithReminders({
+    List<Map<String, dynamic>>? members,
+    List<Map<String, dynamic>>? anniversaries,
+  }) async {
+    await scheduleAll();
+
+    if (members != null) {
+      await scheduleBirthdayReminders(members);
+    }
+    if (anniversaries != null) {
+      await scheduleAnniversaryReminders(anniversaries);
     }
   }
 

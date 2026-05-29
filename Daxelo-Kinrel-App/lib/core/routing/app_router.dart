@@ -52,6 +52,7 @@ import '../../features/family/presentation/family_detail_screen.dart';
 import '../../features/family/presentation/path_finder_screen.dart';
 import '../../features/family/presentation/create_family_screen.dart';
 import '../../features/family/presentation/join_family_screen.dart';
+import '../../features/family/presentation/family_qr_screen.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_builder_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
@@ -433,7 +434,20 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/join-family',
-        builder: (context, state) => JoinFamilyScreen(),
+        builder: (context, state) => JoinFamilyScreen(
+          kinFamilyId: state.uri.queryParameters['kinFamilyId'],
+        ),
+      ),
+      GoRoute(
+        path: '/family-qr',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilyQRScreen(
+            familyId: state.uri.queryParameters['familyId'] ?? '',
+            familyName: state.uri.queryParameters['familyName'],
+            kinFamilyId: state.uri.queryParameters['kinFamilyId'],
+          ),
+        ),
       ),
       GoRoute(
         path: '/family/:id',

@@ -2,11 +2,19 @@
 //
 // DAXELO KINREL — Member Detail Provider
 //
-// Provides MemberDetailModel with demo data for the Person Detail Screen.
-// Includes personal details, relations, timeline events, and notes
-// with realistic Indian family member data.
+// Provides MemberDetailModel with real Supabase data.
+// Uses offline-first pattern: check Drift cache, then fetch from Supabase.
+// Includes personal details, relations, timeline events, and notes.
 
+import 'dart:convert';
+
+import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/database/app_database.dart';
+import '../../../core/database/isar_database.dart';
+import '../../../core/services/supabase_service.dart';
 
 // ── Data Models ──────────────────────────────────────────────────────
 
@@ -78,6 +86,65 @@ class MemberDetailModel {
       return null;
     }
   }
+
+  /// Serialize to JSON for Drift caching.
+  Map<String, dynamic> toJson() => {
+        'memberId': memberId,
+        'name': name,
+        'nickname': nickname,
+        'gender': gender,
+        'dateOfBirth': dateOfBirth,
+        'birthplace': birthplace,
+        'currentCity': currentCity,
+        'phone': phone,
+        'email': email,
+        'occupation': occupation,
+        'bio': bio,
+        'photoUrl': photoUrl,
+        'kinshipNameToUser': kinshipNameToUser,
+        'kinshipPathToUser': kinshipPathToUser,
+        'generationNumber': generationNumber,
+        'directConnectionsCount': directConnectionsCount,
+        'isDeceased': isDeceased,
+        'relations': relations.map((r) => r.toJson()).toList(),
+        'timelineEvents': timelineEvents.map((e) => e.toJson()).toList(),
+        'notes': notes.map((n) => n.toJson()).toList(),
+      };
+
+  /// Deserialize from JSON (Drift cache).
+  factory MemberDetailModel.fromJson(Map<String, dynamic> json) {
+    return MemberDetailModel(
+      memberId: json['memberId'] as String? ?? '',
+      name: json['name'] as String? ?? 'Unknown',
+      nickname: json['nickname'] as String?,
+      gender: json['gender'] as String?,
+      dateOfBirth: json['dateOfBirth'] as String?,
+      birthplace: json['birthplace'] as String?,
+      currentCity: json['currentCity'] as String?,
+      phone: json['phone'] as String?,
+      email: json['email'] as String?,
+      occupation: json['occupation'] as String?,
+      bio: json['bio'] as String?,
+      photoUrl: json['photoUrl'] as String?,
+      kinshipNameToUser: json['kinshipNameToUser'] as String?,
+      kinshipPathToUser: json['kinshipPathToUser'] as String?,
+      generationNumber: json['generationNumber'] as int? ?? 0,
+      directConnectionsCount: json['directConnectionsCount'] as int? ?? 0,
+      isDeceased: json['isDeceased'] as bool? ?? false,
+      relations: (json['relations'] as List?)
+              ?.map((r) => MemberRelation.fromJson(r as Map<String, dynamic>))
+              .toList() ??
+          [],
+      timelineEvents: (json['timelineEvents'] as List?)
+              ?.map((e) => TimelineEvent.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      notes: (json['notes'] as List?)
+              ?.map((n) => MemberNote.fromJson(n as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+  }
 }
 
 /// A relation connected to the member.
@@ -97,6 +164,24 @@ class MemberRelation {
   /// Kinship name from the current member to this relation (e.g., "बेटा")
   final String? kinshipName;
   final String? gender;
+
+  Map<String, dynamic> toJson() => {
+        'memberId': memberId,
+        'name': name,
+        'photoUrl': photoUrl,
+        'kinshipName': kinshipName,
+        'gender': gender,
+      };
+
+  factory MemberRelation.fromJson(Map<String, dynamic> json) {
+    return MemberRelation(
+      memberId: json['memberId'] as String? ?? '',
+      name: json['name'] as String? ?? 'Unknown',
+      photoUrl: json['photoUrl'] as String?,
+      kinshipName: json['kinshipName'] as String?,
+      gender: json['gender'] as String?,
+    );
+  }
 }
 
 /// A timeline event for the member.
@@ -114,6 +199,27 @@ class TimelineEvent {
   final String date;
   final String? description;
   final TimelineEventType eventType;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'date': date,
+        'description': description,
+        'eventType': eventType.name,
+      };
+
+  factory TimelineEvent.fromJson(Map<String, dynamic> json) {
+    return TimelineEvent(
+      id: json['id'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      date: json['date'] as String? ?? '',
+      description: json['description'] as String?,
+      eventType: TimelineEventType.values.firstWhere(
+        (e) => e.name == json['eventType'],
+        orElse: () => TimelineEventType.milestone,
+      ),
+    );
+  }
 }
 
 /// Timeline event types.
@@ -141,480 +247,299 @@ class MemberNote {
   final String content;
   final String createdAt;
   final String author;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'content': content,
+        'createdAt': createdAt,
+        'author': author,
+      };
+
+  factory MemberNote.fromJson(Map<String, dynamic> json) {
+    return MemberNote(
+      id: json['id'] as String? ?? '',
+      content: json['content'] as String? ?? '',
+      createdAt: json['createdAt'] as String? ?? '',
+      author: json['author'] as String? ?? 'You',
+    );
+  }
 }
+
+// ── Table name constant (matching Prisma schema PascalCase) ────────
+const _kPersonTable = 'Person';
+const _kRelationshipTable = 'Relationship';
 
 // ── Provider ──────────────────────────────────────────────────────────
 
-/// Provider that fetches member detail by memberId.
-/// Falls back to demo data when Supabase is not available.
+/// Provider that fetches member detail by personId.
+/// Uses offline-first pattern: check Drift cache first,
+/// then fetch from Supabase if not found or stale.
 final memberDetailProvider = FutureProvider.family<MemberDetailModel, String>((
   ref,
-  memberId,
+  personId,
 ) async {
-  // In production, this would fetch from Supabase.
-  // For now, return demo data.
-  return _demoData[memberId] ?? _buildDefaultDemoMember(memberId);
+  // 1. Try Drift cache first
+  if (IsarDatabase.isInitialized) {
+    try {
+      final db = IsarDatabase.instance;
+      final cached = await db.getPerson(personId);
+      if (cached != null) {
+        final data = _jsonDecode(cached.data);
+        // Check if cache is stale (older than 30 minutes)
+        final cachedAt = cached.cachedAt;
+        final age = DateTime.now().difference(cachedAt);
+        if (age.inMinutes < 30) {
+          // Fresh enough — return cached data
+          try {
+            return MemberDetailModel.fromJson(data);
+          } catch (_) {
+            // If cached model can't be parsed, fall through to network
+          }
+        }
+        // Stale — refresh in background but still return cache
+        _refreshInBackground(ref, personId);
+        try {
+          return MemberDetailModel.fromJson(data);
+        } catch (_) {
+          // Fall through to network
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ memberDetailProvider cache read error: $e');
+    }
+  }
+
+  // 2. Fetch from Supabase
+  return _fetchFromSupabase(ref, personId);
 });
 
-// ── Demo Data ─────────────────────────────────────────────────────────
+/// Refresh member detail in the background without blocking the UI.
+void _refreshInBackground(Ref ref, String personId) {
+  _fetchFromSupabase(ref, personId).catchError((e) {
+    debugPrint('⚠️ Background member detail refresh failed: $e');
+    return MemberDetailModel(
+      memberId: personId,
+      name: 'Unknown',
+    );
+  });
+}
 
-/// Demo members with realistic Indian family details.
-final Map<String, MemberDetailModel> _demoData = {
-  'member_001': MemberDetailModel(
-    memberId: 'member_001',
-    name: 'Rajesh Kumar Sharma',
-    nickname: 'Raju',
-    gender: 'Male',
-    dateOfBirth: '1965-03-15',
-    birthplace: 'Jaipur, Rajasthan',
-    currentCity: 'Delhi',
-    phone: '+91 98765 43210',
-    email: 'rajesh.sharma@email.com',
-    occupation: 'Retired Government Officer',
-    bio:
-        'Eldest son of the Sharma family. Served in the Railways for 35 years before retiring in 2020. Known for his love of chess and morning walks in Lodhi Garden.',
-    kinshipNameToUser: 'चाचा',
-    kinshipPathToUser: 'Father → Brother',
-    generationNumber: 2,
-    directConnectionsCount: 8,
-    isDeceased: false,
-    relations: [
-      MemberRelation(
-        memberId: 'member_002',
-        name: 'Suresh Kumar Sharma',
-        kinshipName: 'पिता (Father)',
-        gender: 'Male',
-      ),
-      MemberRelation(
-        memberId: 'member_003',
-        name: 'Kamla Sharma',
-        kinshipName: 'माता (Mother)',
-        gender: 'Female',
-      ),
-      MemberRelation(
-        memberId: 'member_004',
-        name: 'Meena Sharma',
-        kinshipName: 'पत्नी (Wife)',
-        gender: 'Female',
-      ),
-      MemberRelation(
-        memberId: 'member_005',
-        name: 'Vikram Sharma',
-        kinshipName: 'बेटा (Son)',
-        gender: 'Male',
-      ),
-      MemberRelation(
-        memberId: 'member_006',
-        name: 'Priya Sharma',
-        kinshipName: 'बेटी (Daughter)',
-        gender: 'Female',
-      ),
-      MemberRelation(
-        memberId: 'member_007',
-        name: 'Anil Kumar Sharma',
-        kinshipName: 'भाई (Brother)',
-        gender: 'Male',
-      ),
-      MemberRelation(
-        memberId: 'member_008',
-        name: 'Ramesh Kumar Sharma',
-        kinshipName: 'भाई (Brother)',
-        gender: 'Male',
-      ),
-      MemberRelation(
-        memberId: 'member_009',
-        name: 'Sunita Devi',
-        kinshipName: 'बहन (Sister)',
-        gender: 'Female',
-      ),
-    ],
-    timelineEvents: [
-      TimelineEvent(
-        id: 'evt_001',
-        title: 'Born in Jaipur',
-        date: '1965-03-15',
-        description: 'Born at SMS Hospital, Jaipur, Rajasthan',
-        eventType: TimelineEventType.birth,
-      ),
-      TimelineEvent(
-        id: 'evt_002',
-        title: 'Graduated from University of Rajasthan',
-        date: '1986-06-20',
-        description: 'B.Com from University of Rajasthan, Jaipur',
-        eventType: TimelineEventType.education,
-      ),
-      TimelineEvent(
-        id: 'evt_003',
-        title: 'Married Meena Joshi',
-        date: '1990-02-14',
-        description: 'Arranged marriage in Jaipur with traditional ceremonies',
-        eventType: TimelineEventType.marriage,
-      ),
-      TimelineEvent(
-        id: 'evt_004',
-        title: 'Joined Indian Railways',
-        date: '1987-08-01',
-        description: 'Started career as Section Officer in Northern Railway',
-        eventType: TimelineEventType.career,
-      ),
-      TimelineEvent(
-        id: 'evt_005',
-        title: 'Son Vikram born',
-        date: '1992-11-08',
-        description: 'Born in Safdarjung Hospital, Delhi',
-        eventType: TimelineEventType.family,
-      ),
-      TimelineEvent(
-        id: 'evt_006',
-        title: 'Daughter Priya born',
-        date: '1996-04-22',
-        description: 'Born in AIIMS, Delhi',
-        eventType: TimelineEventType.family,
-      ),
-      TimelineEvent(
-        id: 'evt_007',
-        title: 'Promoted to Senior Divisional Officer',
-        date: '2005-01-15',
-        description: 'Transferred to Delhi HQ',
-        eventType: TimelineEventType.career,
-      ),
-      TimelineEvent(
-        id: 'evt_008',
-        title: 'Retired from Indian Railways',
-        date: '2020-07-31',
-        description:
-            'Retired after 33 years of service. Farewell ceremony at Rail Bhavan.',
-        eventType: TimelineEventType.milestone,
-      ),
-    ],
-    notes: [
-      MemberNote(
-        id: 'note_001',
-        content:
-            'Chachu loves playing chess. He taught me when I was 8 years old. We still play whenever I visit Delhi.',
-        createdAt: '2024-01-15',
-        author: 'You',
-      ),
-      MemberNote(
-        id: 'note_002',
-        content:
-            'His pension comes on the 1st of every month. He donates a portion to the local gurudwara.',
-        createdAt: '2024-03-20',
-        author: 'You',
-      ),
-      MemberNote(
-        id: 'note_003',
-        content:
-            'Birthday plan: He wants to visit Ranthambore this year for his 60th. Need to book safari in advance.',
-        createdAt: '2024-02-28',
-        author: 'You',
-      ),
-    ],
-  ),
+/// Fetch member detail from Supabase and cache in Drift.
+Future<MemberDetailModel> _fetchFromSupabase(
+  Ref ref,
+  String personId,
+) async {
+  final client = ref.read(supabaseProvider);
+  if (client == null) {
+    throw Exception('Database is not connected.');
+  }
 
-  'member_007': MemberDetailModel(
-    memberId: 'member_007',
-    name: 'Anil Kumar Sharma',
-    nickname: 'Anil Bhaiya',
-    gender: 'Male',
-    dateOfBirth: '1970-08-22',
-    birthplace: 'Jaipur, Rajasthan',
-    currentCity: 'Mumbai',
-    phone: '+91 87654 32109',
-    email: 'anil.sharma@email.com',
-    occupation: 'Chartered Accountant',
-    bio:
-        'Second son of the Sharma family. Moved to Mumbai in 1995 and built a successful CA practice. Known for his sharp mind and generosity.',
-    kinshipNameToUser: 'चाचा',
-    kinshipPathToUser: 'Father → Brother',
-    generationNumber: 2,
-    directConnectionsCount: 6,
-    isDeceased: false,
-    relations: [
-      MemberRelation(
-        memberId: 'member_002',
-        name: 'Suresh Kumar Sharma',
-        kinshipName: 'पिता (Father)',
-        gender: 'Male',
-      ),
-      MemberRelation(
-        memberId: 'member_003',
-        name: 'Kamla Sharma',
-        kinshipName: 'माता (Mother)',
-        gender: 'Female',
-      ),
-      MemberRelation(
-        memberId: 'member_001',
-        name: 'Rajesh Kumar Sharma',
-        kinshipName: 'भाई (Elder Brother)',
-        gender: 'Male',
-      ),
-      MemberRelation(
-        memberId: 'member_010',
-        name: 'Neeta Sharma',
-        kinshipName: 'पत्नी (Wife)',
-        gender: 'Female',
-      ),
-      MemberRelation(
-        memberId: 'member_011',
-        name: 'Rohit Sharma',
-        kinshipName: 'बेटा (Son)',
-        gender: 'Male',
-      ),
-      MemberRelation(
-        memberId: 'member_012',
-        name: 'Ananya Sharma',
-        kinshipName: 'बेटी (Daughter)',
-        gender: 'Female',
-      ),
-    ],
-    timelineEvents: [
-      TimelineEvent(
-        id: 'evt_010',
-        title: 'Born in Jaipur',
-        date: '1970-08-22',
-        eventType: TimelineEventType.birth,
-      ),
-      TimelineEvent(
-        id: 'evt_011',
-        title: 'Completed CA',
-        date: '1994-05-10',
-        description: 'Passed CA final exam on first attempt',
-        eventType: TimelineEventType.education,
-      ),
-      TimelineEvent(
-        id: 'evt_012',
-        title: 'Married Neeta Agarwal',
-        date: '1998-12-05',
-        description: 'Wedding in Mumbai with both families present',
-        eventType: TimelineEventType.marriage,
-      ),
-      TimelineEvent(
-        id: 'evt_013',
-        title: 'Started own CA firm',
-        date: '2002-04-01',
-        description: 'Sharma & Associates, Andheri West, Mumbai',
-        eventType: TimelineEventType.career,
-      ),
-    ],
-    notes: [
-      MemberNote(
-        id: 'note_010',
-        content:
-            'Anil Chachu always brings Kaju Katli from Mumbai. His CA firm handles our family\'s tax filing.',
-        createdAt: '2024-01-20',
-        author: 'You',
-      ),
-    ],
-  ),
+  // 1. Fetch the person record
+  final personResponse = await client
+      .from(_kPersonTable)
+      .select()
+      .eq('id', personId)
+      .filter('deletedAt', 'is', null)
+      .maybeSingle();
 
-  'member_010': MemberDetailModel(
-    memberId: 'member_010',
-    name: 'Neeta Sharma',
-    nickname: 'Neeta Chachi',
-    gender: 'Female',
-    dateOfBirth: '1973-11-03',
-    birthplace: 'Ahmedabad, Gujarat',
-    currentCity: 'Mumbai',
-    occupation: 'School Teacher',
-    bio:
-        'Originally from Ahmedabad, married into the Sharma family. Teaches Hindi literature at a CBSE school in Mumbai. Known for her delicious dhokla and handvo.',
-    kinshipNameToUser: 'चाची',
-    kinshipPathToUser: 'Father → Brother → Wife',
-    generationNumber: 2,
-    directConnectionsCount: 5,
-    isDeceased: false,
-    relations: [
-      MemberRelation(
-        memberId: 'member_007',
-        name: 'Anil Kumar Sharma',
-        kinshipName: 'पति (Husband)',
-        gender: 'Male',
-      ),
-      MemberRelation(
-        memberId: 'member_011',
-        name: 'Rohit Sharma',
-        kinshipName: 'बेटा (Son)',
-        gender: 'Male',
-      ),
-      MemberRelation(
-        memberId: 'member_012',
-        name: 'Ananya Sharma',
-        kinshipName: 'बेटी (Daughter)',
-        gender: 'Female',
-      ),
-    ],
-    timelineEvents: [
-      TimelineEvent(
-        id: 'evt_020',
-        title: 'Born in Ahmedabad',
-        date: '1973-11-03',
-        eventType: TimelineEventType.birth,
-      ),
-      TimelineEvent(
-        id: 'evt_021',
-        title: 'Married Anil Sharma',
-        date: '1998-12-05',
-        eventType: TimelineEventType.marriage,
-      ),
-      TimelineEvent(
-        id: 'evt_022',
-        title: 'Joined DAV School as Hindi Teacher',
-        date: '2000-07-01',
-        eventType: TimelineEventType.career,
-      ),
-    ],
-    notes: [
-      MemberNote(
-        id: 'note_020',
-        content:
-            'Neeta Chachi makes the best Gujarati thali. She promised to teach me how to make dhokla next time I visit.',
-        createdAt: '2024-04-10',
-        author: 'You',
-      ),
-    ],
-  ),
+  if (personResponse == null) {
+    throw Exception('Person not found.');
+  }
 
-  // Deceased family member example
-  'member_002': MemberDetailModel(
-    memberId: 'member_002',
-    name: 'Suresh Kumar Sharma',
-    nickname: 'Babuji',
-    gender: 'Male',
-    dateOfBirth: '1940-01-10',
-    birthplace: 'Jaipur, Rajasthan',
-    currentCity: 'Jaipur',
-    occupation: 'Retired School Principal',
-    bio:
-        'Patriarch of the Sharma family. Served as Principal of Government Senior Secondary School, Jaipur for 25 years. A respected figure in the community who always emphasized the importance of education.',
-    kinshipNameToUser: 'दादा (Grandfather)',
-    kinshipPathToUser: 'Father → Father',
-    generationNumber: 1,
-    directConnectionsCount: 5,
-    isDeceased: true,
-    relations: [
-      MemberRelation(
-        memberId: 'member_003',
-        name: 'Kamla Sharma',
-        kinshipName: 'पत्नी (Wife)',
-        gender: 'Female',
-      ),
-      MemberRelation(
-        memberId: 'member_001',
-        name: 'Rajesh Kumar Sharma',
-        kinshipName: 'बेटा (Son)',
-        gender: 'Male',
-      ),
-      MemberRelation(
-        memberId: 'member_007',
-        name: 'Anil Kumar Sharma',
-        kinshipName: 'बेटा (Son)',
-        gender: 'Male',
-      ),
-      MemberRelation(
-        memberId: 'member_008',
-        name: 'Ramesh Kumar Sharma',
-        kinshipName: 'बेटा (Son)',
-        gender: 'Male',
-      ),
-      MemberRelation(
-        memberId: 'member_009',
-        name: 'Sunita Devi',
-        kinshipName: 'बेटी (Daughter)',
-        gender: 'Female',
-      ),
-    ],
-    timelineEvents: [
-      TimelineEvent(
-        id: 'evt_030',
-        title: 'Born in Jaipur',
-        date: '1940-01-10',
-        eventType: TimelineEventType.birth,
-      ),
-      TimelineEvent(
-        id: 'evt_031',
-        title: 'Married Kamla Devi',
-        date: '1962-02-20',
-        eventType: TimelineEventType.marriage,
-      ),
-      TimelineEvent(
-        id: 'evt_032',
-        title: 'Appointed Principal',
-        date: '1975-07-01',
-        description: 'Government Senior Secondary School, Jaipur',
-        eventType: TimelineEventType.career,
-      ),
-      TimelineEvent(
-        id: 'evt_033',
-        title: 'Passed away',
-        date: '2018-09-14',
-        description:
-            'Passed away peacefully at home in Jaipur, surrounded by family.',
-        eventType: TimelineEventType.memorial,
-      ),
-    ],
-    notes: [
-      MemberNote(
-        id: 'note_030',
-        content:
-            'Dadaji was the most respected man in our mohalla. Everyone called him "Sharma Sahab". He used to tutor neighborhood kids for free.',
-        createdAt: '2024-02-14',
-        author: 'You',
-      ),
-      MemberNote(
-        id: 'note_031',
-        content:
-            'His death anniversary is on 14th September. The whole family gathers in Jaipur every year for a puja.',
-        createdAt: '2024-09-10',
-        author: 'You',
-      ),
-    ],
-  ),
-};
+  final personData = personResponse;
+  final familyId = personData['familyId']?.toString() ?? '';
 
-/// Default demo member for IDs not in the demo data set.
-MemberDetailModel _buildDefaultDemoMember(String memberId) {
-  return MemberDetailModel(
-    memberId: memberId,
-    name: 'Family Member',
-    nickname: null,
-    gender: 'Other',
-    dateOfBirth: '1990-01-01',
-    birthplace: 'India',
-    currentCity: 'India',
-    kinshipNameToUser: 'Relative',
-    kinshipPathToUser: '—',
-    generationNumber: 2,
-    directConnectionsCount: 3,
-    isDeceased: false,
-    relations: [
-      MemberRelation(
-        memberId: 'rel_001',
-        name: 'Related Member 1',
-        kinshipName: 'भाई (Brother)',
-        gender: 'Male',
-      ),
-      MemberRelation(
-        memberId: 'rel_002',
-        name: 'Related Member 2',
-        kinshipName: 'बहन (Sister)',
-        gender: 'Female',
-      ),
-      MemberRelation(
-        memberId: 'rel_003',
-        name: 'Related Member 3',
-        kinshipName: 'चचेरा भाई (Cousin)',
-        gender: 'Male',
-      ),
-    ],
-    timelineEvents: [
-      TimelineEvent(
-        id: 'def_evt_001',
-        title: 'Born',
-        date: '1990-01-01',
-        eventType: TimelineEventType.birth,
-      ),
-    ],
-    notes: [],
+  // 2. Fetch relationships involving this person in the same family
+  List<Map<String, dynamic>> relationshipRows = [];
+  try {
+    final relResponse = await client
+        .from(_kRelationshipTable)
+        .select()
+        .eq('familyId', familyId)
+        .eq('isActive', true);
+    relationshipRows = (relResponse as List)
+        .map((r) => r as Map<String, dynamic>)
+        .toList();
+  } catch (e) {
+    debugPrint('⚠️ memberDetailProvider: Failed to fetch relationships: $e');
+  }
+
+  // 3. Find relationships involving this person
+  final relatedPersonIds = <String>{};
+  final memberRelations = <MemberRelation>[];
+
+  for (final rel in relationshipRows) {
+    final fromId = rel['fromPersonId']?.toString() ?? '';
+    final toId = rel['toPersonId']?.toString() ?? '';
+
+    if (fromId == personId) {
+      // This person is the source — the related person is toId
+      relatedPersonIds.add(toId);
+    } else if (toId == personId) {
+      // This person is the target — the related person is fromId
+      relatedPersonIds.add(fromId);
+    }
+  }
+
+  // 4. Fetch related person details
+  final relatedPersons = <String, Map<String, dynamic>>{};
+  if (relatedPersonIds.isNotEmpty) {
+    try {
+      final personsResponse = await client
+          .from(_kPersonTable)
+          .select()
+          .inFilter('id', relatedPersonIds.toList())
+          .filter('deletedAt', 'is', null);
+      for (final p in (personsResponse as List)) {
+        final pData = p as Map<String, dynamic>;
+        final pid = pData['id']?.toString() ?? '';
+        relatedPersons[pid] = pData;
+      }
+    } catch (e) {
+      debugPrint('⚠️ memberDetailProvider: Failed to fetch related persons: $e');
+    }
+  }
+
+  // 5. Build MemberRelation list
+  for (final rel in relationshipRows) {
+    final fromId = rel['fromPersonId']?.toString() ?? '';
+    final toId = rel['toPersonId']?.toString() ?? '';
+    final relKey = rel['relationshipKey'] as String? ?? '';
+    final label = rel['label'] as String?;
+
+    String? relatedId;
+    String? kinshipName;
+
+    if (fromId == personId) {
+      relatedId = toId;
+      // Person is the source — relationshipKey describes how person relates to toId
+      kinshipName = label ?? relKey;
+    } else if (toId == personId) {
+      relatedId = fromId;
+      // Person is the target — relationshipKey describes how fromId relates to person
+      // The inverse is how person relates to fromId
+      kinshipName = label ?? _getInverseLabel(relKey);
+    }
+
+    if (relatedId != null && relatedPersons.containsKey(relatedId)) {
+      final rData = relatedPersons[relatedId]!;
+      memberRelations.add(MemberRelation(
+        memberId: relatedId,
+        name: rData['name'] as String? ?? 'Unknown',
+        photoUrl: rData['photoUrl'] as String?,
+        kinshipName: kinshipName,
+        gender: rData['gender'] as String?,
+      ));
+    }
+  }
+
+  // 6. Check for kinship path from current user to this person
+  String? kinshipNameToUser;
+  String? kinshipPathToUser;
+  final userId = client.auth.currentUser?.id;
+  if (userId != null && IsarDatabase.isInitialized) {
+    try {
+      final db = IsarDatabase.instance;
+      final cachedPath = await db.getRelationshipPath(familyId, userId, personId);
+      if (cachedPath != null) {
+        kinshipNameToUser = cachedPath.kinshipTerm ?? cachedPath.kinshipTermHindi;
+        kinshipPathToUser = _jsonDecode(cachedPath.path).toString();
+      }
+    } catch (_) {}
+  }
+
+  // 7. Build timeline events from person data
+  final timelineEvents = <TimelineEvent>[];
+  final name = personData['name'] as String? ?? 'Unknown';
+  final dateOfBirth = personData['dateOfBirth']?.toString();
+
+  if (dateOfBirth != null && dateOfBirth.isNotEmpty) {
+    timelineEvents.add(TimelineEvent(
+      id: '${personId}_birth',
+      title: 'Born',
+      date: dateOfBirth,
+      eventType: TimelineEventType.birth,
+    ));
+  }
+
+  // 8. Build MemberDetailModel
+  final detail = MemberDetailModel(
+    memberId: personId,
+    name: name,
+    nickname: personData['username'] as String?,
+    gender: personData['gender'] as String?,
+    dateOfBirth: dateOfBirth,
+    birthplace: null, // Not in Person schema
+    currentCity: personData['city'] as String?,
+    phone: null, // Not directly in Person schema
+    email: null, // Not directly in Person schema
+    occupation: personData['occupation'] as String?,
+    bio: personData['notes'] as String?,
+    photoUrl: personData['photoUrl'] as String?,
+    kinshipNameToUser: kinshipNameToUser,
+    kinshipPathToUser: kinshipPathToUser,
+    generationNumber: personData['generationIndex'] as int? ?? 0,
+    directConnectionsCount: memberRelations.length,
+    isDeceased: personData['isDeceased'] as bool? ?? false,
+    relations: memberRelations,
+    timelineEvents: timelineEvents,
+    notes: const [], // Notes not in current schema
   );
+
+  // 9. Cache in Drift
+  if (IsarDatabase.isInitialized) {
+    try {
+      final db = IsarDatabase.instance;
+      await db.upsertPerson(CachedPersonsCompanion(
+        id: Value(personId),
+        familyId: Value(familyId),
+        name: Value(name),
+        data: Value(_jsonEncode(detail.toJson())),
+        cachedAt: Value(DateTime.now()),
+      ));
+    } catch (e) {
+      debugPrint('⚠️ memberDetailProvider: Failed to cache: $e');
+    }
+  }
+
+  return detail;
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────
+
+/// Simple inverse relationship label mapping.
+/// Used when the person is the target of a relationship.
+String? _getInverseLabel(String relKey) {
+  const inverseMap = <String, String>{
+    'father': 'child',
+    'mother': 'child',
+    'parent': 'child',
+    'child': 'parent',
+    'son': 'parent',
+    'daughter': 'parent',
+    'brother': 'sibling',
+    'sister': 'sibling',
+    'sibling': 'sibling',
+    'spouse': 'spouse',
+    'husband': 'wife',
+    'wife': 'husband',
+    'grandfather': 'grandchild',
+    'grandmother': 'grandchild',
+    'grandparent': 'grandchild',
+    'grandchild': 'grandparent',
+    'uncle': 'nephew/niece',
+    'aunt': 'nephew/niece',
+    'nephew': 'uncle/aunt',
+    'niece': 'uncle/aunt',
+    'cousin': 'cousin',
+  };
+  return inverseMap[relKey.toLowerCase()] ?? relKey;
+}
+
+Map<String, dynamic> _jsonDecode(String data) {
+  return json.decode(data) as Map<String, dynamic>;
+}
+
+String _jsonEncode(Map<String, dynamic> data) {
+  return json.encode(data);
 }

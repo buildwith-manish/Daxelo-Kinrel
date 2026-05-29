@@ -70,6 +70,7 @@ model User {
   appealReviewer    ModerationAppeal[] @relation("AppealReviewer")
   refreshTokens     RefreshToken[]
   fcmTokens         FcmToken[]
+  usernameChangeLog UsernameChangeLog[]
 }
 
 model Post {
@@ -1654,5 +1655,19 @@ model AiInteraction {
 
   @@index([userId, createdAt])
   @@index([interactionType])
+}
+
+// ── Username Change Log (audit trail for username changes) ───────────
+
+model UsernameChangeLog {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  oldUsername   String?  // null if no previous username
+  newUsername   String
+  changedAt     DateTime @default(now())
+
+  @@index([userId, changedAt])
+  @@index([newUsername])
 }
 

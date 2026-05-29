@@ -36,6 +36,7 @@ import { ReferralModule } from './modules/referral/referral.module';
 import { AiVoiceModule } from './modules/ai-voice/ai-voice.module';
 import { SyncModule } from './modules/sync/sync.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
+import { SearchModule } from './modules/search/search.module';
 import { CustomThrottlerGuard } from './common/guards/throttler.guard';
 
 @Module({
@@ -120,6 +121,9 @@ import { CustomThrottlerGuard } from './common/guards/throttler.guard';
 
     // ── Realtime module (Supabase Realtime) ──────────────────
     RealtimeModule,
+
+    // ── Search module (unified search) ───────────────────────
+    SearchModule,
   ],
   providers: [
     // ── Global rate limiting guard ──────────────────────────

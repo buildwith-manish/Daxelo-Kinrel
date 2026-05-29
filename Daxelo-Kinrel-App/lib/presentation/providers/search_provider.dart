@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/storage/local_cache.dart';
@@ -15,32 +16,48 @@ class SearchState {
     this.filter = SearchFilter.all,
     this.results = const SearchResults(),
     this.isLoading = false,
+    this.isLoadingMore = false,
     this.error,
     this.recentSearches = const [],
+    this.currentPage = 0,
+    this.hasMore = true,
+    this.isServerSearch = false,
   });
 
   final String query;
   final SearchFilter filter;
   final SearchResults results;
   final bool isLoading;
+  final bool isLoadingMore;
   final String? error;
   final List<String> recentSearches;
+  final int currentPage;
+  final bool hasMore;
+  final bool isServerSearch;
 
   SearchState copyWith({
     String? query,
     SearchFilter? filter,
     SearchResults? results,
     bool? isLoading,
+    bool? isLoadingMore,
     String? error,
     List<String>? recentSearches,
+    int? currentPage,
+    bool? hasMore,
+    bool? isServerSearch,
   }) {
     return SearchState(
       query: query ?? this.query,
       filter: filter ?? this.filter,
       results: results ?? this.results,
       isLoading: isLoading ?? this.isLoading,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
       error: error,
       recentSearches: recentSearches ?? this.recentSearches,
+      currentPage: currentPage ?? this.currentPage,
+      hasMore: hasMore ?? this.hasMore,
+      isServerSearch: isServerSearch ?? this.isServerSearch,
     );
   }
 }
@@ -57,22 +74,29 @@ class SearchNotifier extends StateNotifier<SearchState> {
   Timer? _debounce;
 
   /// Update the search query with 300ms debounce.
+  /// First shows local results immediately, then fetches from server.
   void updateQuery(String query) {
-    state = state.copyWith(query: query, isLoading: true, error: null);
+    state = state.copyWith(
+      query: query,
+      isLoading: true,
+      error: null,
+      currentPage: 0,
+      hasMore: true,
+    );
 
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () {
-      _performSearch();
+      _performSearchWithServerFallback();
     });
   }
 
   /// Update the search filter. Triggers a search if query is non-empty.
   void updateFilter(SearchFilter filter) {
-    state = state.copyWith(filter: filter);
+    state = state.copyWith(filter: filter, currentPage: 0, hasMore: true);
 
     if (state.query.trim().isNotEmpty) {
       _debounce?.cancel();
-      _performSearch();
+      _performSearchWithServerFallback();
     }
   }
 
@@ -83,10 +107,126 @@ class SearchNotifier extends StateNotifier<SearchState> {
     loadRecentSearches();
   }
 
-  /// Perform the actual search using the repository.
+  /// Perform the search using both local and server-side data.
+  /// Shows local results immediately, then merges with server results.
+  Future<void> _performSearchWithServerFallback() async {
+    // ── Step 1: Show local results immediately ───────────────────
+    try {
+      // First try exact local search
+      var localResults = _repository.searchAll(state.query, state.filter);
+
+      // If no exact matches, try fuzzy search
+      if (localResults.isEmpty) {
+        localResults = _repository.searchFuzzy(state.query, state.filter);
+      }
+
+      state = state.copyWith(
+        results: localResults,
+        isLoading: false,
+        error: null,
+      );
+
+      // Save to recent searches if we got results
+      if (localResults.isNotEmpty && state.query.trim().isNotEmpty) {
+        saveRecentSearch(state.query.trim());
+      }
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+
+    // ── Step 2: Fetch from server and merge ──────────────────────
+    try {
+      final serverResults = await _repository.searchServerSide(
+        state.query,
+        type: _filterToType(state.filter),
+        limit: 20,
+        offset: 0,
+      );
+
+      if (mounted) {
+        // Merge server results with local results
+        final merged = state.results.merge(serverResults);
+        state = state.copyWith(
+          results: merged,
+          isServerSearch: serverResults.isFromServer,
+          hasMore: serverResults.hasMore,
+          currentPage: 0,
+        );
+
+        // Save to recent searches
+        if (merged.isNotEmpty && state.query.trim().isNotEmpty) {
+          saveRecentSearch(state.query.trim());
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Server search fallback error: $e');
+      // Local results are already shown — no need to update state
+    }
+  }
+
+  /// Load more results (pagination).
+  Future<void> loadMore() async {
+    if (state.isLoadingMore || !state.hasMore || state.query.trim().isEmpty) {
+      return;
+    }
+
+    state = state.copyWith(isLoadingMore: true);
+
+    try {
+      final nextOffset = (state.currentPage + 1) * 20;
+      final serverResults = await _repository.searchServerSide(
+        state.query,
+        type: _filterToType(state.filter),
+        limit: 20,
+        offset: nextOffset,
+      );
+
+      if (mounted) {
+        // Append to existing results
+        final allPeople = [...state.results.people, ...serverResults.people];
+        final allFamilies = [...state.results.families, ...serverResults.families];
+
+        state = state.copyWith(
+          results: SearchResults(
+            people: allPeople,
+            families: allFamilies,
+            totalCount: serverResults.totalCount,
+            hasMore: serverResults.hasMore,
+            isFromServer: true,
+          ),
+          isLoadingMore: false,
+          currentPage: state.currentPage + 1,
+        );
+      }
+    } catch (e) {
+      debugPrint('⚠️ Load more error: $e');
+      state = state.copyWith(isLoadingMore: false);
+    }
+  }
+
+  /// Convert SearchFilter to API type parameter.
+  String _filterToType(SearchFilter filter) {
+    switch (filter) {
+      case SearchFilter.people:
+        return 'users';
+      case SearchFilter.families:
+        return 'families';
+      case SearchFilter.all:
+        return 'all';
+    }
+  }
+
+  /// Perform the actual search using the repository (local only).
   void _performSearch() {
     try {
-      final results = _repository.searchAll(state.query, state.filter);
+      // First try exact search
+      var results = _repository.searchAll(state.query, state.filter);
+
+      // If no exact matches, try fuzzy search
+      if (results.isEmpty) {
+        results = _repository.searchFuzzy(state.query, state.filter);
+      }
+
       state = state.copyWith(results: results, isLoading: false, error: null);
 
       // Save to recent searches if we got results
@@ -229,4 +369,14 @@ final recentSearchesProvider = Provider<List<String>>((ref) {
 /// Computed: search error
 final searchErrorProvider = Provider<String?>((ref) {
   return ref.watch(searchProvider).error;
+});
+
+/// Computed: has more results for pagination
+final searchHasMoreProvider = Provider<bool>((ref) {
+  return ref.watch(searchProvider).hasMore;
+});
+
+/// Computed: is loading more (pagination)
+final searchIsLoadingMoreProvider = Provider<bool>((ref) {
+  return ref.watch(searchProvider).isLoadingMore;
 });

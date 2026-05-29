@@ -229,6 +229,34 @@ class _UsernameSetupSheetState extends ConsumerState<_UsernameSetupSheet> {
           const SizedBox(height: 8),
           _buildStatusText(checkState),
 
+          // "Did you mean?" typo suggestion
+          if (checkState.didYouMean != null &&
+              checkState.availability == UsernameAvailability.taken) ...[
+            const SizedBox(height: 4),
+            GestureDetector(
+              onTap: () {
+                _controller.text = checkState.didYouMean!;
+                _controller.selection = TextSelection.fromPosition(
+                  TextPosition(offset: checkState.didYouMean!.length),
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Text(
+                  'Did you mean @${checkState.didYouMean}?',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    color: _cOrange,
+                    fontWeight: FontWeight.w500,
+                    decoration: TextDecoration.underline,
+                    decorationColor: _cOrange.withAlpha(80),
+                  ),
+                ),
+              ),
+            ),
+          ],
+
           // Suggestions
           if (suggestions.isNotEmpty && _controller.text.isEmpty) ...[
             const SizedBox(height: 16),

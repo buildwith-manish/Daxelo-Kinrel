@@ -36,8 +36,10 @@ import '../../../shared/widgets/dk_components.dart';
 import '../data/profile_provider.dart';
 import '../../../core/utils/share_helper.dart';
 import '../../../core/family/family_id_provider.dart';
+import '../../../core/family/family_provider.dart';
 import '../../../core/utils/device_tier.dart';
 import '../../../presentation/widgets/skeletons/profile_skeleton.dart';
+import '../../family/providers/family_invite_provider.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
 const Color _bg = Color(0xFF131416);
@@ -380,6 +382,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 onTap: () => _showExportFamilyTreeSheet(context),
               ),
             ]),
+            const SizedBox(height: 24),
+
+            // ── My Family IDs ─────────────────────────────────────
+            _buildSectionHeader('My Family IDs'),
+            const SizedBox(height: 8),
+            _buildFamilyIdsSection(),
             const SizedBox(height: 24),
 
             // ── Support ───────────────────────────────────────────
@@ -831,6 +839,96 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Divider(height: 1, thickness: 0.5, color: _borderSubtle),
+    );
+  }
+
+  // ── Family IDs Section ────────────────────────────────────────────
+
+  Widget _buildFamilyIdsSection() {
+    final familiesAsync = ref.watch(familyListProvider);
+
+    return familiesAsync.when(
+      data: (families) {
+        if (families.isEmpty) {
+          return _buildSectionCard([
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Icon(Icons.family_restroom_outlined, size: 32, color: _textDim),
+                  const SizedBox(height: 8),
+                  Text(
+                    'No families yet',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 13,
+                      color: _textDim,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ]);
+        }
+
+        return _buildSectionCard(
+          families.map((family) {
+            final kinId = family.kinFamilyId;
+            return _FamilyIdRow(
+              familyName: family.name,
+              kinFamilyId: kinId,
+              familyId: family.id,
+              onCopy: kinId != null
+                  ? () {
+                      Clipboard.setData(ClipboardData(text: kinId));
+                      context.showSnackBar('Family ID copied');
+                      ref.read(familyInviteProvider.notifier).trackInviteSent(
+                        familyId: family.id,
+                        channel: 'direct',
+                      );
+                    }
+                  : null,
+              onQR: kinId != null
+                  ? () => context.push('/family-qr?familyId=${family.id}&familyName=${Uri.encodeComponent(family.name)}&kinFamilyId=$kinId')
+                  : null,
+              onShare: kinId != null
+                  ? () => ref.read(familyInviteProvider.notifier).shareInviteLink(
+                        kinId,
+                        familyName: family.name,
+                      )
+                  : null,
+            );
+          }).toList(),
+        );
+      },
+      loading: () => _buildSectionCard([
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(_orange),
+              ),
+            ),
+          ),
+        ),
+      ]),
+      error: (_, __) => _buildSectionCard([
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: Text(
+            'Could not load families',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 13,
+              color: _textDim,
+            ),
+          ),
+        ),
+      ]),
     );
   }
 
@@ -2164,6 +2262,129 @@ class _SettingsDeleteRow extends StatelessWidget {
               const Icon(Icons.chevron_right, color: _chevronColor, size: 20),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Family ID Row Widget
+// ═══════════════════════════════════════════════════════════════════════
+
+class _FamilyIdRow extends StatelessWidget {
+  const _FamilyIdRow({
+    required this.familyName,
+    this.kinFamilyId,
+    required this.familyId,
+    this.onCopy,
+    this.onQR,
+    this.onShare,
+  });
+
+  final String familyName;
+  final String? kinFamilyId;
+  final String familyId;
+  final VoidCallback? onCopy;
+  final VoidCallback? onQR;
+  final VoidCallback? onShare;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasKinId = kinFamilyId != null && kinFamilyId!.isNotEmpty;
+
+    return InkWell(
+      onTap: hasKinId ? onCopy : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            // Family icon
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: _orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.family_restroom_rounded,
+                size: 18,
+                color: _orange,
+              ),
+            ),
+            const SizedBox(width: 12),
+
+            // Family name + ID
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    familyName,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: _textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  if (hasKinId)
+                    Text(
+                      kinFamilyId!,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.monoFont,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: _orange,
+                        letterSpacing: 1,
+                      ),
+                    )
+                  else
+                    Text(
+                      'No Family ID assigned',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 12,
+                        color: _textDim,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
+            // Action buttons
+            if (hasKinId) ...[
+              // QR code button
+              SizedBox(
+                width: 36,
+                height: 36,
+                child: IconButton(
+                  icon: Icon(Icons.qr_code_rounded, color: _textDim, size: 20),
+                  onPressed: onQR,
+                  padding: EdgeInsets.zero,
+                  tooltip: 'Show QR code',
+                ),
+              ),
+              const SizedBox(width: 4),
+              // Share button
+              SizedBox(
+                width: 36,
+                height: 36,
+                child: IconButton(
+                  icon: Icon(Icons.share_outlined, color: _textDim, size: 20),
+                  onPressed: onShare,
+                  padding: EdgeInsets.zero,
+                  tooltip: 'Share invite link',
+                ),
+              ),
+            ] else ...[
+              Icon(Icons.chevron_right, color: _chevronColor, size: 20),
+            ],
+          ],
         ),
       ),
     );

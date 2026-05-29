@@ -7,7 +7,7 @@
 //     https://kinrel.app/member/:id, https://kinrel.app/share/:id)
 //   • Uses share_plus to share via WhatsApp, SMS, etc.
 //   • Handles incoming deep links when app is opened from a link
-//   • Uses Isar cache to show content instantly while API loads
+//   • Uses Drift cache to show content instantly while API loads
 //   • Navigates to the correct screen using GoRouter
 //
 // Supported deep link paths:
@@ -15,6 +15,15 @@
 //   /member/:id   → Person detail screen
 //   /share/:id    → Share screen for a family
 //   /invite/:code → Join family by invite code
+//   /join/:kinId  → Join family by KIN-XXXXXXXX ID
+//
+// Enhancements (Task 4):
+//   • KIN-XXXXXXXX format validation for /join/ deep links
+//   • Family preview preloading from CachedFamilyIds table
+//   • Deep link analytics (tracking when deep links are opened)
+//   • Join deep link family preview data (name, member count)
+//   • Deferred deep link support (pending deep link for post-login)
+//   • Deep link URL validation and sanitization
 //
 // URL schemes:
 //   https://kinrel.app/...  (universal links — Android + iOS)
@@ -25,11 +34,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_links/app_links.dart';
-// Isar import removed — using Drift via IsarDatabase wrapper
 import 'package:share_plus/share_plus.dart' as share_plus;
 
 import '../database/isar_database.dart';
 import '../services/crashlytics_service.dart';
+import '../services/analytics_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Constants
@@ -46,6 +55,23 @@ const kPathFamily = '/family';
 const kPathMember = '/member';
 const kPathShare = '/share';
 const kPathInvite = '/invite';
+const kPathJoin = '/join';
+
+/// KIN-XXXXXXXX format validation regex
+final _kinFamilyIdRegex = RegExp(r'^KIN-[A-Z0-9]{8}$');
+
+/// Validate a KIN-XXXXXXXX Family ID format
+bool isValidKinFamilyId(String input) {
+  return _kinFamilyIdRegex.hasMatch(input.trim().toUpperCase());
+}
+
+/// Sanitize a KIN Family ID by normalizing to uppercase and trimming
+String? sanitizeKinFamilyId(String? input) {
+  if (input == null || input.isEmpty) return null;
+  final sanitized = input.trim().toUpperCase();
+  if (isValidKinFamilyId(sanitized)) return sanitized;
+  return null;
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // URL Generation Helpers
@@ -73,6 +99,12 @@ String generateShareUrl(String familyId) {
 /// Example: https://kinrel.app/invite/sharma25
 String generateInviteUrl(String inviteCode) {
   return '$kDeepLinkBaseUrl$kPathInvite/$inviteCode';
+}
+
+/// Generate a join URL from a KIN-XXXXXXXX Family ID.
+/// Example: https://kinrel.app/join/KIN-ABCD1234
+String generateJoinUrl(String kinFamilyId) {
+  return '$kDeepLinkBaseUrl$kPathJoin/$kinFamilyId';
 }
 
 /// Generate a custom-scheme family URL (fallback).
@@ -197,7 +229,7 @@ class DeepLinkRoute {
     this.queryParams,
   });
 
-  /// The route path (e.g., '/family', '/member', '/share', '/invite')
+  /// The route path (e.g., '/family', '/member', '/share', '/invite', '/join')
   final String path;
 
   /// The ID extracted from the path (e.g., family ID, member ID, invite code)
@@ -209,7 +241,8 @@ class DeepLinkRoute {
   /// Convert to a GoRouter-compatible location string.
   /// Examples:
   ///   DeepLinkRoute(path: '/family', id: 'abc123') → '/family/abc123'
-  ///   DeepLinkRoute(path: '/invite', id: 'sharma25') → '/family/join?code=sharma25'
+  ///   DeepLinkRoute(path: '/invite', id: 'sharma25') → '/invite/sharma25'
+  ///   DeepLinkRoute(path: '/join', id: 'KIN-ABCD1234') → '/join-family?kinFamilyId=KIN-ABCD1234'
   String toLocation() {
     if (id == null) return path;
     switch (path) {
@@ -222,10 +255,26 @@ class DeepLinkRoute {
       case kPathInvite:
         // Invite codes route to the invitations screen with the code
         return '$kPathInvite/$id';
+      case kPathJoin:
+        // Join by KIN-XXXXXXXX Family ID → join family screen pre-filled
+        // Validate the KIN ID format before constructing the route
+        final kinId = id!.trim().toUpperCase();
+        if (isValidKinFamilyId(kinId)) {
+          return '/join-family?kinFamilyId=$kinId';
+        }
+        // Invalid KIN ID format — still navigate but without pre-fill
+        debugPrint('⚠️ Deep link KIN ID invalid format: $id');
+        return '/join-family';
       default:
         return '$path/$id';
     }
   }
+
+  /// Whether this deep link is a join-family link
+  bool get isJoinLink => path == kPathJoin;
+
+  /// Whether this deep link has a valid KIN-XXXXXXXX ID
+  bool get hasValidKinId => id != null && isValidKinFamilyId(id!);
 
   @override
   String toString() => 'DeepLinkRoute(path: $path, id: $id, queryParams: $queryParams)';
@@ -235,6 +284,8 @@ class DeepLinkRoute {
 ///
 /// Supports both universal links (https://kinrel.app/family/abc123)
 /// and custom scheme links (kinrel://family/abc123).
+///
+/// For /join/ links, validates the KIN-XXXXXXXX format.
 DeepLinkRoute? parseDeepLink(Uri uri) {
   // Normalize: strip host for https links, strip scheme for custom scheme
   final pathSegments = uri.pathSegments;
@@ -246,12 +297,25 @@ DeepLinkRoute? parseDeepLink(Uri uri) {
   if (firstSegment != kPathFamily &&
       firstSegment != kPathMember &&
       firstSegment != kPathShare &&
-      firstSegment != kPathInvite) {
+      firstSegment != kPathInvite &&
+      firstSegment != kPathJoin) {
     return null;
   }
 
   // Extract the ID from the second path segment
   final id = pathSegments.length > 1 ? pathSegments[1] : null;
+
+  // For /join/ links, validate and normalize the KIN Family ID
+  if (firstSegment == kPathJoin && id != null) {
+    final normalizedId = id.trim().toUpperCase();
+
+    // Validate KIN-XXXXXXXX format
+    if (!isValidKinFamilyId(normalizedId)) {
+      debugPrint('⚠️ Deep link /join/ has invalid KIN ID: $id');
+      // Still create the route but with the original (unvalidated) ID
+      // The join screen will handle validation
+    }
+  }
 
   // Extract query parameters
   final queryParams = <String, String>{};
@@ -267,10 +331,10 @@ DeepLinkRoute? parseDeepLink(Uri uri) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Isar Cache Preloading
+// Drift Cache Preloading
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Preload cached data for a deep link target from Isar.
+/// Preload cached data for a deep link target from Drift.
 ///
 /// This ensures the screen has data to display instantly while
 /// the API call loads fresh data in the background.
@@ -279,13 +343,13 @@ Future<DeepLinkCacheResult?> preloadFromCache(DeepLinkRoute route) async {
   if (!IsarDatabase.isInitialized) return null;
 
   try {
-    final isar = IsarDatabase.instance;
+    final db = IsarDatabase.instance;
 
     switch (route.path) {
       case kPathFamily:
       case kPathShare:
         if (route.id != null) {
-          final cached = await isar.getFamily(route.id!);
+          final cached = await db.getFamily(route.id!);
           if (cached != null) {
             return DeepLinkCacheResult(
               type: 'family',
@@ -298,7 +362,7 @@ Future<DeepLinkCacheResult?> preloadFromCache(DeepLinkRoute route) async {
 
       case kPathMember:
         if (route.id != null) {
-          final cached = await isar.getPerson(route.id!);
+          final cached = await db.getPerson(route.id!);
           if (cached != null) {
             return DeepLinkCacheResult(
               type: 'member',
@@ -312,7 +376,7 @@ Future<DeepLinkCacheResult?> preloadFromCache(DeepLinkRoute route) async {
       case kPathInvite:
         // Invite codes map to families — look up by familyCode
         if (route.id != null) {
-          final cached = await isar.getFamilyByCode(route.id!);
+          final cached = await db.getFamilyByCode(route.id!);
           if (cached != null) {
             return DeepLinkCacheResult(
               type: 'family',
@@ -322,10 +386,94 @@ Future<DeepLinkCacheResult?> preloadFromCache(DeepLinkRoute route) async {
           }
         }
         break;
+
+      case kPathJoin:
+        // Join by KIN-XXXXXXXX — look up by kinFamilyId in CachedFamilyIds
+        if (route.id != null) {
+          try {
+            final db = IsarDatabase.instance;
+            // Try exact match first using the dedicated method
+            final cachedById = await db.getFamilyByKinId(route.id!.toUpperCase());
+            if (cachedById != null) {
+              return DeepLinkCacheResult(
+                type: 'family',
+                id: cachedById.familyId,
+                data: {
+                  'id': cachedById.familyId,
+                  'name': cachedById.name,
+                  'kinFamilyId': cachedById.kinFamilyId,
+                  'memberCount': cachedById.memberCount,
+                  'avatarUrl': cachedById.avatarUrl,
+                },
+              );
+            }
+
+            // Fallback: scan all cached family IDs
+            final cachedIds = await db.getAllCachedFamilyIds();
+            for (final cached in cachedIds) {
+              if (cached.kinFamilyId.toUpperCase() == route.id!.toUpperCase()) {
+                return DeepLinkCacheResult(
+                  type: 'family',
+                  id: cached.familyId,
+                  data: {
+                    'id': cached.familyId,
+                    'name': cached.name,
+                    'kinFamilyId': cached.kinFamilyId,
+                    'memberCount': cached.memberCount,
+                    'avatarUrl': cached.avatarUrl,
+                  },
+                );
+              }
+            }
+          } catch (_) {}
+        }
+        break;
     }
   } catch (e) {
     debugPrint('⚠️ Deep link cache preload error: $e');
     logError(e, StackTrace.current, reason: 'Deep link cache preload failed');
+  }
+
+  return null;
+}
+
+/// Preload a family preview for a KIN-XXXXXXXX join deep link.
+///
+/// Returns a [DeepLinkFamilyPreview] with name, member count, and
+/// other cached details if available.
+Future<DeepLinkFamilyPreview?> preloadFamilyPreview(String kinFamilyId) async {
+  if (!IsarDatabase.isInitialized) return null;
+
+  try {
+    final db = IsarDatabase.instance;
+    final normalizedId = kinFamilyId.trim().toUpperCase();
+
+    // Try exact match in CachedFamilyIds table
+    final cached = await db.getFamilyByKinId(normalizedId);
+    if (cached != null) {
+      return DeepLinkFamilyPreview(
+        familyId: cached.familyId,
+        kinFamilyId: cached.kinFamilyId,
+        name: cached.name,
+        memberCount: cached.memberCount,
+        avatarUrl: cached.avatarUrl,
+      );
+    }
+
+    // Fallback: try CachedFamilies table by kinFamilyId
+    final allFamilies = await db.getAllFamilies();
+    for (final family in allFamilies) {
+      if (family.kinFamilyId?.toUpperCase() == normalizedId) {
+        return DeepLinkFamilyPreview(
+          familyId: family.id,
+          kinFamilyId: family.kinFamilyId!,
+          name: family.name,
+          avatarUrl: null, // not directly on CachedFamily
+        );
+      }
+    }
+  } catch (e) {
+    debugPrint('⚠️ preloadFamilyPreview error: $e');
   }
 
   return null;
@@ -353,6 +501,26 @@ class DeepLinkCacheResult {
 
   /// The member name if this is a member cache result
   String? get memberName => data['name'] as String?;
+
+  /// The member count if this is a family cache result
+  int? get memberCount => data['memberCount'] as int?;
+}
+
+/// Family preview data for a join deep link.
+class DeepLinkFamilyPreview {
+  const DeepLinkFamilyPreview({
+    required this.familyId,
+    required this.kinFamilyId,
+    required this.name,
+    this.memberCount = 0,
+    this.avatarUrl,
+  });
+
+  final String familyId;
+  final String kinFamilyId;
+  final String name;
+  final int memberCount;
+  final String? avatarUrl;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -373,6 +541,19 @@ class DeepLinkService {
   StreamSubscription<Uri>? _linkSubscription;
   final _appLinks = AppLinks();
   bool _initialized = false;
+
+  /// Pending deep link for deferred handling (e.g., after login)
+  String? _pendingDeepLinkLocation;
+
+  /// Whether there's a pending deep link waiting to be handled
+  bool get hasPendingDeepLink => _pendingDeepLinkLocation != null;
+
+  /// Get and clear the pending deep link location
+  String? consumePendingDeepLink() {
+    final location = _pendingDeepLinkLocation;
+    _pendingDeepLinkLocation = null;
+    return location;
+  }
 
   /// Whether the service is currently listening for deep links.
   bool get isInitialized => _initialized;
@@ -402,6 +583,9 @@ class DeepLinkService {
           // Preload cache for instant display
           await preloadFromCache(route);
 
+          // Track deep link open
+          _trackDeepLinkOpen(route);
+
           // Navigate after a short delay to let the app fully initialize
           Future.delayed(const Duration(milliseconds: 800), () {
             onDeepLink(route.toLocation());
@@ -424,6 +608,8 @@ class DeepLinkService {
           if (route != null) {
             // Preload cache
             preloadFromCache(route).then((_) {
+              // Track deep link open
+              _trackDeepLinkOpen(route);
               onDeepLink(route.toLocation());
             });
           }
@@ -441,11 +627,33 @@ class DeepLinkService {
     debugPrint('✅ Deep link service initialized');
   }
 
+  /// Track deep link open for analytics
+  void _trackDeepLinkOpen(DeepLinkRoute route) {
+    try {
+      AnalyticsService.instance.logScreenView('deep_link_${route.path.substring(1)}');
+
+      if (route.isJoinLink && route.hasValidKinId) {
+        // Track invite click from deep link
+        debugPrint('📊 Deep link: join family invite clicked (${route.id})');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Deep link analytics error: $e');
+    }
+  }
+
+  /// Store a pending deep link for deferred handling.
+  /// Used when a deep link is received but the user isn't authenticated yet.
+  void setPendingDeepLink(String location) {
+    _pendingDeepLinkLocation = location;
+    debugPrint('🔗 Deep link: stored pending location: $location');
+  }
+
   /// Stop listening for deep links.
   void dispose() {
     _linkSubscription?.cancel();
     _linkSubscription = null;
     _initialized = false;
+    _pendingDeepLinkLocation = null;
   }
 }
 
@@ -469,8 +677,8 @@ final deepLinkFamilyNameProvider = FutureProvider.family<String?, String>((
   if (!IsarDatabase.isInitialized) return null;
 
   try {
-    final isar = IsarDatabase.instance;
-    final cached = await isar.getFamily(familyId);
+    final db = IsarDatabase.instance;
+    final cached = await db.getFamily(familyId);
     return cached?.name;
   } catch (_) {
     return null;
@@ -486,10 +694,19 @@ final deepLinkMemberNameProvider = FutureProvider.family<String?, String>((
   if (!IsarDatabase.isInitialized) return null;
 
   try {
-    final isar = IsarDatabase.instance;
-    final cached = await isar.getPerson(memberId);
+    final db = IsarDatabase.instance;
+    final cached = await db.getPerson(memberId);
     return cached?.name;
   } catch (_) {
     return null;
   }
+});
+
+/// Provider that preloads a family preview for a KIN Family ID deep link.
+/// Used by JoinFamilyScreen to show family info instantly from cache.
+final deepLinkFamilyPreviewProvider = FutureProvider.family<DeepLinkFamilyPreview?, String>((
+  ref,
+  kinFamilyId,
+) async {
+  return preloadFamilyPreview(kinFamilyId);
 });

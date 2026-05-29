@@ -4,16 +4,39 @@ import {
   BadRequestException,
   ConflictException,
   UnauthorizedException,
+  HttpException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { CacheService } from '../../common/cache/cache.service';
 import * as bcrypt from 'bcryptjs';
+
+/**
+ * Rate limit tracker for username availability checks.
+ * Key: userId, Value: array of timestamps (ms)
+ */
+interface RateLimitEntry {
+  timestamps: number[];
+}
 
 @Injectable()
 export class UsersService {
+  // ── In-memory rate limiter for username checks (5 checks per minute per user) ──
+  private readonly usernameCheckRateLimits = new Map<string, RateLimitEntry>();
+  private static readonly USERNAME_CHECK_RATE_LIMIT = 5;
+  private static readonly USERNAME_CHECK_RATE_WINDOW_MS = 60_000; // 1 minute
+
+  // ── In-memory cache for username availability (30s TTL) ──
+  private readonly usernameAvailabilityCache = new Map<
+    string,
+    { available: boolean; reason?: string; cachedAt: number }
+  >();
+  private static readonly USERNAME_AVAILABILITY_CACHE_TTL_MS = 30_000; // 30 seconds
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly cacheService: CacheService,
   ) {}
 
   // ── Get User by Username (public profile) ──────────────────────
@@ -313,25 +336,40 @@ export class UsersService {
     return { success: true, message: 'Account deleted' };
   }
 
-  // ── Check Username Availability ─────────────────────────────────
+  // ── Check Username Availability (with rate limiting + caching) ────
 
-  async checkUsername(username: string) {
+  async checkUsername(username: string, userId?: string) {
     if (!username || username.trim().length < 3) {
       return { available: false, reason: 'Username must be at least 3 characters' };
     }
 
     const trimmed = username.trim().toLowerCase();
 
+    // ── Rate limiting (if userId is provided) ──
+    if (userId) {
+      this.enforceUsernameCheckRateLimit(userId);
+    }
+
+    // ── Check in-memory cache (30s TTL) ──
+    const cached = this.usernameAvailabilityCache.get(trimmed);
+    if (cached && Date.now() - cached.cachedAt < UsersService.USERNAME_AVAILABILITY_CACHE_TTL_MS) {
+      return { available: cached.available, reason: cached.reason };
+    }
+
     // Validate format
     const usernameRegex = /^[a-z][a-z0-9_]{2,29}$/;
     if (!usernameRegex.test(trimmed)) {
-      return { available: false, reason: 'Username must be 3-30 characters, start with a letter, lowercase letters, numbers, and underscores only' };
+      const result = { available: false, reason: 'Username must be 3-30 characters, start with a letter, lowercase letters, numbers, and underscores only' };
+      this.usernameAvailabilityCache.set(trimmed, { ...result, cachedAt: Date.now() });
+      return result;
     }
 
     // Check reserved words
     const reserved = ['admin', 'root', 'system', 'moderator', 'support', 'help', 'api', 'null', 'undefined'];
     if (reserved.includes(trimmed)) {
-      return { available: false, reason: 'This username is reserved' };
+      const result = { available: false, reason: 'This username is reserved' };
+      this.usernameAvailabilityCache.set(trimmed, { ...result, cachedAt: Date.now() });
+      return result;
     }
 
     // Check in User table
@@ -340,19 +378,136 @@ export class UsersService {
     });
 
     if (existingUser) {
-      return { available: false, reason: 'Username is already taken' };
+      const result = { available: false, reason: 'Username is already taken' };
+      this.usernameAvailabilityCache.set(trimmed, { ...result, cachedAt: Date.now() });
+      return result;
     }
 
-    // Also check in Person table (as per task requirements)
+    // Also check in Person table
     const existingPerson = await this.prisma.person.findFirst({
       where: { username: trimmed, deletedAt: null },
     });
 
     if (existingPerson) {
-      return { available: false, reason: 'Username is already taken' };
+      const result = { available: false, reason: 'Username is already taken' };
+      this.usernameAvailabilityCache.set(trimmed, { ...result, cachedAt: Date.now() });
+      return result;
     }
 
-    return { available: true };
+    const result = { available: true };
+    this.usernameAvailabilityCache.set(trimmed, { ...result, cachedAt: Date.now() });
+    return result;
+  }
+
+  // ── Rate limit enforcement for username checks ──────────────────
+
+  private enforceUsernameCheckRateLimit(userId: string): void {
+    const now = Date.now();
+    const entry = this.usernameCheckRateLimits.get(userId) || { timestamps: [] };
+
+    // Prune timestamps outside the window
+    entry.timestamps = entry.timestamps.filter(
+      (ts) => now - ts < UsersService.USERNAME_CHECK_RATE_WINDOW_MS,
+    );
+
+    if (entry.timestamps.length >= UsersService.USERNAME_CHECK_RATE_LIMIT) {
+      throw new HttpException(
+        'Too many username checks. Please try again in a minute.',
+        429,
+      );
+    }
+
+    entry.timestamps.push(now);
+    this.usernameCheckRateLimits.set(userId, entry);
+  }
+
+  // ── Generate Username Suggestions ────────────────────────────────
+
+  async generateUsernameSuggestions(displayName: string, userId: string) {
+    if (!displayName || displayName.trim().length < 1) {
+      throw new BadRequestException('Display name is required to generate suggestions');
+    }
+
+    const name = displayName.trim().toLowerCase();
+    const reserved = ['admin', 'root', 'system', 'moderator', 'support', 'help', 'api', 'null', 'undefined'];
+
+    // Generate 5 candidate usernames from the display name
+    const cleanName = name.replace(/[^a-z0-9_]/g, '');
+    const parts = cleanName.split(/[\s_]+/).filter(Boolean);
+    const firstName = parts[0] || '';
+    const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
+    const randomSuffix = () => Math.floor(Math.random() * 100).toString().padStart(2, '0');
+
+    const candidates: string[] = [];
+
+    // Strategy 1: firstname
+    if (firstName) candidates.push(firstName);
+
+    // Strategy 2: firstname + lastname (if available)
+    if (firstName && lastName) {
+      candidates.push(`${firstName}${lastName}`);
+      candidates.push(`${firstName}_${lastName}`);
+    }
+
+    // Strategy 3: firstname + random 2-digit suffix
+    if (firstName) candidates.push(`${firstName}${randomSuffix()}`);
+
+    // Strategy 4: first initial + lastname + suffix
+    if (firstName && lastName) {
+      candidates.push(`${firstName[0]}${lastName}${randomSuffix()}`);
+    }
+
+    // Fallback: ensure we have at least 5 candidates
+    while (candidates.length < 5) {
+      candidates.push(`${firstName || 'user'}${randomSuffix()}`);
+    }
+
+    // Deduplicate and limit to 5
+    const uniqueCandidates = [...new Set(candidates)].slice(0, 5);
+
+    // Check availability for each candidate
+    const suggestions = await Promise.all(
+      uniqueCandidates.map(async (candidate) => {
+        // Validate format
+        const usernameRegex = /^[a-z][a-z0-9_]{2,29}$/;
+        const formatValid = usernameRegex.test(candidate);
+        const isReserved = reserved.includes(candidate);
+
+        if (!formatValid || isReserved) {
+          return { username: candidate, available: false };
+        }
+
+        // Check in both User and Person tables
+        const [existingUser, existingPerson] = await Promise.all([
+          this.prisma.user.findUnique({ where: { username: candidate } }),
+          this.prisma.person.findFirst({ where: { username: candidate, deletedAt: null } }),
+        ]);
+
+        return {
+          username: candidate,
+          available: !existingUser && !existingPerson,
+        };
+      }),
+    );
+
+    return { suggestions };
+  }
+
+  // ── Get Username Change History ──────────────────────────────────
+
+  async getUsernameHistory(userId: string) {
+    const history = await this.prisma.usernameChangeLog.findMany({
+      where: { userId },
+      orderBy: { changedAt: 'desc' },
+      select: {
+        id: true,
+        oldUsername: true,
+        newUsername: true,
+        changedAt: true,
+      },
+    });
+
+    return { history };
   }
 
   // ── Update Username ─────────────────────────────────────────────
@@ -381,18 +536,45 @@ export class UsersService {
       throw new ConflictException('Username is already taken');
     }
 
-    const user = await this.prisma.user.update({
+    // Get current user to record old username
+    const currentUser = await this.prisma.user.findUnique({
       where: { id: userId },
-      data: { username: trimmed },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        username: true,
-        avatarUrl: true,
-        photoThumb: true,
-      },
+      select: { username: true },
     });
+
+    const oldUsername = currentUser?.username || null;
+
+    // Update username and log the change in a transaction
+    const user = await this.prisma.$transaction(async (tx) => {
+      // Log the username change
+      await tx.usernameChangeLog.create({
+        data: {
+          userId,
+          oldUsername,
+          newUsername: trimmed,
+        },
+      });
+
+      // Update the user's username
+      return tx.user.update({
+        where: { id: userId },
+        data: { username: trimmed },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          username: true,
+          avatarUrl: true,
+          photoThumb: true,
+        },
+      });
+    });
+
+    // Invalidate cached availability for the new username
+    this.usernameAvailabilityCache.delete(trimmed);
+    if (oldUsername) {
+      this.usernameAvailabilityCache.delete(oldUsername);
+    }
 
     return { user };
   }

@@ -1,4 +1,4 @@
-import { IsDateString, IsString, IsOptional } from 'class-validator';
+import { IsDateString, IsString, IsOptional, MaxLength } from 'class-validator';
 
 /**
  * SyncQueryDto — Request body for the POST /api/sync endpoint.
@@ -20,5 +20,6 @@ export class SyncQueryDto {
    * Must match the authenticated user's ID (enforced by controller).
    */
   @IsString()
+  @MaxLength(50)
   userId: string;
 }

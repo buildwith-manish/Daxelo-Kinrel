@@ -22,6 +22,34 @@ import '../../../core/database/repositories/offline_profile_repository.dart';
 // DATA MODELS
 // ════════════════════════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════════════════════════
+// PROFILE COMPLETION SCORE
+// ════════════════════════════════════════════════════════════════════
+
+/// Profile completion score indicating how complete the user's profile is.
+class ProfileCompletionScore {
+  const ProfileCompletionScore({
+    required this.percentage,
+    required this.missingFields,
+    required this.suggestions,
+  });
+
+  /// Percentage from 0-100.
+  final int percentage;
+
+  /// List of field names that are missing.
+  final List<String> missingFields;
+
+  /// Human-readable suggestions for improving the profile.
+  final List<String> suggestions;
+
+  /// Whether the profile is considered complete (>= 80%).
+  bool get isComplete => percentage >= 80;
+
+  /// Whether the profile is minimally complete (>= 50%).
+  bool get isMinimal => percentage >= 50;
+}
+
 /// User profile data from the NestJS backend.
 class ProfileModel {
   const ProfileModel({
@@ -87,6 +115,16 @@ class ProfileModel {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  // ── Extended profile fields ─────────────────────────────────────
+  /// User's occupation/profession.
+  final String? occupation;
+
+  /// User's education level or institution.
+  final String? education;
+
+  /// Privacy settings for profile visibility.
+  final String? privacySettings;
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'email': email,
@@ -104,7 +142,99 @@ class ProfileModel {
     'authProvider': authProvider,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
+    'occupation': occupation,
+    'education': education,
+    'privacySettings': privacySettings,
   };
+
+  /// Calculate profile completion score.
+  /// Each field contributes a specific percentage:
+  /// - Avatar (20%), Display name (10%), Username (15%), Bio (10%),
+  /// - DOB (10%), Occupation (10%), Education (10%), Phone (5%),
+  /// - At least one family (10%)
+  ProfileCompletionScore calculateCompletion({int familyCount = 0}) {
+    int score = 0;
+    final missing = <String>[];
+    final suggestionsList = <String>[];
+
+    // Avatar (20%)
+    if (avatarUrl != null && avatarUrl!.isNotEmpty) {
+      score += 20;
+    } else {
+      missing.add('avatar');
+      suggestionsList.add('Add a profile photo so family members can recognize you');
+    }
+
+    // Display name (10%)
+    if (name != null && name!.trim().isNotEmpty) {
+      score += 10;
+    } else {
+      missing.add('name');
+      suggestionsList.add('Add your display name to personalize your profile');
+    }
+
+    // Username (15%)
+    if (username != null && username!.trim().isNotEmpty) {
+      score += 15;
+    } else {
+      missing.add('username');
+      suggestionsList.add('Set a username so others can find and tag you');
+    }
+
+    // Bio (10%)
+    if (bio != null && bio!.trim().isNotEmpty) {
+      score += 10;
+    } else {
+      missing.add('bio');
+      suggestionsList.add('Write a short bio to tell your family about yourself');
+    }
+
+    // DOB (10%)
+    if (dateOfBirth != null) {
+      score += 10;
+    } else {
+      missing.add('dateOfBirth');
+      suggestionsList.add('Add your birthday so family can celebrate with you');
+    }
+
+    // Occupation (10%)
+    if (occupation != null && occupation!.trim().isNotEmpty) {
+      score += 10;
+    } else {
+      missing.add('occupation');
+      suggestionsList.add('Add your profession or occupation');
+    }
+
+    // Education (10%)
+    if (education != null && education!.trim().isNotEmpty) {
+      score += 10;
+    } else {
+      missing.add('education');
+      suggestionsList.add('Add your education background');
+    }
+
+    // Phone (5%)
+    if (phone != null && phone!.trim().isNotEmpty) {
+      score += 5;
+    } else {
+      missing.add('phone');
+      suggestionsList.add('Add your phone number for family contact');
+    }
+
+    // At least one family (10%)
+    if (familyCount > 0) {
+      score += 10;
+    } else {
+      missing.add('family');
+      suggestionsList.add('Join or create a family to start building your tree');
+    }
+
+    return ProfileCompletionScore(
+      percentage: score.clamp(0, 100),
+      missingFields: missing,
+      suggestions: suggestionsList,
+    );
+  }
 }
 
 /// User statistics summary.
@@ -320,6 +450,7 @@ class ProfileState {
     this.families = const [],
     this.invitations = const [],
     this.blockedUsers = const [],
+    this.profileCompletion,
   });
 
   final ProfileModel? profile;
@@ -330,6 +461,9 @@ class ProfileState {
   final List<FamilyTreeNode> families;
   final List<InvitationModel> invitations;
   final List<BlockedUserModel> blockedUsers;
+
+  /// Cached profile completion score.
+  final ProfileCompletionScore? profileCompletion;
 
   ProfileState copyWith({
     ProfileModel? profile,
@@ -343,6 +477,8 @@ class ProfileState {
     List<FamilyTreeNode>? families,
     List<InvitationModel>? invitations,
     List<BlockedUserModel>? blockedUsers,
+    ProfileCompletionScore? profileCompletion,
+    bool clearCompletion = false,
   }) {
     return ProfileState(
       profile: clearProfile ? null : (profile ?? this.profile),
@@ -353,6 +489,7 @@ class ProfileState {
       families: families ?? this.families,
       invitations: invitations ?? this.invitations,
       blockedUsers: blockedUsers ?? this.blockedUsers,
+      profileCompletion: clearCompletion ? null : (profileCompletion ?? this.profileCompletion),
     );
   }
 }
@@ -368,6 +505,122 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
 
   // ── Helper: get the configured Dio client ──────────────────────
   Dio get _dio => _ref.read(dioProvider);
+
+  // ── Profile Completion ──────────────────────────────────────────
+
+  /// Calculate and cache the profile completion score.
+  ProfileCompletionScore calculateProfileCompletion() {
+    final profile = state.profile;
+    if (profile == null) {
+      const empty = ProfileCompletionScore(
+        percentage: 0,
+        missingFields: ['profile'],
+        suggestions: ['Complete your profile to get started'],
+      );
+      state = state.copyWith(profileCompletion: empty);
+      return empty;
+    }
+
+    final score = profile.calculateCompletion(
+      familyCount: state.families.length,
+    );
+    state = state.copyWith(profileCompletion: score);
+    return score;
+  }
+
+  // ── Extended Profile Fields ─────────────────────────────────────
+
+  /// Load extended profile fields (occupation, education, privacy) from backend.
+  Future<Map<String, dynamic>?> loadExtendedProfile() async {
+    try {
+      final response = await _dio.get('/api/users/me/extended');
+      if (response.data is Map<String, dynamic>) {
+        return response.data as Map<String, dynamic>;
+      }
+    } on DioException catch (e) {
+      debugPrint('⚠️ loadExtendedProfile error: ${e.message}');
+    } catch (e) {
+      debugPrint('⚠️ loadExtendedProfile error: $e');
+    }
+    return null;
+  }
+
+  // ── Profile Field Validation ────────────────────────────────────
+
+  /// Validate profile fields before saving.
+  /// Returns a map of field name → error message. Empty map means valid.
+  Map<String, String> validateProfileFields(Map<String, dynamic> data) {
+    final errors = <String, String>{};
+
+    // Username validation
+    if (data.containsKey('username')) {
+      final username = data['username'] as String? ?? '';
+      if (username.isNotEmpty) {
+        if (username.length < 3) {
+          errors['username'] = 'Username must be at least 3 characters';
+        } else if (username.length > 30) {
+          errors['username'] = 'Username must be at most 30 characters';
+        } else if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username)) {
+          errors['username'] = 'Username can only contain letters, numbers, and underscores';
+        }
+      }
+    }
+
+    // Name validation
+    if (data.containsKey('name')) {
+      final name = data['name'] as String? ?? '';
+      if (name.isNotEmpty && name.length > 100) {
+        errors['name'] = 'Name must be at most 100 characters';
+      }
+    }
+
+    // Bio validation
+    if (data.containsKey('bio')) {
+      final bio = data['bio'] as String? ?? '';
+      if (bio.length > 500) {
+        errors['bio'] = 'Bio must be at most 500 characters';
+      }
+    }
+
+    // Phone validation
+    if (data.containsKey('phone')) {
+      final phone = data['phone'] as String? ?? '';
+      if (phone.isNotEmpty && !RegExp(r'^\+?[0-9\s\-\(\)]{7,20}$').hasMatch(phone)) {
+        errors['phone'] = 'Please enter a valid phone number';
+      }
+    }
+
+    // Occupation validation
+    if (data.containsKey('occupation')) {
+      final occupation = data['occupation'] as String? ?? '';
+      if (occupation.length > 100) {
+        errors['occupation'] = 'Occupation must be at most 100 characters';
+      }
+    }
+
+    // Education validation
+    if (data.containsKey('education')) {
+      final education = data['education'] as String? ?? '';
+      if (education.length > 200) {
+        errors['education'] = 'Education must be at most 200 characters';
+      }
+    }
+
+    // Date of birth validation
+    if (data.containsKey('dateOfBirth')) {
+      final dobStr = data['dateOfBirth']?.toString();
+      if (dobStr != null && dobStr.isNotEmpty) {
+        final dob = DateTime.tryParse(dobStr);
+        if (dob == null) {
+          errors['dateOfBirth'] = 'Invalid date format';
+        } else if (dob.isAfter(DateTime.now())) {
+          errors['dateOfBirth'] = 'Date of birth cannot be in the future';
+        }
+      }
+    }
+
+    return errors;
+  }
 
   // ── Load Profile ───────────────────────────────────────────────
 

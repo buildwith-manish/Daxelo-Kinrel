@@ -1,0 +1,60 @@
+# =============================================================================
+# Daxelo-Kinrel — Production Dockerfile
+# =============================================================================
+# Multi-stage build optimized for production deployment.
+#
+# Features:
+#   - Minimal final image (only production dependencies + compiled code)
+#   - Non-root user for security compliance
+#   - HEALTHCHECK directive for container orchestration
+#   - Prisma client generation in both stages
+#   - Layer caching optimization (package files copied first)
+#
+# Usage:
+#   docker build -f Dockerfile.production -t kinrel-server:prod .
+#   docker run -p 3000:3000 --env-file .env kinrel-server:prod
+# =============================================================================
+
+# ── Stage 1: Build ──────────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+# Install dependencies first (leverage Docker layer caching)
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Copy source and build
+COPY . .
+RUN npx prisma generate
+RUN npm run build
+
+# ── Stage 2: Production Runner ──────────────────────────────────────────────
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+# Set production environment
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Create non-root user for security
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Copy only production artefacts from builder
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/package.json ./
+
+# Change ownership to non-root user
+RUN chown -R appuser:appgroup /app
+
+# Use non-root user
+USER appuser
+
+# Health check — verifies the server is responding
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:3000/api/health || exit 1
+
+EXPOSE 3000
+
+CMD ["node", "dist/main.js"]

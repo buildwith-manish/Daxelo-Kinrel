@@ -14,7 +14,7 @@ class CacheInvalidation {
     if (!IsarDatabase.isInitialized) return;
 
     // Delete the cached family
-    await _db.deleteFamiliesByFamily(familyId);
+    await _db.deleteFamily(familyId);
 
     // Delete all cached persons in this family
     await _db.deletePersonsByFamily(familyId);
@@ -37,7 +37,7 @@ class CacheInvalidation {
   static Future<void> invalidateProfile(String userId) async {
     if (!IsarDatabase.isInitialized) return;
 
-    await (IsarDatabase.instance.deletePerson(userId));
+    await _db.deleteProfile(userId);
 
     // Invalidate API cache entries related to the user
     final apiEntries = await _db.getAllApiCacheEntries();
@@ -100,7 +100,7 @@ class CacheInvalidation {
     for (final f in families) {
       final cachedAt = DateTime.tryParse(f.cachedAt);
       if (cachedAt != null && now.difference(cachedAt) > familyTtl) {
-        await (IsarDatabase.instance.deletePerson(f.id));
+        await _db.deleteFamily(f.id);
         removedCount++;
       }
     }

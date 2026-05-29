@@ -82,10 +82,29 @@ export class AiFeaturesService {
   private initializeGemini() {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     if (!apiKey) {
-      this.logger.warn(
-        'GEMINI_API_KEY not set — AI features will use fallback responses',
-      );
+      const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
+      if (nodeEnv === 'production') {
+        this.logger.error(
+          '❌ GEMINI_API_KEY is not set! AI features will NOT work in production. ' +
+          'Set the GEMINI_API_KEY environment variable to enable AI features.',
+        );
+        // In production, we log an error but don't crash — fallback responses
+        // will be used. This prevents deployment failure if the key is
+        // temporarily missing, while still alerting operators.
+      } else {
+        this.logger.warn(
+          'GEMINI_API_KEY not set — AI features will use fallback responses',
+        );
+      }
       return;
+    }
+
+    // Validate the key format (basic check — Gemini keys start with "AI")
+    if (!apiKey.startsWith('AI')) {
+      this.logger.warn(
+        'GEMINI_API_KEY appears to be invalid (does not start with "AI"). ' +
+        'AI features may not work correctly.',
+      );
     }
 
     try {

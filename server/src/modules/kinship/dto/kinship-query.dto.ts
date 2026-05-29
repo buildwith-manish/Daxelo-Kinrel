@@ -1,13 +1,15 @@
-import { IsOptional, IsString, IsEnum } from 'class-validator';
+import { IsOptional, IsString, IsEnum, MaxLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class KinshipQueryDto {
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   key?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   search?: string;
 
   @IsOptional()

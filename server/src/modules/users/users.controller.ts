@@ -18,6 +18,16 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UsersService } from './users.service';
+import { IsString, IsNotEmpty, MaxLength, IsOptional } from 'class-validator';
+
+// ── DTOs for new username endpoints ──────────────────────────────────
+
+export class UsernameSuggestionsDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  displayName!: string;
+}
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -107,10 +117,29 @@ export class UsersController {
     return this.usersService.uploadAvatar(userId, file);
   }
 
-  // ── Check Username Availability ──────────────────────────────────
+  // ── Check Username Availability (enhanced with rate limiting + cache) ──
   @Get('check-username')
-  async checkUsername(@Query('username') username: string) {
-    return this.usersService.checkUsername(username);
+  async checkUsername(
+    @Query('username') username: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.usersService.checkUsername(username, userId);
+  }
+
+  // ── Generate Username Suggestions ─────────────────────────────────
+  @Post('username/suggestions')
+  @HttpCode(HttpStatus.OK)
+  async generateUsernameSuggestions(
+    @CurrentUser('id') userId: string,
+    @Body() dto: UsernameSuggestionsDto,
+  ) {
+    return this.usersService.generateUsernameSuggestions(dto.displayName, userId);
+  }
+
+  // ── Get Username Change History ───────────────────────────────────
+  @Get('username/history')
+  async getUsernameHistory(@CurrentUser('id') userId: string) {
+    return this.usersService.getUsernameHistory(userId);
   }
 
   // ── Update Username ──────────────────────────────────────────────

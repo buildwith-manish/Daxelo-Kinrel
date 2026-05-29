@@ -15,6 +15,7 @@ import '../database/sync/cache_invalidation.dart';
 import '../database/isar_database.dart';
 import '../family/family_provider.dart';
 import '../networking/dio_client.dart';
+import 'realtime_dedup.dart';
 
 // ── Event Models ────────────────────────────────────────────────────
 
@@ -109,6 +110,13 @@ final realtimeStatusProvider = StateProvider<RealtimeStatus>(
 ///   Relationship, FamilyInvite, Notification tables.
 /// - **Presence**: Track online/offline status per family.
 /// - **Broadcast**: Custom events like graph:updated.
+///
+/// Enhancements over original:
+/// - **Deduplication**: Uses [RealtimeDedup] to skip duplicate events.
+/// - **Member Presence**: Subscribes to Presence channels for each family.
+/// - **Connection Status Stream**: Exposes a Stream<bool> for online/offline.
+/// - **Duplicate Subscription Prevention**: Checks if already subscribed
+///   before creating a new channel.
 class SupabaseRealtimeService {
   SupabaseRealtimeService(this._ref);
 
@@ -134,17 +142,37 @@ class SupabaseRealtimeService {
   /// Whether the service is currently active.
   bool _isActive = false;
 
+  /// Deduplication helper to prevent processing duplicate events.
+  final RealtimeDedup _dedup = RealtimeDedup();
+
+  /// Stream controller for connection status (online/offline).
+  final StreamController<bool> _connectionStatusController =
+      StreamController<bool>.broadcast();
+
+  /// Stream of connection status changes (true = online, false = offline).
+  Stream<bool> get onConnectionStatusChanged =>
+      _connectionStatusController.stream;
+
+  /// Current connection status.
+  bool _isOnline = false;
+
+  /// Whether the realtime connection is currently online.
+  bool get isOnline => _isOnline;
+
   // ── Public API ────────────────────────────────────────────────────
 
   /// Subscribe to a family channel for real-time updates.
   ///
   /// Returns a stream of [FamilyUpdateEvent] for the given family.
+  /// If already subscribed, returns the existing stream without
+  /// creating a duplicate subscription.
   Stream<FamilyUpdateEvent> subscribeToFamily(String familyId) {
     if (!_familyStreams.containsKey(familyId)) {
       _familyStreams[familyId] =
           StreamController<FamilyUpdateEvent>.broadcast();
     }
 
+    // Prevent duplicate subscription — only set up channel once
     if (!_subscribedFamilies.contains(familyId)) {
       _subscribedFamilies.add(familyId);
       _setupFamilyChannel(familyId);
@@ -154,8 +182,12 @@ class SupabaseRealtimeService {
   }
 
   /// Subscribe to user notification events.
+  /// Prevents duplicate subscription by checking if the channel exists.
   Stream<NotificationEvent> subscribeToNotifications(String userId) {
-    _setupUserChannel(userId);
+    final channelName = 'user:$userId';
+    if (!_channels.containsKey(channelName)) {
+      _setupUserChannel(userId);
+    }
     return _notificationStreamController.stream;
   }
 
@@ -245,8 +277,11 @@ class SupabaseRealtimeService {
     _presenceStreams.clear();
 
     _notificationStreamController.close();
+    _connectionStatusController.close();
 
     _isActive = false;
+    _isOnline = false;
+    _dedup.clear();
 
     _ref.read(realtimeStatusProvider.notifier).state =
         RealtimeStatus.disconnected;
@@ -382,8 +417,12 @@ class SupabaseRealtimeService {
     channel.subscribe((RealtimeSubscribeStatus status, Object? error) {
       if (status == RealtimeSubscribeStatus.subscribed) {
         _isActive = true;
+        _isOnline = true;
         _ref.read(realtimeStatusProvider.notifier).state =
             RealtimeStatus.connected;
+        if (!_connectionStatusController.isClosed) {
+          _connectionStatusController.add(true);
+        }
         debugPrint(
           '[SupabaseRealtime] ✅ Subscribed to $channelName',
         );
@@ -399,12 +438,20 @@ class SupabaseRealtimeService {
           });
         }
       } else if (status == RealtimeSubscribeStatus.channelError) {
+        _isOnline = false;
+        if (!_connectionStatusController.isClosed) {
+          _connectionStatusController.add(false);
+        }
         _ref.read(realtimeStatusProvider.notifier).state =
             RealtimeStatus.disconnected;
         debugPrint(
           '[SupabaseRealtime] ❌ Channel error on $channelName: $error',
         );
       } else if (status == RealtimeSubscribeStatus.timedOut) {
+        _isOnline = false;
+        if (!_connectionStatusController.isClosed) {
+          _connectionStatusController.add(false);
+        }
         _ref.read(realtimeStatusProvider.notifier).state =
             RealtimeStatus.disconnected;
         debugPrint(
@@ -485,6 +532,15 @@ class SupabaseRealtimeService {
         ? payload.newRecord
         : payload.oldRecord;
 
+    // ── Deduplication ──────────────────────────────────────────────
+    final eventId = 'person:${record['id']}:$eventType:${record['updatedAt'] ?? DateTime.now().millisecondsSinceEpoch}';
+    if (_dedup.isDuplicate(eventId)) {
+      debugPrint(
+        '[SupabaseRealtime] Skipping duplicate person event: $eventId',
+      );
+      return;
+    }
+
     debugPrint(
       '[SupabaseRealtime] Person $eventType in family:$familyId — id: ${record['id']}',
     );
@@ -506,6 +562,18 @@ class SupabaseRealtimeService {
   ) {
     final eventType = payload.eventType.name;
 
+    // ── Deduplication ──────────────────────────────────────────────
+    final record = payload.newRecord.isNotEmpty
+        ? payload.newRecord
+        : payload.oldRecord;
+    final eventId = 'relationship:${record['id']}:$eventType:${record['updatedAt'] ?? DateTime.now().millisecondsSinceEpoch}';
+    if (_dedup.isDuplicate(eventId)) {
+      debugPrint(
+        '[SupabaseRealtime] Skipping duplicate relationship event: $eventId',
+      );
+      return;
+    }
+
     debugPrint(
       '[SupabaseRealtime] Relationship $eventType in family:$familyId',
     );
@@ -513,9 +581,7 @@ class SupabaseRealtimeService {
     final event = FamilyUpdateEvent(
       familyId: familyId,
       eventType: 'relationship:$eventType',
-      payload: Map<String, dynamic>.from(
-        payload.newRecord.isNotEmpty ? payload.newRecord : payload.oldRecord,
-      ),
+      payload: Map<String, dynamic>.from(record),
       timestamp: DateTime.now().toIso8601String(),
     );
 
@@ -640,3 +706,9 @@ final userNotificationEventsProvider =
     return service.subscribeToNotifications(userId);
   },
 );
+
+/// Provider for realtime connection status stream (bool: true = online).
+final realtimeOnlineStatusProvider = StreamProvider<bool>((ref) {
+  final service = ref.watch(supabaseRealtimeServiceProvider);
+  return service.onConnectionStatusChanged;
+});

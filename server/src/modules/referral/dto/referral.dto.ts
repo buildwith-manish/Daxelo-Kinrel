@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsNotEmpty, MaxLength } from 'class-validator';
 
 export class GenerateReferralDto {
   @IsOptional()
@@ -8,6 +8,8 @@ export class GenerateReferralDto {
 
 export class ApplyReferralDto {
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(50)
   code!: string;
 
   @IsOptional()

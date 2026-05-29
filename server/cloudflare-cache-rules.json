@@ -1,0 +1,55 @@
+{
+  "cache_rules": [
+    {
+      "path": "/api/health",
+      "ttl": 0,
+      "edge_ttl": 0
+    },
+    {
+      "path": "/api/auth/*",
+      "ttl": 0,
+      "edge_ttl": 0
+    },
+    {
+      "path": "/api/sync",
+      "ttl": 0,
+      "edge_ttl": 0
+    },
+    {
+      "path": "/api/v1/ai-chat",
+      "ttl": 0,
+      "edge_ttl": 0
+    },
+    {
+      "path": "/api/users/check-username",
+      "ttl": 30,
+      "edge_ttl": 30
+    },
+    {
+      "path": "/api/v1/kinship/*",
+      "ttl": 3600,
+      "edge_ttl": 86400
+    },
+    {
+      "path": "/api/feature-flags",
+      "ttl": 300,
+      "edge_ttl": 300
+    }
+  ],
+  "security_headers": {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "X-XSS-Protection": "1; mode=block",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Content-Security-Policy": "default-src 'self'",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()"
+  },
+  "compression": {
+    "brotli": true,
+    "gzip": true
+  },
+  "image_optimization": {
+    "mirage": true,
+    "polish": "lossy"
+  }
+}

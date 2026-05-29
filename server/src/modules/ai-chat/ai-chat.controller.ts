@@ -5,6 +5,7 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -23,6 +24,42 @@ export class AiChatController {
   @Get('suggestions')
   async getSuggestions() {
     return this.aiChatService.getSuggestions();
+  }
+
+  // ── Get Relationship Explanation ─────────────────────────────────────
+  // GET /api/v1/ai-chat/relationship-explanation?familyId=x&from=x&to=x
+  @Get('relationship-explanation')
+  async getRelationshipExplanation(
+    @CurrentUser('id') _userId: string,
+    @Query('familyId') familyId: string,
+    @Query('from') fromPersonId: string,
+    @Query('to') toPersonId: string,
+  ) {
+    return this.aiChatService.getRelationshipExplanation(
+      fromPersonId,
+      toPersonId,
+      familyId,
+    );
+  }
+
+  // ── Get Family Summary ──────────────────────────────────────────────
+  // GET /api/v1/ai-chat/family-summary/:familyId
+  @Get('family-summary/:familyId')
+  async getFamilySummary(
+    @CurrentUser('id') _userId: string,
+    @Param('familyId') familyId: string,
+  ) {
+    return this.aiChatService.getFamilySummary(familyId);
+  }
+
+  // ── Get Smart Search Suggestions ─────────────────────────────────────
+  // GET /api/v1/ai-chat/search-suggestions?q=query
+  @Get('search-suggestions')
+  async getSmartSearchSuggestions(
+    @CurrentUser('id') userId: string,
+    @Query('q') query: string,
+  ) {
+    return this.aiChatService.getSmartSearchSuggestions(query, userId);
   }
 
   // ── Send Message & Get AI Response ──────────────────────────────────

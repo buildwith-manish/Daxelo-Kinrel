@@ -367,10 +367,46 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         horizontal: KinrelSpacing.base,
         vertical: KinrelSpacing.sm,
       ),
-      itemCount: items.length + 1, // +1 for bottom padding
+      itemCount: items.length + 2, // +1 for load more, +1 for bottom padding
       itemBuilder: (context, index) {
-        // Bottom padding for nav bar
+        // Load more button
         if (index == items.length) {
+          final hasMore = ref.watch(searchHasMoreProvider);
+          final isLoadingMore = ref.watch(searchIsLoadingMoreProvider);
+          if (hasMore && state.isServerSearch) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: isLoadingMore
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: KinrelColors.orange,
+                        ),
+                      )
+                    : TextButton(
+                        onPressed: () =>
+                            ref.read(searchProvider.notifier).loadMore(),
+                        child: Text(
+                          'Load more',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 13,
+                            color: KinrelColors.orange,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+              ),
+            );
+          }
+          return const SizedBox(height: 100);
+        }
+
+        // Bottom padding for nav bar
+        if (index == items.length + 1) {
           return const SizedBox(height: 100);
         }
 

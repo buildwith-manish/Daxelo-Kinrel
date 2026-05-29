@@ -25,7 +25,8 @@ import 'core/services/supabase_service.dart';
 import 'core/storage/local_cache.dart';
 import 'core/storage/secure_storage.dart';
 import 'core/theme/theme_provider.dart';
-import 'core/database/sync/sync_service.dart';
+import 'core/database/sync/sync_engine_provider.dart';
+import 'core/database/sync/background_sync_manager.dart';
 import 'core/network/socket_service.dart';
 import 'core/utils/device_tier.dart';
 import 'core/utils/a11y_checker.dart';
@@ -368,14 +369,15 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       }
     } catch (_) {}
 
-    // 2. Start the sync service if Isar is initialized
+    // 2. Start the SyncEngine if Isar is initialized
     if (IsarDatabase.isInitialized) {
       try {
-        final syncService = ref.read(syncServiceProvider);
-        syncService.start();
-        debugPrint('🔄 SyncService started');
+        final bgSyncManager = ref.read(backgroundSyncManagerProvider);
+        bgSyncManager.init();
+        bgSyncManager.start();
+        debugPrint('🔄 SyncEngine + BackgroundSyncManager started');
       } catch (e) {
-        debugPrint('⚠️ SyncService start failed: $e');
+        debugPrint('⚠️ SyncEngine start failed: $e');
       }
     }
 
@@ -567,6 +569,12 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
                 socketService.connect();
               }
             } catch (_) {}
+
+            // Trigger background sync on app resume
+            try {
+              final bgSyncManager = ref.read(backgroundSyncManagerProvider);
+              bgSyncManager.onAppResumed();
+            } catch (_) {}
           }
         } catch (_) {}
       }
@@ -577,6 +585,12 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       logActionBreadcrumb('app_background');
       sendUnsentReports();
       RatingService.instance.onBackground();
+
+      // Stop periodic sync while in background (connectivity listener remains)
+      try {
+        final bgSyncManager = ref.read(backgroundSyncManagerProvider);
+        bgSyncManager.stop();
+      } catch (_) {}
     }
   }
 
