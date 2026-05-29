@@ -1,0 +1,59 @@
+# =============================================================================
+# Daxelo-Kinrel — Nixpacks Build Configuration
+# =============================================================================
+# Used by Coolify (and other Nixpacks-compatible platforms) to build the
+# NestJS server automatically without a custom Dockerfile.
+#
+# Nixpacks detects the Node.js project from package.json and follows the
+# phases defined below. Each phase runs in order: install → build → start.
+#
+# If you prefer Docker, the existing Dockerfile at server/Dockerfile works
+# as well — just select "Docker" as the build pack in Coolify.
+# =============================================================================
+
+# ── Provider ─────────────────────────────────────────────────────────────────
+# Force Node.js provider. Nixpacks auto-detects this from package.json, but
+# declaring it explicitly avoids ambiguity when other ecosystem files exist.
+
+[provider]
+name = "node"
+
+# ── Install Phase ────────────────────────────────────────────────────────────
+# Runs `npm ci` for deterministic dependency installation (uses package-lock.json).
+# Then generates the Prisma Client from the schema so TypeScript compilation
+# succeeds (Prisma-generated types are imported throughout the source code).
+
+[phases.install]
+cmds = [
+    "npm ci --ignore-scripts",
+    "npx prisma generate",
+]
+
+# ── Build Phase ──────────────────────────────────────────────────────────────
+# Compiles TypeScript to JavaScript using the NestJS CLI (`nest build`).
+# Output goes to the `dist/` directory as configured in nest-cli.json.
+
+[phases.build]
+cmds = [
+    "npm run build",
+]
+
+# ── Start Phase ──────────────────────────────────────────────────────────────
+# The command that runs when the container starts.
+# We use `node dist/main` directly (same as npm run start:prod) for maximum
+# performance — no npm overhead in production.
+#
+# IMPORTANT: PORT=3001 must be set as an environment variable in Coolify.
+# The app reads process.env.PORT at runtime (main.ts line 123).
+
+[start]
+cmd = "node dist/main"
+
+# ── Variables ────────────────────────────────────────────────────────────────
+# Nixpacks-provided build-time environment variables.
+# NODE_ENV=production ensures devDependencies are skipped after install
+# and that NestJS runs in production mode.
+
+[variables]
+NODE_ENV = "production"
+NPM_CONFIG_PRODUCTION = "true"

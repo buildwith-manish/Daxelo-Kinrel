@@ -1,0 +1,64 @@
+{
+  "$schema": "https://coolify.io/schemas/coolify.json",
+  "name": "daxelo-kinrel-server",
+  "description": "Daxelo-Kinrel NestJS API Server — deployed via Coolify on Oracle Cloud VPS",
+  "services": [
+    {
+      "name": "kinrel-api",
+      "type": "application",
+      "buildPack": "nixpacks",
+      "rootDirectory": "server",
+      "ports": {
+        "http": 3001
+      },
+      "healthCheck": {
+        "path": "/api/health",
+        "interval": 30,
+        "timeout": 5,
+        "startPeriod": 30,
+        "retries": 3
+      },
+      "environment": {
+        "NODE_ENV": "production",
+        "PORT": "3001",
+        "API_PREFIX": "api"
+      },
+      "resources": {
+        "memoryLimit": 1024
+      },
+      "domains": [
+        {
+          "host": "api.kinrel.app",
+          "ssl": true,
+          "sslProvider": "letsencrypt"
+        }
+      ]
+    },
+    {
+      "name": "kinrel-redis",
+      "type": "service",
+      "image": "redis:7-alpine",
+      "command": "redis-server --appendonly yes --maxmemory 192mb --maxmemory-policy allkeys-lru",
+      "ports": {
+        "tcp": 6379
+      },
+      "resources": {
+        "memoryLimit": 256
+      }
+    }
+  ],
+  "databases": [
+    {
+      "name": "kinrel-postgres",
+      "type": "postgresql",
+      "note": "Using external Supabase PostgreSQL — add a Coolify PostgreSQL service only if you want a local DB instead"
+    }
+  ],
+  "_notes": {
+    "purpose": "This file documents the intended Coolify deployment topology. Coolify's web UI is the primary configuration interface — this JSON serves as a reference and planning document.",
+    "buildPack": "Nixpacks is recommended (uses nixpacks.toml). Docker build pack also works with the existing server/Dockerfile.",
+    "redis": "Alternatively, use Coolify's one-click Redis service from the Service Templates library instead of defining it here.",
+    "domain": "api.kinrel.app must have a DNS A record pointing to the VPS IP. Coolify auto-provisions Let's Encrypt SSL.",
+    "envVars": "All environment variables must be configured through Coolify's web UI. See deploy/coolify-env-template.md for the full list."
+  }
+}
