@@ -22,35 +22,14 @@ subprojects {
 
 // ─── Compatibility fixes for Flutter plugins ────────────────────────
 subprojects {
-    // ── Force consistent JVM target across all subprojects ─────────────
-    // Without this, plugins may have mismatched Java (11) and Kotlin (17)
-    // JVM targets, causing "Inconsistent JVM-target compatibility" errors.
-    // We set compileOptions on the Android extension which propagates to
-    // both Java and Kotlin compile tasks.
-    pluginManager.withPlugin("com.android.library") {
-        val androidExt = extensions.findByType<com.android.build.api.dsl.LibraryExtension>()
-        if (androidExt != null) {
-            androidExt.compileOptions {
-                sourceCompatibility = JavaVersion.VERSION_17
-                targetCompatibility = JavaVersion.VERSION_17
-            }
-        }
-    }
-    pluginManager.withPlugin("com.android.application") {
-        val androidExt = extensions.findByType<com.android.build.api.dsl.ApplicationExtension>()
-        if (androidExt != null) {
-            androidExt.compileOptions {
-                sourceCompatibility = JavaVersion.VERSION_17
-                targetCompatibility = JavaVersion.VERSION_17
-            }
-        }
-    }
-
-    // Also force Kotlin JVM target via task configuration
-    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-        compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-        }
+    // ── Force consistent JVM 17 target across all subprojects ──────────
+    // Using Kotlin JVM Toolchain to ensure Java and Kotlin compile
+    // with the same target. This prevents "Inconsistent JVM-target
+    // compatibility" errors from plugins like in_app_review and
+    // sentry_flutter that default to JVM 11 for Java.
+    pluginManager.withPlugin("org.jetbrains.kotlin.android") {
+        extensions.findByType<org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension>()
+            ?.jvmToolchain(17)
     }
 
     // ── Inject namespace for older Flutter plugins ────────────────────
