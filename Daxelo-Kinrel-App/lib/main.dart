@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 // Hive removed — using Drift (AppDatabase) via IsarDatabase wrapper
 import 'core/database/isar_database.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/app_config.dart';
@@ -191,6 +194,23 @@ void main() async {
       'device_tier': DeviceTierCache.instance.tier.name,
     });
   } catch (_) {}
+
+  // ── Desktop window setup ──────────────────────────────────────────
+  if (!kIsWeb &&
+      (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+    await windowManager.ensureInitialized();
+    const windowOptions = WindowOptions(
+      size: Size(1280, 800),
+      minimumSize: Size(900, 600),
+      center: true,
+      title: 'Daxelo Kinrel',
+      titleBarStyle: TitleBarStyle.normal,
+    );
+    await windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.show();
+      await windowManager.focus();
+    });
+  }
 
   // ── Run app inside guarded zone ────────────────────────────────────
   // IMPORTANT: We ALWAYS call runApp() — no matter what failed above.
