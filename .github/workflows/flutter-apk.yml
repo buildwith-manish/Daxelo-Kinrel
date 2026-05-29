@@ -29,7 +29,7 @@ jobs:
           # Set ANDROID_HOME (already set on GitHub runners, but be explicit)
           echo "ANDROID_HOME=$ANDROID_HOME"
           # Install NDK, CMake, and required SDK platforms
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.0.12077973" "platforms;android-36" "build-tools;36.0.0" "cmake;3.22.1"
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;28.2.13676358" "platforms;android-36" "build-tools;36.0.0" "cmake;3.22.1"
           # Accept all licenses
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
           # Verify NDK and CMake installed

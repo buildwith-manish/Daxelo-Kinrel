@@ -26,8 +26,7 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.daxelo.kinrel"
     compileSdk = flutter.compileSdkVersion
-    // NDK not required — all native libs ship prebuilt
-    // ndkVersion = flutter.ndkVersion
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true

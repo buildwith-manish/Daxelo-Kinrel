@@ -44,6 +44,18 @@ subprojects {
             }
         }
     }
+
+    // ── Force Kotlin language version 1.8+ for all subprojects ─────
+    // Kotlin 2.x no longer supports language version 1.6.
+    // Some Flutter plugins (e.g. sentry_flutter) still declare
+    // languageVersion = "1.6", which causes compilation failures.
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+        compilerOptions {
+            languageVersion.set(
+                org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_1_8
+            )
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {
