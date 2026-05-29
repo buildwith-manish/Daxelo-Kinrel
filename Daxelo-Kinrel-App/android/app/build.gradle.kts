@@ -67,12 +67,13 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
-            // DISABLED R8/minification for now — it was causing:
-            // 1. Blank screen on release (stripped classes needed at runtime)
-            // 2. R8 OutOfMemoryError on CI even with 4G heap
-            // TODO: Re-enable with --split-per-abi for smaller APKs
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // ProGuard / R8 minification enabled for smaller APK
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }
