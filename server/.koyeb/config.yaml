@@ -1,0 +1,89 @@
+# =============================================================================
+# Daxelo-Kinrel — Koyeb Service Configuration
+# =============================================================================
+# This file defines the Koyeb service configuration for the Daxelo-Kinrel
+# NestJS API. It can be used with the Koyeb CLI for programmatic deployment
+# or as a reference when configuring the service through the Koyeb web UI.
+#
+# Usage (Koyeb CLI):
+#   koyeb service create kinrel-api --config .koyeb/config.yaml
+#
+# Note: Sensitive environment variables (secrets, API keys, passwords) should
+# be configured through the Koyeb web dashboard or CLI with the --secret flag.
+# Only non-sensitive defaults are listed here.
+# =============================================================================
+
+name: kinrel-api
+
+service:
+  name: kinrel-api
+
+  # Instance type: nano (free tier) — 512 MB RAM, 0.1 vCPU
+  # Upgrade to "micro" ($5/month) for 1 GB RAM, 0.5 vCPU when needed
+  instance_type: nano
+
+  # Regions: Frankfurt (closest to India with free tier availability)
+  # Other free tier regions: iad (Washington DC), sin (Singapore)
+  regions:
+    - fra
+
+  # Git source configuration
+  git:
+    repository: buildwith-manish/Daxelo-Kinrel
+    branch: main
+    # Build directory: the server/ subdirectory in the monorepo
+    build_directory: server
+    # Custom Dockerfile optimized for Koyeb's nano instance
+    dockerfile_path: Dockerfile.koyeb
+
+  # Port configuration and health check
+  ports:
+    - port: 3001
+      protocol: http
+      healthcheck:
+        # The /api/health endpoint returns {"status":"ok","db":"connected",...}
+        path: /api/health
+        # Check every 30 seconds
+        interval: 30
+        # Fail if no response in 5 seconds
+        timeout: 5
+        # Grace period for startup — NestJS bootstrap can be slow on 0.1 vCPU
+        start_period: 30
+        # Mark unhealthy after 3 consecutive failures
+        retries: 3
+
+  # Non-sensitive environment variables
+  # All other variables (secrets, API keys, connection strings) must be
+  # configured via the Koyeb dashboard under Service → Environment Variables
+  env:
+    - key: NODE_ENV
+      value: production
+    - key: PORT
+      value: "3001"
+    - key: API_PREFIX
+      value: api
+    - key: FRONTEND_URL
+      value: https://kinrel.app
+    - key: JWT_ACCESS_EXPIRATION
+      value: 15m
+    - key: JWT_REFRESH_EXPIRATION
+      value: 7d
+    - key: CORS_ORIGINS
+      value: "https://kinrel.app,https://www.kinrel.app,capabile://,com.daxelo.kinrel"
+    - key: LOG_LEVEL
+      value: info
+    - key: ERROR_RATE_ALERT_THRESHOLD
+      value: "0.01"
+    - key: P99_ALERT_THRESHOLD_MS
+      value: "2000"
+
+  # Scaling: 1 instance on the free tier
+  # Increase min/max when upgrading to paid plans for auto-scaling
+  scalings:
+    - min: 1
+      max: 1
+
+  # Routing: all traffic to port 3001
+  routes:
+    - path: /
+      port: 3001

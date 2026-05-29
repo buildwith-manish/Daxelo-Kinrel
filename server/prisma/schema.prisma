@@ -476,6 +476,7 @@ model Family {
 
   // ── Graph-First Redesign Fields ──
   familyCode      String   @unique @default(cuid()) // Shareable family ID like Instagram handle
+  kinFamilyId     String?  @unique // Human-readable Family ID: KIN-AB12CD34 (Feature 1: Family ID System)
   username        String?  @unique // Unique @username for display (e.g. @sharmw)
   avatarUrl       String?
   region          String?
@@ -498,13 +499,14 @@ model Family {
   @@index([name])
   @@index([familyCode])
   @@index([username])
+  @@index([kinFamilyId])
 }
 
 model FamilyMember {
   id              String   @id @default(cuid())
   familyId        String
   userId          String
-  role            String   @default("member") // admin, editor, member, viewer
+  role            String   @default("member") // owner, admin, member, viewer
 
   family          Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
   user            User     @relation(fields: [userId], references: [id])
@@ -543,12 +545,22 @@ model Person {
   gender          String?  // male, female, other
   username        String?  // Unique @username for display
 
+  // ── Full Member Profile Fields ──
+  bloodGroup      String?  // A+, A-, B+, B-, AB+, AB-, O+, O-
+  education       String?  // Education details
+  biography       String?  // Long biography text
+  email           String?  // Contact email
+  phone           String?  // Contact phone
+  address         String?  // Contact address (JSON: {street, city, state, country, zip})
+  anniversaryDate DateTime? // Marriage/wedding anniversary
+
   family          Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   relationshipsFrom Relationship[] @relation("RelationshipFrom")
   relationshipsTo   Relationship[] @relation("RelationshipTo")
 
   feedPosts       FamilyPost[]
+  privacySettings PersonPrivacySetting?
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -899,6 +911,7 @@ model Relationship {
   fromPersonId    String
   toPersonId      String
   relationshipKey String   // Kinship key e.g. "fathers_sister", "spouse", "child" — renamed from "type"
+  relationshipType String  @default("custom") // father, mother, son, daughter, brother, sister, husband, wife, custom
   direction       String   @default("from") // from: fromPerson is the type of toPerson (e.g. from=father means fromPerson is father of toPerson)
   isActive        Boolean  @default(true)
   label           String?  // Custom user-defined label override
@@ -1391,6 +1404,9 @@ model FamilyMilestone {
 model PersonPrivacySetting {
   id              String   @id @default(cuid())
   personId        String   @unique
+  person          Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  // ── Existing Privacy Fields ──
   visibility      String   @default("family") // family_only, extended, public
   searchable      Boolean  @default(true)
   matrimonialEligible Boolean @default(true)
@@ -1399,6 +1415,19 @@ model PersonPrivacySetting {
   photoConsent    Boolean  @default(true)
   healthConsent   Boolean  @default(false)
   gotraVisibility String   @default("family") // self, admin, family, hidden
+
+  // ── New Privacy Controls ──
+  showPhone       Boolean  @default(false)
+  showEmail       Boolean  @default(false)
+  showAddress     Boolean  @default(false)
+  showDob         Boolean  @default(true)
+  showAge         Boolean  @default(true)
+  showOccupation  Boolean  @default(true)
+  showEducation   Boolean  @default(true)
+  showBloodGroup  Boolean  @default(false)
+  showAnniversary Boolean  @default(false)
+  profileVisibleTo String @default("family") // family, extended, public
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -1444,8 +1473,11 @@ model FamilyInvite {
   invitedBy       String   // FamilyMember id
   inviteCode      String   @unique @default(cuid())
   role            String   @default("viewer") // admin/editor/member/viewer
+  status          String   @default("pending") // pending, accepted, rejected, expired
+  inviteType      String   @default("link") // family_id, qr_code, link
   maxUses         Int      @default(1)
   currentUses     Int      @default(0)
+  useCount        Int      @default(0)
   expiresAt       DateTime?
   createdAt       DateTime @default(now())
 
@@ -1560,5 +1592,67 @@ model FeatureFlag {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Pack: Sync, Path Cache & AI Features
+// ══════════════════════════════════════════════════════════════════════
+
+// ── Sync Log (offline sync tracking) ─────────────────────────────────
+
+model SyncLog {
+  id              String   @id @default(cuid())
+  userId          String
+  familyId        String?
+  syncType        String   // full, delta, reconnect
+  lastSyncedAt    DateTime @default(now())
+  entitiesSynced  Int      @default(0)
+  conflictsCount  Int      @default(0)
+  resolvedCount   Int      @default(0)
+  status          String   @default("completed") // completed, failed, partial
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+
+  @@index([userId, familyId])
+  @@index([userId, lastSyncedAt])
+}
+
+// ── Relationship Path Cache (computed kinship paths) ──────────────────
+
+model RelationshipPathCache {
+  id              String   @id @default(cuid())
+  familyId        String
+  fromPersonId    String
+  toPersonId      String
+  path            String   // JSON array of {personId, relationshipType} steps
+  kinshipTerm     String?  // Computed term like "cousin"
+  kinshipTermHi   String?  // Hindi translation
+  distance        Int      // Number of hops
+  computedAt      DateTime @default(now())
+  expiresAt       DateTime @default(now())
+
+  @@unique([familyId, fromPersonId, toPersonId])
+  @@index([familyId])
+  @@index([fromPersonId])
+  @@index([toPersonId])
+  @@index([expiresAt])
+}
+
+// ── AI Interaction (AI features tracking) ────────────────────────────
+
+model AiInteraction {
+  id              String   @id @default(cuid())
+  userId          String
+  familyId        String?
+  personId        String?
+  interactionType String   // explain_relationship, family_summary, history_summary, smart_search
+  prompt          String
+  response        String
+  modelUsed       String   @default("gemini-flash")
+  tokenCount      Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([interactionType])
 }
 

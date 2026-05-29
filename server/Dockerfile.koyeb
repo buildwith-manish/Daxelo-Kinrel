@@ -1,0 +1,85 @@
+# =============================================================================
+# Daxelo-Kinrel — Koyeb Production Dockerfile
+# =============================================================================
+# Multi-stage build optimized for Koyeb's nano instance (512 MB RAM, 0.1 vCPU).
+#
+# Key differences from the standard Dockerfile:
+#   - Separate production dependency install (--only=production) in the runner
+#     stage to keep the final image minimal.
+#   - Prisma Client generated in both stages (builder for TypeScript compilation,
+#     runner for runtime).
+#   - Non-root user (nestjs:nodejs) for security compliance.
+#   - HEALTHCHECK directive for Koyeb's container orchestration.
+#   - start-period of 30s to allow NestJS bootstrap on constrained CPU.
+#
+# Usage:
+#   Koyeb Dashboard → Create Service → GitHub → Build path: Dockerfile.koyeb
+#   Or via .koyeb/config.yaml with dockerfile_path: Dockerfile.koyeb
+# =============================================================================
+
+# ── Stage 1: Build ────────────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files first (leverages Docker layer caching)
+COPY package*.json ./
+
+# Install ALL dependencies (including devDependencies for build tools)
+RUN npm ci
+
+# Copy Prisma schema and generate the client
+# Must happen before COPY . . so the generated client is available for build
+COPY prisma ./prisma/
+RUN npx prisma generate
+
+# Copy the rest of the source code
+COPY . .
+
+# Build the NestJS application (outputs to dist/)
+RUN npm run build
+
+# ── Stage 2: Production ──────────────────────────────────────────────────────
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+# Set production environment
+ENV NODE_ENV=production
+ENV PORT=3001
+
+# Copy package files and install PRODUCTION dependencies only
+# This keeps the image small — no TypeScript, no NestJS CLI, no dev tools
+COPY package*.json ./
+COPY prisma ./prisma/
+RUN npm ci --only=production
+RUN npx prisma generate
+
+# Copy the compiled application from the builder stage
+COPY --from=builder /app/dist ./dist
+
+# Create a non-root user for security
+# Koyeb requires containers to run as non-root on some instance types
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nestjs -u 1001
+
+# Change ownership of the app directory
+RUN chown -R nestjs:nodejs /app
+
+# Switch to the non-root user
+USER nestjs
+
+# Expose the application port
+EXPOSE 3001
+
+# Health check — Koyeb uses this to determine service health
+# --start-period=30s: NestJS bootstrap can take time on nano instances
+# --interval=30s: Check every 30 seconds
+# --timeout=5s: Fail if no response in 5 seconds
+# --retries=3: Mark unhealthy after 3 consecutive failures
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1
+
+# Start the application
+# Using node directly (not npm) to avoid unnecessary npm process overhead
+CMD ["node", "dist/main.js"]

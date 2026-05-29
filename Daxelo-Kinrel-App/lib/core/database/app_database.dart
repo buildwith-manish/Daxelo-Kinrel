@@ -36,6 +36,7 @@ class CachedFamilies extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
   TextColumn get data => text()();
+  TextColumn get kinFamilyId => text().nullable()();
   DateTimeColumn get cachedAt => dateTime()();
 
   @override
@@ -47,6 +48,13 @@ class CachedPersons extends Table {
   TextColumn get familyId => text()();
   TextColumn get name => text()();
   TextColumn get data => text()();
+  TextColumn get bloodGroup => text().nullable()();
+  TextColumn get education => text().nullable()();
+  TextColumn get biography => text().nullable()();
+  TextColumn get email => text().nullable()();
+  TextColumn get phone => text().nullable()();
+  TextColumn get anniversaryDate => text().nullable()();
+  TextColumn get relationshipType => text().nullable()();
   DateTimeColumn get cachedAt => dateTime()();
 
   @override
@@ -109,6 +117,66 @@ class ApiCacheEntries extends Table {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// NEW TABLE DEFINITIONS (v2)
+// ═══════════════════════════════════════════════════════════════════════
+
+class CachedInvitations extends Table {
+  TextColumn get id => text()();
+  TextColumn get familyId => text()();
+  TextColumn get familyName => text()();
+  TextColumn get inviterName => text()();
+  TextColumn get status => text()(); // pending, accepted, rejected, expired
+  TextColumn get role => text()();
+  TextColumn get channel => text()(); // family_id, qr_code, link
+  TextColumn get inviteCode => text().nullable()();
+  DateTimeColumn get expiresAt => dateTime().nullable()();
+  DateTimeColumn get acceptedAt => dateTime().nullable()();
+  TextColumn get data => text()(); // Full JSON for additional fields
+  DateTimeColumn get cachedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+class CachedRelationshipPaths extends Table {
+  TextColumn get familyId => text()();
+  TextColumn get fromPersonId => text()();
+  TextColumn get toPersonId => text()();
+  TextColumn get path => text()(); // JSON array of steps
+  TextColumn get kinshipTerm => text().nullable()();
+  TextColumn get kinshipTermHindi => text().nullable()();
+  IntColumn get distance => integer()();
+  DateTimeColumn get computedAt => dateTime()();
+  DateTimeColumn get expiresAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {familyId, fromPersonId, toPersonId};
+}
+
+class SyncMetadata extends Table {
+  TextColumn get entityType => text()(); // families, persons, relationships, invitations
+  TextColumn get lastSyncedAt => text()(); // ISO 8601 timestamp
+  TextColumn get checksum => text().nullable()(); // Hash of last synced data
+  IntColumn get recordCount => integer().withDefault(const Constant(0))();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {entityType};
+}
+
+class ConflictLog extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get entityType => text()();
+  TextColumn get entityId => text()();
+  TextColumn get localData => text()(); // JSON
+  TextColumn get serverData => text()(); // JSON
+  TextColumn get resolution => text().withDefault(const Constant('pending'))(); // pending, local_wins, server_wins, merged
+  TextColumn get resolvedData => text().nullable()(); // JSON after merge
+  DateTimeColumn get detectedAt => dateTime()();
+  DateTimeColumn get resolvedAt => dateTime().nullable()();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // DATABASE CLASS
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -123,16 +191,67 @@ class ApiCacheEntries extends Table {
   RecentlyViewedProfiles,
   PendingOperations,
   ApiCacheEntries,
+  CachedInvitations,
+  CachedRelationshipPaths,
+  SyncMetadata,
+  ConflictLog,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'daxelo_kinrel_db');
   }
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onUpgrade: (migrator, from, to) async {
+          if (from < 2) {
+            // ── v1 → v2: Add new columns to existing tables ──────────
+            await migrator.addColumn(
+              cachedFamilies,
+              cachedFamilies.kinFamilyId,
+            );
+            await migrator.addColumn(
+              cachedPersons,
+              cachedPersons.bloodGroup,
+            );
+            await migrator.addColumn(
+              cachedPersons,
+              cachedPersons.education,
+            );
+            await migrator.addColumn(
+              cachedPersons,
+              cachedPersons.biography,
+            );
+            await migrator.addColumn(
+              cachedPersons,
+              cachedPersons.email,
+            );
+            await migrator.addColumn(
+              cachedPersons,
+              cachedPersons.phone,
+            );
+            await migrator.addColumn(
+              cachedPersons,
+              cachedPersons.anniversaryDate,
+            );
+            await migrator.addColumn(
+              cachedPersons,
+              cachedPersons.relationshipType,
+            );
+
+            // ── v1 → v2: Create new tables ───────────────────────────
+            await migrator.createTable(cachedInvitations);
+            await migrator.createTable(cachedRelationshipPaths);
+            await migrator.createTable(syncMetadata);
+            await migrator.createTable(conflictLog);
+          }
+        },
+      );
 
   // ── Profiles ──────────────────────────────────────────────────────
 
@@ -333,6 +452,109 @@ class AppDatabase extends _$AppDatabase {
   Future<List<ApiCacheEntry>> getAllApiCacheEntries() =>
       select(apiCacheEntries).get();
 
+  // ── Cached Invitations ────────────────────────────────────────────
+
+  Future<List<CachedInvitation>> getInvitationsByFamily(String familyId) =>
+      (select(cachedInvitations)..where((t) => t.familyId.equals(familyId)))
+          .get();
+
+  Future<List<CachedInvitation>> getInvitationsByStatus(String status) =>
+      (select(cachedInvitations)..where((t) => t.status.equals(status)))
+          .get();
+
+  Future<CachedInvitation?> getInvitation(String id) =>
+      (select(cachedInvitations)..where((t) => t.id.equals(id)))
+          .getSingleOrNull();
+
+  Future<void> upsertInvitation(CachedInvitationsCompanion invitation) =>
+      into(cachedInvitations).insertOnConflictUpdate(invitation);
+
+  Future<void> deleteInvitation(String id) =>
+      (delete(cachedInvitations)..where((t) => t.id.equals(id))).go();
+
+  Future<void> clearInvitations() => delete(cachedInvitations).go();
+
+  Future<int> invitationCount() =>
+      cachedInvitations.count().getSingle();
+
+  // ── Cached Relationship Paths ─────────────────────────────────────
+
+  Future<CachedRelationshipPath?> getRelationshipPath(
+    String familyId,
+    String fromPersonId,
+    String toPersonId,
+  ) =>
+      (select(cachedRelationshipPaths)
+            ..where((t) =>
+                t.familyId.equals(familyId) &
+                t.fromPersonId.equals(fromPersonId) &
+                t.toPersonId.equals(toPersonId)))
+          .getSingleOrNull();
+
+  Future<List<CachedRelationshipPath>> getPathsByFamily(String familyId) =>
+      (select(cachedRelationshipPaths)
+            ..where((t) => t.familyId.equals(familyId)))
+          .get();
+
+  Future<void> upsertRelationshipPath(
+          CachedRelationshipPathsCompanion path) =>
+      into(cachedRelationshipPaths).insertOnConflictUpdate(path);
+
+  Future<void> deleteRelationshipPathsByFamily(String familyId) =>
+      (delete(cachedRelationshipPaths)
+            ..where((t) => t.familyId.equals(familyId)))
+          .go();
+
+  Future<void> clearRelationshipPaths() =>
+      delete(cachedRelationshipPaths).go();
+
+  // ── Sync Metadata ─────────────────────────────────────────────────
+
+  Future<SyncMetadataDatum?> getSyncMetadata(String entityType) =>
+      (select(syncMetadata)..where((t) => t.entityType.equals(entityType)))
+          .getSingleOrNull();
+
+  Future<List<SyncMetadataDatum>> getAllSyncMetadata() =>
+      select(syncMetadata).get();
+
+  Future<void> upsertSyncMetadata(SyncMetadataCompanion metadata) =>
+      into(syncMetadata).insertOnConflictUpdate(metadata);
+
+  Future<void> deleteSyncMetadata(String entityType) =>
+      (delete(syncMetadata)..where((t) => t.entityType.equals(entityType)))
+          .go();
+
+  Future<void> clearSyncMetadata() => delete(syncMetadata).go();
+
+  // ── Conflict Log ──────────────────────────────────────────────────
+
+  Future<List<ConflictLogData>> getPendingConflicts() =>
+      (select(conflictLog)..where((t) => t.resolution.equals('pending')))
+          .get();
+
+  Future<List<ConflictLogData>> getConflictsByEntity(
+          String entityType, String entityId) =>
+      (select(conflictLog)
+            ..where((t) =>
+                t.entityType.equals(entityType) &
+                t.entityId.equals(entityId)))
+          .get();
+
+  Future<ConflictLogData?> getConflict(int id) =>
+      (select(conflictLog)..where((t) => t.id.equals(id)))
+          .getSingleOrNull();
+
+  Future<void> upsertConflict(ConflictLogCompanion conflict) =>
+      into(conflictLog).insertOnConflictUpdate(conflict);
+
+  Future<void> deleteConflict(int id) =>
+      (delete(conflictLog)..where((t) => t.id.equals(id))).go();
+
+  Future<void> clearConflictLog() => delete(conflictLog).go();
+
+  Future<int> conflictCount() =>
+      conflictLog.count().getSingle();
+
   // ── Bulk Operations ──────────────────────────────────────────────
 
   Future<void> clearAllCache() async {
@@ -343,6 +565,10 @@ class AppDatabase extends _$AppDatabase {
     await delete(apiCacheEntries).go();
     await delete(searchHistoryEntries).go();
     await delete(recentlyViewedProfiles).go();
+    await delete(cachedInvitations).go();
+    await delete(cachedRelationshipPaths).go();
+    await delete(syncMetadata).go();
+    await delete(conflictLog).go();
   }
 
   Future<void> clearAll() async {
@@ -363,6 +589,10 @@ class AppDatabase extends _$AppDatabase {
       'pendingOps': await pendingOperations.count().getSingle(),
       'apiCache': await apiCacheEntries.count().getSingle(),
       'settings': await userSettings.count().getSingle(),
+      'invitations': await cachedInvitations.count().getSingle(),
+      'relationshipPaths': await cachedRelationshipPaths.count().getSingle(),
+      'syncMetadata': await syncMetadata.count().getSingle(),
+      'conflictLog': await conflictLog.count().getSingle(),
     };
   }
 }

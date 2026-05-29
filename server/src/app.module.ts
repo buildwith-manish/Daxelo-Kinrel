@@ -35,6 +35,7 @@ import { AiCardsModule } from './modules/ai-cards/ai-cards.module';
 import { ReferralModule } from './modules/referral/referral.module';
 import { AiVoiceModule } from './modules/ai-voice/ai-voice.module';
 import { SyncModule } from './modules/sync/sync.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
 import { CustomThrottlerGuard } from './common/guards/throttler.guard';
 
 @Module({
@@ -116,6 +117,9 @@ import { CustomThrottlerGuard } from './common/guards/throttler.guard';
 
     // ── Sync module ─────────────────────────────────────────
     SyncModule,
+
+    // ── Realtime module (Supabase Realtime) ──────────────────
+    RealtimeModule,
   ],
   providers: [
     // ── Global rate limiting guard ──────────────────────────

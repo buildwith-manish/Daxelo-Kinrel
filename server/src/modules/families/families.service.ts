@@ -3,10 +3,13 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateFamilyDto } from './dto/create-family.dto';
 import { UpdateFamilyDto } from './dto/update-family.dto';
+import { FamilyIdService } from './family-id.service';
 
 const ROLE_HIERARCHY: Record<string, number> = {
   viewer: 1,
@@ -17,12 +20,20 @@ const ROLE_HIERARCHY: Record<string, number> = {
 
 @Injectable()
 export class FamiliesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(forwardRef(() => FamilyIdService))
+    private familyIdService: FamilyIdService,
+  ) {}
 
   async create(userId: string, dto: CreateFamilyDto) {
     if (!dto.name || typeof dto.name !== 'string' || dto.name.trim().length === 0) {
       throw new BadRequestException('Family name is required');
     }
+
+    // Pre-generate the Family ID outside the transaction to avoid
+    // holding a transaction lock while generating a random ID
+    const kinFamilyId = await this.familyIdService.generateFamilyId();
 
     const family = await this.prisma.$transaction(async (tx) => {
       const created = await tx.family.create({
@@ -36,6 +47,7 @@ export class FamiliesService {
           createdBy: userId,
           memberCount: 1,
           lastActivityAt: new Date(),
+          kinFamilyId,
         },
       });
 
@@ -62,6 +74,7 @@ export class FamiliesService {
             id: true,
             name: true,
             familyCode: true,
+            kinFamilyId: true,
             username: true,
             description: true,
             primaryLanguage: true,
@@ -200,6 +213,7 @@ export class FamiliesService {
     id: string;
     name: string;
     familyCode: string;
+    kinFamilyId: string | null;
     username: string | null;
     description: string | null;
     primaryLanguage: string;
@@ -220,6 +234,7 @@ export class FamiliesService {
       id: family.id,
       name: family.name,
       familyCode: family.familyCode,
+      kinFamilyId: family.kinFamilyId,
       username: family.username,
       description: family.description,
       primaryLanguage: family.primaryLanguage,

@@ -19,6 +19,7 @@
     "db:check-migration": "bash scripts/pre-migration-check.sh"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.0",
@@ -32,6 +33,7 @@
     "@nestjs/throttler": "^6.0.0",
     "@nestjs/websockets": "^11.0.0",
     "@prisma/client": "^6.0.0",
+    "@supabase/supabase-js": "^2.106.2",
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
@@ -49,6 +51,7 @@
     "razorpay": "^2.9.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "sharp": "^0.34.5",
     "socket.io": "^4.8.0",
     "speakeasy": "^2.0.0",
     "stripe": "^17.0.0",
