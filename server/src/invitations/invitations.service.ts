@@ -12,7 +12,7 @@ export class InvitationsService {
     if (!invitation) {
       throw new NotFoundException('Invitation not found');
     }
-    if (invitation.inviteeId !== userId) {
+    if (invitation.inviterId !== userId) {
       throw new ForbiddenException('This invitation is not for you');
     }
     if (invitation.status !== 'pending') {
@@ -53,7 +53,7 @@ export class InvitationsService {
     if (!invitation) {
       throw new NotFoundException('Invitation not found');
     }
-    if (invitation.inviteeId !== userId) {
+    if (invitation.inviterId !== userId) {
       throw new ForbiddenException('This invitation is not for you');
     }
 

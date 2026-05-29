@@ -10,7 +10,8 @@ export class SupportService {
       data: {
         userId,
         subject: data.subject,
-        message: data.message,
+        description: data.message,
+        ticketNumber: `DK-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
       },
     });
     return ticket;

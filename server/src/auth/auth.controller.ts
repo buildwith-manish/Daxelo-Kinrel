@@ -10,9 +10,9 @@ export class AuthController {
   @UseGuards(SupabaseAuthGuard)
   @HttpCode(HttpStatus.OK)
   async logout(@Request() req: any) {
-    // Invalidate session by deleting from DB
+    // Invalidate session by deleting refresh tokens
     const userId = req.user.id;
-    await this.prisma.session.deleteMany({
+    await this.prisma.refreshToken.deleteMany({
       where: { userId },
     });
     return { message: 'Logged out successfully' };
@@ -70,18 +70,19 @@ export class AuthController {
   @UseGuards(SupabaseAuthGuard)
   async getSessions(@Request() req: any) {
     const userId = req.user.id;
-    const sessions = await this.prisma.session.findMany({
+    // Return refresh tokens as sessions
+    const tokens = await this.prisma.refreshToken.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
     });
-    return { sessions };
+    return { sessions: tokens };
   }
 
   @Delete('sessions/:id')
   @UseGuards(SupabaseAuthGuard)
   async revokeSession(@Param('id') id: string, @Request() req: any) {
     const userId = req.user.id;
-    await this.prisma.session.deleteMany({
+    await this.prisma.refreshToken.deleteMany({
       where: { id, userId },
     });
     return { message: 'Session revoked' };
@@ -91,11 +92,17 @@ export class AuthController {
   @UseGuards(SupabaseAuthGuard)
   async revokeAllOtherSessions(@Request() req: any) {
     const userId = req.user.id;
-    const currentToken = req.headers['authorization']?.split(' ')[1];
-    await this.prisma.session.deleteMany({
+    // Delete all refresh tokens except the most recent
+    const tokens = await this.prisma.refreshToken.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 1,
+    });
+    const keepId = tokens.length > 0 ? tokens[0].id : '';
+    await this.prisma.refreshToken.deleteMany({
       where: {
         userId,
-        token: { not: currentToken },
+        id: { not: keepId },
       },
     });
     return { message: 'All other sessions revoked' };

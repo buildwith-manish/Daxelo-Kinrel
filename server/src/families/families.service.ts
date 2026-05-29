@@ -63,8 +63,7 @@ export class FamiliesService {
       where: { id: familyId },
       include: {
         persons: { where: { deletedAt: null } },
-        relationships: { where: { isActive: true } },
-        familyMembers: true,
+        members: true,
       },
     });
 
@@ -135,7 +134,6 @@ export class FamiliesService {
       where: { id: familyId },
       include: {
         persons: { where: { deletedAt: null } },
-        relationships: { where: { isActive: true } },
       },
     });
 

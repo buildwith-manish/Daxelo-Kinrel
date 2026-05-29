@@ -111,7 +111,7 @@ export class UsersService {
 
   async getInvitations(id: string) {
     return this.prisma.invitation.findMany({
-      where: { inviteeId: id, status: 'pending' },
+      where: { inviterId: id, status: 'pending' },
     });
   }
 
@@ -130,9 +130,9 @@ export class UsersService {
 
   async deleteAccount(id: string) {
     // Delete all user data
-    await this.prisma.session.deleteMany({ where: { userId: id } });
+    await this.prisma.refreshToken.deleteMany({ where: { userId: id } });
     await this.prisma.familyMember.deleteMany({ where: { userId: id } });
-    await this.prisma.invitation.deleteMany({ where: { inviteeId: id } });
+    await this.prisma.invitation.deleteMany({ where: { inviterId: id } });
     await this.prisma.supportTicket.deleteMany({ where: { userId: id } });
     await this.prisma.user.delete({ where: { id } });
     return { message: 'Account deleted successfully' };
