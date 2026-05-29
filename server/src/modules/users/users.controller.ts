@@ -24,6 +24,12 @@ import { UsersService } from './users.service';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  // ── Get User by Username (public profile) ────────────────────────
+  @Get(':username')
+  async getUserByUsername(@Param('username') username: string) {
+    return this.usersService.getUserByUsername(username);
+  }
+
   // ── Get Profile ───────────────────────────────────────────────────
   @Get('me')
   async getProfile(@CurrentUser('id') userId: string) {

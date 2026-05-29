@@ -20,6 +20,7 @@ import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/profile_provider.dart';
+import '../../username/providers/username_provider.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
 const Color _bg = Color(0xFF131416);
@@ -55,9 +56,12 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   late TextEditingController _displayNameController;
   late TextEditingController _phoneController;
   late TextEditingController _bioController;
+  late TextEditingController _usernameController;
   late FocusNode _bioFocusNode;
   late FocusNode _displayNameFocusNode;
   late FocusNode _phoneFocusNode;
+  late FocusNode _usernameFocusNode;
+  String _initialUsername = '';
 
   // State
   String _selectedGender = '';
@@ -77,9 +81,11 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     _displayNameController = TextEditingController();
     _phoneController = TextEditingController();
     _bioController = TextEditingController();
+    _usernameController = TextEditingController();
     _bioFocusNode = FocusNode();
     _displayNameFocusNode = FocusNode();
     _phoneFocusNode = FocusNode();
+    _usernameFocusNode = FocusNode();
 
     // Load current profile data
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -97,11 +103,14 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     final bio = profile?.bio ?? '';
     final gender = profile?.gender ?? '';
     final dob = profile?.dateOfBirth;
+    final username = profile?.username ?? '';
 
     setState(() {
       _displayNameController.text = displayName;
       _phoneController.text = phone;
       _bioController.text = bio;
+      _usernameController.text = username;
+      _initialUsername = username;
       _selectedGender = gender;
       _selectedDob = dob;
 
@@ -125,14 +134,17 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     _displayNameController.dispose();
     _phoneController.dispose();
     _bioController.dispose();
+    _usernameController.dispose();
     _bioFocusNode.dispose();
     _displayNameFocusNode.dispose();
     _phoneFocusNode.dispose();
+    _usernameFocusNode.dispose();
     super.dispose();
   }
 
   void _checkForChanges() {
     final hasChanges =
+        _usernameController.text != _initialUsername ||
         _displayNameController.text != _initialDisplayName ||
         _phoneController.text != _initialPhone ||
         _bioController.text != _initialBio ||
@@ -266,6 +278,13 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                     _phoneFocusNode.requestFocus();
                   },
                 ),
+
+                const SizedBox(height: 20),
+
+                // ── Username ─────────────────────────────────────────
+                _buildFieldLabel('Username'),
+                const SizedBox(height: 6),
+                _buildUsernameField(),
 
                 const SizedBox(height: 20),
 
@@ -426,6 +445,91 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 15,
           color: value.isEmpty ? _textDim : _textSecondary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUsernameField() {
+    final usernameState = ref.watch(usernameProvider);
+    final isValid = UsernameValidator.validate(_usernameController.text) == null;
+    final isAvailable = usernameState.availability == UsernameAvailability.available;
+    final isTaken = usernameState.availability == UsernameAvailability.taken;
+    final isChecking = usernameState.availability == UsernameAvailability.checking;
+
+    // Determine suffix icon
+    Widget? suffixIcon;
+    if (isChecking) {
+      suffixIcon = SizedBox(
+        width: 16,
+        height: 16,
+        child: CircularProgressIndicator(strokeWidth: 2, color: _orange),
+      );
+    } else if (isAvailable && isValid) {
+      suffixIcon = Icon(Icons.check_circle, color: Colors.green, size: 20);
+    } else if (isTaken) {
+      suffixIcon = Icon(Icons.cancel, color: _errorColor, size: 20);
+    }
+
+    return TextFormField(
+      controller: _usernameController,
+      focusNode: _usernameFocusNode,
+      onChanged: (value) {
+        _checkForChanges();
+        if (value.isNotEmpty) {
+          ref.read(usernameProvider.notifier).checkAvailability(value.toLowerCase());
+        }
+      },
+      textInputAction: TextInputAction.next,
+      keyboardType: TextInputType.text,
+      textCapitalization: TextCapitalization.none,
+      style: const TextStyle(
+        fontFamily: KinrelTypography.bodyFont,
+        fontSize: 15,
+        color: _textPrimary,
+      ),
+      decoration: InputDecoration(
+        hintText: 'Choose a username',
+        hintStyle: TextStyle(
+          fontFamily: KinrelTypography.bodyFont,
+          fontSize: 15,
+          color: _textDim.withValues(alpha: 0.6),
+        ),
+        prefixText: '@ ',
+        prefixStyle: TextStyle(
+          fontFamily: KinrelTypography.bodyFont,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: _orange,
+        ),
+        suffixIcon: suffixIcon != null ? Padding(
+          padding: const EdgeInsetsDirectional.only(end: 12),
+          child: suffixIcon,
+        ) : null,
+        suffixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        filled: true,
+        fillColor: _cardBg,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(KinrelRadius.input),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(KinrelRadius.input),
+          borderSide: const BorderSide(color: _orange, width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(KinrelRadius.input),
+          borderSide: const BorderSide(color: _errorColor, width: 1),
+        ),
+        helperText: '3-30 chars, lowercase letters, numbers, underscores',
+        helperStyle: const TextStyle(
+          fontFamily: KinrelTypography.bodyFont,
+          fontSize: 11,
+          color: _textDim,
         ),
       ),
     );
@@ -701,6 +805,9 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     // Build changed fields only
     final Map<String, dynamic> changedFields = {};
 
+    if (_usernameController.text.trim().toLowerCase() != _initialUsername.toLowerCase()) {
+      changedFields['username'] = _usernameController.text.trim().toLowerCase();
+    }
     if (_displayNameController.text.trim() != _initialDisplayName) {
       changedFields['name'] = _displayNameController.text.trim();
     }
@@ -734,6 +841,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
           _initialDisplayName = _displayNameController.text.trim();
           _initialPhone = _phoneController.text.trim();
           _initialBio = _bioController.text.trim();
+          _initialUsername = _usernameController.text.trim();
           _initialGender = _selectedGender;
           _initialDob = _selectedDob;
           _hasChanges = false;

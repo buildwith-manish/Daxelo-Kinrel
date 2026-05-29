@@ -114,6 +114,54 @@ export class FamilyIdController {
   }
 
   /**
+   * Get a family by its KIN Family ID.
+   *
+   * Rate limited to 20 requests per minute.
+   * Returns basic family info without exposing sensitive data.
+   *
+   * GET /families/by-id/:kinFamilyId
+   */
+  @Get('by-id/:kinFamilyId')
+  @Throttle({ short: { limit: 20, ttl: 60000 } })
+  async getByFamilyId(
+    @CurrentUser('id') userId: string,
+    @Param('kinFamilyId') kinFamilyId: string,
+  ) {
+    const normalisedFamilyId = kinFamilyId.toUpperCase();
+
+    if (!this.familyIdService.isValidFamilyId(normalisedFamilyId)) {
+      return {
+        found: false,
+        message: 'Invalid Family ID format. Must be KIN-XXXXXXXX',
+      };
+    }
+
+    const result = await this.familyIdService.findByFamilyId(normalisedFamilyId);
+
+    if (!result) {
+      return {
+        found: false,
+        message: `No family found with ID ${normalisedFamilyId}`,
+      };
+    }
+
+    return {
+      found: true,
+      family: {
+        id: result.id,
+        name: result.name,
+        kinFamilyId: result.kinFamilyId,
+        description: result.description,
+        memberCount: result.memberCount,
+        avatarUrl: result.avatarUrl,
+        privacyMode: result.privacyMode,
+        primaryLanguage: result.primaryLanguage,
+        region: result.region,
+      },
+    };
+  }
+
+  /**
    * Get the Family ID (KIN-XXXXXXXX) for a specific family.
    *
    * The user must be a member of the family to view its Family ID.

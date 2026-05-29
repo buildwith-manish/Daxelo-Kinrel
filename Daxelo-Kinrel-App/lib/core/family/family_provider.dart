@@ -52,6 +52,7 @@ class Family {
     this.generationCount = 1,
     this.lastActivityAt,
     this.username,
+    this.kinFamilyId,
   });
 
   factory Family.fromJson(Map<String, dynamic> json) {
@@ -78,6 +79,7 @@ class Family {
           ? DateTime.tryParse(json['lastActivityAt'].toString())
           : null,
       username: json['username'] as String?,
+      kinFamilyId: json['kinFamilyId'] as String?,
     );
   }
 
@@ -104,6 +106,9 @@ class Family {
   // Username system
   final String? username;
 
+  // KIN Family ID system
+  final String? kinFamilyId;
+
   /// Display-friendly username with @ prefix
   String get displayUsername => username != null ? '@$username' : '';
 
@@ -127,6 +132,7 @@ class Family {
         'generationCount': generationCount,
         'lastActivityAt': lastActivityAt?.toIso8601String(),
         'username': username,
+        'kinFamilyId': kinFamilyId,
       };
 }
 

@@ -16,6 +16,49 @@ export class UsersService {
     private readonly config: ConfigService,
   ) {}
 
+  // ── Get User by Username (public profile) ──────────────────────
+
+  async getUserByUsername(username: string) {
+    if (!username || username.trim().length < 3) {
+      throw new BadRequestException('Invalid username');
+    }
+
+    const trimmed = username.trim().toLowerCase();
+
+    // Prevent enumeration: check reserved words
+    const reserved = ['admin', 'root', 'system', 'moderator', 'support', 'help', 'api', 'null', 'undefined', 'me', 'check-username'];
+    if (reserved.includes(trimmed)) {
+      throw new NotFoundException('User not found');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { username: trimmed },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        avatarUrl: true,
+        photoThumb: true,
+        bio: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Return limited public profile (no email, phone, etc.)
+    return {
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      avatarUrl: user.photoThumb || user.avatarUrl,
+      bio: user.bio,
+      memberSince: user.createdAt,
+    };
+  }
+
   // ── Get Profile (enhanced with all ProfileModel fields) ──────────
 
   async getProfile(userId: string) {
@@ -279,6 +322,12 @@ export class UsersService {
 
     const trimmed = username.trim().toLowerCase();
 
+    // Validate format
+    const usernameRegex = /^[a-z][a-z0-9_]{2,29}$/;
+    if (!usernameRegex.test(trimmed)) {
+      return { available: false, reason: 'Username must be 3-30 characters, start with a letter, lowercase letters, numbers, and underscores only' };
+    }
+
     // Check reserved words
     const reserved = ['admin', 'root', 'system', 'moderator', 'support', 'help', 'api', 'null', 'undefined'];
     if (reserved.includes(trimmed)) {
@@ -314,6 +363,14 @@ export class UsersService {
     }
 
     const trimmed = username.trim();
+
+    // Validate username format: 3-30 chars, lowercase letters, numbers, underscores only
+    const usernameRegex = /^[a-z][a-z0-9_]{2,29}$/;
+    if (!usernameRegex.test(trimmed)) {
+      throw new BadRequestException(
+        'Username must be 3-30 characters, start with a letter, and contain only lowercase letters, numbers, and underscores',
+      );
+    }
 
     // Check availability
     const existingUser = await this.prisma.user.findUnique({

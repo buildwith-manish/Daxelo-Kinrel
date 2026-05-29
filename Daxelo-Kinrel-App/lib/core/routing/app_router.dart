@@ -51,6 +51,7 @@ import '../../features/family/presentation/family_list_screen.dart';
 import '../../features/family/presentation/family_detail_screen.dart';
 import '../../features/family/presentation/path_finder_screen.dart';
 import '../../features/family/presentation/create_family_screen.dart';
+import '../../features/family/presentation/join_family_screen.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_builder_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
@@ -429,6 +430,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/families/create',
         pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: CreateFamilyScreen()),
+      ),
+      GoRoute(
+        path: '/join-family',
+        builder: (context, state) => JoinFamilyScreen(),
       ),
       GoRoute(
         path: '/family/:id',

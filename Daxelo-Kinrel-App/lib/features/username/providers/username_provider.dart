@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
+import '../../../core/networking/dio_client.dart';
 import '../../../core/family/family_provider.dart';
 
 // ── Table name constants ──────────────────────────────────────────
@@ -20,13 +21,13 @@ const _kPersonTable = 'Person';
 
 // ── Username validation ──────────────────────────────────────────
 
-/// Username rules: 3-20 chars, lowercase letters, numbers, underscores only,
+/// Username rules: 3-30 chars, lowercase letters, numbers, underscores only,
 /// must start with a letter.
 class UsernameValidator {
   static const int minLength = 3;
-  static const int maxLength = 20;
+  static const int maxLength = 30;
 
-  static final _validPattern = RegExp(r'^[a-z][a-z0-9_]{2,19}$');
+  static final _validPattern = RegExp(r'^[a-z][a-z0-9_]{2,29}$');
 
   /// Returns null if valid, or an error message if invalid.
   static String? validate(String username) {
@@ -129,28 +130,42 @@ class UsernameNotifier extends StateNotifier<UsernameCheckState> {
 
   Future<void> _performCheck(String username, {bool isFamily = false}) async {
     try {
-      final client = _ref.read(supabaseProvider);
-      if (client == null) {
+      final dio = _ref.read(dioProvider);
+
+      if (isFamily) {
+        // For family usernames, still use Supabase direct query
+        final client = _ref.read(supabaseProvider);
+        if (client == null) {
+          state = UsernameCheckState(
+            availability: UsernameAvailability.invalid,
+            username: username,
+          );
+          return;
+        }
+        final response = await withRetry(
+          () => client.from('Family').select('id').eq('username', username).limit(1),
+          operationName: 'Check family username availability',
+        );
+        final isTaken = (response as List).isNotEmpty;
         state = UsernameCheckState(
-          availability: UsernameAvailability.invalid,
+          availability: isTaken ? UsernameAvailability.taken : UsernameAvailability.available,
           username: username,
         );
-        return;
+      } else {
+        // For user usernames, use the NestJS backend API
+        final response = await dio.get(
+          '/api/users/check-username',
+          queryParameters: {'username': username},
+        );
+        final data = response.data as Map<String, dynamic>;
+        final available = data['available'] as bool? ?? false;
+        state = UsernameCheckState(
+          availability: available
+              ? UsernameAvailability.available
+              : UsernameAvailability.taken,
+          username: username,
+        );
       }
-
-      final table = isFamily ? _kFamilyTable : _kPersonTable;
-      final response = await withRetry(
-        () => client.from(table).select('id').eq('username', username).limit(1),
-        operationName: 'Check username availability',
-      );
-
-      final isTaken = (response as List).isNotEmpty;
-      state = UsernameCheckState(
-        availability: isTaken
-            ? UsernameAvailability.taken
-            : UsernameAvailability.available,
-        username: username,
-      );
     } catch (e) {
       debugPrint('⚠️ Username check error: $e');
       state = UsernameCheckState(
@@ -164,30 +179,21 @@ class UsernameNotifier extends StateNotifier<UsernameCheckState> {
   /// and also in the Person table).
   Future<bool> setUserUsername(String username) async {
     try {
+      final dio = _ref.read(dioProvider);
+
+      // Update via NestJS backend
+      await dio.patch('/api/users/me/username', data: {'username': username});
+
+      // Also update Supabase auth metadata for compatibility
       final client = _ref.read(supabaseProvider);
-      if (client == null) return false;
-      final userId = client.auth.currentUser?.id;
-      if (userId == null) return false;
-
-      // Update auth user metadata
-      await client.auth.updateUser(
-        UserAttributes(data: {'username': username}),
-      );
-
-      // Update Person table if a person record exists for this user
-      try {
-        await withRetry(
-          () => client
-              .from(_kPersonTable)
-              .update({
-                'username': username,
-                'updatedAt': DateTime.now().toIso8601String(),
-              })
-              .eq('id', userId),
-          operationName: 'Set person username',
-        );
-      } catch (e) {
-        debugPrint('⚠️ Could not update Person username: $e');
+      if (client != null) {
+        try {
+          await client.auth.updateUser(
+            UserAttributes(data: {'username': username}),
+          );
+        } catch (e) {
+          debugPrint('⚠️ Could not update Supabase auth metadata: $e');
+        }
       }
 
       // Mark as set in SharedPreferences

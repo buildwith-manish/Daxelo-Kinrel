@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -258,6 +259,37 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
                               ),
                             ),
                           ],
+                          if (family.kinFamilyId != null) ...[
+                            SizedBox(height: 2),
+                            GestureDetector(
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: family.kinFamilyId!));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Family ID copied: ${family.kinFamilyId}'),
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.copy, size: 12, color: KinrelColors.purple),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    family.kinFamilyId!,
+                                    style: TextStyle(
+                                      fontFamily: KinrelTypography.monoFont,
+                                      fontSize: 12,
+                                      color: KinrelColors.purple,
+                                      letterSpacing: 1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -276,6 +308,26 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
                 _shareFamily(context);
               },
             ),
+
+            // Copy Family ID option
+            if (family?.kinFamilyId != null) ...[
+              Divider(color: KinrelColors.border, height: 1),
+              _QuickActionTile(
+                icon: Icons.copy_rounded,
+                label: 'Copy Family ID (${family!.kinFamilyId})',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Clipboard.setData(ClipboardData(text: family.kinFamilyId!));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Family ID copied: ${family.kinFamilyId}'),
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                },
+              ),
+            ],
 
             // Only show delete option to the creator
             if (isCreator) ...[

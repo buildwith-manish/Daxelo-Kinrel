@@ -123,7 +123,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           color: DKColors.textPrimary(context),
         ),
         decoration: InputDecoration(
-          hintText: 'Search by name, person ID, or family ID...',
+          hintText: 'Search by name, @username, or KIN-XXXXXXXX...',
           hintStyle: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 15,

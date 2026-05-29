@@ -37,6 +37,7 @@ class CachedFamilies extends Table {
   TextColumn get name => text()();
   TextColumn get data => text()();
   TextColumn get kinFamilyId => text().nullable()();
+  TextColumn get username => text().nullable()();
   DateTimeColumn get cachedAt => dateTime()();
 
   @override
@@ -55,6 +56,7 @@ class CachedPersons extends Table {
   TextColumn get phone => text().nullable()();
   TextColumn get anniversaryDate => text().nullable()();
   TextColumn get relationshipType => text().nullable()();
+  TextColumn get username => text().nullable()();
   DateTimeColumn get cachedAt => dateTime()();
 
   @override
@@ -176,6 +178,30 @@ class ConflictLog extends Table {
   DateTimeColumn get resolvedAt => dateTime().nullable()();
 }
 
+class CachedUsernames extends Table {
+  TextColumn get userId => text()();
+  TextColumn get username => text()();
+  TextColumn get displayName => text()();
+  TextColumn get avatarUrl => text().nullable()();
+  TextColumn get bio => text().nullable()();
+  DateTimeColumn get cachedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {userId};
+}
+
+class CachedFamilyIds extends Table {
+  TextColumn get familyId => text()(); // Internal family ID
+  TextColumn get kinFamilyId => text()(); // KIN-XXXXXXXX
+  TextColumn get name => text()();
+  TextColumn get avatarUrl => text().nullable()();
+  IntColumn get memberCount => integer().withDefault(const Constant(0))();
+  DateTimeColumn get cachedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {kinFamilyId};
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // DATABASE CLASS
 // ═══════════════════════════════════════════════════════════════════════
@@ -195,12 +221,14 @@ class ConflictLog extends Table {
   CachedRelationshipPaths,
   SyncMetadata,
   ConflictLog,
+  CachedUsernames,
+  CachedFamilyIds,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'daxelo_kinrel_db');
@@ -249,6 +277,13 @@ class AppDatabase extends _$AppDatabase {
             await migrator.createTable(cachedRelationshipPaths);
             await migrator.createTable(syncMetadata);
             await migrator.createTable(conflictLog);
+          }
+          if (from < 3) {
+            // v2 → v3: Add username columns + new cache tables
+            await migrator.addColumn(cachedPersons, cachedPersons.username);
+            await migrator.addColumn(cachedFamilies, cachedFamilies.username);
+            await migrator.createTable(cachedUsernames);
+            await migrator.createTable(cachedFamilyIds);
           }
         },
       );
@@ -569,6 +604,8 @@ class AppDatabase extends _$AppDatabase {
     await delete(cachedRelationshipPaths).go();
     await delete(syncMetadata).go();
     await delete(conflictLog).go();
+    await delete(cachedUsernames).go();
+    await delete(cachedFamilyIds).go();
   }
 
   Future<void> clearAll() async {
@@ -593,6 +630,38 @@ class AppDatabase extends _$AppDatabase {
       'relationshipPaths': await cachedRelationshipPaths.count().getSingle(),
       'syncMetadata': await syncMetadata.count().getSingle(),
       'conflictLog': await conflictLog.count().getSingle(),
+      'cachedUsernames': await cachedUsernames.count().getSingle(),
+      'cachedFamilyIds': await cachedFamilyIds.count().getSingle(),
     };
   }
+
+  // ── Cached Usernames ──────────────────────────────────────────────
+
+  Future<CachedUsername?> getUsername(String username) =>
+      (select(cachedUsernames)..where((t) => t.username.equals(username.toLowerCase())))
+          .getSingleOrNull();
+
+  Future<List<CachedUsername>> searchUsernames(String query) =>
+      (select(cachedUsernames)..where((t) => t.username.like('%${query.toLowerCase()}%') | t.displayName.like('%${query.toLowerCase()}%')))
+          .get();
+
+  Future<void> upsertUsername(CachedUsernamesCompanion entry) =>
+      into(cachedUsernames).insertOnConflictUpdate(entry);
+
+  Future<void> clearUsernames() => delete(cachedUsernames).go();
+
+  // ── Cached Family IDs ──────────────────────────────────────────────
+
+  Future<CachedFamilyId?> getFamilyByKinId(String kinFamilyId) =>
+      (select(cachedFamilyIds)..where((t) => t.kinFamilyId.equals(kinFamilyId.toUpperCase())))
+          .getSingleOrNull();
+
+  Future<List<CachedFamilyId>> searchFamilyIds(String query) =>
+      (select(cachedFamilyIds)..where((t) => t.kinFamilyId.like('%${query.toUpperCase()}%') | t.name.like('%${query.toLowerCase()}%')))
+          .get();
+
+  Future<void> upsertFamilyId(CachedFamilyIdsCompanion entry) =>
+      into(cachedFamilyIds).insertOnConflictUpdate(entry);
+
+  Future<void> clearFamilyIds() => delete(cachedFamilyIds).go();
 }

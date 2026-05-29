@@ -96,12 +96,22 @@ class SearchRepository {
   ///
   /// Matches by:
   /// - name (contains, case-insensitive)
+  /// - username (without @ prefix)
   /// - formatted display ID (e.g. "DK-P-00234")
   /// - actual person ID (exact match)
   /// - familyId (exact match)
   bool _matchesPerson(Person person, String normalizedQuery) {
     // Name match (case-insensitive contains)
     if (person.name.toLowerCase().contains(normalizedQuery)) {
+      return true;
+    }
+
+    // Username match (without @ prefix)
+    final queryWithoutAt = normalizedQuery.startsWith('@')
+        ? normalizedQuery.substring(1)
+        : normalizedQuery;
+    if (person.username != null &&
+        person.username!.toLowerCase().contains(queryWithoutAt)) {
       return true;
     }
 
@@ -128,12 +138,29 @@ class SearchRepository {
   ///
   /// Matches by:
   /// - name (contains, case-insensitive)
+  /// - KIN Family ID (e.g. KIN-AB12CD34)
+  /// - username (without @ prefix)
   /// - familyCode (contains, case-insensitive)
   /// - formatted display ID (e.g. "DK-F-00234")
   /// - actual family ID (exact match)
   bool _matchesFamily(Family family, String normalizedQuery) {
     // Name match (case-insensitive contains)
     if (family.name.toLowerCase().contains(normalizedQuery)) {
+      return true;
+    }
+
+    // KIN Family ID match (e.g. KIN-AB12CD34)
+    if (family.kinFamilyId != null &&
+        family.kinFamilyId!.toUpperCase().contains(normalizedQuery.toUpperCase())) {
+      return true;
+    }
+
+    // Family username match (without @ prefix)
+    final queryWithoutAt = normalizedQuery.startsWith('@')
+        ? normalizedQuery.substring(1)
+        : normalizedQuery;
+    if (family.username != null &&
+        family.username!.toLowerCase().contains(queryWithoutAt)) {
       return true;
     }
 

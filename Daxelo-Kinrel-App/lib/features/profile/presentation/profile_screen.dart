@@ -9,6 +9,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,6 +35,7 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/profile_provider.dart';
 import '../../../core/utils/share_helper.dart';
+import '../../../core/family/family_id_provider.dart';
 import '../../../core/utils/device_tier.dart';
 import '../../../presentation/widgets/skeletons/profile_skeleton.dart';
 
@@ -344,6 +347,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             const SizedBox(height: 8),
             _buildSectionCard([
               _SettingsRow(
+                icon: Icons.qr_code_rounded,
+                label: 'Join Family by ID',
+                subtitle: 'Enter KIN-XXXXXXXX to join',
+                iconColor: _orange,
+                labelColor: _orange,
+                onTap: () => context.push('/join-family'),
+              ),
+              _divider(),
+              _SettingsRow(
                 icon: Icons.account_tree_outlined,
                 label: 'My family trees',
                 onTap: () => context.push('/profile/my-families'),
@@ -641,6 +653,43 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             letterSpacing: 0.5,
           ),
         ),
+
+        // @username — Instagram style
+        if (profile?.username != null && profile!.username!.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          GestureDetector(
+            onTap: () {
+              // Copy username to clipboard
+              final data = ClipboardData(text: '@${profile.username}');
+              Clipboard.setData(data);
+              context.showSnackBar('Username copied');
+            },
+            child: Text(
+              '@${profile.username}',
+              style: const TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: _orange,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+        ] else ...[
+          const SizedBox(height: 4),
+          GestureDetector(
+            onTap: () => context.push('/profile/edit'),
+            child: Text(
+              'Set username',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 13,
+                color: _orange.withValues(alpha: 0.7),
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+        ],
 
         const SizedBox(height: 4),
 
