@@ -491,7 +491,7 @@ export class SupabaseRealtimeService implements OnModuleInit, OnModuleDestroy {
 
       for (const [, presences] of Object.entries(state)) {
         for (const presence of presences) {
-          users.push(presence as PresenceState);
+          users.push(presence as unknown as PresenceState);
         }
       }
 

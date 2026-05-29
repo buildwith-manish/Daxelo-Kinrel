@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   ForbiddenException,
   Logger,
+  SetMetadata,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -81,7 +82,7 @@ export const FamilyRoles = (...roles: FamilyRole[]) =>
 // Authenticated Request Interface
 // ────────────────────────────────────────────────────────────────
 
-interface AuthenticatedRequest extends Request {
+interface AuthenticatedRequest {
   user?: {
     id: string;
     email: string;

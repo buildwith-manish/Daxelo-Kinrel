@@ -1,9 +1,10 @@
 import {
   Injectable,
   Logger,
-  TooManyRequestsException,
   BadRequestException,
   InternalServerErrorException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
@@ -158,8 +159,9 @@ export class AiFeaturesService {
     });
 
     if (count >= DAILY_RATE_LIMIT) {
-      throw new TooManyRequestsException(
+      throw new HttpException(
         `AI request limit reached (${DAILY_RATE_LIMIT}/day). Please try again tomorrow.`,
+        HttpStatus.TOO_MANY_REQUESTS,
       );
     }
   }
@@ -829,7 +831,7 @@ Write a narrative summary that:
 
   private fallbackFamilySummary(data: any): string {
     const genSummary = Object.entries(data.generationCounts)
-      .map(([gen, count]) => `${count} member${count > 1 ? 's' : ''} in Generation ${gen}`)
+      .map(([gen, count]) => `${Number(count)} member${Number(count) > 1 ? 's' : ''} in Generation ${gen}`)
       .join(', ');
 
     return (

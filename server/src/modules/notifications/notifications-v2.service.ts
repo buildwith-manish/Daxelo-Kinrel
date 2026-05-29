@@ -32,7 +32,7 @@ interface CreateNotificationParams {
   data?: Record<string, string>;
 }
 
-interface PaginatedNotifications {
+export interface PaginatedNotifications {
   notifications: Array<{
     id: string;
     userId: string;

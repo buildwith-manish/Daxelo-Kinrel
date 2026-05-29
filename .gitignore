@@ -1,54 +1,64 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# ============================================================
+# Daxelo Kinrel — .gitignore
+# ============================================================
 
-# dependencies
-node_modules
-/.pnp
+# ── Dependencies ──────────────────────────────────────────────
+node_modules/
+.pnp/
 .pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+.yarn/
 
-# testing
-/coverage
-
-# next.js
-/.next/
+# ── Build Output ──────────────────────────────────────────────
+/build/
 /out/
+.next/
+server/dist/
 
-# production
-/build
+# ── Flutter ───────────────────────────────────────────────────
+Daxelo-Kinrel-App/.dart_tool/
+Daxelo-Kinrel-App/.flutter-plugins
+Daxelo-Kinrel-App/.flutter-plugins-dependencies
+Daxelo-Kinrel-App/.packages
+Daxelo-Kinrel-App/build/
+Daxelo-Kinrel-App/.pub-cache/
+Daxelo-Kinrel-App/.pub/
+Daxelo-Kinrel-App/pubspec.lock
 
-# misc
-.DS_Store
+# ── Database ──────────────────────────────────────────────────
+*.db
+*.db-journal
+db/
+
+# ── Environment & Secrets ─────────────────────────────────────
+.env
+.env.local
+.env.*.local
 *.pem
 
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
+# ── IDE & OS ──────────────────────────────────────────────────
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-local-*
-.claude
-.z-ai-config
+# ── Logs ──────────────────────────────────────────────────────
 *.log
 dev.log
 dev.out.log
+server.log
+npm-debug.log*
+
+# ── Testing ───────────────────────────────────────────────────
+/coverage/
+
+# ── Misc ──────────────────────────────────────────────────────
+.claude
+.z-ai-config
+.zscripts/
 test
 prompt
-
-server.log
-# Skills directory
 /skills/
+upload/
+worklog.md

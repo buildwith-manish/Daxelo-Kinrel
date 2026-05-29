@@ -922,7 +922,7 @@ export class GraphEngineService {
       GraphEngineService.EXTENDED_INLAW_RULES[pathKey];
 
     if (exactMatch) {
-      const genderKey = this.normalizeGenderKey(targetGender);
+      const genderKey = this.normalizeGenderKey(targetGender ?? null);
       const entry = exactMatch[genderKey];
       return {
         term: entry.term,
@@ -936,13 +936,13 @@ export class GraphEngineService {
     // Step 3: Try progressive prefix matching (longest first)
     // This handles cases where the exact path isn't in the lookup but
     // a prefix of it matches a known composition.
-    const prefixResult = this.tryProgressiveComposition(path, targetGender);
+    const prefixResult = this.tryProgressiveComposition(path, targetGender ?? null);
     if (prefixResult) {
       return prefixResult;
     }
 
     // Step 4: No match found — compose a descriptive term
-    return this.composeDescriptiveTerm(path, targetGender);
+    return this.composeDescriptiveTerm(path, targetGender ?? null);
   }
 
   /**
@@ -1309,7 +1309,7 @@ export class GraphEngineService {
    * Normalize a gender value to one of the three keys used in the
    * KINSHIP_RULES lookup table: 'male', 'female', or 'neutral'.
    */
-  private normalizeGenderKey(gender: string | null | undefined): 'male' | 'female' | 'neutral' {
+  private normalizeGenderKey(gender: string | null): 'male' | 'female' | 'neutral' {
     if (gender === 'male') return 'male';
     if (gender === 'female') return 'female';
     return 'neutral';
@@ -1340,7 +1340,7 @@ export class GraphEngineService {
 
       if (!prefixRule) continue;
 
-      const genderKey = this.normalizeGenderKey(targetGender);
+      const genderKey = this.normalizeGenderKey(targetGender ?? null);
       const prefixEntry = prefixRule[genderKey];
       const remainingSteps = path.slice(prefixLen);
 

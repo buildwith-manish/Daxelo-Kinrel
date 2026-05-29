@@ -10,7 +10,7 @@ import { Observable, from, of, throwError } from 'rxjs';
 import { switchMap, catchError } from 'rxjs/operators';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import * as sharp from 'sharp';
+import sharp from 'sharp';
 import * as crypto from 'crypto';
 import * as path from 'path';
 
