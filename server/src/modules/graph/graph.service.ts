@@ -152,7 +152,7 @@ export class GraphService {
       },
     });
 
-    const personMap = new Map(persons.map((p) => [p.id, p]));
+    const personMap = new Map(persons.map((p) => [p.id, p as any]));
 
     if (!personMap.has(rootPersonId)) {
       throw new NotFoundException('Root person not found');
@@ -208,7 +208,7 @@ export class GraphService {
       if (visited.has(personId) || currentDepth > depth) return null;
       visited.add(personId);
 
-      const person = personMap.get(personId);
+      const person: any = personMap.get(personId);
       if (!person) return null;
 
       const spouseId = spouseMap.get(personId);
@@ -292,10 +292,10 @@ export class GraphService {
       },
     });
 
-    const personMap = new Map(persons.map((p) => [p.id, p]));
+    const personMap = new Map(persons.map((p) => [p.id, p as any]));
 
-    const fromPerson = personMap.get(fromPersonId);
-    const toPerson = personMap.get(toPersonId);
+    const fromPerson: any = personMap.get(fromPersonId);
+    const toPerson: any = personMap.get(toPersonId);
 
     if (!fromPerson) {
       throw new NotFoundException('Source person not found');

@@ -108,3 +108,4 @@ local-*
 /db/
 .next/
 .env
+upload/
