@@ -138,8 +138,8 @@ export class ShareService {
     });
 
     // Fetch associated data if available
-    let familyData = null;
-    let personData = null;
+    let familyData: Record<string, any> | null = null;
+    let personData: Record<string, any> | null = null;
 
     if (link.familyId) {
       const family = await this.prisma.family.findUnique({
