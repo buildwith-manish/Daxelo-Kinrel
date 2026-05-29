@@ -43,7 +43,7 @@ cmds = [
 # We use `node dist/main` directly (same as npm run start:prod) for maximum
 # performance — no npm overhead in production.
 #
-# IMPORTANT: PORT=3001 must be set as an environment variable in Coolify.
+# IMPORTANT: PORT=3000 must be set as an environment variable in Coolify.
 # The app reads process.env.PORT at runtime (main.ts line 123).
 
 [start]

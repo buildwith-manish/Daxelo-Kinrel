@@ -38,7 +38,7 @@ service:
 
   # Port configuration and health check
   ports:
-    - port: 3001
+    - port: 3000
       protocol: http
       healthcheck:
         # The /api/health endpoint returns {"status":"ok","db":"connected",...}
@@ -59,7 +59,7 @@ service:
     - key: NODE_ENV
       value: production
     - key: PORT
-      value: "3001"
+      value: "3000"
     - key: API_PREFIX
       value: api
     - key: FRONTEND_URL
@@ -83,7 +83,7 @@ service:
     - min: 1
       max: 1
 
-  # Routing: all traffic to port 3001
+  # Routing: all traffic to port 3000
   routes:
     - path: /
-      port: 3001
+      port: 3000

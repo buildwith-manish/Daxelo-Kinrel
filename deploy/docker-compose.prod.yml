@@ -10,7 +10,7 @@
 #   - Supabase PostgreSQL instance running externally
 #
 # Architecture:
-#   Client → Nginx (80/443) → API (3001) → Supabase PostgreSQL (external)
+#   Client → Nginx (80/443) → API (3000) → Supabase PostgreSQL (external)
 #                                 ↕
 #                              Redis (6379)
 # ────────────────────────────────────────────────────────────────────────
@@ -57,24 +57,19 @@ services:
       dockerfile: Dockerfile
     container_name: kinrel-api
     restart: unless-stopped
-    # ── CRITICAL: Override PORT to 3001 ──────────────────────────────
-    # main.ts defaults to PORT 3000, but Dockerfile EXPOSEs 3001 and
-    # the healthcheck targets 3001. Without this override, the app
-    # starts on 3000 inside the container while Docker maps 3001,
-    # causing a port mismatch and failed health checks.
     environment:
-      - PORT=3001
+      - PORT=3000
     env_file:
       - .env.production
     ports:
-      - "3001:3001"
+      - "3000:3000"
     depends_on:
       redis:
         condition: service_healthy
     networks:
       - kinrel-network
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
       interval: 30s
       timeout: 5s
       start_period: 30s

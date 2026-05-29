@@ -9,7 +9,7 @@
       "buildPack": "nixpacks",
       "rootDirectory": "server",
       "ports": {
-        "http": 3001
+        "http": 3000
       },
       "healthCheck": {
         "path": "/api/health",
@@ -20,7 +20,7 @@
       },
       "environment": {
         "NODE_ENV": "production",
-        "PORT": "3001",
+        "PORT": "3000",
         "API_PREFIX": "api"
       },
       "resources": {
