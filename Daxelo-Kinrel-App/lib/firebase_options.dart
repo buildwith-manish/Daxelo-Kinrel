@@ -10,20 +10,30 @@
 // - iOS API key is restricted to com.daxelo.kinrel bundle ID
 // - Firebase enforces app-level restrictions server-side
 
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
-    if (Platform.isAndroid) {
-      return android;
-    } else if (Platform.isIOS) {
-      return ios;
+    if (kIsWeb) {
+      throw UnsupportedError(
+        'DefaultFirebaseOptions are not configured for web. '
+        'Use web-specific Firebase options instead.',
+      );
     }
-    throw UnsupportedError(
-      'DefaultFirebaseOptions are not supported for this platform. '
-      'Firebase Crashlytics only works on Android and iOS.',
-    );
+    // Use defaultTargetPlatform instead of dart:io Platform
+    // because dart:io is unavailable on web builds.
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return android;
+      case TargetPlatform.iOS:
+        return ios;
+      default:
+        throw UnsupportedError(
+          'DefaultFirebaseOptions are not supported for this platform. '
+          'Firebase Crashlytics only works on Android and iOS.',
+        );
+    }
   }
 
   static const FirebaseOptions android = FirebaseOptions(

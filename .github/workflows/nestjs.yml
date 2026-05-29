@@ -18,7 +18,7 @@ jobs:
           node-version: '20'
 
       - name: Install deps
-        run: cd server && npm install
+        run: cd server && npm install --legacy-peer-deps
 
       - name: Build
         run: cd server && npm run build

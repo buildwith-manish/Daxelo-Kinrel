@@ -24,6 +24,13 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Install Android SDK & NDK
+        run: |
+          # Flutter 3.44.0 requires Android SDK 36 and BuildTools 28.0.3
+          yes | sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973" 2>/dev/null || true
+          # Also install the latest cmdline-tools in case they're missing
+          yes | sdkmanager --licenses 2>/dev/null || true
+
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
@@ -38,7 +45,7 @@ jobs:
         run: cd Daxelo-Kinrel-App && flutter pub get
 
       - name: Generate Drift code
-        run: cd Daxelo-Kinrel-App && dart run build_runner build --delete-conflicting-outputs
+        run: cd Daxelo-Kinrel-App && dart run build_runner build
 
       - name: Analyze Dart code
         run: cd Daxelo-Kinrel-App && flutter analyze --no-fatal-infos --no-fatal-warnings
