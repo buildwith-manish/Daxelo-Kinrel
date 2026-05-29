@@ -54,30 +54,35 @@ jobs:
         run: cd Daxelo-Kinrel-App && dart run build_runner build
 
       - name: Decode keystore
-        if: env.KEYSTORE_BASE64 != ''
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > Daxelo-Kinrel-App/android/app/keystore.jks
-          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > Daxelo-Kinrel-App/android/key.properties
-          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> Daxelo-Kinrel-App/android/key.properties
-          echo "keyAlias=daxelo" >> Daxelo-Kinrel-App/android/key.properties
-          echo "storeFile=app/keystore.jks" >> Daxelo-Kinrel-App/android/key.properties
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > Daxelo-Kinrel-App/android/app/upload-keystore.jks
+          cat > Daxelo-Kinrel-App/android/key.properties <<EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=upload
+          storeFile=app/upload-keystore.jks
+          EOF
 
-      - name: Build APK
+      - name: Build APK (signed release)
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
         run: cd Daxelo-Kinrel-App && flutter build apk --release
+
+      - name: Build APK (unsigned for testing)
+        if: ${{ secrets.KEYSTORE_BASE64 == '' }}
+        run: cd Daxelo-Kinrel-App && flutter build apk --debug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          path: Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-release.apk
+          path: Daxelo-Kinrel-App/build/app/outputs/flutter-apk/*.apk
           retention-days: 90
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-release.apk
+          files: Daxelo-Kinrel-App/build/app/outputs/flutter-apk/*.apk
           generate_release_notes: true
           draft: false
           prerelease: false
@@ -85,7 +90,7 @@ jobs:
       - name: Cleanup signing artifacts
         if: always()
         run: |
-          rm -f Daxelo-Kinrel-App/android/app/keystore.jks
+          rm -f Daxelo-Kinrel-App/android/app/upload-keystore.jks
           rm -f Daxelo-Kinrel-App/android/key.properties
 
   backend-build:
