@@ -12,4 +12,18 @@ export class KinshipController {
   async lookup(@Query() query: KinshipQueryDto) {
     return this.kinshipService.lookup(query);
   }
+
+  @Get('search')
+  async search(
+    @Query('term') term: string,
+    @Query('lang') lang: string,
+    @Query('limit') limit = '20',
+  ) {
+    return this.kinshipService.searchByTermAndLang(term, lang, parseInt(limit));
+  }
+
+  @Get('languages')
+  async getLanguages() {
+    return this.kinshipService.getSupportedLanguages();
+  }
 }

@@ -988,6 +988,40 @@ export class KinshipService {
   }
 
   /**
+   * Search kinship terms by term and language with optional limit.
+   */
+  searchByTermAndLang(term: string, lang: string, limit: number): KinshipTerm[] {
+    let results = this.lookup({ search: term });
+
+    // If a specific language is requested, prioritize results with that language
+    if (lang && lang !== 'en') {
+      results = results.filter((t) => t.translations[lang] != null);
+    }
+
+    return results.slice(0, limit);
+  }
+
+  /**
+   * Get supported languages for kinship translations.
+   */
+  getSupportedLanguages(): Array<{ code: string; name: string }> {
+    const LANG_NAMES: Record<string, string> = {
+      hi: 'Hindi', mr: 'Marathi', ta: 'Tamil', te: 'Telugu',
+      kn: 'Kannada', bn: 'Bengali', gu: 'Gujarati',
+    };
+    const langs = new Set<string>();
+    for (const term of KINSHIP_DATABASE) {
+      for (const code of Object.keys(term.translations)) {
+        langs.add(code);
+      }
+    }
+    return [...langs].map((code) => ({
+      code,
+      name: LANG_NAMES[code] || code.toUpperCase(),
+    }));
+  }
+
+  /**
    * Get all available categories.
    */
   getCategories(): string[] {
