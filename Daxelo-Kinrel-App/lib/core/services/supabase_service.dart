@@ -251,6 +251,8 @@ class AuthService {
     }
     return withRetry(
       () => client.auth.signInWithPassword(email: email, password: password),
+      maxAttempts: 3, // Reduced from 5 — avoid 24+ second retry storms
+      initialDelay: const Duration(seconds: 2),
       operationName: 'Sign in',
     );
   }

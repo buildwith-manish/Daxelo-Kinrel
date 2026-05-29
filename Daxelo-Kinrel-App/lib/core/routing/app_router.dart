@@ -40,6 +40,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/auth/presentation/sign_in_screen.dart';
@@ -274,16 +275,28 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
   bool authState = false;
   bool supabaseReady = false;
   bool authLoading = false;
+  bool hasDirectSession = false;
   try {
     authState = ref.read(isAuthenticatedProvider);
     supabaseReady = ref.read(isSupabaseReadyProvider);
     // Check if auth state is still loading (stream hasn't emitted yet)
     final authStream = ref.read(authStateProvider);
     authLoading = authStream.isLoading;
+    // Also check Supabase directly — the Riverpod stream may not have
+    // emitted yet even though signIn() already succeeded.
+    if (!authState && supabaseReady) {
+      try {
+        hasDirectSession = Supabase.instance.client.auth.currentSession != null;
+      } catch (_) {}
+    }
   } catch (_) {
     // Providers may throw if not initialized — treat as not ready
     return null;
   }
+
+  // If we have a direct Supabase session but Riverpod hasn't caught up,
+  // treat the user as authenticated to avoid redirect loops after sign-in.
+  if (hasDirectSession) return null;
 
   // CRITICAL: If auth is still loading, DON'T redirect.
   // Returning null allows the current navigation to proceed.

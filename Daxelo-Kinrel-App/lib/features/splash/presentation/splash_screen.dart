@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -105,20 +106,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _initialize();
 
-    // Safety timeout: force navigate after 5 seconds even if init hasn't completed
+    // Safety timeout: force navigate after 5 seconds even if init hasn't completed.
+    // This prevents the user from being stuck on splash forever.
     Future.delayed(const Duration(seconds: 5), () {
       if (mounted && !_navigated) {
         debugPrint('⚠️ Splash safety timeout triggered — forcing navigation');
         _navigated = true;
+        // ALWAYS navigate to sign-in on safety timeout — this is the safest
+        // fallback. If the user is actually authenticated, the router's
+        // redirect will handle it on the next frame.
         try {
-          final isAuthenticated = ref.read(isAuthenticatedProvider);
-          if (isAuthenticated) {
-            context.go('/home');
-          } else {
-            context.go('/sign-in');
-          }
-        } catch (_) {
           context.go('/sign-in');
+        } catch (_) {
+          // Last resort: if even navigation fails, try home
+          try { context.go('/home'); } catch (_) {}
         }
       }
     });
@@ -162,8 +163,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     bool isAuthenticated = false;
     try {
       isAuthenticated = ref.read(isAuthenticatedProvider);
+      // Also check Supabase directly — the Riverpod provider may not have
+      // received the stream event yet, but the Supabase client already
+      // knows about the session.
+      if (!isAuthenticated && _supabaseHasSession()) {
+        isAuthenticated = true;
+        debugPrint('📦 Supabase has session but Riverpod provider not updated yet — treating as authenticated');
+      }
     } catch (e) {
       debugPrint('⚠️ Cannot read auth state, using cached profile: $e');
+      // Fallback: check Supabase directly
+      if (_supabaseHasSession()) {
+        isAuthenticated = true;
+      }
     }
 
     if (!mounted || _navigated) return;
@@ -233,6 +245,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     } catch (e) {
       debugPrint('📦 Drift cache check failed: $e');
       // Don't crash — just treat as no cache
+    }
+  }
+
+  /// Check if Supabase has an active session directly (bypasses Riverpod).
+  /// This is used as a fallback when the Riverpod authStateProvider
+  /// hasn't received the stream event yet but the Supabase client
+  /// already has a valid session after sign-in.
+  bool _supabaseHasSession() {
+    if (!isSupabaseInitialized) return false;
+    try {
+      final client = Supabase.instance.client;
+      return client.auth.currentSession != null;
+    } catch (_) {
+      return false;
     }
   }
 

@@ -95,8 +95,24 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         password: _passwordController.text,
       );
 
-      // P5-F1: Track successful login
-      AnalyticsService.instance.logLogin('email');
+      // P5-F1: Track successful login (never let analytics block navigation)
+      try {
+        await AnalyticsService.instance.logLogin('email');
+      } catch (_) {}
+
+      // Wait for the auth state stream to propagate to Riverpod providers
+      // before navigating. Without this, GoRouter's redirect checks
+      // isAuthenticatedProvider which may still be false because the
+      // onAuthStateChange stream hasn't emitted yet, causing the user
+      // to be redirected back to /sign-in after a successful login.
+      try {
+        await ref.read(authStateProvider.future).timeout(
+          const Duration(seconds: 3),
+        );
+      } catch (_) {
+        // Timeout — auth state may still be loading, but signIn() succeeded,
+        // so we proceed anyway. The router redirect will handle it.
+      }
 
       if (mounted) context.go('/home');
     } catch (e) {
