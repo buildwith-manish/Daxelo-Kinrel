@@ -23,6 +23,9 @@ dependencies:
   
   # Supabase
   supabase_flutter: ^2.8.4
+
+  # Google Sign-In
+  google_sign_in: ^6.2.1
   
   # Storage
   flutter_secure_storage: ^9.2.4

@@ -27,6 +27,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _emailFocusNode = FocusNode();
   final _passwordFocusNode = FocusNode();
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   bool _obscurePassword = true;
   String? _apiEmailError;
 
@@ -73,6 +74,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       return 'Incorrect email or password. Please try again.';
     } else if (message.contains('Email not confirmed')) {
       return 'Please verify your email before signing in.';
+    } else if (message.contains('cancelled')) {
+      return 'Google sign-in was cancelled.';
     } else if (message.contains('not available') ||
         message.contains('not available. Please restart')) {
       return 'Authentication service is not ready. Please restart the app and try again.';
@@ -80,6 +83,39 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       return 'Sign in failed. Please check your credentials and try again.';
     }
     return message;
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isGoogleLoading = true);
+
+    try {
+      final authService = ref.read(authServiceProvider);
+      await authService.signInWithGoogle();
+
+      // Track successful Google login
+      try {
+        await AnalyticsService.instance.logLogin('google');
+      } catch (_) {}
+
+      // Wait for auth state stream to propagate
+      try {
+        await ref.read(authStateProvider.future).timeout(
+          const Duration(seconds: 3),
+        );
+      } catch (_) {}
+
+      if (mounted) context.go('/home');
+    } catch (e) {
+      if (mounted) {
+        final msg = e.toString();
+        // Don't show snackbar for user-initiated cancellation
+        if (!msg.contains('cancelled')) {
+          context.showSnackBar(_cleanErrorMessage(msg), isError: true);
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
+    }
   }
 
   Future<void> _signIn() async {
@@ -462,14 +498,13 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
                   // ── Google social auth button ─────────────────────
                   _SocialAuthButton(
-                    label: 'Google',
+                    label: _isGoogleLoading ? 'Connecting...' : 'Google',
                     icon: Icons.g_mobiledata_rounded,
                     borderColor: _socialBorder,
                     fillColor: _inputFill,
                     textColor: _primaryText,
-                    onPressed: () {
-                      // TODO: Google sign in
-                    },
+                    isLoading: _isGoogleLoading,
+                    onPressed: _isGoogleLoading ? null : _signInWithGoogle,
                   ).animate().fadeIn(duration: 300.ms, delay: 400.ms),
 
                   const SizedBox(height: 32),
@@ -526,6 +561,7 @@ class _SocialAuthButton extends StatelessWidget {
     required this.borderColor,
     required this.fillColor,
     required this.textColor,
+    this.isLoading = false,
     required this.onPressed,
   });
 
@@ -534,7 +570,8 @@ class _SocialAuthButton extends StatelessWidget {
   final Color borderColor;
   final Color fillColor;
   final Color textColor;
-  final VoidCallback onPressed;
+  final bool isLoading;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -550,7 +587,17 @@ class _SocialAuthButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 22, color: textColor),
+            if (isLoading)
+              SizedBox(
+                height: 18,
+                width: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: textColor,
+                ),
+              )
+            else
+              Icon(icon, size: 22, color: textColor),
             const SizedBox(width: 8),
             Text(
               label,

@@ -197,58 +197,32 @@ class _LinkedAccountsScreenState extends ConsumerState<LinkedAccountsScreen> {
 
   void _handleLink(String providerKey) {
     if (providerKey == 'google') {
-      _showGoogleInfoDialog();
+      _linkGoogleAccount();
     }
   }
 
-  void _showGoogleInfoDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _cardBg,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(KinrelRadius.dialog),
-          side: const BorderSide(color: _borderSubtle),
-        ),
-        title: Row(
-          children: [
-            Icon(
-              Icons.g_mobiledata_rounded,
-              color: Color(0xFF4285F4),
-              size: 28,
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'Link Google',
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: _textPrimary,
-              ),
-            ),
-          ],
-        ),
-        content: const Text(
-          'Google OAuth will be available in a future update. '
-          'Stay tuned for this feature!',
-          style: TextStyle(
-            fontFamily: KinrelTypography.bodyFont,
-            fontSize: 14,
-            color: _textSecondary,
-            height: 1.5,
-          ),
-        ),
-        actions: [
-          DKButton(
-            label: 'Got it',
-            variant: DKButtonVariant.primary,
-            size: DKButtonSize.sm,
-            onPressed: () => Navigator.of(ctx).pop(),
-          ),
-        ],
-      ),
-    );
+  Future<void> _linkGoogleAccount() async {
+    setState(() => _isUnlinking = true);
+
+    try {
+      final authService = ref.read(authServiceProvider);
+      await authService.linkGoogleAccount();
+
+      if (!mounted) return;
+
+      // Refresh provider check
+      _checkAuthProviders();
+
+      context.showSnackBar('Google account linked successfully');
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString();
+      if (!msg.contains('cancelled')) {
+        context.showSnackBar('Failed to link Google account. Please try again.', isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _isUnlinking = false);
+    }
   }
 
 

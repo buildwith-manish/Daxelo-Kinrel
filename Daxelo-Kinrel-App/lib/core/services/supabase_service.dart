@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../config/app_config.dart';
 
 final _log = Logger(printer: PrettyPrinter(methodCount: 0));
@@ -261,6 +263,126 @@ class AuthService {
     final client = _client;
     if (client == null) return;
     await client.auth.signOut();
+  }
+
+  /// Sign in with Google using the native Google Sign-In flow.
+  ///
+  /// On Android: uses the Android client ID from google-services.json
+  /// On iOS: uses the iOS client ID (reversed client ID) from GoogleService-Info.plist
+  /// On Web: uses the web client ID
+  ///
+  /// After obtaining the Google ID token, verifies it with Supabase
+  /// using `signInWithIdToken(provider: 'google', idToken: ...)`.
+  Future<AuthResponse> signInWithGoogle() async {
+    final client = _client;
+    if (client == null) {
+      throw const AuthException(
+        'Authentication service is not available. Please restart the app and try again.',
+      );
+    }
+
+    _log.i('🔐 Starting Google Sign-In...');
+
+    // ── Build GoogleSignIn instance with platform-specific config ──
+    final googleSignIn = _buildGoogleSignIn();
+
+    // ── Trigger the Google Sign-In flow ────────────────────────────
+    final googleUser = await googleSignIn.signIn();
+    if (googleUser == null) {
+      _log.w('🔐 Google Sign-In cancelled by user');
+      throw const AuthException('Google sign-in was cancelled.');
+    }
+
+    _log.i('🔐 Google user obtained: ${googleUser.email}');
+
+    // ── Get the authentication tokens ──────────────────────────────
+    final googleAuth = await googleUser.authentication;
+    final idToken = googleAuth.idToken;
+    final accessToken = googleAuth.accessToken;
+
+    if (idToken == null) {
+      _log.e('🔐 Google Sign-In failed: ID token is null');
+      throw const AuthException(
+        'Failed to get Google ID token. Please try again.',
+      );
+    }
+
+    _log.i('🔐 Google ID token obtained, verifying with Supabase...');
+
+    // ── Verify with Supabase ───────────────────────────────────────
+    return withRetry(
+      () => client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      ),
+      maxAttempts: 3,
+      initialDelay: const Duration(seconds: 2),
+      operationName: 'Google Sign-In',
+    );
+  }
+
+  /// Link a Google account to an existing authenticated user.
+  ///
+  /// This allows users who signed in with email/password to also
+  /// sign in with Google in the future.
+  Future<void> linkGoogleAccount() async {
+    final client = _client;
+    if (client == null) {
+      throw const AuthException(
+        'Authentication service is not available.',
+      );
+    }
+
+    _log.i('🔐 Linking Google account...');
+
+    final googleSignIn = _buildGoogleSignIn();
+    final googleUser = await googleSignIn.signIn();
+    if (googleUser == null) {
+      throw const AuthException('Google sign-in was cancelled.');
+    }
+
+    final googleAuth = await googleUser.authentication;
+    final idToken = googleAuth.idToken;
+    final accessToken = googleAuth.accessToken;
+
+    if (idToken == null) {
+      throw const AuthException(
+        'Failed to get Google ID token. Please try again.',
+      );
+    }
+
+    // Use updateUser to link the Google identity
+    await client.auth.updateUser(
+      UserAttributes(
+        data: {
+          'linked_google': true,
+          'linked_google_at': DateTime.now().toIso8601String(),
+        },
+      ),
+    );
+
+    _log.i('🔐 Google account linked successfully');
+  }
+
+  /// Build a GoogleSignIn instance with platform-specific configuration.
+  GoogleSignIn _buildGoogleSignIn() {
+    if (kIsWeb) {
+      // Web: use the web client ID
+      return GoogleSignIn(
+        clientId: AppConfig.googleWebClientId,
+      );
+    } else if (Platform.isIOS) {
+      // iOS: use the iOS client ID (the reversed client ID goes in
+      // GoogleService-Info.plist; the clientId parameter here is the
+      // OAuth client ID)
+      return GoogleSignIn(
+        clientId: AppConfig.googleIosClientId,
+      );
+    }
+    // Android: GoogleSignIn automatically picks up the client ID from
+    // google-services.json — no clientId parameter needed.
+    return GoogleSignIn();
   }
 
   Future<void> resetPassword(String email) async {

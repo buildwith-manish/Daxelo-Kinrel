@@ -64,6 +64,48 @@ class AppConfig {
   /// Check if Supabase is properly configured
   static bool get isSupabaseConfigured => supabaseAnonKey.isNotEmpty;
 
+  // Google OAuth Client IDs
+  // Web client ID — used for Supabase signInWithIdToken on all platforms
+  static const String _fallbackGoogleWebClientId =
+      '726935858050-b0q96taocaa7rto463u466c49jdqkp41.apps.googleusercontent.com';
+  // Android client ID — used by GoogleSignIn on Android
+  static const String _fallbackGoogleAndroidClientId =
+      '726935858050-7rupm8q56208ph81896oo9fs7lp51tjv.apps.googleusercontent.com';
+  // iOS client ID — used by GoogleSignIn on iOS
+  static const String _fallbackGoogleIosClientId =
+      '726935858050-f5v8a726jn5m9o24dpjmcfoafne1p89d.apps.googleusercontent.com';
+
+  static String get googleWebClientId {
+    final env = _safeDotenv('GOOGLE_WEB_CLIENT_ID');
+    if (env != null && env.isNotEmpty) return env;
+    return const String.fromEnvironment(
+      'GOOGLE_WEB_CLIENT_ID',
+      defaultValue: _fallbackGoogleWebClientId,
+    );
+  }
+
+  static String get googleAndroidClientId {
+    final env = _safeDotenv('GOOGLE_ANDROID_CLIENT_ID');
+    if (env != null && env.isNotEmpty) return env;
+    return const String.fromEnvironment(
+      'GOOGLE_ANDROID_CLIENT_ID',
+      defaultValue: _fallbackGoogleAndroidClientId,
+    );
+  }
+
+  static String get googleIosClientId {
+    final env = _safeDotenv('GOOGLE_IOS_CLIENT_ID');
+    if (env != null && env.isNotEmpty) return env;
+    return const String.fromEnvironment(
+      'GOOGLE_IOS_CLIENT_ID',
+      defaultValue: _fallbackGoogleIosClientId,
+    );
+  }
+
+  /// All Google client IDs comma-separated for Supabase dashboard config
+  static String get googleClientIdsCommaSeparated =>
+      '$googleWebClientId,$googleAndroidClientId,$googleIosClientId';
+
   // Feature flags
   static const bool enableWhatsApp = true;
   static const bool enableCommunity = true;

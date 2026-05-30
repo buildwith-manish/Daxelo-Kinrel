@@ -12,7 +12,12 @@
           "package_name": "com.daxelo.kinrel"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "643588134212-rj7354vgqk7efjd075kvkaodfdenen3m.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBg29TMdNVuWlC09cMzUeYrFUF_8PrTY_A"
@@ -20,7 +25,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "643588134212-rj7354vgqk7efjd075kvkaodfdenen3m.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "643588134212-ep2guf1q8fk5idsa224fu9e3t4bdu2e3.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.daxelo.kinrel"
+              }
+            }
+          ]
         }
       }
     }

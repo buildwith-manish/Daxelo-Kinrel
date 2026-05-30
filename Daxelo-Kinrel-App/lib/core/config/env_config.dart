@@ -58,4 +58,39 @@ class EnvConfig {
       defaultValue: _fallbackApiBaseUrl,
     );
   }
+
+  // Google OAuth Client IDs
+  static const String _fallbackGoogleWebClientId =
+      '726935858050-b0q96taocaa7rto463u466c49jdqkp41.apps.googleusercontent.com';
+  static const String _fallbackGoogleAndroidClientId =
+      '726935858050-7rupm8q56208ph81896oo9fs7lp51tjv.apps.googleusercontent.com';
+  static const String _fallbackGoogleIosClientId =
+      '726935858050-f5v8a726jn5m9o24dpjmcfoafne1p89d.apps.googleusercontent.com';
+
+  static String get googleWebClientId {
+    final env = _safeDotenv('GOOGLE_WEB_CLIENT_ID');
+    if (env != null && env.isNotEmpty) return env;
+    return const String.fromEnvironment(
+      'GOOGLE_WEB_CLIENT_ID',
+      defaultValue: _fallbackGoogleWebClientId,
+    );
+  }
+
+  static String get googleAndroidClientId {
+    final env = _safeDotenv('GOOGLE_ANDROID_CLIENT_ID');
+    if (env != null && env.isNotEmpty) return env;
+    return const String.fromEnvironment(
+      'GOOGLE_ANDROID_CLIENT_ID',
+      defaultValue: _fallbackGoogleAndroidClientId,
+    );
+  }
+
+  static String get googleIosClientId {
+    final env = _safeDotenv('GOOGLE_IOS_CLIENT_ID');
+    if (env != null && env.isNotEmpty) return env;
+    return const String.fromEnvironment(
+      'GOOGLE_IOS_CLIENT_ID',
+      defaultValue: _fallbackGoogleIosClientId,
+    );
+  }
 }

@@ -33,6 +33,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   final _passwordFocusNode = FocusNode();
   final _confirmPasswordFocusNode = FocusNode();
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _agreedToTerms = false;
@@ -151,6 +152,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       return 'Password is too weak. Use at least 8 characters with numbers and symbols.';
     } else if (message.contains('Invalid email')) {
       return 'Please enter a valid email address.';
+    } else if (message.contains('cancelled')) {
+      return 'Google sign-in was cancelled.';
     } else if (message.contains('not available') ||
         message.contains('not available. Please restart')) {
       return 'Authentication service is not ready. Please restart the app and try again.';
@@ -158,6 +161,30 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       return 'Sign up failed. Please check your details and try again.';
     }
     return message;
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isGoogleLoading = true);
+
+    try {
+      final authService = ref.read(authServiceProvider);
+      await authService.signInWithGoogle();
+
+      // Track successful Google sign-up
+      AnalyticsService.instance.logSignUp('google');
+
+      if (mounted) context.go('/home');
+    } catch (e) {
+      if (mounted) {
+        final msg = e.toString();
+        // Don't show snackbar for user-initiated cancellation
+        if (!msg.contains('cancelled')) {
+          context.showSnackBar(_cleanErrorMessage(msg), isError: true);
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
+    }
   }
 
   Future<void> _signUp() async {
@@ -716,14 +743,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
                   // ── Google social auth button ─────────────────────
                   _SocialAuthButton(
-                    label: 'Google',
+                    label: _isGoogleLoading ? 'Connecting...' : 'Google',
                     icon: Icons.g_mobiledata_rounded,
                     borderColor: _socialBorder,
                     fillColor: _inputFill,
                     textColor: _primaryText,
-                    onPressed: () {
-                      // TODO: Google sign in
-                    },
+                    isLoading: _isGoogleLoading,
+                    onPressed: _isGoogleLoading ? null : _signInWithGoogle,
                   ).animate().fadeIn(duration: 300.ms, delay: 400.ms),
 
                   const SizedBox(height: 28),
@@ -789,6 +815,7 @@ class _SocialAuthButton extends StatelessWidget {
     required this.borderColor,
     required this.fillColor,
     required this.textColor,
+    this.isLoading = false,
     required this.onPressed,
   });
 
@@ -797,7 +824,8 @@ class _SocialAuthButton extends StatelessWidget {
   final Color borderColor;
   final Color fillColor;
   final Color textColor;
-  final VoidCallback onPressed;
+  final bool isLoading;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -813,7 +841,17 @@ class _SocialAuthButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 22, color: textColor),
+            if (isLoading)
+              SizedBox(
+                height: 18,
+                width: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: textColor,
+                ),
+              )
+            else
+              Icon(icon, size: 22, color: textColor),
             const SizedBox(width: 8),
             Text(
               label,
