@@ -42,6 +42,9 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/package*.json ./
 
+# Create writable directories for the non-root user
+RUN mkdir -p logs && chown -R appuser:appgroup /app
+
 # Use non-root user
 USER appuser
 

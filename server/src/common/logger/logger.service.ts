@@ -65,39 +65,43 @@ export class LoggerService {
       }),
     );
 
-    // Daily rotate file — all logs
-    transports.push(
-      new DailyRotateFile({
-        dirname: logDir,
-        filename: 'app-%DATE%.log',
-        datePattern: 'YYYY-MM-DD',
-        zippedArchive: true,
-        maxSize: '20m',
-        maxFiles: '14d',
-        level: logLevel,
-        format: winston.format.combine(
-          winston.format.timestamp(),
-          winston.format.json(),
-        ),
-      }),
-    );
+    // File transports — only in development / when log dir is writable
+    // In production containers (Render, Docker), logs go to stdout which
+    // the platform captures. Writing to a logs/ dir inside a container is
+    // ephemeral and may fail due to filesystem permissions.
+    if (isDev) {
+      transports.push(
+        new DailyRotateFile({
+          dirname: logDir,
+          filename: 'app-%DATE%.log',
+          datePattern: 'YYYY-MM-DD',
+          zippedArchive: true,
+          maxSize: '20m',
+          maxFiles: '14d',
+          level: logLevel,
+          format: winston.format.combine(
+            winston.format.timestamp(),
+            winston.format.json(),
+          ),
+        }),
+      );
 
-    // Daily rotate file — errors only
-    transports.push(
-      new DailyRotateFile({
-        dirname: logDir,
-        filename: 'error-%DATE%.log',
-        datePattern: 'YYYY-MM-DD',
-        zippedArchive: true,
-        maxSize: '20m',
-        maxFiles: '30d',
-        level: 'error',
-        format: winston.format.combine(
-          winston.format.timestamp(),
-          winston.format.json(),
-        ),
-      }),
-    );
+      transports.push(
+        new DailyRotateFile({
+          dirname: logDir,
+          filename: 'error-%DATE%.log',
+          datePattern: 'YYYY-MM-DD',
+          zippedArchive: true,
+          maxSize: '20m',
+          maxFiles: '30d',
+          level: 'error',
+          format: winston.format.combine(
+            winston.format.timestamp(),
+            winston.format.json(),
+          ),
+        }),
+      );
+    }
 
     // ── Create Winston logger ──────────────────────────────────
     this.winston = winston.createLogger({

@@ -47,8 +47,8 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/package.json ./
 
-# Change ownership to non-root user
-RUN chown -R appuser:appgroup /app
+# Create writable directories and set ownership
+RUN mkdir -p logs && chown -R appuser:appgroup /app
 
 # Use non-root user
 USER appuser
