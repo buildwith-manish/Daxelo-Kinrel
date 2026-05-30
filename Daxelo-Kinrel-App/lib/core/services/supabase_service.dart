@@ -344,7 +344,6 @@ class AuthService {
 
     final googleAuth = await googleUser.authentication;
     final idToken = googleAuth.idToken;
-    final accessToken = googleAuth.accessToken;
 
     if (idToken == null) {
       throw const AuthException(
