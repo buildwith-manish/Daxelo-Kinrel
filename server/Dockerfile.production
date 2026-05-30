@@ -12,15 +12,12 @@
 #
 # Usage:
 #   docker build -f Dockerfile.production -t kinrel-server:prod .
-#   docker run -p 3000:3000 --env-file .env kinrel-server:prod
+#   docker run -p 10000:10000 --env-file .env kinrel-server:prod
 # =============================================================================
 
 # ── Stage 1: Build ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 WORKDIR /app
-
-# Install native dependencies for sharp (image processing)
-RUN apk add --no-cache vips-dev
 
 # Install dependencies first (leverage Docker layer caching)
 COPY package*.json ./
@@ -36,12 +33,8 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-# Install native runtime dependencies for sharp
-RUN apk add --no-cache vips
-
 # Set production environment
 ENV NODE_ENV=production
-ENV PORT=3000
 
 # Create non-root user for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
@@ -58,10 +51,10 @@ RUN chown -R appuser:appgroup /app
 # Use non-root user
 USER appuser
 
-# Health check — verifies the server is responding
+# Render provides PORT env var (default 10000). The app reads process.env.PORT.
+EXPOSE 10000
+
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:3000/api/health || exit 1
+  CMD wget -qO- http://localhost:${PORT:-10000}/api/health || exit 1
 
-EXPOSE 3000
-
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/main"]

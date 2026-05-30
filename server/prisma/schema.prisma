@@ -9,8 +9,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ── Core Models ──────────────────────────────────────────────────────
@@ -41,7 +42,7 @@ model User {
   updatedAt         DateTime @updatedAt
 
   subscription      Subscription?
-  supportTickets    SupportTicket[]
+  supportTickets    SupportTicket[]  @relation("SupportTicketUser")
   supportAgent      SupportAgent?
   authoredArticles  KBArticle[]      @relation("KBArticleAuthor")
   editedArticles    KBArticle[]      @relation("KBArticleEditor")
@@ -137,7 +138,7 @@ model SupportTicket {
   id              String   @id @default(cuid())
   ticketNumber    String   @unique // DK-2024-00001
   userId          String
-  user            User     @relation(fields: [userId], references: [id])
+  user            User     @relation("SupportTicketUser", fields: [userId], references: [id], map: "SupportTicket_user_fkey")
 
   // Classification
   category        String   @default("general") // billing, account, data_loss, bug, feature_request, general, matrimonial, verification, privacy
@@ -159,7 +160,7 @@ model SupportTicket {
   resolutionType  String?  // resolved, wont_fix, duplicate, no_response, out_of_scope
 
   // Subscription reference
-  subscription    Subscription?  @relation("SupportTicketSubscription", fields: [userId], references: [userId])
+  subscription    Subscription?  @relation("SupportTicketSubscription", fields: [userId], references: [userId], map: "SupportTicket_subscription_fkey")
 
   // Assignment
   assignedAgentId String?

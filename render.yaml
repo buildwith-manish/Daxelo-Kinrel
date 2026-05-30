@@ -4,9 +4,15 @@
 # This file configures the Render deployment for the NestJS server.
 # Render auto-detects this file at the repo root.
 #
+# How to use:
+#   1. Go to Render Dashboard → New → Blueprint
+#   2. Select this repository
+#   3. Render will read this render.yaml and create the service
+#   4. Add the required secrets (sync: false) in the Environment section
+#
 # Prerequisites:
 #   - Set the following secrets in Render Dashboard > Environment:
-#     DATABASE_URL, JWT_ACCESS_SECRET, SUPABASE_JWT_SECRET,
+#     DATABASE_URL, DIRECT_URL, JWT_ACCESS_SECRET, SUPABASE_JWT_SECRET,
 #     SUPABASE_ANON_KEY, SUPABASE_URL, GEMINI_API_KEY, etc.
 # =============================================================================
 
@@ -26,8 +32,14 @@ services:
         value: 10000
       - key: API_PREFIX
         value: api
+      # ── Database (Supabase PostgreSQL) ──────────────────────────────
+      # DATABASE_URL: Pooled connection (port 6543) — for runtime queries
       - key: DATABASE_URL
         sync: false
+      # DIRECT_URL: Direct connection (port 5432) — for Prisma migrations/db push
+      - key: DIRECT_URL
+        sync: false
+      # ── Auth ────────────────────────────────────────────────────────
       - key: JWT_ACCESS_SECRET
         sync: false
       - key: SUPABASE_JWT_SECRET
@@ -35,4 +47,7 @@ services:
       - key: SUPABASE_ANON_KEY
         sync: false
       - key: SUPABASE_URL
+        sync: false
+      # ── AI ──────────────────────────────────────────────────────────
+      - key: GEMINI_API_KEY
         sync: false

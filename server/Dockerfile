@@ -2,9 +2,6 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Install native dependencies for sharp (image processing)
-RUN apk add --no-cache vips-dev
-
 # Install dependencies first (leverage Docker layer caching)
 COPY package*.json ./
 COPY .npmrc ./
@@ -18,9 +15,6 @@ RUN npm run build
 # ── Stage 2: Production ────────────────────────────────────────────
 FROM node:20-alpine AS runner
 WORKDIR /app
-
-# Install native dependencies for sharp at runtime
-RUN apk add --no-cache vips
 
 ENV NODE_ENV=production
 
@@ -37,9 +31,10 @@ COPY --from=builder /app/package*.json ./
 # Use non-root user
 USER appuser
 
-EXPOSE 3000
+# Render provides PORT env var (default 10000). The app reads process.env.PORT.
+EXPOSE 10000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-10000}/api/health || exit 1
 
 CMD ["node", "dist/main"]
