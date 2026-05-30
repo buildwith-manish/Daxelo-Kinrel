@@ -365,6 +365,12 @@ class AuthService {
   }
 
   /// Build a GoogleSignIn instance with platform-specific configuration.
+  ///
+  /// On Android, we pass BOTH:
+  /// - `clientId` (Android OAuth client ID) so Google Play Services can
+  ///   identify the app even when google-services.json lacks a type-1 client
+  /// - `serverClientId` (web client ID) so the ID token is issued for the
+  ///   audience that Supabase expects
   GoogleSignIn _buildGoogleSignIn() {
     if (kIsWeb) {
       // Web: use the web client ID
@@ -377,11 +383,22 @@ class AuthService {
       // OAuth client ID)
       return GoogleSignIn(
         clientId: AppConfig.googleIosClientId,
+        serverClientId: AppConfig.googleWebClientId,
       );
     }
-    // Android: GoogleSignIn automatically picks up the client ID from
-    // google-services.json — no clientId parameter needed.
-    return GoogleSignIn();
+    // Android: pass clientId + serverClientId explicitly so that
+    // Google Sign-In works even when google-services.json only has a
+    // type-3 (web) client and no type-1 (Android) client.
+    //
+    // clientId  → the Android OAuth client ID registered in Google
+    //             Cloud Console (package name + SHA-1)
+    // serverClientId → the web client ID; Google issues the ID token
+    //                  with this as the audience, which Supabase then
+    //                  verifies with signInWithIdToken().
+    return GoogleSignIn(
+      clientId: AppConfig.googleAndroidClientId,
+      serverClientId: AppConfig.googleWebClientId,
+    );
   }
 
   Future<void> resetPassword(String email) async {
