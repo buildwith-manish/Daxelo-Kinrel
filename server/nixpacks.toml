@@ -4,36 +4,27 @@
 # Used by Render (and other Nixpacks-compatible platforms) to build the
 # NestJS server automatically without a custom Dockerfile.
 #
-# Nixpacks detects the Node.js project from package.json and follows the
-# phases defined below. Each phase runs in order: install → build → start.
-#
-# If you prefer Docker, the existing Dockerfile at server/Dockerfile works
-# as well — just select "Docker" as the build pack in Render.
+# IMPORTANT: The Dockerfile is the preferred build method for Render
+# because it gives us full control over the Node version. This nixpacks.toml
+# is kept as a fallback for other platforms.
 # =============================================================================
-
-# ── Provider ─────────────────────────────────────────────────────────────────
-# Force Node.js provider. Nixpacks auto-detects this from package.json, but
-# declaring it explicitly avoids ambiguity when other ecosystem files exist.
 
 [provider]
 name = "node"
 
 # ── Install Phase ────────────────────────────────────────────────────────────
-# Runs `npm ci` for deterministic dependency installation (uses package-lock.json).
-# The .npmrc file sets legacy-peer-deps=true so npm ci won't fail on peer
-# dependency conflicts (e.g. @nestjs/schedule v4 vs @nestjs/common v11).
-# Then generates the Prisma Client from the schema so TypeScript compilation
-# succeeds (Prisma-generated types are imported throughout the source code).
+# NODE_ENV is explicitly set to empty string to ensure npm ci installs
+# devDependencies (prisma, @nestjs/cli, typescript) which are needed for build.
+# Render's Node runtime sets NODE_ENV=production by default, which would
+# cause npm ci to skip devDependencies — breaking the build.
 
 [phases.install]
 cmds = [
-    "npm ci",
+    "NODE_ENV= npm ci",
     "npx prisma generate",
 ]
 
 # ── Build Phase ──────────────────────────────────────────────────────────────
-# Compiles TypeScript to JavaScript using the NestJS CLI (`nest build`).
-# Output goes to the `dist/` directory as configured in nest-cli.json.
 
 [phases.build]
 cmds = [
@@ -42,22 +33,13 @@ cmds = [
 
 # ── Start Phase ──────────────────────────────────────────────────────────────
 # The command that runs when the container starts.
-# We use `node dist/main` directly (same as npm run start:prod) for maximum
-# performance — no npm overhead in production.
-#
 # IMPORTANT: PORT env var must be set on Render (default: 10000 for Render).
-# The app reads process.env.PORT at runtime (main.ts).
 
 [start]
 cmd = "node dist/main"
 
 # ── Variables ────────────────────────────────────────────────────────────────
-# Nixpacks-provided build-time environment variables.
-# NODE_ENV=production is set so NestJS runs in production mode at runtime.
-# NPM_CONFIG_PRODUCTION is intentionally NOT set here — setting it to "true"
-# would skip devDependencies during install, which breaks the build phase
-# (typescript, @nestjs/cli, and prisma are all devDependencies).
-# Nixpacks handles devDependency pruning after the build phase automatically.
+# Do NOT set NODE_ENV=production here — it would skip devDependencies during
+# install phase. Nixpacks handles devDependency pruning after build automatically.
 
 [variables]
-NODE_ENV = "production"

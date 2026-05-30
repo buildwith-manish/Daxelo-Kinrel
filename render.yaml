@@ -10,6 +10,11 @@
 #   3. Render will read this render.yaml and create the service
 #   4. Add the required secrets (sync: false) in the Environment section
 #
+# IMPORTANT: Uses Docker runtime (not Node) because:
+#   - NestJS 11 requires Node >= 20, but Render defaults to Node 18
+#   - Node runtime sets NODE_ENV=production during build, skipping devDeps
+#   - Docker runtime gives us full control over Node version and build env
+#
 # Prerequisites:
 #   - Set the following secrets in Render Dashboard > Environment:
 #     DATABASE_URL, DIRECT_URL, JWT_ACCESS_SECRET, SUPABASE_JWT_SECRET,
@@ -19,18 +24,13 @@
 services:
   - type: web
     name: daxelo-kinrel-server
-    runtime: node
-    rootDir: server
+    runtime: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: server
     plan: free
-    buildCommand: npm ci && npx prisma generate && npm run build
-    startCommand: node dist/main
-    preDeployCommand: npx prisma db push
+    # No buildCommand/startCommand needed — Dockerfile handles everything
+    # CMD ["node", "dist/main"] is set in the Dockerfile
     envVars:
-      # ── Node.js version (NestJS 11 requires Node >= 20) ─────────────
-      - key: NODE_VERSION
-        value: "20"
-      - key: NODE_ENV
-        value: production
       - key: PORT
         value: 10000
       - key: API_PREFIX
@@ -39,7 +39,7 @@ services:
       # DATABASE_URL: Pooled connection (port 6543) — for runtime queries
       - key: DATABASE_URL
         sync: false
-      # DIRECT_URL: Direct connection (port 5432) — for Prisma migrations/db push
+      # DIRECT_URL: Direct connection (port 5432) — for Prisma db push
       - key: DIRECT_URL
         sync: false
       # ── Auth ────────────────────────────────────────────────────────
