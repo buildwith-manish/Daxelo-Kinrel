@@ -2,9 +2,13 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# Install native dependencies for sharp (image processing)
+RUN apk add --no-cache vips-dev
+
 # Install dependencies first (leverage Docker layer caching)
 COPY package*.json ./
-RUN npm ci --ignore-scripts
+COPY .npmrc ./
+RUN npm ci
 
 # Copy source and build
 COPY . .
@@ -14,6 +18,9 @@ RUN npm run build
 # ── Stage 2: Production ────────────────────────────────────────────
 FROM node:20-alpine AS runner
 WORKDIR /app
+
+# Install native dependencies for sharp at runtime
+RUN apk add --no-cache vips
 
 ENV NODE_ENV=production
 

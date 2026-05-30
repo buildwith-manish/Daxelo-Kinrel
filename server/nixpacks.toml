@@ -1,14 +1,14 @@
 # =============================================================================
 # Daxelo-Kinrel — Nixpacks Build Configuration
 # =============================================================================
-# Used by Coolify (and other Nixpacks-compatible platforms) to build the
+# Used by Render (and other Nixpacks-compatible platforms) to build the
 # NestJS server automatically without a custom Dockerfile.
 #
 # Nixpacks detects the Node.js project from package.json and follows the
 # phases defined below. Each phase runs in order: install → build → start.
 #
 # If you prefer Docker, the existing Dockerfile at server/Dockerfile works
-# as well — just select "Docker" as the build pack in Coolify.
+# as well — just select "Docker" as the build pack in Render.
 # =============================================================================
 
 # ── Provider ─────────────────────────────────────────────────────────────────
@@ -20,12 +20,14 @@ name = "node"
 
 # ── Install Phase ────────────────────────────────────────────────────────────
 # Runs `npm ci` for deterministic dependency installation (uses package-lock.json).
+# The .npmrc file sets legacy-peer-deps=true so npm ci won't fail on peer
+# dependency conflicts (e.g. @nestjs/schedule v4 vs @nestjs/common v11).
 # Then generates the Prisma Client from the schema so TypeScript compilation
 # succeeds (Prisma-generated types are imported throughout the source code).
 
 [phases.install]
 cmds = [
-    "npm ci --ignore-scripts",
+    "npm ci",
     "npx prisma generate",
 ]
 
@@ -43,17 +45,19 @@ cmds = [
 # We use `node dist/main` directly (same as npm run start:prod) for maximum
 # performance — no npm overhead in production.
 #
-# IMPORTANT: PORT=3000 must be set as an environment variable in Coolify.
-# The app reads process.env.PORT at runtime (main.ts line 123).
+# IMPORTANT: PORT env var must be set on Render (default: 10000 for Render).
+# The app reads process.env.PORT at runtime (main.ts).
 
 [start]
 cmd = "node dist/main"
 
 # ── Variables ────────────────────────────────────────────────────────────────
 # Nixpacks-provided build-time environment variables.
-# NODE_ENV=production ensures devDependencies are skipped after install
-# and that NestJS runs in production mode.
+# NODE_ENV=production is set so NestJS runs in production mode at runtime.
+# NPM_CONFIG_PRODUCTION is intentionally NOT set here — setting it to "true"
+# would skip devDependencies during install, which breaks the build phase
+# (typescript, @nestjs/cli, and prisma are all devDependencies).
+# Nixpacks handles devDependency pruning after the build phase automatically.
 
 [variables]
 NODE_ENV = "production"
-NPM_CONFIG_PRODUCTION = "true"
