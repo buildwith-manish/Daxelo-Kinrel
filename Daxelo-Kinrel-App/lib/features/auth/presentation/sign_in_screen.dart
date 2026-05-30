@@ -76,9 +76,19 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       return 'Please verify your email before signing in.';
     } else if (message.contains('cancelled')) {
       return 'Google sign-in was cancelled.';
+    } else if (message.contains('configuration error') ||
+        message.contains('DEVELOPER_ERROR') ||
+        message.contains('ApiException')) {
+      return 'Google sign-in is not available right now. Please use email sign-in instead.';
+    } else if (message.contains('timed out') ||
+        message.contains('timed out')) {
+      return 'Sign in timed out. Please check your internet connection and try again.';
     } else if (message.contains('not available') ||
         message.contains('not available. Please restart')) {
       return 'Authentication service is not ready. Please restart the app and try again.';
+    } else if (message.contains('Provider api key not found') ||
+        message.contains('provider is not enabled')) {
+      return 'Google sign-in is not configured. Please use email sign-in instead.';
     } else if (message.length > 150) {
       return 'Sign in failed. Please check your credentials and try again.';
     }

@@ -7,6 +7,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import '../config/app_config.dart';
 
 final _log = Logger(printer: PrettyPrinter(methodCount: 0));
@@ -124,6 +125,11 @@ Future<bool> initSupabase() async {
         debug: false,
         authOptions: const FlutterAuthClientOptions(
           authFlowType: AuthFlowType.pkce,
+          // Hostname used in the emailRedirectTo URL so the Supabase
+          // Flutter SDK can intercept auth callback deep links.
+          // Our redirect URL is com.daxelo.kinrel://auth/callback
+          // so the hostname is 'auth'.
+          authCallbackUrlHostname: 'auth',
         ),
       );
       _supabaseInitialized = true;
@@ -287,40 +293,116 @@ class AuthService {
     // ── Build GoogleSignIn instance with platform-specific config ──
     final googleSignIn = _buildGoogleSignIn();
 
-    // ── Trigger the Google Sign-In flow ────────────────────────────
-    final googleUser = await googleSignIn.signIn();
-    if (googleUser == null) {
-      _log.w('🔐 Google Sign-In cancelled by user');
-      throw const AuthException('Google sign-in was cancelled.');
-    }
+    try {
+      // ── Sign out first to clear stale auth state ────────────────
+      // This prevents the "spinning forever" issue caused by cached
+      // Google Sign-In state that may be invalid or expired.
+      try {
+        await googleSignIn.signOut();
+      } catch (_) {
+        // Ignore — may not be signed in
+      }
 
-    _log.i('🔐 Google user obtained: ${googleUser.email}');
+      // ── Trigger the Google Sign-In flow with timeout ─────────────
+      // Timeout prevents the native dialog from hanging indefinitely
+      // if Google Play Services is unresponsive.
+      final googleUser = await googleSignIn
+          .signIn()
+          .timeout(const Duration(seconds: 30), onTimeout: () {
+        _log.w('🔐 Google Sign-In timed out after 30 seconds');
+        throw const AuthException(
+          'Google sign-in timed out. Please check your internet connection and try again.',
+        );
+      });
 
-    // ── Get the authentication tokens ──────────────────────────────
-    final googleAuth = await googleUser.authentication;
-    final idToken = googleAuth.idToken;
-    final accessToken = googleAuth.accessToken;
+      if (googleUser == null) {
+        _log.w('🔐 Google Sign-In cancelled by user');
+        throw const AuthException('Google sign-in was cancelled.');
+      }
 
-    if (idToken == null) {
-      _log.e('🔐 Google Sign-In failed: ID token is null');
-      throw const AuthException(
-        'Failed to get Google ID token. Please try again.',
+      _log.i('🔐 Google user obtained: ${googleUser.email}');
+
+      // ── Get the authentication tokens ──────────────────────────────
+      final googleAuth = await googleUser.authentication.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw const AuthException(
+            'Failed to get Google authentication tokens. Please try again.',
+          );
+        },
       );
-    }
+      final idToken = googleAuth.idToken;
+      final accessToken = googleAuth.accessToken;
 
-    _log.i('🔐 Google ID token obtained, verifying with Supabase...');
+      if (idToken == null) {
+        _log.e('🔐 Google Sign-In failed: ID token is null');
+        throw const AuthException(
+          'Failed to get Google ID token. Please try again.',
+        );
+      }
 
-    // ── Verify with Supabase ───────────────────────────────────────
-    return withRetry(
-      () => client.auth.signInWithIdToken(
+      _log.i('🔐 Google ID token obtained, verifying with Supabase...');
+
+      // ── Verify with Supabase (single attempt, no retry) ───────────
+      // We don't retry because if the ID token is invalid, retrying
+      // won't help — it will fail every time. The user needs to
+      // re-authenticate with Google to get a fresh token.
+      return await client.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
         accessToken: accessToken,
-      ),
-      maxAttempts: 3,
-      initialDelay: const Duration(seconds: 2),
-      operationName: 'Google Sign-In',
-    );
+      );
+    } on PlatformException catch (e) {
+      _log.e('🔐 Google Sign-In PlatformException: ${e.code} - ${e.message}');
+      throw _mapPlatformException(e);
+    } on AuthException {
+      rethrow;
+    } catch (e) {
+      _log.e('🔐 Google Sign-In error: $e');
+      // Wrap unknown errors in a user-friendly AuthException
+      if (e.toString().contains('ApiException') ||
+          e.toString().contains('DEVELOPER_ERROR') ||
+          e.toString().contains('sign_in_failed')) {
+        throw const AuthException(
+          'Google sign-in failed. This may be a configuration issue. '
+          'Please try again or use email sign-in.',
+        );
+      }
+      throw AuthException('Google sign-in failed: ${e.toString()}');
+    }
+  }
+
+  /// Map PlatformException from Google Sign-In to user-friendly errors.
+  AuthException _mapPlatformException(PlatformException e) {
+    switch (e.code) {
+      case 'sign_in_failed':
+        return const AuthException(
+          'Google sign-in failed. Please check your Google account and try again.',
+        );
+      case 'network_error':
+        return const AuthException(
+          'Network error during Google sign-in. Please check your internet connection.',
+        );
+      case 'sign_in_required':
+        return const AuthException(
+          'Please sign in to your Google account first.',
+        );
+      case 'invalid_account':
+        return const AuthException(
+          'Invalid Google account. Please try a different account.',
+        );
+      default:
+        // ApiException:10 = DEVELOPER_ERROR — usually SHA-1 or client ID mismatch
+        if (e.message?.contains('10') == true ||
+            e.message?.contains('DEVELOPER_ERROR') == true) {
+          return const AuthException(
+            'Google sign-in configuration error. Please contact support or try email sign-in.',
+          );
+        }
+        return AuthException(
+          'Google sign-in error: ${e.message ?? e.code}. Please try again.',
+        );
+    }
   }
 
   /// Link a Google account to an existing authenticated user.
@@ -338,31 +420,52 @@ class AuthService {
     _log.i('🔐 Linking Google account...');
 
     final googleSignIn = _buildGoogleSignIn();
-    final googleUser = await googleSignIn.signIn();
-    if (googleUser == null) {
-      throw const AuthException('Google sign-in was cancelled.');
-    }
+    try {
+      final googleUser = await googleSignIn
+          .signIn()
+          .timeout(const Duration(seconds: 30), onTimeout: () {
+        throw const AuthException(
+          'Google sign-in timed out. Please try again.',
+        );
+      });
+      if (googleUser == null) {
+        throw const AuthException('Google sign-in was cancelled.');
+      }
 
-    final googleAuth = await googleUser.authentication;
-    final idToken = googleAuth.idToken;
-
-    if (idToken == null) {
-      throw const AuthException(
-        'Failed to get Google ID token. Please try again.',
-      );
-    }
-
-    // Use updateUser to link the Google identity
-    await client.auth.updateUser(
-      UserAttributes(
-        data: {
-          'linked_google': true,
-          'linked_google_at': DateTime.now().toIso8601String(),
+      final googleAuth = await googleUser.authentication.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw const AuthException(
+            'Failed to get Google authentication tokens. Please try again.',
+          );
         },
-      ),
-    );
+      );
+      final idToken = googleAuth.idToken;
 
-    _log.i('🔐 Google account linked successfully');
+      if (idToken == null) {
+        throw const AuthException(
+          'Failed to get Google ID token. Please try again.',
+        );
+      }
+
+      // Use updateUser to link the Google identity
+      await client.auth.updateUser(
+        UserAttributes(
+          data: {
+            'linked_google': true,
+            'linked_google_at': DateTime.now().toIso8601String(),
+          },
+        ),
+      );
+
+      _log.i('🔐 Google account linked successfully');
+    } on PlatformException catch (e) {
+      throw _mapPlatformException(e);
+    } on AuthException {
+      rethrow;
+    } catch (e) {
+      throw AuthException('Failed to link Google account: $e');
+    }
   }
 
   /// Build a GoogleSignIn instance with platform-specific configuration.
@@ -408,7 +511,10 @@ class AuthService {
       throw const AuthException('Authentication service is not available.');
     }
     await withRetry(
-      () => client.auth.resetPasswordForEmail(email),
+      () => client.auth.resetPasswordForEmail(
+        email,
+        redirectTo: 'com.daxelo.kinrel://auth/callback',
+      ),
       operationName: 'Reset password',
     );
   }

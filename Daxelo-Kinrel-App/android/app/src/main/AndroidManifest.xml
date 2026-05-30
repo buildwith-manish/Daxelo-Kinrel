@@ -62,6 +62,14 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="kinrel"/>
             </intent-filter>
+            <!-- Supabase auth callback deep link (email verification, password reset) -->
+            <!-- The scheme matches the emailRedirectTo URL: com.daxelo.kinrel://auth/callback -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="com.daxelo.kinrel" android:host="auth"/>
+            </intent-filter>
         </activity>
         <!-- Image Cropper: UCropActivity is automatically registered by
              image_cropper v8+ Android plugin. No manual declaration needed. -->
