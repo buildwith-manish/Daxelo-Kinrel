@@ -155,3 +155,43 @@ Stage Summary:
   2. c76d411: Node 20 requirement (.node-version + .nvmrc)
   3. 6b4657e: Switch to Docker runtime (bypass Node 18 + NODE_ENV issues)
   4. 9ae3819: Fix logs/ permission denied
+
+---
+Task ID: 6
+Agent: Main Orchestrator
+Task: Fix Google Sign-In crash + email verification Not Found + API URL issues
+
+Work Log:
+- Analyzed 4 screenshots and Crashlytics stacktrace from user
+- Screenshot 1: Sign-in screen showing "Connecting..." (Google Sign-In hanging)
+- Screenshot 2: Same sign-in screen, "Connecting..." state
+- Screenshot 3: Browser showing "Not Found" on daxelo-kinrel-server.onrender.com
+- Screenshot 4: Firebase Crashlytics dashboard showing 17 crashes, 33 non-fatals
+- Stacktrace: NetworkError: GET /api/users/me, statusCode=404 in ProfileNotifier.loadProfile
+- Explored Flutter auth code (9 files) and NestJS auth code (12 files)
+
+- ROOT CAUSE 1: API base URL fallback was http://10.0.2.2:3001 (Android emulator only)
+  - On real devices, ALL API calls fail silently → app hangs → ANR → crash
+  - Fixed app_config.dart + env_config.dart: fallback → https://daxelo-kinrel-server.onrender.com
+
+- ROOT CAUSE 2: Email verification link redirects to backend URL (no frontend)
+  - Supabase Dashboard Site URL was pointing to the backend
+  - Fixed supabase_service.dart: added emailRedirectTo: 'com.daxelo.kinrel://auth/callback'
+  - This makes verification emails open the app directly via deep link
+
+- ROOT CAUSE 3: JwtStrategy authProvider hardcoded to 'email'
+  - Even Google-authenticated users got authProvider='email' in database
+  - Fixed jwt.strategy.ts: read from payload.app_metadata.provider
+  - Also added avatarUrl from user_metadata.picture for Google avatars
+
+- Commit f42365e pushed to GitHub
+
+Stage Summary:
+- 3 root causes identified and fixed across 4 files
+- Google Sign-In should now work on real devices (API URL fixed)
+- Email verification should open the app via deep link instead of showing "Not Found"
+- Backend will now correctly mark Google-authenticated users with authProvider='google'
+- User still needs to:
+  1. Add Android debug SHA-1 to Google Cloud Console
+  2. Configure Supabase Dashboard: Site URL + Redirect URLs
+  3. Register deep link 'com.daxelo.kinrel://auth/callback' in Supabase
