@@ -91,3 +91,34 @@ Stage Summary:
   2. Set rootDir to server (or delete/recreate from render.yaml blueprint)
   3. Ensure Docker Command is empty or "node dist/main"
   4. Ensure all required env vars are set (DATABASE_URL, DIRECT_URL, JWT_ACCESS_SECRET, etc.)
+
+---
+Task ID: 4
+Agent: Main Orchestrator
+Task: Fix Render build failure — npm ci exit 1 with only 415 packages installed
+
+Work Log:
+- Analyzed user screenshot showing Render deployment log
+- Found TWO root causes:
+  1. Render Dashboard has NODE_VERSION=18 set, but NestJS 11 requires Node >= 20
+     (log: "Using Node.js version 18.20.0 via environment variable NODE_VERSION")
+  2. Render sets NODE_ENV=production during build, causing npm ci to skip devDependencies
+     (log: "added 415 packages" instead of expected 867 — devDeps missing)
+  3. Without devDependencies, npx prisma generate and npm run build both fail
+- Previous approach (Node runtime + .node-version file) doesn't work because:
+  - Render Dashboard NODE_VERSION env var overrides .node-version
+  - NODE_ENV=production during build can't be overridden from code in Node runtime
+- Solution: Switched render.yaml to Docker runtime
+  - Dockerfile uses FROM node:20-alpine (controls its own Node version)
+  - npm ci runs WITHOUT NODE_ENV=production (installs ALL 867 packages)
+  - npm prune --omit=dev after build strips devDeps from runner
+  - CMD ["node", "dist/main"] in Dockerfile (no Render build/start command needed)
+- Updated Dockerfile, Dockerfile.production, nixpacks.toml
+- Commit 6b4657e pushed to GitHub
+
+Stage Summary:
+- render.yaml changed from runtime: node to runtime: docker
+- Dockerfile adds npm prune --omit=dev step after build
+- nixpacks.toml adds NODE_ENV= prefix for npm ci (fallback)
+- User must DELETE existing Render service and CREATE NEW from render.yaml blueprint
+- OR manually change service to Docker runtime in Render Dashboard
