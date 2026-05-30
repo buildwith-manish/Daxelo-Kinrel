@@ -122,3 +122,36 @@ Stage Summary:
 - nixpacks.toml adds NODE_ENV= prefix for npm ci (fallback)
 - User must DELETE existing Render service and CREATE NEW from render.yaml blueprint
 - OR manually change service to Docker runtime in Render Dashboard
+
+---
+Task ID: 5
+Agent: Main Orchestrator
+Task: Fix Render deployment — EACCES permission denied on logs/ directory
+
+Work Log:
+- User created new Render service from blueprint (Docker runtime)
+- Docker build succeeded! NestJS started loading modules
+- Server crashed at startup: EACCES: permission denied, mkdir 'logs/'
+- Root cause: Winston DailyRotateFile tries to create logs/ dir at startup,
+  but non-root appuser in Docker container can't create directories
+- Fix 1: LoggerService — skip file transports in production (isDev check)
+  - Container platforms (Render) capture stdout automatically
+  - File logs are ephemeral in containers anyway
+  - Kept file transports for development (local debugging)
+- Fix 2: Dockerfile — create logs/ dir + chown before USER switch
+  - RUN mkdir -p logs && chown -R appuser:appgroup /app
+- Commit 9ae3819 pushed
+- Verified: https://daxelo-kinrel-server.onrender.com/api/health returns HTTP 200!
+- Health check response: {"status":"ok","db":"ok","uptime":19,"memory":29.98}
+
+Stage Summary:
+- 🟢 SERVER IS LIVE on Render!
+- URL: https://daxelo-kinrel-server.onrender.com
+- Health endpoint: /api/health → {"status":"ok","db":"ok"}
+- All modules loaded successfully (ConfigModule, ScheduleModule, HealthModule, etc.)
+- Database connection verified (Supabase PostgreSQL via Prisma)
+- 4 commits total for Render deployment fix:
+  1. c462685: Prisma sqlite → postgresql
+  2. c76d411: Node 20 requirement (.node-version + .nvmrc)
+  3. 6b4657e: Switch to Docker runtime (bypass Node 18 + NODE_ENV issues)
+  4. 9ae3819: Fix logs/ permission denied
