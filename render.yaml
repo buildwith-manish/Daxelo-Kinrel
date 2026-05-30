@@ -18,6 +18,7 @@ services:
     plan: free
     buildCommand: npm ci && npx prisma generate && npm run build
     startCommand: node dist/main
+    preDeployCommand: npx prisma db push
     envVars:
       - key: NODE_ENV
         value: production
