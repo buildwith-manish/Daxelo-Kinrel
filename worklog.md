@@ -55,3 +55,39 @@ Stage Summary:
 - render.yaml created for Render deployment configuration
 - Commits: 028f23c (Google Sign-In fix), c99c7fe (Render build fix), ed16002 (render.yaml)
 - User needs to: (1) add debug SHA-1 to Google Cloud Console, (2) configure Render environment variables, (3) set Render rootDir to server
+
+---
+Task ID: 3
+Agent: Main Orchestrator
+Task: Fix Render deployment — switch Prisma from SQLite to PostgreSQL + fix Node version
+
+Work Log:
+- Diagnosed server returning 404 on Render (x-render-routing: no-server — container never started)
+- Found ROOT CAUSE #1: Prisma schema had `provider = "sqlite"` but production database is Supabase PostgreSQL
+- Changed prisma/schema.prisma: `provider = "postgresql"`, added `directUrl` env var for PgBouncer
+- Fixed SupportTicket relation constraint name collision (PostgreSQL requires unique FK names)
+- Added `@relation("SupportTicketUser")` to User.supportTickets to match SupportTicket.user
+- Removed vips-dev from Dockerfiles (sharp was already removed — no need for vips)
+- Fixed Dockerfile healthcheck to use $PORT env var (Render uses 10000, not 3000)
+- Fixed nixpacks.toml (removed stale vips-dev reference)
+- Updated render.yaml with DIRECT_URL env var
+
+- Found ROOT CAUSE #2: NestJS 11 requires Node >= 20, but Render defaults to Node 18
+  - @nestjs/cli@11: engines.node >= 20.11
+  - @nestjs/core@11: engines.node >= 20
+  - Node 18.20.0 causes npm ci to fail with exit status 1 (silent — postinstall scripts fail)
+- Added server/.node-version with "20"
+- Added server/.nvmrc with "20"
+- Added NODE_VERSION=20 to render.yaml env vars
+- Regenerated package-lock.json for clean npm ci
+- Removed empty root package-lock.json
+- Verified full build pipeline: npm ci → prisma generate → nest build — all pass locally
+
+Stage Summary:
+- Commit c462685: Prisma sqlite → postgresql + Dockerfile/nixpacks fixes
+- Commit c76d411: Node 20 requirement + .node-version + regenerated lockfile
+- Server still returning 404 because existing Render service needs Dashboard changes:
+  1. Add NODE_VERSION=20 to Render Environment variables
+  2. Set rootDir to server (or delete/recreate from render.yaml blueprint)
+  3. Ensure Docker Command is empty or "node dist/main"
+  4. Ensure all required env vars are set (DATABASE_URL, DIRECT_URL, JWT_ACCESS_SECRET, etc.)
