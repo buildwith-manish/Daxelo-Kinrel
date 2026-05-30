@@ -11,7 +11,7 @@ class EnvConfig {
   static const String _fallbackSupabaseAnonKey =
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY';
   static const String _fallbackApiBaseUrl =
-      'http://10.0.2.2:3001';
+      'https://daxelo-kinrel-server.onrender.com';
 
   static bool get isProduction => const bool.fromEnvironment('dart.vm.product');
   static bool get isDebug => !isProduction;

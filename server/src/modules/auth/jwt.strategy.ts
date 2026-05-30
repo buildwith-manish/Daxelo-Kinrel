@@ -130,7 +130,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
               email.split('@')[0],
             role: payload.role === 'admin' ? 'admin' : 'user',
             preferredLanguage: 'en',
-            authProvider: 'email',
+            authProvider: payload.app_metadata?.provider || payload.user_metadata?.provider || 'email',
+            avatarUrl: payload.user_metadata?.avatar_url || payload.user_metadata?.picture || null,
           },
           select: {
             id: true,

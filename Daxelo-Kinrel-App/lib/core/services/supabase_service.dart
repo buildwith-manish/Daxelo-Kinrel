@@ -235,6 +235,7 @@ class AuthService {
         email: email,
         password: password,
         data: {'name': name},
+        emailRedirectTo: 'com.daxelo.kinrel://auth/callback',
       ),
       operationName: 'Sign up',
     );
