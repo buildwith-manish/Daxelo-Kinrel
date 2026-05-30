@@ -1,0 +1,37 @@
+# =============================================================================
+# Daxelo-Kinrel — Render Blueprint
+# =============================================================================
+# This file configures the Render deployment for the NestJS server.
+# Render auto-detects this file at the repo root.
+#
+# Prerequisites:
+#   - Set the following secrets in Render Dashboard > Environment:
+#     DATABASE_URL, JWT_ACCESS_SECRET, SUPABASE_JWT_SECRET,
+#     SUPABASE_ANON_KEY, SUPABASE_URL, GEMINI_API_KEY, etc.
+# =============================================================================
+
+services:
+  - type: web
+    name: daxelo-kinrel-server
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: node dist/main
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: API_PREFIX
+        value: api
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
