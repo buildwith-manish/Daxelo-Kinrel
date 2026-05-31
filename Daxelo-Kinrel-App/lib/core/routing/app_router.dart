@@ -251,6 +251,9 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
   // Currently bypassed — all routes accessible without authentication.
   return null; // LOGIN BYPASSED — allow all navigation
 
+  // ── ORIGINAL AUTH REDIRECT LOGIC (commented out) ───────────────────
+  // Search for "TODO: Re-enable login redirect" to restore.
+  /*
   // ── Log navigation breadcrumb for crash context ──────────────────
   logNavigationBreadcrumb(state.matchedLocation);
 
@@ -322,6 +325,7 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
   if (authState && isAuth) return '/home';
 
   return null;
+  */
 }
 
 /// Router provider — uses a single GoRouter instance that doesn't
