@@ -6,6 +6,7 @@
 // Milestone, Connection Added, Invite Shared.
 // Each has a unique visual design using the Kinrel dark theme.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -41,7 +42,11 @@ class _FamilyFeedState extends ConsumerState<FamilyFeed> {
   @override
   void initState() {
     super.initState();
-    _initFeed();
+    // LOGIN BYPASSED: Wrap in catchError to prevent uncaught async error
+    // that crashes the app when there's no auth session.
+    _initFeed().catchError((e) {
+      debugPrint('⚠️ FamilyFeed init failed (no session?): $e');
+    });
     _scrollController.addListener(_onScroll);
   }
 
@@ -53,11 +58,16 @@ class _FamilyFeedState extends ConsumerState<FamilyFeed> {
   }
 
   Future<void> _initFeed() async {
-    final feedNotifier = ref.read(feedProvider.notifier);
-    // Try to generate posts from existing data first
-    await feedNotifier.generatePostsFromFamilyData(widget.familyId);
-    // Then load the feed
-    await feedNotifier.loadFeed(widget.familyId);
+    try {
+      final feedNotifier = ref.read(feedProvider.notifier);
+      // Try to generate posts from existing data first
+      await feedNotifier.generatePostsFromFamilyData(widget.familyId);
+      // Then load the feed
+      await feedNotifier.loadFeed(widget.familyId);
+    } catch (e) {
+      debugPrint('⚠️ FamilyFeed._initFeed error: $e');
+      // Don't rethrow — the feed will show empty state
+    }
   }
 
   void _onScroll() {

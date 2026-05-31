@@ -174,7 +174,9 @@ class _PrefetchFamilyListState extends ConsumerState<_PrefetchFamilyList> {
     // Warm up the family list provider — data starts fetching immediately
     Future.microtask(() {
       if (mounted) {
-        ref.read(familyListProvider.future);
+        // LOGIN BYPASSED: Add catchError to prevent uncaught async error
+        // when there's no auth session
+        ref.read(familyListProvider.future).catchError((_) => <Family>[]);
       }
     });
   }
@@ -203,7 +205,8 @@ class _PrefetchFamilyDetailState extends ConsumerState<_PrefetchFamilyDetail> {
     super.initState();
     Future.microtask(() {
       if (mounted) {
-        ref.read(familyDetailProvider(widget.familyId).future);
+        // LOGIN BYPASSED: Add catchError to prevent uncaught async error
+        ref.read(familyDetailProvider(widget.familyId).future).catchError((_) {});
       }
     });
   }

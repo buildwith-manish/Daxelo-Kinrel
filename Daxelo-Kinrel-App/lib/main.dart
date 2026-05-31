@@ -378,13 +378,21 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       }
     } catch (_) {}
 
-    // 2. Start the SyncEngine if Isar is initialized
+    // 2. Start the SyncEngine if Isar is initialized AND user has a session
+    // LOGIN BYPASSED: Only start sync if there's a real auth session.
+    // Without a session, sync will fail and may cause background errors.
     if (IsarDatabase.isInitialized) {
       try {
-        final bgSyncManager = ref.read(backgroundSyncManagerProvider);
-        bgSyncManager.init();
-        bgSyncManager.start();
-        debugPrint('🔄 SyncEngine + BackgroundSyncManager started');
+        final client = ref.read(supabaseProvider);
+        final hasSession = client?.auth.currentSession != null;
+        if (hasSession) {
+          final bgSyncManager = ref.read(backgroundSyncManagerProvider);
+          bgSyncManager.init();
+          bgSyncManager.start();
+          debugPrint('🔄 SyncEngine + BackgroundSyncManager started');
+        } else {
+          debugPrint('⏭️ SyncEngine skipped — no auth session (LOGIN BYPASSED)');
+        }
       } catch (e) {
         debugPrint('⚠️ SyncEngine start failed: $e');
       }
@@ -463,28 +471,36 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     });
 
     // 6. Birthday preload
+    // LOGIN BYPASSED: Skip birthday preload when no session — repo queries
+    // may fail or return stale data from a previous session.
     if (IsarDatabase.isInitialized) {
       try {
-        final repo = ref.read(offlineFamilyRepositoryProvider);
-        final families = await repo.getFamilies();
-        final now = DateTime.now();
-        for (final family in families) {
-          final members = await repo.getFamilyMembers(family.id);
-          for (final member in members) {
-            if (member.dateOfBirth != null) {
-              final dob = DateTime.tryParse(member.dateOfBirth!);
-              if (dob != null) {
-                final thisYearBirthday = DateTime(now.year, dob.month, dob.day);
-                final daysUntil = thisYearBirthday.difference(now).inDays;
-                if (daysUntil >= 0 && daysUntil <= 7) {
-                  debugPrint('🎂 Birthday preload: ${member.name} in $daysUntil days');
-                  try {
-                    unawaited(ref.read(memberDetailProvider(member.id).future));
-                  } catch (_) {}
+        final client = ref.read(supabaseProvider);
+        final hasSession = client?.auth.currentSession != null;
+        if (hasSession) {
+          final repo = ref.read(offlineFamilyRepositoryProvider);
+          final families = await repo.getFamilies();
+          final now = DateTime.now();
+          for (final family in families) {
+            final members = await repo.getFamilyMembers(family.id);
+            for (final member in members) {
+              if (member.dateOfBirth != null) {
+                final dob = DateTime.tryParse(member.dateOfBirth!);
+                if (dob != null) {
+                  final thisYearBirthday = DateTime(now.year, dob.month, dob.day);
+                  final daysUntil = thisYearBirthday.difference(now).inDays;
+                  if (daysUntil >= 0 && daysUntil <= 7) {
+                    debugPrint('🎂 Birthday preload: ${member.name} in $daysUntil days');
+                    try {
+                      unawaited(ref.read(memberDetailProvider(member.id).future));
+                    } catch (_) {}
+                  }
                 }
               }
             }
           }
+        } else {
+          debugPrint('⏭️ Birthday preload skipped — no auth session (LOGIN BYPASSED)');
         }
       } catch (e) {
         debugPrint('⚠️ Birthday preload failed: $e');

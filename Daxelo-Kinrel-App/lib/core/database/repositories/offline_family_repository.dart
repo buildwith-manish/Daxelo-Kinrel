@@ -65,8 +65,12 @@ class OfflineFamilyRepository {
       final client = _ref.read(supabaseProvider);
       if (client == null) return [];
 
+      // LOGIN BYPASSED: Guard against no valid session — RLS will deny queries
       final userId = client.auth.currentUser?.id;
-      if (userId == null) return [];
+      if (userId == null) {
+        debugPrint('⏭️ OfflineFamilyRepo._fetchFamiliesFromNetwork skipped — no auth session (LOGIN BYPASSED)');
+        return [];
+      }
 
       // Get family IDs from FamilyMember join table
       final familyIds = <String>{};
@@ -172,6 +176,12 @@ class OfflineFamilyRepository {
       final client = _ref.read(supabaseProvider);
       if (client == null) return [];
 
+      // LOGIN BYPASSED: Guard against no valid session — RLS will deny queries
+      if (client.auth.currentSession == null) {
+        debugPrint('⏭️ OfflineFamilyRepo._fetchMembersFromNetwork skipped — no auth session (LOGIN BYPASSED)');
+        return [];
+      }
+
       final response = await client
           .from('Person')
           .select()
@@ -254,6 +264,12 @@ class OfflineFamilyRepository {
     try {
       final client = _ref.read(supabaseProvider);
       if (client == null) return [];
+
+      // LOGIN BYPASSED: Guard against no valid session — RLS will deny queries
+      if (client.auth.currentSession == null) {
+        debugPrint('⏭️ OfflineFamilyRepo._fetchRelationshipsFromNetwork skipped — no auth session (LOGIN BYPASSED)');
+        return [];
+      }
 
       final response = await client
           .from('Relationship')

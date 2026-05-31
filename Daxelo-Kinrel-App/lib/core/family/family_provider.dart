@@ -343,8 +343,13 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
   try {
     // Use offline-first repository if Isar is initialized
     if (IsarDatabase.isInitialized) {
-      final repo = ref.read(offlineFamilyRepositoryProvider);
-      return repo.getFamilies();
+      try {
+        final repo = ref.read(offlineFamilyRepositoryProvider);
+        return repo.getFamilies();
+      } catch (e) {
+        debugPrint('⚠️ Offline repo getFamilies failed, falling back: $e');
+        // Fall through to Supabase direct query
+      }
     }
 
     // Fallback to direct Supabase query (original behavior)
@@ -485,8 +490,13 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
   try {
     // Use offline-first repository if Isar is initialized
     if (IsarDatabase.isInitialized) {
-      final repo = ref.read(offlineFamilyRepositoryProvider);
-      return repo.getFamilyMembers(familyId);
+      try {
+        final repo = ref.read(offlineFamilyRepositoryProvider);
+        return repo.getFamilyMembers(familyId);
+      } catch (e) {
+        debugPrint('⚠️ Offline repo getFamilyMembers failed, falling back: $e');
+        // Fall through to Supabase direct query
+      }
     }
 
     // Fallback to direct Supabase query (original behavior)
@@ -551,8 +561,13 @@ final familyRelationshipsProvider =
       try {
         // Use offline-first repository if Isar is initialized
         if (IsarDatabase.isInitialized) {
-          final repo = ref.read(offlineFamilyRepositoryProvider);
-          return repo.getFamilyRelationships(familyId);
+          try {
+            final repo = ref.read(offlineFamilyRepositoryProvider);
+            return repo.getFamilyRelationships(familyId);
+          } catch (e) {
+            debugPrint('⚠️ Offline repo getFamilyRelationships failed, falling back: $e');
+            // Fall through to Supabase direct query
+          }
         }
 
         // Fallback to direct Supabase query (original behavior)
