@@ -25,13 +25,15 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.daxelo.kinrel"
-    compileSdk = 35
+    compileSdk = 36
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    ndkVersion = "28.2.13676358"
 
     defaultConfig {
         applicationId = "com.daxelo.kinrel"
