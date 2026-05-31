@@ -264,7 +264,7 @@ void _attachStateContext(String errorContext) {
 /// Handle post-sign-in operations (fire-and-forget).
 /// Called from the auth state listener — MUST NOT throw.
 /// Every operation is individually wrapped in try-catch with timeouts.
-Future<void> _handlePostSignIn(Ref ref, User user) async {
+Future<void> _handlePostSignIn(WidgetRef ref, User user) async {
   // Set user properties for analytics (with timeout)
   try {
     final familyList = await ref
@@ -306,7 +306,7 @@ Future<void> _handlePostSignIn(Ref ref, User user) async {
 
 /// Handle sign-out operations (fire-and-forget).
 /// Called from the auth state listener — MUST NOT throw.
-Future<void> _handleSignOut(Ref ref) async {
+Future<void> _handleSignOut(WidgetRef ref) async {
   try {
     final pushService = ref.read(pushNotificationServiceProvider);
     await pushService.deleteToken().timeout(const Duration(seconds: 5));
