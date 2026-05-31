@@ -195,3 +195,40 @@ Stage Summary:
   1. Add Android debug SHA-1 to Google Cloud Console
   2. Configure Supabase Dashboard: Site URL + Redirect URLs
   3. Register deep link 'com.daxelo.kinrel://auth/callback' in Supabase
+
+---
+Task ID: 7
+Agent: Main Orchestrator
+Task: Fix app runtime crash after login bypass
+
+Work Log:
+- Analyzed 3 Crashlytics stacktraces (all "Non-fatal Exception"):
+  1. NetworkError: GET /api/users/me (404) at ProfileNotifier.loadProfile
+  2. NetworkError: POST /users/me/fcm-token (404) at PushNotificationService._syncTokenToBackend
+  3. NetworkError: POST /users/me/fcm-token (404) at PushNotificationService + _KinrelAppState._initDeferredServices
+- Identified root causes:
+  1. FCM token URL missing /api prefix (/users/me/fcm-token → /api/users/me/fcm-token)
+  2. pushService.initialize() NOT awaited in auth state listener — could cause unhandled async errors
+  3. Auth state listener called pushService.deleteToken() + pushService.dispose() on sign-out even when login is bypassed
+  4. Profile/family preloading ran even without auth session, generating 404/401 errors
+  5. _ErrorLoggingInterceptor only skipped 401/403/404, not all 4xx client errors
+  6. Session restoration in splash screen ran unnecessarily when login is bypassed
+
+- Fixes applied:
+  1. push_notification_service.dart: Fixed FCM URL from /users/me/fcm-token to /api/users/me/fcm-token
+  2. main.dart: Added `await` to pushService.initialize() in auth state listener (was unawaited)
+  3. main.dart: Wrapped entire auth state listener body in try-catch to prevent unhandled errors
+  4. main.dart: Commented out FCM token deletion/dispose on sign-out (LOGIN BYPASSED)
+  5. main.dart: Added session check to push notification init — skip when no auth session
+  6. main.dart: Added session check to profile/family preloading — skip when no auth session
+  7. dio_client.dart: Changed _ErrorLoggingInterceptor to skip ALL 4xx errors (400-499)
+  8. splash_screen.dart: Simplified _restoreSession() to skip when login is bypassed
+  9. family_provider.dart: Added LOGIN BYPASSED guard to familyListProvider to skip Supabase queries
+
+- Commit 0d86861 pushed, GitHub Actions build #19 succeeded ✅
+
+Stage Summary:
+- 5 files changed, 94 insertions, 78 deletions
+- All network-dependent operations now skip gracefully when no auth session exists
+- App should no longer crash or show blank screens when opened without login
+- All bypass points marked with "LOGIN BYPASSED" and "TODO: Re-enable" comments
