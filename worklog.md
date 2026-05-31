@@ -232,3 +232,37 @@ Stage Summary:
 - All network-dependent operations now skip gracefully when no auth session exists
 - App should no longer crash or show blank screens when opened without login
 - All bypass points marked with "LOGIN BYPASSED" and "TODO: Re-enable" comments
+
+---
+Task ID: 8
+Agent: Main Orchestrator
+Task: Fix app runtime crash - blank screen then crash after splash
+
+Work Log:
+- User reported: "shows Kinrel logo after that blank screen then throws out"
+- Investigated full app initialization flow and all auth-dependent code
+- Identified multiple potential crash causes:
+  1. FamilyFeed._initFeed() called as fire-and-forget without .catchError() - uncaught async error crashes app
+  2. SyncEngine started without session check - causes background errors
+  3. Offline repo getFamilies/getFamilyMembers/getFamilyRelationships calls not wrapped in try-catch
+  4. Prefetch providers (_PrefetchFamilyList, _PrefetchFamilyDetail) read futures without .catchError()
+  5. Profile screen unawaited calls without .catchError()
+  6. Birthday preload ran without session check
+
+- Fixes applied:
+  1. family_feed.dart: Wrapped _initFeed() in try-catch + added .catchError() to initState call
+  2. main.dart: Guarded SyncEngine start with session check (skip if no auth session)
+  3. main.dart: Guarded birthday preload with session check
+  4. family_provider.dart: Wrapped all offline repo calls in try-catch (getFamilies, getFamilyMembers, getFamilyRelationships)
+  5. offline_family_repository.dart: Added session guards to all 3 network fetch methods
+  6. app_router.dart: Added .catchError() to _PrefetchFamilyList and _PrefetchFamilyDetail
+  7. profile_screen.dart: Added .catchError() to 3 unawaited provider calls
+
+- Commit b9df03b pushed, GitHub Actions builds #123, #125, #20 all succeeded ✅
+
+Stage Summary:
+- 6 files changed, 100 insertions, 39 deletions
+- All fire-and-forget futures now have .catchError() to prevent uncaught async errors
+- All auth-dependent background services skip when no session exists
+- All provider reads that could throw are now wrapped in try-catch
+- App should now open successfully showing the "No Families Yet" empty state
