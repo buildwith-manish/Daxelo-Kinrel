@@ -185,6 +185,13 @@ class FeedNotifier extends StateNotifier<FeedState> {
         return;
       }
 
+      // LOGIN BYPASSED: Guard against no valid session — RLS will deny queries
+      final session = client.auth.currentSession;
+      if (session == null) {
+        state = state.copyWith(isLoading: false, posts: []);
+        return;
+      }
+
       final response = await withRetry(
         () => client
             .from(_kFamilyPostTable)

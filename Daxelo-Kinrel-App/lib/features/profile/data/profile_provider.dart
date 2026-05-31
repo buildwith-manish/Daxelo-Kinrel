@@ -633,6 +633,24 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   Future<void> loadProfile() async {
     state = state.copyWith(isLoading: true, clearError: true);
 
+    // LOGIN BYPASSED: Guard against no valid session — skip API calls
+    final client = _ref.read(supabaseProvider);
+    if (client?.auth.currentSession == null) {
+      // No session — try offline cache, then give up gracefully
+      if (IsarDatabase.isInitialized) {
+        try {
+          final repo = _ref.read(offlineProfileRepositoryProvider);
+          final profile = await repo.getProfile();
+          if (profile != null) {
+            state = state.copyWith(profile: profile, isLoading: false);
+            return;
+          }
+        } catch (_) {}
+      }
+      state = state.copyWith(isLoading: false);
+      return;
+    }
+
     // Try offline-first repository first if Isar is initialized
     if (IsarDatabase.isInitialized) {
       try {
@@ -733,6 +751,23 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   // ── Load Stats ─────────────────────────────────────────────────
 
   Future<void> loadStats() async {
+    // LOGIN BYPASSED: Guard against no valid session — skip API calls
+    final client = _ref.read(supabaseProvider);
+    if (client?.auth.currentSession == null) {
+      // No session — try offline cache, then give up gracefully
+      if (IsarDatabase.isInitialized) {
+        try {
+          final repo = _ref.read(offlineProfileRepositoryProvider);
+          final stats = await repo.getStats();
+          if (stats != null) {
+            state = state.copyWith(stats: stats);
+            return;
+          }
+        } catch (_) {}
+      }
+      return;
+    }
+
     // Try offline-first repository first if Isar is initialized
     if (IsarDatabase.isInitialized) {
       try {

@@ -424,6 +424,9 @@ final familyDetailProvider = FutureProvider.family<FamilyDetail?, String>((
     final client = ref.watch(supabaseProvider);
     if (client == null) return null;
 
+    // LOGIN BYPASSED: Guard against no valid session — RLS will deny queries
+    if (client.auth.currentSession == null) return null;
+
     // Fetch family
     final familyResponse = await client
         .from(_kFamilyTable)
@@ -484,6 +487,9 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
     // Fallback to direct Supabase query (original behavior)
     final client = ref.watch(supabaseProvider);
     if (client == null) return [];
+
+    // LOGIN BYPASSED: Guard against no valid session — RLS will deny queries
+    if (client.auth.currentSession == null) return [];
 
     final response = await client
         .from(_kPersonTable)
@@ -547,6 +553,9 @@ final familyRelationshipsProvider =
         // Fallback to direct Supabase query (original behavior)
         final client = ref.watch(supabaseProvider);
         if (client == null) return [];
+
+        // LOGIN BYPASSED: Guard against no valid session — RLS will deny queries
+        if (client.auth.currentSession == null) return [];
 
         final response = await client
             .from(_kRelationshipTable)
