@@ -254,7 +254,14 @@ class AuthService {
       );
     }
     return withRetry(
-      () => client.auth.signInWithPassword(email: email, password: password),
+      () => client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      ).timeout(const Duration(seconds: 15), onTimeout: () {
+        throw const AuthException(
+          'Sign in timed out. The server may be waking up — please try again.',
+        );
+      }),
       maxAttempts: 3, // Reduced from 5 — avoid 24+ second retry storms
       initialDelay: const Duration(seconds: 2),
       operationName: 'Sign in',
@@ -289,14 +296,11 @@ class AuthService {
     final googleSignIn = _buildGoogleSignIn();
 
     try {
-      // ── Sign out first to clear stale auth state ────────────────
-      // This prevents the "spinning forever" issue caused by cached
-      // Google Sign-In state that may be invalid or expired.
-      try {
-        await googleSignIn.signOut();
-      } catch (_) {
-        // Ignore — may not be signed in
-      }
+      // ── NOTE: Do NOT call signOut() before signIn() ──────────────
+      // Calling signOut() before signIn() corrupts the Google Play
+      // Services connection state on some Android devices, causing
+      // native crashes (force close) that cannot be caught by Dart.
+      // Instead, we let signIn() handle stale state internally.
 
       // ── Trigger the Google Sign-In flow with timeout ─────────────
       // Timeout prevents the native dialog from hanging indefinitely
@@ -342,12 +346,20 @@ class AuthService {
       // The ID token itself is valid for ~1 hour, so retrying on
       // network errors is safe. If the token is invalid (not a network
       // error), withRetry will rethrow immediately without retrying.
+      //
+      // IMPORTANT: We add a per-attempt timeout of 15 seconds to
+      // prevent signInWithIdToken() from hanging indefinitely when
+      // Supabase is on a cold start (free tier pauses after inactivity).
       return await withRetry(
         () => client.auth.signInWithIdToken(
           provider: OAuthProvider.google,
           idToken: idToken,
           accessToken: accessToken,
-        ),
+        ).timeout(const Duration(seconds: 15), onTimeout: () {
+          throw const AuthException(
+            'Supabase verification timed out. The server may be waking up — please try again.',
+          );
+        }),
         maxAttempts: 3,
         initialDelay: const Duration(seconds: 2),
         operationName: 'Google Sign-In verification',
@@ -357,6 +369,10 @@ class AuthService {
       throw _mapPlatformException(e);
     } on AuthException {
       rethrow;
+    } on TimeoutException {
+      throw const AuthException(
+        'Google sign-in timed out. Please check your internet connection and try again.',
+      );
     } catch (e) {
       _log.e('🔐 Google Sign-In error: $e');
       // Wrap unknown errors in a user-friendly AuthException
@@ -470,11 +486,13 @@ class AuthService {
 
   /// Build a GoogleSignIn instance with platform-specific configuration.
   ///
-  /// On Android, we pass BOTH:
-  /// - `clientId` (Android OAuth client ID) so Google Play Services can
-  ///   identify the app even when google-services.json lacks a type-1 client
-  /// - `serverClientId` (web client ID) so the ID token is issued for the
-  ///   audience that Supabase expects
+  /// IMPORTANT: On Android, `clientId` MUST be the web client ID (type 3),
+  /// NOT the Android client ID (type 1). The `requestIdToken(clientId)` API
+  /// requires a web application type client ID as the audience for the ID
+  /// token. Supabase's `signInWithIdToken()` then verifies this token.
+  ///
+  /// The Android client ID validation (package name + SHA-1) is handled
+  /// automatically by Google Play Services via google-services.json.
   GoogleSignIn _buildGoogleSignIn() {
     if (kIsWeb) {
       // Web: use the web client ID
@@ -484,24 +502,24 @@ class AuthService {
     } else if (Platform.isIOS) {
       // iOS: use the iOS client ID (the reversed client ID goes in
       // GoogleService-Info.plist; the clientId parameter here is the
-      // OAuth client ID)
+      // OAuth client ID for requesting the ID token)
       return GoogleSignIn(
         clientId: AppConfig.googleIosClientId,
         serverClientId: AppConfig.googleWebClientId,
       );
     }
-    // Android: pass clientId + serverClientId explicitly so that
-    // Google Sign-In works even when google-services.json only has a
-    // type-3 (web) client and no type-1 (Android) client.
+    // Android: Pass the WEB client ID as clientId so that requestIdToken()
+    // requests an ID token with the web client ID as the audience.
+    // This is required by Google's API and is what Supabase expects
+    // for signInWithIdToken().
     //
-    // clientId  → the Android OAuth client ID registered in Google
-    //             Cloud Console (package name + SHA-1)
-    // serverClientId → the web client ID; Google issues the ID token
-    //                  with this as the audience, which Supabase then
-    //                  verifies with signInWithIdToken().
+    // Previously, the Android client ID was passed here, which is INCORRECT:
+    // - requestIdToken() expects a WEB client ID (type 3), not Android (type 1)
+    // - The Android client ID is only for app validation via google-services.json
+    // - Passing the Android client ID caused requestIdToken() to request a
+    //   token with the wrong audience, leading to DEVELOPER_ERROR on some devices
     return GoogleSignIn(
-      clientId: AppConfig.googleAndroidClientId,
-      serverClientId: AppConfig.googleWebClientId,
+      clientId: AppConfig.googleWebClientId,
     );
   }
 

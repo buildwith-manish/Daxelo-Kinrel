@@ -261,6 +261,61 @@ void _attachStateContext(String errorContext) {
   } catch (_) {}
 }
 
+/// Handle post-sign-in operations (fire-and-forget).
+/// Called from the auth state listener — MUST NOT throw.
+/// Every operation is individually wrapped in try-catch with timeouts.
+Future<void> _handlePostSignIn(Ref ref, User user) async {
+  // Set user properties for analytics (with timeout)
+  try {
+    final familyList = await ref
+        .read(familyListProvider.future)
+        .timeout(const Duration(seconds: 5));
+    final primaryFamily =
+        familyList.isNotEmpty ? familyList.first : null;
+    final profileState = ref.read(profileProvider);
+    await AnalyticsService.instance.setUserProperties(
+      userId: user.id,
+      familyId: primaryFamily?.id ?? '',
+      memberCount: profileState.stats?.membersAdded ?? 0,
+      preferredLanguage:
+          profileState.profile?.preferredLanguage ?? 'en',
+      isPremium: false,
+    );
+  } catch (_) {
+    // Analytics failure must never crash the app
+  }
+
+  // Initialize push notifications (with timeout)
+  try {
+    final pushService = ref.read(pushNotificationServiceProvider);
+    if (!pushService.isInitialized) {
+      pushService.onDeepLink = (route) {
+        try {
+          final router = ref.read(routerProvider);
+          router.push(route);
+        } catch (_) {}
+      };
+      await pushService.initialize().timeout(const Duration(seconds: 10));
+    } else {
+      await pushService.resyncToken().timeout(const Duration(seconds: 5));
+    }
+  } catch (_) {
+    // Push notification failure must never crash the app
+  }
+}
+
+/// Handle sign-out operations (fire-and-forget).
+/// Called from the auth state listener — MUST NOT throw.
+Future<void> _handleSignOut(Ref ref) async {
+  try {
+    final pushService = ref.read(pushNotificationServiceProvider);
+    await pushService.deleteToken().timeout(const Duration(seconds: 5));
+    pushService.dispose();
+  } catch (_) {
+    // FCM cleanup failure must never crash the app
+  }
+}
+
 class KinrelApp extends ConsumerStatefulWidget {
   KinrelApp({super.key});
 
@@ -318,59 +373,41 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
         }
 
         // Listen for auth state changes to update crash context
-        client.auth.onAuthStateChange.listen((event) async {
+        // CRITICAL: Every operation in this listener MUST be:
+        // 1. Wrapped in individual try-catch (no exception should escape)
+        // 2. Non-blocking (use unawaited() for fire-and-forget)
+        // 3. Timeout-protected (no indefinite hanging)
+        // If any operation throws an unhandled error, the async callback
+        // becomes an uncaught error that can crash the app (force close).
+        client.auth.onAuthStateChange.listen((event) {
+          // Use synchronous handling — no async/await in the listener itself.
+          // All async work is dispatched as fire-and-forget with unawaited().
           try {
             final user = event.session?.user;
             if (user != null) {
-              setUserIdentifier(user.id);
-              captureRiverpodState('auth', {
-                'userId': user.id,
-                'email': user.email ?? 'unknown',
-                'event': event.event.name,
-              });
+              try {
+                setUserIdentifier(user.id);
+              } catch (_) {}
+              try {
+                captureRiverpodState('auth', {
+                  'userId': user.id,
+                  'email': user.email ?? 'unknown',
+                  'event': event.event.name,
+                });
+              } catch (_) {}
 
               // ── Re-sync FCM token on sign-in ──────────────────────
               if (event.event == AuthChangeEvent.signedIn) {
-                // Set user properties for analytics
-                try {
-                  final familyList = await ref.read(familyListProvider.future);
-                  final primaryFamily = familyList.isNotEmpty ? familyList.first : null;
-                  final profileState = ref.read(profileProvider);
-                  await AnalyticsService.instance.setUserProperties(
-                    userId: user.id,
-                    familyId: primaryFamily?.id ?? '',
-                    memberCount: profileState.stats?.membersAdded ?? 0,
-                    preferredLanguage: profileState.profile?.preferredLanguage ?? 'en',
-                    isPremium: false,
-                  );
-                } catch (_) {}
-
-                try {
-                  final pushService = ref.read(pushNotificationServiceProvider);
-                  if (!pushService.isInitialized) {
-                    pushService.onDeepLink = (route) {
-                      try {
-                        final router = ref.read(routerProvider);
-                        router.push(route);
-                      } catch (_) {}
-                    };
-                    // CRITICAL: MUST await initialize() — if not awaited,
-                    // errors become unhandled async errors that crash the app.
-                    await pushService.initialize();
-                  } else {
-                    await pushService.resyncToken();
-                  }
-                } catch (_) {}
+                // Fire-and-forget: Set user properties for analytics
+                unawaited(_handlePostSignIn(ref, user));
               }
             } else {
-              captureRiverpodState('auth', {'status': 'signed_out'});
+              try {
+                captureRiverpodState('auth', {'status': 'signed_out'});
+              } catch (_) {}
 
               // ── Delete FCM token on sign-out ───────────────────────
-              try {
-                final pushService = ref.read(pushNotificationServiceProvider);
-                await pushService.deleteToken();
-                pushService.dispose();
-              } catch (_) {}
+              unawaited(_handleSignOut(ref));
             }
           } catch (e) {
             debugPrint('⚠️ Auth state listener error: $e');

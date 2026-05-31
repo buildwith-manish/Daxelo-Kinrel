@@ -186,18 +186,12 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         AnalyticsService.instance.logSignUp('google');
       } catch (_) {}
 
-      // Wait for auth state stream to propagate
+      // Wait for the Supabase session to be available before navigating.
       try {
-        await ref.read(authStateProvider.future).timeout(
-          const Duration(seconds: 5),
-        );
-      } catch (_) {}
-
-      // Verify we actually have a session before navigating
-      try {
-        final client = ref.read(supabaseProvider);
-        if (client?.auth.currentSession == null) {
-          await Future.delayed(const Duration(milliseconds: 500));
+        for (int i = 0; i < 10; i++) {
+          final client = ref.read(supabaseProvider);
+          if (client?.auth.currentSession != null) break;
+          await Future.delayed(const Duration(milliseconds: 200));
         }
       } catch (_) {}
 

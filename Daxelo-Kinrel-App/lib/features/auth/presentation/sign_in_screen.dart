@@ -103,24 +103,22 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       final authService = ref.read(authServiceProvider);
       await authService.signInWithGoogle();
 
-      // Track successful Google login
+      // Track successful Google login (fire-and-forget)
       try {
         await AnalyticsService.instance.logLogin('google');
       } catch (_) {}
 
-      // Wait for auth state stream to propagate
+      // Wait for the Supabase session to be available before navigating.
+      // The signInWithGoogle() call succeeds, but the onAuthStateChange
+      // stream and Riverpod providers may need a moment to propagate.
+      // We check the session directly instead of relying on authStateProvider
+      // because authStateProvider.future can hang if the stream already
+      // emitted the signedIn event before we started listening.
       try {
-        await ref.read(authStateProvider.future).timeout(
-          const Duration(seconds: 5),
-        );
-      } catch (_) {}
-
-      // Verify we actually have a session before navigating
-      try {
-        final client = ref.read(supabaseProvider);
-        if (client?.auth.currentSession == null) {
-          // Session not yet available — wait a bit more
-          await Future.delayed(const Duration(milliseconds: 500));
+        for (int i = 0; i < 10; i++) {
+          final client = ref.read(supabaseProvider);
+          if (client?.auth.currentSession != null) break;
+          await Future.delayed(const Duration(milliseconds: 200));
         }
       } catch (_) {}
 
@@ -162,31 +160,22 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         password: _passwordController.text,
       );
 
-      // P5-F1: Track successful login (never let analytics block navigation)
+      // Track successful login (fire-and-forget)
       try {
         await AnalyticsService.instance.logLogin('email');
       } catch (_) {}
 
-      // Wait for the auth state stream to propagate to Riverpod providers
-      // before navigating. Without this, GoRouter's redirect checks
-      // isAuthenticatedProvider which may still be false because the
-      // onAuthStateChange stream hasn't emitted yet, causing the user
-      // to be redirected back to /sign-in after a successful login.
+      // Wait for the Supabase session to be available before navigating.
+      // The signIn() call succeeds, but the onAuthStateChange stream and
+      // Riverpod providers may need a moment to propagate.
+      // We check the session directly instead of relying on authStateProvider
+      // because authStateProvider.future can hang if the stream already
+      // emitted the signedIn event before we started listening.
       try {
-        await ref.read(authStateProvider.future).timeout(
-          const Duration(seconds: 5),
-        );
-      } catch (_) {
-        // Timeout — auth state may still be loading, but signIn() succeeded,
-        // so we proceed anyway. The router redirect will handle it.
-      }
-
-      // Verify we actually have a session before navigating
-      try {
-        final client = ref.read(supabaseProvider);
-        if (client?.auth.currentSession == null) {
-          // Session not yet available — wait a bit more
-          await Future.delayed(const Duration(milliseconds: 500));
+        for (int i = 0; i < 10; i++) {
+          final client = ref.read(supabaseProvider);
+          if (client?.auth.currentSession != null) break;
+          await Future.delayed(const Duration(milliseconds: 200));
         }
       } catch (_) {}
 
@@ -194,9 +183,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         try {
           context.go('/home');
         } catch (e) {
-          // Navigation can throw if the widget tree is in an inconsistent state
           debugPrint('⚠️ Navigation error after email sign-in: $e');
-          // Try again after a short delay
           await Future.delayed(const Duration(milliseconds: 300));
           if (mounted) {
             try { context.go('/home'); } catch (_) {}
