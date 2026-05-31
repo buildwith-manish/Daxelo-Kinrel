@@ -367,3 +367,25 @@ Stage Summary:
 - Added retry for Google Sign-In Supabase verification
 - Added crash-safe navigation and session verification
 - APK build successful, ready for testing
+---
+Task ID: 1
+Agent: main
+Task: Fix Google Sign-In crash - app forcefully closes when clicking "Sign in with Google"
+
+Work Log:
+- Read and analyzed all auth-related files: supabase_service.dart, sign_in_screen.dart, sign_up_screen.dart, app_router.dart, splash_screen.dart, main.dart
+- Identified the ROOT CAUSE: In `_buildGoogleSignIn()`, the Web client ID was passed as `clientId` instead of `serverClientId` for Android
+- In google_sign_in package: `clientId` maps to `setAccountName()` (should be email), `serverClientId` maps to `requestIdToken()` (needed for Supabase)
+- Without `serverClientId`, `requestIdToken()` is never called, so no ID token is produced
+- The native Google Sign-In fails with DEVELOPER_ERROR causing force close
+- Also identified and fixed: Dio timeout too long (60s → 15s connect/30s receive), missing ProGuard rules for Google Sign-In
+- The origin/main already had: signOut() removal, PlatformException handling, timeout on signIn(), google-services.json with OAuth client IDs
+- Committed fix: `serverClientId` instead of `clientId` for Android in `_buildGoogleSignIn()`
+- Pushed to origin/main to trigger APK build
+
+Stage Summary:
+- Root cause: `clientId` vs `serverClientId` mixup in `_buildGoogleSignIn()` for Android
+- Key fix: Changed `clientId: AppConfig.googleWebClientId` → `serverClientId: AppConfig.googleWebClientId` for Android
+- Also added ProGuard rules for Google Sign-In auth classes
+- Reduced Dio timeout from 60s to 15s connect / 30s receive
+- Commit: ea9f495 pushed to origin/main
