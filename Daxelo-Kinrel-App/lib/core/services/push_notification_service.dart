@@ -281,7 +281,7 @@ class PushNotificationService {
     try {
       final dio = _ref.read(dioProvider);
       await dio.post(
-        '/users/me/fcm-token',
+        '/api/users/me/fcm-token',
         data: {'fcmToken': token},
       );
       debugPrint('📬 FCM token synced to backend');

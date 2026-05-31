@@ -269,28 +269,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   /// Restore Supabase session (important for app resume & cold starts).
   /// This runs in the background (fire-and-forget) and should NOT block
   /// splash screen navigation. If Supabase isn't initialized yet, skip.
+  /// LOGIN BYPASSED: Session restoration is not needed since login is disabled.
   Future<void> _restoreSession() async {
-    try {
-      if (isSupabaseInitialized) {
-        final client = ref.read(supabaseProvider);
-        if (client != null) {
-          final session = client.auth.currentSession;
-          if (session == null) {
-            try {
-              await client.auth.onAuthStateChange.first.timeout(
-                const Duration(seconds: 3),
-              );
-            } catch (_) {
-              // Timeout — no session, will redirect to sign-in
-            }
-          }
-          // Let auth state propagate to providers
-          await Future.delayed(const Duration(milliseconds: 200));
-        }
-      }
-    } catch (_) {
-      // Ignore restoration errors — will redirect to sign-in
-    }
+    // LOGIN BYPASSED: Skip session restoration — we don't need a session
+    // TODO: Re-enable when login is restored
+    // Original code: checked client.auth.currentSession, waited for
+    // onAuthStateChange.first with 3s timeout, then delayed 200ms for
+    // auth state propagation.
+    debugPrint('⏭️ Session restoration skipped (LOGIN BYPASSED)');
   }
 
   // ─────────────────────────────────────────────────────────────────

@@ -296,18 +296,17 @@ class _ErrorInterceptor extends Interceptor {
 /// statusCode, errorType) — NEVER logs request/response bodies (may contain PII).
 ///
 /// Skips logging for expected/normal status codes:
-///   - 401 (Unauthorized): expected when auth token is expired or invalid
-///   - 404 (Not Found): expected for missing endpoints or resources
-///   - 403 (Forbidden): expected when user lacks permissions
+///   - All 4xx client errors: expected responses that the app handles gracefully
+///     (401 = expired token, 404 = missing endpoint, 403 = no permissions, etc.)
 class _ErrorLoggingInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     final statusCode = err.response?.statusCode;
 
-    // Skip logging for expected/normal auth and routing errors
-    // These are not real errors — they're expected responses that the
-    // app handles gracefully (fallback to Supabase data, etc.)
-    if (statusCode == 401 || statusCode == 404 || statusCode == 403) {
+    // Skip logging for ALL 4xx client errors — these are expected responses
+    // that the app handles gracefully (fallback to Supabase data, etc.)
+    // Only 5xx server errors and network-level failures are logged.
+    if (statusCode != null && statusCode >= 400 && statusCode < 500) {
       handler.next(err);
       return;
     }

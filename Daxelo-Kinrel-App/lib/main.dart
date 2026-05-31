@@ -314,55 +314,65 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
 
         // Listen for auth state changes to update crash context
         client.auth.onAuthStateChange.listen((event) async {
-          final user = event.session?.user;
-          if (user != null) {
-            setUserIdentifier(user.id);
-            captureRiverpodState('auth', {
-              'userId': user.id,
-              'email': user.email ?? 'unknown',
-              'event': event.event.name,
-            });
+          try {
+            final user = event.session?.user;
+            if (user != null) {
+              setUserIdentifier(user.id);
+              captureRiverpodState('auth', {
+                'userId': user.id,
+                'email': user.email ?? 'unknown',
+                'event': event.event.name,
+              });
 
-            // ── Re-sync FCM token on sign-in ──────────────────────
-            if (event.event == AuthChangeEvent.signedIn) {
-              // Set user properties for analytics
-              try {
-                final familyList = await ref.read(familyListProvider.future);
-                final primaryFamily = familyList.isNotEmpty ? familyList.first : null;
-                final profileState = ref.read(profileProvider);
-                await AnalyticsService.instance.setUserProperties(
-                  userId: user.id,
-                  familyId: primaryFamily?.id ?? '',
-                  memberCount: profileState.stats?.membersAdded ?? 0,
-                  preferredLanguage: profileState.profile?.preferredLanguage ?? 'en',
-                  isPremium: false,
-                );
-              } catch (_) {}
+              // ── Re-sync FCM token on sign-in ──────────────────────
+              if (event.event == AuthChangeEvent.signedIn) {
+                // Set user properties for analytics
+                try {
+                  final familyList = await ref.read(familyListProvider.future);
+                  final primaryFamily = familyList.isNotEmpty ? familyList.first : null;
+                  final profileState = ref.read(profileProvider);
+                  await AnalyticsService.instance.setUserProperties(
+                    userId: user.id,
+                    familyId: primaryFamily?.id ?? '',
+                    memberCount: profileState.stats?.membersAdded ?? 0,
+                    preferredLanguage: profileState.profile?.preferredLanguage ?? 'en',
+                    isPremium: false,
+                  );
+                } catch (_) {}
 
+                try {
+                  final pushService = ref.read(pushNotificationServiceProvider);
+                  if (!pushService.isInitialized) {
+                    pushService.onDeepLink = (route) {
+                      try {
+                        final router = ref.read(routerProvider);
+                        router.push(route);
+                      } catch (_) {}
+                    };
+                    // CRITICAL: MUST await initialize() — if not awaited,
+                    // errors become unhandled async errors that crash the app.
+                    await pushService.initialize();
+                  } else {
+                    await pushService.resyncToken();
+                  }
+                } catch (_) {}
+              }
+            } else {
+              captureRiverpodState('auth', {'status': 'signed_out'});
+
+              // ── Delete FCM token on sign-out ───────────────────────
+              // LOGIN BYPASSED: Skip FCM cleanup — login is disabled
+              // TODO: Re-enable when login is restored
+              /*
               try {
                 final pushService = ref.read(pushNotificationServiceProvider);
-                if (!pushService.isInitialized) {
-                  pushService.onDeepLink = (route) {
-                    try {
-                      final router = ref.read(routerProvider);
-                      router.push(route);
-                    } catch (_) {}
-                  };
-                  pushService.initialize();
-                } else {
-                  pushService.resyncToken();
-                }
+                await pushService.deleteToken();
+                pushService.dispose();
               } catch (_) {}
+              */
             }
-          } else {
-            captureRiverpodState('auth', {'status': 'signed_out'});
-
-            // ── Delete FCM token on sign-out ───────────────────────
-            try {
-              final pushService = ref.read(pushNotificationServiceProvider);
-              pushService.deleteToken();
-              pushService.dispose();
-            } catch (_) {}
+          } catch (e) {
+            debugPrint('⚠️ Auth state listener error: $e');
           }
         });
       }
@@ -393,6 +403,10 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     }
 
     // 4. Initialize Push Notifications if authenticated
+    // LOGIN BYPASSED: Skip push notifications when no session exists.
+    // Push notifications require a valid auth token to sync FCM token
+    // to the backend. Without a session, _syncTokenToBackend would
+    // get 401/404 errors and log non-fatal Crashlytics reports.
     try {
       final client = ref.read(supabaseProvider);
       if (client != null && client.auth.currentSession != null) {
@@ -407,6 +421,8 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
         };
         await pushService.initialize();
         debugPrint('📬 PushNotificationService initialized');
+      } else {
+        debugPrint('⏭️ PushNotificationService skipped — no auth session (LOGIN BYPASSED)');
       }
     } catch (e) {
       debugPrint('⚠️ PushNotificationService init failed: $e');
@@ -425,12 +441,22 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     // CRITICAL: Each async call MUST have .catchError() — if these throw
     // without being caught, the error escapes the try-catch as an uncaught
     // async error in the guarded zone, causing a crash (blank screen).
+    // LOGIN BYPASSED: Skip API preloading when there's no auth session.
+    // Without a session, these calls will fail with 401/404 and generate
+    // non-fatal Crashlytics reports. The providers already handle the
+    // no-session case gracefully by returning empty data.
     Future.delayed(const Duration(milliseconds: 500), () {
       try {
-        ref.read(familyListProvider.future).catchError((_) => <Family>[]);
-        ref.read(profileProvider.notifier).loadProfile().catchError((_) {});
-        ref.read(profileProvider.notifier).loadStats().catchError((_) {});
-        debugPrint('🚀 Bottom nav tabs preloaded');
+        final client = ref.read(supabaseProvider);
+        final hasSession = client?.auth.currentSession != null;
+        if (hasSession) {
+          ref.read(familyListProvider.future).catchError((_) => <Family>[]);
+          ref.read(profileProvider.notifier).loadProfile().catchError((_) {});
+          ref.read(profileProvider.notifier).loadStats().catchError((_) {});
+          debugPrint('🚀 Bottom nav tabs preloaded');
+        } else {
+          debugPrint('⏭️ Bottom nav preload skipped — no auth session (LOGIN BYPASSED)');
+        }
       } catch (e) {
         debugPrint('⚠️ Bottom nav preload failed: $e');
       }

@@ -350,8 +350,13 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
     // Fallback to direct Supabase query (original behavior)
     final client = ref.watch(supabaseProvider);
     if (client == null) return [];
+
+    // LOGIN BYPASSED: Guard against no valid session — RLS will deny queries
     final userId = client.auth.currentUser?.id;
-    if (userId == null) return [];
+    if (userId == null) {
+      debugPrint('⏭️ familyListProvider skipped — no auth session (LOGIN BYPASSED)');
+      return [];
+    }
 
     // 1. Get family IDs from FamilyMember join table
     final familyIds = <String>{};
