@@ -23,6 +23,8 @@ Daxelo-Kinrel-App/build/
 Daxelo-Kinrel-App/.pub-cache/
 Daxelo-Kinrel-App/.pub/
 Daxelo-Kinrel-App/pubspec.lock
+Daxelo-Kinrel-App/integration_test/
+Daxelo-Kinrel-App/test/
 
 # ── Database ──────────────────────────────────────────────────
 *.db
@@ -42,6 +44,7 @@ db/
 *.swp
 *.swo
 *~
+*.iml
 
 # ── Logs ──────────────────────────────────────────────────────
 *.log
@@ -50,8 +53,9 @@ dev.out.log
 server.log
 npm-debug.log*
 
-# ── Testing ───────────────────────────────────────────────────
+# ── Testing & Mocks ───────────────────────────────────────────
 /coverage/
+server/src/__mocks__/
 
 # ── Misc ──────────────────────────────────────────────────────
 .claude
@@ -62,3 +66,4 @@ prompt
 /skills/
 upload/
 worklog.md
+Caddyfile

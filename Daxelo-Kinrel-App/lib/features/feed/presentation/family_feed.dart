@@ -42,8 +42,6 @@ class _FamilyFeedState extends ConsumerState<FamilyFeed> {
   @override
   void initState() {
     super.initState();
-    // LOGIN BYPASSED: Wrap in catchError to prevent uncaught async error
-    // that crashes the app when there's no auth session.
     _initFeed().catchError((e) {
       debugPrint('⚠️ FamilyFeed init failed (no session?): $e');
     });

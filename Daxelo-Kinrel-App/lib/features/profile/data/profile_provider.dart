@@ -631,9 +631,10 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   // ── Load Profile ───────────────────────────────────────────────
 
   Future<void> loadProfile() async {
+    try {
     state = state.copyWith(isLoading: true, clearError: true);
 
-    // LOGIN BYPASSED: Guard against no valid session — skip API calls
+    // Guard against no valid session — skip API calls
     final client = _ref.read(supabaseProvider);
     if (client?.auth.currentSession == null) {
       // No session — try offline cache, then give up gracefully
@@ -746,12 +747,16 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       // Try Supabase fallback before giving up
       await _loadProfileFromSupabase();
     }
+    } catch (e) {
+      debugPrint('🔴 loadProfile top-level error: $e');
+      state = state.copyWith(isLoading: false);
+    }
   }
 
   // ── Load Stats ─────────────────────────────────────────────────
 
   Future<void> loadStats() async {
-    // LOGIN BYPASSED: Guard against no valid session — skip API calls
+    // Guard against no valid session — skip API calls
     final client = _ref.read(supabaseProvider);
     if (client?.auth.currentSession == null) {
       // No session — try offline cache, then give up gracefully

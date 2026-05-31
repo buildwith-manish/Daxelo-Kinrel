@@ -283,7 +283,11 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     // These run after the widget tree is built, so the splash screen
     // appears immediately while these load in the background.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initDeferredServices();
+      try {
+        _initDeferredServices();
+      } catch (e) {
+        debugPrint('🔴 _initDeferredServices failed: $e');
+      }
     });
   }
 
@@ -291,6 +295,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
   /// Runs after the widget tree is built, so the splash screen
   /// appears immediately while these load in the background.
   Future<void> _initDeferredServices() async {
+    try {
     // 1. Local cache service (Hive-based, used alongside Isar)
     try {
       final cacheService = LocalCacheService();
@@ -361,15 +366,11 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
               captureRiverpodState('auth', {'status': 'signed_out'});
 
               // ── Delete FCM token on sign-out ───────────────────────
-              // LOGIN BYPASSED: Skip FCM cleanup — login is disabled
-              // TODO: Re-enable when login is restored
-              /*
               try {
                 final pushService = ref.read(pushNotificationServiceProvider);
                 await pushService.deleteToken();
                 pushService.dispose();
               } catch (_) {}
-              */
             }
           } catch (e) {
             debugPrint('⚠️ Auth state listener error: $e');
@@ -379,8 +380,6 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     } catch (_) {}
 
     // 2. Start the SyncEngine if Isar is initialized AND user has a session
-    // LOGIN BYPASSED: Only start sync if there's a real auth session.
-    // Without a session, sync will fail and may cause background errors.
     if (IsarDatabase.isInitialized) {
       try {
         final client = ref.read(supabaseProvider);
@@ -391,7 +390,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
           bgSyncManager.start();
           debugPrint('🔄 SyncEngine + BackgroundSyncManager started');
         } else {
-          debugPrint('⏭️ SyncEngine skipped — no auth session (LOGIN BYPASSED)');
+          debugPrint('⏭️ SyncEngine skipped — no auth session');
         }
       } catch (e) {
         debugPrint('⚠️ SyncEngine start failed: $e');
@@ -411,10 +410,6 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     }
 
     // 4. Initialize Push Notifications if authenticated
-    // LOGIN BYPASSED: Skip push notifications when no session exists.
-    // Push notifications require a valid auth token to sync FCM token
-    // to the backend. Without a session, _syncTokenToBackend would
-    // get 401/404 errors and log non-fatal Crashlytics reports.
     try {
       final client = ref.read(supabaseProvider);
       if (client != null && client.auth.currentSession != null) {
@@ -430,7 +425,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
         await pushService.initialize();
         debugPrint('📬 PushNotificationService initialized');
       } else {
-        debugPrint('⏭️ PushNotificationService skipped — no auth session (LOGIN BYPASSED)');
+        debugPrint('⏭️ PushNotificationService skipped — no auth session');
       }
     } catch (e) {
       debugPrint('⚠️ PushNotificationService init failed: $e');
@@ -449,10 +444,6 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     // CRITICAL: Each async call MUST have .catchError() — if these throw
     // without being caught, the error escapes the try-catch as an uncaught
     // async error in the guarded zone, causing a crash (blank screen).
-    // LOGIN BYPASSED: Skip API preloading when there's no auth session.
-    // Without a session, these calls will fail with 401/404 and generate
-    // non-fatal Crashlytics reports. The providers already handle the
-    // no-session case gracefully by returning empty data.
     Future.delayed(const Duration(milliseconds: 500), () {
       try {
         final client = ref.read(supabaseProvider);
@@ -463,7 +454,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
           ref.read(profileProvider.notifier).loadStats().catchError((_) {});
           debugPrint('🚀 Bottom nav tabs preloaded');
         } else {
-          debugPrint('⏭️ Bottom nav preload skipped — no auth session (LOGIN BYPASSED)');
+          debugPrint('⏭️ Bottom nav preload skipped — no auth session');
         }
       } catch (e) {
         debugPrint('⚠️ Bottom nav preload failed: $e');
@@ -471,8 +462,6 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     });
 
     // 6. Birthday preload
-    // LOGIN BYPASSED: Skip birthday preload when no session — repo queries
-    // may fail or return stale data from a previous session.
     if (IsarDatabase.isInitialized) {
       try {
         final client = ref.read(supabaseProvider);
@@ -500,7 +489,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
             }
           }
         } else {
-          debugPrint('⏭️ Birthday preload skipped — no auth session (LOGIN BYPASSED)');
+          debugPrint('⏭️ Birthday preload skipped — no auth session');
         }
       } catch (e) {
         debugPrint('⚠️ Birthday preload failed: $e');
@@ -569,6 +558,11 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       );
     } catch (e) {
       debugPrint('⚠️ Deep link service init failed: $e');
+    }
+    } catch (e, st) {
+      debugPrint('🔴 _initDeferredServices top-level error: $e');
+      debugPrint('   Stack: $st');
+      // Don't crash — the app can still function without these services
     }
   }
 

@@ -266,3 +266,48 @@ Stage Summary:
 - All auth-dependent background services skip when no session exists
 - All provider reads that could throw are now wrapped in try-catch
 - App should now open successfully showing the "No Families Yet" empty state
+
+---
+Task ID: 9
+Agent: Login Restore Agent
+Task: Restore original login/auth flow by removing all LOGIN BYPASSED code
+
+Work Log:
+- Removed all "LOGIN BYPASSED" comments and bypass code from 10 files
+- Restored `isAuthenticatedProvider` to use real auth check (user != null) instead of always true
+- Restored `_handleRedirect` in app_router.dart — full auth redirect logic with session checks, loading guards, and protected route enforcement
+- Uncommented imports: `supabase_flutter` and `app_environment.dart` in app_router.dart
+- Restored splash_screen.dart safety timeout to check auth and route to /home or /sign-in
+- Restored original splash navigation decision: authenticated → /home (or last route), not authenticated → /sign-in
+- Restored `_restoreSession()` method in splash_screen.dart — checks current session, waits for auth state change with 3s timeout
+- Uncommented FCM token cleanup on sign-out in main.dart (was commented out with /* */ block)
+- Removed LOGIN BYPASSED comments from session guard checks in main.dart (SyncEngine, Push Notifications, Bottom nav preload, Birthday preload)
+- Kept all session guard checks (hasSession → skip when no session) — these are correct safety checks even with login enabled
+- Removed LOGIN BYPASSED comments from family_provider.dart, offline_family_repository.dart, feed_provider.dart, family_feed.dart, profile_provider.dart, profile_screen.dart
+- Kept all .catchError() calls and session guard logic — these are good defensive coding practices
+
+Stage Summary:
+- 10 files modified
+- All "LOGIN BYPASSED" and "TODO: Re-enable" markers removed
+- Original auth flow fully restored: isAuthenticated checks, router redirects, splash navigation, session restoration, FCM cleanup on sign-out
+- Session guards retained (they prevent 401/404 errors when no auth session exists)
+- .catchError() calls retained (they prevent uncaught async error crashes)
+
+---
+Task ID: 3
+Agent: Code Fix Agent
+Task: Fix crash issues in Daxelo-Kinrel Flutter app and increase Dio timeout
+
+Work Log:
+- Read worklog.md and all 3 target files before making changes
+- main.dart: Wrapped `_initDeferredServices()` call in `addPostFrameCallback` with try-catch so unhandled exceptions don't crash the app
+- main.dart: Wrapped entire `_initDeferredServices()` method body in a top-level try-catch with stack trace logging — app can still function without deferred services
+- profile_provider.dart: Wrapped entire `loadProfile()` method body in a top-level try-catch as a safety net — ensures the app NEVER crashes from this method, with `isLoading: false` on catch
+- dio_client.dart: Increased all Dio BaseOptions timeouts from 8/15/10 seconds to 60 seconds each (connectTimeout, receiveTimeout, sendTimeout)
+
+Stage Summary:
+- 3 files changed
+- main.dart: 2 try-catch wrappers added (call-site + method body)
+- profile_provider.dart: 1 top-level try-catch wrapper added to loadProfile()
+- dio_client.dart: 3 timeout values changed from 8/15/10s → 60s
+- All changes are minimal — only added try-catch wrappers and changed timeout values

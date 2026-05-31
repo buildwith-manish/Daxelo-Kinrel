@@ -112,11 +112,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       if (mounted && !_navigated) {
         debugPrint('⚠️ Splash safety timeout triggered — forcing navigation');
         _navigated = true;
-        // LOGIN BYPASSED: Always go to /home (was /sign-in)
         try {
-          context.go('/home');
+          if (ref.read(isAuthenticatedProvider) || _hasCachedProfile || _supabaseHasSession()) {
+            context.go('/home');
+          } else {
+            context.go('/sign-in');
+          }
         } catch (_) {
-          try { context.go('/home'); } catch (_) {}
+          try { context.go('/sign-in'); } catch (_) {}
         }
       }
     });
@@ -188,24 +191,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _navigated = true;
 
-    // TODO: Re-enable login system before production
-    // Currently bypassed — app always opens directly to /home.
-    debugPrint('🧭 Splash → /home (LOGIN BYPASSED for development)');
-    context.go('/home');
-
-    // ── ORIGINAL NAVIGATION DECISION (commented out) ─────────────────
-    // Priority:
-    // 1. If authenticated OR has cached profile → /home (or last route)
-    // 2. Otherwise → /sign-in (ALWAYS, no onboarding before login)
-    //
-    // CRITICAL: Even if Supabase isn't ready yet, we still navigate.
-    // If we have a cached profile, the user was previously logged in,
-    // so go to home. If not, go to sign-in. This ensures the user
-    // NEVER sees a blank screen waiting for Supabase.
-    // Onboarding is removed from the initial flow — login comes first.
-    /*
     if (isAuthenticated || _hasCachedProfile) {
-      // Authenticated → go to home (or last route)
       String? lastRoute;
       try {
         lastRoute = await getLastRoute();
@@ -219,11 +205,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       debugPrint('🧭 Splash → /home (authenticated: $isAuthenticated, cached: $_hasCachedProfile)');
       context.go('/home');
     } else {
-      // NOT authenticated → ALWAYS go to sign-in FIRST (no onboarding before login)
       debugPrint('🧭 Splash → /sign-in (not authenticated, login required first)');
       context.go('/sign-in');
     }
-    */
   }
 
   /// Check Isar cache for a cached user profile.
@@ -269,14 +253,28 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   /// Restore Supabase session (important for app resume & cold starts).
   /// This runs in the background (fire-and-forget) and should NOT block
   /// splash screen navigation. If Supabase isn't initialized yet, skip.
-  /// LOGIN BYPASSED: Session restoration is not needed since login is disabled.
   Future<void> _restoreSession() async {
-    // LOGIN BYPASSED: Skip session restoration — we don't need a session
-    // TODO: Re-enable when login is restored
-    // Original code: checked client.auth.currentSession, waited for
-    // onAuthStateChange.first with 3s timeout, then delayed 200ms for
-    // auth state propagation.
-    debugPrint('⏭️ Session restoration skipped (LOGIN BYPASSED)');
+    if (!isSupabaseInitialized) return;
+    try {
+      final client = Supabase.instance.client;
+      final session = client.auth.currentSession;
+      if (session != null) {
+        debugPrint('📦 Existing session found for ${session.user.email}');
+        return;
+      }
+      // Wait for auth state to restore (up to 3 seconds)
+      try {
+        await client.auth.onAuthStateChange.first
+            .timeout(const Duration(seconds: 3));
+        // Small delay for state propagation
+        await Future.delayed(const Duration(milliseconds: 200));
+        debugPrint('📦 Auth state restored');
+      } on TimeoutException {
+        debugPrint('📦 Auth state restore timed out — proceeding with cached state');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Session restoration failed: $e');
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────

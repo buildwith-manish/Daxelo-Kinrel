@@ -40,7 +40,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// import 'package:supabase_flutter/supabase_flutter.dart'; // TODO: Re-enable when login is restored
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/auth/presentation/sign_in_screen.dart';
@@ -97,7 +97,7 @@ import '../../features/documents/presentation/documents_screen.dart';
 import '../../presentation/screens/invite/invite_screen.dart';
 import '../../presentation/screens/premium/paywall_screen.dart';
 import '../../presentation/screens/debug/engagement_dashboard.dart';
-// import '../config/app_environment.dart'; // TODO: Re-enable when login is restored
+import '../config/app_environment.dart';
 import '../services/supabase_service.dart';
 import '../services/crashlytics_service.dart';
 import '../services/deep_link_service.dart';
@@ -174,8 +174,6 @@ class _PrefetchFamilyListState extends ConsumerState<_PrefetchFamilyList> {
     // Warm up the family list provider — data starts fetching immediately
     Future.microtask(() {
       if (mounted) {
-        // LOGIN BYPASSED: Add catchError to prevent uncaught async error
-        // when there's no auth session
         ref.read(familyListProvider.future).catchError((_) => <Family>[]);
       }
     });
@@ -205,7 +203,6 @@ class _PrefetchFamilyDetailState extends ConsumerState<_PrefetchFamilyDetail> {
     super.initState();
     Future.microtask(() {
       if (mounted) {
-        // LOGIN BYPASSED: Add catchError to prevent uncaught async error
         ref.read(familyDetailProvider(widget.familyId).future).catchError((_) {});
       }
     });
@@ -250,13 +247,6 @@ class _PrefetchProfileState extends ConsumerState<_PrefetchProfile> {
 /// 3. NEVER create redirect loops (splash → sign-in → home → sign-in)
 /// 4. If Supabase isn't ready, DON'T redirect — let screens handle auth
 String? _handleRedirect(Ref ref, GoRouterState state) {
-  // TODO: Re-enable login redirect before production
-  // Currently bypassed — all routes accessible without authentication.
-  return null; // LOGIN BYPASSED — allow all navigation
-
-  // ── ORIGINAL AUTH REDIRECT LOGIC (commented out) ───────────────────
-  // Search for "TODO: Re-enable login redirect" to restore.
-  /*
   // ── Log navigation breadcrumb for crash context ──────────────────
   logNavigationBreadcrumb(state.matchedLocation);
 
@@ -328,7 +318,6 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
   if (authState && isAuth) return '/home';
 
   return null;
-  */
 }
 
 /// Router provider — uses a single GoRouter instance that doesn't

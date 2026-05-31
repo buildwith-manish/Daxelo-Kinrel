@@ -92,7 +92,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   Future<void> _loadInitialData() async {
     // Load profile & stats (fire-and-forget, provider handles state)
-    // LOGIN BYPASSED: Add catchError to prevent uncaught async error
     unawaited(ref.read(profileProvider.notifier).loadProfile().catchError((_) {}));
     unawaited(ref.read(profileProvider.notifier).loadStats().catchError((_) {}));
     unawaited(ref.read(profileProvider.notifier).loadInvitations().catchError((_) {}));

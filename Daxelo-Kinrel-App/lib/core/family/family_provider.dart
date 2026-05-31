@@ -356,10 +356,10 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
     final client = ref.watch(supabaseProvider);
     if (client == null) return [];
 
-    // LOGIN BYPASSED: Guard against no valid session — RLS will deny queries
+    // Guard against no valid session — RLS will deny queries
     final userId = client.auth.currentUser?.id;
     if (userId == null) {
-      debugPrint('⏭️ familyListProvider skipped — no auth session (LOGIN BYPASSED)');
+      debugPrint('⏭️ familyListProvider skipped — no auth session');
       return [];
     }
 
@@ -434,7 +434,7 @@ final familyDetailProvider = FutureProvider.family<FamilyDetail?, String>((
     final client = ref.watch(supabaseProvider);
     if (client == null) return null;
 
-    // LOGIN BYPASSED: Guard against no valid session — RLS will deny queries
+    // Guard against no valid session — RLS will deny queries
     if (client.auth.currentSession == null) return null;
 
     // Fetch family
@@ -503,7 +503,7 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
     final client = ref.watch(supabaseProvider);
     if (client == null) return [];
 
-    // LOGIN BYPASSED: Guard against no valid session — RLS will deny queries
+    // Guard against no valid session — RLS will deny queries
     if (client.auth.currentSession == null) return [];
 
     final response = await client
@@ -574,7 +574,7 @@ final familyRelationshipsProvider =
         final client = ref.watch(supabaseProvider);
         if (client == null) return [];
 
-        // LOGIN BYPASSED: Guard against no valid session — RLS will deny queries
+        // Guard against no valid session — RLS will deny queries
         if (client.auth.currentSession == null) return [];
 
         final response = await client
