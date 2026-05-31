@@ -495,31 +495,40 @@ class AuthService {
   /// automatically by Google Play Services via google-services.json.
   GoogleSignIn _buildGoogleSignIn() {
     if (kIsWeb) {
-      // Web: use the web client ID
+      // Web: use the web client ID as clientId
       return GoogleSignIn(
         clientId: AppConfig.googleWebClientId,
       );
     } else if (Platform.isIOS) {
-      // iOS: use the iOS client ID (the reversed client ID goes in
-      // GoogleService-Info.plist; the clientId parameter here is the
-      // OAuth client ID for requesting the ID token)
+      // iOS: clientId = iOS client ID (for nonce-based auth)
+      // serverClientId = Web client ID (for ID token audience)
       return GoogleSignIn(
         clientId: AppConfig.googleIosClientId,
         serverClientId: AppConfig.googleWebClientId,
       );
     }
-    // Android: Pass the WEB client ID as clientId so that requestIdToken()
-    // requests an ID token with the web client ID as the audience.
-    // This is required by Google's API and is what Supabase expects
-    // for signInWithIdToken().
+    // Android: Use serverClientId (NOT clientId) for ID token requests.
     //
-    // Previously, the Android client ID was passed here, which is INCORRECT:
-    // - requestIdToken() expects a WEB client ID (type 3), not Android (type 1)
-    // - The Android client ID is only for app validation via google-services.json
-    // - Passing the Android client ID caused requestIdToken() to request a
-    //   token with the wrong audience, leading to DEVELOPER_ERROR on some devices
+    // CRITICAL: On Android, the google_sign_in plugin maps these parameters
+    // to GoogleSignInOptions.Builder as follows:
+    //   - serverClientId → requestIdToken(serverClientId)
+    //   - clientId      → setAccountName(clientId)
+    //
+    // We MUST use serverClientId so that requestIdToken() is called with
+    // the Web client ID. This produces an OpenID Connect ID token that
+    // Supabase can verify with signInWithIdToken().
+    //
+    // Using clientId instead of serverClientId was causing the app to crash
+    // because:
+    // 1. clientId sets accountName (should be an email, not a client ID)
+    // 2. requestIdToken() is NOT called, so no ID token is produced
+    // 3. The Google Sign-In fails with a native DEVELOPER_ERROR
+    // 4. This native error can cause a force close before Dart can catch it
+    //
+    // The Android client ID validation (package name + SHA-1) is handled
+    // automatically by Google Play Services via google-services.json.
     return GoogleSignIn(
-      clientId: AppConfig.googleWebClientId,
+      serverClientId: AppConfig.googleWebClientId,
     );
   }
 

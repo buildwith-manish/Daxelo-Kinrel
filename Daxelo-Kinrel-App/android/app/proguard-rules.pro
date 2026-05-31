@@ -22,6 +22,14 @@
 -dontwarn com.google.firebase.**
 -dontwarn com.google.android.gms.**
 
+# ── Google Sign-In ──────────────────────────────────────────────────────────
+# CRITICAL: R8 must NOT strip Google Sign-In auth classes or the app will
+# crash with a native error when the user taps "Sign in with Google".
+-keep class com.google.android.gms.auth.** { *; }
+-keep class com.google.android.gms.common.** { *; }
+-keep class com.google.android.gms.signin.** { *; }
+-dontwarn com.google.android.gms.auth.**
+
 # ── Supabase / OkHttp / Retrofit ────────────────────────────────────────────
 -keep class okhttp3.** { *; }
 -keep class okio.** { *; }
