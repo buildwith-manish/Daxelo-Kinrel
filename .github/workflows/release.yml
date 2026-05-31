@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -71,6 +72,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Get SHA-1 fingerprint
+        if: env.SIGNING_READY == 'true'
         run: |
           keytool -list -v \
             -keystore Daxelo-Kinrel-App/android/app/upload-keystore.jks \
