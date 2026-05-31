@@ -125,11 +125,6 @@ Future<bool> initSupabase() async {
         debug: false,
         authOptions: const FlutterAuthClientOptions(
           authFlowType: AuthFlowType.pkce,
-          // Hostname used in the emailRedirectTo URL so the Supabase
-          // Flutter SDK can intercept auth callback deep links.
-          // Our redirect URL is com.daxelo.kinrel://auth/callback
-          // so the hostname is 'auth'.
-          authCallbackUrlHostname: 'auth',
         ),
       );
       _supabaseInitialized = true;
