@@ -344,3 +344,26 @@ Stage Summary:
 - APK build run #26708838799: SUCCESS
 - App now starts with auth check: logged in → /home, not logged in → /sign-in
 - Repo now contains only: Daxelo-Kinrel-App/ (Flutter) + server/ (NestJS) + deploy/ + .github/
+---
+Task ID: 1
+Agent: Main Agent
+Task: Debug and fix Google Sign-In and email sign-in auth issues in Daxelo-Kinrel
+
+Work Log:
+- Analyzed two screenshots: Google Sign-In showed "Could not reach server" error; email sign-in showed "Connecting..." then app crash
+- Read all auth-related Flutter code: supabase_service.dart, app_router.dart, splash_screen.dart, sign_in_screen.dart, sign_up_screen.dart, main.dart, profile_provider.dart, dio_client.dart, app_config.dart, env_config.dart
+- Read all NestJS backend auth code: auth.controller.ts, auth.service.ts, jwt.strategy.ts, users.controller.ts, users.service.ts
+- **FOUND CRITICAL BUG**: In users.controller.ts, @Get(':username') was defined BEFORE @Get('me'). NestJS matches routes in declaration order, so GET /api/users/me was intercepted by ':username' with username='me'. Since 'me' is a reserved word, getUserByUsername() returned 404 NotFoundException. This broke ALL post-sign-in profile loading.
+- Fixed NestJS route conflict: Reordered users.controller.ts so all static routes (me, me/stats, check-username, etc.) come BEFORE the dynamic :username route
+- Fixed Google Sign-In: Added withRetry() wrapper around signInWithIdToken() in supabase_service.dart (3 attempts, 2s initial delay, network errors only)
+- Fixed email/Google sign-in crash: Wrapped context.go('/home') in try-catch, added session verification before navigation, increased auth state timeout from 3s to 5s, added navigation retry with 300ms delay
+- Applied same fixes to sign_up_screen.dart
+- Committed and pushed to GitHub (commit 8818cac)
+- GitHub Actions APK build succeeded (~11 min, 49.2MB artifact)
+
+Stage Summary:
+- Root cause: NestJS route conflict where @Get(':username') shadowed @Get('me'), returning 404 for profile endpoint
+- Fixed NestJS controller route ordering
+- Added retry for Google Sign-In Supabase verification
+- Added crash-safe navigation and session verification
+- APK build successful, ready for testing
