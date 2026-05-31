@@ -70,6 +70,13 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
+      - name: Get SHA-1 fingerprint
+        run: |
+          keytool -list -v \
+            -keystore Daxelo-Kinrel-App/android/app/upload-keystore.jks \
+            -alias upload \
+            -storepass ${{ secrets.KEYSTORE_PASSWORD }}
+
       - name: Build signed release APK
         if: env.SIGNING_READY == 'true'
         run: cd Daxelo-Kinrel-App && flutter build apk --release
