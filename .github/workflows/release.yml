@@ -61,7 +61,7 @@ jobs:
             echo "storePassword=$KEYSTORE_PASSWORD" > Daxelo-Kinrel-App/android/key.properties
             echo "keyPassword=$KEY_PASSWORD" >> Daxelo-Kinrel-App/android/key.properties
             echo "keyAlias=upload" >> Daxelo-Kinrel-App/android/key.properties
-            echo "storeFile=app/upload-keystore.jks" >> Daxelo-Kinrel-App/android/key.properties
+            echo "storeFile=upload-keystore.jks" >> Daxelo-Kinrel-App/android/key.properties
             echo "SIGNING_READY=true" >> $GITHUB_ENV
           else
             echo "SIGNING_READY=false" >> $GITHUB_ENV
