@@ -40,7 +40,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+// import 'package:supabase_flutter/supabase_flutter.dart'; // TODO: Re-enable when login is restored
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/auth/presentation/sign_in_screen.dart';
@@ -97,7 +97,7 @@ import '../../features/documents/presentation/documents_screen.dart';
 import '../../presentation/screens/invite/invite_screen.dart';
 import '../../presentation/screens/premium/paywall_screen.dart';
 import '../../presentation/screens/debug/engagement_dashboard.dart';
-import '../config/app_environment.dart';
+// import '../config/app_environment.dart'; // TODO: Re-enable when login is restored
 import '../services/supabase_service.dart';
 import '../services/crashlytics_service.dart';
 import '../services/deep_link_service.dart';
