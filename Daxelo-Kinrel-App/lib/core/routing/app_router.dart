@@ -39,7 +39,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
@@ -203,7 +203,7 @@ class _PrefetchFamilyDetailState extends ConsumerState<_PrefetchFamilyDetail> {
     super.initState();
     Future.microtask(() {
       if (mounted) {
-        ref.read(familyDetailProvider(widget.familyId).future).catchError((_) {});
+        ref.read(familyDetailProvider(widget.familyId).future).catchError((_) => null);
       }
     });
   }
