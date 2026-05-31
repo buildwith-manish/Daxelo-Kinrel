@@ -11,7 +11,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/form_validators.dart';
-import '../../../core/utils/api_error_mapper.dart';
+// api_error_mapper removed — errors handled directly in _cleanErrorMessage
 import '../../../core/services/analytics_service.dart';
 
 class SignUpScreen extends ConsumerStatefulWidget {
@@ -132,21 +132,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     message = message.replaceAll('AuthException: ', '');
     message = message.replaceAll('AuthApiException: ', '');
 
-    if (message.contains('SocketException') ||
-        message.contains('Failed host lookup') ||
-        message.contains('AuthRetryableFetchException') ||
-        message.contains('Connection refused') ||
-        message.contains('Network is unreachable') ||
-        message.contains('No address associated with hostname') ||
-        message.contains('Connection timed out') ||
-        message.contains('TimeoutException') ||
-        message.contains('timed out') ||
-        message.contains('Unable to connect') ||
-        message.contains('FetchException') ||
-        message.contains('Connection reset')) {
-      return 'Could not reach server. The server may be waking up — please check your internet connection and try again.';
-    } else if (message.contains('No API key found')) {
-      return 'Server configuration error. Please contact support.';
+    if (_isNetworkError(message)) {
+      return 'Could not reach server. Please check your internet connection and try again.';
     } else if (message.contains('User already registered')) {
       return 'This email is already registered. Try signing in instead.';
     } else if (message.contains('Password should be')) {
@@ -154,16 +141,16 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     } else if (message.contains('Invalid email')) {
       return 'Please enter a valid email address.';
     } else if (message.contains('cancelled')) {
-      return 'Google sign-in was cancelled.';
+      return ''; // Empty = don't show snackbar for user cancellation
     } else if (message.contains('configuration error') ||
-        message.contains('DEVELOPER_ERROR') ||
-        message.contains('ApiException')) {
-      return 'Google sign-in is not available right now. Please use email sign-up instead.';
-    } else if (message.contains('timed out') ||
-        message.contains('timed out')) {
+        message.contains('configuration issue') ||
+        message.contains('debug build') ||
+        message.contains('DEVELOPER_ERROR')) {
+      return 'Google sign-in is not available on this build. Please use email sign-up instead.';
+    } else if (message.contains('timed out')) {
       return 'Sign up timed out. Please check your internet connection and try again.';
     } else if (message.contains('not available') ||
-        message.contains('not available. Please restart')) {
+        message.contains('not ready')) {
       return 'Authentication service is not ready. Please restart the app and try again.';
     } else if (message.contains('Provider api key not found') ||
         message.contains('provider is not enabled')) {
@@ -174,48 +161,77 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     return message;
   }
 
+  bool _isNetworkError(String message) {
+    return message.contains('SocketException') ||
+        message.contains('Failed host lookup') ||
+        message.contains('AuthRetryableFetchException') ||
+        message.contains('Connection refused') ||
+        message.contains('Network is unreachable') ||
+        message.contains('No address associated with hostname') ||
+        message.contains('Connection timed out') ||
+        message.contains('TimeoutException') ||
+        message.contains('timed out') ||
+        message.contains('Unable to connect') ||
+        message.contains('FetchException') ||
+        message.contains('Connection reset');
+  }
+
   Future<void> _signInWithGoogle() async {
+    // Prevent double-tap
+    if (_isGoogleLoading || _isLoading) return;
     setState(() => _isGoogleLoading = true);
 
     try {
       final authService = ref.read(authServiceProvider);
       await authService.signInWithGoogle();
 
-      // Track successful Google sign-up
+      // Track successful Google sign-up (fire-and-forget)
       try {
         AnalyticsService.instance.logSignUp('google');
       } catch (_) {}
 
-      // Wait for the Supabase session to be available before navigating.
-      try {
-        for (int i = 0; i < 10; i++) {
-          final client = ref.read(supabaseProvider);
-          if (client?.auth.currentSession != null) break;
-          await Future.delayed(const Duration(milliseconds: 200));
-        }
-      } catch (_) {}
+      // Wait for session propagation
+      await _waitForSession();
 
+      // Navigate to home
       if (mounted) {
-        try {
-          context.go('/home');
-        } catch (e) {
-          debugPrint('⚠️ Navigation error after Google sign-up: $e');
-          await Future.delayed(const Duration(milliseconds: 300));
-          if (mounted) {
-            try { context.go('/home'); } catch (_) {}
-          }
-        }
+        _navigateToHome();
       }
     } catch (e) {
       if (mounted) {
-        final msg = e.toString();
+        final msg = _cleanErrorMessage(e.toString());
         // Don't show snackbar for user-initiated cancellation
-        if (!msg.contains('cancelled')) {
-          context.showSnackBar(_cleanErrorMessage(msg), isError: true);
+        if (msg.isNotEmpty) {
+          context.showSnackBar(msg, isError: true);
         }
       }
     } finally {
       if (mounted) setState(() => _isGoogleLoading = false);
+    }
+  }
+
+  /// Wait for the Supabase session to be available before navigating.
+  Future<void> _waitForSession() async {
+    try {
+      for (int i = 0; i < 10; i++) {
+        final client = ref.read(supabaseProvider);
+        if (client?.auth.currentSession != null) return;
+        await Future.delayed(const Duration(milliseconds: 200));
+      }
+    } catch (_) {}
+  }
+
+  /// Navigate to home with error recovery.
+  void _navigateToHome() {
+    try {
+      context.go('/home');
+    } catch (e) {
+      debugPrint('Navigation error after sign-up: $e');
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          try { context.go('/home'); } catch (_) {}
+        }
+      });
     }
   }
 
@@ -229,6 +245,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       return;
     }
 
+    // Prevent double-tap
+    if (_isLoading || _isGoogleLoading) return;
     setState(() => _isLoading = true);
 
     try {
@@ -239,8 +257,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         name: _nameController.text.trim(),
       );
 
-      // P5-F1: Track successful sign-up
-      AnalyticsService.instance.logSignUp('email');
+      // Track successful sign-up (fire-and-forget)
+      try {
+        AnalyticsService.instance.logSignUp('email');
+      } catch (_) {}
 
       if (!mounted) return;
 
@@ -254,26 +274,20 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         context.go('/sign-in');
       } else {
         // Auto-confirmed or already confirmed — go to home
-        context.go('/home');
+        await _waitForSession();
+        if (mounted) _navigateToHome();
       }
     } catch (e) {
       if (mounted) {
-        final fieldErrors = mapApiError(e);
-        if (fieldErrors != null) {
-          if (fieldErrors.containsKey('email')) {
-            setState(() => _apiEmailError = fieldErrors['email']);
+        final msg = _cleanErrorMessage(e.toString());
+        if (msg.isNotEmpty) {
+          // Check if it's a field-specific error
+          if (msg.contains('email') && !msg.contains('check your')) {
+            setState(() => _apiEmailError = msg);
             _formKey.currentState!.validate();
+          } else {
+            context.showSnackBar(msg, isError: true);
           }
-          final formError = fieldErrors['form'];
-          if (formError != null) {
-            context.showSnackBar(formError, isError: true);
-          } else if (!fieldErrors.containsKey('email')) {
-            // Show the first field error as snackbar if no form-level error
-            final firstError = fieldErrors.values.first;
-            context.showSnackBar(firstError, isError: true);
-          }
-        } else {
-          context.showSnackBar(_cleanErrorMessage(e.toString()), isError: true);
         }
       }
     } finally {
@@ -781,7 +795,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     fillColor: _inputFill,
                     textColor: _primaryText,
                     isLoading: _isGoogleLoading,
-                    onPressed: _isGoogleLoading ? null : _signInWithGoogle,
+                    onPressed: (_isGoogleLoading || _isLoading) ? null : _signInWithGoogle,
                   ).animate().fadeIn(duration: 300.ms, delay: 400.ms),
 
                   const SizedBox(height: 28),

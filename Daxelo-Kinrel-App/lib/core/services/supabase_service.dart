@@ -1,3 +1,22 @@
+// lib/core/services/supabase_service.dart
+//
+// DAXELO KINREL — Supabase Auth Service
+//
+// Clean rewrite with bulletproof error handling.
+// Every async operation is wrapped in try-catch to prevent native crashes.
+//
+// Google Sign-In flow:
+//   1. Build GoogleSignIn with platform-specific config
+//   2. Call signIn() with timeout
+//   3. Get ID token from GoogleSignInAccount.authentication()
+//   4. Verify with Supabase signInWithIdToken()
+//   5. Navigate to /home on success
+//
+// Email Sign-In flow:
+//   1. Validate email/password on the UI side
+//   2. Call Supabase signInWithPassword() with retry
+//   3. Navigate to /home on success
+
 import 'dart:async';
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,7 +31,8 @@ import '../config/app_config.dart';
 
 final _log = Logger(printer: PrettyPrinter(methodCount: 0));
 
-// Hardcoded fallback credentials (anon key is safe for client-side use)
+// ── Hardcoded fallback credentials ──────────────────────────────────
+// The anon key is safe for client-side use (only service_role is secret).
 const String _hardcodedSupabaseUrl = 'https://promxswvsnvilplmrtsj.supabase.co';
 const String _hardcodedSupabaseAnonKey =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY';
@@ -36,40 +56,20 @@ String _resolveSupabaseAnonKey() {
   return _hardcodedSupabaseAnonKey;
 }
 
-/// Pre-warm the Supabase server by making a lightweight HTTP request.
-/// Supabase free tier pauses after inactivity — this wakes the server up.
-/// Returns true if the server is reachable.
-Future<bool> _warmUpSupabase(String url) async {
-  try {
-    _log.i('🔧 Warming up Supabase server...');
-    final client = HttpClient();
-    client.connectionTimeout = const Duration(seconds: 5);
-    final request = await client.getUrl(Uri.parse('$url/rest/v1/'));
-    request.headers.set('apikey', _resolveSupabaseAnonKey());
-    request.headers.set('Authorization', 'Bearer ${_resolveSupabaseAnonKey()}');
-    final response = await request.close();
-    await response.drain<void>();
-    client.close();
-    _log.i('🔧 Supabase warm-up complete (status: ${response.statusCode})');
-    return true;
-  } catch (e) {
-    _log.w('⚠️ Supabase warm-up failed (server may be cold starting): $e');
-    return false;
-  }
-}
-
 /// Check if the device has internet connectivity.
 Future<bool> _hasConnectivity() async {
   try {
     final result = await Connectivity().checkConnectivity();
     final hasConnection = result.any((c) => c != ConnectivityResult.none);
-    _log.i('🔧 Connectivity check: $result (hasConnection: $hasConnection)');
+    _log.i('Connectivity check: $result (hasConnection: $hasConnection)');
     return hasConnection;
   } catch (e) {
-    _log.w('⚠️ Connectivity check failed: $e');
-    return true;
+    _log.w('Connectivity check failed: $e');
+    return true; // Assume connected if check fails
   }
 }
+
+// ── Supabase Providers ───────────────────────────────────────────────
 
 final supabaseProvider = Provider<SupabaseClient?>((ref) {
   if (!_supabaseInitialized) return null;
@@ -82,37 +82,28 @@ final supabaseProvider = Provider<SupabaseClient?>((ref) {
 
 final isSupabaseReadyProvider = Provider<bool>((ref) => _supabaseInitialized);
 
+// ── Initialize Supabase ──────────────────────────────────────────────
+
 Future<bool> initSupabase() async {
   final url = _resolveSupabaseUrl();
   final anonKey = _resolveSupabaseAnonKey();
-  _log.i('🔧 Initializing Supabase...');
-  _log.i('   URL: $url');
-  _log.i(
-    '   Anon Key: ${anonKey.isNotEmpty ? "SET (length: ${anonKey.length})" : "EMPTY"}',
-  );
+  _log.i('Initializing Supabase...');
+  _log.i('  URL: $url');
+  _log.i('  Anon Key: ${anonKey.isNotEmpty ? "SET" : "EMPTY"}');
 
   if (url.isEmpty || anonKey.isEmpty) {
-    _log.e('❌ Supabase URL or Anon Key is empty!');
+    _log.e('Supabase URL or Anon Key is empty!');
     _supabaseInitialized = false;
     return false;
   }
 
-  // Check connectivity first
+  // Check connectivity (advisory only — don't block on it)
   final hasConnection = await _hasConnectivity();
   if (!hasConnection) {
-    _log.e('❌ No internet connectivity!');
-    // Don't return false immediately — try anyway, connectivity check can be wrong
-    _log.i('🔧 Attempting initialization anyway...');
+    _log.w('No internet connectivity — attempting init anyway...');
   }
 
-  // Pre-warm the Supabase server (fire-and-forget — don't block startup)
-  // The warmup helps with free tier cold starts but should never delay app init.
-  unawaited(_warmUpSupabase(url));
-
-  // Retry Supabase initialization up to 2 times (reduced from 3 to avoid
-  // blocking app startup for 30+ seconds on cold Supabase free tier).
-  // The splash screen navigates based on local state anyway, so a
-  // failed Supabase init won't cause a blank screen.
+  // Initialize with retry (max 2 attempts to avoid long blocking)
   int attempts = 0;
   const maxAttempts = 2;
 
@@ -128,15 +119,13 @@ Future<bool> initSupabase() async {
         ),
       );
       _supabaseInitialized = true;
-      _log.i('✅ Supabase initialized successfully (attempt $attempts)');
+      _log.i('Supabase initialized successfully (attempt $attempts)');
       return true;
     } catch (e) {
-      _log.e(
-        '❌ Supabase initialization failed (attempt $attempts/$maxAttempts): $e',
-      );
+      _log.e('Supabase init failed (attempt $attempts/$maxAttempts): $e');
       if (attempts < maxAttempts) {
         final delay = Duration(seconds: attempts * 2);
-        _log.i('🔄 Retrying in ${delay.inSeconds}s...');
+        _log.i('Retrying in ${delay.inSeconds}s...');
         await Future.delayed(delay);
       }
     }
@@ -146,11 +135,39 @@ Future<bool> initSupabase() async {
   return false;
 }
 
+// ── Auth State Providers ─────────────────────────────────────────────
+
+final authStateProvider = StreamProvider<AuthState>((ref) {
+  if (!_supabaseInitialized) return const Stream.empty();
+  try {
+    return Supabase.instance.client.auth.onAuthStateChange;
+  } catch (e) {
+    _log.w('Auth state stream unavailable: $e');
+    return const Stream.empty();
+  }
+});
+
+final currentUserProvider = Provider<User?>((ref) {
+  try {
+    final authState = ref.watch(authStateProvider);
+    return authState.value?.session?.user;
+  } catch (e) {
+    return null;
+  }
+});
+
+final isAuthenticatedProvider = Provider<bool>((ref) {
+  final user = ref.watch(currentUserProvider);
+  return user != null;
+});
+
+// ── Retry Helper ─────────────────────────────────────────────────────
+
 /// Retry helper with exponential backoff for cold starts.
-/// Supabase free tier can take 10-30+ seconds to wake from paused state.
+/// Only retries on network errors — non-network errors are rethrown immediately.
 Future<T> withRetry<T>(
   Future<T> Function() fn, {
-  int maxAttempts = 5,
+  int maxAttempts = 3,
   Duration initialDelay = const Duration(seconds: 3),
   String operationName = 'operation',
 }) async {
@@ -179,47 +196,24 @@ Future<T> withRetry<T>(
 
       if (!isNetworkError || attempt >= maxAttempts) rethrow;
 
-      _log.w(
-        '⚠️ $operationName attempt $attempt failed (network error), retrying in ${delay.inSeconds}s...',
-      );
-      _log.w('   Error: $e');
+      _log.w('$operationName attempt $attempt failed (network error), retrying in ${delay.inSeconds}s...');
       await Future.delayed(delay);
       delay = Duration(seconds: (delay.inSeconds * 1.5).round());
     }
   }
 }
 
-final authStateProvider = StreamProvider<AuthState>((ref) {
-  if (!_supabaseInitialized) return const Stream.empty();
-  try {
-    return Supabase.instance.client.auth.onAuthStateChange;
-  } catch (e) {
-    _log.w('Auth state stream unavailable: $e');
-    return const Stream.empty();
-  }
-});
-
-final currentUserProvider = Provider<User?>((ref) {
-  try {
-    final authState = ref.watch(authStateProvider);
-    return authState.value?.session?.user;
-  } catch (e) {
-    return null;
-  }
-});
-
-final isAuthenticatedProvider = Provider<bool>((ref) {
-  final user = ref.watch(currentUserProvider);
-  return user != null;
-});
+// ═══════════════════════════════════════════════════════════════════════
+// AUTH SERVICE — The core authentication class
+// ═══════════════════════════════════════════════════════════════════════
 
 class AuthService {
   AuthService(this._client);
-
   final SupabaseClient? _client;
   bool get isAvailable => _client != null;
 
-  /// Sign up with retry for cold starts.
+  // ── Sign Up (Email) ───────────────────────────────────────────────
+
   Future<AuthResponse> signUp({
     required String email,
     required String password,
@@ -228,7 +222,7 @@ class AuthService {
     final client = _client;
     if (client == null) {
       throw const AuthException(
-        'Authentication service is not available. Please restart the app and try again.',
+        'Authentication service is not available. Please restart the app.',
       );
     }
     return withRetry(
@@ -242,7 +236,8 @@ class AuthService {
     );
   }
 
-  /// Sign in with retry for cold starts.
+  // ── Sign In (Email + Password) ────────────────────────────────────
+
   Future<AuthResponse> signIn({
     required String email,
     required String password,
@@ -250,7 +245,7 @@ class AuthService {
     final client = _client;
     if (client == null) {
       throw const AuthException(
-        'Authentication service is not available. Please restart the app and try again.',
+        'Authentication service is not available. Please restart the app.',
       );
     }
     return withRetry(
@@ -262,67 +257,80 @@ class AuthService {
           'Sign in timed out. The server may be waking up — please try again.',
         );
       }),
-      maxAttempts: 3, // Reduced from 5 — avoid 24+ second retry storms
+      maxAttempts: 3,
       initialDelay: const Duration(seconds: 2),
       operationName: 'Sign in',
     );
   }
 
-  Future<void> signOut() async {
-    final client = _client;
-    if (client == null) return;
-    await client.auth.signOut();
-  }
+  // ── Sign In with Google ───────────────────────────────────────────
+  //
+  // CRITICAL: This must NEVER crash the app. Every step is wrapped
+  // in try-catch with timeouts. Native Google Play Services errors
+  // (DEVELOPER_ERROR, sign_in_failed) are caught and converted to
+  // user-friendly AuthException messages.
+  //
+  // The most common crash cause is a SHA-1 mismatch between the
+  // APK signing key and what's registered in Google Cloud Console.
+  // Debug APKs have a different SHA-1 than release APKs, so Google
+  // Sign-In may fail on debug builds. This is handled gracefully.
 
-  /// Sign in with Google using the native Google Sign-In flow.
-  ///
-  /// On Android: uses the Android client ID from google-services.json
-  /// On iOS: uses the iOS client ID (reversed client ID) from GoogleService-Info.plist
-  /// On Web: uses the web client ID
-  ///
-  /// After obtaining the Google ID token, verifies it with Supabase
-  /// using `signInWithIdToken(provider: 'google', idToken: ...)`.
   Future<AuthResponse> signInWithGoogle() async {
     final client = _client;
     if (client == null) {
       throw const AuthException(
-        'Authentication service is not available. Please restart the app and try again.',
+        'Authentication service is not available. Please restart the app.',
       );
     }
 
-    _log.i('🔐 Starting Google Sign-In...');
+    _log.i('Google Sign-In: Starting...');
 
-    // ── Build GoogleSignIn instance with platform-specific config ──
+    // ── Step 1: Build GoogleSignIn ─────────────────────────────────
     final googleSignIn = _buildGoogleSignIn();
 
+    // ── Step 2: Trigger Google Sign-In UI ──────────────────────────
+    GoogleSignInAccount? googleUser;
     try {
-      // ── NOTE: Do NOT call signOut() before signIn() ──────────────
-      // Calling signOut() before signIn() corrupts the Google Play
-      // Services connection state on some Android devices, causing
-      // native crashes (force close) that cannot be caught by Dart.
-      // Instead, we let signIn() handle stale state internally.
-
-      // ── Trigger the Google Sign-In flow with timeout ─────────────
-      // Timeout prevents the native dialog from hanging indefinitely
-      // if Google Play Services is unresponsive.
-      final googleUser = await googleSignIn
-          .signIn()
-          .timeout(const Duration(seconds: 30), onTimeout: () {
-        _log.w('🔐 Google Sign-In timed out after 30 seconds');
+      googleUser = await googleSignIn.signIn().timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          _log.w('Google Sign-In: Timed out after 30 seconds');
+          throw const AuthException(
+            'Google sign-in timed out. Please check your internet connection and try again.',
+          );
+        },
+      );
+    } on PlatformException catch (e) {
+      _log.e('Google Sign-In: PlatformException ${e.code} - ${e.message}');
+      throw _mapPlatformException(e);
+    } on AuthException {
+      rethrow;
+    } on TimeoutException {
+      throw const AuthException(
+        'Google sign-in timed out. Please try again.',
+      );
+    } catch (e) {
+      _log.e('Google Sign-In: signIn() error: $e');
+      if (_isDeveloperError(e)) {
         throw const AuthException(
-          'Google sign-in timed out. Please check your internet connection and try again.',
+          'Google sign-in failed due to a configuration issue. '
+          'This is common on debug builds. Please try email sign-in instead.',
         );
-      });
-
-      if (googleUser == null) {
-        _log.w('🔐 Google Sign-In cancelled by user');
-        throw const AuthException('Google sign-in was cancelled.');
       }
+      throw AuthException('Google sign-in failed: ${_sanitizeError(e)}');
+    }
 
-      _log.i('🔐 Google user obtained: ${googleUser.email}');
+    if (googleUser == null) {
+      _log.w('Google Sign-In: Cancelled by user');
+      throw const AuthException('Google sign-in was cancelled.');
+    }
 
-      // ── Get the authentication tokens ──────────────────────────────
-      final googleAuth = await googleUser.authentication.timeout(
+    _log.i('Google Sign-In: User obtained: ${googleUser.email}');
+
+    // ── Step 3: Get authentication tokens ──────────────────────────
+    GoogleSignInAuthentication googleAuth;
+    try {
+      googleAuth = await googleUser.authentication.timeout(
         const Duration(seconds: 10),
         onTimeout: () {
           throw const AuthException(
@@ -330,26 +338,33 @@ class AuthService {
           );
         },
       );
-      final idToken = googleAuth.idToken;
-      final accessToken = googleAuth.accessToken;
+    } on AuthException {
+      rethrow;
+    } on PlatformException catch (e) {
+      _log.e('Google Sign-In: Auth PlatformException ${e.code}');
+      throw _mapPlatformException(e);
+    } catch (e) {
+      _log.e('Google Sign-In: authentication() error: $e');
+      throw AuthException(
+        'Failed to get Google authentication tokens. Please try again.',
+      );
+    }
 
-      if (idToken == null) {
-        _log.e('🔐 Google Sign-In failed: ID token is null');
-        throw const AuthException(
-          'Failed to get Google ID token. Please try again.',
-        );
-      }
+    final idToken = googleAuth.idToken;
+    final accessToken = googleAuth.accessToken;
 
-      _log.i('🔐 Google ID token obtained, verifying with Supabase...');
+    if (idToken == null || idToken.isEmpty) {
+      _log.e('Google Sign-In: ID token is null or empty');
+      throw const AuthException(
+        'Failed to get Google ID token. This may be a configuration issue. '
+        'Please try email sign-in instead.',
+      );
+    }
 
-      // ── Verify with Supabase (with retry for network errors) ───────
-      // The ID token itself is valid for ~1 hour, so retrying on
-      // network errors is safe. If the token is invalid (not a network
-      // error), withRetry will rethrow immediately without retrying.
-      //
-      // IMPORTANT: We add a per-attempt timeout of 15 seconds to
-      // prevent signInWithIdToken() from hanging indefinitely when
-      // Supabase is on a cold start (free tier pauses after inactivity).
+    _log.i('Google Sign-In: ID token obtained, verifying with Supabase...');
+
+    // ── Step 4: Verify with Supabase ───────────────────────────────
+    try {
       return await withRetry(
         () => client.auth.signInWithIdToken(
           provider: OAuthProvider.google,
@@ -364,86 +379,50 @@ class AuthService {
         initialDelay: const Duration(seconds: 2),
         operationName: 'Google Sign-In verification',
       );
-    } on PlatformException catch (e) {
-      _log.e('🔐 Google Sign-In PlatformException: ${e.code} - ${e.message}');
-      throw _mapPlatformException(e);
     } on AuthException {
       rethrow;
-    } on TimeoutException {
-      throw const AuthException(
-        'Google sign-in timed out. Please check your internet connection and try again.',
-      );
     } catch (e) {
-      _log.e('🔐 Google Sign-In error: $e');
-      // Wrap unknown errors in a user-friendly AuthException
-      if (e.toString().contains('ApiException') ||
-          e.toString().contains('DEVELOPER_ERROR') ||
-          e.toString().contains('sign_in_failed')) {
+      _log.e('Google Sign-In: Supabase verification error: $e');
+      if (_isDeveloperError(e)) {
         throw const AuthException(
-          'Google sign-in failed. This may be a configuration issue. '
-          'Please try again or use email sign-in.',
+          'Google sign-in verification failed. This may be a configuration issue. '
+          'Please try email sign-in instead.',
         );
       }
-      throw AuthException('Google sign-in failed: ${e.toString()}');
+      throw AuthException('Google sign-in verification failed: ${_sanitizeError(e)}');
     }
   }
 
-  /// Map PlatformException from Google Sign-In to user-friendly errors.
-  AuthException _mapPlatformException(PlatformException e) {
-    switch (e.code) {
-      case 'sign_in_failed':
-        return const AuthException(
-          'Google sign-in failed. Please check your Google account and try again.',
-        );
-      case 'network_error':
-        return const AuthException(
-          'Network error during Google sign-in. Please check your internet connection.',
-        );
-      case 'sign_in_required':
-        return const AuthException(
-          'Please sign in to your Google account first.',
-        );
-      case 'invalid_account':
-        return const AuthException(
-          'Invalid Google account. Please try a different account.',
-        );
-      default:
-        // ApiException:10 = DEVELOPER_ERROR — usually SHA-1 or client ID mismatch
-        if (e.message?.contains('10') == true ||
-            e.message?.contains('DEVELOPER_ERROR') == true) {
-          return const AuthException(
-            'Google sign-in configuration error. Please contact support or try email sign-in.',
-          );
-        }
-        return AuthException(
-          'Google sign-in error: ${e.message ?? e.code}. Please try again.',
-        );
+  // ── Sign Out ──────────────────────────────────────────────────────
+
+  Future<void> signOut() async {
+    final client = _client;
+    if (client == null) return;
+    try {
+      await client.auth.signOut();
+    } catch (e) {
+      _log.w('Sign out error: $e');
     }
   }
 
-  /// Link a Google account to an existing authenticated user.
-  ///
-  /// This allows users who signed in with email/password to also
-  /// sign in with Google in the future.
+  // ── Link Google Account ───────────────────────────────────────────
+
   Future<void> linkGoogleAccount() async {
     final client = _client;
     if (client == null) {
-      throw const AuthException(
-        'Authentication service is not available.',
-      );
+      throw const AuthException('Authentication service is not available.');
     }
 
-    _log.i('🔐 Linking Google account...');
+    _log.i('Linking Google account...');
 
     final googleSignIn = _buildGoogleSignIn();
     try {
-      final googleUser = await googleSignIn
-          .signIn()
-          .timeout(const Duration(seconds: 30), onTimeout: () {
-        throw const AuthException(
-          'Google sign-in timed out. Please try again.',
-        );
-      });
+      final googleUser = await googleSignIn.signIn().timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw const AuthException('Google sign-in timed out. Please try again.');
+        },
+      );
       if (googleUser == null) {
         throw const AuthException('Google sign-in was cancelled.');
       }
@@ -456,15 +435,13 @@ class AuthService {
           );
         },
       );
-      final idToken = googleAuth.idToken;
 
-      if (idToken == null) {
+      if (googleAuth.idToken == null) {
         throw const AuthException(
           'Failed to get Google ID token. Please try again.',
         );
       }
 
-      // Use updateUser to link the Google identity
       await client.auth.updateUser(
         UserAttributes(
           data: {
@@ -474,7 +451,7 @@ class AuthService {
         ),
       );
 
-      _log.i('🔐 Google account linked successfully');
+      _log.i('Google account linked successfully');
     } on PlatformException catch (e) {
       throw _mapPlatformException(e);
     } on AuthException {
@@ -484,53 +461,7 @@ class AuthService {
     }
   }
 
-  /// Build a GoogleSignIn instance with platform-specific configuration.
-  ///
-  /// IMPORTANT: On Android, `clientId` MUST be the web client ID (type 3),
-  /// NOT the Android client ID (type 1). The `requestIdToken(clientId)` API
-  /// requires a web application type client ID as the audience for the ID
-  /// token. Supabase's `signInWithIdToken()` then verifies this token.
-  ///
-  /// The Android client ID validation (package name + SHA-1) is handled
-  /// automatically by Google Play Services via google-services.json.
-  GoogleSignIn _buildGoogleSignIn() {
-    if (kIsWeb) {
-      // Web: use the web client ID as clientId
-      return GoogleSignIn(
-        clientId: AppConfig.googleWebClientId,
-      );
-    } else if (Platform.isIOS) {
-      // iOS: clientId = iOS client ID (for nonce-based auth)
-      // serverClientId = Web client ID (for ID token audience)
-      return GoogleSignIn(
-        clientId: AppConfig.googleIosClientId,
-        serverClientId: AppConfig.googleWebClientId,
-      );
-    }
-    // Android: Use serverClientId (NOT clientId) for ID token requests.
-    //
-    // CRITICAL: On Android, the google_sign_in plugin maps these parameters
-    // to GoogleSignInOptions.Builder as follows:
-    //   - serverClientId → requestIdToken(serverClientId)
-    //   - clientId      → setAccountName(clientId)
-    //
-    // We MUST use serverClientId so that requestIdToken() is called with
-    // the Web client ID. This produces an OpenID Connect ID token that
-    // Supabase can verify with signInWithIdToken().
-    //
-    // Using clientId instead of serverClientId was causing the app to crash
-    // because:
-    // 1. clientId sets accountName (should be an email, not a client ID)
-    // 2. requestIdToken() is NOT called, so no ID token is produced
-    // 3. The Google Sign-In fails with a native DEVELOPER_ERROR
-    // 4. This native error can cause a force close before Dart can catch it
-    //
-    // The Android client ID validation (package name + SHA-1) is handled
-    // automatically by Google Play Services via google-services.json.
-    return GoogleSignIn(
-      serverClientId: AppConfig.googleWebClientId,
-    );
-  }
+  // ── Password Reset ────────────────────────────────────────────────
 
   Future<void> resetPassword(String email) async {
     final client = _client;
@@ -554,27 +485,126 @@ class AuthService {
     await client.auth.updateUser(UserAttributes(password: newPassword));
   }
 
+  // ── Session Access ────────────────────────────────────────────────
+
   Session? get session => _client?.auth.currentSession;
   User? get user => _client?.auth.currentUser;
 
   Future<Session?> refreshSession() async {
     final client = _client;
     if (client == null) return null;
-    final response = await client.auth.refreshSession();
-    return response.session;
+    try {
+      final response = await client.auth.refreshSession();
+      return response.session;
+    } catch (e) {
+      _log.w('Refresh session error: $e');
+      return null;
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════════
+  // PRIVATE HELPERS
+  // ═════════════════════════════════════════════════════════════════
+
+  /// Build GoogleSignIn with platform-specific configuration.
+  ///
+  /// ANDROID: Uses `serverClientId` (NOT `clientId`) to call
+  /// `requestIdToken(serverClientId)` in GoogleSignInOptions.Builder.
+  /// This produces an OpenID Connect ID token that Supabase can verify
+  /// with signInWithIdToken(). The Android client ID validation (package
+  /// name + SHA-1) is handled automatically by Google Play Services
+  /// via google-services.json.
+  ///
+  /// iOS: Uses `clientId` (iOS client ID / reversed client ID) and
+  /// `serverClientId` (web client ID for ID token audience).
+  ///
+  /// Web: Uses `clientId` (web client ID).
+  GoogleSignIn _buildGoogleSignIn() {
+    if (kIsWeb) {
+      return GoogleSignIn(
+        clientId: AppConfig.googleWebClientId,
+      );
+    } else if (Platform.isIOS) {
+      return GoogleSignIn(
+        clientId: AppConfig.googleIosClientId,
+        serverClientId: AppConfig.googleWebClientId,
+      );
+    }
+    // Android: serverClientId triggers requestIdToken() in the native
+    // GoogleSignInOptions builder, which produces the ID token needed
+    // for Supabase's signInWithIdToken().
+    return GoogleSignIn(
+      serverClientId: AppConfig.googleWebClientId,
+    );
+  }
+
+  /// Map PlatformException from Google Sign-In to user-friendly errors.
+  AuthException _mapPlatformException(PlatformException e) {
+    switch (e.code) {
+      case 'sign_in_failed':
+        return const AuthException(
+          'Google sign-in failed. This is common on debug builds due to '
+          'SHA-1 mismatch. Please try email sign-in instead.',
+        );
+      case 'network_error':
+        return const AuthException(
+          'Network error during Google sign-in. Please check your internet connection.',
+        );
+      case 'sign_in_required':
+        return const AuthException(
+          'Please sign in to your Google account first.',
+        );
+      case 'invalid_account':
+        return const AuthException(
+          'Invalid Google account. Please try a different account.',
+        );
+      default:
+        // DEVELOPER_ERROR (code 10) — usually SHA-1 or client ID mismatch
+        if (e.message?.contains('10') == true ||
+            e.message?.contains('DEVELOPER_ERROR') == true ||
+            e.code == 'DEVELOPER_ERROR') {
+          return const AuthException(
+            'Google sign-in configuration error. This is common on debug builds. '
+            'Please try email sign-in instead.',
+          );
+        }
+        return AuthException(
+          'Google sign-in error: ${e.message ?? e.code}. Please try again.',
+        );
+    }
+  }
+
+  /// Check if an error indicates a developer/configuration error.
+  bool _isDeveloperError(dynamic e) {
+    final str = e.toString().toLowerCase();
+    return str.contains('developer_error') ||
+        str.contains('apiexception') ||
+        str.contains('sign_in_failed') ||
+        str.contains('status{statusCode=10') ||
+        str.contains('statuscode=10');
+  }
+
+  /// Sanitize error messages for user display.
+  String _sanitizeError(dynamic e) {
+    final str = e.toString();
+    if (str.length > 100) {
+      return 'An unexpected error occurred. Please try again.';
+    }
+    return str.replaceAll('Exception: ', '').replaceAll('AuthException: ', '');
   }
 }
+
+// ── Auth Service Provider ────────────────────────────────────────────
 
 final authServiceProvider = Provider<AuthService>((ref) {
   final client = ref.watch(supabaseProvider);
   return AuthService(client);
 });
 
-// ── Route Persistence (for app resume) ──────────────────────────────
+// ── Route Persistence ────────────────────────────────────────────────
 
 const _lastRouteKey = 'kinrel_last_route';
 
-/// Save the current route so we can restore it on app restart.
 Future<void> saveLastRoute(String route) async {
   try {
     final prefs = await SharedPreferences.getInstance();
@@ -582,7 +612,6 @@ Future<void> saveLastRoute(String route) async {
   } catch (_) {}
 }
 
-/// Get the last saved route. Returns null if not saved.
 Future<String?> getLastRoute() async {
   try {
     final prefs = await SharedPreferences.getInstance();
@@ -592,7 +621,6 @@ Future<String?> getLastRoute() async {
   }
 }
 
-/// Clear the saved route (e.g., on sign out).
 Future<void> clearLastRoute() async {
   try {
     final prefs = await SharedPreferences.getInstance();

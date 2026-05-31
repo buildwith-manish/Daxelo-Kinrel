@@ -1,3 +1,12 @@
+// lib/features/auth/presentation/sign_in_screen.dart
+//
+// DAXELO KINREL — Sign In Screen
+//
+// Clean rewrite with bulletproof error handling.
+// Every async operation is wrapped in try-catch to prevent crashes.
+// Google Sign-In failures are handled gracefully — the app NEVER
+// force-closes from this screen.
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,7 +20,6 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/form_validators.dart';
-import '../../../core/utils/api_error_mapper.dart';
 import '../../../core/services/analytics_service.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
@@ -32,7 +40,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   bool _obscurePassword = true;
   String? _apiEmailError;
 
-  // ── Design tokens (orange brand) ────────────────────────────────
+  // ── Design tokens ────────────────────────────────────────────────
   static const _bgColor = Color(0xFF13141E);
   static const _inputFill = Color(0xFF202338);
   static const _hintColor = Color(0xFFC9B4A8);
@@ -51,41 +59,30 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     super.dispose();
   }
 
+  // ── Error Message Cleaner ────────────────────────────────────────
+
   String _cleanErrorMessage(String rawMessage) {
     var message = rawMessage;
     message = message.replaceAll('AuthException: ', '');
     message = message.replaceAll('AuthApiException: ', '');
 
-    if (message.contains('SocketException') ||
-        message.contains('Failed host lookup') ||
-        message.contains('AuthRetryableFetchException') ||
-        message.contains('Connection refused') ||
-        message.contains('Network is unreachable') ||
-        message.contains('No address associated with hostname') ||
-        message.contains('Connection timed out') ||
-        message.contains('TimeoutException') ||
-        message.contains('timed out') ||
-        message.contains('Unable to connect') ||
-        message.contains('FetchException') ||
-        message.contains('Connection reset')) {
-      return 'Could not reach server. The server may be waking up — please check your internet connection and try again.';
-    } else if (message.contains('No API key found')) {
-      return 'Server configuration error. Please contact support.';
+    if (_isNetworkError(message)) {
+      return 'Could not reach server. Please check your internet connection and try again.';
     } else if (message.contains('Invalid login credentials')) {
       return 'Incorrect email or password. Please try again.';
     } else if (message.contains('Email not confirmed')) {
       return 'Please verify your email before signing in.';
     } else if (message.contains('cancelled')) {
-      return 'Google sign-in was cancelled.';
+      return ''; // Empty = don't show snackbar for user cancellation
     } else if (message.contains('configuration error') ||
-        message.contains('DEVELOPER_ERROR') ||
-        message.contains('ApiException')) {
-      return 'Google sign-in is not available right now. Please use email sign-in instead.';
-    } else if (message.contains('timed out') ||
-        message.contains('timed out')) {
+        message.contains('configuration issue') ||
+        message.contains('debug build') ||
+        message.contains('DEVELOPER_ERROR')) {
+      return 'Google sign-in is not available on this build. Please use email sign-in instead.';
+    } else if (message.contains('timed out')) {
       return 'Sign in timed out. Please check your internet connection and try again.';
     } else if (message.contains('not available') ||
-        message.contains('not available. Please restart')) {
+        message.contains('not ready')) {
       return 'Authentication service is not ready. Please restart the app and try again.';
     } else if (message.contains('Provider api key not found') ||
         message.contains('provider is not enabled')) {
@@ -96,7 +93,26 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     return message;
   }
 
+  bool _isNetworkError(String message) {
+    return message.contains('SocketException') ||
+        message.contains('Failed host lookup') ||
+        message.contains('AuthRetryableFetchException') ||
+        message.contains('Connection refused') ||
+        message.contains('Network is unreachable') ||
+        message.contains('No address associated with hostname') ||
+        message.contains('Connection timed out') ||
+        message.contains('TimeoutException') ||
+        message.contains('timed out') ||
+        message.contains('Unable to connect') ||
+        message.contains('FetchException') ||
+        message.contains('Connection reset');
+  }
+
+  // ── Google Sign-In ───────────────────────────────────────────────
+
   Future<void> _signInWithGoogle() async {
+    // Prevent double-tap
+    if (_isGoogleLoading || _isLoading) return;
     setState(() => _isGoogleLoading = true);
 
     try {
@@ -108,39 +124,21 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         await AnalyticsService.instance.logLogin('google');
       } catch (_) {}
 
-      // Wait for the Supabase session to be available before navigating.
-      // The signInWithGoogle() call succeeds, but the onAuthStateChange
-      // stream and Riverpod providers may need a moment to propagate.
-      // We check the session directly instead of relying on authStateProvider
-      // because authStateProvider.future can hang if the stream already
-      // emitted the signedIn event before we started listening.
-      try {
-        for (int i = 0; i < 10; i++) {
-          final client = ref.read(supabaseProvider);
-          if (client?.auth.currentSession != null) break;
-          await Future.delayed(const Duration(milliseconds: 200));
-        }
-      } catch (_) {}
+      // Wait for the Supabase session to be fully available.
+      // signInWithGoogle() succeeds at the Supabase level, but the
+      // Riverpod authStateProvider may need a moment to propagate.
+      await _waitForSession();
 
+      // Navigate to home
       if (mounted) {
-        try {
-          context.go('/home');
-        } catch (e) {
-          // Navigation can throw if the widget tree is in an inconsistent state
-          debugPrint('⚠️ Navigation error after Google sign-in: $e');
-          // Try again after a short delay
-          await Future.delayed(const Duration(milliseconds: 300));
-          if (mounted) {
-            try { context.go('/home'); } catch (_) {}
-          }
-        }
+        _navigateToHome();
       }
     } catch (e) {
       if (mounted) {
-        final msg = e.toString();
+        final msg = _cleanErrorMessage(e.toString());
         // Don't show snackbar for user-initiated cancellation
-        if (!msg.contains('cancelled')) {
-          context.showSnackBar(_cleanErrorMessage(msg), isError: true);
+        if (msg.isNotEmpty) {
+          context.showSnackBar(msg, isError: true);
         }
       }
     } finally {
@@ -148,9 +146,13 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     }
   }
 
+  // ── Email Sign-In ────────────────────────────────────────────────
+
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Prevent double-tap
+    if (_isLoading || _isGoogleLoading) return;
     setState(() => _isLoading = true);
 
     try {
@@ -165,49 +167,24 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         await AnalyticsService.instance.logLogin('email');
       } catch (_) {}
 
-      // Wait for the Supabase session to be available before navigating.
-      // The signIn() call succeeds, but the onAuthStateChange stream and
-      // Riverpod providers may need a moment to propagate.
-      // We check the session directly instead of relying on authStateProvider
-      // because authStateProvider.future can hang if the stream already
-      // emitted the signedIn event before we started listening.
-      try {
-        for (int i = 0; i < 10; i++) {
-          final client = ref.read(supabaseProvider);
-          if (client?.auth.currentSession != null) break;
-          await Future.delayed(const Duration(milliseconds: 200));
-        }
-      } catch (_) {}
+      // Wait for session propagation
+      await _waitForSession();
 
+      // Navigate to home
       if (mounted) {
-        try {
-          context.go('/home');
-        } catch (e) {
-          debugPrint('⚠️ Navigation error after email sign-in: $e');
-          await Future.delayed(const Duration(milliseconds: 300));
-          if (mounted) {
-            try { context.go('/home'); } catch (_) {}
-          }
-        }
+        _navigateToHome();
       }
     } catch (e) {
       if (mounted) {
-        final fieldErrors = mapApiError(e);
-        if (fieldErrors != null) {
-          if (fieldErrors.containsKey('email')) {
-            setState(() => _apiEmailError = fieldErrors['email']);
+        final msg = _cleanErrorMessage(e.toString());
+        if (msg.isNotEmpty) {
+          // Check if it's a field-specific error
+          if (msg.contains('email') && !msg.contains('check your')) {
+            setState(() => _apiEmailError = msg);
             _formKey.currentState!.validate();
+          } else {
+            context.showSnackBar(msg, isError: true);
           }
-          final formError = fieldErrors['form'];
-          if (formError != null) {
-            context.showSnackBar(formError, isError: true);
-          }
-          final emailError = fieldErrors['email'];
-          if (emailError != null && !fieldErrors.containsKey('form')) {
-            context.showSnackBar(emailError, isError: true);
-          }
-        } else {
-          context.showSnackBar(_cleanErrorMessage(e.toString()), isError: true);
         }
       }
     } finally {
@@ -215,7 +192,41 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     }
   }
 
-  // ── Reusable input decoration ──────────────────────────────────
+  // ── Wait for Session ─────────────────────────────────────────────
+
+  /// Wait for the Supabase session to be available before navigating.
+  /// This prevents race conditions where the router redirect checks
+  /// auth state before the session is fully propagated.
+  Future<void> _waitForSession() async {
+    try {
+      for (int i = 0; i < 10; i++) {
+        final client = ref.read(supabaseProvider);
+        if (client?.auth.currentSession != null) return;
+        await Future.delayed(const Duration(milliseconds: 200));
+      }
+    } catch (_) {}
+  }
+
+  // ── Navigate to Home ─────────────────────────────────────────────
+
+  void _navigateToHome() {
+    try {
+      context.go('/home');
+    } catch (e) {
+      debugPrint('Navigation error after sign-in: $e');
+      // Try again after a short delay
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          try {
+            context.go('/home');
+          } catch (_) {}
+        }
+      });
+    }
+  }
+
+  // ── Input Decoration ─────────────────────────────────────────────
+
   InputDecoration _inputDecoration({
     required String hintText,
     IconData? prefixIcon,
@@ -263,6 +274,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     );
   }
 
+  // ── Build ────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     return Theme(
@@ -282,307 +295,304 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                  // ── K-graph icon + KINREL wordmark ───────────────
-                  Column(
-                        children: [
-                          SizedBox(
+                    // ── Logo + Wordmark ──────────────────────────────
+                    Column(
+                      children: [
+                        SizedBox(
+                          width: KinrelSpacing.logoLg,
+                          height: KinrelSpacing.logoLg,
+                          child: SvgPicture.asset(
+                            'assets/icons/kinrel-icon-primary.svg',
                             width: KinrelSpacing.logoLg,
                             height: KinrelSpacing.logoLg,
-                            child: SvgPicture.asset(
-                              'assets/icons/kinrel-icon-primary.svg',
-                              width: KinrelSpacing.logoLg,
-                              height: KinrelSpacing.logoLg,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ShaderMask(
+                          shaderCallback: (bounds) => KinrelGradients
+                              .wordmarkGradient
+                              .createShader(bounds),
+                          child: Text(
+                            'KINREL',
+                            style: KinrelTypography.appName.copyWith(
+                              fontSize: 28,
+                              letterSpacing: 3.92,
+                              color: Colors.white,
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          ShaderMask(
-                            shaderCallback: (bounds) => KinrelGradients
-                                .wordmarkGradient
-                                .createShader(bounds),
-                            child: Text(
-                              'KINREL',
-                              style: KinrelTypography.appName.copyWith(
-                                fontSize: 28,
-                                letterSpacing: 3.92, // 28 * 0.14
-                                color: Colors.white, // base for ShaderMask
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Welcome back',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 15,
-                              color: _secondaryText,
-                              height: 1.5,
-                            ),
-                          ),
-                        ],
-                      )
-                      .animate()
-                      .fadeIn(duration: 400.ms)
-                      .slideY(begin: 0.15, end: 0, duration: 500.ms),
-
-                  const SizedBox(height: 32),
-
-                  // ── Email / username field ───────────────────────
-                  TextFormField(
-                    controller: _emailController,
-                    focusNode: _emailFocusNode,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    textCapitalization: TextCapitalization.none,
-                    autocorrect: false,
-                    cursorColor: _focusBorder,
-                    style: TextStyle(
-                      color: _primaryText,
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 14,
-                    ),
-                    decoration: _inputDecoration(
-                      hintText: 'Email or username',
-                      prefixIcon: Icons.email_outlined,
-                    ),
-                    validator: (v) {
-                      if (_apiEmailError != null) {
-                        final err = _apiEmailError;
-                        _apiEmailError = null;
-                        return err;
-                      }
-                      return emailValidator(v);
-                    },
-                    onFieldSubmitted: (_) {
-                      _passwordFocusNode.requestFocus();
-                    },
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // ── Password field with show/hide toggle ─────────
-                  TextFormField(
-                    controller: _passwordController,
-                    focusNode: _passwordFocusNode,
-                    obscureText: _obscurePassword,
-                    textInputAction: TextInputAction.done,
-                    textCapitalization: TextCapitalization.none,
-                    cursorColor: _focusBorder,
-                    style: TextStyle(
-                      color: _primaryText,
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 14,
-                    ),
-                    decoration: _inputDecoration(
-                      hintText: 'Password',
-                      prefixIcon: Icons.lock_outline,
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_off_outlined
-                              : Icons.visibility_outlined,
-                          color: _hintColor,
-                          size: 20,
                         ),
-                        onPressed: () => setState(
-                          () => _obscurePassword = !_obscurePassword,
-                        ),
-                      ),
-                    ),
-                    validator: (v) => requiredField(v, 'Password'),
-                    onFieldSubmitted: (_) => _signIn(),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // ── Forgot Password link ─────────────────────────
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () {
-                        // TODO: Navigate to forgot password
-                      },
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 4,
-                        ),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: Text(
-                        'Forgot Password?',
-                        style: TextStyle(
-                          color: KinrelColors.orange,
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // ── Sign In button (Ignite gradient, 56px, pill) ─
-                  SizedBox(
-                    height: 56,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: _isLoading
-                            ? null
-                            : KinrelGradients.igniteGradient,
-                        color: _isLoading
-                            ? KinrelColors.orange.withValues(alpha: 0.5)
-                            : null,
-                        borderRadius: BorderRadius.circular(KinrelRadius.full),
-                        boxShadow: _isLoading
-                            ? null
-                            : [
-                                BoxShadow(
-                                  color: KinrelColors.orange.withValues(
-                                    alpha: 0.35,
-                                  ),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                      ),
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _signIn,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: Colors.transparent,
-                          disabledForegroundColor: Colors.white.withValues(
-                            alpha: 0.6,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              KinrelRadius.full,
-                            ),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: _isLoading
-                            ? Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  SizedBox(
-                                    height: 22,
-                                    width: 22,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    'Connecting...',
-                                    style: TextStyle(
-                                      fontFamily: KinrelTypography.displayFont,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 16,
-                                      color: Colors.white.withValues(
-                                        alpha: 0.8,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : Text(
-                                'Sign In',
-                                style: TextStyle(
-                                  fontFamily: KinrelTypography.displayFont,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
-
-                  const SizedBox(height: 28),
-
-                  // ── "or continue with" divider ───────────────────
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          height: 1,
-                          color: const Color(0xFF2A2A3D),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          'or continue with',
+                        const SizedBox(height: 8),
+                        Text(
+                          'Welcome back',
+                          textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: _secondaryText,
                             fontFamily: KinrelTypography.bodyFont,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w400,
+                            fontSize: 15,
+                            color: _secondaryText,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ).animate().fadeIn(duration: 400.ms).slideY(
+                          begin: 0.15, end: 0, duration: 500.ms),
+
+                    const SizedBox(height: 32),
+
+                    // ── Email field ──────────────────────────────────
+                    TextFormField(
+                      controller: _emailController,
+                      focusNode: _emailFocusNode,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      textCapitalization: TextCapitalization.none,
+                      autocorrect: false,
+                      cursorColor: _focusBorder,
+                      style: TextStyle(
+                        color: _primaryText,
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 14,
+                      ),
+                      decoration: _inputDecoration(
+                        hintText: 'Email or username',
+                        prefixIcon: Icons.email_outlined,
+                      ),
+                      validator: (v) {
+                        if (_apiEmailError != null) {
+                          final err = _apiEmailError;
+                          _apiEmailError = null;
+                          return err;
+                        }
+                        return emailValidator(v);
+                      },
+                      onFieldSubmitted: (_) {
+                        _passwordFocusNode.requestFocus();
+                      },
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // ── Password field ──────────────────────────────
+                    TextFormField(
+                      controller: _passwordController,
+                      focusNode: _passwordFocusNode,
+                      obscureText: _obscurePassword,
+                      textInputAction: TextInputAction.done,
+                      textCapitalization: TextCapitalization.none,
+                      cursorColor: _focusBorder,
+                      style: TextStyle(
+                        color: _primaryText,
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 14,
+                      ),
+                      decoration: _inputDecoration(
+                        hintText: 'Password',
+                        prefixIcon: Icons.lock_outline,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            color: _hintColor,
+                            size: 20,
+                          ),
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
                           ),
                         ),
                       ),
-                      Expanded(
-                        child: Container(
-                          height: 1,
-                          color: const Color(0xFF2A2A3D),
-                        ),
-                      ),
-                    ],
-                  ).animate().fadeIn(duration: 300.ms, delay: 300.ms),
+                      validator: (v) => requiredField(v, 'Password'),
+                      onFieldSubmitted: (_) => _signIn(),
+                    ),
 
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 8),
 
-                  // ── Google social auth button ─────────────────────
-                  _SocialAuthButton(
-                    label: _isGoogleLoading ? 'Connecting...' : 'Google',
-                    icon: Icons.g_mobiledata_rounded,
-                    borderColor: _socialBorder,
-                    fillColor: _inputFill,
-                    textColor: _primaryText,
-                    isLoading: _isGoogleLoading,
-                    onPressed: _isGoogleLoading ? null : _signInWithGoogle,
-                  ).animate().fadeIn(duration: 300.ms, delay: 400.ms),
-
-                  const SizedBox(height: 32),
-
-                  // ── Don't have an account? Sign Up ───────────────
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        "Don't have an account? ",
-                        style: TextStyle(
-                          color: _secondaryText,
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 14,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () => context.go('/sign-up'),
+                    // ── Forgot Password ─────────────────────────────
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () {
+                          // TODO: Navigate to forgot password
+                        },
                         style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 4,
+                          ),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         child: Text(
-                          'Sign Up',
+                          'Forgot Password?',
                           style: TextStyle(
                             color: KinrelColors.orange,
-                            fontFamily: KinrelTypography.displayFont,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
-                    ],
-                  ).animate().fadeIn(duration: 300.ms, delay: 500.ms),
+                    ),
 
-                  const SizedBox(height: 16),
-                ],
+                    const SizedBox(height: 16),
+
+                    // ── Sign In button ──────────────────────────────
+                    SizedBox(
+                      height: 56,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: _isLoading
+                              ? null
+                              : KinrelGradients.igniteGradient,
+                          color: _isLoading
+                              ? KinrelColors.orange.withValues(alpha: 0.5)
+                              : null,
+                          borderRadius: BorderRadius.circular(KinrelRadius.full),
+                          boxShadow: _isLoading
+                              ? null
+                              : [
+                                  BoxShadow(
+                                    color: KinrelColors.orange.withValues(
+                                      alpha: 0.35,
+                                    ),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                        ),
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _signIn,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: Colors.transparent,
+                            disabledForegroundColor: Colors.white.withValues(
+                              alpha: 0.6,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                KinrelRadius.full,
+                              ),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: _isLoading
+                              ? Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                      height: 22,
+                                      width: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'Connecting...',
+                                      style: TextStyle(
+                                        fontFamily: KinrelTypography.displayFont,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 16,
+                                        color: Colors.white.withValues(alpha: 0.8),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Text(
+                                  'Sign In',
+                                  style: TextStyle(
+                                    fontFamily: KinrelTypography.displayFont,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
+
+                    const SizedBox(height: 28),
+
+                    // ── "or continue with" divider ──────────────────
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 1,
+                            color: const Color(0xFF2A2A3D),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            'or continue with',
+                            style: TextStyle(
+                              color: _secondaryText,
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Container(
+                            height: 1,
+                            color: const Color(0xFF2A2A3D),
+                          ),
+                        ),
+                      ],
+                    ).animate().fadeIn(duration: 300.ms, delay: 300.ms),
+
+                    const SizedBox(height: 20),
+
+                    // ── Google button ───────────────────────────────
+                    _SocialAuthButton(
+                      label: _isGoogleLoading ? 'Connecting...' : 'Google',
+                      icon: Icons.g_mobiledata_rounded,
+                      borderColor: _socialBorder,
+                      fillColor: _inputFill,
+                      textColor: _primaryText,
+                      isLoading: _isGoogleLoading,
+                      onPressed:
+                          (_isGoogleLoading || _isLoading) ? null : _signInWithGoogle,
+                    ).animate().fadeIn(duration: 300.ms, delay: 400.ms),
+
+                    const SizedBox(height: 32),
+
+                    // ── Sign Up link ────────────────────────────────
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          "Don't have an account? ",
+                          style: TextStyle(
+                            color: _secondaryText,
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 14,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => context.go('/sign-up'),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text(
+                            'Sign Up',
+                            style: TextStyle(
+                              color: KinrelColors.orange,
+                              fontFamily: KinrelTypography.displayFont,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ).animate().fadeIn(duration: 300.ms, delay: 500.ms),
+
+                    const SizedBox(height: 16),
+                  ],
                 ),
               ),
             ),
@@ -593,7 +603,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 }
 
-/// Social authentication button — #202338 bg, white 10% border, rounded.
+// ── Social Auth Button ───────────────────────────────────────────────
+
 class _SocialAuthButton extends StatelessWidget {
   const _SocialAuthButton({
     required this.label,
