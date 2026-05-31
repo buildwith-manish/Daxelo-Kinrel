@@ -31,7 +31,7 @@ jobs:
       - name: Install Android SDK & NDK
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;28.0.13004108" "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1"
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.0.12077973" "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1"
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
           ls "$ANDROID_HOME/ndk/" || echo "NDK directory not found"
 
