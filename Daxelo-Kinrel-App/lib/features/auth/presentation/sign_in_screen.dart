@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -110,11 +111,32 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       // Wait for auth state stream to propagate
       try {
         await ref.read(authStateProvider.future).timeout(
-          const Duration(seconds: 3),
+          const Duration(seconds: 5),
         );
       } catch (_) {}
 
-      if (mounted) context.go('/home');
+      // Verify we actually have a session before navigating
+      try {
+        final client = ref.read(supabaseProvider);
+        if (client?.auth.currentSession == null) {
+          // Session not yet available — wait a bit more
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
+      } catch (_) {}
+
+      if (mounted) {
+        try {
+          context.go('/home');
+        } catch (e) {
+          // Navigation can throw if the widget tree is in an inconsistent state
+          debugPrint('⚠️ Navigation error after Google sign-in: $e');
+          // Try again after a short delay
+          await Future.delayed(const Duration(milliseconds: 300));
+          if (mounted) {
+            try { context.go('/home'); } catch (_) {}
+          }
+        }
+      }
     } catch (e) {
       if (mounted) {
         final msg = e.toString();
@@ -152,14 +174,35 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       // to be redirected back to /sign-in after a successful login.
       try {
         await ref.read(authStateProvider.future).timeout(
-          const Duration(seconds: 3),
+          const Duration(seconds: 5),
         );
       } catch (_) {
         // Timeout — auth state may still be loading, but signIn() succeeded,
         // so we proceed anyway. The router redirect will handle it.
       }
 
-      if (mounted) context.go('/home');
+      // Verify we actually have a session before navigating
+      try {
+        final client = ref.read(supabaseProvider);
+        if (client?.auth.currentSession == null) {
+          // Session not yet available — wait a bit more
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
+      } catch (_) {}
+
+      if (mounted) {
+        try {
+          context.go('/home');
+        } catch (e) {
+          // Navigation can throw if the widget tree is in an inconsistent state
+          debugPrint('⚠️ Navigation error after email sign-in: $e');
+          // Try again after a short delay
+          await Future.delayed(const Duration(milliseconds: 300));
+          if (mounted) {
+            try { context.go('/home'); } catch (_) {}
+          }
+        }
+      }
     } catch (e) {
       if (mounted) {
         final fieldErrors = mapApiError(e);

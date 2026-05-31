@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -181,9 +182,36 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       await authService.signInWithGoogle();
 
       // Track successful Google sign-up
-      AnalyticsService.instance.logSignUp('google');
+      try {
+        AnalyticsService.instance.logSignUp('google');
+      } catch (_) {}
 
-      if (mounted) context.go('/home');
+      // Wait for auth state stream to propagate
+      try {
+        await ref.read(authStateProvider.future).timeout(
+          const Duration(seconds: 5),
+        );
+      } catch (_) {}
+
+      // Verify we actually have a session before navigating
+      try {
+        final client = ref.read(supabaseProvider);
+        if (client?.auth.currentSession == null) {
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
+      } catch (_) {}
+
+      if (mounted) {
+        try {
+          context.go('/home');
+        } catch (e) {
+          debugPrint('⚠️ Navigation error after Google sign-up: $e');
+          await Future.delayed(const Duration(milliseconds: 300));
+          if (mounted) {
+            try { context.go('/home'); } catch (_) {}
+          }
+        }
+      }
     } catch (e) {
       if (mounted) {
         final msg = e.toString();

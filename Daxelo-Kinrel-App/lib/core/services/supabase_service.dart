@@ -338,14 +338,19 @@ class AuthService {
 
       _log.i('🔐 Google ID token obtained, verifying with Supabase...');
 
-      // ── Verify with Supabase (single attempt, no retry) ───────────
-      // We don't retry because if the ID token is invalid, retrying
-      // won't help — it will fail every time. The user needs to
-      // re-authenticate with Google to get a fresh token.
-      return await client.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: accessToken,
+      // ── Verify with Supabase (with retry for network errors) ───────
+      // The ID token itself is valid for ~1 hour, so retrying on
+      // network errors is safe. If the token is invalid (not a network
+      // error), withRetry will rethrow immediately without retrying.
+      return await withRetry(
+        () => client.auth.signInWithIdToken(
+          provider: OAuthProvider.google,
+          idToken: idToken,
+          accessToken: accessToken,
+        ),
+        maxAttempts: 3,
+        initialDelay: const Duration(seconds: 2),
+        operationName: 'Google Sign-In verification',
       );
     } on PlatformException catch (e) {
       _log.e('🔐 Google Sign-In PlatformException: ${e.code} - ${e.message}');
