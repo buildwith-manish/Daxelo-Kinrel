@@ -311,3 +311,36 @@ Stage Summary:
 - profile_provider.dart: 1 top-level try-catch wrapper added to loadProfile()
 - dio_client.dart: 3 timeout values changed from 8/15/10s → 60s
 - All changes are minimal — only added try-catch wrappers and changed timeout values
+---
+Task ID: 1-6 (complete cleanup)
+Agent: Main Agent
+Task: Major cleanup — restore auth, fix crashes, remove Next.js, clean repo, build APK
+
+Work Log:
+- Explored full repo structure, identified Next.js scaffold at root (src/, .next/, node_modules/, package.json, etc.)
+- Identified 31 "LOGIN BYPASSED" markers across 10 Dart files
+- Restored original auth flow in supabase_service.dart (isAuthenticatedProvider checks real auth)
+- Restored router redirect logic in app_router.dart (auth guard on protected routes)
+- Restored splash screen navigation (→ /sign-in when not authenticated)
+- Restored session restoration in splash_screen.dart
+- Removed all "LOGIN BYPASSED" and "TODO: Re-enable" comments from 10 files
+- Kept session guard checks (null session → early return) as correct safety patterns
+- Wrapped _initDeferredServices() in try-catch at call-site and method body
+- Wrapped ProfileNotifier.loadProfile() in top-level try-catch
+- Increased Dio timeouts from 8/15/10s to 60/60/60s
+- Removed Next.js scaffold: src/, .next/, node_modules/, package.json, bun.lock, configs
+- Removed Caddyfile (proxied to Next.js port 3000)
+- Removed duplicate serve scripts, .iml files, integration tests, mock files
+- Renamed russian_kinship_production_v2 (1).json to remove (1)
+- Updated .gitignore with new patterns
+- Fixed ambiguous_import error (Family class conflict with Riverpod)
+- Fixed catchError return type warning
+- Pushed 2 commits to GitHub
+- APK build succeeded: all 15 steps passed ✅
+
+Stage Summary:
+- Commit 1: 105 files changed, 119 insertions, 10524 deletions
+- Commit 2: Fix for ambiguous_import (2 insertions, 2 deletions)
+- APK build run #26708838799: SUCCESS
+- App now starts with auth check: logged in → /home, not logged in → /sign-in
+- Repo now contains only: Daxelo-Kinrel-App/ (Flutter) + server/ (NestJS) + deploy/ + .github/
