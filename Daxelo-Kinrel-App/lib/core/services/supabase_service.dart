@@ -208,9 +208,12 @@ final currentUserProvider = Provider<User?>((ref) {
   }
 });
 
+// TODO: Re-enable login system before production
+// Currently bypassed for development — app opens directly without login.
 final isAuthenticatedProvider = Provider<bool>((ref) {
-  final user = ref.watch(currentUserProvider);
-  return user != null;
+  // final user = ref.watch(currentUserProvider);
+  // return user != null;
+  return true; // LOGIN BYPASSED — always authenticated
 });
 
 class AuthService {

@@ -247,6 +247,10 @@ class _PrefetchProfileState extends ConsumerState<_PrefetchProfile> {
 /// 3. NEVER create redirect loops (splash → sign-in → home → sign-in)
 /// 4. If Supabase isn't ready, DON'T redirect — let screens handle auth
 String? _handleRedirect(Ref ref, GoRouterState state) {
+  // TODO: Re-enable login redirect before production
+  // Currently bypassed — all routes accessible without authentication.
+  return null; // LOGIN BYPASSED — allow all navigation
+
   // ── Log navigation breadcrumb for crash context ──────────────────
   logNavigationBreadcrumb(state.matchedLocation);
 

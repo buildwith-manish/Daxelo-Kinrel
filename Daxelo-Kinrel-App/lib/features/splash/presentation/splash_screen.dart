@@ -112,13 +112,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       if (mounted && !_navigated) {
         debugPrint('⚠️ Splash safety timeout triggered — forcing navigation');
         _navigated = true;
-        // ALWAYS navigate to sign-in on safety timeout — this is the safest
-        // fallback. If the user is actually authenticated, the router's
-        // redirect will handle it on the next frame.
+        // LOGIN BYPASSED: Always go to /home (was /sign-in)
         try {
-          context.go('/sign-in');
+          context.go('/home');
         } catch (_) {
-          // Last resort: if even navigation fails, try home
           try { context.go('/home'); } catch (_) {}
         }
       }
@@ -191,7 +188,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _navigated = true;
 
-    // ── NAVIGATION DECISION ──────────────────────────────────────────
+    // TODO: Re-enable login system before production
+    // Currently bypassed — app always opens directly to /home.
+    debugPrint('🧭 Splash → /home (LOGIN BYPASSED for development)');
+    context.go('/home');
+
+    // ── ORIGINAL NAVIGATION DECISION (commented out) ─────────────────
     // Priority:
     // 1. If authenticated OR has cached profile → /home (or last route)
     // 2. Otherwise → /sign-in (ALWAYS, no onboarding before login)
@@ -201,6 +203,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // so go to home. If not, go to sign-in. This ensures the user
     // NEVER sees a blank screen waiting for Supabase.
     // Onboarding is removed from the initial flow — login comes first.
+    /*
     if (isAuthenticated || _hasCachedProfile) {
       // Authenticated → go to home (or last route)
       String? lastRoute;
@@ -220,6 +223,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       debugPrint('🧭 Splash → /sign-in (not authenticated, login required first)');
       context.go('/sign-in');
     }
+    */
   }
 
   /// Check Isar cache for a cached user profile.
