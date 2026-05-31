@@ -37,10 +37,10 @@ subprojects {
                 }
             }
 
-            // ── Force compileSdk = 36 for subprojects with old SDK ────
-            // Flutter 3.44.0 requires compileSdk 36.
-            if (androidExt.compileSdk ?: 0 < 34) {
-                androidExt.compileSdk = 36
+            // ── Force compileSdk = 35 for subprojects with old SDK ────
+            // Flutter 3.32.0 requires compileSdk 35.
+            if (androidExt.compileSdk ?: 0 < 35) {
+                androidExt.compileSdk = 35
             }
         }
     }

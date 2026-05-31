@@ -25,8 +25,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.daxelo.kinrel"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = "28.2.13676358"
+    compileSdk = 35
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
