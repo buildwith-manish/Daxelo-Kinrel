@@ -137,10 +137,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   // Initialization — runs in parallel with animation
   // ─────────────────────────────────────────────────────────────────
   Future<void> _initialize() async {
-    // FAST STARTUP: Check Isar cache INSTANTLY for cached profile.
-    // If we have one, the user is likely authenticated — we can
-    // navigate to home immediately without waiting for Supabase.
-    _checkIsarCache();
+    // FAST STARTUP: Check Isar cache — await to prevent race condition
+    // where _hasCachedProfile is read before the async check completes.
+    await _checkIsarCache();
 
     // Preload kinship data in the background (5 300+ terms, ~15 MB JSON)
     unawaited(ref.read(kinshipInitializedProvider.future).catchError((_) {}));
@@ -212,24 +211,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   /// Check Isar cache for a cached user profile.
   /// If found, set _hasCachedProfile = true so we can navigate faster.
-  void _checkIsarCache() {
+  Future<void> _checkIsarCache() async {
     if (!IsarDatabase.isInitialized) {
       debugPrint('📦 Database not initialized — skipping cache check');
       return;
     }
     try {
       final db = IsarDatabase.instance;
-      // Drift async count — fire and forget, update state when ready
-      db.profileCount().then((profileCount) {
-        if (profileCount > 0) {
-          _hasCachedProfile = true;
-          debugPrint('📦 Drift cache: found $profileCount cached profile(s)');
-        } else {
-          debugPrint('📦 Drift cache: no cached profiles');
-        }
-      }).catchError((e) {
-        debugPrint('📦 Drift cache check failed: $e');
-      });
+      final profileCount = await db.profileCount();
+      if (profileCount > 0) {
+        _hasCachedProfile = true;
+        debugPrint('📦 Drift cache: found $profileCount cached profile(s)');
+      } else {
+        debugPrint('📦 Drift cache: no cached profiles');
+      }
     } catch (e) {
       debugPrint('📦 Drift cache check failed: $e');
       // Don't crash — just treat as no cache

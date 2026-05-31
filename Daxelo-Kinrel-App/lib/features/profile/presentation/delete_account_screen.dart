@@ -20,6 +20,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/api_error_mapper.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/storage/secure_storage.dart';
 import '../../../core/database/isar_database.dart';
 import '../data/profile_provider.dart';
 
@@ -167,6 +168,16 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     try {
       // Clear Drift database cache
       await IsarDatabase.clearAll();
+    } catch (_) {}
+
+    try {
+      // Clear secure storage auth tokens
+      await SecureStorageService().clearAuthTokens();
+    } catch (_) {}
+
+    try {
+      // Clear persisted route
+      await clearLastRoute();
     } catch (_) {}
 
     try {

@@ -389,3 +389,77 @@ Stage Summary:
 - Also added ProGuard rules for Google Sign-In auth classes
 - Reduced Dio timeout from 60s to 15s connect / 30s receive
 - Commit: ea9f495 pushed to origin/main
+
+---
+Task ID: 6
+Agent: Security Fix Agent
+Task: Fix ALL login errors, crashes, and security issues in NestJS backend
+
+Work Log:
+- Read worklog.md and all 8 target files before making any changes
+- FIX 1: Removed 'default-secret' fallback from JWT_ACCESS_SECRET in auth.module.ts (line 17) and jwt.strategy.ts (line 71) — prevents running with insecure default JWT secret
+- FIX 2: Added try-catch around registration transaction in auth.service.ts to handle P2002 race condition — two concurrent registrations with same email both pass findUnique check before either creates the user
+- FIX 3: Added mandatory password requirement for account deletion in users.service.ts — users with a passwordHash must provide their password to delete their account (prevents unauthorized deletion)
+- FIX 4: Added SHA-256 legacy password fallback to changePassword() in auth.service.ts — mirrors the existing login() fallback, auto-upgrades to bcrypt on successful match
+- FIX 5: Added try-catch around updateUsername transaction in users.service.ts to handle P2002 race condition — two users simultaneously claiming the same username
+- FIX 6: Replaced kinrel.gateway.ts with updated version supporting both NestJS JWT_ACCESS_SECRET and Supabase JWT_SECRET verification (removed hardcoded fallback 'kinrel-dev-secret-change-in-production')
+- FIX 7: Replaced realtime.gateway.ts with authenticated version — added JWT verification (NestJS + Supabase) to handleConnection, rejecting unauthenticated connections
+- FIX 8: Replaced auth.controller.ts with version using proper class-validator DTOs — RegisterDto, LoginDto, RefreshDto, ChangePasswordDto, Verify2FADto, Disable2FADto with IsEmail, IsString, MinLength, IsNotEmpty validators
+
+Stage Summary:
+- 7 files modified across the NestJS server
+- Security: No more 'default-secret' JWT fallbacks, WebSocket gateways require authentication, auth endpoints validate input
+- Race conditions: P2002 errors handled for registration and username updates
+- Legacy support: SHA-256 password fallback added to changePassword (matching login)
+- Account protection: Password required for account deletion when user has one
+
+---
+Task ID: 5
+Agent: Login Fix Agent
+Task: Fix ALL login errors, crashes, and ANRs in Flutter app
+
+Work Log:
+- Read worklog.md and all 7 target files before making changes
+- FIX 1: _waitForSession() race condition in sign_in_screen.dart + sign_up_screen.dart
+  - Changed loop from 10 iterations (2s) to 25 iterations (5s)
+  - Instead of silently returning when session never arrives, now throws AuthException to prevent redirect loops
+  - Added `on AuthException { rethrow; }` to preserve meaningful error message
+  - Added `import 'dart:async'` and `import 'package:supabase_flutter/supabase_flutter.dart'` to both files
+- FIX 2: _hasCachedProfile race condition in splash_screen.dart
+  - Changed _checkIsarCache() from void to Future<void> async
+  - Changed db.profileCount().then() fire-and-forget to await db.profileCount()
+  - Added await to _checkIsarCache() call in _initialize() to prevent reading _hasCachedProfile before check completes
+- FIX 3: Token refresh in _AuthInterceptor in dio_client.dart
+  - When session is expired, now attempts client.auth.refreshSession() before proceeding
+  - If refresh succeeds, uses the new session for Authorization header
+  - If refresh fails, proceeds without token with debug logging
+  - Added import 'package:flutter/foundation.dart' for debugPrint
+- FIX 4: Sign-out doesn't clear route persistence in settings_screen.dart
+  - Added `await clearLastRoute()` to the sign-out handler
+  - clearLastRoute() already available via supabase_service.dart import
+- FIX 5: Delete account doesn't clear SecureStorage tokens in delete_account_screen.dart
+  - Added `await SecureStorageService().clearAuthTokens()` to _clearAllLocalStorage()
+  - Added `await clearLastRoute()` to _clearAllLocalStorage()
+  - Added import '../../../core/storage/secure_storage.dart'
+- FIX 6: Analytics logLogin/logSignUp truly fire-and-forget in sign_in_screen.dart + sign_up_screen.dart
+  - Changed from `await AnalyticsService.instance.logLogin('google')` to `unawaited(AnalyticsService.instance.logLogin('google').catchError((_) {}))`
+  - Same for logLogin('email'), logSignUp('google'), logSignUp('email')
+  - Prevents analytics slowness from blocking sign-in/sign-up flow
+- FIX 7: Double auth state listener guard in main.dart
+  - Added guard: only calls _handlePostSignIn() if pushService.isInitialized is false
+  - Prevents double initialization of push notifications
+  - Falls back to calling _handlePostSignIn() if push service can't be read
+- FIX 8: Manual dispose on Riverpod-managed provider in main.dart
+  - Removed pushService.dispose() call from _handleSignOut()
+  - Riverpod manages provider lifecycle; manual dispose causes use-after-dispose errors
+
+Stage Summary:
+- 7 files modified across the Flutter app
+- Auth flow: Session wait loop extended to 5s with proper error propagation, preventing redirect loops
+- Splash screen: Cache check now awaited, eliminating race condition with _hasCachedProfile
+- Networking: Expired tokens now auto-refreshed in _AuthInterceptor before requests proceed
+- Sign-out: Route persistence properly cleared in both settings and delete account flows
+- Delete account: SecureStorage auth tokens and persisted route now cleared
+- Analytics: Truly fire-and-forget (unawaited) to prevent blocking auth flows
+- Push notifications: Double initialization prevented by checking isInitialized guard
+- Provider lifecycle: Removed manual dispose() that conflicted with Riverpod

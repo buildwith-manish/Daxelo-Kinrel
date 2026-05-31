@@ -7,12 +7,15 @@
 // Google Sign-In failures are handled gracefully — the app NEVER
 // force-closes from this screen.
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -119,10 +122,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       final authService = ref.read(authServiceProvider);
       await authService.signInWithGoogle();
 
-      // Track successful Google login (fire-and-forget)
-      try {
-        await AnalyticsService.instance.logLogin('google');
-      } catch (_) {}
+      // Track successful Google login (fire-and-forget — don't await)
+      unawaited(
+        AnalyticsService.instance.logLogin('google').catchError((_) {}),
+      );
 
       // Wait for the Supabase session to be fully available.
       // signInWithGoogle() succeeds at the Supabase level, but the
@@ -162,10 +165,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         password: _passwordController.text,
       );
 
-      // Track successful login (fire-and-forget)
-      try {
-        await AnalyticsService.instance.logLogin('email');
-      } catch (_) {}
+      // Track successful login (fire-and-forget — don't await)
+      unawaited(
+        AnalyticsService.instance.logLogin('email').catchError((_) {}),
+      );
 
       // Wait for session propagation
       await _waitForSession();
@@ -199,12 +202,21 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   /// auth state before the session is fully propagated.
   Future<void> _waitForSession() async {
     try {
-      for (int i = 0; i < 10; i++) {
+      for (int i = 0; i < 25; i++) {
         final client = ref.read(supabaseProvider);
         if (client?.auth.currentSession != null) return;
         await Future.delayed(const Duration(milliseconds: 200));
       }
-    } catch (_) {}
+      // Session still not available after 5 seconds — throw to prevent
+      // navigating without a valid session (which causes redirect loops)
+      throw const AuthException(
+        'Session could not be established. Please try again.',
+      );
+    } on AuthException {
+      rethrow;
+    } catch (e) {
+      throw AuthException('Session error: ${e.toString()}');
+    }
   }
 
   // ── Navigate to Home ─────────────────────────────────────────────

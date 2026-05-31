@@ -39,6 +39,7 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
+    try {
     const result = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
@@ -75,6 +76,14 @@ export class AuthService {
     });
 
     return result;
+    } catch (error: any) {
+      // Handle race condition: two concurrent registrations with the same email
+      // both pass the findUnique check before either creates the user
+      if (error?.code === 'P2002' && error?.meta?.target?.includes('email')) {
+        throw new ConflictException('An account with this email already exists');
+      }
+      throw error;
+    }
   }
 
   // ── Login ───────────────────────────────────────────────────────
@@ -211,10 +220,26 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
-    const passwordValid = await bcrypt.compare(
+    // Try bcrypt first, then legacy SHA-256 fallback
+    let passwordValid = await bcrypt.compare(
       dto.currentPassword,
       user.passwordHash,
     );
+
+    if (!passwordValid && user.passwordHash.startsWith('sha256:')) {
+      const legacyHash = user.passwordHash.replace('sha256:', '');
+      const inputHash = this.hashSha256(dto.currentPassword);
+      if (inputHash === legacyHash) {
+        passwordValid = true;
+        // Auto-upgrade to bcrypt
+        const newHash = await bcrypt.hash(dto.currentPassword, 12);
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { passwordHash: newHash },
+        });
+      }
+    }
+
     if (!passwordValid) {
       throw new UnauthorizedException('Current password is incorrect');
     }

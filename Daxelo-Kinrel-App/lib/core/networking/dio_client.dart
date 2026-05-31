@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/app_config.dart';
 import '../config/env_config.dart';
@@ -222,7 +223,17 @@ class _AuthInterceptor extends Interceptor {
     try {
       final client = _ref.read(supabaseProvider);
       if (client != null) {
-        final session = client.auth.currentSession;
+        var session = client.auth.currentSession;
+        // If session is expired, try to refresh it before proceeding
+        if (session != null && session.isExpired) {
+          try {
+            final response = await client.auth.refreshSession();
+            session = response.session;
+          } catch (e) {
+            // Refresh failed — proceed without token (will get 401)
+            debugPrint('Token refresh failed in _AuthInterceptor: $e');
+          }
+        }
         if (session != null && !session.isExpired) {
           options.headers['Authorization'] = 'Bearer ${session.accessToken}';
         }

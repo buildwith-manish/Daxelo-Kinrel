@@ -448,6 +448,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 AnalyticsService.instance.logLogout();
                 await ref.read(authServiceProvider).signOut();
                 await SecureStorageService().clearAuthTokens();
+                await clearLastRoute();
                 if (context.mounted) context.go('/sign-in');
               } catch (e) {
                 if (context.mounted) {

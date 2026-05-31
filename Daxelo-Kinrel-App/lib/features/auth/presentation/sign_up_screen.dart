@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -185,10 +188,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       final authService = ref.read(authServiceProvider);
       await authService.signInWithGoogle();
 
-      // Track successful Google sign-up (fire-and-forget)
-      try {
-        AnalyticsService.instance.logSignUp('google');
-      } catch (_) {}
+      // Track successful Google sign-up (fire-and-forget — don't await)
+      unawaited(
+        AnalyticsService.instance.logSignUp('google').catchError((_) {}),
+      );
 
       // Wait for session propagation
       await _waitForSession();
@@ -213,12 +216,19 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   /// Wait for the Supabase session to be available before navigating.
   Future<void> _waitForSession() async {
     try {
-      for (int i = 0; i < 10; i++) {
+      for (int i = 0; i < 25; i++) {
         final client = ref.read(supabaseProvider);
         if (client?.auth.currentSession != null) return;
         await Future.delayed(const Duration(milliseconds: 200));
       }
-    } catch (_) {}
+      throw const AuthException(
+        'Session could not be established. Please try again.',
+      );
+    } on AuthException {
+      rethrow;
+    } catch (e) {
+      throw AuthException('Session error: ${e.toString()}');
+    }
   }
 
   /// Navigate to home with error recovery.
@@ -257,10 +267,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         name: _nameController.text.trim(),
       );
 
-      // Track successful sign-up (fire-and-forget)
-      try {
-        AnalyticsService.instance.logSignUp('email');
-      } catch (_) {}
+      // Track successful sign-up (fire-and-forget — don't await)
+      unawaited(
+        AnalyticsService.instance.logSignUp('email').catchError((_) {}),
+      );
 
       if (!mounted) return;
 

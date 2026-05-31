@@ -310,7 +310,8 @@ Future<void> _handleSignOut(WidgetRef ref) async {
   try {
     final pushService = ref.read(pushNotificationServiceProvider);
     await pushService.deleteToken().timeout(const Duration(seconds: 5));
-    pushService.dispose();
+    // Don't call dispose() — Riverpod manages the provider lifecycle.
+    // Disposing manually can cause use-after-dispose errors.
   } catch (_) {
     // FCM cleanup failure must never crash the app
   }
@@ -399,7 +400,19 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
               // ── Re-sync FCM token on sign-in ──────────────────────
               if (event.event == AuthChangeEvent.signedIn) {
                 // Fire-and-forget: Set user properties for analytics
-                unawaited(_handlePostSignIn(ref, user));
+                // Only call _handlePostSignIn if push notifications haven't
+                // been initialized yet by _initDeferredServices (prevents
+                // double initialization since this listener fires on auth
+                // state changes AND the deferred init also initializes push)
+                try {
+                  final pushService = ref.read(pushNotificationServiceProvider);
+                  if (!pushService.isInitialized) {
+                    unawaited(_handlePostSignIn(ref, user));
+                  }
+                } catch (_) {
+                  // If we can't check push service, just proceed
+                  unawaited(_handlePostSignIn(ref, user));
+                }
               }
             } else {
               try {

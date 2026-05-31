@@ -68,7 +68,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
           }
 
           // NestJS JWT — use the standard secret
-          done(null, config.get<string>('JWT_ACCESS_SECRET', 'default-secret'));
+          done(null, config.get<string>('JWT_ACCESS_SECRET'));
         } catch (e) {
           done(e, undefined);
         }

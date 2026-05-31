@@ -317,6 +317,11 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
+    // If user has a password, it MUST be provided for account deletion
+    if (user.passwordHash && !password) {
+      throw new BadRequestException('Password is required to delete your account');
+    }
+
     // If password is provided, verify it
     if (password && user.passwordHash) {
       const passwordValid = await bcrypt.compare(password, user.passwordHash);
@@ -545,6 +550,7 @@ export class UsersService {
     const oldUsername = currentUser?.username || null;
 
     // Update username and log the change in a transaction
+    try {
     const user = await this.prisma.$transaction(async (tx) => {
       // Log the username change
       await tx.usernameChangeLog.create({
@@ -577,6 +583,13 @@ export class UsersService {
     }
 
     return { user };
+    } catch (error: any) {
+      // Handle race condition: two users simultaneously claim same username
+      if (error?.code === 'P2002' && error?.meta?.target?.includes('username')) {
+        throw new ConflictException('Username is already taken');
+      }
+      throw error;
+    }
   }
 
   // ── Get User's Families (with role info) ────────────────────────

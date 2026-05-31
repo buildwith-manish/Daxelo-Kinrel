@@ -12,10 +12,63 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { IsEmail, IsString, MinLength, IsNotEmpty, IsOptional } from 'class-validator';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { Request } from 'express';
+
+// ── DTOs with proper validation ──────────────────────────────────────
+
+class RegisterDto {
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  @MinLength(8)
+  password!: string;
+}
+
+class LoginDto {
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  password!: string;
+}
+
+class RefreshDto {
+  @IsString()
+  @IsNotEmpty()
+  refreshToken!: string;
+}
+
+class ChangePasswordDto {
+  @IsString()
+  @IsNotEmpty()
+  currentPassword!: string;
+
+  @IsString()
+  @MinLength(8)
+  newPassword!: string;
+}
+
+class Verify2FADto {
+  @IsString()
+  @IsNotEmpty()
+  code!: string;
+}
+
+class Disable2FADto {
+  @IsString()
+  @IsNotEmpty()
+  password!: string;
+}
 
 @Controller('auth')
 export class AuthController {
@@ -25,38 +78,33 @@ export class AuthController {
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @Throttle({ auth: { limit: 5, ttl: 60000 } })
-  async register(
-    @Body() body: { name: string; email: string; password: string },
-  ) {
-    return this.authService.register(body);
+  async register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
   }
 
   // ── Login ─────────────────────────────────────────────────────────
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @Throttle({ auth: { limit: 5, ttl: 60000 } })
-  async login(
-    @Body() body: { email: string; password: string },
-    @Req() req: Request,
-  ) {
+  async login(@Body() dto: LoginDto, @Req() req: Request) {
     const userAgent = req.headers['user-agent'] || '';
     const ipAddress = req.ip || req.socket.remoteAddress || '';
-    return this.authService.login(body, userAgent, ipAddress);
+    return this.authService.login(dto, userAgent, ipAddress);
   }
 
   // ── Refresh ───────────────────────────────────────────────────────
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @Throttle({ auth: { limit: 5, ttl: 60000 } })
-  async refresh(@Body() body: { refreshToken: string }) {
-    return this.authService.refresh(body.refreshToken);
+  async refresh(@Body() dto: RefreshDto) {
+    return this.authService.refresh(dto.refreshToken);
   }
 
   // ── Logout ────────────────────────────────────────────────────────
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@Body() body: { refreshToken: string }) {
-    return this.authService.logout(body.refreshToken);
+  async logout(@Body() dto: RefreshDto) {
+    return this.authService.logout(dto.refreshToken);
   }
 
   // ── Change Password (requires JWT) ────────────────────────────────
@@ -66,9 +114,9 @@ export class AuthController {
   @Throttle({ auth: { limit: 5, ttl: 60000 } })
   async changePassword(
     @CurrentUser('id') userId: string,
-    @Body() body: { currentPassword: string; newPassword: string },
+    @Body() dto: ChangePasswordDto,
   ) {
-    return this.authService.changePassword(userId, body);
+    return this.authService.changePassword(userId, dto);
   }
 
   // ── 2FA Setup (requires JWT) ──────────────────────────────────────
@@ -85,9 +133,9 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async verify2FA(
     @CurrentUser('id') userId: string,
-    @Body() body: { code: string },
+    @Body() dto: Verify2FADto,
   ) {
-    return this.authService.verify2FA(userId, body.code);
+    return this.authService.verify2FA(userId, dto.code);
   }
 
   // ── 2FA Disable (requires JWT) ────────────────────────────────────
@@ -96,9 +144,9 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async disable2FA(
     @CurrentUser('id') userId: string,
-    @Body() body: { password: string },
+    @Body() dto: Disable2FADto,
   ) {
-    return this.authService.disable2FA(userId, body.password);
+    return this.authService.disable2FA(userId, dto.password);
   }
 
   // ── Get Current User (requires JWT) ───────────────────────────────
