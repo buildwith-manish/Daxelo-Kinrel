@@ -494,3 +494,40 @@ Stage Summary:
   - Web: 643588134212-rj7354vgqk7efjd075kvkaodfdenen3m
   - Android: 643588134212-4e8epp11kfn17il8drlctot85e0j5mfi
   - iOS: 643588134212-ep2guf1q8fk5idsa224fu9e3t4bdu2e3
+
+---
+Task ID: 11
+Agent: Main Agent
+Task: Fix email sign-in force close and Google Sign-In error
+
+Work Log:
+- Analyzed two screenshots from user's device:
+  - Screenshot 1: Email sign-in showing "Connecting..." then force stops
+  - Screenshot 2: Google Sign-In showing "Google sign-in is not available on this build"
+- Identified root cause for email sign-in crash:
+  - _waitForSession() polling loop could cause force closes when session wasn't immediately available
+  - _navigateToHome() was calling context.go() during unstable widget tree state
+  - Post-sign-in flow (_handlePostSignIn) could trigger native crashes from push notification service
+- Identified root cause for Google Sign-In error:
+  - DEVELOPER_ERROR from Google Sign-In (SHA-1/client ID mismatch on the current APK build)
+  - The APK the user has was built before the new Firebase client IDs were pushed
+  - Google Cloud Console for new Firebase project may not be fully configured yet
+- Applied fixes:
+  1. sign_in_screen.dart: Removed _waitForSession() polling loop, added 500ms delay after signIn() succeeds, added 30s overall timeout, changed _navigateToHome() to use addPostFrameCallback()
+  2. sign_up_screen.dart: Same fixes for sign-up flow
+  3. main.dart: Made _handlePostSignIn() more defensive with individual try-catch for every sub-operation, added Crashlytics user identifier, added timeouts and catchError wrappers
+- Committed and pushed (commit 28a6a4b)
+- Triggered Release Build #7: completed (success) ✅
+- New APK available for download with the fixes
+
+Stage Summary:
+- 3 files changed, 88 insertions, 65 deletions
+- Email sign-in: Removed crash-causing session polling, added safe navigation with addPostFrameCallback
+- Google Sign-In: Error is configuration-related (needs Google Cloud Console setup for new Firebase project)
+- User needs to:
+  1. Download and install the new APK from GitHub Actions artifacts
+  2. For Google Sign-In to work: Configure Google Cloud Console for Firebase project 643588134212
+     - Add OAuth 2.0 Web Client with redirect URI: https://promxswvsnvilplmrtsj.supabase.co/auth/v1/callback
+     - Add SHA-1 fingerprint to Firebase project settings
+     - Enable Google provider in Supabase Dashboard with correct client IDs
+- Release Build #7: SUCCESS ✅
