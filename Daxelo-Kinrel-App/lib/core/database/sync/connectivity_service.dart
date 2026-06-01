@@ -70,13 +70,30 @@ final connectivityServiceProvider = Provider<ConnectivityService>((ref) {
 
 /// Provider that reflects current online/offline status.
 /// Automatically updates when connectivity changes.
-/// Debounced to prevent rapid sync triggers during connectivity flapping.
+/// Debounced (500ms) to prevent rapid sync triggers during connectivity flapping.
 final isOnlineProvider = StreamProvider<bool>((ref) {
   final service = ref.watch(connectivityServiceProvider);
-  return service.onConnectivityChanged
-      .asyncMap((event) async {
-        // Debounce: wait 2 seconds for connectivity to stabilize
-        await Future.delayed(const Duration(seconds: 2));
-        return event;
-      });
+  return _debounceStream(service.onConnectivityChanged, const Duration(milliseconds: 500));
 });
+
+/// Debounce a stream — only emits the latest value after [duration] of silence.
+Stream<T> _debounceStream<T>(Stream<T> source, Duration duration) {
+  final controller = StreamController<T>.broadcast();
+  Timer? timer;
+
+  source.listen(
+    (event) {
+      timer?.cancel();
+      timer = Timer(duration, () {
+        controller.add(event);
+      });
+    },
+    onError: controller.addError,
+    onDone: () {
+      timer?.cancel();
+      controller.close();
+    },
+  );
+
+  return controller.stream;
+}

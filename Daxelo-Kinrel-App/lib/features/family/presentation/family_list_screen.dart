@@ -368,7 +368,8 @@ class _FamilyCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final memberCountAsync = ref.watch(familyMemberCountProvider(family.id));
+    // familyMemberCountProvider now returns int directly (not AsyncValue)
+    final memberCount = ref.watch(familyMemberCountProvider(family.id));
     final languageName = family.primaryLanguage != null
         ? SupportedLanguage.fromCode(family.primaryLanguage!).name
         : 'English';
@@ -478,16 +479,12 @@ class _FamilyCard extends ConsumerWidget {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        // Member count
-                        memberCountAsync.when(
-                          data: (count) => DKStatChip(
-                            icon: Icons.people_outline_rounded,
-                            value: '$count',
-                            label: 'members',
-                            color: DKColors.brandPurple,
-                          ),
-                          loading: () => SizedBox(width: 80, height: 20),
-                          error: (_, __) => SizedBox(width: 80, height: 20),
+                        // Member count — familyMemberCountProvider returns int directly
+                        DKStatChip(
+                          icon: Icons.people_outline_rounded,
+                          value: '$memberCount',
+                          label: 'members',
+                          color: DKColors.brandPurple,
                         ),
                         const SizedBox(width: 10),
                         // Language

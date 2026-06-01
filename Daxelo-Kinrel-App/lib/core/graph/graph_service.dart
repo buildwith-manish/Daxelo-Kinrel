@@ -548,7 +548,8 @@ class GraphService {
 
     void traverse(String id, int depth) {
       if (depth >= maxDepth) return;
-      for (final edge in adjacency[id] ?? []) {
+      if (!adjacency.containsKey(id)) return; // Safety: skip missing nodes
+      for (final edge in adjacency[id]!) {
         if (visited.contains(edge.targetId)) continue;
         if (['parent', 'father', 'mother'].contains(edge.type)) {
           visited.add(edge.targetId);
@@ -577,7 +578,8 @@ class GraphService {
 
     void traverse(String id, int depth) {
       if (depth >= maxDepth) return;
-      for (final edge in adjacency[id] ?? []) {
+      if (!adjacency.containsKey(id)) return; // Safety: skip missing nodes
+      for (final edge in adjacency[id]!) {
         if (visited.contains(edge.targetId)) continue;
         if (['child', 'son', 'daughter'].contains(edge.type)) {
           visited.add(edge.targetId);
