@@ -137,9 +137,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         AnalyticsService.instance.logLogin('google').catchError((_) {}),
       );
 
-      // Navigate to home (with short delay to let auth state propagate)
+      // Navigate to home (with delay to let auth state fully propagate)
+      // 1500ms prevents ANR from thundering-herd of provider loads
+      // when the home screen starts watching providers simultaneously
+      // with _initDeferredServices() preloading them.
       if (mounted) {
-        await Future.delayed(const Duration(milliseconds: 500));
+        await Future.delayed(const Duration(milliseconds: 1500));
         _navigateToHome();
       }
     } catch (e) {
@@ -184,13 +187,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         AnalyticsService.instance.logLogin('email').catchError((_) {}),
       );
 
-      // Navigate to home (with short delay to let auth state propagate)
+      // Navigate to home (with delay to let auth state fully propagate)
+      // 1500ms prevents ANR from thundering-herd of provider loads
+      // when the home screen starts watching providers simultaneously
+      // with _initDeferredServices() preloading them.
       if (mounted) {
-        // Use a short delay so the auth state listener can fire
-        // and set up post-sign-in services before we navigate.
-        // This prevents race conditions where the home screen tries
-        // to access providers that aren't ready yet.
-        await Future.delayed(const Duration(milliseconds: 500));
+        await Future.delayed(const Duration(milliseconds: 1500));
         _navigateToHome();
       }
     } on AuthException {

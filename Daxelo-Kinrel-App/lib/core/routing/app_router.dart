@@ -245,6 +245,8 @@ class _PrefetchProfileState extends ConsumerState<_PrefetchProfile> {
 /// which would cause a redirect loop: /home → /sign-in → /home → ...
 /// This timestamp acts as a cooldown — we skip auth redirects
 /// for a short period after sign-in.
+/// 5-second cooldown gives the Supabase auth stream time to settle
+/// after a force-stop restart, preventing auth-stream redirect conflicts.
 DateTime? _lastSignInAt;
 
 /// Called by sign-in screens after successful authentication.
@@ -259,7 +261,7 @@ void markSignInSuccess() {
 /// 2. NEVER redirect when auth state is still loading (isLoading)
 /// 3. NEVER create redirect loops (splash → sign-in → home → sign-in)
 /// 4. If Supabase isn't ready, DON'T redirect — let screens handle auth
-/// 5. After sign-in, skip auth checks for 3 seconds to prevent loops
+/// 5. After sign-in, skip auth checks for 5 seconds to prevent loops
 String? _handleRedirect(Ref ref, GoRouterState state) {
   // ── Log navigation breadcrumb for crash context ──────────────────
   logNavigationBreadcrumb(state.matchedLocation);
@@ -283,12 +285,14 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
       state.matchedLocation == '/terms';
   final isProtected = !isSplash && !isAuth && !isPublicLegal;
 
-  // ── Cooldown after sign-in: skip auth redirects for 3 seconds ────
+  // ── Cooldown after sign-in: skip auth redirects for 5 seconds ────
   // This prevents the redirect loop where isAuthenticatedProvider
   // hasn't updated yet after sign-in, causing /home → /sign-in → /home
+  // 5 seconds gives the Supabase auth stream time to settle after
+  // a force-stop restart.
   if (_lastSignInAt != null) {
     final elapsed = DateTime.now().difference(_lastSignInAt!);
-    if (elapsed.inSeconds < 3) {
+    if (elapsed.inSeconds < 5) {
       // During cooldown: if user is on auth pages, let them go to /home
       if (isAuth) return '/home';
       // If user is on a protected page, let them stay

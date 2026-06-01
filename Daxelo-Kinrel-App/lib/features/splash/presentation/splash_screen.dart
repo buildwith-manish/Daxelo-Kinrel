@@ -202,10 +202,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         lastRoute = await getLastRoute();
       } catch (_) {}
       if (!mounted || _navigated) return;
+      // Only restore safe top-level routes — never deep/parameterized routes
+      // that need data to render. Parameterized routes like /family/abc123
+      // or /member/xyz can cause a black screen if the data hasn't loaded yet
+      // or the route fails silently, putting GoRouter in an undefined state.
       if (lastRoute != null && lastRoute != '/splash' && mounted) {
-        debugPrint('🧭 Splash → $lastRoute (restored last route)');
-        context.go(lastRoute);
-        return;
+        final safeRoutes = ['/home', '/search', '/families', '/notifications', '/profile'];
+        if (safeRoutes.contains(lastRoute)) {
+          debugPrint('🧭 Splash → $lastRoute (restored last route)');
+          context.go(lastRoute);
+          return;
+        }
+        debugPrint('🧭 Splash: skipping unsafe route restore: $lastRoute');
       }
       debugPrint('🧭 Splash → /home (authenticated: $isAuthenticated, cached: $_hasCachedProfile)');
       context.go('/home');

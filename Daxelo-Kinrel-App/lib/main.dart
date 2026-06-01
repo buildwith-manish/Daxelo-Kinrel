@@ -33,12 +33,12 @@ import 'core/utils/memory_monitor.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'core/widgets/offline_banner.dart';
 import 'features/profile/data/profile_provider.dart';
-import 'core/database/repositories/offline_family_repository.dart';
+
 import 'core/services/rating_service.dart';
 import 'core/services/analytics_service.dart';
 import 'core/services/remote_config_service.dart';
 import 'core/family/family_provider.dart';
-import 'features/family/providers/member_detail_provider.dart';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 
@@ -464,11 +464,13 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       '🔧 AppConfig isSupabaseConfigured: ${AppConfig.isSupabaseConfigured}',
     );
 
-    // 5. Preload bottom nav tabs (500ms delay to not compete with initial load)
+    // 5. Preload bottom nav tabs (3s delay to let home screen load first)
     // CRITICAL: Each async call MUST have .catchError() — if these throw
     // without being caught, the error escapes the try-catch as an uncaught
     // async error in the guarded zone, causing a crash (blank screen).
-    Future.delayed(const Duration(milliseconds: 500), () {
+    // 3-second delay prevents ANR thundering-herd when sign-in navigates
+    // to /home and the home screen starts loading providers simultaneously.
+    Future.delayed(const Duration(seconds: 3), () {
       try {
         final client = ref.read(supabaseProvider);
         final hasSession = client?.auth.currentSession != null;
@@ -485,40 +487,12 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       }
     });
 
-    // 6. Birthday preload
-    if (IsarDatabase.isInitialized) {
-      try {
-        final client = ref.read(supabaseProvider);
-        final hasSession = client?.auth.currentSession != null;
-        if (hasSession) {
-          final repo = ref.read(offlineFamilyRepositoryProvider);
-          final families = await repo.getFamilies();
-          final now = DateTime.now();
-          for (final family in families) {
-            final members = await repo.getFamilyMembers(family.id);
-            for (final member in members) {
-              if (member.dateOfBirth != null) {
-                final dob = DateTime.tryParse(member.dateOfBirth!);
-                if (dob != null) {
-                  final thisYearBirthday = DateTime(now.year, dob.month, dob.day);
-                  final daysUntil = thisYearBirthday.difference(now).inDays;
-                  if (daysUntil >= 0 && daysUntil <= 7) {
-                    debugPrint('🎂 Birthday preload: ${member.name} in $daysUntil days');
-                    try {
-                      unawaited(ref.read(memberDetailProvider(member.id).future));
-                    } catch (_) {}
-                  }
-                }
-              }
-            }
-          }
-        } else {
-          debugPrint('⏭️ Birthday preload skipped — no auth session');
-        }
-      } catch (e) {
-        debugPrint('⚠️ Birthday preload failed: $e');
-      }
-    }
+    // 6. Birthday preload — REMOVED
+    // This nested loop (families → members → DOB check → memberDetailProvider.future)
+    // was causing ANR on sign-in. It runs concurrently with the home screen
+    // loading providers, creating a thundering-herd of network calls that
+    // overwhelms the device and triggers Android's force-stop.
+    // Birthday data will load lazily when the user visits a family detail.
 
     // ── Initialize Analytics Service ────────────────────────────────
     try {

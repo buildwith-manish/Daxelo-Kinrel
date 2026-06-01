@@ -289,6 +289,20 @@ class AuthService {
     _log.i('Google Sign-In: Starting...');
 
     try {
+      // ── Step 0: Clear stale Google Sign-In state ──────────────────
+      // If a previous sign-in attempt left stale state in Google Play
+      // Services, it can cause DEVELOPER_ERROR or sign_in_failed on
+      // the next attempt. Calling signOut() first clears this state.
+      try {
+        final staleSignIn = _buildGoogleSignIn();
+        await staleSignIn.signOut().timeout(
+          const Duration(seconds: 3),
+          onTimeout: () => null,
+        );
+      } catch (_) {
+        // signOut() failure must not block the sign-in attempt
+      }
+
       // ── Step 1: Build GoogleSignIn with scopes ───────────────────
       final googleSignIn = _buildGoogleSignIn();
 
