@@ -64,7 +64,7 @@ class EnvConfig {
   static const String _fallbackGoogleWebClientId =
       '643588134212-rj7354vgqk7efjd075kvkaodfdenen3m.apps.googleusercontent.com';
   static const String _fallbackGoogleAndroidClientId =
-      '643588134212-4e8epp11kfn17il8drlctot85e0j5mfi.apps.googleusercontent.com';
+      '643588134212-e74dp3uuh526ticm3c413b3gioefsenp.apps.googleusercontent.com';
   static const String _fallbackGoogleIosClientId =
       '643588134212-ep2guf1q8fk5idsa224fu9e3t4bdu2e3.apps.googleusercontent.com';
 

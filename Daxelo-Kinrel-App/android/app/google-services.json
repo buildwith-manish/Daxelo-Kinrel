@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "643588134212-4e8epp11kfn17il8drlctot85e0j5mfi.apps.googleusercontent.com",
+          "client_id": "643588134212-e74dp3uuh526ticm3c413b3gioefsenp.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.daxelo.kinrel",
-            "certificate_hash": "3fffbdbcce226f4cff311730a458a57f96db163c"
+            "certificate_hash": "aee41e0947cce859c1028511d343826d704f3ef5"
           }
         },
         {
