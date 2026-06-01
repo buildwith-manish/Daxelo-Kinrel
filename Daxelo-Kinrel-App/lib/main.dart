@@ -261,66 +261,6 @@ void _attachStateContext(String errorContext) {
   } catch (_) {}
 }
 
-/// Handle post-sign-in operations (fire-and-forget).
-/// Called from the auth state listener — MUST NOT throw.
-/// Every operation is individually wrapped in try-catch with timeouts.
-Future<void> _handlePostSignIn(WidgetRef ref, User user) async {
-  // Set Crashlytics user identifier (must never crash)
-  try {
-    setUserIdentifier(user.id);
-  } catch (_) {}
-
-  // Set user properties for analytics (with timeout and individual try-catch)
-  try {
-    List<dynamic> familyList = [];
-    try {
-      familyList = await ref
-          .read(familyListProvider.future)
-          .timeout(const Duration(seconds: 5));
-    } catch (_) {
-      // Family list load failure must never crash the app
-    }
-    final primaryFamily =
-        familyList.isNotEmpty ? familyList.first : null;
-    
-    ProfileState? profileState;
-    try {
-      profileState = ref.read(profileProvider);
-    } catch (_) {
-      // Profile provider read failure must never crash
-    }
-    
-    await AnalyticsService.instance.setUserProperties(
-      userId: user.id,
-      familyId: primaryFamily?.id ?? '',
-      memberCount: profileState?.stats?.membersAdded ?? 0,
-      preferredLanguage:
-          profileState?.profile?.preferredLanguage ?? 'en',
-      isPremium: false,
-    ).timeout(const Duration(seconds: 3)).catchError((_) {});
-  } catch (_) {
-    // Analytics failure must never crash the app
-  }
-
-  // Initialize push notifications (with timeout and individual try-catch)
-  try {
-    final pushService = ref.read(pushNotificationServiceProvider);
-    if (!pushService.isInitialized) {
-      pushService.onDeepLink = (route) {
-        try {
-          final router = ref.read(routerProvider);
-          router.push(route);
-        } catch (_) {}
-      };
-      await pushService.initialize().timeout(const Duration(seconds: 10));
-    } else {
-      await pushService.resyncToken().timeout(const Duration(seconds: 5)).catchError((_) {});
-    }
-  } catch (_) {
-    // Push notification failure must never crash the app
-  }
-}
-
 /// Handle sign-out operations (fire-and-forget).
 /// Called from the auth state listener — MUST NOT throw.
 Future<void> _handleSignOut(WidgetRef ref) async {
