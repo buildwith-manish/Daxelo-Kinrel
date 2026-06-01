@@ -558,3 +558,27 @@ Stage Summary:
   - Secret Leak Scan #145 ✅ (was failing on Supabase anon key)
   - NestJS CI #142 ✅
   - Release Build #7 ✅ (from previous commit, already passing)
+
+---
+Task ID: 13
+Agent: Main Agent
+Task: Implement updated Google OAuth credentials from user-uploaded files
+
+Work Log:
+- Read uploaded google-services (1).json and client_secret_726935858050-...json
+- Identified key changes: new Android OAuth2 client ID + new SHA-1 certificate hash
+- Replaced google-services.json with new version
+- Updated Android client ID in app_config.dart: 4e8epp11 → e74dp3uuh526ticm3c413b3gioefsenp
+- Updated Android client ID in env_config.dart: same change
+- Updated .env.example with new Android client ID
+- Verified flutter analyze passes (0 warnings, 0 errors)
+- Committed and pushed (commit c834c93)
+- All 4 CI/CD workflows pass on c834c93
+
+Stage Summary:
+- New Android OAuth2 client: 643588134212-e74dp3uuh526ticm3c413b3gioefsenp
+- New SHA-1 certificate: aee41e0947cce859c1028511d343826d704f3ef5
+- Web & iOS client IDs unchanged
+- Client secret from project 726935858050 (for Supabase Dashboard Google provider config):
+  - Client ID: 726935858050-7rupm8q56208ph81896oo9fs7lp51tjv
+- All builds green ✅
