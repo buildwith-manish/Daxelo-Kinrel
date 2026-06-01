@@ -463,3 +463,34 @@ Stage Summary:
 - Analytics: Truly fire-and-forget (unawaited) to prevent blocking auth flows
 - Push notifications: Double initialization prevented by checking isInitialized guard
 - Provider lifecycle: Removed manual dispose() that conflicted with Riverpod
+
+---
+Task ID: 10
+Agent: Main Agent
+Task: Fix Google OAuth client IDs and Supabase callback URL configuration
+
+Work Log:
+- Analyzed Supabase callback URL provided by user: https://promxswvsnvilplmrtsj.supabase.co/auth/v1/callback
+- Discovered CRITICAL mismatch: google-services.json was updated to new Firebase project (643588134212) in previous session, but app_config.dart and env_config.dart still had OLD project (726935858050) client IDs
+- Updated app_config.dart: Changed all 3 Google OAuth client IDs from old project to new project (643588134212)
+- Updated env_config.dart: Same client ID updates to match AppConfig
+- Updated google-services.json: Removed stale project 726935858050 client IDs, kept only new project 643588134212 clients
+- Fixed supabase_service.dart linkGoogleAccount(): Changed from updateUser() metadata-only approach to signInWithIdToken() which actually links the Google identity provider
+- Added _sanitizeError() method and resolved merge conflicts
+- Updated .env.example with new client IDs and Supabase callback URL documentation
+- Updated release.yml: Added SHA-1/SHA-256 fingerprint step with GITHUB_STEP_SUMMARY output, added workflow_dispatch trigger
+- Committed and pushed all changes (commit b47d776)
+- Triggered Release Build workflow #6 - both jobs completed successfully:
+  - Build Release APK: completed (success) ✅
+  - Build Backend: completed (success) ✅
+
+Stage Summary:
+- 6 files changed, 78 insertions, 50 deletions
+- Key fix: Google OAuth client IDs now aligned across all config files
+- Key fix: linkGoogleAccount() now properly links Google provider via signInWithIdToken()
+- Supabase OAuth callback URL documented: https://promxswvsnvilplmrtsj.supabase.co/auth/v1/callback
+- Release Build #6: SUCCESS ✅
+- New client IDs (project 643588134212):
+  - Web: 643588134212-rj7354vgqk7efjd075kvkaodfdenen3m
+  - Android: 643588134212-4e8epp11kfn17il8drlctot85e0j5mfi
+  - iOS: 643588134212-ep2guf1q8fk5idsa224fu9e3t4bdu2e3
