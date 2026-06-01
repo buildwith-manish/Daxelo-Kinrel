@@ -397,11 +397,31 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
         // 3. Timeout-protected (no indefinite hanging)
         // If any operation throws an unhandled error, the async callback
         // becomes an uncaught error that can crash the app (force close).
+        // Track last auth event to prevent duplicate sign-in handling
+        // (the onAuthStateChange stream can emit multiple signedIn events
+        // during session restoration, which would trigger _handlePostSignIn
+        // multiple times and cause ANR/freeze on the main thread)
+        AuthChangeEvent? _lastHandledEvent;
+        String? _lastHandledUserId;
+
         client.auth.onAuthStateChange.listen((event) {
           // Use synchronous handling — no async/await in the listener itself.
           // All async work is dispatched as fire-and-forget with unawaited().
           try {
             final user = event.session?.user;
+
+            // ── Guard: skip duplicate signedIn events for the same user ──
+            // Prevents _handlePostSignIn from being called multiple times
+            // which can cause ANR/freeze from stacking async operations.
+            if (event.event == AuthChangeEvent.signedIn &&
+                _lastHandledEvent == AuthChangeEvent.signedIn &&
+                _lastHandledUserId == user?.id) {
+              debugPrint('⏭️ Auth listener: skipping duplicate signedIn event for ${user?.id}');
+              return;
+            }
+            _lastHandledEvent = event.event;
+            _lastHandledUserId = user?.id;
+
             if (user != null) {
               try {
                 setUserIdentifier(user.id);

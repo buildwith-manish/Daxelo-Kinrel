@@ -270,12 +270,15 @@ class AuthService {
   // (DEVELOPER_ERROR, sign_in_failed) are caught and converted to
   // user-friendly AuthException messages.
   //
+  // Returns null if the user cancelled the sign-in flow.
+  // Throws AuthException on configuration or network errors.
+  //
   // The most common crash cause is a SHA-1 mismatch between the
   // APK signing key and what's registered in Google Cloud Console.
   // Debug APKs have a different SHA-1 than release APKs, so Google
   // Sign-In may fail on debug builds. This is handled gracefully.
 
-  Future<AuthResponse> signInWithGoogle() async {
+  Future<AuthResponse?> signInWithGoogle() async {
     final client = _client;
     if (client == null) {
       throw const AuthException(
@@ -285,52 +288,28 @@ class AuthService {
 
     _log.i('Google Sign-In: Starting...');
 
-    // ── Step 1: Build GoogleSignIn ─────────────────────────────────
-    final googleSignIn = _buildGoogleSignIn();
-
-    // ── Step 2: Trigger Google Sign-In UI ──────────────────────────
-    GoogleSignInAccount? googleUser;
     try {
-      googleUser = await googleSignIn.signIn().timeout(
+      // ── Step 1: Build GoogleSignIn with scopes ───────────────────
+      final googleSignIn = _buildGoogleSignIn();
+
+      // ── Step 2: Trigger Google Sign-In UI (30s timeout) ──────────
+      final googleUser = await googleSignIn.signIn().timeout(
         const Duration(seconds: 30),
         onTimeout: () {
           _log.w('Google Sign-In: Timed out after 30 seconds');
-          throw const AuthException(
-            'Google sign-in timed out. Please check your internet connection and try again.',
-          );
+          return null;
         },
       );
-    } on PlatformException catch (e) {
-      _log.e('Google Sign-In: PlatformException ${e.code} - ${e.message}');
-      throw _mapPlatformException(e);
-    } on AuthException {
-      rethrow;
-    } on TimeoutException {
-      throw const AuthException(
-        'Google sign-in timed out. Please try again.',
-      );
-    } catch (e) {
-      _log.e('Google Sign-In: signIn() error: $e');
-      if (_isDeveloperError(e)) {
-        throw const AuthException(
-          'Google sign-in failed due to a configuration issue. '
-          'This is common on debug builds. Please try email sign-in instead.',
-        );
+
+      if (googleUser == null) {
+        _log.w('Google Sign-In: Cancelled by user or timed out');
+        return null; // user cancelled or timeout — do NOT throw
       }
-      throw AuthException('Google sign-in failed: ${_sanitizeError(e)}');
-    }
 
-    if (googleUser == null) {
-      _log.w('Google Sign-In: Cancelled by user');
-      throw const AuthException('Google sign-in was cancelled.');
-    }
+      _log.i('Google Sign-In: User obtained: ${googleUser.email}');
 
-    _log.i('Google Sign-In: User obtained: ${googleUser.email}');
-
-    // ── Step 3: Get authentication tokens ──────────────────────────
-    GoogleSignInAuthentication googleAuth;
-    try {
-      googleAuth = await googleUser.authentication.timeout(
+      // ── Step 3: Get authentication tokens ────────────────────────
+      final googleAuth = await googleUser.authentication.timeout(
         const Duration(seconds: 10),
         onTimeout: () {
           throw const AuthException(
@@ -338,33 +317,21 @@ class AuthService {
           );
         },
       );
-    } on AuthException {
-      rethrow;
-    } on PlatformException catch (e) {
-      _log.e('Google Sign-In: Auth PlatformException ${e.code}');
-      throw _mapPlatformException(e);
-    } catch (e) {
-      _log.e('Google Sign-In: authentication() error: $e');
-      throw AuthException(
-        'Failed to get Google authentication tokens. Please try again.',
-      );
-    }
 
-    final idToken = googleAuth.idToken;
-    final accessToken = googleAuth.accessToken;
+      final idToken = googleAuth.idToken;
+      final accessToken = googleAuth.accessToken;
 
-    if (idToken == null || idToken.isEmpty) {
-      _log.e('Google Sign-In: ID token is null or empty');
-      throw const AuthException(
-        'Failed to get Google ID token. This may be a configuration issue. '
-        'Please try email sign-in instead.',
-      );
-    }
+      if (idToken == null || idToken.isEmpty) {
+        _log.e('Google Sign-In: ID token is null or empty');
+        throw const AuthException(
+          'No ID token received. This may be a configuration issue. '
+          'Please try email sign-in instead.',
+        );
+      }
 
-    _log.i('Google Sign-In: ID token obtained, verifying with Supabase...');
+      _log.i('Google Sign-In: ID token obtained, verifying with Supabase...');
 
-    // ── Step 4: Verify with Supabase ───────────────────────────────
-    try {
+      // ── Step 4: Verify with Supabase ─────────────────────────────
       return await withRetry(
         () => client.auth.signInWithIdToken(
           provider: OAuthProvider.google,
@@ -379,17 +346,24 @@ class AuthService {
         initialDelay: const Duration(seconds: 2),
         operationName: 'Google Sign-In verification',
       );
+    } on PlatformException catch (e) {
+      _log.e('Google Sign-In: PlatformException ${e.code} - ${e.message}');
+      throw _mapPlatformException(e);
     } on AuthException {
       rethrow;
+    } on TimeoutException {
+      throw const AuthException(
+        'Google sign-in timed out. Please try again.',
+      );
     } catch (e) {
-      _log.e('Google Sign-In: Supabase verification error: $e');
+      _log.e('Google Sign-In: error: $e');
       if (_isDeveloperError(e)) {
         throw const AuthException(
-          'Google sign-in verification failed. This may be a configuration issue. '
-          'Please try email sign-in instead.',
+          'Google sign-in failed due to a configuration issue. '
+          'This is common on debug builds. Please try email sign-in instead.',
         );
       }
-      throw AuthException('Google sign-in verification failed: ${_sanitizeError(e)}');
+      throw AuthException('Google sign-in failed: ${_sanitizeError(e)}');
     }
   }
 
@@ -534,18 +508,23 @@ class AuthService {
     if (kIsWeb) {
       return GoogleSignIn(
         clientId: AppConfig.googleWebClientId,
+        scopes: ['email', 'profile'],
       );
     } else if (Platform.isIOS) {
       return GoogleSignIn(
         clientId: AppConfig.googleIosClientId,
         serverClientId: AppConfig.googleWebClientId,
+        scopes: ['email', 'profile'],
       );
     }
     // Android: serverClientId triggers requestIdToken() in the native
     // GoogleSignInOptions builder, which produces the ID token needed
     // for Supabase's signInWithIdToken().
+    // scopes: ['email', 'profile'] ensures the ID token contains
+    // the email and profile claims that Supabase requires.
     return GoogleSignIn(
       serverClientId: AppConfig.googleWebClientId,
+      scopes: ['email', 'profile'],
     );
   }
 

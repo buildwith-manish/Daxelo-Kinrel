@@ -120,7 +120,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
     try {
       final authService = ref.read(authServiceProvider);
-      await authService.signInWithGoogle();
+      final response = await authService.signInWithGoogle();
+
+      // null = user cancelled or timed out — no error to show
+      if (response == null) {
+        return;
+      }
 
       // Track successful Google login (fire-and-forget — don't await)
       unawaited(
