@@ -31,21 +31,13 @@ class BackgroundSyncManager {
   // ── Lifecycle ────────────────────────────────────────────────────
 
   /// Initialize the background sync manager.
-  /// Sets up connectivity listener and periodic sync timer.
+  /// Sets up periodic sync timer only.
+  /// NOTE: Connectivity listener is NOT duplicated here — SyncEngine already
+  /// listens to connectivity changes and triggers sync on restore.
+  /// Having both would cause double sync on every connectivity change.
   /// Does NOT perform an initial sync — call [start] for that.
   void init() {
     if (_isDisposed) return;
-
-    // Listen for connectivity changes
-    _connectivitySubscription?.cancel();
-    _connectivitySubscription =
-        _ref.read(connectivityServiceProvider).onConnectivityChanged.listen(
-      (isOnline) {
-        if (isOnline) {
-          onConnectivityRestored();
-        }
-      },
-    );
 
     // Set up periodic sync (every 5 minutes)
     _periodicSyncTimer?.cancel();
