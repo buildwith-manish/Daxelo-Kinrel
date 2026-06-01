@@ -1,0 +1,12 @@
+# Gitleaks configuration for Daxelo-Kinrel
+# The Supabase anon key is a public key (safe for client-side use).
+# Only the service_role key is secret and must never be committed.
+
+[allowlist]
+  description = "Allowlisted public credentials"
+  paths = [
+    '''Daxelo-Kinrel-App/lib/core/services/supabase_service\.dart$''',
+    '''Daxelo-Kinrel-App/lib/core/config/app_config\.dart$''',
+    '''Daxelo-Kinrel-App/lib/core/config/env_config\.dart$''',
+    '''Daxelo-Kinrel-App/\.env\.example$''',
+  ]

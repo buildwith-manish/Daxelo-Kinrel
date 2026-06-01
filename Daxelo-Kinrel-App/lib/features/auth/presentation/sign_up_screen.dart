@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -208,24 +207,6 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       }
     } finally {
       if (mounted) setState(() => _isGoogleLoading = false);
-    }
-  }
-
-  /// Wait for the Supabase session to be available before navigating.
-  Future<void> _waitForSession() async {
-    try {
-      for (int i = 0; i < 25; i++) {
-        final client = ref.read(supabaseProvider);
-        if (client?.auth.currentSession != null) return;
-        await Future.delayed(const Duration(milliseconds: 200));
-      }
-      throw const AuthException(
-        'Session could not be established. Please try again.',
-      );
-    } on AuthException {
-      rethrow;
-    } catch (e) {
-      throw AuthException('Session error: ${e.toString()}');
     }
   }
 
