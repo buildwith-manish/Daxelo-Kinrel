@@ -127,13 +127,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         AnalyticsService.instance.logLogin('google').catchError((_) {}),
       );
 
-      // Wait for the Supabase session to be fully available.
-      // signInWithGoogle() succeeds at the Supabase level, but the
-      // Riverpod authStateProvider may need a moment to propagate.
-      await _waitForSession();
-
-      // Navigate to home
+      // Navigate to home (with short delay to let auth state propagate)
       if (mounted) {
+        await Future.delayed(const Duration(milliseconds: 500));
         _navigateToHome();
       }
     } catch (e) {
@@ -163,20 +159,28 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       await authService.signIn(
         email: _emailController.text.trim(),
         password: _passwordController.text,
-      );
+      ).timeout(const Duration(seconds: 30), onTimeout: () {
+        throw const AuthException(
+          'Sign in is taking too long. The server may be waking up — please try again.',
+        );
+      });
 
       // Track successful login (fire-and-forget — don't await)
       unawaited(
         AnalyticsService.instance.logLogin('email').catchError((_) {}),
       );
 
-      // Wait for session propagation
-      await _waitForSession();
-
-      // Navigate to home
+      // Navigate to home (with short delay to let auth state propagate)
       if (mounted) {
+        // Use a short delay so the auth state listener can fire
+        // and set up post-sign-in services before we navigate.
+        // This prevents race conditions where the home screen tries
+        // to access providers that aren't ready yet.
+        await Future.delayed(const Duration(milliseconds: 500));
         _navigateToHome();
       }
+    } on AuthException {
+      rethrow;
     } catch (e) {
       if (mounted) {
         final msg = _cleanErrorMessage(e.toString());
@@ -195,45 +199,39 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     }
   }
 
-  // ── Wait for Session ─────────────────────────────────────────────
-
-  /// Wait for the Supabase session to be available before navigating.
-  /// This prevents race conditions where the router redirect checks
-  /// auth state before the session is fully propagated.
-  Future<void> _waitForSession() async {
-    try {
-      for (int i = 0; i < 25; i++) {
-        final client = ref.read(supabaseProvider);
-        if (client?.auth.currentSession != null) return;
-        await Future.delayed(const Duration(milliseconds: 200));
-      }
-      // Session still not available after 5 seconds — throw to prevent
-      // navigating without a valid session (which causes redirect loops)
-      throw const AuthException(
-        'Session could not be established. Please try again.',
-      );
-    } on AuthException {
-      rethrow;
-    } catch (e) {
-      throw AuthException('Session error: ${e.toString()}');
-    }
-  }
+  // ── Wait for Session (REMOVED) ─────────────────────────────────
+  //
+  // The session polling was causing force closes on some devices.
+  // Instead, we now rely on a short delay after signIn() returns
+  // successfully, then navigate directly. The auth state listener
+  // in main.dart handles post-sign-in setup asynchronously.
 
   // ── Navigate to Home ─────────────────────────────────────────────
 
   void _navigateToHome() {
+    if (!mounted) return;
     try {
-      context.go('/home');
-    } catch (e) {
-      debugPrint('Navigation error after sign-in: $e');
-      // Try again after a short delay
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) {
-          try {
-            context.go('/home');
-          } catch (_) {}
+      // Use addPostFrameCallback to ensure the widget tree is stable
+      // before navigating. This prevents crashes from navigating during
+      // a build cycle.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        try {
+          context.go('/home');
+        } catch (e) {
+          debugPrint('Navigation error after sign-in: $e');
+          // Try again after a short delay
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) {
+              try {
+                context.go('/home');
+              } catch (_) {}
+            }
+          });
         }
       });
+    } catch (e) {
+      debugPrint('Navigation scheduling error: $e');
     }
   }
 

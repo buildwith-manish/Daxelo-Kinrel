@@ -265,27 +265,44 @@ void _attachStateContext(String errorContext) {
 /// Called from the auth state listener — MUST NOT throw.
 /// Every operation is individually wrapped in try-catch with timeouts.
 Future<void> _handlePostSignIn(WidgetRef ref, User user) async {
-  // Set user properties for analytics (with timeout)
+  // Set Crashlytics user identifier (must never crash)
   try {
-    final familyList = await ref
-        .read(familyListProvider.future)
-        .timeout(const Duration(seconds: 5));
+    setUserIdentifier(user.id);
+  } catch (_) {}
+
+  // Set user properties for analytics (with timeout and individual try-catch)
+  try {
+    List<dynamic> familyList = [];
+    try {
+      familyList = await ref
+          .read(familyListProvider.future)
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {
+      // Family list load failure must never crash the app
+    }
     final primaryFamily =
         familyList.isNotEmpty ? familyList.first : null;
-    final profileState = ref.read(profileProvider);
+    
+    ProfileState? profileState;
+    try {
+      profileState = ref.read(profileProvider);
+    } catch (_) {
+      // Profile provider read failure must never crash
+    }
+    
     await AnalyticsService.instance.setUserProperties(
       userId: user.id,
       familyId: primaryFamily?.id ?? '',
-      memberCount: profileState.stats?.membersAdded ?? 0,
+      memberCount: profileState?.stats?.membersAdded ?? 0,
       preferredLanguage:
-          profileState.profile?.preferredLanguage ?? 'en',
+          profileState?.profile?.preferredLanguage ?? 'en',
       isPremium: false,
-    );
+    ).timeout(const Duration(seconds: 3)).catchError((_) {});
   } catch (_) {
     // Analytics failure must never crash the app
   }
 
-  // Initialize push notifications (with timeout)
+  // Initialize push notifications (with timeout and individual try-catch)
   try {
     final pushService = ref.read(pushNotificationServiceProvider);
     if (!pushService.isInitialized) {
@@ -297,7 +314,7 @@ Future<void> _handlePostSignIn(WidgetRef ref, User user) async {
       };
       await pushService.initialize().timeout(const Duration(seconds: 10));
     } else {
-      await pushService.resyncToken().timeout(const Duration(seconds: 5));
+      await pushService.resyncToken().timeout(const Duration(seconds: 5)).catchError((_) {});
     }
   } catch (_) {
     // Push notification failure must never crash the app

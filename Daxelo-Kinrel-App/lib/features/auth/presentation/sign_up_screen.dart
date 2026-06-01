@@ -193,11 +193,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         AnalyticsService.instance.logSignUp('google').catchError((_) {}),
       );
 
-      // Wait for session propagation
-      await _waitForSession();
-
-      // Navigate to home
+      // Navigate to home (with short delay to let auth state propagate)
       if (mounted) {
+        await Future.delayed(const Duration(milliseconds: 500));
         _navigateToHome();
       }
     } catch (e) {
@@ -233,15 +231,23 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
   /// Navigate to home with error recovery.
   void _navigateToHome() {
+    if (!mounted) return;
     try {
-      context.go('/home');
-    } catch (e) {
-      debugPrint('Navigation error after sign-up: $e');
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) {
-          try { context.go('/home'); } catch (_) {}
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        try {
+          context.go('/home');
+        } catch (e) {
+          debugPrint('Navigation error after sign-up: $e');
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) {
+              try { context.go('/home'); } catch (_) {}
+            }
+          });
         }
       });
+    } catch (e) {
+      debugPrint('Navigation scheduling error: $e');
     }
   }
 
@@ -284,8 +290,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         context.go('/sign-in');
       } else {
         // Auto-confirmed or already confirmed — go to home
-        await _waitForSession();
-        if (mounted) _navigateToHome();
+        if (mounted) {
+          await Future.delayed(const Duration(milliseconds: 500));
+          _navigateToHome();
+        }
       }
     } catch (e) {
       if (mounted) {
