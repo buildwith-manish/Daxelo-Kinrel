@@ -11,6 +11,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/routing/app_router.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/form_validators.dart';
 // api_error_mapper removed — errors handled directly in _cleanErrorMessage
@@ -192,6 +193,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         return;
       }
 
+      // Mark sign-in success to prevent GoRouter redirect loops
+      markSignInSuccess();
+
       // Track successful Google sign-up (fire-and-forget — don't await)
       unawaited(
         AnalyticsService.instance.logSignUp('google').catchError((_) {}),
@@ -277,6 +281,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       } else {
         // Auto-confirmed or already confirmed — go to home
         if (mounted) {
+          markSignInSuccess();
           await Future.delayed(const Duration(milliseconds: 500));
           _navigateToHome();
         }

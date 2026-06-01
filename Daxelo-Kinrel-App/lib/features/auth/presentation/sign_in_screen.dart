@@ -21,6 +21,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/routing/app_router.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/form_validators.dart';
 import '../../../core/services/analytics_service.dart';
@@ -127,6 +128,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         return;
       }
 
+      // Mark sign-in success to prevent GoRouter redirect loops
+      markSignInSuccess();
+
       // Track successful Google login (fire-and-forget — don't await)
       unawaited(
         AnalyticsService.instance.logLogin('google').catchError((_) {}),
@@ -169,6 +173,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           'Sign in is taking too long. The server may be waking up — please try again.',
         );
       });
+
+      // Mark sign-in success to prevent GoRouter redirect loops
+      markSignInSuccess();
 
       // Track successful login (fire-and-forget — don't await)
       unawaited(

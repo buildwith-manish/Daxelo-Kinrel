@@ -583,12 +583,11 @@ class SocketService {
   }
 
   /// Invalidate Riverpod providers for all families affected by the sync.
+  /// NOTE: _invalidateProvidersForFamily already invalidates familyListProvider,
+  /// so we don't invalidate it separately here (was causing double invalidation).
   void _invalidateAfterSync(_SyncResponse sync) {
     try {
-      // Invalidate the family list (may have new families)
-      _ref.invalidate(familyListProvider);
-
-      // Invalidate detail providers for each family in the sync
+      // Collect all family IDs affected by the sync
       final familyIds = <String>{};
       for (final f in sync.familyMeta) {
         final id = f['id'] as String?;

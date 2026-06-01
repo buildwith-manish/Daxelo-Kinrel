@@ -353,7 +353,7 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
     }
 
     // Fallback to direct Supabase query (original behavior)
-    final client = ref.watch(supabaseProvider);
+    final client = ref.read(supabaseProvider);
     if (client == null) return [];
 
     // Guard against no valid session — RLS will deny queries
@@ -437,10 +437,10 @@ final familyDetailProvider = FutureProvider.family<FamilyDetail?, String>((
 
   try {
     // Get family from familyListProvider (already fetched) instead of
-    // making a separate API call. This eliminates the redundant fetch
-    // that previously ran on every state transition of member/relationship
-    // providers, causing cascading rebuild loops.
-    final familiesAsync = ref.watch(familyListProvider);
+    // making a separate API call. Use ref.read to prevent cascading
+    // rebuilds — familyDetailProvider only needs the current family data,
+    // not a rebuild every time the family list changes.
+    final familiesAsync = ref.read(familyListProvider);
     final family = familiesAsync.valueOrNull?.firstWhere(
       (f) => f.id == familyId,
     );
@@ -450,11 +450,15 @@ final familyDetailProvider = FutureProvider.family<FamilyDetail?, String>((
     if (client == null) return null;
     if (client.auth.currentSession == null) return null;
 
-    // Watch members and relationships without .future
-    final membersAsync = ref.watch(familyMembersProvider(familyId));
+    // Use ref.read instead of ref.watch for members and relationships
+    // to prevent cascading rebuilds when these providers are invalidated
+    // (e.g., by socket events or user mutations). familyDetailProvider
+    // does NOT need to rebuild when members/relationships change —
+    // the family detail screen can listen to those providers directly.
+    final membersAsync = ref.read(familyMembersProvider(familyId));
     final members = membersAsync.valueOrNull ?? [];
 
-    final relationshipsAsync = ref.watch(
+    final relationshipsAsync = ref.read(
       familyRelationshipsProvider(familyId),
     );
     final relationships = relationshipsAsync.valueOrNull ?? [];
@@ -504,7 +508,7 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
     }
 
     // Fallback to direct Supabase query (original behavior)
-    final client = ref.watch(supabaseProvider);
+    final client = ref.read(supabaseProvider);
     if (client == null) return [];
 
     // Guard against no valid session — RLS will deny queries
@@ -575,7 +579,7 @@ final familyRelationshipsProvider =
         }
 
         // Fallback to direct Supabase query (original behavior)
-        final client = ref.watch(supabaseProvider);
+        final client = ref.read(supabaseProvider);
         if (client == null) return [];
 
         // Guard against no valid session — RLS will deny queries

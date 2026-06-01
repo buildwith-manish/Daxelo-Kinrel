@@ -239,6 +239,19 @@ class _PrefetchProfileState extends ConsumerState<_PrefetchProfile> {
   Widget build(BuildContext context) => widget.child;
 }
 
+/// Timestamp of last successful sign-in to prevent redirect loops.
+/// After sign-in, Riverpod providers may take a moment to update.
+/// During this window, isAuthenticatedProvider can still be false,
+/// which would cause a redirect loop: /home → /sign-in → /home → ...
+/// This timestamp acts as a cooldown — we skip auth redirects
+/// for a short period after sign-in.
+DateTime? _lastSignInAt;
+
+/// Called by sign-in screens after successful authentication.
+void markSignInSuccess() {
+  _lastSignInAt = DateTime.now();
+}
+
 /// Handle GoRouter redirect logic safely.
 ///
 /// CRITICAL RULES to avoid blank screen:
@@ -246,6 +259,7 @@ class _PrefetchProfileState extends ConsumerState<_PrefetchProfile> {
 /// 2. NEVER redirect when auth state is still loading (isLoading)
 /// 3. NEVER create redirect loops (splash → sign-in → home → sign-in)
 /// 4. If Supabase isn't ready, DON'T redirect — let screens handle auth
+/// 5. After sign-in, skip auth checks for 3 seconds to prevent loops
 String? _handleRedirect(Ref ref, GoRouterState state) {
   // ── Log navigation breadcrumb for crash context ──────────────────
   logNavigationBreadcrumb(state.matchedLocation);
@@ -269,11 +283,21 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
       state.matchedLocation == '/terms';
   final isProtected = !isSplash && !isAuth && !isPublicLegal;
 
+  // ── Cooldown after sign-in: skip auth redirects for 3 seconds ────
+  // This prevents the redirect loop where isAuthenticatedProvider
+  // hasn't updated yet after sign-in, causing /home → /sign-in → /home
+  if (_lastSignInAt != null) {
+    final elapsed = DateTime.now().difference(_lastSignInAt!);
+    if (elapsed.inSeconds < 3) {
+      // During cooldown: if user is on auth pages, let them go to /home
+      if (isAuth) return '/home';
+      // If user is on a protected page, let them stay
+      return null;
+    }
+    _lastSignInAt = null; // Cooldown expired
+  }
+
   // If trying to access a protected route, check auth status.
-  // IMPORTANT: If Supabase isn't initialized yet, DON'T redirect to
-  // sign-in — the session might still be restoring. Allow navigation
-  // to proceed and let the splash screen / individual screens handle
-  // the auth state gracefully.
   bool authState = false;
   bool supabaseReady = false;
   bool authLoading = false;
@@ -302,8 +326,6 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
 
   // CRITICAL: If auth is still loading, DON'T redirect.
   // Returning null allows the current navigation to proceed.
-  // The splash screen or individual screens will handle auth
-  // gracefully once the state is resolved.
   if (authLoading) return null;
 
   if (!authState && isProtected) {

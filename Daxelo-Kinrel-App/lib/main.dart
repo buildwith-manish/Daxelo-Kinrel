@@ -397,67 +397,59 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
         // 3. Timeout-protected (no indefinite hanging)
         // If any operation throws an unhandled error, the async callback
         // becomes an uncaught error that can crash the app (force close).
-        // Track last auth event to prevent duplicate sign-in handling
-        // (the onAuthStateChange stream can emit multiple signedIn events
-        // during session restoration, which would trigger _handlePostSignIn
-        // multiple times and cause ANR/freeze on the main thread)
-        AuthChangeEvent? _lastHandledEvent;
-        String? _lastHandledUserId;
+        // Track last auth event to prevent duplicate handling.
+        // CRITICAL: This listener must be LIGHTWEIGHT ONLY.
+        // It must NOT call _handlePostSignIn or any heavy async work
+        // because that causes ANR/force-stop when multiple async operations
+        // stack up during the sign-in flow. Heavy post-sign-in work
+        // (analytics, push notifications, profile loading) is handled
+        // by the deferred services init with proper guards.
+        AuthChangeEvent? _lastAuthEvent;
+        String? _lastAuthUserId;
 
-        client.auth.onAuthStateChange.listen((event) {
-          // Use synchronous handling — no async/await in the listener itself.
-          // All async work is dispatched as fire-and-forget with unawaited().
+        client.auth.onAuthStateChange.listen((data) {
+          final event = data.event;
+          final session = data.session;
+
           try {
-            final user = event.session?.user;
-
             // ── Guard: skip duplicate signedIn events for the same user ──
-            // Prevents _handlePostSignIn from being called multiple times
-            // which can cause ANR/freeze from stacking async operations.
-            if (event.event == AuthChangeEvent.signedIn &&
-                _lastHandledEvent == AuthChangeEvent.signedIn &&
-                _lastHandledUserId == user?.id) {
-              debugPrint('⏭️ Auth listener: skipping duplicate signedIn event for ${user?.id}');
+            final userId = session?.user.id;
+            if (event == AuthChangeEvent.signedIn &&
+                _lastAuthEvent == AuthChangeEvent.signedIn &&
+                _lastAuthUserId == userId) {
+              debugPrint('⏭️ Auth listener: skipping duplicate signedIn event');
               return;
             }
-            _lastHandledEvent = event.event;
-            _lastHandledUserId = user?.id;
+            _lastAuthEvent = event;
+            _lastAuthUserId = userId;
 
-            if (user != null) {
+            if (event == AuthChangeEvent.signedIn && session != null) {
+              // Lightweight only — set crashlytics user and log state.
+              // Do NOT call _handlePostSignIn here — it does heavy work
+              // (family list fetch, profile load, push notification init)
+              // that stacks on top of GoRouter redirect and causes ANR.
               try {
-                setUserIdentifier(user.id);
+                setUserIdentifier(session.user.id);
               } catch (_) {}
               try {
                 captureRiverpodState('auth', {
-                  'userId': user.id,
-                  'email': user.email ?? 'unknown',
-                  'event': event.event.name,
+                  'userId': session.user.id,
+                  'email': session.user.email ?? 'unknown',
+                  'event': event.name,
                 });
               } catch (_) {}
-
-              // ── Re-sync FCM token on sign-in ──────────────────────
-              if (event.event == AuthChangeEvent.signedIn) {
-                // Fire-and-forget: Set user properties for analytics
-                // Only call _handlePostSignIn if push notifications haven't
-                // been initialized yet by _initDeferredServices (prevents
-                // double initialization since this listener fires on auth
-                // state changes AND the deferred init also initializes push)
-                try {
-                  final pushService = ref.read(pushNotificationServiceProvider);
-                  if (!pushService.isInitialized) {
-                    unawaited(_handlePostSignIn(ref, user));
-                  }
-                } catch (_) {
-                  // If we can't check push service, just proceed
-                  unawaited(_handlePostSignIn(ref, user));
-                }
-              }
-            } else {
+              debugPrint('🔐 Auth listener: signedIn — navigation handled by router');
+              // Navigation is handled by GoRouter redirect and sign-in screens.
+              // Do NOT navigate here — do NOT call signIn again here.
+            } else if (event == AuthChangeEvent.signedOut) {
               try {
                 captureRiverpodState('auth', {'status': 'signed_out'});
               } catch (_) {}
-
-              // ── Delete FCM token on sign-out ───────────────────────
+              // Delete FCM token on sign-out (fire-and-forget with timeout)
               unawaited(_handleSignOut(ref));
+              debugPrint('🔐 Auth listener: signedOut');
+              // Navigation is handled by GoRouter redirect.
+              // Do NOT call signOut again here.
             }
           } catch (e) {
             debugPrint('⚠️ Auth state listener error: $e');
