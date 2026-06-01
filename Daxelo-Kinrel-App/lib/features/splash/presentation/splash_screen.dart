@@ -142,7 +142,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     await _checkIsarCache();
 
     // Preload kinship data in the background (5 300+ terms, ~15 MB JSON)
-    unawaited(ref.read(kinshipInitializedProvider.future).catchError((_) {}));
+    // Delay kinship loading by 5 seconds so it doesn't compete
+    // with auth and UI initialization on the main thread
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) {
+        ref.read(kinshipInitializedProvider.future).catchError((_) {});
+      }
+    });
 
     // Start Supabase session restoration in the background.
     // We do NOT await this — it may take 30+ seconds on a cold Supabase.

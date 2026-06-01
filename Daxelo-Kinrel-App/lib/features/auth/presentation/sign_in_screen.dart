@@ -118,6 +118,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     // Prevent double-tap
     if (_isGoogleLoading || _isLoading) return;
     setState(() => _isGoogleLoading = true);
+    FocusScope.of(context).unfocus();
 
     try {
       final authService = ref.read(authServiceProvider);
@@ -162,6 +163,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     // Prevent double-tap
     if (_isLoading || _isGoogleLoading) return;
     setState(() => _isLoading = true);
+    FocusScope.of(context).unfocus();
 
     try {
       final authService = ref.read(authServiceProvider);

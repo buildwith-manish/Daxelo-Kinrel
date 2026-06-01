@@ -167,8 +167,8 @@ final isAuthenticatedProvider = Provider<bool>((ref) {
 /// Only retries on network errors — non-network errors are rethrown immediately.
 Future<T> withRetry<T>(
   Future<T> Function() fn, {
-  int maxAttempts = 3,
-  Duration initialDelay = const Duration(seconds: 3),
+  int maxAttempts = 1,
+  Duration initialDelay = const Duration(seconds: 1),
   String operationName = 'operation',
 }) async {
   int attempt = 0;
@@ -252,13 +252,13 @@ class AuthService {
       () => client.auth.signInWithPassword(
         email: email,
         password: password,
-      ).timeout(const Duration(seconds: 15), onTimeout: () {
+      ).timeout(const Duration(seconds: 10), onTimeout: () {
         throw const AuthException(
           'Sign in timed out. The server may be waking up — please try again.',
         );
       }),
-      maxAttempts: 3,
-      initialDelay: const Duration(seconds: 2),
+      maxAttempts: 1,
+      initialDelay: const Duration(seconds: 1),
       operationName: 'Sign in',
     );
   }
@@ -292,11 +292,11 @@ class AuthService {
       // ── Step 1: Build GoogleSignIn with scopes ───────────────────
       final googleSignIn = _buildGoogleSignIn();
 
-      // ── Step 2: Trigger Google Sign-In UI (30s timeout) ──────────
+      // ── Step 2: Trigger Google Sign-In UI (20s timeout) ──────────
       final googleUser = await googleSignIn.signIn().timeout(
-        const Duration(seconds: 30),
+        const Duration(seconds: 20),
         onTimeout: () {
-          _log.w('Google Sign-In: Timed out after 30 seconds');
+          _log.w('Google Sign-In: Timed out after 20 seconds');
           return null;
         },
       );
@@ -310,7 +310,7 @@ class AuthService {
 
       // ── Step 3: Get authentication tokens ────────────────────────
       final googleAuth = await googleUser.authentication.timeout(
-        const Duration(seconds: 10),
+        const Duration(seconds: 8),
         onTimeout: () {
           throw const AuthException(
             'Failed to get Google authentication tokens. Please try again.',
@@ -337,13 +337,13 @@ class AuthService {
           provider: OAuthProvider.google,
           idToken: idToken,
           accessToken: accessToken,
-        ).timeout(const Duration(seconds: 15), onTimeout: () {
+        ).timeout(const Duration(seconds: 10), onTimeout: () {
           throw const AuthException(
             'Supabase verification timed out. The server may be waking up — please try again.',
           );
         }),
-        maxAttempts: 3,
-        initialDelay: const Duration(seconds: 2),
+        maxAttempts: 1,
+        initialDelay: const Duration(seconds: 1),
         operationName: 'Google Sign-In verification',
       );
     } on PlatformException catch (e) {
@@ -586,11 +586,11 @@ class AuthService {
 
 // ── Auth Service Provider ────────────────────────────────────────────
 
-/// Uses ref.read instead of ref.watch to avoid cascade rebuilds
-/// when supabaseProvider transitions from null → client at startup.
-/// AuthService reads the client once and doesn't need to react to changes.
+/// Uses ref.watch so provider rebuilds when Supabase initializes.
+/// Previously used ref.read which caused authServiceProvider to get
+/// a null client if Supabase hadn't initialized yet at build time.
 final authServiceProvider = Provider<AuthService>((ref) {
-  final client = ref.read(supabaseProvider);
+  final client = ref.watch(supabaseProvider);
   return AuthService(client);
 });
 
