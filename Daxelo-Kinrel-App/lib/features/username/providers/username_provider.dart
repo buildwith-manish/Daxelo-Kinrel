@@ -498,7 +498,7 @@ class UsernameNotifier extends StateNotifier<UsernameCheckState> {
       );
 
       _ref.invalidate(familyListProvider);
-      _ref.invalidate(familyDetailProvider(familyId));
+      // familyDetailProvider auto-rebuilds via ref.watch on familyListProvider
 
       return true;
     } catch (e) {

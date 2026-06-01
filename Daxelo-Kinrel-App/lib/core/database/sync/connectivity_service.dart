@@ -70,7 +70,13 @@ final connectivityServiceProvider = Provider<ConnectivityService>((ref) {
 
 /// Provider that reflects current online/offline status.
 /// Automatically updates when connectivity changes.
+/// Debounced to prevent rapid sync triggers during connectivity flapping.
 final isOnlineProvider = StreamProvider<bool>((ref) {
   final service = ref.watch(connectivityServiceProvider);
-  return service.onConnectivityChanged;
+  return service.onConnectivityChanged
+      .asyncMap((event) async {
+        // Debounce: wait 2 seconds for connectivity to stabilize
+        await Future.delayed(const Duration(seconds: 2));
+        return event;
+      });
 });

@@ -205,7 +205,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       backgroundColor: _cCard,
       onRefresh: () async {
         ref.invalidate(familyListProvider);
-        ref.invalidate(familyDetailProvider(primaryFamily.id));
+        ref.invalidate(familyMembersProvider(primaryFamily.id));
+        ref.invalidate(familyRelationshipsProvider(primaryFamily.id));
+        // familyDetailProvider auto-rebuilds via ref.watch on above providers
         ref.invalidate(feedProvider);
       },
       child: CustomScrollView(

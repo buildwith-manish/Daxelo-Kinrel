@@ -607,8 +607,11 @@ class AuthService {
 
 // ── Auth Service Provider ────────────────────────────────────────────
 
+/// Uses ref.read instead of ref.watch to avoid cascade rebuilds
+/// when supabaseProvider transitions from null → client at startup.
+/// AuthService reads the client once and doesn't need to react to changes.
 final authServiceProvider = Provider<AuthService>((ref) {
-  final client = ref.watch(supabaseProvider);
+  final client = ref.read(supabaseProvider);
   return AuthService(client);
 });
 

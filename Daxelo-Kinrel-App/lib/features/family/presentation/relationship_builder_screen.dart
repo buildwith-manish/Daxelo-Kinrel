@@ -108,14 +108,19 @@ class _RelationshipBuilderScreenState
         ),
         error: (e, _) => _ErrorState(
           message: 'Failed to load family data',
-          onRetry: () => ref.invalidate(familyDetailProvider(widget.familyId)),
+          onRetry: () {
+            ref.invalidate(familyMembersProvider(widget.familyId));
+            ref.invalidate(familyRelationshipsProvider(widget.familyId));
+          },
         ),
         data: (detail) {
           if (detail == null) {
             return _ErrorState(
               message: 'Family not found',
-              onRetry: () =>
-                  ref.invalidate(familyDetailProvider(widget.familyId)),
+              onRetry: () {
+                ref.invalidate(familyMembersProvider(widget.familyId));
+                ref.invalidate(familyRelationshipsProvider(widget.familyId));
+              },
             );
           }
 

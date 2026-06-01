@@ -1241,7 +1241,9 @@ final _exploreResultsProvider = FutureProvider<_ExploreResults>((ref) async {
     }
 
     try {
-      final members = await ref.watch(familyMembersProvider(family.id).future);
+      // Use ref.watch without .future to avoid cascading rebuild loop
+      final membersAsync = ref.watch(familyMembersProvider(family.id));
+      final members = membersAsync.valueOrNull ?? <Person>[];
       for (final member in members) {
         if (member.name.toLowerCase().contains(query.toLowerCase())) {
           matchingMembers.add(

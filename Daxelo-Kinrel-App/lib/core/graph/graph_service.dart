@@ -539,7 +539,7 @@ class GraphService {
     required List<GraphPerson> persons,
     required List<({String fromId, String toId, String type})> relationships,
     required String personId,
-    int maxDepth = 5,
+    int maxDepth = 10,
   }) {
     final adjacency = buildAdjacencyList(persons, relationships);
     final personMap = {for (final p in persons) p.id: p};
@@ -568,7 +568,7 @@ class GraphService {
     required List<GraphPerson> persons,
     required List<({String fromId, String toId, String type})> relationships,
     required String personId,
-    int maxDepth = 5,
+    int maxDepth = 10,
   }) {
     final adjacency = buildAdjacencyList(persons, relationships);
     final personMap = {for (final p in persons) p.id: p};

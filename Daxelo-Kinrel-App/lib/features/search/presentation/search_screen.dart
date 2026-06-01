@@ -58,8 +58,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
   }
 
   void _onFocusChange() {
-    // Rebuild to show/hide recent searches based on focus
-    ref.invalidate(searchProvider);
+    // Rebuild to show/hide recent searches based on focus.
+    // Use setState() instead of ref.invalidate() to avoid destroying search state
+    // and potential rebuild loops (invalidate → rebuild → focus change → invalidate).
+    setState(() {});
   }
 
   void _onSearchChanged(String query) {

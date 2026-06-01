@@ -402,7 +402,6 @@ class SyncEngine {
 
   DateTime? _lastSyncAttempt;
   Timer? _periodicSyncTimer;
-  StreamSubscription<bool>? _connectivitySubscription;
   bool _disposed = false;
 
   /// In-memory conflict log (persisted to UserSettings periodically).
@@ -434,9 +433,11 @@ class SyncEngine {
 
   /// Start the sync engine:
   ///   1. Load persisted conflict log
-  ///   2. Listen for connectivity changes → trigger sync
-  ///   3. Set up periodic sync (every 5 minutes)
-  ///   4. Perform an initial sync if online
+  ///   2. Set up periodic sync (every 5 minutes)
+  ///   3. Perform an initial sync if online
+  ///
+  /// Note: Connectivity-change listening is handled by
+  /// BackgroundSyncManager to avoid duplicate fullSync triggers.
   Future<void> start() async {
     if (_disposed) return;
 
@@ -444,20 +445,9 @@ class SyncEngine {
 
     await _loadConflictLog();
 
-    // Listen for connectivity changes
-    _connectivitySubscription?.cancel();
-    _connectivitySubscription =
-        _connectivity.onConnectivityChanged.listen((isOnline) {
-      if (isOnline) {
-        debugPrint('🟢 Connectivity restored — triggering sync');
-        final userId = _currentUserId;
-        if (userId != null) {
-          fullSync(userId);
-        } else {
-          pushPendingOperations();
-        }
-      }
-    });
+    // NOTE: Connectivity-change listener is managed by BackgroundSyncManager
+    // to prevent duplicate fullSync triggers when connectivity restores.
+    // BackgroundSyncManager.onConnectivityRestored() calls engine.fullSync().
 
     // Set up periodic sync
     _periodicSyncTimer?.cancel();
@@ -483,8 +473,6 @@ class SyncEngine {
   void stop() {
     _periodicSyncTimer?.cancel();
     _periodicSyncTimer = null;
-    _connectivitySubscription?.cancel();
-    _connectivitySubscription = null;
     debugPrint('🔄 SyncEngine stopped');
   }
 

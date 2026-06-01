@@ -447,13 +447,18 @@ final familyDetailProvider = FutureProvider.family<FamilyDetail?, String>((
     if (familyResponse == null) return null;
     final family = Family.fromJson(familyResponse);
 
-    // Fetch members
-    final members = await ref.watch(familyMembersProvider(familyId).future);
+    // Fetch members — use ref.watch without .future to avoid cascading rebuild loop
+    // when multiple providers are invalidated simultaneously.
+    // Using .valueOrNull avoids the anti-pattern where .future causes
+    // the provider to be re-created on dependency state change.
+    final membersAsync = ref.watch(familyMembersProvider(familyId));
+    final members = membersAsync.valueOrNull ?? [];
 
-    // Fetch relationships
-    final relationships = await ref.watch(
-      familyRelationshipsProvider(familyId).future,
+    // Fetch relationships — same pattern as members
+    final relationshipsAsync = ref.watch(
+      familyRelationshipsProvider(familyId),
     );
+    final relationships = relationshipsAsync.valueOrNull ?? [];
 
     return FamilyDetail(
       family: family,
@@ -610,12 +615,11 @@ final familyRelationshipsProvider =
     });
 
 /// Family member count provider
-final familyMemberCountProvider = FutureProvider.family<int, String>((
-  ref,
-  familyId,
-) async {
-  final members = await ref.watch(familyMembersProvider(familyId).future);
-  return members.length;
+/// Uses Provider instead of FutureProvider with ref.watch without .future
+/// to avoid cascading rebuild loop when familyMembersProvider is invalidated.
+final familyMemberCountProvider = Provider.family<int, String>((ref, familyId) {
+  final membersAsync = ref.watch(familyMembersProvider(familyId));
+  return membersAsync.valueOrNull?.length ?? 0;
 });
 
 // ── Computed Providers (Zero Rebuild Optimizations) ────────────────
@@ -776,7 +780,7 @@ Future<Person> createPerson({
     throw Exception('Failed to create person — no data returned from server.');
   }
   ref.invalidate(familyMembersProvider(familyId));
-  ref.invalidate(familyDetailProvider(familyId));
+  // familyDetailProvider auto-rebuilds via ref.watch on familyMembersProvider
 
   // Invalidate the Isar cache for this family
   if (IsarDatabase.isInitialized) {
@@ -843,7 +847,7 @@ Future<Person> updatePerson({
     throw Exception('Failed to update person — no data returned from server.');
   }
   ref.invalidate(familyMembersProvider(familyId));
-  ref.invalidate(familyDetailProvider(familyId));
+  // familyDetailProvider auto-rebuilds via ref.watch on familyMembersProvider
 
   // Invalidate the Isar cache for this family
   if (IsarDatabase.isInitialized) {
@@ -943,9 +947,9 @@ Future<void> deleteFamily({
 
   // 6. Invalidate providers to refresh UI
   ref.invalidate(familyListProvider);
-  ref.invalidate(familyDetailProvider(familyId));
   ref.invalidate(familyMembersProvider(familyId));
   ref.invalidate(familyRelationshipsProvider(familyId));
+  // familyDetailProvider auto-rebuilds via ref.watch on above providers
 
   // Invalidate the Isar cache
   if (IsarDatabase.isInitialized) {
@@ -979,7 +983,7 @@ Future<void> deletePerson({
   );
 
   ref.invalidate(familyMembersProvider(familyId));
-  ref.invalidate(familyDetailProvider(familyId));
+  // familyDetailProvider auto-rebuilds via ref.watch on familyMembersProvider
 
   // Invalidate the Isar cache for this family
   if (IsarDatabase.isInitialized) {
@@ -1031,7 +1035,7 @@ Future<FamilyRelationship> createRelationship({
     );
   }
   ref.invalidate(familyRelationshipsProvider(familyId));
-  ref.invalidate(familyDetailProvider(familyId));
+  // familyDetailProvider auto-rebuilds via ref.watch on familyRelationshipsProvider
 
   // Invalidate the Isar cache for this family
   if (IsarDatabase.isInitialized) {

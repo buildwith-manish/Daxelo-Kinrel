@@ -393,14 +393,19 @@ class SocketService {
 
   // ── Provider Invalidation ───────────────────────────────────────
 
-  /// Invalidate all Riverpod providers related to a family,
+  /// Invalidate Riverpod providers related to a family,
   /// causing the UI to refetch fresh data.
+  ///
+  /// Only invalidates the leaf dependency providers — providers that
+  /// ref.watch() those dependencies (familyDetailProvider,
+  /// familyMemberCountProvider) will auto-rebuild, avoiding cascading
+  /// rebuild loops from double invalidation.
   void _invalidateProvidersForFamily(String familyId) {
     try {
       _ref.invalidate(familyMembersProvider(familyId));
-      _ref.invalidate(familyDetailProvider(familyId));
+      // familyDetailProvider and familyMemberCountProvider auto-rebuild
+      // via ref.watch on familyMembersProvider — no need to invalidate directly
       _ref.invalidate(familyRelationshipsProvider(familyId));
-      _ref.invalidate(familyMemberCountProvider(familyId));
       _ref.invalidate(familyListProvider);
     } catch (e) {
       debugPrint('[SocketService] Provider invalidation error: $e');
