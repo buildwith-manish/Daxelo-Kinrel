@@ -24,7 +24,6 @@ Daxelo-Kinrel-App/.pub-cache/
 Daxelo-Kinrel-App/.pub/
 Daxelo-Kinrel-App/pubspec.lock
 Daxelo-Kinrel-App/integration_test/
-Daxelo-Kinrel-App/test/
 
 # ── Database ──────────────────────────────────────────────────
 *.db
@@ -61,7 +60,6 @@ server/src/__mocks__/
 .claude
 .z-ai-config
 .zscripts/
-test
 prompt
 /skills/
 upload/
