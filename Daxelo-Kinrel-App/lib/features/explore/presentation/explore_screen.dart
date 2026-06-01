@@ -1192,7 +1192,8 @@ final _exploreKinshipProvider = FutureProvider<List<KinshipSearchResult>>((
 ) async {
   final query = ref.watch(_exploreSearchProvider);
   if (query.isEmpty) return [];
-  await ref.watch(kinshipInitializedProvider.future);
+  final kinshipReady = ref.watch(kinshipInitializedProvider);
+  if (!kinshipReady.hasValue) return [];
   final service = ref.watch(kinshipServiceProvider);
   return service.search(query);
 });
@@ -1202,7 +1203,10 @@ final _exploreResultsProvider = FutureProvider<_ExploreResults>((ref) async {
   final query = ref.watch(_exploreSearchProvider);
   if (query.isEmpty) return _ExploreResults.empty();
 
-  final families = await ref.watch(familyListProvider.future);
+  final familiesAsync = ref.watch(familyListProvider);
+  final families = familiesAsync.valueOrNull ?? [];
+  if (families.isEmpty && familiesAsync.isLoading) return _ExploreResults.empty();
+  if (families.isEmpty) return _ExploreResults.empty();
   final matchingMembers = <_SearchResultItem>[];
   final matchingFamilies = <_SearchResultItem>[];
 

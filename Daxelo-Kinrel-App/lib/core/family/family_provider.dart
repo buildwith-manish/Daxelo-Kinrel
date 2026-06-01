@@ -422,7 +422,12 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
   }
 });
 
-/// Fetches a single family with its members
+/// Fetches a single family with its members.
+///
+/// Composes data from familyListProvider (already fetched) + members +
+/// relationships, avoiding a redundant API call that caused cascading
+/// rebuild loops when familyMembersProvider or familyRelationshipsProvider
+/// changed state (loading→data) and triggered a re-fetch of the family.
 final familyDetailProvider = FutureProvider.family<FamilyDetail?, String>((
   ref,
   familyId,
@@ -431,30 +436,24 @@ final familyDetailProvider = FutureProvider.family<FamilyDetail?, String>((
   if (!isReady) return null;
 
   try {
-    final client = ref.watch(supabaseProvider);
-    if (client == null) return null;
+    // Get family from familyListProvider (already fetched) instead of
+    // making a separate API call. This eliminates the redundant fetch
+    // that previously ran on every state transition of member/relationship
+    // providers, causing cascading rebuild loops.
+    final familiesAsync = ref.watch(familyListProvider);
+    final family = familiesAsync.valueOrNull?.firstWhere(
+      (f) => f.id == familyId,
+    );
+    if (family == null) return null;
 
-    // Guard against no valid session — RLS will deny queries
+    final client = ref.read(supabaseProvider);
+    if (client == null) return null;
     if (client.auth.currentSession == null) return null;
 
-    // Fetch family
-    final familyResponse = await client
-        .from(_kFamilyTable)
-        .select()
-        .eq('id', familyId)
-        .maybeSingle();
-
-    if (familyResponse == null) return null;
-    final family = Family.fromJson(familyResponse);
-
-    // Fetch members — use ref.watch without .future to avoid cascading rebuild loop
-    // when multiple providers are invalidated simultaneously.
-    // Using .valueOrNull avoids the anti-pattern where .future causes
-    // the provider to be re-created on dependency state change.
+    // Watch members and relationships without .future
     final membersAsync = ref.watch(familyMembersProvider(familyId));
     final members = membersAsync.valueOrNull ?? [];
 
-    // Fetch relationships — same pattern as members
     final relationshipsAsync = ref.watch(
       familyRelationshipsProvider(familyId),
     );

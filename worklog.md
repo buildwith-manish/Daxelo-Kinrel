@@ -582,3 +582,48 @@ Stage Summary:
 - Client secret from project 726935858050 (for Supabase Dashboard Google provider config):
   - Client ID: 726935858050-7rupm8q56208ph81896oo9fs7lp51tjv
 - All builds green ✅
+
+---
+Task ID: 14
+Agent: ANR Fix Agent
+Task: Fix remaining ANR/force-stop bugs — ref.watch(.future) anti-pattern, cascading rebuilds, redundant API calls, socket debounce, deferred service timing
+
+Work Log:
+- Read worklog.md and all 5 target files before making changes
+- BUG A (CRITICAL): Fixed explore_screen.dart — removed `ref.watch(... .future)` anti-pattern
+  - Line 1195: Changed `await ref.watch(kinshipInitializedProvider.future)` → `ref.watch(kinshipInitializedProvider)` + `if (!kinshipReady.hasValue) return []`
+  - Line 1205: Changed `await ref.watch(familyListProvider.future)` → `ref.watch(familyListProvider)` + `.valueOrNull ?? []` with loading/empty guards
+  - The `.future` pattern causes the provider to rebuild on every state transition of the dependency, creating cascading rebuild loops that overflow the stack
+- BUG B (HIGH): Fixed kinship_provider.dart — removed `.future` from all 7 providers
+  - kinshipMetaProvider: `await ref.watch(kinshipInitializedProvider.future)` → `ref.watch(kinshipInitializedProvider)` + `if (!kinshipReady.hasValue) return {}`
+  - kinshipSearchResultsProvider: Same pattern, return `[]`
+  - kinshipCategoryResultsProvider: Same pattern, return `[]`
+  - kinshipCategoriesProvider: Same pattern, return `[]`
+  - kinshipTermProvider: Same pattern, return `null`
+  - kinshipAllTranslationsProvider: Same pattern, return `null`
+  - allRelationshipsProvider: Same pattern, return `[]`
+- BUG C (CRITICAL): Fixed family_provider.dart — eliminated redundant API call in familyDetailProvider
+  - Previously: familyDetailProvider made a separate Supabase API call (`client.from('Family').select().eq('id', familyId)`) every time it rebuilt
+  - Since it also ref.watched familyMembersProvider and familyRelationshipsProvider, any state change in those (loading→data) caused a rebuild, which made ANOTHER API call, which caused ANOTHER rebuild → infinite cascade
+  - Fix: Now reads family data from already-fetched familyListProvider using `.valueOrNull?.firstWhere((f) => f.id == familyId)` instead of making a separate API call
+  - Changed `ref.watch(supabaseProvider)` to `ref.read(supabaseProvider)` for session check (no need to create dependency)
+- BUG D (HIGH): Fixed socket_service.dart — added debounce to provider invalidation
+  - Added `Timer? _invalidationDebounce` and `Set<String> _pendingInvalidations` fields
+  - Modified `_invalidateProvidersForFamily()` to batch invalidations with 100ms debounce timer
+  - Multiple rapid socket events (common during reconnect) now coalesce into a single invalidation pass
+  - Updated `disconnect()` to cancel debounce timer and clear pending invalidations
+  - Updated `dispose()` to cancel debounce timer
+- BUG E (MEDIUM): Fixed main.dart — delayed socket/sync service startup
+  - Wrapped SyncEngine and SocketService startup in `Future.delayed(const Duration(seconds: 3), ...)`
+  - This gives the home screen 3 seconds to complete its initial data fetch before these services start invalidating providers
+  - Log messages updated to include "(delayed)" suffix for debugging
+- Verified: `grep -rn "ref.watch.*\.future" lib/ | grep -v "//"` returns zero results — all anti-patterns eliminated
+
+Stage Summary:
+- 5 files changed
+- explore_screen.dart: 2 `.future` anti-patterns removed
+- kinship_provider.dart: 7 `.future` anti-patterns removed (all providers)
+- family_provider.dart: Eliminated redundant API call in familyDetailProvider, now composes from familyListProvider
+- socket_service.dart: Added 100ms debounce timer for provider invalidation batching
+- main.dart: Added 3-second delay before starting SyncEngine and SocketService
+- Zero remaining `ref.watch(... .future)` anti-patterns in the codebase

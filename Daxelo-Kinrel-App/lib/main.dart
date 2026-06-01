@@ -447,34 +447,39 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     } catch (_) {}
 
     // 2. Start the SyncEngine if Isar is initialized AND user has a session
-    if (IsarDatabase.isInitialized) {
+    // Delay socket/sync startup to avoid invalidating providers while
+    // the home screen is still loading initial data. 3 seconds gives
+    // the initial fetch enough time to complete.
+    Future.delayed(const Duration(seconds: 3), () {
+      if (IsarDatabase.isInitialized) {
+        try {
+          final client = ref.read(supabaseProvider);
+          final hasSession = client?.auth.currentSession != null;
+          if (hasSession) {
+            final bgSyncManager = ref.read(backgroundSyncManagerProvider);
+            bgSyncManager.init();
+            bgSyncManager.start();
+            debugPrint('🔄 SyncEngine + BackgroundSyncManager started (delayed)');
+          } else {
+            debugPrint('⏭️ SyncEngine skipped — no auth session');
+          }
+        } catch (e) {
+          debugPrint('⚠️ SyncEngine start failed: $e');
+        }
+      }
+
+      // 3. Start the Socket.IO service if authenticated
       try {
         final client = ref.read(supabaseProvider);
-        final hasSession = client?.auth.currentSession != null;
-        if (hasSession) {
-          final bgSyncManager = ref.read(backgroundSyncManagerProvider);
-          bgSyncManager.init();
-          bgSyncManager.start();
-          debugPrint('🔄 SyncEngine + BackgroundSyncManager started');
-        } else {
-          debugPrint('⏭️ SyncEngine skipped — no auth session');
+        if (client != null && client.auth.currentSession != null) {
+          final socketService = ref.read(socketServiceProvider);
+          socketService.connect();
+          debugPrint('🔌 SocketService started (delayed)');
         }
       } catch (e) {
-        debugPrint('⚠️ SyncEngine start failed: $e');
+        debugPrint('⚠️ SocketService start failed: $e');
       }
-    }
-
-    // 3. Start the Socket.IO service if authenticated
-    try {
-      final client = ref.read(supabaseProvider);
-      if (client != null && client.auth.currentSession != null) {
-        final socketService = ref.read(socketServiceProvider);
-        socketService.connect();
-        debugPrint('🔌 SocketService started');
-      }
-    } catch (e) {
-      debugPrint('⚠️ SocketService start failed: $e');
-    }
+    });
 
     // 4. Initialize Push Notifications if authenticated
     try {

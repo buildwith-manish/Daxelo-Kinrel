@@ -148,6 +148,12 @@ class SocketService {
   /// Whether a sync is currently in progress.
   bool _isSyncing = false;
 
+  /// Debounce timer for batching provider invalidations.
+  Timer? _invalidationDebounce;
+
+  /// Pending family IDs to invalidate on the next debounce fire.
+  final Set<String> _pendingInvalidations = {};
+
   // ── Public API ──────────────────────────────────────────────────
 
   /// Connect to the WebSocket server.
@@ -197,6 +203,8 @@ class SocketService {
 
   /// Disconnect from the WebSocket server.
   void disconnect() {
+    _invalidationDebounce?.cancel();
+    _pendingInvalidations.clear();
     _authSubscription?.cancel();
     _authSubscription = null;
     _socket?.disconnect();
@@ -401,15 +409,22 @@ class SocketService {
   /// familyMemberCountProvider) will auto-rebuild, avoiding cascading
   /// rebuild loops from double invalidation.
   void _invalidateProvidersForFamily(String familyId) {
-    try {
-      _ref.invalidate(familyMembersProvider(familyId));
-      // familyDetailProvider and familyMemberCountProvider auto-rebuild
-      // via ref.watch on familyMembersProvider — no need to invalidate directly
-      _ref.invalidate(familyRelationshipsProvider(familyId));
-      _ref.invalidate(familyListProvider);
-    } catch (e) {
-      debugPrint('[SocketService] Provider invalidation error: $e');
-    }
+    _pendingInvalidations.add(familyId);
+    _invalidationDebounce?.cancel();
+    _invalidationDebounce = Timer(const Duration(milliseconds: 100), () {
+      try {
+        for (final id in _pendingInvalidations) {
+          _ref.invalidate(familyMembersProvider(id));
+          // familyDetailProvider and familyMemberCountProvider auto-rebuild
+          // via ref.watch on familyMembersProvider — no need to invalidate directly
+          _ref.invalidate(familyRelationshipsProvider(id));
+        }
+        _ref.invalidate(familyListProvider);
+        _pendingInvalidations.clear();
+      } catch (e) {
+        debugPrint('[SocketService] Provider invalidation error: $e');
+      }
+    });
   }
 
   // ── Delta Sync on Reconnect ─────────────────────────────────────
@@ -660,6 +675,7 @@ class SocketService {
   /// Dispose resources.
   void dispose() {
     disconnect();
+    _invalidationDebounce?.cancel();
   }
 
   /// JSON encode helper for merge operations.
