@@ -59,10 +59,11 @@ class EnvConfig {
     );
   }
 
-  // Google OAuth Client IDs — aligned to Firebase project 643588134212
-  // (daxelo-kinrel-d8ccf). Must match AppConfig and google-services.json.
+  // Google OAuth Client IDs
+  // Web client ID is from project 726935858050 (must match Supabase Google provider config)
+  // Android/iOS client IDs are from project 643588134212 (must match google-services.json)
   static const String _fallbackGoogleWebClientId =
-      '643588134212-rj7354vgqk7efjd075kvkaodfdenen3m.apps.googleusercontent.com';
+      '726935858050-b0q96taocaa7rto463u466c49jdqkp41.apps.googleusercontent.com';
   static const String _fallbackGoogleAndroidClientId =
       '643588134212-e74dp3uuh526ticm3c413b3gioefsenp.apps.googleusercontent.com';
   static const String _fallbackGoogleIosClientId =

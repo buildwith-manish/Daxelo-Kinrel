@@ -64,19 +64,21 @@ class AppConfig {
   /// Check if Supabase is properly configured
   static bool get isSupabaseConfigured => supabaseAnonKey.isNotEmpty;
 
-  // Google OAuth Client IDs — aligned to Firebase project 643588134212
-  // (daxelo-kinrel-d8ccf). These match the updated google-services.json
-  // and GoogleService-Info.plist. The old project 726935858050 client IDs
-  // have been removed to fix the cross-project mismatch that caused
-  // Google Sign-In ApiException:10 (DEVELOPER_ERROR).
+  // Google OAuth Client IDs
   //
-  // Web client ID — used as serverClientId for Supabase signInWithIdToken
-  // This is the audience (aud) claim in the Google ID token that Supabase verifies.
+  // The serverClientId (Web Client ID) MUST match the Google OAuth client
+  // configured in the Supabase Dashboard → Authentication → Providers → Google.
+  // That provider uses project 726935858050's credentials, so the Web Client ID
+  // here must be from that project — NOT from the Firebase project 643588134212.
+  //
+  // The Android & iOS client IDs come from Firebase project 643588134212
+  // (google-services.json / GoogleService-Info.plist) — they validate the
+  // app's package name + SHA-1 at the native Google Sign-In level.
   //
   // Supabase OAuth callback URL (for Google Cloud Console authorized redirect URIs):
   // https://promxswvsnvilplmrtsj.supabase.co/auth/v1/callback
   static const String _fallbackGoogleWebClientId =
-      '643588134212-rj7354vgqk7efjd075kvkaodfdenen3m.apps.googleusercontent.com';
+      '726935858050-b0q96taocaa7rto463u466c49jdqkp41.apps.googleusercontent.com';
   // Android client ID — registered in google-services.json with SHA-1 fingerprint
   // Updated: new OAuth2 credential with SHA-1 aee41e0947cce859c1028511d343826d704f3ef5
   static const String _fallbackGoogleAndroidClientId =
@@ -113,6 +115,8 @@ class AppConfig {
   }
 
   /// All Google client IDs comma-separated for Supabase dashboard config
+  // Note: Web client ID is from project 726935858050 (Supabase provider),
+  // Android/iOS client IDs are from project 643588134212 (Firebase).
   static String get googleClientIdsCommaSeparated =>
       '$googleWebClientId,$googleAndroidClientId,$googleIosClientId';
 
