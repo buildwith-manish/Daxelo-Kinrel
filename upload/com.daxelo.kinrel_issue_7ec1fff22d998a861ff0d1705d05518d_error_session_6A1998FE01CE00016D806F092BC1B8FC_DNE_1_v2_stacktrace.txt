@@ -1,0 +1,15 @@
+# Crashlytics - 
+# Application: com.daxelo.kinrel
+# Platform: android
+# Version: 1.0.0 (1)
+# Issue: 7ec1fff22d998a861ff0d1705d05518d
+# Session: 6A1998FE01CE00016D806F092BC1B8FC_DNE_1_v2
+# Date: Fri May 29 2026 19:18:27 GMT+0530 (India Standard Time)
+
+Non-fatal Exception: io.flutter.plugins.firebase.crashlytics.FlutterError: NetworkError: POST /users/me/fcm-token. Error thrown method=POST, path=/users/me/fcm-token, statusCode=404, errorType=badResponse.
+       at DioMixin.request(dio_mixin.dart:364)
+       at DioMixin.post(dio_mixin.dart:108)
+       at PushNotificationService._syncTokenToBackend(push_notification_service.dart:283)
+       at PushNotificationService._acquireAndSyncToken(push_notification_service.dart:264)
+       at PushNotificationService.initialize(push_notification_service.dart:193)
+       at _KinrelAppState._initDeferredServices(main.dart:407)
