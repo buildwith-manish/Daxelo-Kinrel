@@ -1245,8 +1245,13 @@ final _exploreResultsProvider = FutureProvider<_ExploreResults>((ref) async {
     }
 
     try {
-      // Use ref.watch without .future to avoid cascading rebuild loop
-      final membersAsync = ref.watch(familyMembersProvider(family.id));
+      // Use ref.read instead of ref.watch to prevent cascading rebuild loop.
+      // ref.watch(familyMembersProvider(family.id)) inside a for-loop creates
+      // N subscriptions — when ANY member data changes, ALL trigger a rebuild,
+      // which re-watches ALL of them again. This cascading rebuild causes ANR.
+      // Using ref.read means this provider only rebuilds when the query or
+      // family list changes, not when individual member data updates.
+      final membersAsync = ref.read(familyMembersProvider(family.id));
       final members = membersAsync.valueOrNull ?? <Person>[];
       for (final member in members) {
         if (member.name.toLowerCase().contains(query.toLowerCase())) {
