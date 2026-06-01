@@ -1,7 +1,8 @@
 # =============================================================================
 # Daxelo-Kinrel — Deploy to Oracle Cloud VPS
 # =============================================================================
-# Triggers on push to main branch. Builds Docker image and deploys to VPS.
+# DISABLED: VPS deployment is not configured yet.
+# Re-enable the push trigger below once VPS secrets are set up.
 #
 # Required GitHub Secrets:
 #   VPS_HOST          — Oracle Cloud VPS public IP
@@ -16,11 +17,11 @@
 name: Deploy to Oracle Cloud VPS
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'server/**'
-      - 'deploy/**'
+  # Disabled until VPS is configured — uncomment to re-enable
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'server/**'
   workflow_dispatch:
     inputs:
       force_rebuild:
