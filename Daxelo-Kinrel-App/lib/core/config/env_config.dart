@@ -59,13 +59,14 @@ class EnvConfig {
     );
   }
 
-  // Google OAuth Client IDs
+  // Google OAuth Client IDs — aligned to Firebase project 643588134212
+  // (daxelo-kinrel-d8ccf). Must match AppConfig and google-services.json.
   static const String _fallbackGoogleWebClientId =
-      '726935858050-b0q96taocaa7rto463u466c49jdqkp41.apps.googleusercontent.com';
+      '643588134212-rj7354vgqk7efjd075kvkaodfdenen3m.apps.googleusercontent.com';
   static const String _fallbackGoogleAndroidClientId =
-      '726935858050-7rupm8q56208ph81896oo9fs7lp51tjv.apps.googleusercontent.com';
+      '643588134212-4e8epp11kfn17il8drlctot85e0j5mfi.apps.googleusercontent.com';
   static const String _fallbackGoogleIosClientId =
-      '726935858050-f5v8a726jn5m9o24dpjmcfoafne1p89d.apps.googleusercontent.com';
+      '643588134212-ep2guf1q8fk5idsa224fu9e3t4bdu2e3.apps.googleusercontent.com';
 
   static String get googleWebClientId {
     final env = _safeDotenv('GOOGLE_WEB_CLIENT_ID');

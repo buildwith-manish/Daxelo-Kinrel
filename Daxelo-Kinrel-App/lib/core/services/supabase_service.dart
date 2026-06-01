@@ -406,7 +406,15 @@ class AuthService {
   }
 
   // ── Link Google Account ───────────────────────────────────────────
-
+  //
+  // Links the Google identity to the current Supabase user account
+  // using signInWithIdToken(). After linking, the Google provider
+  // appears in user.appMetadata['providers'] and the user can sign
+  // in with Google on subsequent logins.
+  //
+  // This is the correct Supabase flow — calling updateUser() with
+  // metadata alone does NOT create an identity link; it only sets
+  // a flag in user_metadata which is not the same as a true provider link.
   Future<void> linkGoogleAccount() async {
     final client = _client;
     if (client == null) {
@@ -436,28 +444,31 @@ class AuthService {
         },
       );
 
-      if (googleAuth.idToken == null) {
+      final idToken = googleAuth.idToken;
+      if (idToken == null || idToken.isEmpty) {
         throw const AuthException(
-          'Failed to get Google ID token. Please try again.',
+          'Failed to get Google ID token. This may be a configuration issue. '
+          'Please try again or contact support.',
         );
       }
 
-      await client.auth.updateUser(
-        UserAttributes(
-          data: {
-            'linked_google': true,
-            'linked_google_at': DateTime.now().toIso8601String(),
-          },
-        ),
+      // Link the Google identity to the current Supabase account.
+      // This adds 'google' to user.appMetadata['providers'] and creates
+      // an identity entry that allows future Google sign-in.
+      await client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: googleAuth.accessToken,
       );
 
-      _log.i('Google account linked successfully');
+      _log.i('🔐 Google account linked successfully — provider added to identities');
     } on PlatformException catch (e) {
       throw _mapPlatformException(e);
     } on AuthException {
       rethrow;
     } catch (e) {
-      throw AuthException('Failed to link Google account: $e');
+      _log.e('🔐 Link Google account error: $e');
+      throw AuthException('Failed to link Google account: ${_sanitizeError(e)}');
     }
   }
 
@@ -587,8 +598,8 @@ class AuthService {
   /// Sanitize error messages for user display.
   String _sanitizeError(dynamic e) {
     final str = e.toString();
-    if (str.length > 100) {
-      return 'An unexpected error occurred. Please try again.';
+    if (str.length > 200) {
+      return '${str.substring(0, 200)}...';
     }
     return str.replaceAll('Exception: ', '').replaceAll('AuthException: ', '');
   }

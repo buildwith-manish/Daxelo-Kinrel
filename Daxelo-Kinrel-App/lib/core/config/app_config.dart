@@ -64,16 +64,25 @@ class AppConfig {
   /// Check if Supabase is properly configured
   static bool get isSupabaseConfigured => supabaseAnonKey.isNotEmpty;
 
-  // Google OAuth Client IDs
-  // Web client ID — used for Supabase signInWithIdToken on all platforms
+  // Google OAuth Client IDs — aligned to Firebase project 643588134212
+  // (daxelo-kinrel-d8ccf). These match the updated google-services.json
+  // and GoogleService-Info.plist. The old project 726935858050 client IDs
+  // have been removed to fix the cross-project mismatch that caused
+  // Google Sign-In ApiException:10 (DEVELOPER_ERROR).
+  //
+  // Web client ID — used as serverClientId for Supabase signInWithIdToken
+  // This is the audience (aud) claim in the Google ID token that Supabase verifies.
+  //
+  // Supabase OAuth callback URL (for Google Cloud Console authorized redirect URIs):
+  // https://promxswvsnvilplmrtsj.supabase.co/auth/v1/callback
   static const String _fallbackGoogleWebClientId =
-      '726935858050-b0q96taocaa7rto463u466c49jdqkp41.apps.googleusercontent.com';
-  // Android client ID — used by GoogleSignIn on Android
+      '643588134212-rj7354vgqk7efjd075kvkaodfdenen3m.apps.googleusercontent.com';
+  // Android client ID — registered in google-services.json with SHA-1 fingerprint
   static const String _fallbackGoogleAndroidClientId =
-      '726935858050-7rupm8q56208ph81896oo9fs7lp51tjv.apps.googleusercontent.com';
-  // iOS client ID — used by GoogleSignIn on iOS
+      '643588134212-4e8epp11kfn17il8drlctot85e0j5mfi.apps.googleusercontent.com';
+  // iOS client ID — from GoogleService-Info.plist (reversed client ID)
   static const String _fallbackGoogleIosClientId =
-      '726935858050-f5v8a726jn5m9o24dpjmcfoafne1p89d.apps.googleusercontent.com';
+      '643588134212-ep2guf1q8fk5idsa224fu9e3t4bdu2e3.apps.googleusercontent.com';
 
   static String get googleWebClientId {
     final env = _safeDotenv('GOOGLE_WEB_CLIENT_ID');

@@ -71,13 +71,28 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Get SHA-1 fingerprint
+      - name: Get SHA-1 / SHA-256 fingerprints
         if: env.SIGNING_READY == 'true'
         run: |
-          keytool -list -v \
+          KEYTOOL_OUTPUT=$(keytool -list -v \
             -keystore Daxelo-Kinrel-App/android/app/upload-keystore.jks \
             -alias upload \
-            -storepass ${{ secrets.KEYSTORE_PASSWORD }}
+            -storepass ${{ secrets.KEYSTORE_PASSWORD }} 2>&1)
+          SHA1_LINE=$(echo "$KEYTOOL_OUTPUT" | grep 'SHA1:' | head -1)
+          SHA256_LINE=$(echo "$KEYTOOL_OUTPUT" | grep 'SHA256:' | head -1)
+          echo "=========================================="
+          echo "SIGNING CERTIFICATE FINGERPRINTS:"
+          echo "$SHA1_LINE"
+          echo "$SHA256_LINE"
+          echo "=========================================="
+          echo "### 🔑 Signing Certificate Fingerprints" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Required for Firebase Console and Google Cloud Console:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$SHA1_LINE" >> $GITHUB_STEP_SUMMARY
+          echo "$SHA256_LINE" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Build signed release APK
         if: env.SIGNING_READY == 'true'
