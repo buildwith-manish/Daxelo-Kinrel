@@ -1,23 +1,4 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# ── Flutter ───────────────────────────────────────────────────
+# ── Flutter (Daxelo-Kinrel-App) ────────────────────────────────
 Daxelo-Kinrel-App/.dart_tool/
 Daxelo-Kinrel-App/.flutter-plugins
 Daxelo-Kinrel-App/.flutter-plugins-dependencies
@@ -28,48 +9,57 @@ Daxelo-Kinrel-App/.pub/
 Daxelo-Kinrel-App/pubspec.lock
 Daxelo-Kinrel-App/integration_test/
 
-# production
-/build
+# ── NestJS (server) ───────────────────────────────────────────
+server/node_modules/
+server/dist/
+server/build/
+server/.env
+server/.env.*
+!server/.env.example
+server/coverage/
 
-# misc
+# ── Node (root-level remnants) ────────────────────────────────
+node_modules/
+.next/
+out/
+
+# ── Environment & Secrets ─────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── IDE & Editor ──────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS ────────────────────────────────────────────────────────
 .DS_Store
+Thumbs.db
+
+# ── Misc ──────────────────────────────────────────────────────
 *.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-local-*
-.claude
-.z-ai-config
 *.log
 dev.log
 dev.out.log
 server.log
 npm-debug.log*
-
-# ── Testing & Mocks ───────────────────────────────────────────
-/coverage/
-server/src/__mocks__/
-
-# ── Misc ──────────────────────────────────────────────────────
+yarn-debug.log*
+yarn-error.log*
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+*.tsbuildinfo
+next-env.d.ts
 .claude
 .z-ai-config
 .zscripts/
 prompt
-
-server.log
-# Skills directory
-/skills/
+upload/
+skills/
+coverage/
