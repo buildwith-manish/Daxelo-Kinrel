@@ -41,7 +41,7 @@ class FamilyTreePainter extends CustomPainter {
   Map<String, FamilyMember> get _map => {for (final m in members) m.id: m};
 
   double _radius(FamilyMember m) =>
-      m.isSelf ? _selfRadius : _baseRadius * m.nodeScale;
+      m.isSelf ? _selfRadius : _baseRadius * (m.nodeScale);
 
   // ══════════════════════════════════════════════════════════════
   @override

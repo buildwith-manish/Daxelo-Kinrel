@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 class FamilyMember {
@@ -8,8 +9,10 @@ class FamilyMember {
   final Offset position;
   final String? photoUrl;
   final bool isSelf;
+  final double nodeScale;
+  ui.Image? loadedImage;
 
-  const FamilyMember({
+  FamilyMember({
     required this.id,
     required this.name,
     required this.role,
@@ -17,6 +20,8 @@ class FamilyMember {
     required this.position,
     this.photoUrl,
     this.isSelf = false,
+    this.nodeScale = 1.0,
+    this.loadedImage,
   });
 }
 

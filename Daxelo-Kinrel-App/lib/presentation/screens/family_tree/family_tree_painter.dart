@@ -10,6 +10,7 @@ class FamilyTreePainter extends CustomPainter {
   final List<FamilyConnection> connections;
   final double pulseValue;   // 0.0 → 1.0 looping (for glow pulse)
   final double lineProgress; // 0.0 → 1.0 looping (for animated dash)
+  final double orbitProgress; // 0.0 → 1.0 looping (for orbit ring spin)
   final bool focusMode;
 
   // ── Design tokens ─────────────────────────────────────────────
@@ -30,6 +31,7 @@ class FamilyTreePainter extends CustomPainter {
     required this.connections,
     required this.pulseValue,
     required this.lineProgress,
+    this.orbitProgress = 0.0,
     required this.focusMode,
   });
 

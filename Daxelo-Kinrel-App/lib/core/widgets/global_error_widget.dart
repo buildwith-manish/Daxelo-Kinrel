@@ -418,7 +418,7 @@ class _GlobalErrorWidgetState extends State<GlobalErrorWidget>
 // This is exported for use throughout the app.
 class KinrelAnimatedBuilder extends AnimatedWidget {
   const KinrelAnimatedBuilder({
-    required Animation<double> animation,
+    required Listenable animation,
     required this.builder,
     this.child,
     super.key,
