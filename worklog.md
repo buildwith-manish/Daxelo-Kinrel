@@ -199,3 +199,32 @@ Stage Summary:
 - Modified: server/src/modules/graph/graph.service.ts (AggregateError handling + verbose)
 - Commit: 4facc8c pushed to main
 - Render deploy: LIVE with zero errors and zero warnings at default log level
+
+---
+Task ID: 11
+Agent: main
+Task: Build Flutter debug APK via Codemagic / CI/CD
+
+Work Log:
+- Updated codemagic.yaml to debug-only workflow (removed release)
+- Pushed codemagic.yaml to GitHub
+- Codemagic API key (***REDACTED***) is INVALID — returns 401 FORBIDDEN on all endpoints
+- Fixed GitHub Actions Flutter APK build (was failing since 900+ runs):
+  1. Flutter version: Fixed from 3.x/3.32.0 to 3.44.1 (required by app_links ^7.1.1 which needs Dart ^3.12.0)
+  2. SDK constraint in pubspec.yaml: ^3.8.0 → ^3.12.0
+  3. Fixed broken imports in reference_family_tree_painter/screen.dart (relative → package imports)
+  4. Added firebase_crashlytics import to global_error_widget.dart
+  5. Created KinrelAnimatedBuilder (Flutter 3.44+ AnimatedBuilder compatibility)
+  6. Replaced all AnimatedBuilder usages across 20+ files with KinrelAnimatedBuilder
+  7. Added nodeScale and loadedImage fields to FamilyMember model
+  8. Added orbitProgress parameter to FamilyTreePainter
+  9. Fixed KinrelAnimatedBuilder to accept Listenable (not Animation<double>)
+- Removed build-apk-release.yml workflow (user only wants debug)
+- Build succeeded! All 13 steps pass ✅
+- APK artifact: kinrel-debug-apk-29 (112.1 MB)
+
+Stage Summary:
+- Codemagic API key is invalid — user needs to get correct token from codemagic.io dashboard
+- GitHub Actions Flutter debug APK build: ✅ SUCCESS
+- APK download: https://github.com/buildwith-manish/Daxelo-Kinrel/actions/runs/26974564200/artifacts/7421190799
+- Commits: 734c2df, 3cc6a11, 957304c, 39c0668, cf7ad02, bc760c2
