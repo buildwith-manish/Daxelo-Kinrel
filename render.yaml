@@ -1,17 +1,11 @@
-# =============================================================================
-# Daxelo-Kinrel — Render Blueprint
-# =============================================================================
-# Native Node.js runtime — build command handles everything from repo root.
-# =============================================================================
-
 services:
   - type: web
     name: daxelo-kinrel-server
-    runtime: node
+    runtime: docker
     plan: free
     branch: main
-    buildCommand: cd server && npm install --legacy-peer-deps && npx prisma generate && npm run build
-    startCommand: cd server && node dist/main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     envVars:
       - key: NODE_ENV
         value: production
