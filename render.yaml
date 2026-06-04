@@ -1,28 +1,23 @@
 # =============================================================================
 # Daxelo-Kinrel — Render Blueprint
 # =============================================================================
-# This file configures the Render deployment for the NestJS backend server.
-# It tells Render where to find the Dockerfile and what build context to use.
-#
-# Service: daxelo-kinrel-server (Web Service, Docker, Free tier)
-# Dockerfile: ./deploy/Dockerfile
-# Build Context: ./server (contains package.json, prisma/, src/, etc.)
+# Native Node.js runtime — simpler and more reliable than Docker on Render.
+# Uses rootDir: server to point Render at the NestJS project directory.
+# Build command installs deps, generates Prisma client, and compiles TypeScript.
+# Start command runs the compiled NestJS app.
 # =============================================================================
 
 services:
   - type: web
     name: daxelo-kinrel-server
-    runtime: docker
+    runtime: node
     plan: free
     branch: main
-    dockerfilePath: ./deploy/Dockerfile
-    dockerContext: ./server
-    # Render auto-assigns a PORT env var (typically 10000).
-    # The NestJS app reads process.env.PORT with fallback to 3000.
+    rootDir: server
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: node dist/main
     envVars:
       - key: NODE_ENV
         value: production
       - key: API_PREFIX
         value: api
-    # Health check is defined in the Dockerfile itself.
-    # Render also does its own HTTP health check on the exposed port.
