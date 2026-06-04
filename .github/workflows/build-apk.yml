@@ -1,8 +1,5 @@
 # ─────────────────────────────────────────────────────────────────
-# Build Flutter APK — triggered on push/PR to main + manual dispatch
-# ─────────────────────────────────────────────────────────────────
-# Produces an unsigned (debug-signed) APK for testing purposes.
-# For signed release builds, use the build-apk-release.yml workflow.
+# Build Flutter Debug APK — triggered on push to main + manual dispatch
 # ─────────────────────────────────────────────────────────────────
 
 name: Build Flutter APK
@@ -10,30 +7,22 @@ name: Build Flutter APK
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch: # Allow manual trigger from GitHub UI
+  workflow_dispatch:
 
-# Cancel in-progress runs for the same branch/PR to save minutes
 concurrency:
   group: build-apk-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  FLUTTER_VERSION: '3.x' # Latest stable in the 3.x line
-
 jobs:
   build:
-    name: Build APK
+    name: Build Debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
     steps:
-      # ── Checkout ──────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── Java 17 (required by Android Gradle Plugin & Flutter) ────
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
@@ -41,47 +30,30 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      # ── Flutter SDK (stable channel) ─────────────────────────────
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version-file: Daxelo-Kinrel-App/pubspec.yaml # Reads SDK constraint from pubspec.yaml
+          flutter-version: '3.32.0'
           cache: true
 
-      # ── Verify Flutter installation ──────────────────────────────
       - name: Print Flutter version
         run: flutter --version
 
-      # ── Create .env file with fallback defaults ──────────────────
-      # These match the defaults in codemagic.yaml.
-      # Override via GitHub Secrets (SUPABASE_URL, SUPABASE_ANON_KEY,
-      # API_BASE_URL) if you need different values.
+      - name: Install Android SDK & NDK
+        run: |
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;28.2.13676358" "platforms;android-36" "build-tools;35.0.0" "cmake;3.22.1"
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
       - name: Create .env file
         run: |
-          # Default values (same as codemagic.yaml)
-          DEFAULT_SUPABASE_URL="https://promxswvsnvilplmrtsj.supabase.co"
-          DEFAULT_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY"
-          DEFAULT_API_BASE_URL="https://daxelo-kinrel-server.onrender.com"
-
-          # Use secrets if set, otherwise fall back to defaults
-          FINAL_SUPABASE_URL="${{ secrets.SUPABASE_URL || env.DEFAULT_SUPABASE_URL }}"
-          FINAL_SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY || env.DEFAULT_SUPABASE_ANON_KEY }}"
-          FINAL_API_BASE_URL="${{ secrets.API_BASE_URL || env.DEFAULT_API_BASE_URL }}"
-
-          cat > Daxelo-Kinrel-App/.env <<EOF
-          SUPABASE_URL=$FINAL_SUPABASE_URL
-          SUPABASE_ANON_KEY=$FINAL_SUPABASE_ANON_KEY
-          API_BASE_URL=$FINAL_API_BASE_URL
+          cat > Daxelo-Kinrel-App/.env <<'EOF'
+          SUPABASE_URL=https://promxswvsnvilplmrtsj.supabase.co
+          SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY
+          API_BASE_URL=https://daxelo-kinrel-server.onrender.com
           EOF
+          echo ".env file created"
 
-          echo "::group::.env file created"
-          echo "SUPABASE_URL=$FINAL_SUPABASE_URL"
-          echo "SUPABASE_ANON_KEY=${FINAL_SUPABASE_ANON_KEY:0:20}..."
-          echo "API_BASE_URL=$FINAL_API_BASE_URL"
-          echo "::endgroup::"
-
-      # ── Cache pub dependencies ───────────────────────────────────
       - name: Cache pub dependencies
         uses: actions/cache@v4
         with:
@@ -92,39 +64,23 @@ jobs:
           restore-keys: |
             pub-${{ runner.os }}-
 
-      # ── Install dependencies ─────────────────────────────────────
-      - name: Install Flutter dependencies
+      - name: Install dependencies
         run: cd Daxelo-Kinrel-App && flutter pub get
 
-      # ── Code analysis (non-blocking) ─────────────────────────────
+      - name: Generate Drift code
+        run: cd Daxelo-Kinrel-App && dart run build_runner build --delete-conflicting-outputs
+
       - name: Analyze Dart code
         run: cd Daxelo-Kinrel-App && flutter analyze --no-fatal-warnings
         continue-on-error: true
 
-      # ── Build release APK ────────────────────────────────────────
-      # Uses GitHub Actions run number as build number for versioning.
-      # Without key.properties, Gradle falls back to debug signing.
-      - name: Build APK
-        run: cd Daxelo-Kinrel-App && flutter build apk --release --build-number=$GITHUB_RUN_NUMBER
+      - name: Build debug APK
+        run: cd Daxelo-Kinrel-App && flutter build apk --debug --build-number=$GITHUB_RUN_NUMBER
 
-      # ── Rename APK with build info ───────────────────────────────
-      - name: Rename APK with build info
-        run: |
-          BRANCH=$(echo "${GITHUB_REF_NAME:-main}" | tr '/' '-')
-          SRC="Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-release.apk"
-          DST="Daxelo-Kinrel-App/build/app/outputs/flutter-apk/kinrel-${BRANCH}-${GITHUB_RUN_NUMBER}.apk"
-          if [ -f "$SRC" ]; then
-            cp "$SRC" "$DST"
-            echo "APK renamed: kinrel-${BRANCH}-${GITHUB_RUN_NUMBER}.apk"
-          else
-            echo "WARNING: APK not found at $SRC"
-          fi
-
-      # ── Upload APK artifact ──────────────────────────────────────
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk-${{ github.run_number }}
-          path: Daxelo-Kinrel-App/build/app/outputs/flutter-apk/*.apk
+          name: kinrel-debug-apk-${{ github.run_number }}
+          path: Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 14
           if-no-files-found: error

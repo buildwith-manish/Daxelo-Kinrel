@@ -6,9 +6,6 @@
 # ═══════════════════════════════════════════════════════════════════
 
 workflows:
-  # ─────────────────────────────────────────────────────────────────
-  # ANDROID DEBUG APK
-  # ─────────────────────────────────────────────────────────────────
   android-debug:
     name: Android Debug APK
     max_build_duration: 60
@@ -23,7 +20,7 @@ workflows:
       cancel_previous_builds: true
 
     environment:
-      flutter: 3.44.0
+      flutter: 3.32.0
       java: '17'
       vars:
         FLUTTER_DIR: "."
@@ -31,17 +28,11 @@ workflows:
     scripts:
       - name: Create .env file
         script: |
-          DEFAULT_SUPABASE_URL="https://promxswvsnvilplmrtsj.supabase.co"
-          DEFAULT_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY"
-          DEFAULT_API_BASE_URL="https://daxelo-kinrel-server.onrender.com"
-
-          FINAL_SUPABASE_URL="${SUPABASE_URL:-$DEFAULT_SUPABASE_URL}"
-          FINAL_SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-$DEFAULT_SUPABASE_ANON_KEY}"
-          FINAL_API_BASE_URL="${API_BASE_URL:-$DEFAULT_API_BASE_URL}"
-
-          echo "SUPABASE_URL=$FINAL_SUPABASE_URL" > .env
-          echo "SUPABASE_ANON_KEY=$FINAL_SUPABASE_ANON_KEY" >> .env
-          echo "API_BASE_URL=$FINAL_API_BASE_URL" >> .env
+          cat > .env <<'EOF'
+          SUPABASE_URL=https://promxswvsnvilplmrtsj.supabase.co
+          SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY
+          API_BASE_URL=https://daxelo-kinrel-server.onrender.com
+          EOF
           echo ".env file created"
 
       - name: Install Android SDK components
