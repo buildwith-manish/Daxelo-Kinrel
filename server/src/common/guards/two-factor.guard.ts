@@ -33,7 +33,7 @@ export class TwoFactorGuard implements CanActivate {
     private readonly twoFactorVerificationService: TwoFactorVerificationService,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     // ── Check @Public() decorator ────────────────────────────────
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
@@ -68,7 +68,7 @@ export class TwoFactorGuard implements CanActivate {
     }
 
     // ── Check if user has recently verified 2FA ──────────────────
-    if (this.twoFactorVerificationService.isVerified(user.id)) {
+    if (await this.twoFactorVerificationService.isVerified(user.id)) {
       return true;
     }
 

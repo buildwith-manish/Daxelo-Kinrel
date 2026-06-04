@@ -13,6 +13,7 @@ import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import * as speakeasy from 'speakeasy';
+import { encrypt, decrypt } from '../../common/utils/encryption.util';
 
 export interface TokenPair {
   accessToken: string;
@@ -211,7 +212,7 @@ export class AuthService {
     }
     // Clear 2FA verification status so next login requires fresh verification
     if (userId) {
-      this.twoFactorVerificationService.clearVerification(userId);
+      await this.twoFactorVerificationService.clearVerification(userId);
     }
     return { success: true };
   }
@@ -303,9 +304,12 @@ export class AuthService {
       length: 32,
     });
 
+    const encryptionKey = this.config.get<string>('ENCRYPTION_KEY');
+    const encryptedSecret = encrypt(secret.base32, encryptionKey!);
+
     await this.prisma.user.update({
       where: { id: userId },
-      data: { twoFactorSecret: secret.base32 },
+      data: { twoFactorSecret: encryptedSecret },
     });
 
     return {
@@ -327,8 +331,11 @@ export class AuthService {
       );
     }
 
+    const encryptionKey = this.config.get<string>('ENCRYPTION_KEY');
+    const decryptedSecret = decrypt(user.twoFactorSecret, encryptionKey!);
+
     const verified = speakeasy.totp.verify({
-      secret: user.twoFactorSecret,
+      secret: decryptedSecret,
       encoding: 'base32',
       token: code,
       window: 2,
@@ -363,8 +370,11 @@ export class AuthService {
       );
     }
 
+    const encryptionKey = this.config.get<string>('ENCRYPTION_KEY');
+    const decryptedSecret = decrypt(user.twoFactorSecret, encryptionKey!);
+
     const verified = speakeasy.totp.verify({
-      secret: user.twoFactorSecret,
+      secret: decryptedSecret,
       encoding: 'base32',
       token: code,
       window: 2,
@@ -375,7 +385,7 @@ export class AuthService {
     }
 
     // Mark user as 2FA-verified so subsequent requests pass the TwoFactorGuard
-    this.twoFactorVerificationService.markVerified(user.id);
+    await this.twoFactorVerificationService.markVerified(user.id);
 
     return { verified: true };
   }

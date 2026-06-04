@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
+import { validate } from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { LoggerModule } from './common/logger/logger.module';
 import { AlertingModule } from './common/alerting/alerting.module';
@@ -48,6 +49,7 @@ import { TwoFactorVerificationModule } from './common/services/two-factor-verifi
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+      validate,
     }),
 
     // ── Rate limiting ───────────────────────────────────────

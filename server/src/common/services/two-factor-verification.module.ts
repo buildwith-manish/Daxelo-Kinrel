@@ -7,6 +7,9 @@ import { TwoFactorVerificationService } from './two-factor-verification.service'
  *
  * Marked @Global() so it only needs to be imported once (in AppModule)
  * and the service will be available everywhere.
+ *
+ * Note: ConfigModule is already global in AppModule, so no need to
+ * import it here explicitly.
  */
 @Global()
 @Module({
