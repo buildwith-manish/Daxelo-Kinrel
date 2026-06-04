@@ -14,6 +14,31 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// ── Enums ──────────────────────────────────────────────────────────────
+
+enum SubscriptionPlan {
+  free
+  pro_monthly
+  pro_annual
+  family_annual
+  lifetime
+}
+
+enum AgentStatus {
+  online
+  busy
+  offline
+  on_break
+}
+
+enum TicketStatus {
+  open
+  in_progress
+  waiting_customer
+  resolved
+  closed
+}
+
 // ── Core Models ──────────────────────────────────────────────────────
 
 model User {
@@ -32,7 +57,6 @@ model User {
   profileVisibility String   @default("public") // public, private, connections_only
   invitePermission  String   @default("anyone") // anyone, connections, nobody
   authProvider      String   @default("email") // email, google, apple, phone
-  blockedUserIds    String   @default("[]") // JSON array of blocked user IDs
   twoFactorEnabled  Boolean  @default(false) // Whether 2FA is enabled
   twoFactorSecret   String?  // TOTP base32 secret for 2FA
   preferredLanguage String   @default("en")
@@ -72,6 +96,23 @@ model User {
   refreshTokens     RefreshToken[]
   fcmTokens         FcmToken[]
   usernameChangeLog UsernameChangeLog[]
+  blockedUsers      BlockedUser[]    @relation("Blocker")
+  blockedBy         BlockedUser[]    @relation("Blocked")
+}
+
+// ── Blocked Users (replaces JSON blockedUserIds anti-pattern) ────────
+
+model BlockedUser {
+  id         String   @id @default(cuid())
+  blockerId  String
+  blockedId  String
+  createdAt  DateTime @default(now())
+
+  blocker    User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked    User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
 }
 
 // ── Pack 02: Subscription & Support Tier ─────────────────────────────
@@ -80,7 +121,7 @@ model Subscription {
   id          String   @id @default(cuid())
   userId      String   @unique
   user        User     @relation(fields: [userId], references: [id])
-  plan        String   @default("free") // free, pro_monthly, pro_annual, family_annual, lifetime
+  plan        SubscriptionPlan  @default(free)
   status      String   @default("active") // active, cancelled, expired
   supportTier String   @default("basic") // basic, standard, premium, vip
   startDate   DateTime @default(now())
@@ -105,7 +146,7 @@ model SupportAgent {
   phone           String?
 
   // Agent configuration (stored as JSON strings)
-  status          String   @default("offline") // online, busy, offline, break
+  status          AgentStatus  @default(offline)
   queues          String   @default("[]") // JSON array: ["billing","technical","critical"]
   minTier         Int      @default(1) // Minimum tier weight this agent handles
   languages       String   @default("[]") // JSON array: ["en","hi"]
@@ -155,7 +196,7 @@ model SupportTicket {
   deviceInfo      String?  // JSON string
 
   // State
-  status          String   @default("open") // open, in_progress, waiting_customer, waiting_third_party, resolved, closed
+  status          TicketStatus  @default(open)
   resolution      String?
   resolutionType  String?  // resolved, wont_fix, duplicate, no_response, out_of_scope
 
