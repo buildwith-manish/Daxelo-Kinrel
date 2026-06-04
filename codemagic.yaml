@@ -1,0 +1,168 @@
+# ═══════════════════════════════════════════════════════════════════
+# DAXELO KINREL — Codemagic CI/CD (root-level, primary config)
+# ═══════════════════════════════════════════════════════════════════
+# This is the primary codemagic.yaml used by Codemagic CI/CD.
+# The app-level copy at Daxelo-Kinrel-App/codemagic.yaml is for reference only.
+# ═══════════════════════════════════════════════════════════════════
+
+workflows:
+  # ─────────────────────────────────────────────────────────────────
+  # ANDROID DEBUG APK
+  # ─────────────────────────────────────────────────────────────────
+  android-debug:
+    name: Android Debug APK
+    max_build_duration: 60
+    instance_type: mac_mini_m4
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+      cancel_previous_builds: true
+
+    environment:
+      flutter: 3.44.0
+      java: '17'
+      vars:
+        FLUTTER_DIR: "Daxelo-Kinrel-App"
+
+    working_directory: Daxelo-Kinrel-App
+
+    scripts:
+      - name: Create .env file
+        script: |
+          DEFAULT_SUPABASE_URL="https://promxswvsnvilplmrtsj.supabase.co"
+          DEFAULT_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY"
+          DEFAULT_API_BASE_URL="https://daxelo-kinrel-server.onrender.com"
+
+          FINAL_SUPABASE_URL="${SUPABASE_URL:-$DEFAULT_SUPABASE_URL}"
+          FINAL_SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-$DEFAULT_SUPABASE_ANON_KEY}"
+          FINAL_API_BASE_URL="${API_BASE_URL:-$DEFAULT_API_BASE_URL}"
+
+          echo "SUPABASE_URL=$FINAL_SUPABASE_URL" > .env
+          echo "SUPABASE_ANON_KEY=$FINAL_SUPABASE_ANON_KEY" >> .env
+          echo "API_BASE_URL=$FINAL_API_BASE_URL" >> .env
+          echo ".env file created"
+
+      - name: Install Android SDK components
+        script: |
+          if [ -n "$ANDROID_HOME" ]; then
+            $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;28.2.13676358" "platforms;android-36" "build-tools;35.0.0" "cmake;3.22.1"
+            yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          else
+            echo "ANDROID_HOME not set — assuming SDK already available"
+          fi
+
+      - name: Flutter clean
+        script: flutter clean
+
+      - name: Flutter pub get
+        script: flutter pub get
+
+      - name: Generate Drift code
+        script: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build debug APK
+        script: |
+          BUILD_NUMBER="${CM_BUILD_NUMBER:-1}"
+          flutter build apk --debug --build-number="$BUILD_NUMBER"
+
+    artifacts:
+      - build/app/outputs/flutter-apk/app-debug.apk
+
+    publishing:
+      email:
+        recipients:
+          - roadmapx.support@gmail.com
+        notify:
+          success: true
+          failure: true
+
+  # ─────────────────────────────────────────────────────────────────
+  # ANDROID RELEASE APK
+  # ─────────────────────────────────────────────────────────────────
+  android-release:
+    name: Android Release APK
+    max_build_duration: 60
+    instance_type: mac_mini_m4
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: release
+          include: true
+
+    environment:
+      flutter: 3.44.0
+      java: '17'
+      vars:
+        FLUTTER_DIR: "Daxelo-Kinrel-App"
+        # Signing vars — set in Codemagic environment variables
+        # CM_KEYSTORE_PATH, CM_KEYSTORE_PASSWORD, CM_KEY_ALIAS, CM_KEY_PASSWORD
+
+    working_directory: Daxelo-Kinrel-App
+
+    scripts:
+      - name: Create .env file
+        script: |
+          DEFAULT_SUPABASE_URL="https://promxswvsnvilplmrtsj.supabase.co"
+          DEFAULT_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY"
+          DEFAULT_API_BASE_URL="https://daxelo-kinrel-server.onrender.com"
+
+          FINAL_SUPABASE_URL="${SUPABASE_URL:-$DEFAULT_SUPABASE_URL}"
+          FINAL_SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-$DEFAULT_SUPABASE_ANON_KEY}"
+          FINAL_API_BASE_URL="${API_BASE_URL:-$DEFAULT_API_BASE_URL}"
+
+          echo "SUPABASE_URL=$FINAL_SUPABASE_URL" > .env
+          echo "SUPABASE_ANON_KEY=$FINAL_SUPABASE_ANON_KEY" >> .env
+          echo "API_BASE_URL=$FINAL_API_BASE_URL" >> .env
+          echo ".env file created"
+
+      - name: Set up key.properties for release signing
+        script: |
+          if [ -n "$CM_KEYSTORE_PATH" ]; then
+            echo "storePassword=$CM_KEYSTORE_PASSWORD" > android/key.properties
+            echo "keyPassword=$CM_KEY_PASSWORD" >> android/key.properties
+            echo "keyAlias=$CM_KEY_ALIAS" >> android/key.properties
+            echo "storeFile=$CM_KEYSTORE_PATH" >> android/key.properties
+          else
+            echo "No signing keystore configured — will use debug signing"
+          fi
+
+      - name: Install Android SDK components
+        script: |
+          if [ -n "$ANDROID_HOME" ]; then
+            $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;28.2.13676358" "platforms;android-36" "build-tools;35.0.0" "cmake;3.22.1"
+            yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          else
+            echo "ANDROID_HOME not set — assuming SDK already available"
+          fi
+
+      - name: Flutter clean
+        script: flutter clean
+
+      - name: Flutter pub get
+        script: flutter pub get
+
+      - name: Generate Drift code
+        script: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build release APK
+        script: |
+          BUILD_NUMBER="${CM_BUILD_NUMBER:-1}"
+          flutter build apk --release --build-number="$BUILD_NUMBER"
+
+    artifacts:
+      - build/app/outputs/flutter-apk/app-release.apk
+      - build/app/outputs/apk/release/app-release.apk
+
+    publishing:
+      email:
+        recipients:
+          - roadmapx.support@gmail.com
+        notify:
+          success: true
+          failure: true
