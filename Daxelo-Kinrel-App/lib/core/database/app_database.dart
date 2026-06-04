@@ -615,10 +615,12 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<void> clearAll() async {
-    await clearAllCache();
-    await delete(pendingOperations).go();
-    await delete(userSettings).go();
-    await delete(authTokens).go();
+    await transaction(() async {
+      await clearAllCache();
+      await delete(pendingOperations).go();
+      await delete(userSettings).go();
+      await delete(authTokens).go();
+    });
   }
 
   Future<Map<String, int>> getStats() async {

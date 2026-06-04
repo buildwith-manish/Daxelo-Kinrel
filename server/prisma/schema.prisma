@@ -563,6 +563,7 @@ model Person {
   @@index([familyId, generationIndex])
   @@index([username])
   @@index([familyId])
+  @@index([familyId, deletedAt])
   @@index([updatedAt])
 }
 
@@ -918,6 +919,9 @@ model Relationship {
   @@index([fromPersonId])
   @@index([toPersonId])
   @@index([relationshipKey])
+  @@index([familyId, fromPersonId])
+  @@index([familyId, toPersonId])
+  @@index([familyId, isActive])
 }
 
 // ── Family Feed (Instagram-style family moments) ──────────────────────

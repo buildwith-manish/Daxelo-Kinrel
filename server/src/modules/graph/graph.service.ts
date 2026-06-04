@@ -73,8 +73,10 @@ export class GraphService {
       return this.getPath(familyId, options.from, options.to);
     }
 
+    const safeDepth = Math.min(options.depth ?? 10, 50);
+
     if (options.root && options.format === 'tree') {
-      return this.getTree(familyId, options.root, options.depth || 10);
+      return this.getTree(familyId, options.root, safeDepth);
     }
 
     if (options.format === 'tree') {
@@ -83,7 +85,7 @@ export class GraphService {
       });
       const rootId = family?.anchorPersonId;
       if (rootId) {
-        return this.getTree(familyId, rootId, options.depth || 10);
+        return this.getTree(familyId, rootId, safeDepth);
       }
       return this.getFlatGraph(familyId);
     }
@@ -316,11 +318,21 @@ export class GraphService {
     for (const rel of relationships) {
       if (!personMap.has(rel.fromPersonId) || !personMap.has(rel.toPersonId)) continue;
 
+      // Forward direction: fromPerson → toPerson
       if (!adjacency.has(rel.fromPersonId)) {
         adjacency.set(rel.fromPersonId, []);
       }
       adjacency.get(rel.fromPersonId)!.push({
         neighborId: rel.toPersonId,
+        relationship: rel,
+      });
+
+      // Reverse direction: toPerson → fromPerson
+      if (!adjacency.has(rel.toPersonId)) {
+        adjacency.set(rel.toPersonId, []);
+      }
+      adjacency.get(rel.toPersonId)!.push({
+        neighborId: rel.fromPersonId,
         relationship: rel,
       });
     }

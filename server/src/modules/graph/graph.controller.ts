@@ -28,7 +28,7 @@ export class GraphController {
   ) {
     return this.graphService.getGraph(userId, familyId, {
       root,
-      depth: depth ? parseInt(depth, 10) : undefined,
+      depth: depth ? Math.min(parseInt(depth, 10), 50) : undefined,
       format: format || 'flat',
       from,
       to,
@@ -53,7 +53,7 @@ export class GraphController {
     return this.graphService.getTree(
       familyId,
       rootPersonId,
-      depth ? parseInt(depth, 10) : 10,
+      depth ? Math.min(parseInt(depth, 10), 50) : 10,
     );
   }
 
