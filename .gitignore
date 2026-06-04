@@ -55,3 +55,4 @@ local-*
 *.keystore
 Daxelo-Kinrel-App/android/key.properties
 .next/
+server/.z-ai-config

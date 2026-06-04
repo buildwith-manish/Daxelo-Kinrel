@@ -55,7 +55,7 @@ const SPOUSE_KEYS = new Set(['husband', 'wife']);
 
 @Injectable()
 export class GraphService {
-  private readonly redis: Redis;
+  private redis: Redis | null = null;
   private readonly logger = new Logger(GraphService.name);
   private readonly CACHE_TTL = 60; // 60 seconds
 
@@ -63,7 +63,40 @@ export class GraphService {
     private prisma: PrismaService,
     private config: ConfigService,
   ) {
-    this.redis = new Redis(this.config.get<string>('REDIS_URL', 'redis://localhost:6379'));
+    const redisUrl = this.config.get<string>('REDIS_URL', '');
+    if (redisUrl && redisUrl !== 'redis://localhost:6379') {
+      this.redis = new Redis(redisUrl, {
+        lazyConnect: true,
+        maxRetriesPerRequest: 1,
+        connectTimeout: 5000,
+        retryStrategy: (times) => {
+          if (times > 3) {
+            this.logger.warn('Redis connection failed after 3 retries — graph caching disabled');
+            this.redis = null;
+            return null; // Stop retrying
+          }
+          return Math.min(times * 200, 1000);
+        },
+      });
+
+      this.redis.on('error', (err) => {
+        // Suppress ECONNREFUSED spam — log once, then stop retrying
+        if (err.message?.includes('ECONNREFUSED')) {
+          this.logger.warn(`Redis unavailable for graph caching: ${err.message}`);
+          if (this.redis) {
+            this.redis.disconnect();
+            this.redis = null;
+          }
+        }
+      });
+
+      this.redis.connect().catch(() => {
+        this.logger.warn('Redis connection failed — graph caching disabled');
+        this.redis = null;
+      });
+    } else {
+      this.logger.log('REDIS_URL not configured — graph caching disabled');
+    }
   }
 
   async getGraph(
@@ -416,9 +449,11 @@ export class GraphService {
     // ── Check Redis cache first ──────────────────────────────────────
     const cacheKey = `graph:flat:${familyId}`;
     try {
-      const cached = await this.redis.get(cacheKey);
-      if (cached) {
-        return JSON.parse(cached);
+      if (this.redis) {
+        const cached = await this.redis.get(cacheKey);
+        if (cached) {
+          return JSON.parse(cached);
+        }
       }
     } catch (err) {
       this.logger.warn(`Redis cache read failed for ${cacheKey}`, err);
@@ -488,7 +523,9 @@ export class GraphService {
 
     // ── Store in Redis cache ─────────────────────────────────────────
     try {
-      await this.redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(result));
+      if (this.redis) {
+        await this.redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(result));
+      }
     } catch (err) {
       this.logger.warn(`Redis cache write failed for ${cacheKey}`, err);
     }

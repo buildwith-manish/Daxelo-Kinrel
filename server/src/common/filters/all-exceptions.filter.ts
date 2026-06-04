@@ -45,14 +45,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = exception.message;
     }
 
-    this.logger.error(
-      `${request.method} ${request.url} — ${status} ${message}`,
-      exception instanceof Error ? exception.stack : undefined,
-    );
+    // ── Log based on severity ────────────────────────────────────────
+    // 404s are common (bots, health checks on wrong paths) — log as warn, not error
+    // 4xx client errors are less severe than 5xx server errors
+    if (status === HttpStatus.NOT_FOUND) {
+      this.logger.warn(`${request.method} ${request.url} — ${status} ${message}`);
+    } else if (status >= 500) {
+      this.logger.error(
+        `${request.method} ${request.url} — ${status} ${message}`,
+        exception instanceof Error ? exception.stack : undefined,
+      );
+    } else {
+      this.logger.warn(`${request.method} ${request.url} — ${status} ${message}`);
+    }
 
     // ── Alerting integration ────────────────────────────────────
-    // Record this error and check alert thresholds (if alerting is available)
-    if (this.alertingService) {
+    // Only alert on server errors (5xx), not client errors (4xx)
+    if (this.alertingService && status >= 500) {
       this.alertingService.recordError();
       this.alertingService.checkAlerts(status, request.url);
     }
