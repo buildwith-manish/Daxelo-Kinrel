@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -369,7 +370,7 @@ class _RelationshipGraphPickerState
                   child: SizedBox(
                     width: _canvasWidth,
                     height: _canvasHeight,
-                    child: AnimatedBuilder(
+                    child: KinrelAnimatedBuilder(
                       animation: Listenable.merge([
                         _pulseController,
                         _lineController,

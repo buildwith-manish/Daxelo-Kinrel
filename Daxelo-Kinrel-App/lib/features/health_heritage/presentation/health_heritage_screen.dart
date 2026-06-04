@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 // lib/features/health_heritage/presentation/health_heritage_screen.dart
 //
 // DAXELO KINREL — Family Health Heritage Screen
@@ -787,7 +788,7 @@ class _RiskScoreCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                AnimatedBuilder(
+                KinrelAnimatedBuilder(
                   animation: animatedPercent,
                   builder: (context, child) {
                     return _RiskRing(

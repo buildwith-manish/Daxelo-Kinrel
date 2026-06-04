@@ -20,6 +20,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import '../constants/brand_colors.dart';
 import '../constants/brand_typography.dart';
 import '../services/crashlytics_service.dart';
@@ -158,6 +159,7 @@ class _GlobalErrorWidgetState extends State<GlobalErrorWidget>
           ? _buildCrashLayout(context)
           : _buildSectionLayout(context, isNetwork: isNetwork),
     );
+
   }
 
   // ── Crash Layout (Full-Screen) ──────────────────────────────────
@@ -409,17 +411,18 @@ class _GlobalErrorWidgetState extends State<GlobalErrorWidget>
   }
 }
 
-// ── Animated Builder (simplified) ────────────────────────────────────
-
-/// Replacement for AnimatedBuilder which was removed in newer Flutter.
-/// Uses AnimatedWidget pattern instead.
-class AnimatedBuilder extends AnimatedWidget {
-  const AnimatedBuilder({
-    required super.listenable,
+// ── KinrelAnimatedBuilder ──────────────────────────────────────────
+//
+// Custom AnimatedBuilder that works across all Flutter versions.
+// Uses the AnimatedWidget pattern for maximum compatibility.
+// This is exported for use throughout the app.
+class KinrelAnimatedBuilder extends AnimatedWidget {
+  const KinrelAnimatedBuilder({
+    required Animation<double> animation,
     required this.builder,
     this.child,
     super.key,
-  });
+  }) : super(listenable: animation);
 
   final Widget Function(BuildContext context, Widget? child) builder;
   final Widget? child;

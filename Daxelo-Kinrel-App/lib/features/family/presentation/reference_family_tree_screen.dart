@@ -1,10 +1,11 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'family_tree_painter.dart';
-import 'family_tree_model.dart';
+import 'package:kinrel/presentation/screens/family_tree/family_tree_painter.dart';
+import 'package:kinrel/presentation/screens/family_tree/family_tree_model.dart';
 
 class FamilyTreeScreen extends StatefulWidget {
   const FamilyTreeScreen({super.key});
@@ -128,7 +129,7 @@ class _FamilyTreeScreenState extends State<FamilyTreeScreen>
               maxScale: 3.5,
               boundaryMargin: const EdgeInsets.all(300),
               child: Center(
-                child: AnimatedBuilder(
+                child: KinrelAnimatedBuilder(
                   animation: Listenable.merge(
                       [_pulseController, _lineController, _orbitController]),
                   builder: (context, _) {

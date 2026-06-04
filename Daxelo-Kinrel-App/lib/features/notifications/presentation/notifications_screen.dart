@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 // lib/features/notifications/presentation/notifications_screen.dart
 //
 // DAXELO KINREL — Notifications / Alerts Screen
@@ -272,7 +273,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Bell illustration with K-graph animation
-          AnimatedBuilder(
+          KinrelAnimatedBuilder(
             animation: _emptyAnimController,
             builder: (context, child) {
               final t = _emptyAnimController.value;

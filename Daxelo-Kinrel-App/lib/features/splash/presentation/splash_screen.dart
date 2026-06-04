@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -350,7 +351,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: KinrelColors.darkSurface,
-      body: AnimatedBuilder(
+      body: KinrelAnimatedBuilder(
         animation: Listenable.merge([
           _introController,
           _breathingController,

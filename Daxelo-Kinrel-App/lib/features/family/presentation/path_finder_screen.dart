@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -361,7 +362,7 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen>
 
           // ── Path Visualization Chain ───────────────────────────
           if (_pathResult != null && !_isSearching) ...[
-            AnimatedBuilder(
+            KinrelAnimatedBuilder(
               animation: _pathRevealController,
               builder: (context, _) {
                 return Opacity(
@@ -379,7 +380,7 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen>
 
           // ── Hero Result Card ───────────────────────────────────
           if (_pathResult != null && !_isSearching) ...[
-            AnimatedBuilder(
+            KinrelAnimatedBuilder(
               animation: _resultAppearController,
               builder: (context, _) {
                 return Transform.translate(
@@ -598,7 +599,7 @@ class _AnimatedConnector extends StatelessWidget {
     }
 
     // Animated dotted line
-    return AnimatedBuilder(
+    return KinrelAnimatedBuilder(
       animation: dotPulseAnimation,
       builder: (context, _) {
         final opacity = 0.3 + (dotPulseAnimation.value * 0.5);
@@ -1714,6 +1715,6 @@ extension _StringCapitalize on String {
 }
 
 // ────────────────────────────────────────────────────────────────
-// AnimatedBuilder helper (using standard Flutter AnimatedBuilder)
+// KinrelAnimatedBuilder helper (using standard Flutter KinrelAnimatedBuilder)
 // ────────────────────────────────────────────────────────────────
-// Note: Flutter's AnimatedBuilder is used directly — no custom widget needed.
+// Note: Flutter's KinrelAnimatedBuilder is used directly — no custom widget needed.

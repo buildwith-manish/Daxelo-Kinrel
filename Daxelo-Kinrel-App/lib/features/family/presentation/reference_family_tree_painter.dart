@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'family_tree_model.dart';
+import 'package:kinrel/presentation/screens/family_tree/family_tree_model.dart';
 
 /// 100% pixel-perfect CustomPainter for Daxelo Kinrel family tree.
 /// Additions v2:

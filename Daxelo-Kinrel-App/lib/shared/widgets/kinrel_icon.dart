@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 // lib/shared/widgets/kinrel_icon.dart
 //
 // DAXELO KINREL — K-graph Icon Widget
@@ -101,7 +102,7 @@ class _AnimatedKinrelIconState extends State<_AnimatedKinrelIcon>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
+    return KinrelAnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
         return CustomPaint(

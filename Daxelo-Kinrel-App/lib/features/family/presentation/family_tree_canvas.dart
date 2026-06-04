@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -408,7 +409,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
                 child: SizedBox(
                   width: canvasSize,
                   height: canvasSize,
-                  child: AnimatedBuilder(
+                  child: KinrelAnimatedBuilder(
                     animation: Listenable.merge([
                       _ambientController,
                       _pulseController,

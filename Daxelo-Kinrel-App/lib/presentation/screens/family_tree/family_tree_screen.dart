@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -359,7 +360,7 @@ class _FamilyTreeScreenState extends ConsumerState<FamilyTreeScreen>
           minScale: 0.5,
           maxScale: 3.0,
           boundaryMargin: const EdgeInsets.all(400),
-          child: AnimatedBuilder(
+          child: KinrelAnimatedBuilder(
             animation: Listenable.merge([_pulseController, _lineController]),
             builder: (context, _) {
               return CustomPaint(

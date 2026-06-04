@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -832,7 +833,7 @@ class _GeneratingViewState extends State<_GeneratingView>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Animated icon
-          AnimatedBuilder(
+          KinrelAnimatedBuilder(
             animation: _controller,
             builder: (context, child) {
               return Transform.scale(

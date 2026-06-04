@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 // lib/features/gamification/presentation/achievements_screen.dart
 //
 // DAXELO KINREL — Gamification & Achievements Screen
@@ -286,7 +287,7 @@ class _ProfileCompletionRing extends StatelessWidget {
         child: Row(
           children: [
             // Circular progress ring
-            AnimatedBuilder(
+            KinrelAnimatedBuilder(
               animation: animatedPercent,
               builder: (context, child) {
                 return _CircularProgressRing(
@@ -948,7 +949,7 @@ class _UnlockedBadgeCard extends StatelessWidget {
       ),
     );
 
-    return AnimatedBuilder(
+    return KinrelAnimatedBuilder(
       animation: controller,
       builder: (context, child) {
         return Opacity(

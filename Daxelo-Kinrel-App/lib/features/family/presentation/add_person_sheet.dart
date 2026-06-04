@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -495,7 +496,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           if (_showSuccess)
             Positioned.fill(
               child: IgnorePointer(
-                child: AnimatedBuilder(
+                child: KinrelAnimatedBuilder(
                   animation: _confettiCtrl,
                   builder: (context, _) {
                     return CustomPaint(

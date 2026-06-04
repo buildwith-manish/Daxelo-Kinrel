@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -391,7 +392,7 @@ class _PersonCard extends StatelessWidget {
         ? KinrelColors.amber.withValues(alpha: 0.08)
         : KinrelColors.darkCard;
 
-    return AnimatedBuilder(
+    return KinrelAnimatedBuilder(
       animation: glowAnimation,
       builder: (context, child) {
         final glowValue = isGlowing ? glowAnimation.value : 0.0;

@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 // lib/features/family/presentation/tree_3d_screen.dart
 //
 // DAXELO KINREL — 3D Interactive Family Tree Screen
@@ -358,7 +359,7 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
     }
 
     // CRITICAL ANR FIX: Update positions without calling setState
-    // The AnimatedBuilder listener already handles rebuilds on animation frame
+    // The KinrelAnimatedBuilder listener already handles rebuilds on animation frame
     _nodePositions = interpolated;
 
     if (_layoutAnimationController.isCompleted) {
@@ -912,7 +913,7 @@ class _Tree3DScreenState extends ConsumerState<Tree3DScreen>
                   _lastPanPosition = details.focalPoint;
                 },
                 child: SizedBox.expand(
-                  child: AnimatedBuilder(
+                  child: KinrelAnimatedBuilder(
                     animation: Listenable.merge([
                       _ambientController,
                       _pulseController,

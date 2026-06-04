@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -697,7 +698,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
                   size: 14,
                 ),
                 const SizedBox(width: 8),
-                AnimatedBuilder(
+                KinrelAnimatedBuilder(
                   animation: _controller,
                   builder: (context, child) {
                     return Row(

@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 // lib/features/chat/presentation/chat_screen.dart
 //
 // DAXELO KINREL — Family Chat Screen
@@ -490,7 +491,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: List.generate(3, (i) {
-                return AnimatedBuilder(
+                return KinrelAnimatedBuilder(
                   animation: _dotAnimations[i],
                   builder: (context, child) {
                     return Transform.translate(

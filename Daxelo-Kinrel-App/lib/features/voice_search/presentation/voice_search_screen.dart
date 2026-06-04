@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -199,7 +200,7 @@ class _IdleView extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Pulsing mic button
-          AnimatedBuilder(
+          KinrelAnimatedBuilder(
             animation: pulseAnimation,
             builder: (context, child) {
               return Transform.scale(
@@ -338,7 +339,7 @@ class _RecordingView extends StatelessWidget {
           // Waveform animation
           SizedBox(
             height: 100,
-            child: AnimatedBuilder(
+            child: KinrelAnimatedBuilder(
               animation: waveformController,
               builder: (context, child) {
                 return CustomPaint(

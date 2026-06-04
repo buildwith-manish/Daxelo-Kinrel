@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -841,7 +842,7 @@ class _PressDownState extends State<_PressDown>
       widget.onTap();
     },
     onTapCancel: () => _c.reverse(),
-    child: AnimatedBuilder(
+    child: KinrelAnimatedBuilder(
       animation: _sc,
       builder: (_, child) => Transform.scale(scale: _sc.value, child: child),
       child: widget.child,

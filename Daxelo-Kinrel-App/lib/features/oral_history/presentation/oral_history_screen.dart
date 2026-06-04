@@ -1,3 +1,4 @@
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 // lib/features/oral_history/presentation/oral_history_screen.dart
 //
 // DAXELO KINREL — Oral History & Story Recording Screen
@@ -2055,7 +2056,7 @@ class _RecordingBottomSheetState extends State<_RecordingBottomSheet>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Recording pulse indicator
-              AnimatedBuilder(
+              KinrelAnimatedBuilder(
                 animation: _pulseController,
                 builder: (context, child) {
                   return Container(
