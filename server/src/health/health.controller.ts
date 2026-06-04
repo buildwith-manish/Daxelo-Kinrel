@@ -1,11 +1,10 @@
-import { Controller, Get, Redirect } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Public } from '../common/decorators/public.decorator';
 
 /**
  * HealthController — Lightweight health check endpoint.
  *
- * GET /           → Redirects to /api/health
  * GET /api/health → JSON health status (no auth required)
  *
  * Used by the Flutter ConnectivityInterceptor (Phase 1 F2)
@@ -44,28 +43,6 @@ export class HealthController {
       uptime,
       memory,
       ts: Date.now(),
-    };
-  }
-}
-
-/**
- * RootController — Handles the root path to avoid 404 errors.
- *
- * GET / → Returns a simple JSON welcome message.
- * This eliminates the "Cannot GET /" and "Cannot HEAD /" 404 errors
- * that spam the Render logs when health checks or bots hit the root.
- */
-@Public()
-@Controller()
-export class RootController {
-  @Get()
-  root() {
-    return {
-      service: 'Daxelo Kinrel API',
-      version: '1.0.0',
-      status: 'running',
-      docs: '/docs',
-      health: '/api/health',
     };
   }
 }

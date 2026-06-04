@@ -53,6 +53,23 @@ async function bootstrap() {
   // This supports the Flutter app's /v1/ endpoint pattern when prefixed with /api
   app.setGlobalPrefix(apiPrefix);
 
+  // ── Root path handler ──────────────────────────────────────────
+  // NestJS's global prefix only applies to controllers. The bare root "/"
+  // is handled by Express directly. This avoids "Cannot GET /" 404 errors
+  // that spam the logs when health checkers or bots hit the root URL.
+  app.use('/', (req: any, res: any, next: any) => {
+    if (req.path === '/') {
+      return res.json({
+        service: 'Daxelo Kinrel API',
+        version: '1.0.0',
+        status: 'running',
+        docs: '/docs',
+        health: '/api/health',
+      });
+    }
+    next();
+  });
+
   // ── CORS — whitelist with env override ──────────────────────────
   const corsOriginsEnv = configService.get<string>('CORS_ORIGINS', '');
   const allowedOrigins = corsOriginsEnv
