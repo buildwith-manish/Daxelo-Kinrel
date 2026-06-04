@@ -127,3 +127,33 @@ Stage Summary:
 - Health endpoint: /api/health → responding (db: error until DATABASE_URL is configured)
 - Swagger UI: /docs → 200 OK
 - Pushed commits: cd8e781, d6b6354, a2e1418, eb15e9b, 51d06bb, 9b22b5d, 0e61097, 5eb725b
+
+---
+Task ID: 9
+Agent: main
+Task: Fix all Render log errors and warnings — zero-error build
+
+Work Log:
+- Analyzed user screenshots showing Render deploy logs
+- Identified 2 main error types:
+  1. `[ioredis] Unhandled error event: AggregateError [ECONNREFUSED]` — Redis spamming every second
+  2. `AllExceptionsFilter: HEAD / — 404 Cannot HEAD /` and `GET / — 404 Cannot GET /`
+- Fixed GraphService Redis: lazy-connect, retry limit of 3, disconnect on ECONNREFUSED, null-guard all redis calls
+- Fixed AllExceptionsFilter: log 404s as 'warn' not 'error', only alert on 5xx
+- Added root path handler via Express middleware in main.ts — returns JSON welcome at GET / and HEAD /
+- RootController approach failed because NestJS global prefix adds /api to all controllers
+- Express middleware correctly handles root path before NestJS routing
+
+Stage Summary:
+- Modified: server/src/modules/graph/graph.service.ts (resilient Redis)
+- Modified: server/src/common/filters/all-exceptions.filter.ts (quiet 404s)
+- Modified: server/src/main.ts (root path handler middleware)
+- Modified: server/src/health/health.controller.ts (removed RootController)
+- Modified: server/src/health/health.module.ts (removed RootController)
+- All endpoints tested and working:
+  - GET / → 200 with JSON welcome
+  - HEAD / → 200
+  - GET /api/health → 200 with health status
+  - GET /docs → 200 Swagger UI
+- Pushed commits: a3634ba, a88922a
+- Render deploy status: LIVE with zero error spam
