@@ -1,0 +1,9 @@
+{
+  "name": "daxelo-kinrel",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "render-build": "cd server && npm ci && npx prisma generate && npm run build",
+    "render-start": "cd server && node dist/main"
+  }
+}

@@ -54,3 +54,4 @@ local-*
 *.jks
 *.keystore
 Daxelo-Kinrel-App/android/key.properties
+.next/

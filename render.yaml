@@ -1,10 +1,9 @@
 # =============================================================================
 # Daxelo-Kinrel — Render Blueprint
 # =============================================================================
-# Native Node.js runtime — simpler and more reliable than Docker on Render.
-# Uses rootDir: server to point Render at the NestJS project directory.
-# Build command installs deps, generates Prisma client, and compiles TypeScript.
-# Start command runs the compiled NestJS app.
+# Native Node.js runtime with build script from repo root.
+# The render-build.sh handles cd into server/, npm ci, prisma generate, build.
+# Start command runs from server/ directory.
 # =============================================================================
 
 services:
@@ -13,9 +12,8 @@ services:
     runtime: node
     plan: free
     branch: main
-    rootDir: server
-    buildCommand: npm install && npx prisma generate && npm run build
-    startCommand: node dist/main
+    buildCommand: bash render-build.sh
+    startCommand: cd server && node dist/main
     envVars:
       - key: NODE_ENV
         value: production
