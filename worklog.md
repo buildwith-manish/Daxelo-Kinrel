@@ -68,3 +68,29 @@ Stage Summary:
 - Modified: Daxelo-Kinrel-App/lib/main.dart, Daxelo-Kinrel-App/lib/core/utils/error_boundary.dart
 - Pushed as commit 8ea6a4c to GitHub
 - Part 6 (final part) of the 5-star upgrade roadmap is complete
+
+---
+Task ID: 7
+Agent: main
+Task: Fix Render deployment failure — Dockerfile not found + Swagger path
+
+Work Log:
+- Analyzed user's screenshot: Render build failing with "failed to read dockerfile: open Dockerfile: no such file or directory"
+- Root cause: No Dockerfile at repo root and no render.yaml to tell Render where to find it
+- Created render.yaml with dockerfilePath: ./deploy/Dockerfile and dockerContext: ./server
+- Pushed as commit b6c4e27 — Render build succeeded, health endpoint returned 200
+- Discovered Swagger UI at /api/docs returning 404 due to conflict with global prefix 'api'
+- NestJS router with global prefix intercepts /api/* before SwaggerModule.setup handler
+- Fixed by changing SwaggerModule.setup('api/docs') to SwaggerModule.setup('docs')
+- Pushed as commit 4a56cb0 — Swagger fix awaiting Render Blueprint re-sync
+- Verified all business routes working correctly on Render:
+  - /api/health → 200 ✅
+  - POST /api/auth/login → 400 (validation working)
+  - /api/families → 401 (JWT guard working)
+  - /api/graph/:id → 401 (JWT guard working)
+
+Stage Summary:
+- Created: render.yaml (Render Blueprint)
+- Modified: server/src/main.ts (Swagger path fix)
+- Render deployment is LIVE and functional (health, auth, business routes all working)
+- Swagger UI will be at /docs after next deploy or manual Blueprint sync in Render dashboard
