@@ -40,17 +40,26 @@ export class TwoFactorVerificationService {
       });
 
       this.redis.on('error', (err) => {
-        this.logger.warn(`Redis connection error: ${err.message}. Falling back to in-memory store.`);
-        this.redis = null;
+        // Suppress ECONNREFUSED spam — log once, then disconnect
+        if (err.message?.includes('ECONNREFUSED') || err.message?.includes('AggregateError')) {
+          this.logger.verbose(`Redis unavailable for 2FA: ${err.message}. Using in-memory store.`);
+          if (this.redis) {
+            this.redis.disconnect();
+            this.redis = null;
+          }
+        } else {
+          this.logger.warn(`Redis connection error: ${err.message}. Falling back to in-memory store.`);
+          this.redis = null;
+        }
       });
 
       // Attempt connection lazily
       this.redis.connect().catch(() => {
-        this.logger.warn('Redis connection failed — using in-memory 2FA store (not production-safe)');
+        this.logger.verbose('Redis connection failed — using in-memory 2FA store');
         this.redis = null;
       });
     } else {
-      this.logger.warn('REDIS_URL not configured — using in-memory 2FA store (not production-safe)');
+      this.logger.verbose('REDIS_URL not configured — using in-memory 2FA store');
     }
   }
 

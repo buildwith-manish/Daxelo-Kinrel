@@ -60,7 +60,7 @@ export class FcmService implements OnModuleInit {
       ?.replace(/\\n/g, '\n'); // Handle escaped newlines in env var
 
     if (!projectId || !clientEmail || !privateKey) {
-      this.logger.warn(
+      this.logger.verbose(
         'Firebase credentials not configured (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY). ' +
           'FCM push notifications will be disabled. In-app notifications still work.',
       );

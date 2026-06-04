@@ -81,8 +81,8 @@ export class GraphService {
 
       this.redis.on('error', (err) => {
         // Suppress ECONNREFUSED spam — log once, then stop retrying
-        if (err.message?.includes('ECONNREFUSED')) {
-          this.logger.warn(`Redis unavailable for graph caching: ${err.message}`);
+        if (err.message?.includes('ECONNREFUSED') || err.message?.includes('AggregateError')) {
+          this.logger.verbose(`Redis unavailable for graph caching: ${err.message}`);
           if (this.redis) {
             this.redis.disconnect();
             this.redis = null;
@@ -91,11 +91,11 @@ export class GraphService {
       });
 
       this.redis.connect().catch(() => {
-        this.logger.warn('Redis connection failed — graph caching disabled');
+        this.logger.verbose('Redis connection failed — graph caching disabled');
         this.redis = null;
       });
     } else {
-      this.logger.log('REDIS_URL not configured — graph caching disabled');
+      this.logger.verbose('REDIS_URL not configured — graph caching disabled');
     }
   }
 

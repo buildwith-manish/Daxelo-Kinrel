@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
+import ws from 'ws';
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -93,7 +94,7 @@ export class SupabaseRealtimeService implements OnModuleInit, OnModuleDestroy {
     );
 
     if (!supabaseUrl || !serviceRoleKey) {
-      this.logger.warn(
+      this.logger.verbose(
         'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set — Supabase Realtime is disabled. ' +
           'Real-time updates will fall back to Socket.IO.',
       );
@@ -101,8 +102,11 @@ export class SupabaseRealtimeService implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
+      // Node.js < 22 does not have native WebSocket support.
+      // Provide the `ws` package as the transport so Supabase Realtime works on Node 20.
       this.supabase = createClient(supabaseUrl, serviceRoleKey, {
         realtime: {
+          transport: ws as any,
           params: {
             eventsPerSecond: 10,
           },
