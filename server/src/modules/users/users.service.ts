@@ -679,43 +679,27 @@ export class UsersService {
   // ── Get Blocked Users ───────────────────────────────────────────
 
   async getBlockedUsers(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { blockedUserIds: true },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    let blockedIds: string[] = [];
-    try {
-      blockedIds = JSON.parse(user.blockedUserIds || '[]');
-    } catch {
-      blockedIds = [];
-    }
-
-    if (blockedIds.length === 0) {
-      return { blocked: [] };
-    }
-
-    const blockedUsers = await this.prisma.user.findMany({
-      where: { id: { in: blockedIds } },
-      select: {
-        id: true,
-        name: true,
-        username: true,
-        avatarUrl: true,
-        photoThumb: true,
+    const blockedRecords = await this.prisma.blockedUser.findMany({
+      where: { blockerId: userId },
+      include: {
+        blocked: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            avatarUrl: true,
+            photoThumb: true,
+          },
+        },
       },
     });
 
-    const blocked = blockedUsers.map((u) => ({
-      id: u.id,
-      name: u.name || 'Unknown',
-      username: u.username,
-      avatarUrl: u.photoThumb || u.avatarUrl,
-      photoThumb: u.photoThumb,
+    const blocked = blockedRecords.map((record) => ({
+      id: record.blocked.id,
+      name: record.blocked.name || 'Unknown',
+      username: record.blocked.username,
+      avatarUrl: record.blocked.photoThumb || record.blocked.avatarUrl,
+      photoThumb: record.blocked.photoThumb,
     }));
 
     return { blocked };
@@ -724,31 +708,26 @@ export class UsersService {
   // ── Unblock a User ──────────────────────────────────────────────
 
   async unblockUser(userId: string, blockedUserId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { blockedUserIds: true },
+    const record = await this.prisma.blockedUser.findUnique({
+      where: {
+        blockerId_blockedId: {
+          blockerId: userId,
+          blockedId: blockedUserId,
+        },
+      },
     });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    let blockedIds: string[] = [];
-    try {
-      blockedIds = JSON.parse(user.blockedUserIds || '[]');
-    } catch {
-      blockedIds = [];
-    }
-
-    if (!blockedIds.includes(blockedUserId)) {
+    if (!record) {
       throw new NotFoundException('User is not in your blocked list');
     }
 
-    const updatedIds = blockedIds.filter((id) => id !== blockedUserId);
-
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { blockedUserIds: JSON.stringify(updatedIds) },
+    await this.prisma.blockedUser.delete({
+      where: {
+        blockerId_blockedId: {
+          blockerId: userId,
+          blockedId: blockedUserId,
+        },
+      },
     });
 
     return { success: true, message: 'User unblocked' };
@@ -769,31 +748,25 @@ export class UsersService {
       throw new NotFoundException('Target user not found');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { blockedUserIds: true },
+    // Check if already blocked (unique constraint on blockerId+blockedId)
+    const existing = await this.prisma.blockedUser.findUnique({
+      where: {
+        blockerId_blockedId: {
+          blockerId: userId,
+          blockedId: targetUserId,
+        },
+      },
     });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    let blockedIds: string[] = [];
-    try {
-      blockedIds = JSON.parse(user.blockedUserIds || '[]');
-    } catch {
-      blockedIds = [];
-    }
-
-    if (blockedIds.includes(targetUserId)) {
+    if (existing) {
       return { success: true, message: 'User already blocked' };
     }
 
-    blockedIds.push(targetUserId);
-
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { blockedUserIds: JSON.stringify(blockedIds) },
+    await this.prisma.blockedUser.create({
+      data: {
+        blockerId: userId,
+        blockedId: targetUserId,
+      },
     });
 
     return { success: true, message: 'User blocked' };
