@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -33,6 +34,7 @@ import 'core/utils/a11y_checker.dart';
 import 'core/utils/memory_monitor.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'core/widgets/offline_banner.dart';
+import 'core/widgets/global_error_widget.dart';
 import 'features/profile/data/profile_provider.dart';
 
 import 'core/services/rating_service.dart';
@@ -64,33 +66,49 @@ void main() async {
     debugPrint('⚠️ AppEnvironmentConfig.initialize failed: $e');
   }
 
-  // ── P4-F7: Global error widget — prevents red screen of death ──
+  // ── P6: Global error widget — branded, themed, prevents red screen of death ──
   ErrorWidget.builder = (FlutterErrorDetails details) {
     try {
       if (isCrashlyticsAvailable) {
         FirebaseCrashlytics.instance.recordFlutterError(details);
       }
     } catch (_) {}
-    return Material(
-      child: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.error_outline,
-                  size: 48,
-                  color: Colors.red.shade700),
-              const SizedBox(height: 16),
-              const Text('Something went wrong',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              const Text('Please restart the app',
-                  style: TextStyle(fontSize: 13, color: Colors.grey)),
-            ],
-          ),
-        ),
-      ),
+    return GlobalErrorWidget(
+      severity: GlobalErrorSeverity.crash,
+      errorDetails: details,
     );
+  };
+
+  // ── P6: Flutter framework error handler ─────────────────────────────
+  // Catches errors that don't reach the widget tree (e.g., image decoding,
+  // layout overflow in release mode). Reports to Crashlytics and logs.
+  final originalOnError = FlutterError.onError;
+  FlutterError.onError = (FlutterErrorDetails details) {
+    // Forward to Crashlytics
+    try {
+      if (isCrashlyticsAvailable) {
+        FirebaseCrashlytics.instance.recordFlutterError(details);
+      }
+    } catch (_) {}
+    // Call original handler (shows red bar in debug, etc.)
+    originalOnError?.call(details);
+    // In release mode, also log to console
+    if (kReleaseMode) {
+      debugPrint('🔴 FlutterError: ${details.exceptionAsString()}');
+    }
+  };
+
+  // ── P6: Platform-level error handler ────────────────────────────────
+  // Catches errors from async callbacks, isolates, and platform channels
+  // that are outside the Flutter framework's error zone.
+  PlatformDispatcher.instance.onError = (error, stack) {
+    try {
+      if (isCrashlyticsAvailable) {
+        FirebaseCrashlytics.instance.recordError(error, stack);
+      }
+    } catch (_) {}
+    debugPrint('🔴 PlatformDispatcher error: $error');
+    return true; // Handled — prevents default error printing
   };
 
   // ═══════════════════════════════════════════════════════════════════
