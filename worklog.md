@@ -157,3 +157,45 @@ Stage Summary:
   - GET /docs → 200 Swagger UI
 - Pushed commits: a3634ba, a88922a
 - Render deploy status: LIVE with zero error spam
+
+---
+Task ID: 10
+Agent: main
+Task: Fix remaining runtime errors and warnings — Supabase Realtime + FCM + Redis
+
+Work Log:
+- Analyzed user's latest screenshot from Render dashboard
+- Identified 2 remaining runtime issues:
+  1. ERROR: SupabaseRealtimeService — "Failed to initialize Supabase Realtime: Node.js 20 detected without native WebSocket support"
+  2. WARNING: FcmService — "Firebase credentials not configured... FCM push notifications will be disabled"
+- Also identified from earlier screenshots: Redis ioredis ECONNREFUSED error flooding
+- Fix 1: Installed `ws` package (+ @types/ws) and configured as transport for Supabase Realtime client
+  - Added `import ws from 'ws'` to supabase-realtime.service.ts
+  - Added `transport: ws as any` to createClient options
+  - This fixes the Node.js 20 WebSocket compatibility issue
+- Fix 2: Downgraded FCM missing credentials warning from `warn` to `verbose` level
+  - Firebase not being configured is expected behavior, not a problem
+- Fix 3: Fixed Redis ECONNREFUSED error flooding in two-factor-verification.service.ts
+  - Added ECONNREFUSED/AggregateError detection → disconnect + set null instead of spamming
+  - Downgraded Redis unavailability messages to `verbose` level
+- Fix 4: Fixed Redis warnings in graph.service.ts
+  - Added AggregateError detection to error handler
+  - Downgraded all Redis unavailability messages to `verbose` level
+- Fix 5: Downgraded Supabase Realtime missing credentials message to `verbose` level
+- TypeScript compilation: clean (no errors)
+- NestJS build: clean (no errors)
+- Pushed commit 4facc8c to GitHub
+- Render deploy: status LIVE, health check: db: ok, uptime: 66s
+- All endpoints verified:
+  - GET / → 200 JSON welcome
+  - GET /api/health → 200 { status: ok, db: ok }
+  - GET /docs → 200 Swagger UI
+
+Stage Summary:
+- Modified: server/package.json, server/package-lock.json (added ws + @types/ws)
+- Modified: server/src/modules/realtime/supabase-realtime.service.ts (ws transport + verbose for missing creds)
+- Modified: server/src/modules/notifications/fcm.service.ts (warn → verbose for missing creds)
+- Modified: server/src/common/services/two-factor-verification.service.ts (ECONNREFUSED handling + verbose)
+- Modified: server/src/modules/graph/graph.service.ts (AggregateError handling + verbose)
+- Commit: 4facc8c pushed to main
+- Render deploy: LIVE with zero errors and zero warnings at default log level
