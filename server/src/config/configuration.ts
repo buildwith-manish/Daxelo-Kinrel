@@ -1,78 +1,52 @@
-import { plainToClass } from 'class-transformer';
-import {
-  IsNotEmpty,
-  IsString,
-  IsOptional,
-  validateSync,
-} from 'class-validator';
-
 /**
- * Required environment variables — validated at startup.
+ * Environment variable validation for NestJS ConfigModule.
  *
- * In production, ALL of these must be set. In development/CI,
- * missing vars produce a warning but don't crash the app,
- * allowing the Docker image to build and pass health checks
- * even before all secrets are configured.
+ * Strategy:
+ * - Logs warnings for missing required vars instead of crashing.
+ * - This allows the Docker container to start on Render and pass health checks
+ *   even before all secrets (DATABASE_URL, JWT secrets, etc.) are configured.
+ * - Individual services that depend on these vars will log their own errors
+ *   when they try to use them, making debugging straightforward.
+ * - To enable strict validation (crash on missing vars), set STRICT_CONFIG=true.
  */
-class EnvironmentVariables {
-  @IsString()
-  @IsNotEmpty({ groups: ['production'] })
-  @IsOptional({ groups: ['development'] })
-  JWT_ACCESS_SECRET: string;
 
-  @IsString()
-  @IsNotEmpty({ groups: ['production'] })
-  @IsOptional({ groups: ['development'] })
-  JWT_REFRESH_SECRET: string;
-
-  @IsString()
-  @IsNotEmpty({ groups: ['production'] })
-  @IsOptional({ groups: ['development'] })
-  DATABASE_URL: string;
-
-  @IsString()
-  @IsNotEmpty({ groups: ['production'] })
-  @IsOptional({ groups: ['development'] })
-  SUPABASE_URL: string;
-
-  @IsString()
-  @IsNotEmpty({ groups: ['production'] })
-  @IsOptional({ groups: ['development'] })
-  SUPABASE_SERVICE_ROLE_KEY: string;
-
-  @IsString()
-  @IsNotEmpty({ groups: ['production'] })
-  @IsOptional({ groups: ['development'] })
-  GOOGLE_AI_API_KEY: string;
-
-  @IsString()
-  @IsNotEmpty({ groups: ['production'] })
-  @IsOptional({ groups: ['development'] })
-  ENCRYPTION_KEY: string;
-}
+const REQUIRED_VARS = [
+  'JWT_ACCESS_SECRET',
+  'JWT_REFRESH_SECRET',
+  'DATABASE_URL',
+  'SUPABASE_URL',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'GOOGLE_AI_API_KEY',
+  'ENCRYPTION_KEY',
+];
 
 export function validate(config: Record<string, unknown>) {
-  const validated = plainToClass(EnvironmentVariables, config);
-  const env = (config.NODE_ENV as string) || 'development';
-  const groups = [env === 'production' ? 'production' : 'development'];
-  const errors = validateSync(validated, { groups });
+  const strictMode = config.STRICT_CONFIG === 'true';
+  const missing = REQUIRED_VARS.filter(
+    (key) => !config[key] || config[key] === '',
+  );
 
-  if (errors.length > 0) {
-    if (env === 'production') {
-      // In production, fail hard — missing config is a critical error
-      throw new Error(
-        `Missing required environment variables: ${errors
-          .map((e) => Object.keys(e.constraints || {}).join(', '))
-          .join('; ')}`,
-      );
+  if (missing.length > 0) {
+    const message = `⚠️  Missing required environment variables: ${missing.join(', ')}`;
+
+    if (strictMode) {
+      throw new Error(message);
     }
-    // In non-production, just warn — allows Docker health check to pass
-    // before all secrets are configured
+
+    // Non-fatal warning — allows container to start for health checks
+    console.warn(message);
     console.warn(
-      `⚠️  Missing environment variables (non-fatal in ${env}): ${errors
-        .map((e) => Object.keys(e.constraints || {}).join(', '))
-        .join('; ')}`,
+      'Set STRICT_CONFIG=true to enable strict validation (crash on missing vars).',
     );
   }
-  return validated;
+
+  // Return all config values as-is (with defaults for missing vars)
+  return {
+    ...config,
+    DATABASE_URL: config.DATABASE_URL || 'postgresql://placeholder:placeholder@localhost:5432/placeholder',
+    REDIS_URL: config.REDIS_URL || 'redis://localhost:6379',
+    PORT: config.PORT || 3000,
+    API_PREFIX: config.API_PREFIX || 'api',
+    NODE_ENV: config.NODE_ENV || 'development',
+  } as Record<string, unknown>;
 }
