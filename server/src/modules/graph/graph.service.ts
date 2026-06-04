@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { getInverseKey } from '../relationships/relationships.service';
+import Redis from 'ioredis';
 
 export interface TreeNode {
   person: {
@@ -53,7 +55,16 @@ const SPOUSE_KEYS = new Set(['husband', 'wife']);
 
 @Injectable()
 export class GraphService {
-  constructor(private prisma: PrismaService) {}
+  private readonly redis: Redis;
+  private readonly logger = new Logger(GraphService.name);
+  private readonly CACHE_TTL = 60; // 60 seconds
+
+  constructor(
+    private prisma: PrismaService,
+    private config: ConfigService,
+  ) {
+    this.redis = new Redis(this.config.get<string>('REDIS_URL', 'redis://localhost:6379'));
+  }
 
   async getGraph(
     userId: string,
@@ -402,6 +413,17 @@ export class GraphService {
   }
 
   async getFlatGraph(familyId: string): Promise<FlatGraphResult> {
+    // ── Check Redis cache first ──────────────────────────────────────
+    const cacheKey = `graph:flat:${familyId}`;
+    try {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (err) {
+      this.logger.warn(`Redis cache read failed for ${cacheKey}`, err);
+    }
+
     // Select only fields used by formatPerson — skips large photo fields (photoCard, photoFull)
     const [persons, relationships] = await Promise.all([
       this.prisma.person.findMany({
@@ -450,7 +472,7 @@ export class GraphService {
       (r) => activePersonIds.has(r.fromPersonId) && activePersonIds.has(r.toPersonId),
     );
 
-    return {
+    const result = {
       persons: persons.map((p) => this.formatPerson(p)),
       relationships: validRelationships.map((r) => ({
         id: r.id,
@@ -463,6 +485,15 @@ export class GraphService {
         label: r.label,
       })),
     };
+
+    // ── Store in Redis cache ─────────────────────────────────────────
+    try {
+      await this.redis.setex(cacheKey, this.CACHE_TTL, JSON.stringify(result));
+    } catch (err) {
+      this.logger.warn(`Redis cache write failed for ${cacheKey}`, err);
+    }
+
+    return result;
   }
 
   private async requireFamilyMember(userId: string, familyId: string) {

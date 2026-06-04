@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -119,6 +120,16 @@ async function bootstrap() {
   // WebSocket connections close, and in-flight requests complete
   // before the process exits. Prevents data corruption on restarts.
   app.enableShutdownHooks();
+
+  // ── Swagger / OpenAPI documentation ────────────────────────────────
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Daxelo Kinrel API')
+    .setDescription('Indian Family Relationship Intelligence API')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document);
 
   const port = configService.get<number>('PORT', 3000);
   await app.listen(port);
