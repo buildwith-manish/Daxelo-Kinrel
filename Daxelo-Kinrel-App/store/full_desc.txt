@@ -1,0 +1,42 @@
+Daxelo Kinrel — Indian Family Relationship Intelligence
+
+Build your family tree and discover the exact relationship name in 14 Indian languages. Whether it's your Chacha, Mama, Bua, or Fufa — Kinrel knows them all.
+
+🌳 BUILD YOUR FAMILY TREE
+Create your family tree in minutes. Add family members, define relationships, and watch your family graph grow. Invite family members to collaborate and build together.
+
+🗣️ KINSHIP IN 14 LANGUAGES
+Know the exact relationship name in Hindi, Tamil, Telugu, Bengali, Marathi, Gujarati, Punjabi, Malayalam, Kannada, Odia, Assamese, Sindhi, Urdu, and Sanskrit. Never call someone just "uncle" again.
+
+📊 INTERACTIVE FAMILY GRAPH
+See your entire family as a beautiful, interactive graph. Zoom in, explore connections, and discover relationships you never knew existed. Supports families with 500+ members.
+
+🔔 BIRTHDAY REMINDERS
+Never forget a family birthday again. Get timely reminders for upcoming birthdays in your family.
+
+📱 OFFLINE SUPPORT
+Your family data is available even without internet. Browse your family tree, check relationships, and add members offline. Changes sync automatically when you're back online.
+
+🔒 SECURE AND PRIVATE
+Your family data is encrypted and secure. We never sell your data to third parties. You can request complete data deletion at any time.
+
+🏠 REAL-TIME UPDATES
+See changes made by family members in real-time. Add members, update relationships, and share photos — everyone stays in sync.
+
+Key features:
+• Interactive family graph with 500+ member support
+• Kinship terms in 14 Indian languages
+• Offline-first architecture
+• Birthday reminders with notifications
+• Real-time collaboration via WebSocket
+• Secure data with end-to-end encryption
+• Share family tree with deep links
+• AI-powered relationship path finder
+• Festival greeting cards
+• Family events and celebrations
+• Voice search in Indian languages
+• Cross-cultural kinship comparison
+
+Indian family tree app | Kinship calculator | Family relationship names Hindi Tamil | Gotra family app | Indian family graph | Multilingual kinship terms | Family tree builder India
+
+Keywords: Indian family tree app, kinship calculator, family relationship names Hindi, Tamil family tree, gotra family app, family graph, multilingual kinship, Indian relationships, family tree builder, relationship finder

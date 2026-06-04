@@ -1,0 +1,56 @@
+# ── OS Files ──
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDE ──
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── Logs ──
+*.log
+logs/
+
+# ── Dependencies ──
+node_modules/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+
+# ── Build Outputs ──
+build/
+dist/
+coverage/
+
+# ── Environment ──
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ── Temporary Files ──
+*.tmp
+*.bak
+*.pid
+*.seed
+*.pid.lock
+
+# ── Uploads / Local Data ──
+upload/
+local-*
+
+# ── Flutter ──
+*.g.dart
+*.freezed.dart
+*.mocks.dart
+-e 
+# ── Android Signing ──
+*.jks
+*.keystore
+Daxelo-Kinrel-App/android/key.properties

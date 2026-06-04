@@ -1,0 +1,109 @@
+{
+  "@@locale": "hi",
+
+  "appName": "Kinrel",
+
+  "appTagline": "AI के साथ अपने परिवार का मानचित्र बनाएं",
+
+  "homeTitle": "होम",
+
+  "kinshipTitle": "रिश्ते",
+
+  "graphTitle": "ग्राफ",
+
+  "alertsTitle": "अलर्ट",
+
+  "profileTitle": "मैं",
+
+  "notificationsTitle": "सूचनाएं",
+
+  "eventsTitle": "कार्यक्रम और उत्सव",
+
+  "memoriesTitle": "यादें और समयरेखा",
+
+  "chatTitle": "पारिवारिक चैट",
+
+  "documentsTitle": "दस्तावेज़ वॉल्ट",
+
+  "achievementsTitle": "उपलब्धियां",
+
+  "shareTitle": "शेयर और आमंत्रण",
+
+  "settingsTitle": "सेटिंग्स",
+
+  "signInTitle": "साइन इन करें",
+
+  "signUpTitle": "साइन अप करें",
+
+  "onboardingTitle1": "आपका परिवार, आपकी कहानी",
+
+  "onboardingBody1": "Kinrel आपके परिवार के हर रिश्ते को मैप करता है — आपके दादा-दादी से लेकर आपके पोते-पोतियों तक, उस भाषा में जिसमें आपने पले-बढ़े हैं।",
+
+  "onboardingTitle2": "वे नाम जो घर जैसा लगें",
+
+  "onboardingBody2": "सिर्फ 'अंकल' और 'आंटी' नहीं — Kinrel आपके चाचा, मामा, फूफा और ताऊजी के बीच का अंतर जानता है।",
+
+  "onboardingTitle3": "पूरी तस्वीर देखें",
+
+  "onboardingBody3": "आपका पूरा परिवार एक सुंदर, इंटरैक्टिव ग्राफ के रूप में। ज़ूम इन करें, कनेक्शन एक्सप्लोर करें, वो रिश्ते खोजें जिनके बारे में आपको पता ही नहीं था।",
+
+  "onboardingTitle4": "कोई भी रिश्ता तुरंत खोजें",
+
+  "onboardingBody4": "परिवार के किन्हीं दो सदस्यों को चुनें — Kinrel का AI आपकी भाषा में सटीक रिश्ते का नाम बताएगा।",
+
+  "addMember": "सदस्य जोड़ें",
+
+  "shareFamily": "परिवार शेयर करें",
+
+  "findPath": "रास्ता खोजें",
+
+  "viewFullGraph": "पूरा ग्राफ देखें",
+
+  "recentActivity": "हाल की गतिविधि",
+
+  "familyInsights": "परिवार एक नज़र में",
+
+  "noNotifications": "सब पक्का! कोई नई सूचना नहीं।",
+
+  "noEvents": "अभी कोई कार्यक्रम नहीं। आपके परिवार के जन्मदिन और सालगिरह यहां स्वचालित रूप से दिखेंगे।",
+
+  "noMemories": "अभी कोई याद नहीं। अपनी पहली पारिवारिक याद जोड़कर शुरू करें।",
+
+  "noDocuments": "अभी कोई दस्तावेज़ नहीं। अपने परिवार के महत्वपूर्ण दस्तावेज़ सुरक्षित रूप से संग्रहित करें।",
+
+  "createFamily": "परिवार बनाएं",
+
+  "joinFamily": "परिवार में शामिल हों",
+
+  "searchHint": "रिश्ते खोजें",
+
+  "birthdayTomorrow": "{name} का जन्मदिन कल है!",
+
+  "anniversarySoon": "{name} और {name2} की सालगिरह {days} दिन में है!",
+
+  "sendWishes": "शुभकामनाएं भेजें?",
+
+  "streakDays": "{count} दिन का सिलसिला",
+
+  "profileCompletion": "{percent}% पूर्ण",
+
+  "treeCompleteness": "आपका पेड़ {percent}% पूरा है",
+
+  "encryptNotice": "AES-256 से एन्क्रिप्टेड",
+
+  "generatedByKinrel": "Kinrel द्वारा बनाया गया",
+
+  "madeByDaxelo": "Daxelo द्वारा प्रेम से बनाया गया",
+
+  "welcomeBack": "वापस स्वागत है",
+
+  "goodMorning": "सुप्रभात",
+
+  "goodAfternoon": "शुभ दोपहर",
+
+  "goodEvening": "शुभ संध्या",
+
+  "goodNight": "शुभ रात्रि",
+
+  "languageName": "हिन्दी"
+}

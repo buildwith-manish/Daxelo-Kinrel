@@ -1,0 +1,109 @@
+{
+  "@@locale": "sd",
+
+  "appName": "Kinrel",
+
+  "appTagline": "AI سان پنهنجي خاندان جو نقشو ٺاهيو",
+
+  "homeTitle": "هوم",
+
+  "kinshipTitle": "رشتا",
+
+  "graphTitle": "گراف",
+
+  "alertsTitle": "الرٽس",
+
+  "profileTitle": "مان",
+
+  "notificationsTitle": "اطلاعون",
+
+  "eventsTitle": "تقريبن ۽ تہوار",
+
+  "memoriesTitle": "يادون ۽ وقت لڪير",
+
+  "chatTitle": "خانداني چيٽ",
+
+  "documentsTitle": "دستاويز والٽ",
+
+  "achievementsTitle": "ڪاميابيون",
+
+  "shareTitle": "شيئر ۽ دعوت",
+
+  "settingsTitle": "ترتيبون",
+
+  "signInTitle": "سائن ان",
+
+  "signUpTitle": "سائن اپ",
+
+  "onboardingTitle1": "توهان جو خاندان، توهان جي ڪهاڻي",
+
+  "onboardingBody1": "Kinrel توهان جي خاندان جي هر رشتي کي نقشي تي آڻي ٿو — توهان جي ڏاڏي ڏاڏي کان توهان جي پوٽن پوٽين تائين، ان ٻولي ۾ جنهن ۾ توهان وڏا ٿيا۔",
+
+  "onboardingTitle2": "نالا جيڪي گهر جهڙا لڳن",
+
+  "onboardingBody2": "صرف 'انكل' ۽ 'آنٽي' ناهي — Kinrel توهان جي چاچي، مامي، پڦي ۽ تائي جي وچ ۾ فرق ڄاڻي ٿو۔",
+
+  "onboardingTitle3": "وڏي تصوير ڏسو",
+
+  "onboardingBody3": "توهان جو پورو خاندان هڪ خوبصورت، انٽرئڪٽو گراف جي طور تي۔ زوم ان ڪريو، رابطا ڳوليو، اهڙا رشتا دريافت ڪريو جنهن بابت توهان کي خبر ناهي۔",
+
+  "onboardingTitle4": "ڪو به رشتو فوري ڳوليو",
+
+  "onboardingBody4": "خاندان جي ڪنهن به ٻن ميمبرن جو چونڊ ڪريو — Kinrel جو AI توهان جي ٻولي ۾ صحيح رشتو جو نالو ڳڻي ٿو۔",
+
+  "addMember": "ميمبر شامل ڪريو",
+
+  "shareFamily": "خاندان شيئر ڪريو",
+
+  "findPath": "رستو ڳوليو",
+
+  "viewFullGraph": "مڪمل گراف ڏسو",
+
+  "recentActivity": "تازہ سرگرمي",
+
+  "familyInsights": "خاندان هڪ نظر ۾",
+
+  "noNotifications": "سڀ ٺيڪ! ڪا نئي اطلاع ناهي۔",
+
+  "noEvents": "اڃا تائين ڪا تقريب ناهي۔ توهان جي خاندان جا سالگرهون ۽ سالگرهون هتي خودڪار طور تي نظر اينديون۔",
+
+  "noMemories": "اڃا تائين ڪا ياد ناهي۔ پنهنجي پهرين خانداني ياد شامل ڪري شروع ڪريو۔",
+
+  "noDocuments": "اڃا تائين ڪو دستاويز ناهي۔ پنهنجي خاندان جي اهم دستاويزن کي محفوظ طريقي سان محفوظ ڪريو۔",
+
+  "createFamily": "خاندان ٺاهيو",
+
+  "joinFamily": "خاندان ۾ شامل ٿيو",
+
+  "searchHint": "رشتا ڳوليو",
+
+  "birthdayTomorrow": "{name} جي سالگرهه سڀاڻي آهي!",
+
+  "anniversarySoon": "{name} ۽ {name2} جي سالگرهه {days} ڏينهن ۾!",
+
+  "sendWishes": "مبارڪباد موڪليو؟",
+
+  "streakDays": "{count} ڏينهن جو سلسلو",
+
+  "profileCompletion": "{percent}% مڪمل",
+
+  "treeCompleteness": "توهان جو وڻ {percent}% مڪمل آهي",
+
+  "encryptNotice": "AES-256 سان انڪرپٽڊ",
+
+  "generatedByKinrel": "Kinrel پاران تيار ڪيل",
+
+  "madeByDaxelo": "Daxelo جي محبت سان ٺاهيل",
+
+  "welcomeBack": "واهه واپس",
+
+  "goodMorning": "صبح بخير",
+
+  "goodAfternoon": "ڊوپھر بخير",
+
+  "goodEvening": "شام بخير",
+
+  "goodNight": "رات بخير",
+
+  "languageName": "सिन्धी"
+}

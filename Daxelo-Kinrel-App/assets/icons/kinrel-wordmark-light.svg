@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="40" viewBox="0 0 180 40" fill="none">
+  <title>Kinrel Wordmark — Light</title>
+  <desc>KINREL text wordmark for light backgrounds. Dark text, Outfit 800 weight, 0.14em letter-spacing. Note: convert text to paths for final production using Inkscape.</desc>
+
+  <text x="0" y="30"
+    font-family="'Outfit', 'DM Sans', system-ui, sans-serif"
+    font-size="32" font-weight="800"
+    letter-spacing="5"
+    fill="#1A0A00">KINREL</text>
+</svg>

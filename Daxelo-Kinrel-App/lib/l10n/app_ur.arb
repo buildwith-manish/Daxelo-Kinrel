@@ -1,0 +1,109 @@
+{
+  "@@locale": "ur",
+
+  "appName": "Kinrel",
+
+  "appTagline": "AI کے ساتھ اپنے خاندان کا نقشہ بنائیں",
+
+  "homeTitle": "ہوم",
+
+  "kinshipTitle": "رشتے",
+
+  "graphTitle": "گراف",
+
+  "alertsTitle": "الرٹس",
+
+  "profileTitle": "میں",
+
+  "notificationsTitle": "اطلاعات",
+
+  "eventsTitle": "تقریبات اور تہوار",
+
+  "memoriesTitle": "یادیں اور ٹائم لائن",
+
+  "chatTitle": "خاندانی چیٹ",
+
+  "documentsTitle": "دستاویز والٹ",
+
+  "achievementsTitle": "کامیابیاں",
+
+  "shareTitle": "شیئر اور دعوت",
+
+  "settingsTitle": "ترتیبات",
+
+  "signInTitle": "سائن ان",
+
+  "signUpTitle": "سائن اپ",
+
+  "onboardingTitle1": "آپ کا خاندان، آپ کی کہانی",
+
+  "onboardingBody1": "Kinrel آپ کے خاندان کے ہر رشتے کو نقشے پر لاتا ہے — آپ کے دادا دادی سے آپ کے پوتے پوتیوں تک، اس زبان میں جس میں آپ پلے بڑھے۔",
+
+  "onboardingTitle2": "نام جو گھر جیسے لگیں",
+
+  "onboardingBody2": "صرف 'انکل' اور 'آنٹی' نہیں — Kinrel آپ کے چچا، ماموں، پھپھا اور تایا کے درمیان فرق جانتا ہے۔",
+
+  "onboardingTitle3": "بڑی تصویر دیکھیں",
+
+  "onboardingBody3": "آپ کا پورا خاندان ایک خوبصورت، انٹرایکٹو گراف کی طرح۔ زوم ان کریں، رابطوں کی تلاش کریں، ایسے رشتے دریافت کریں جن کے بارے میں آپ نہیں جانتے تھے۔",
+
+  "onboardingTitle4": "کوئی بھی رشتہ فوراً تلاش کریں",
+
+  "onboardingBody4": "خاندان کے کسی بھی دو اراکین کا انتخاب کریں — Kinrel کا AI آپ کی زبان میں درست رشتے کا نام بتائے گا۔",
+
+  "addMember": "رکن شامل کریں",
+
+  "shareFamily": "خاندان شیئر کریں",
+
+  "findPath": "راستہ تلاش کریں",
+
+  "viewFullGraph": "مکمل گراف دیکھیں",
+
+  "recentActivity": "حالیہ سرگرمی",
+
+  "familyInsights": "خاندان ایک نظر میں",
+
+  "noNotifications": "سب ٹھیک ہے! کوئی نئی اطلاع نہیں۔",
+
+  "noEvents": "ابھی تک کوئی تقریب نہیں۔ آپ کے خاندان کی سالگرہیں اور سالگرہیں یہاں خود بخود نظر آئیں گی۔",
+
+  "noMemories": "ابھی تک کوئی یاد نہیں۔ اپنی پہلی خاندانی یاد شامل کر کے شروع کریں۔",
+
+  "noDocuments": "ابھی تک کوئی دستاویز نہیں۔ اپنے خاندان کی اہم دستاویزات محفوظ طریقے سے محفوظ کریں۔",
+
+  "createFamily": "خاندان بنائیں",
+
+  "joinFamily": "خاندان میں شامل ہوں",
+
+  "searchHint": "رشتے تلاش کریں",
+
+  "birthdayTomorrow": "{name} کی سالگرہ کل ہے!",
+
+  "anniversarySoon": "{name} اور {name2} کی سالگرہ {days} دنوں میں!",
+
+  "sendWishes": "مبارکباد بھیجیں؟",
+
+  "streakDays": "{count} دن کا سلسلہ",
+
+  "profileCompletion": "{percent}% مکمل",
+
+  "treeCompleteness": "آپ کا درخت {percent}% مکمل ہے",
+
+  "encryptNotice": "AES-256 سے انکرپٹڈ",
+
+  "generatedByKinrel": "Kinrel کے ذریعے تیار کردہ",
+
+  "madeByDaxelo": "Daxelo کی محبت سے بنایا گیا",
+
+  "welcomeBack": "خوش آمدید",
+
+  "goodMorning": "صبح بخیر",
+
+  "goodAfternoon": "دوپہر بخیر",
+
+  "goodEvening": "شام بخیر",
+
+  "goodNight": "رات بخیر",
+
+  "languageName": "اردو"
+}

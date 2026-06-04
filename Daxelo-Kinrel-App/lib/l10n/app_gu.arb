@@ -1,0 +1,109 @@
+{
+  "@@locale": "gu",
+
+  "appName": "Kinrel",
+
+  "appTagline": "AI સાથે તમારા પરિવારનો નકશો બનાવો",
+
+  "homeTitle": "હોમ",
+
+  "kinshipTitle": "સંબંધો",
+
+  "graphTitle": "ગ્રાફ",
+
+  "alertsTitle": "અલર્ટ",
+
+  "profileTitle": "હું",
+
+  "notificationsTitle": "સૂચનાઓ",
+
+  "eventsTitle": "કાર્યક્રમો અને ઉત્સવો",
+
+  "memoriesTitle": "યાદો અને સમયરેખા",
+
+  "chatTitle": "પારિવારિક ચેટ",
+
+  "documentsTitle": "દસ્તાવેજ વોલ્ટ",
+
+  "achievementsTitle": "સિદ્ધિઓ",
+
+  "shareTitle": "શેર અને આમંત્રણ",
+
+  "settingsTitle": "સેટિંગ્સ",
+
+  "signInTitle": "સાઇન ઇન",
+
+  "signUpTitle": "સાઇન અપ",
+
+  "onboardingTitle1": "તમારો પરિવાર, તમારી વાર્તા",
+
+  "onboardingBody1": "Kinrel તમારા પરિવારના દરેક સંબંધને મેપ કરે છે — તમારા દાદા-દાદીથી લઈને તમારા પૌત્રો સુધી, જે ભાષામાં તમે મોટા થયા।",
+
+  "onboardingTitle2": "નામો જે ઘર જેવા લાગે",
+
+  "onboardingBody2": "ફક્ત 'અંકલ' અને 'આન્ટી' નહીં — Kinrel તમારા કાકા, મામા, ફૂઆ અને તાઉજી વચ્ચેનો તફાવત જાણે છે।",
+
+  "onboardingTitle3": "મોટું ચિત્ર જુઓ",
+
+  "onboardingBody3": "તમારો આખો પરિવાર એક સુંદર, ઇન્ટરેક્ટિવ ગ્રાફ તરીકે. ઝૂમ ઇન કરો, જોડાણો શોધો, એવા સંબંધો શોધો જે તમને ખબર નહોતી।",
+
+  "onboardingTitle4": "કોઈપણ સંબંધ તાત્કાલિક શોધો",
+
+  "onboardingBody4": "પરિવારના કોઈપણ બે સભ્યો પસંદ કરો — Kinrel નું AI તમારી ભાષામાં ચોક્કસ સંબંધનું નામ ગણશે।",
+
+  "addMember": "સભ્ય ઉમેરો",
+
+  "shareFamily": "પરિવાર શેર કરો",
+
+  "findPath": "માર્ગ શોધો",
+
+  "viewFullGraph": "સંપૂર્ણ ગ્રાફ જુઓ",
+
+  "recentActivity": "તાજેતરની પ્રવૃત્તિ",
+
+  "familyInsights": "પરિવાર એક નજરમાં",
+
+  "noNotifications": "બધું બરાબર! કોઈ નવી સૂચના નથી।",
+
+  "noEvents": "હજુ કોઈ કાર્યક્રમ નથી. તમારા પરિવારના જન્મદિવસ અને વર્ષગાંઠ અહીં આપમેળે દેખાશે।",
+
+  "noMemories": "હજુ કોઈ યાદ નથી. તમારી પ્રથમ પારિવારિક યાદ ઉમેરીને શરૂ કરો।",
+
+  "noDocuments": "હજુ કોઈ દસ્તાવેજ નથી. તમારા પરિવારના મહત્વપૂર્ણ દસ્તાવેજ સુરક્ષિત રીતે સંગ્રહિત કરો।",
+
+  "createFamily": "પરિવાર બનાવો",
+
+  "joinFamily": "પરિવારમાં જોડાઓ",
+
+  "searchHint": "સંબંધો શોધો",
+
+  "birthdayTomorrow": "{name} નો જન્મદિવસ કાલે!",
+
+  "anniversarySoon": "{name} અને {name2} ની વર્ષગાંઠ {days} દિવસમાં!",
+
+  "sendWishes": "શુભેચ્છા મોકલશો?",
+
+  "streakDays": "{count} દિવસની સળંગતા",
+
+  "profileCompletion": "{percent}% પૂર્ણ",
+
+  "treeCompleteness": "તમારું વૃક્ષ {percent}% પૂર્ણ છે",
+
+  "encryptNotice": "AES-256 થી એન્ક્રિપ્ટેડ",
+
+  "generatedByKinrel": "Kinrel દ્વારા બનાવેલ",
+
+  "madeByDaxelo": "Daxelo દ્વારા પ્રેમથી બનાવેલ",
+
+  "welcomeBack": "ફરીથી સ્વાગત",
+
+  "goodMorning": "સુપ્રભાત",
+
+  "goodAfternoon": "શુભ બપોર",
+
+  "goodEvening": "શુભ સાંજ",
+
+  "goodNight": "શુભ રાત્રિ",
+
+  "languageName": "ગુજરાતી"
+}
