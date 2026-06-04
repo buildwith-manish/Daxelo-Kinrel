@@ -1,9 +1,7 @@
 # =============================================================================
 # Daxelo-Kinrel — Render Blueprint
 # =============================================================================
-# Native Node.js runtime with build script from repo root.
-# The render-build.sh handles cd into server/, npm ci, prisma generate, build.
-# Start command runs from server/ directory.
+# Native Node.js runtime — build command handles everything from repo root.
 # =============================================================================
 
 services:
@@ -12,7 +10,7 @@ services:
     runtime: node
     plan: free
     branch: main
-    buildCommand: bash render-build.sh
+    buildCommand: cd server && npm install --legacy-peer-deps && npx prisma generate && npm run build
     startCommand: cd server && node dist/main
     envVars:
       - key: NODE_ENV

@@ -1,0 +1,12 @@
+{
+  "name": "daxelo-kinrel",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "cd server && npm install --legacy-peer-deps && npx prisma generate && npm run build",
+    "start": "cd server && node dist/main"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
