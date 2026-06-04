@@ -122,6 +122,12 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   // ── Swagger / OpenAPI documentation ────────────────────────────────
+  // P6-FIX: Use 'docs' path (NOT 'api/docs') because app.setGlobalPrefix('api')
+  // already prepends /api to controller routes. SwaggerModule.setup registers
+  // its route directly on Express — it does NOT go through NestJS's prefix system.
+  // With 'docs', the Swagger UI is at /docs and the JSON at /docs-json.
+  // Using 'api/docs' would try to register at /api/docs but the NestJS
+  // router with global prefix 'api' intercepts /api/* first and returns 404.
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Daxelo Kinrel API')
     .setDescription('Indian Family Relationship Intelligence API')
@@ -129,7 +135,7 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup('docs', app, document);
 
   const port = configService.get<number>('PORT', 3000);
   await app.listen(port);
@@ -139,6 +145,10 @@ async function bootstrap() {
   );
   loggerService.log(
     `📡 API routes: /${apiPrefix}/* and /${apiPrefix}/v1/* for Flutter compatibility`,
+    'Bootstrap',
+  );
+  loggerService.log(
+    `📖 Swagger docs: http://localhost:${port}/docs`,
     'Bootstrap',
   );
 
