@@ -403,7 +403,7 @@ final archivedFamiliesProvider =
     final families = await client
         .from(_kFamilyTable)
         .select('*')
-        .in('id', familyIds)
+        .inFilter('id', familyIds)
         .not('deletedAt', 'is', null);
 
     final now = DateTime.now();
