@@ -373,3 +373,39 @@ Stage Summary:
 - 7 files changed, 72 insertions, 129 deletions
 - Commit: ff29528 pushed to main
 - All F-01 to F-12 items addressed
+---
+Task ID: 2
+Agent: Main Agent
+Task: Part 2 — Backend Fixes B-01 to B-19 (NestJS/Supabase)
+
+Work Log:
+- Read DAXELO_KINREL_10_10_AUDIT.md to understand all 19 backend fixes
+- Read all key backend files: ai-chat.service.ts, auth.service.ts, auth.controller.ts, graph.service.ts, kinship.service.ts, main.ts, app.module.ts, prisma/schema.prisma, package.json
+- B-01: Replaced in-memory Map sessions with Redis-backed async methods in ai-chat.service.ts; added @InjectRedis, RedisModule import
+- B-02: Replaced .env.example with complete 25+ variable reference
+- B-03: Added MAX_GRAPH_NODES limit (500) and DEFAULT_GRAPH_DEPTH/MAX_GRAPH_DEPTH from constants.ts to graph.service.ts
+- B-04: Fixed 2FA race condition — login() now returns challengeToken instead of real tokens when 2FA enabled; loginVerify2FA() generates real tokens after 2FA verification
+- B-05: Replaced z-ai-web-dev-sdk with OpenAI client pointing to DeepSeek API (baseURL: https://api.deepseek.com)
+- B-06: Added @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT) to cleanupExpiredTokens() in auth.service.ts
+- B-07: Added @Throttle decorator to 2fa/verify route in auth.controller.ts
+- B-08: Replaced predictable generateSessionId() with crypto.randomBytes(16).toString('hex')
+- B-09: Created shuffle.util.ts with Fisher-Yates algorithm; replaced biased .sort(() => Math.random() - 0.5) in ai-chat.service.ts and kinship.service.ts
+- B-10: Updated README.md: "14 Indian languages" → "7 Indian languages"
+- B-11: Extracted duplicated password verification logic into verifyPasswordWithLegacyUpgrade() private method in auth.service.ts
+- B-12: Created constants.ts with all magic numbers (BCRYPT_ROUNDS, TOTP_WINDOW, MAX_GRAPH_NODES, SESSION_TTL_SECONDS, etc.)
+- B-13: Created ResponseEnvelopeInterceptor; registered in main.ts as last interceptor
+- B-14: Converted 17 JSON String array fields to native Prisma String[] arrays in schema.prisma
+- B-15: Added 3 new Prisma enums (TicketSeverity, TicketCategory, SubscriptionStatus); converted 3 string fields to enums
+- B-16: Removed @google/generative-ai, jsonwebtoken, ws, z-ai-web-dev-sdk; removed @types/jsonwebtoken, @types/ws from devDeps
+- B-17: Added request ID tracking middleware in main.ts (x-request-id header)
+- B-18: Added Swagger annotations (@ApiTags, @ApiOperation, @ApiResponse, @ApiBearerAuth) to auth, families, and graph controllers
+- B-19: Created prisma/seed.ts with demo user + Sharma family (6 persons, 3 generations); added prisma.seed config to package.json
+- TypeScript compilation: ✅ zero errors
+- Prisma schema: ✅ validated and formatted
+- Git commit: fix(part2) — pushed to main
+
+Stage Summary:
+- All 19 backend fixes (B-01 through B-19) applied successfully
+- TypeScript compiles with zero errors
+- Commit pushed: 050ae27
+- Key architectural changes: Redis-backed chat sessions, OpenAI/DeepSeek client, 2FA challenge token flow, Fisher-Yates shuffle, native Prisma arrays and enums, response envelope, request ID tracking
