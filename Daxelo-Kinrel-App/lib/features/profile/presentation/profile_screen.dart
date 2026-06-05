@@ -306,7 +306,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               _SettingsRow(
                 icon: Icons.visibility_outlined,
                 label: 'Profile visibility',
-                subtitle: _capitalize(profile?.profileVisibility ?? 'public'),
+                subtitle: _visibilityLabel(profile?.profileVisibility ?? 'public'),
                 onTap: () => _showVisibilitySheet(
                   context,
                   profile?.profileVisibility ?? 'public',
@@ -1243,7 +1243,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   // ══════════════════════════════════════════════════════════════════
 
   void _showVisibilitySheet(BuildContext context, String current) {
-    final options = ['public', 'private'];
+    final options = [
+      ('public', 'Public', 'Anyone can see your profile'),
+      ('connections_only', 'Connections Only', 'Only your family connections can see your profile'),
+      ('private', 'Private', 'No one can see your profile'),
+    ];
     showModalBottomSheet(
       context: context,
       backgroundColor: _cardBg,
@@ -1276,8 +1280,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               ),
             ),
             const SizedBox(height: 8),
-            ...options.map((option) {
-              final isSelected = option == current;
+            ...options.map((opt) {
+              final isSelected = opt.$1 == current;
               return ListTile(
                 leading: Icon(
                   isSelected ? Icons.check_circle : Icons.visibility_outlined,
@@ -1285,12 +1289,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   size: isSelected ? 22 : 20,
                 ),
                 title: Text(
-                  _capitalize(option),
+                  opt.$2,
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 15,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                     color: isSelected ? _orange : _textPrimary,
+                  ),
+                ),
+                subtitle: Text(
+                  opt.$3,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    color: _textDim,
                   ),
                 ),
                 trailing: isSelected
@@ -1299,7 +1311,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 onTap: () {
                   Navigator.of(ctx).pop();
                   ref.read(profileProvider.notifier).updateProfile({
-                    'profileVisibility': option,
+                    'profileVisibility': opt.$1,
                   });
                 },
               );
@@ -1317,9 +1329,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   void _showInvitePermissionSheet(BuildContext context, String current) {
     final options = [
-      ('anyone', 'Everyone'),
-      ('people_i_know', 'Only people I know'),
-      ('nobody', 'Nobody'),
+      ('anyone', 'Everyone', 'Anyone can send you family invitations'),
+      ('connections', 'Connections Only', 'Only your family connections can invite you'),
+      ('nobody', 'Nobody', 'No one can send you invitations'),
     ];
     showModalBottomSheet(
       context: context,
@@ -1368,6 +1380,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     fontSize: 15,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                     color: isSelected ? _orange : _textPrimary,
+                  ),
+                ),
+                subtitle: Text(
+                  opt.$3,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    color: _textDim,
                   ),
                 ),
                 trailing: isSelected
@@ -1801,12 +1821,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     return s[0].toUpperCase() + s.substring(1);
   }
 
+  String _visibilityLabel(String key) {
+    switch (key) {
+      case 'public':
+        return 'Public';
+      case 'connections_only':
+        return 'Connections Only';
+      case 'private':
+        return 'Private';
+      default:
+        return _capitalize(key);
+    }
+  }
+
   String _invitePermissionLabel(String key) {
     switch (key) {
       case 'anyone':
         return 'Everyone';
-      case 'people_i_know':
-        return 'Only people I know';
+      case 'connections':
+        return 'Connections Only';
       case 'nobody':
         return 'Nobody';
       default:
@@ -2406,3 +2439,4 @@ class _FamilyIdRow extends StatelessWidget {
     );
   }
 }
+
