@@ -112,10 +112,15 @@ export class AiChatService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
   ) {
-    this.ai = new OpenAI({
-      apiKey: this.configService.get('DEEPSEEK_API_KEY'),
-      baseURL: 'https://api.deepseek.com',
-    });
+    try {
+      this.ai = new OpenAI({
+        apiKey: this.configService.get('DEEPSEEK_API_KEY') || this.configService.get('GEMINI_API_KEY'),
+        baseURL: 'https://api.deepseek.com',
+      });
+    } catch {
+      this.logger.warn('DEEPSEEK_API_KEY not set — AI chat will use fallback responses');
+      this.ai = null as any;
+    }
   }
 
   /**
@@ -225,6 +230,9 @@ export class AiChatService {
   // ── Private Helpers ────────────────────────────────────────────────
 
   private async generateLlmResponse(messages: ChatMessage[]): Promise<string> {
+    if (!this.ai) {
+      throw new InternalServerErrorException('AI service is not configured. Set DEEPSEEK_API_KEY or GEMINI_API_KEY.');
+    }
     const response = await this.ai.chat.completions.create({
       model: 'deepseek-chat',
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -767,6 +775,9 @@ export class AiChatService {
       .join(', who is ');
 
     // Try LLM first
+    if (!this.ai) {
+      return `${fromName} is related to ${toName} through: ${pathSteps.map(s => s.relationshipKey).join(' → ')}`;
+    }
     try {
       const prompt =
         `Explain in 1-2 sentences: ${fromName} is related to ${toName} through the path: ${pathDescription}. ` +
@@ -848,6 +859,9 @@ export class AiChatService {
     deceasedCount: number,
     anchorName: string | undefined,
   ): Promise<string> {
+    if (!this.ai) {
+      return `The ${familyName} family has ${memberCount} members across ${generationCount} generations with ${totalRelationships} relationships mapped.`;
+    }
     try {
       const prompt =
         `Generate a concise family summary (3-5 sentences) for the "${familyName}" family with these details:\n` +

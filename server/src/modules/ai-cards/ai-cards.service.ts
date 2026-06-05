@@ -131,10 +131,15 @@ export class AiCardsService {
     private readonly kinshipService: KinshipService,
     private readonly configService: ConfigService,
   ) {
-    this.ai = new OpenAI({
-      apiKey: this.configService.get('DEEPSEEK_API_KEY') || this.configService.get('GEMINI_API_KEY'),
-      baseURL: 'https://api.deepseek.com',
-    });
+    try {
+      this.ai = new OpenAI({
+        apiKey: this.configService.get('DEEPSEEK_API_KEY') || this.configService.get('GEMINI_API_KEY'),
+        baseURL: 'https://api.deepseek.com',
+      });
+    } catch {
+      this.logger.warn('DEEPSEEK_API_KEY not set — AI card generation will be unavailable');
+      this.ai = null as any;
+    }
   }
 
   /**
@@ -252,6 +257,10 @@ export class AiCardsService {
   // ── Private Helpers ────────────────────────────────────────────────
 
   private async generateImage(prompt: string): Promise<string> {
+    if (!this.ai) {
+      this.logger.warn('AI not configured — returning placeholder image');
+      return PLACEHOLDER_IMAGE_BASE64;
+    }
     const response = await this.ai.images.generate({
       model: 'dall-e-3',
       prompt,

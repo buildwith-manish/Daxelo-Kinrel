@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { KinshipService } from '../kinship/kinship.service';
 import OpenAI from 'openai';
@@ -37,10 +37,15 @@ export class AiVoiceService {
     private readonly kinshipService: KinshipService,
     private readonly configService: ConfigService,
   ) {
-    this.ai = new OpenAI({
-      apiKey: this.configService.get('DEEPSEEK_API_KEY') || this.configService.get('GEMINI_API_KEY'),
-      baseURL: 'https://api.deepseek.com',
-    });
+    try {
+      this.ai = new OpenAI({
+        apiKey: this.configService.get('DEEPSEEK_API_KEY') || this.configService.get('GEMINI_API_KEY'),
+        baseURL: 'https://api.deepseek.com',
+      });
+    } catch {
+      this.logger.warn('DEEPSEEK_API_KEY not set — AI voice features will be unavailable');
+      this.ai = null as any;
+    }
   }
 
   /**
@@ -116,6 +121,9 @@ export class AiVoiceService {
     audio: string,
     _language: string,
   ): Promise<string> {
+    if (!this.ai) {
+      throw new InternalServerErrorException('AI voice service is not configured. Set DEEPSEEK_API_KEY or GEMINI_API_KEY.');
+    }
     // Use OpenAI-compatible Whisper API via DeepSeek or compatible endpoint
     const buffer = Buffer.from(audio, 'base64');
     const response = await this.ai.audio.transcriptions.create({
