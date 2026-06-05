@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import '../../../core/services/analytics_service.dart';
+import '../../profile/data/profile_provider.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -30,6 +31,12 @@ final selectedLanguageProvider = StateProvider<SupportedLanguage>(
   (ref) => SupportedLanguage.english,
 );
 
+/// Provider for profile visibility setting
+final _profileVisibilityProvider = StateProvider<String>((ref) => 'public');
+
+/// Provider for invite permission setting
+final _invitePermissionProvider = StateProvider<String>((ref) => 'anyone');
+
 class SettingsScreen extends ConsumerStatefulWidget {
   SettingsScreen({super.key});
 
@@ -47,6 +54,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   final _familyActivityProvider = StateProvider<bool>((ref) => true);
   final _biometricLockProvider = StateProvider<bool>((ref) => false);
 
+  // ── Helper: Visibility label ──────────────────────────────────────
+  String _visibilityLabel(String key) {
+    switch (key) {
+      case 'public': return 'Public';
+      case 'connections_only': return 'Connections Only';
+      case 'private': return 'Private';
+      default: return key[0].toUpperCase() + key.substring(1);
+    }
+  }
+
+  // ── Helper: Invite permission label ──────────────────────────────
+  String _inviteLabel(String key) {
+    switch (key) {
+      case 'anyone': return 'Everyone';
+      case 'connections': return 'Connections Only';
+      case 'nobody': return 'Nobody';
+      default: return key[0].toUpperCase() + key.substring(1);
+    }
+  }
+
   @override
   bool get wantKeepAlive => true;
 
@@ -56,6 +83,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     final fontScale = ref.watch(fontScaleProvider);
     final selectedLanguage = ref.watch(selectedLanguageProvider);
     final themeMode = ref.watch(themeModeProvider);
+    final profile = ref.watch(profileProvider.select((s) => s.profile));
+
+    // Sync visibility & invite providers with profile data
+    if (profile != null) {
+      if (profile.profileVisibility != ref.read(_profileVisibilityProvider)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) ref.read(_profileVisibilityProvider.notifier).state = profile.profileVisibility;
+        });
+      }
+      if (profile.invitePermission != ref.read(_invitePermissionProvider)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) ref.read(_invitePermissionProvider.notifier).state = profile.invitePermission;
+        });
+      }
+    }
 
     return DKScaffold(
       backgroundColor: _bg,
@@ -181,14 +223,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             _SettingsRow(
               icon: Icons.visibility_outlined,
               label: 'Profile visibility',
-              subtitle: 'Public / Private',
-              onTap: () {},
+              subtitle: _visibilityLabel(ref.watch(_profileVisibilityProvider)),
+              onTap: () => _showVisibilitySheet(context, ref, ref.read(_profileVisibilityProvider)),
             ),
             _divider(),
             _SettingsRow(
               icon: Icons.person_add_outlined,
               label: 'Who can invite me',
-              onTap: () {},
+              subtitle: _inviteLabel(ref.watch(_invitePermissionProvider)),
+              onTap: () => _showInvitePermissionSheet(context, ref, ref.read(_invitePermissionProvider)),
             ),
             _divider(),
             _SettingsToggleRow(
@@ -502,6 +545,182 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Divider(height: 1, thickness: 0.5, color: _borderSubtle),
+    );
+  }
+
+  // ── Profile Visibility Sheet ────────────────────────────────────
+
+  void _showVisibilitySheet(
+    BuildContext context,
+    WidgetRef ref,
+    String currentValue,
+  ) {
+    final options = [
+      ('public', 'Public', 'Anyone can see your profile'),
+      ('connections_only', 'Connections Only', 'Only your family connections can see your profile'),
+      ('private', 'Private', 'No one can see your profile'),
+    ];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _cardBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
+        ),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: _textDim.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Profile Visibility',
+              style: const TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: _textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...options.map((opt) {
+              final isSelected = opt.$1 == currentValue;
+              return ListTile(
+                leading: Icon(
+                  isSelected ? Icons.check_circle : Icons.visibility_outlined,
+                  color: isSelected ? _orange : _textDim,
+                  size: isSelected ? 22 : 20,
+                ),
+                title: Text(
+                  opt.$2,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 15,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    color: isSelected ? _orange : _textPrimary,
+                  ),
+                ),
+                subtitle: Text(
+                  opt.$3,
+                  style: const TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    color: _textDim,
+                  ),
+                ),
+                trailing: isSelected
+                    ? Icon(Icons.check, color: _orange, size: 20)
+                    : null,
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  ref.read(_profileVisibilityProvider.notifier).state = opt.$1;
+                  ref.read(profileProvider.notifier).updateProfile({
+                    'profileVisibility': opt.$1,
+                  });
+                },
+              );
+            }),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Invite Permission Sheet ─────────────────────────────────────
+
+  void _showInvitePermissionSheet(
+    BuildContext context,
+    WidgetRef ref,
+    String currentValue,
+  ) {
+    final options = [
+      ('anyone', 'Everyone', 'Anyone can send you family invitations'),
+      ('connections', 'Connections Only', 'Only your family connections can invite you'),
+      ('nobody', 'Nobody', 'No one can send you invitations'),
+    ];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _cardBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
+        ),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: _textDim.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Who Can Invite Me',
+              style: const TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: _textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...options.map((opt) {
+              final isSelected = opt.$1 == currentValue;
+              return ListTile(
+                leading: Icon(
+                  isSelected ? Icons.check_circle : Icons.person_add_outlined,
+                  color: isSelected ? _orange : _textDim,
+                  size: isSelected ? 22 : 20,
+                ),
+                title: Text(
+                  opt.$2,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 15,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    color: isSelected ? _orange : _textPrimary,
+                  ),
+                ),
+                subtitle: Text(
+                  opt.$3,
+                  style: const TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    color: _textDim,
+                  ),
+                ),
+                trailing: isSelected
+                    ? Icon(Icons.check, color: _orange, size: 20)
+                    : null,
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  ref.read(_invitePermissionProvider.notifier).state = opt.$1;
+                  ref.read(profileProvider.notifier).updateProfile({
+                    'invitePermission': opt.$1,
+                  });
+                },
+              );
+            }),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1061,3 +1280,4 @@ class _SettingsDeleteRow extends StatelessWidget {
     );
   }
 }
+
