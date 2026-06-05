@@ -633,3 +633,161 @@ Stage Summary:
 - Public profile lookup (/api/users/:username) enforces visibility
 - Invitation creation checks target user's invitePermission before creating
 - Deployment confirmed LIVE at https://daxelo-kinrel-server.onrender.com
+
+---
+Task ID: 3
+Agent: sub-agent
+Task: Fix profile_provider.dart — Load real profile data even when kAuthDisabled=true if there's a real session
+
+Work Log:
+- Read profile_provider.dart (1600+ lines) and identified 2 kAuthDisabled guards that blocked real API calls, plus 4 methods lacking session-aware guards
+- Fixed loadProfile(): When kAuthDisabled=true, now checks client.auth.currentSession first. If session exists, falls through to real API call. Only returns mock profile if no session.
+- Fixed loadStats(): Same pattern — checks for real session before returning mock 0s. Falls through to real API when session exists.
+- Fixed loadSessions(): Added session-aware kAuthDisabled guard. Returns empty list only when no session; falls through to real API when session exists.
+- Fixed updateProfile(): Added kAuthDisabled guard that applies optimistic update locally when no session (avoids wasted API call), but falls through to real API when session exists.
+- Added session-aware kAuthDisabled guards to loadFamilies(), loadInvitations(), loadBlockedUsers() — returns empty lists when no session, falls through to real API when session exists.
+- All 7 methods now follow the same pattern: kAuthDisabled + no session → mock/empty; kAuthDisabled + real session → real API call
+
+Stage Summary:
+- Modified: Daxelo-Kinrel-App/lib/features/profile/data/profile_provider.dart
+- 7 methods updated with session-aware kAuthDisabled logic
+- Key fix: User now sees real profileVisibility, invitePermission, and other profile data from backend when kAuthDisabled=true but they have a real Supabase session
+- Mock data only used as fallback when kAuthDisabled=true AND no Supabase session exists
+
+---
+Task ID: 4
+Agent: sub-agent
+Task: Add invitePermission enforcement to V2 invitations acceptInvite()
+
+Work Log:
+- Read invitations-v2.service.ts and invitations.service.ts (V1 reference) to understand current code
+- Identified that V2 acceptInvite() had no invitePermission check — users with "Nobody" or "Connections Only" settings could still accept invites via QR code or shareable link
+- Added step 2.5 in acceptInvite() method: after membership check and before user info fetch, added invitePermission enforcement
+  - Fetches targetUser with invitePermission field
+  - For Invitation-based invites: checks invitation.inviterId against userId
+  - For FamilyInvite-based invites: looks up the inviter's userId via familyInvite.invitedBy → FamilyMember → user, then checks
+- Added _enforceInvitePermission() private method: mirrors V1 service logic
+  - 'anyone' → allow (default)
+  - 'connections' → only allow if inviter and target share a family (via _areConnections)
+  - 'nobody' → reject with ForbiddenException
+  - Self-invite (inviterId === targetUserId) → skip check
+  - Unknown values → allow for backward compatibility
+- Added _areConnections() private method: checks if two users share at least one family via FamilyMember table
+- TypeScript compilation: ✅ zero errors
+
+Stage Summary:
+- Modified: server/src/modules/invitations/invitations-v2.service.ts
+- Added 2 private methods: _enforceInvitePermission(), _areConnections()
+- Added invitePermission check at step 2.5 in acceptInvite() (after membership check, before user info fetch)
+- Both Invitation-based and FamilyInvite-based invite paths are covered
+- V2 service now has parity with V1 service's invitePermission enforcement
+
+---
+Task ID: 5
+Agent: sub-agent
+Task: Enforce profileVisibility in search and other user exposure endpoints
+
+Work Log:
+- Audited all 15+ endpoints that return user data to identify visibility enforcement gaps
+- Search endpoint (search.service.ts): Already correctly enforces profileVisibility — excludes private users at DB level, post-filters connections_only users by family overlap, viewerId passed from controller, privacy-aware caching ✅
+- getUserByUsername (users.service.ts): Fixed — was blocking ALL access to private profiles including from family connections. Now allows family members (connections) to see private profiles. Self can also see own profile via username lookup.
+- Family member lists (members.service.ts): Protected by requireFamilyMember() check — only family members can view. Person records (family tree nodes) don't have profileVisibility. No fix needed ✅
+- Family details (families.service.ts): Returns only family-level info, not member details. Requires membership for findOne(). No fix needed ✅
+- Family ID lookup (family-id.controller.ts): Returns only family-level info, not member details. No fix needed ✅
+- Graph endpoints (graph.service.ts): Requires family membership. No fix needed ✅
+- Relationships (relationships.service.ts): Requires family membership. No fix needed ✅
+- Invitations (invitations.service.ts): Already enforces invitePermission. Inviter info is minimal and only visible to family members ✅
+- Admin endpoints (admin.service.ts): Requires admin role — bypasses user privacy by design ✅
+- Timeline/Chat (timeline/chat controllers): Return Person author data, not User profile data. No profileVisibility enforcement needed ✅
+- Notifications: Only return user's own notifications. No cross-user exposure ✅
+- Community/Share/Kinship: No user profile data exposed ✅
+
+Stage Summary:
+- Modified: server/src/modules/users/users.service.ts (private profile visibility now allows family connections)
+- Search endpoint already correctly enforces all 3 visibility levels ✅
+- Family member lists are already protected by membership checks ✅
+- All other endpoints verified — no additional profileVisibility enforcement needed
+- TypeScript compilation: zero errors ✅
+- Key change: private profiles are now visible to family members (connections) via getUserByUsername, while still hidden from non-connections and unauthenticated users
+
+
+---
+Task ID: 6
+Agent: sub-agent
+Task: Fix sessions screen theme and display — theme-aware colors, user info header, session count
+
+Work Log:
+- Fix 1: Replaced all hardcoded dark color constants in sessions_screen.dart with theme-aware DKColors getters
+  - Removed 6 top-level `const Color` declarations (_bg, _cardBg, _textPrimary, _textSecondary, _textDim, _borderSubtle)
+  - Added 6 instance getters in _SessionsScreenState using DKColors.background(context), DKColors.cardColor(context), DKColors.textPrimary(context), DKColors.textSecondary(context), DKColors.isLight(context) ternary, DKColors.borderColor(context)
+  - Updated _SessionCard to resolve theme-aware colors via DKColors.*() in its build() method
+  - Removed all `const` keywords from TextStyle/Icon/BorderSide that now use non-const instance getters
+  - Made shimmer colors theme-aware: baseColor/highlightColor use DKColors.isLight(context) check
+  - Added imports: brand_colors.dart, dk_components.dart, supabase_service.dart, cached_network_image.dart
+- Fix 2: Added user info header to sessions_screen.dart
+  - Added _buildUserInfoHeader() method showing avatar (CachedNetworkImage or initial), display name, and email
+  - Reads user from currentUserProvider and profile from profileProvider
+  - Header uses orange-bordered circle avatar, display name in displayFont, email in bodyFont with _textDim color
+  - Placed at top of body Column before the session list/empty state
+- Fix 3: Added session count subtitle to profile_screen.dart "Active sessions" row
+  - Added subtitle parameter: reads ref.watch(profileProvider).sessions.length
+  - Shows "N active session(s)" when count > 0, null when no sessions (subtitle hidden)
+
+Stage Summary:
+- Modified: Daxelo-Kinrel-App/lib/features/profile/presentation/sessions_screen.dart
+  - 6 hardcoded dark colors → 6 theme-aware DKColors getters
+  - Added user info header with avatar, name, email
+  - _SessionCard now uses DKColors context methods for theme support
+  - Shimmer loading colors now theme-aware
+- Modified: Daxelo-Kinrel-App/lib/features/profile/presentation/profile_screen.dart
+  - "Active sessions" row now shows subtitle with session count (e.g., "2 active sessions")
+
+---
+Task ID: 7
+Agent: sub-agent
+Task: Add success/error snackbar feedback when changing visibility/invite settings
+
+Work Log:
+- Updated _showVisibilitySheet onTap handler (line ~1315): Changed from sync fire-and-forget to async with await and snackbar feedback
+  - Now awaits updateProfile() result and stores in `success` variable
+  - On success: shows "Profile visibility updated to {label}" snackbar via context.showSnackBar()
+  - On failure: shows "Failed to update profile visibility" red error snackbar via context.showSnackBar(isError: true)
+  - Added `if (mounted)` guard before showing snackbar
+- Updated _showInvitePermissionSheet onTap handler (line ~1407): Same pattern as visibility
+  - On success: shows "Invite permission updated to {label}" snackbar
+  - On failure: shows "Failed to update invite permission" red error snackbar
+  - Added `if (mounted)` guard before showing snackbar
+- Verified context_extensions.dart is already imported (line 35) and showSnackBar with isError parameter is already used elsewhere in the file
+- Verified updateProfile() returns Future<bool> (profile_provider.dart line 991)
+
+Stage Summary:
+- Modified: Daxelo-Kinrel-App/lib/features/profile/presentation/profile_screen.dart
+- Both visibility and invite permission bottom sheet handlers now provide user feedback
+- Success: green snackbar with setting label (e.g., "Profile visibility updated to Private")
+- Failure: red error snackbar (e.g., "Failed to update profile visibility")
+
+---
+Task ID: 3-7
+Agent: Main
+Task: Fix Profile Visibility, Invite Permission, and Active Sessions logic
+
+Work Log:
+- Analyzed user screenshot showing "Me" tab with Profile visibility (Public), Who can invite me (Everyone), and Active sessions
+- Identified root cause: kAuthDisabled=true causes loadProfile() to return mock data with defaults, never loading real backend data
+- Fixed profile_provider.dart: When kAuthDisabled=true AND a real Supabase session exists, fall through to real API call instead of returning mock data. Applied to loadProfile(), loadStats(), loadSessions(), updateProfile(), loadFamilies(), loadInvitations(), loadBlockedUsers()
+- Added invitePermission enforcement to V2 invitations acceptInvite() in invitations-v2.service.ts: checks target user's invitePermission before allowing invite acceptance (nobody=reject, connections=check shared family, anyone=allow)
+- Fixed profileVisibility in users.service.ts: Private profiles now visible to family connections (previously completely invisible even to family members)
+- Made sessions_screen.dart theme-aware: replaced 6 hardcoded dark color constants with DKColors getters, updated _SessionCard to use context-based colors
+- Added user info header to sessions screen: shows avatar, name, and email at top
+- Added session count subtitle to profile screen "Active sessions" row
+- Added success/error snackbar feedback when changing visibility/invite settings (was previously silent optimistic update)
+- TypeScript compilation: zero errors
+- Pushed commit bf9dace to GitHub, triggered Render deployment
+
+Stage Summary:
+- Profile Visibility: Now loads real settings from backend when user has a session; 3 options (Public/Connections Only/Private) fully enforced
+- Invite Permission: Now loads real settings from backend; enforced in both V1 and V2 invitation flows
+- Active Sessions: Now shows user details (name, email, avatar), session count in profile, and is theme-aware
+- All settings changes show snackbar feedback on success/failure
+- Private profiles now visible to family connections (not completely hidden)
+- Commit: bf9dace pushed to main
