@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
-import '../../../core/constants/brand_spacing.dart';
 import '../../../core/kinship/kinship_provider.dart';
-import '../../../core/kinship/kinship_models.dart';
 
 class RelationshipGraphPicker extends ConsumerStatefulWidget {
   const RelationshipGraphPicker({
