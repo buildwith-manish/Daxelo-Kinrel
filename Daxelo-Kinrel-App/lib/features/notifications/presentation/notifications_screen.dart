@@ -15,6 +15,7 @@ import 'package:kinrel/core/widgets/global_error_widget.dart';
 //
 // Uses ConsumerStatefulWidget + Riverpod for state management.
 
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -42,6 +43,7 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late final AnimationController _emptyAnimController;
+  Timer? _refreshTimer;
 
   @override
   bool get wantKeepAlive => true;
@@ -53,10 +55,21 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
       vsync: this,
       duration: KinrelMotion.ceremonial,
     )..repeat(reverse: true);
+
+    // Load notifications on init
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(notificationsProvider.notifier).loadNotifications();
+    });
+
+    // Refresh every 30 seconds for real-time feel
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      ref.read(notificationsProvider.notifier).loadNotifications();
+    });
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _emptyAnimController.dispose();
     super.dispose();
   }
@@ -86,7 +99,22 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
           // ── Notification List / Empty State ─────────────────────
           Expanded(
             child: filtered.isEmpty
-                ? _buildEmptyState()
+                ? RefreshIndicator(
+                    color: KinrelColors.orange,
+                    backgroundColor: KinrelColors.darkCard,
+                    onRefresh: () => ref
+                        .read(notificationsProvider.notifier)
+                        .loadNotifications(),
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.5,
+                          child: _buildEmptyState(),
+                        ),
+                      ],
+                    ),
+                  )
                 : _buildNotificationList(filtered),
           ),
         ],
@@ -239,29 +267,36 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
   // ── Notification List ───────────────────────────────────────────
 
   Widget _buildNotificationList(List<NotificationModel> notifications) {
-    return ListView.builder(
-      scrollCacheExtent: ScrollCacheExtent.pixels(500),
-      padding: EdgeInsets.symmetric(
-        horizontal: KinrelSpacing.base,
-        vertical: KinrelSpacing.sm,
+    return RefreshIndicator(
+      color: KinrelColors.orange,
+      backgroundColor: KinrelColors.darkCard,
+      onRefresh: () =>
+          ref.read(notificationsProvider.notifier).loadNotifications(),
+      child: ListView.builder(
+        scrollCacheExtent: ScrollCacheExtent.pixels(500),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.symmetric(
+          horizontal: KinrelSpacing.base,
+          vertical: KinrelSpacing.sm,
+        ),
+        itemCount: notifications.length,
+        itemBuilder: (context, index) {
+          final notification = notifications[index];
+          return _NotificationItem(
+            key: ValueKey(notification.id),
+            notification: notification,
+            onMarkRead: () => ref
+                .read(notificationsProvider.notifier)
+                .markAsRead(notification.id),
+            onDelete: () => ref
+                .read(notificationsProvider.notifier)
+                .deleteNotification(notification.id),
+            onPin: () => ref
+                .read(notificationsProvider.notifier)
+                .pinNotification(notification.id),
+          );
+        },
       ),
-      itemCount: notifications.length,
-      itemBuilder: (context, index) {
-        final notification = notifications[index];
-        return _NotificationItem(
-          key: ValueKey(notification.id),
-          notification: notification,
-          onMarkRead: () => ref
-              .read(notificationsProvider.notifier)
-              .markAsRead(notification.id),
-          onDelete: () => ref
-              .read(notificationsProvider.notifier)
-              .deleteNotification(notification.id),
-          onPin: () => ref
-              .read(notificationsProvider.notifier)
-              .pinNotification(notification.id),
-        );
-      },
     );
   }
 

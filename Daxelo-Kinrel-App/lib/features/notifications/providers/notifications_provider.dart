@@ -3,8 +3,12 @@
 // DAXELO KINREL — Notifications State Management
 //
 // Manages notification state using Riverpod StateNotifierProvider.
+// Loads notifications from the backend API /api/notifications/v2 with
+// polling-based real-time refresh every 30 seconds.
 // Supports mark as read, mark all read, delete, and pin operations.
 // Includes notification types, preferences, and grouping.
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -101,10 +105,10 @@ class NotificationPreference {
   }
 
   Map<String, dynamic> toJson() => {
-    'push': push,
-    'inApp': inApp,
-    'email': email,
-  };
+        'push': push,
+        'inApp': inApp,
+        'email': email,
+      };
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -303,37 +307,210 @@ class NotificationsState {
 
 class NotificationsNotifier extends StateNotifier<NotificationsState> {
   NotificationsNotifier(this._ref) : super(const NotificationsState()) {
-    _loadDemoData();
+    loadNotifications();
+    _startPolling();
   }
 
   final Ref _ref;
+  Timer? _pollTimer;
 
   // ── Helper: get the configured Dio client ──────────────────────
   Dio get _dio => _ref.read(dioProvider);
 
-  // ── Actions ──────────────────────────────────────────────────────
+  /// Start polling for new notifications every 30 seconds
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      loadNotifications();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  // ── Data Loading ─────────────────────────────────────────────────
+
+  /// Load notifications from the backend API
+  Future<void> loadNotifications() async {
+    try {
+      final response = await _dio.get(
+        '/api/notifications/v2',
+        queryParameters: {'page': 1, 'limit': 50},
+      );
+
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final notificationsList =
+            data['notifications'] as List? ?? data['items'] as List? ?? [];
+
+        final notifications = notificationsList
+            .map((e) => _mapNotification(e as Map<String, dynamic>))
+            .toList();
+
+        state = state.copyWith(notifications: notifications);
+      } else if (data is List) {
+        final notifications = data
+            .map((e) => _mapNotification(e as Map<String, dynamic>))
+            .toList();
+        state = state.copyWith(notifications: notifications);
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to load notifications: $e');
+    }
+  }
+
+  /// Map backend notification to Flutter NotificationModel
+  NotificationModel _mapNotification(Map<String, dynamic> json) {
+    final eventType = json['eventType'] as String? ?? '';
+    final notificationType = _mapEventType(eventType);
+    final category =
+        notificationTypeCategory[notificationType] ?? NotificationCategory.system;
+    final title = json['title'] as String? ?? '';
+    final body = json['body'] as String? ?? '';
+    final createdAt = json['createdAt'] as String? ?? '';
+    final isRead = json['read'] as bool? ?? false;
+    final familyId = json['familyId'] as String?;
+
+    // Generate initials from title
+    final words = title.split(' ').where((w) => w.isNotEmpty).take(2);
+    final initials = words.map((w) => w[0].toUpperCase()).join();
+
+    return NotificationModel(
+      id: json['id'] as String? ?? '',
+      category: category,
+      title: title,
+      body: body,
+      time: _formatTime(createdAt),
+      isRead: isRead,
+      isPinned: false,
+      avatarInitials: initials.isNotEmpty ? initials : null,
+      avatarColor: _colorForType(notificationType),
+      notificationType: notificationType,
+      familyId: familyId,
+    );
+  }
+
+  /// Map backend eventType to NotificationType
+  NotificationType _mapEventType(String eventType) {
+    switch (eventType) {
+      case 'invitation_received':
+        return NotificationType.familyInvite;
+      case 'invitation_accepted':
+        return NotificationType.acceptedInvite;
+      case 'new_relative':
+        return NotificationType.newMember;
+      case 'birthday_reminder':
+        return NotificationType.birthday;
+      case 'anniversary_reminder':
+        return NotificationType.anniversary;
+      case 'profile_update':
+        return NotificationType.relationshipUpdate;
+      case 'member_joined':
+        return NotificationType.memberJoined;
+      case 'family_id_generated':
+        return NotificationType.familyIdGenerated;
+      default:
+        return NotificationType.newMember;
+    }
+  }
+
+  /// Format ISO timestamp to relative time
+  String _formatTime(String isoTimestamp) {
+    if (isoTimestamp.isEmpty) return '';
+    try {
+      final dt = DateTime.tryParse(isoTimestamp);
+      if (dt == null) return '';
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+
+      if (diff.inSeconds < 60) return 'Just now';
+      if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+      if (diff.inHours < 24) return '${diff.inHours} hr ago';
+      if (diff.inDays == 1) return 'Yesterday';
+      if (diff.inDays < 7) return '${diff.inDays} days ago';
+      return '${dt.day}/${dt.month}/${dt.year}';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// Get a consistent color for notification type
+  int _colorForType(NotificationType type) {
+    switch (type) {
+      case NotificationType.familyInvite:
+        return 0xFFE8612A; // orange
+      case NotificationType.acceptedInvite:
+        return 0xFF4CAF7A; // green
+      case NotificationType.rejectedInvite:
+        return 0xFFEF4444; // red
+      case NotificationType.newMember:
+        return 0xFFF59240; // amber
+      case NotificationType.birthday:
+        return 0xFFD4AF37; // gold
+      case NotificationType.anniversary:
+        return 0xFFFF69B4; // pink
+      case NotificationType.relationshipUpdate:
+        return 0xFF3B82F6; // blue
+      case NotificationType.usernameChange:
+        return 0xFF8B5CF6; // purple
+      case NotificationType.familyIdGenerated:
+        return 0xFF06B6D4; // cyan
+      case NotificationType.memberJoined:
+        return 0xFF4CAF7A; // green
+    }
+  }
+
+  // ── Actions (now with real API calls) ──────────────────────────
 
   /// Mark a single notification as read.
-  void markAsRead(String id) {
+  Future<void> markAsRead(String id) async {
+    // Optimistic update
     final updated = state.notifications.map((n) {
       if (n.id == id) return n.copyWith(isRead: true);
       return n;
     }).toList();
     state = state.copyWith(notifications: updated);
+
+    // API call
+    try {
+      await _dio.patch('/api/notifications/v2/read', data: {
+        'notificationIds': [id],
+      });
+    } catch (e) {
+      debugPrint('⚠️ Failed to mark notification as read: $e');
+      // Roll back by reloading
+      await loadNotifications();
+    }
   }
 
   /// Mark all notifications as read.
-  void markAllRead() {
+  Future<void> markAllRead() async {
+    // Optimistic update
     final updated = state.notifications.map((n) {
       return n.copyWith(isRead: true);
     }).toList();
     state = state.copyWith(notifications: updated);
+
+    // API call
+    try {
+      await _dio.patch('/api/notifications/v2/read-all');
+    } catch (e) {
+      debugPrint('⚠️ Failed to mark all notifications as read: $e');
+      await loadNotifications();
+    }
   }
 
   /// Delete a notification by id.
-  void deleteNotification(String id) {
+  Future<void> deleteNotification(String id) async {
+    // Optimistic update
     final updated = state.notifications.where((n) => n.id != id).toList();
     state = state.copyWith(notifications: updated);
+
+    // Note: There's no delete endpoint in the v2 API, so we just remove locally
+    // If needed, the old v1 endpoint could be used
   }
 
   /// Toggle pin on a notification.
@@ -350,26 +527,41 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
     state = state.copyWith(selectedCategory: () => category);
   }
 
+  /// Refresh notifications from the server
+  Future<void> refresh() async {
+    await loadNotifications();
+  }
+
   // ── Notification Preferences ─────────────────────────────────────
 
   /// Get notification preferences from the server.
-  /// Falls back to defaults if the API is unavailable.
   Future<Map<NotificationType, NotificationPreference>>
       getNotificationPreferences() async {
     try {
-      final response = await _dio.get('/api/users/me/notification-preferences');
+      final response = await _dio.get('/api/notifications/v2/preferences');
       final data = response.data;
 
-      if (data is Map<String, dynamic>) {
+      if (data is Map<String, dynamic> && data['preferences'] is List) {
         final prefs = <NotificationType, NotificationPreference>{};
-        for (final type in NotificationType.values) {
-          final typeData = data[type.name];
-          if (typeData is Map<String, dynamic>) {
-            prefs[type] = NotificationPreference.fromJson(typeData);
-          } else {
-            prefs[type] = const NotificationPreference();
+        final prefList = data['preferences'] as List;
+
+        for (final pref in prefList) {
+          if (pref is Map<String, dynamic>) {
+            final eventType = pref['eventType'] as String? ?? '';
+            final type = _mapEventType(eventType);
+            prefs[type] = NotificationPreference(
+              push: pref['push'] as bool? ?? true,
+              inApp: pref['inApp'] as bool? ?? true,
+              email: pref['email'] as bool? ?? false,
+            );
           }
         }
+
+        // Fill in defaults for missing types
+        for (final type in NotificationType.values) {
+          prefs.putIfAbsent(type, () => const NotificationPreference());
+        }
+
         state = state.copyWith(notificationPreferences: prefs);
         return prefs;
       }
@@ -407,204 +599,46 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
     state = state.copyWith(notificationPreferences: updatedPrefs);
 
     try {
-      await _dio.patch(
-        '/api/users/me/notification-preferences',
-        data: {
-          type.name: newPref.toJson(),
-        },
-      );
+      // Map back to backend eventType
+      final eventType = _notificationTypeToEventType(type);
+      await _dio.patch('/api/notifications/v2/preferences', data: {
+        'eventType': eventType,
+        'push': push,
+        'inApp': inApp,
+        'email': email,
+      });
       return true;
     } catch (e) {
       debugPrint('⚠️ Failed to update notification preference: $e');
-      // Roll back — reload preferences
       await getNotificationPreferences();
       return false;
     }
   }
 
-  // ── Demo Data ────────────────────────────────────────────────────
-
-  void _loadDemoData() {
-    const demo = <NotificationModel>[
-      // ── Family Activity ──────────────────────────────────────────
-      NotificationModel(
-        id: 'n1',
-        category: NotificationCategory.family,
-        title: 'Priya Sharma was added to Sharma Family',
-        body:
-            'Rajesh Sharma added Priya Sharma as his daughter in the Sharma Family tree.',
-        time: '2 min ago',
-        isRead: false,
-        avatarInitials: 'PS',
-        avatarColor: 0xFFE8612A,
-        notificationType: NotificationType.newMember,
-        familyId: 'family_sharma',
-      ),
-      NotificationModel(
-        id: 'n2',
-        category: NotificationCategory.family,
-        title: 'Arjun & Meera connected as spouses',
-        body:
-            'A new spousal relationship was established between Arjun Kapoor and Meera Kapoor.',
-        time: '15 min ago',
-        isRead: false,
-        avatarInitials: 'AK',
-        avatarColor: 0xFFF59240,
-        notificationType: NotificationType.relationshipUpdate,
-        familyId: 'family_kapoor',
-      ),
-      NotificationModel(
-        id: 'n3',
-        category: NotificationCategory.family,
-        title: 'Kavita was added to Patel Family',
-        body:
-            'Anil Patel added Kavita Patel as his sister in the Patel Family tree.',
-        time: '1 hr ago',
-        isRead: true,
-        avatarInitials: 'KP',
-        avatarColor: 0xFF4CAF7A,
-        notificationType: NotificationType.memberJoined,
-        familyId: 'family_patel',
-      ),
-      NotificationModel(
-        id: 'n4',
-        category: NotificationCategory.family,
-        title: 'Rohan & Sunita connected as parent-child',
-        body:
-            'Rohan Verma is now linked as the father of Sunita Verma in the Verma Family.',
-        time: '3 hrs ago',
-        isRead: true,
-        avatarInitials: 'RV',
-        avatarColor: 0xFF3B82F6,
-        notificationType: NotificationType.relationshipUpdate,
-        familyId: 'family_verma',
-      ),
-
-      // ── Celebrations ─────────────────────────────────────────────
-      NotificationModel(
-        id: 'n5',
-        category: NotificationCategory.celebrations,
-        title: "Ananya's birthday is tomorrow! 🎂",
-        body:
-            'Ananya Desai turns 28 tomorrow. Send her a Kinrel greeting card!',
-        time: '30 min ago',
-        isRead: false,
-        avatarInitials: 'AD',
-        avatarColor: 0xFFD4AF37,
-        notificationType: NotificationType.birthday,
-        familyId: 'family_desai',
-      ),
-      NotificationModel(
-        id: 'n6',
-        category: NotificationCategory.celebrations,
-        title: "Rahul & Neha's anniversary is in 3 days! 💍",
-        body:
-            'Rahul and Neha Mehta celebrate their 12th wedding anniversary this Friday.',
-        time: '2 hrs ago',
-        isRead: false,
-        avatarInitials: 'NM',
-        avatarColor: 0xFFFF69B4,
-        notificationType: NotificationType.anniversary,
-        familyId: 'family_mehta',
-      ),
-      NotificationModel(
-        id: 'n7',
-        category: NotificationCategory.celebrations,
-        title: "Vikram's birthday is next week",
-        body: 'Vikram Singh turns 45 next Tuesday. Plan something special!',
-        time: '5 hrs ago',
-        isRead: true,
-        avatarInitials: 'VS',
-        avatarColor: 0xFF2E8B57,
-        notificationType: NotificationType.birthday,
-        familyId: 'family_singh',
-      ),
-
-      // ── Engagement ───────────────────────────────────────────────
-      NotificationModel(
-        id: 'n8',
-        category: NotificationCategory.engagement,
-        title: 'Your family graph is growing! 🌳',
-        body:
-            'You added 3 new members this week. Your Sharma Family tree now has 24 members.',
-        time: '1 hr ago',
-        isRead: false,
-        iconData: const IconData(
-          0xe3af,
-          fontFamily: 'MaterialIcons',
-        ), // Icons.trending_up
-      ),
-      NotificationModel(
-        id: 'n9',
-        category: NotificationCategory.engagement,
-        title: 'Discover: kinship terms for "father\'s brother"',
-        body:
-            'Learn that your father\'s elder brother is called "Tau" and younger brother "Chacha" in Hindi.',
-        time: '4 hrs ago',
-        isRead: false,
-        iconData: const IconData(
-          0xe86f,
-          fontFamily: 'MaterialIcons',
-        ), // Icons.explore
-      ),
-      NotificationModel(
-        id: 'n10',
-        category: NotificationCategory.engagement,
-        title: 'Weekly kinship challenge ready!',
-        body:
-            'This week: Can you name all 8 terms for cousins in Marathi? Take the quiz now.',
-        time: '6 hrs ago',
-        isRead: true,
-        iconData: const IconData(
-          0xe037,
-          fontFamily: 'MaterialIcons',
-        ), // Icons.emoji_events
-      ),
-
-      // ── System ───────────────────────────────────────────────────
-      NotificationModel(
-        id: 'n11',
-        category: NotificationCategory.system,
-        title: 'Welcome to Kinrel! 🎉',
-        body:
-            'Start building your family tree and discover the beauty of kinship. Tap to begin.',
-        time: '1 day ago',
-        isRead: true,
-        isPinned: true,
-        iconData: const IconData(
-          0xe87e,
-          fontFamily: 'MaterialIcons',
-        ), // Icons.waving_hand
-      ),
-      NotificationModel(
-        id: 'n12',
-        category: NotificationCategory.system,
-        title: 'Complete your profile',
-        body:
-            'Add your photo and birthday to help family members find and connect with you.',
-        time: '1 day ago',
-        isRead: true,
-        iconData: const IconData(
-          0xe7fd,
-          fontFamily: 'MaterialIcons',
-        ), // Icons.person
-      ),
-      NotificationModel(
-        id: 'n13',
-        category: NotificationCategory.system,
-        title: 'App updated to v2.4.0',
-        body:
-            'New: Festival greeting cards, voice search for kinship terms, and bug fixes.',
-        time: '2 days ago',
-        isRead: true,
-        iconData: const IconData(
-          0xe896,
-          fontFamily: 'MaterialIcons',
-        ), // Icons.system_update
-      ),
-    ];
-
-    state = state.copyWith(notifications: demo);
+  /// Map NotificationType back to backend eventType string
+  String _notificationTypeToEventType(NotificationType type) {
+    switch (type) {
+      case NotificationType.familyInvite:
+        return 'invitation_received';
+      case NotificationType.acceptedInvite:
+        return 'invitation_accepted';
+      case NotificationType.rejectedInvite:
+        return 'invitation_rejected';
+      case NotificationType.newMember:
+        return 'new_relative';
+      case NotificationType.birthday:
+        return 'birthday_reminder';
+      case NotificationType.anniversary:
+        return 'anniversary_reminder';
+      case NotificationType.relationshipUpdate:
+        return 'profile_update';
+      case NotificationType.usernameChange:
+        return 'username_change';
+      case NotificationType.familyIdGenerated:
+        return 'family_id_generated';
+      case NotificationType.memberJoined:
+        return 'member_joined';
+    }
   }
 }
 
