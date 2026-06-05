@@ -477,18 +477,17 @@ final familyDetailProvider = FutureProvider.family<FamilyDetail?, String>((
 
     if (family == null) return null;
 
-    // Use ref.read instead of ref.watch for members and relationships
-    // to prevent cascading rebuilds when these providers are invalidated
-    // (e.g., by socket events or user mutations). familyDetailProvider
-    // does NOT need to rebuild when members/relationships change —
-    // the family detail screen can listen to those providers directly.
-    final membersAsync = ref.read(familyMembersProvider(familyId));
-    final members = membersAsync.valueOrNull ?? [];
+    // Await the future directly so members are always loaded before returning.
+    // Using ref.read(...).valueOrNull causes a race condition: it reads the
+    // provider before it finishes loading, gets null, and returns empty members.
+    // The graph then shows "No Members Yet" even when members exist.
+    final members = await ref
+        .read(familyMembersProvider(familyId).future)
+        .catchError((_) => <Person>[]);
 
-    final relationshipsAsync = ref.read(
-      familyRelationshipsProvider(familyId),
-    );
-    final relationships = relationshipsAsync.valueOrNull ?? [];
+    final relationships = await ref
+        .read(familyRelationshipsProvider(familyId).future)
+        .catchError((_) => <FamilyRelationship>[]);
 
     return FamilyDetail(
       family: family,

@@ -11,6 +11,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/utils/smart_preloader.dart';
 import '../../../core/utils/accessibility_utils.dart';
 import '../../../core/services/analytics_service.dart';
+import '../../../shared/widgets/dk_components.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // DATA MODELS
@@ -376,7 +377,9 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
     final layout = _cachedLayout!;
 
     return Container(
-      color: const Color(0xFF131416),
+      color: DKColors.isLight(context)
+          ? DKColors.lightBg
+          : const Color(0xFF131416),
       child: Stack(
         children: [
           // ── Interactive graph canvas ─────────────────────────────

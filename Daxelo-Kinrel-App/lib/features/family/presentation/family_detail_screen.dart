@@ -204,7 +204,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: KinrelColors.darkCard,
+      backgroundColor: DKColors.cardColor(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.bottomSheet),
@@ -230,7 +230,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
-                      color: KinrelColors.textWhite,
+                      color: DKColors.textPrimary(context),
                     ),
                   ),
                 ],
@@ -399,7 +399,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: KinrelColors.darkElevated,
+        backgroundColor: DKColors.cardColor(context),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(KinrelRadius.lg),
         ),
@@ -418,7 +418,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 17,
                   fontWeight: FontWeight.w600,
-                  color: KinrelColors.textWhite,
+                  color: DKColors.textPrimary(context),
                 ),
               ),
             ),
@@ -433,7 +433,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
-                color: KinrelColors.textSilver,
+                color: DKColors.textSecondary(context),
               ),
             ),
             const SizedBox(height: 12),
@@ -473,7 +473,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
               'Cancel',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
-                color: KinrelColors.textSilver,
+                color: DKColors.textSecondary(context),
               ),
             ),
           ),
@@ -647,7 +647,7 @@ class _GraphTab extends ConsumerWidget {
   void _showQuickActions(BuildContext context, WidgetRef ref, Person person) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: KinrelColors.darkCard,
+      backgroundColor: DKColors.cardColor(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.bottomSheet),
@@ -675,7 +675,7 @@ class _GraphTab extends ConsumerWidget {
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: KinrelColors.textWhite,
+                        color: DKColors.textPrimary(context),
                       ),
                     ),
                   ),
@@ -1090,7 +1090,7 @@ class _BottomActionBar extends StatelessWidget {
           ),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: KinrelColors.darkElevated.withValues(alpha: 0.92),
+            color: DKColors.cardColor(context).withValues(alpha: 0.95),
             borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
             border: Border.all(
               color: KinrelColors.purple.withValues(alpha: 0.15),

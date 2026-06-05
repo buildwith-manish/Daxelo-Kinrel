@@ -535,7 +535,7 @@ class _FamilyCard extends ConsumerWidget {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: KinrelColors.darkCard,
+      backgroundColor: DKColors.cardColor(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.bottomSheet),
@@ -564,7 +564,7 @@ class _FamilyCard extends ConsumerWidget {
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: KinrelColors.textWhite,
+                        color: DKColors.textPrimary(context),
                       ),
                     ),
                   ),
@@ -575,7 +575,7 @@ class _FamilyCard extends ConsumerWidget {
             ListTile(
               leading: Icon(
                 Icons.visibility_outlined,
-                color: KinrelColors.textSilver,
+                color: DKColors.textSecondary(context),
                 size: 20,
               ),
               title: Text(
@@ -583,7 +583,7 @@ class _FamilyCard extends ConsumerWidget {
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
-                  color: KinrelColors.textWhite,
+                  color: DKColors.textPrimary(context),
                 ),
               ),
               onTap: () {
@@ -649,7 +649,7 @@ class _FamilyCard extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: KinrelColors.darkElevated,
+        backgroundColor: DKColors.cardColor(context),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(KinrelRadius.lg),
         ),
@@ -668,7 +668,7 @@ class _FamilyCard extends ConsumerWidget {
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 17,
                   fontWeight: FontWeight.w600,
-                  color: KinrelColors.textWhite,
+                  color: DKColors.textPrimary(context),
                 ),
               ),
             ),
@@ -683,7 +683,7 @@ class _FamilyCard extends ConsumerWidget {
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
-                color: KinrelColors.textSilver,
+                color: DKColors.textSecondary(context),
               ),
             ),
             const SizedBox(height: 12),
@@ -723,7 +723,7 @@ class _FamilyCard extends ConsumerWidget {
               'Cancel',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
-                color: KinrelColors.textSilver,
+                color: DKColors.textSecondary(context),
               ),
             ),
           ),

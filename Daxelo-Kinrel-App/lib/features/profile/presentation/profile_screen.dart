@@ -41,14 +41,7 @@ import '../../../presentation/widgets/skeletons/profile_skeleton.dart';
 import '../../family/providers/family_invite_provider.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
-const Color _bg = Color(0xFF131416);
-const Color _cardBg = Color(0xFF191B2C);
 const Color _orange = Color(0xFFE8612A);
-const Color _textPrimary = Color(0xFFF5F0EE);
-const Color _textSecondary = Color(0xFFC9B4A8);
-const Color _textDim = Color(0xFF8A7A72);
-const Color _chevronColor = Color(0xFF8A7A72);
-const Color _borderSubtle = Color(0x0FFFFFFF); // rgba(255,255,255,0.06)
 
 // ── Language Options ───────────────────────────────────────────────
 const Map<String, String> _languageOptions = {
@@ -81,6 +74,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   String? _appVersion;
   String? _buildInfo;
   bool _dataExportRequested = false;
+
+  // ── Theme-aware color getters (replace hardcoded dark consts) ──────
+  Color get _bg => DKColors.background(context);
+  Color get _cardBg => DKColors.cardColor(context);
+  Color get _textPrimary => DKColors.textPrimary(context);
+  Color get _textSecondary => DKColors.textSecondary(context);
+  Color get _textDim => DKColors.isLight(context)
+      ? const Color(0xFF6B7280)
+      : const Color(0xFF8A7A72);
+  Color get _borderSubtle => DKColors.borderColor(context);
+  Color get _chevronColor => DKColors.isLight(context)
+      ? const Color(0xFF9CA3AF)
+      : const Color(0xFF8A7A72);
 
   @override
   bool get wantKeepAlive => true;
@@ -771,7 +777,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     final isLoading = stats == null;
 
     return SizedBox(
-      height: 90,
+      height: 110,
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
@@ -1843,15 +1849,22 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cardBg = DKColors.cardColor(context);
+    final borderColor = DKColors.borderColor(context);
+    final textPrimary = DKColors.textPrimary(context);
+    final textDim = DKColors.isLight(context)
+        ? const Color(0xFF6B7280)
+        : const Color(0xFF8A7A72);
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 140,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          color: _cardBg,
+          color: cardBg,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _borderSubtle),
+          border: Border.all(color: borderColor),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1861,11 +1874,11 @@ class _StatCard extends StatelessWidget {
             if (value != null)
               Text(
                 value!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
-                  color: _textPrimary,
+                  color: textPrimary,
                 ),
               )
             else
@@ -1875,10 +1888,10 @@ class _StatCard extends StatelessWidget {
               label,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 11,
-                color: _textDim,
+                color: textDim,
                 height: 1.3,
               ),
             ),
@@ -1899,8 +1912,8 @@ class _SettingsRow extends StatelessWidget {
     required this.label,
     this.subtitle,
     this.badge,
-    this.iconColor = _textDim,
-    this.labelColor = _textPrimary,
+    this.iconColor,
+    this.labelColor,
     this.trailing,
     this.onTap,
   });
@@ -1909,13 +1922,20 @@ class _SettingsRow extends StatelessWidget {
   final String label;
   final String? subtitle;
   final int? badge;
-  final Color iconColor;
-  final Color labelColor;
+  final Color? iconColor;
+  final Color? labelColor;
   final Widget? trailing;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final effectiveIconColor = iconColor ??
+        (DKColors.isLight(context)
+            ? const Color(0xFF6B7280)
+            : const Color(0xFF8A7A72));
+    final effectiveLabelColor =
+        labelColor ?? DKColors.textPrimary(context);
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1925,7 +1945,7 @@ class _SettingsRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
           child: Row(
             children: [
-              Icon(icon, color: iconColor, size: 20),
+              Icon(icon, color: effectiveIconColor, size: 20),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -1940,7 +1960,7 @@ class _SettingsRow extends StatelessWidget {
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
-                              color: labelColor,
+                              color: effectiveLabelColor,
                             ),
                           ),
                         ),
@@ -1972,10 +1992,12 @@ class _SettingsRow extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         subtitle!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 12,
-                          color: _textDim,
+                          color: DKColors.isLight(context)
+                              ? const Color(0xFF6B7280)
+                              : const Color(0xFF8A7A72),
                         ),
                       ),
                     ],
@@ -1983,9 +2005,11 @@ class _SettingsRow extends StatelessWidget {
                 ),
               ),
               trailing ??
-                  const Icon(
+                  Icon(
                     Icons.chevron_right,
-                    color: _chevronColor,
+                    color: DKColors.isLight(context)
+                        ? const Color(0xFF9CA3AF)
+                        : const Color(0xFF8A7A72),
                     size: 20,
                   ),
             ],
@@ -2020,16 +2044,16 @@ class _SettingsToggleRow extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          Icon(icon, color: _textDim, size: 20),
+          Icon(icon, color: DKColors.isLight(context) ? const Color(0xFF6B7280) : const Color(0xFF8A7A72), size: 20),
           const SizedBox(width: 14),
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: _textPrimary,
+                color: DKColors.textPrimary(context),
               ),
             ),
           ),
@@ -2080,7 +2104,7 @@ class _SettingsSegmentedRow<T> extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          Icon(icon, color: _textDim, size: 20),
+          Icon(icon, color: DKColors.isLight(context) ? const Color(0xFF6B7280) : const Color(0xFF8A7A72), size: 20),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -2088,17 +2112,17 @@ class _SettingsSegmentedRow<T> extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: _textPrimary,
+                    color: DKColors.textPrimary(context),
                   ),
                 ),
                 const SizedBox(height: 8),
                 Container(
                   decoration: BoxDecoration(
-                    color: KinrelColors.darkElevated,
+                    color: DKColors.elevatedColor(context),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -2123,7 +2147,7 @@ class _SettingsSegmentedRow<T> extends StatelessWidget {
                                 fontWeight: isSelected
                                     ? FontWeight.w600
                                     : FontWeight.w400,
-                                color: isSelected ? Colors.white : _textDim,
+                                color: isSelected ? Colors.white : (DKColors.isLight(context) ? const Color(0xFF6B7280) : const Color(0xFF8A7A72)),
                               ),
                             ),
                           ),
@@ -2167,7 +2191,7 @@ class _SettingsFontScaleRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          Icon(icon, color: _textDim, size: 20),
+          Icon(icon, color: DKColors.isLight(context) ? const Color(0xFF6B7280) : const Color(0xFF8A7A72), size: 20),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -2175,17 +2199,17 @@ class _SettingsFontScaleRow extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: _textPrimary,
+                    color: DKColors.textPrimary(context),
                   ),
                 ),
                 const SizedBox(height: 8),
                 Container(
                   decoration: BoxDecoration(
-                    color: KinrelColors.darkElevated,
+                    color: DKColors.elevatedColor(context),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -2210,7 +2234,7 @@ class _SettingsFontScaleRow extends StatelessWidget {
                                 fontWeight: isSelected
                                     ? FontWeight.w600
                                     : FontWeight.w400,
-                                color: isSelected ? Colors.white : _textDim,
+                                color: isSelected ? Colors.white : (DKColors.isLight(context) ? const Color(0xFF6B7280) : const Color(0xFF8A7A72)),
                               ),
                             ),
                           ),
@@ -2266,7 +2290,7 @@ class _SettingsDeleteRow extends StatelessWidget {
                   ),
                 ),
               ),
-              const Icon(Icons.chevron_right, color: _chevronColor, size: 20),
+              Icon(Icons.chevron_right, color: DKColors.isLight(context) ? const Color(0xFF9CA3AF) : const Color(0xFF8A7A72), size: 20),
             ],
           ),
         ),
@@ -2333,7 +2357,7 @@ class _FamilyIdRow extends StatelessWidget {
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: _textPrimary,
+                      color: DKColors.textPrimary(context),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -2356,7 +2380,7 @@ class _FamilyIdRow extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
-                        color: _textDim,
+                        color: DKColors.isLight(context) ? const Color(0xFF6B7280) : const Color(0xFF8A7A72),
                       ),
                     ),
                 ],
@@ -2370,7 +2394,7 @@ class _FamilyIdRow extends StatelessWidget {
                 width: 36,
                 height: 36,
                 child: IconButton(
-                  icon: Icon(Icons.qr_code_rounded, color: _textDim, size: 20),
+                  icon: Icon(Icons.qr_code_rounded, color: DKColors.isLight(context) ? const Color(0xFF6B7280) : const Color(0xFF8A7A72), size: 20),
                   onPressed: onQR,
                   padding: EdgeInsets.zero,
                   tooltip: 'Show QR code',
@@ -2382,14 +2406,14 @@ class _FamilyIdRow extends StatelessWidget {
                 width: 36,
                 height: 36,
                 child: IconButton(
-                  icon: Icon(Icons.share_outlined, color: _textDim, size: 20),
+                  icon: Icon(Icons.share_outlined, color: DKColors.isLight(context) ? const Color(0xFF6B7280) : const Color(0xFF8A7A72), size: 20),
                   onPressed: onShare,
                   padding: EdgeInsets.zero,
                   tooltip: 'Share invite link',
                 ),
               ),
             ] else ...[
-              Icon(Icons.chevron_right, color: _chevronColor, size: 20),
+              Icon(Icons.chevron_right, color: DKColors.isLight(context) ? const Color(0xFF9CA3AF) : const Color(0xFF8A7A72), size: 20),
             ],
           ],
         ),
