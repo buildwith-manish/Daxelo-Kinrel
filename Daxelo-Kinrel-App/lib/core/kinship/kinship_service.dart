@@ -81,10 +81,14 @@ class KinshipService {
   /// Get translation for a specific relationship key + language
   KinshipTranslation? getKinshipTerm(String key, String language) {
     if (_data == null) return null;
-    final normalizedKey = normalizeRelationshipKey(key);
+    final normalizedKey = _resolveToExistingKey(key);
     final translations = _data!.translations[normalizedKey];
     if (translations == null) return null;
-    return translations[language];
+    // Language keys in JSON are lowercase ("hindi", "bengali"…)
+    // but callers may pass capitalized names ("Hindi", "Bengali")
+    // or locale codes ("hi", "bn"). Normalise to lowercase name.
+    final normalizedLang = _normalizeLanguageKey(language);
+    return translations[normalizedLang];
   }
 
   /// Get translation by locale code (e.g., 'hi' → hindi)
@@ -98,10 +102,55 @@ class KinshipService {
     return translation?.native;
   }
 
+  /// Normalise a language identifier to the lowercase name used as
+  /// translation keys in the JSON ("hindi", "bengali", …).
+  /// Accepts capitalised names ("Hindi"), locale codes ("hi"),
+  /// or already-correct lowercase names.
+  String _normalizeLanguageKey(String language) {
+    final lower = language.toLowerCase().trim();
+    // Try as a locale code first ("hi" → "hindi")
+    final fromCode = languageNameFromCode(lower);
+    if (fromCode != null) return fromCode;
+    // Already a lowercase name like "hindi"
+    return lower;
+  }
+
+  /// Resolve a relationship key to one that exists in the JSON data.
+  /// Handles generic terms like "uncle" → "fathers_brother",
+  /// "grandfather" → "paternal_grandfather", etc.
+  String _resolveToExistingKey(String rawKey) {
+    final normalized = normalizeRelationshipKey(rawKey);
+    // Direct hit — key exists in translations
+    if (_data?.translations.containsKey(normalized) ?? false) return normalized;
+    // Fallback: map generic terms to specific existing keys
+    const genericKeyMap = <String, String>{
+      'uncle': 'fathers_brother',
+      'aunt': 'fathers_sister',
+      'grandfather': 'paternal_grandfather',
+      'grandmother': 'paternal_grandmother',
+      'grandparent': 'paternal_grandfather',
+      'nephew': 'brothers_son',
+      'niece': 'brothers_daughter',
+      'cousin': 'fathers_younger_brothers_son',
+      'parent': 'father',
+      'child': 'son',
+      'sibling': 'brother',
+      'spouse': 'husband',
+    };
+    return genericKeyMap[normalized] ?? normalized;
+  }
+
   /// Get full relationship metadata
   KinshipRelationship? getRelationship(String key) {
     final normalizedKey = normalizeRelationshipKey(key);
-    return _byKey[normalizedKey];
+    final direct = _byKey[normalizedKey];
+    if (direct != null) return direct;
+    // Fallback: try resolving generic terms to specific keys
+    final resolved = _resolveToExistingKey(key);
+    if (resolved != normalizedKey) {
+      return _byKey[resolved];
+    }
+    return null;
   }
 
   /// Get all relationships in a category
@@ -123,8 +172,8 @@ class KinshipService {
   /// Get all translations for a relationship across all languages
   Map<String, KinshipTranslation>? getAllTranslations(String key) {
     if (_data == null) return null;
-    final normalizedKey = normalizeRelationshipKey(key);
-    return _data!.translations[normalizedKey];
+    final resolvedKey = _resolveToExistingKey(key);
+    return _data!.translations[resolvedKey];
   }
 
   /// Search relationships by query string

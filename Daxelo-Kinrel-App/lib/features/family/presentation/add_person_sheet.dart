@@ -110,6 +110,27 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
   bool get _isEditMode => widget.existingPerson != null;
 
+  /// Resolve the effective anchor person for relationship creation.
+  /// If `widget.anchorPerson` is explicitly provided, use it.
+  /// Otherwise, find the first existing member in the family (typically
+  /// the family creator / anchor person) so that relationships are
+  /// always created when there are existing members.
+  Person? get _effectiveAnchorPerson {
+    if (widget.anchorPerson != null) return widget.anchorPerson;
+    // Only auto-resolve in add mode (not edit mode)
+    if (_isEditMode) return null;
+    // Try to find the first existing member in the family
+    final membersAsync = ref.read(familyMembersProvider(widget.familyId));
+    final existingMembers = membersAsync.valueOrNull;
+    if (existingMembers == null || existingMembers.isEmpty) return null;
+    // Prefer the anchor person, then fall back to the first member
+    final anchor = existingMembers.firstWhere(
+      (m) => m.isAnchor,
+      orElse: () => existingMembers.first,
+    );
+    return anchor;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -240,7 +261,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   // ── Relationship picking ───────────────────────────────────────
 
   Future<void> _pickDetailedRelationship() async {
-    final anchor = widget.anchorPerson;
+    final anchor = _effectiveAnchorPerson;
     final result = await RelationshipPickerSheet.show(
       context,
       personAName: anchor?.name,
@@ -291,7 +312,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     final newName = _nameController.text.trim().isNotEmpty
         ? _nameController.text.trim()
         : 'New Member';
-    final anchorName = widget.anchorPerson?.name ?? 'existing member';
+    final anchorName = _effectiveAnchorPerson?.name ?? 'existing member';
     final label = _selectedRelationshipLabel ?? key.snakeToTitle;
     return '$anchorName will be the $label of $newName';
   }
@@ -346,12 +367,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
         // Create the relationship if one was selected
         final relKey = _effectiveRelationshipKey;
-        if (relKey != null && widget.anchorPerson != null) {
+        final anchor = _effectiveAnchorPerson;
+        if (relKey != null && anchor != null) {
           try {
             await createRelationshipBetween(
               ref: ref,
               familyId: widget.familyId,
-              fromPersonId: widget.anchorPerson!.id,
+              fromPersonId: anchor.id,
               toPersonId: result.id,
               relationshipKey: relKey,
             );
@@ -858,7 +880,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   // ── STEP 1: Relationship ───────────────────────────────────────
 
   Widget _buildStep1Relationship() {
-    final anchor = widget.anchorPerson;
+    final anchor = _effectiveAnchorPerson;
     final newName = _nameController.text.trim().isNotEmpty
         ? _nameController.text.trim()
         : 'New Member';
