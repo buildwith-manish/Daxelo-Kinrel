@@ -9,6 +9,11 @@ import { KinshipService, KinshipTerm } from '../kinship/kinship.service';
 import { GraphService } from '../graph/graph.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import Redis from 'ioredis';
+import OpenAI from 'openai';
+import { randomBytes } from 'crypto';
+import { shuffle } from '../../common/utils/shuffle.util';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -97,21 +102,28 @@ export interface SmartSearchSuggestion {
 @Injectable()
 export class AiChatService {
   private readonly logger = new Logger(AiChatService.name);
-  private readonly sessions: Map<string, ChatSession> = new Map();
+  private readonly ai: OpenAI;
+  private SESSION_TTL_SECONDS = 3600;
 
   constructor(
+    @InjectRedis() private readonly redis: Redis,
     private readonly kinshipService: KinshipService,
     private readonly graphService: GraphService,
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
-  ) {}
+  ) {
+    this.ai = new OpenAI({
+      apiKey: this.configService.get('DEEPSEEK_API_KEY'),
+      baseURL: 'https://api.deepseek.com',
+    });
+  }
 
   /**
    * Get chat suggestions related to Indian kinship.
    */
   getSuggestions(): string[] {
     // Shuffle and return 6 suggestions
-    const shuffled = [...SUGGESTION_TEMPLATES].sort(() => Math.random() - 0.5);
+    const shuffled = shuffle(SUGGESTION_TEMPLATES);
     return shuffled.slice(0, 6);
   }
 
@@ -126,13 +138,34 @@ export class AiChatService {
 
     // Retrieve or create session
     let session: ChatSession;
-    if (sessionId && this.sessions.has(sessionId)) {
-      session = this.sessions.get(sessionId)!;
-      session.messages.push({ role: 'user', content: message });
-      session.updatedAt = new Date();
+    if (sessionId) {
+      const existing = await this.getSession(sessionId);
+      if (existing) {
+        session = existing;
+        session.messages.push({ role: 'user', content: message });
+        session.updatedAt = new Date();
+      } else {
+        session = {
+          id: sessionId,
+          userId,
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You are a helpful assistant that specializes in Indian kinship relationships and family terminology. ' +
+                'You help users understand how to address family members in different Indian languages and cultures. ' +
+                'Provide clear, respectful, and culturally accurate information about Indian family relationships. ' +
+                'When discussing kinship terms, always include the relationship in English and at least one Indian language translation.',
+            },
+            { role: 'user', content: message },
+          ],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+      }
     } else {
       session = {
-        id: sessionId || this.generateSessionId(),
+        id: this.generateSessionId(),
         userId,
         messages: [
           {
@@ -166,7 +199,7 @@ export class AiChatService {
 
     // Update session with assistant response
     session.messages.push({ role: 'assistant', content: aiResponse });
-    this.sessions.set(session.id, session);
+    await this.saveSession(session);
 
     return {
       response: aiResponse,
@@ -177,34 +210,28 @@ export class AiChatService {
   /**
    * Delete a chat session.
    */
-  deleteSession(sessionId: string, userId: string): { success: boolean } {
-    const session = this.sessions.get(sessionId);
+  async deleteSession(sessionId: string, userId: string): Promise<{ success: boolean }> {
+    const session = await this.getSession(sessionId);
     if (!session) {
       return { success: true }; // Idempotent
     }
     if (session.userId !== userId) {
       return { success: false };
     }
-    this.sessions.delete(sessionId);
+    await this.deleteSessionFromRedis(sessionId);
     return { success: true };
   }
 
   // ── Private Helpers ────────────────────────────────────────────────
 
   private async generateLlmResponse(messages: ChatMessage[]): Promise<string> {
-    const ZAI = (await import('z-ai-web-dev-sdk')).default;
-    const sdk = await ZAI.create();
-
-    const response = await sdk.chat.completions.create({
-      messages: messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
+    const response = await this.ai.chat.completions.create({
       model: 'deepseek-chat',
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      max_tokens: 1000,
     });
 
-    // Extract the text from the LLM response
-    if (response?.choices?.[0]?.message?.content) {
+    if (response.choices?.[0]?.message?.content) {
       return response.choices[0].message.content;
     }
 
@@ -271,7 +298,26 @@ export class AiChatService {
   }
 
   private generateSessionId(): string {
-    return `chat_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    return `chat_${randomBytes(16).toString('hex')}`;
+  }
+
+  // ── Redis Session Helpers ──────────────────────────────────────────
+
+  private async getSession(id: string): Promise<ChatSession | null> {
+    const raw = await this.redis.get(`chat:session:${id}`);
+    return raw ? JSON.parse(raw) : null;
+  }
+
+  private async saveSession(session: ChatSession): Promise<void> {
+    await this.redis.setex(
+      `chat:session:${session.id}`,
+      this.SESSION_TTL_SECONDS,
+      JSON.stringify(session),
+    );
+  }
+
+  private async deleteSessionFromRedis(id: string): Promise<void> {
+    await this.redis.del(`chat:session:${id}`);
   }
 
   // ── New Public API Methods ─────────────────────────────────────────
@@ -722,9 +768,6 @@ export class AiChatService {
 
     // Try LLM first
     try {
-      const ZAI = (await import('z-ai-web-dev-sdk')).default;
-      const sdk = await ZAI.create();
-
       const prompt =
         `Explain in 1-2 sentences: ${fromName} is related to ${toName} through the path: ${pathDescription}. ` +
         `The composed kinship term is "${kinshipTerm || 'unknown'}"` +
@@ -732,7 +775,8 @@ export class AiChatService {
         `. ${toGender === 'female' ? 'The target person is female.' : toGender === 'male' ? 'The target person is male.' : ''} ` +
         `Generate a natural, concise explanation like "Rahul is your paternal uncle (चाचा) because he is your father's brother".`;
 
-      const response = await sdk.chat.completions.create({
+      const response = await this.ai.chat.completions.create({
+        model: 'deepseek-chat',
         messages: [
           {
             role: 'system',
@@ -741,7 +785,7 @@ export class AiChatService {
           },
           { role: 'user', content: prompt },
         ],
-        model: 'deepseek-chat',
+        max_tokens: 1000,
       });
 
       if (response?.choices?.[0]?.message?.content) {
@@ -805,9 +849,6 @@ export class AiChatService {
     anchorName: string | undefined,
   ): Promise<string> {
     try {
-      const ZAI = (await import('z-ai-web-dev-sdk')).default;
-      const sdk = await ZAI.create();
-
       const prompt =
         `Generate a concise family summary (3-5 sentences) for the "${familyName}" family with these details:\n` +
         `- Members: ${memberCount}\n` +
@@ -821,7 +862,8 @@ export class AiChatService {
         (anchorName ? `- Anchor/Root person: ${anchorName}\n` : '') +
         `Include Hindi kinship terms where relevant. Keep it warm and culturally appropriate.`;
 
-      const response = await sdk.chat.completions.create({
+      const response = await this.ai.chat.completions.create({
+        model: 'deepseek-chat',
         messages: [
           {
             role: 'system',
@@ -830,7 +872,7 @@ export class AiChatService {
           },
           { role: 'user', content: prompt },
         ],
-        model: 'deepseek-chat',
+        max_tokens: 1000,
       });
 
       if (response?.choices?.[0]?.message?.content) {

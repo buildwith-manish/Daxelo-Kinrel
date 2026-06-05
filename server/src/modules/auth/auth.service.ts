@@ -14,6 +14,7 @@ import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import * as speakeasy from 'speakeasy';
 import { encrypt, decrypt } from '../../common/utils/encryption.util';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 export interface TokenPair {
   accessToken: string;
@@ -100,31 +101,33 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // Try bcrypt first, then legacy SHA-256 fallback
-    let passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
-
-    if (!passwordValid && user.passwordHash.startsWith('sha256:')) {
-      const legacyHash = user.passwordHash.replace('sha256:', '');
-      const inputHash = this.hashSha256(dto.password);
-      if (inputHash === legacyHash) {
-        passwordValid = true;
-        // Auto-upgrade to bcrypt
-        const newHash = await bcrypt.hash(dto.password, 12);
-        await this.prisma.user.update({
-          where: { id: user.id },
-          data: { passwordHash: newHash },
-        });
-      }
-    }
+    const passwordValid = await this.verifyPasswordWithLegacyUpgrade(user.id, dto.password, user.passwordHash);
 
     if (!passwordValid) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-
-
-    // Check 2FA if enabled
-    // (2FA code verification handled in a separate step after login returns a challenge)
+    // Check 2FA if enabled — issue challenge token instead of real tokens
+    if (user.twoFactorEnabled) {
+      const challengeToken = this.jwt.sign(
+        { sub: user.id, scope: '2fa_challenge' },
+        {
+          secret: this.config.get<string>('JWT_ACCESS_SECRET'),
+          expiresIn: '5m',
+        },
+      );
+      return {
+        requiresTwoFactor: true,
+        challengeToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          preferredLanguage: user.preferredLanguage,
+        },
+      };
+    }
 
     const tokens = await this.generateTokenPair(
       user.id,
@@ -231,25 +234,7 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
-    // Try bcrypt first, then legacy SHA-256 fallback
-    let passwordValid = await bcrypt.compare(
-      dto.currentPassword,
-      user.passwordHash,
-    );
-
-    if (!passwordValid && user.passwordHash.startsWith('sha256:')) {
-      const legacyHash = user.passwordHash.replace('sha256:', '');
-      const inputHash = this.hashSha256(dto.currentPassword);
-      if (inputHash === legacyHash) {
-        passwordValid = true;
-        // Auto-upgrade to bcrypt
-        const newHash = await bcrypt.hash(dto.currentPassword, 12);
-        await this.prisma.user.update({
-          where: { id: userId },
-          data: { passwordHash: newHash },
-        });
-      }
-    }
+    const passwordValid = await this.verifyPasswordWithLegacyUpgrade(userId, dto.currentPassword, user.passwordHash);
 
     if (!passwordValid) {
       throw new UnauthorizedException('Current password is incorrect');
@@ -387,7 +372,13 @@ export class AuthService {
     // Mark user as 2FA-verified so subsequent requests pass the TwoFactorGuard
     await this.twoFactorVerificationService.markVerified(user.id);
 
-    return { verified: true };
+    // After successful 2FA verification, generate real tokens
+    const tokens = await this.generateTokenPair(user.id, user.email, user.role);
+    return {
+      verified: true,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
   }
 
   // ── 2FA Disable ─────────────────────────────────────────────────
@@ -484,6 +475,27 @@ export class AuthService {
   }
 
   // ── Private Helpers ─────────────────────────────────────────────
+
+  private async verifyPasswordWithLegacyUpgrade(
+    userId: string,
+    inputPassword: string,
+    storedHash: string,
+  ): Promise<boolean> {
+    let valid = await bcrypt.compare(inputPassword, storedHash);
+    if (!valid && storedHash.startsWith('sha256:')) {
+      const legacyHash = storedHash.replace('sha256:', '');
+      if (this.hashSha256(inputPassword) === legacyHash) {
+        valid = true;
+        // Auto-upgrade to bcrypt
+        const newHash = await bcrypt.hash(inputPassword, 12);
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { passwordHash: newHash },
+        });
+      }
+    }
+    return valid;
+  }
 
   private hashSha256(password: string): string {
     return crypto.createHash('sha256').update(password).digest('hex');
@@ -669,6 +681,7 @@ export class AuthService {
    * Cleanup expired and old revoked tokens.
    * Should be called periodically (e.g., via interval in module init).
    */
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async cleanupExpiredTokens() {
     const thirtyDaysAgo = new Date(
       Date.now() - 30 * 24 * 60 * 60 * 1000,

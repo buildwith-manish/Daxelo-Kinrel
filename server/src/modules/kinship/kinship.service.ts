@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { shuffle } from '../../common/utils/shuffle.util';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -1047,7 +1048,7 @@ export class KinshipService {
       : KINSHIP_DATABASE;
 
     // Shuffle and take `count`
-    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    const shuffled = shuffle(pool);
     return shuffled.slice(0, Math.min(count, shuffled.length));
   }
 

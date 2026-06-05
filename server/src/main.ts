@@ -7,6 +7,7 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { FieldTrimInterceptor } from './common/interceptors/field-trim.interceptor';
 import { TimestampInterceptor } from './common/interceptors/timestamp.interceptor';
+import { ResponseEnvelopeInterceptor } from './common/interceptors/response-envelope.interceptor';
 import { SecurityHeadersInterceptor } from './common/interceptors/security-headers.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { LoggerService } from './common/logger/logger.service';
@@ -40,6 +41,14 @@ async function bootstrap() {
 
   // ── Helmet — HTTP security headers ──────────────────────────────
   app.use(helmet());
+
+  // ── Request ID tracking ────────────────────────────────────────
+  app.use((req: any, res: any, next: any) => {
+    const requestId = req.headers['x-request-id'] || require('crypto').randomBytes(8).toString('hex');
+    req.headers['x-request-id'] = requestId;
+    res.setHeader('x-request-id', requestId);
+    next();
+  });
 
   // ── Gzip compression — reduces response sizes for slow networks ─
   // Particularly important for the /api/sync endpoint (50KB limit)
@@ -125,12 +134,14 @@ async function bootstrap() {
   // 3. TransformInterceptor: adds X-Response-Time header
   // 4. FieldTrimInterceptor: removes null/undefined fields to save bandwidth
   // 5. TimestampInterceptor: adds `ts` field for cache validation (no envelope)
+  // 6. ResponseEnvelopeInterceptor: wraps response in { success, data, timestamp } envelope
   app.useGlobalInterceptors(
     new SecurityHeadersInterceptor(),
     new LoggingInterceptor(loggerService, alertingService),
     new TransformInterceptor(),
     new FieldTrimInterceptor(),
     new TimestampInterceptor(),
+    new ResponseEnvelopeInterceptor(),
   );
 
   // Enable graceful shutdown hooks — ensures Prisma disconnects,

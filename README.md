@@ -1,6 +1,6 @@
 # Daxelo Kinrel
 
-**Indian Family Relationship Intelligence** — Map relationships in 14 Indian languages.
+**Indian Family Relationship Intelligence** — Map relationships in 7 Indian languages.
 
 ## Stack
 
@@ -132,7 +132,7 @@ npm run test:cov      # With coverage
 - 🤖 AI relationship discovery & explanations
 - 🔍 Search (users, families, relationships — fuzzy + offline)
 - 📴 Offline-first with Drift + background sync
-- 🌐 14 Indian languages (Hindi, Tamil, Telugu, + 11 more)
+- 🌐 7 Indian languages (Hindi, Marathi, Tamil, Telugu, Kannada, Bengali, Gujarati)
 - 🔔 Smart notifications (invites, birthdays, anniversaries)
 - 🔒 Security (JWT, RLS, role guards, rate limiting)
 - 📊 Family graph engine (8 core types → 50+ derived kinship terms)

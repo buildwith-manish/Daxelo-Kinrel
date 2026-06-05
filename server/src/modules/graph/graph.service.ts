@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nest
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { getInverseKey } from '../relationships/relationships.service';
+import { MAX_GRAPH_NODES, DEFAULT_GRAPH_DEPTH, MAX_GRAPH_DEPTH } from '../../common/constants';
 import Redis from 'ioredis';
 
 export interface TreeNode {
@@ -117,7 +118,7 @@ export class GraphService {
       return this.getPath(familyId, options.from, options.to);
     }
 
-    const safeDepth = Math.min(options.depth ?? 10, 50);
+    const safeDepth = Math.min(options.depth ?? DEFAULT_GRAPH_DEPTH, MAX_GRAPH_DEPTH);
 
     if (options.root && options.format === 'tree') {
       return this.getTree(familyId, options.root, safeDepth);
@@ -164,7 +165,7 @@ export class GraphService {
     throw new NotFoundException('No persons found in this family to use as tree root');
   }
 
-  async getTree(familyId: string, rootPersonId: string, depth: number = 10): Promise<{ root: TreeNode | null; totalNodes: number }> {
+  async getTree(familyId: string, rootPersonId: string, depth: number = DEFAULT_GRAPH_DEPTH): Promise<{ root: TreeNode | null; totalNodes: number }> {
     // Select only fields used by TreeNode — skips large photo fields (photoCard, photoFull),
     // notes, occupation, city, gotra, privacyLevel, etc. reducing DB row size
     const persons = await this.prisma.person.findMany({
@@ -251,7 +252,7 @@ export class GraphService {
     const visited = new Set<string>();
 
     const buildNode = (personId: string, currentDepth: number): TreeNode | null => {
-      if (visited.has(personId) || currentDepth > depth) return null;
+      if (visited.size >= MAX_GRAPH_NODES || visited.has(personId) || currentDepth > depth) return null;
       visited.add(personId);
 
       const person: any = personMap.get(personId);

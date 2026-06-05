@@ -6,16 +6,22 @@ import {
   UseGuards,
   BadRequestException,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { GraphService } from './graph.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
+@ApiTags('graph')
 @Controller('graph')
 @UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
 export class GraphController {
   constructor(private graphService: GraphService) {}
 
   @Get(':familyId')
+  @ApiOperation({ summary: 'Get family graph data' })
+  @ApiResponse({ status: 200, description: 'Returns graph data for the family' })
+  @ApiResponse({ status: 404, description: 'Family not found' })
   async getGraph(
     @CurrentUser('id') userId: string,
     @Param('familyId') familyId: string,
@@ -37,6 +43,9 @@ export class GraphController {
   }
 
   @Get(':familyId/tree')
+  @ApiOperation({ summary: 'Get family tree structure' })
+  @ApiResponse({ status: 200, description: 'Returns tree structure for the family' })
+  @ApiResponse({ status: 404, description: 'Family not found' })
   async getTree(
     @CurrentUser('id') userId: string,
     @Param('familyId') familyId: string,
@@ -58,6 +67,10 @@ export class GraphController {
   }
 
   @Get(':familyId/path')
+  @ApiOperation({ summary: 'Find path between two persons in the family graph' })
+  @ApiResponse({ status: 200, description: 'Returns the path between two persons' })
+  @ApiResponse({ status: 400, description: 'Missing from/to query parameters' })
+  @ApiResponse({ status: 404, description: 'Family or person not found' })
   async getPath(
     @CurrentUser('id') userId: string,
     @Param('familyId') familyId: string,
