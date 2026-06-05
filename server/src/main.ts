@@ -20,6 +20,8 @@ const CORS_WHITELIST = [
   'http://localhost:3001',                              // Flutter web dev
   'http://localhost:8080',                              // Flutter web alt
   'https://kinrel.app',                                // Production
+  'https://daxelokinrel.com',                          // Production domain
+  'https://app.daxelokinrel.com',                      // App subdomain
   'https://daxelo-kinrel-server.onrender.com',         // Render backend
   'capabile://',                                        // iOS app scheme
   'com.daxelo.kinrel',                                 // Android app scheme
@@ -39,8 +41,19 @@ async function bootstrap() {
 
   const apiPrefix = configService.get<string>('API_PREFIX', 'api');
 
-  // ── Helmet — HTTP security headers ──────────────────────────────
-  app.use(helmet());
+  // ── Helmet — HTTP security headers + CSP ────────────────────────
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https://res.cloudinary.com"],
+        connectSrc: ["'self'", "https://*.supabase.co"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  }));
 
   // ── Request ID tracking ────────────────────────────────────────
   app.use((req: any, res: any, next: any) => {
