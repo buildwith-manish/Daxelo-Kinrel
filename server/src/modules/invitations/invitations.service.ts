@@ -66,27 +66,25 @@ export class InvitationsService {
     // ── Check target user's invitePermission ─────────────────────────
     // If the invitation targets an existing user (by email or phone),
     // we must respect their invite permission settings.
+    // Look up the invitee by email or phone
+    let inviteeUser: { id: string; invitePermission: string } | null = null;
+
     if (data.recipientEmail) {
-      const targetUser = await this.prisma.user.findUnique({
+      inviteeUser = await this.prisma.user.findUnique({
         where: { email: data.recipientEmail },
         select: { id: true, invitePermission: true },
       });
-
-      if (targetUser) {
-        await this._enforceInvitePermission(userId, targetUser.id, targetUser.invitePermission);
-      }
     }
 
-    if (data.recipientPhone && !data.recipientEmail) {
-      // Only check by phone if email wasn't provided (avoid double-checking)
-      const targetUser = await this.prisma.user.findFirst({
+    if (!inviteeUser && data.recipientPhone) {
+      inviteeUser = await this.prisma.user.findFirst({
         where: { phone: data.recipientPhone },
         select: { id: true, invitePermission: true },
       });
+    }
 
-      if (targetUser) {
-        await this._enforceInvitePermission(userId, targetUser.id, targetUser.invitePermission);
-      }
+    if (inviteeUser) {
+      await this._enforceInvitePermission(userId, inviteeUser.id, inviteeUser.invitePermission);
     }
 
     // Generate unique token
@@ -428,6 +426,26 @@ export class InvitationsService {
       acceptedAt: inv.acceptedAt,
       createdAt: inv.createdAt,
     };
+  }
+
+  /**
+   * Checks whether two users share at least one family.
+   * Used by invitePermission='connections' enforcement.
+   */
+  private async usersShareFamily(userId1: string, userId2: string): Promise<boolean> {
+    const [user1Families, user2Families] = await Promise.all([
+      this.prisma.familyMember.findMany({
+        where: { userId: userId1 },
+        select: { familyId: true },
+      }),
+      this.prisma.familyMember.findMany({
+        where: { userId: userId2 },
+        select: { familyId: true },
+      }),
+    ]);
+
+    const familyIds1 = new Set(user1Families.map((m) => m.familyId));
+    return user2Families.some((m) => familyIds1.has(m.familyId));
   }
 }
 

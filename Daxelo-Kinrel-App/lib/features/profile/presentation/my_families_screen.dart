@@ -11,17 +11,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/device_tier.dart';
+import '../../../shared/widgets/dk_components.dart';
 import '../data/profile_provider.dart';
 
-// ── Design Tokens ──────────────────────────────────────────────────
-const Color _bg = Color(0xFF131416);
-const Color _cardBg = Color(0xFF191B2C);
+// ── Design Tokens (theme-agnostic) ────────────────────────────────
 const Color _orange = Color(0xFFE8612A);
-const Color _textPrimary = Color(0xFFF5F0EE);
-const Color _textSecondary = Color(0xFFC9B4A8);
 const Color _textDim = Color(0xFF8A7A72);
 const Color _borderSubtle = Color(0x0FFFFFFF);
 
@@ -33,6 +31,12 @@ class MyFamiliesScreen extends ConsumerStatefulWidget {
 }
 
 class _MyFamiliesScreenState extends ConsumerState<MyFamiliesScreen> {
+  // ── Theme-aware color getters ───────────────────────────────────
+  Color get _bg => DKColors.background(context);
+  Color get _cardBg => DKColors.cardColor(context);
+  Color get _textPrimary => DKColors.textPrimary(context);
+  Color get _textSecondary => DKColors.textSecondary(context);
+
   @override
   void initState() {
     super.initState();
@@ -90,11 +94,11 @@ class _MyFamiliesScreenState extends ConsumerState<MyFamiliesScreen> {
         backgroundColor: _cardBg,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: _borderSubtle),
+          side: BorderSide(color: _borderSubtle),
         ),
         title: Text(
           'Leave "${family.name}"?',
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 18,
             fontWeight: FontWeight.w700,
@@ -103,7 +107,7 @@ class _MyFamiliesScreenState extends ConsumerState<MyFamiliesScreen> {
         ),
         content: Text(
           'You will no longer have access to this family tree. If you are the only admin, the family will need a new admin before you can leave.',
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 14,
             color: _textSecondary,
@@ -134,14 +138,13 @@ class _MyFamiliesScreenState extends ConsumerState<MyFamiliesScreen> {
   }
 
   Future<void> _leaveFamily(FamilyTreeNode family) async {
-    // In a production app, this would call an API method like:
-    // await ref.read(profileProvider.notifier).leaveFamily(family.id);
-    // For now, refresh the families list after a brief delay
+    final success = await ref.read(profileProvider.notifier).leaveFamily(family.id);
     if (!mounted) return;
-    context.showSnackBar('Left "${family.name}"');
-
-    // Refresh the list
-    await ref.read(profileProvider.notifier).loadFamilies();
+    if (success) {
+      context.showSnackBar('Left "${family.name}"');
+    } else {
+      context.showSnackBar('Failed to leave family', isError: true);
+    }
   }
 
   @override
@@ -155,10 +158,10 @@ class _MyFamiliesScreenState extends ConsumerState<MyFamiliesScreen> {
         backgroundColor: _bg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: _textPrimary),
+          icon: Icon(Icons.arrow_back, color: _textPrimary),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
+        title: Text(
           'My Families',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -188,6 +191,9 @@ class _MyFamiliesScreenState extends ConsumerState<MyFamiliesScreen> {
         final isAdmin = family.role.toLowerCase() == 'admin';
         return _FamilyCard(
           family: family,
+          cardBg: _cardBg,
+          textPrimary: _textPrimary,
+          textSecondary: _textSecondary,
           roleBadgeColor: _roleBadgeColor(family.role),
           roleIcon: _roleIcon(family.role),
           roleLabel: _roleLabel(family.role),
@@ -220,7 +226,7 @@ class _MyFamiliesScreenState extends ConsumerState<MyFamiliesScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             "You're not part of any families yet",
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -231,7 +237,7 @@ class _MyFamiliesScreenState extends ConsumerState<MyFamiliesScreen> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Create a new family or accept an invitation to get started',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -252,7 +258,7 @@ class _MyFamiliesScreenState extends ConsumerState<MyFamiliesScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text(
+              child: Text(
                 'Create a Family',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -354,6 +360,9 @@ class _MyFamiliesScreenState extends ConsumerState<MyFamiliesScreen> {
 class _FamilyCard extends StatelessWidget {
   const _FamilyCard({
     required this.family,
+    required this.cardBg,
+    required this.textPrimary,
+    required this.textSecondary,
     required this.roleBadgeColor,
     required this.roleIcon,
     required this.roleLabel,
@@ -363,6 +372,9 @@ class _FamilyCard extends StatelessWidget {
   });
 
   final FamilyTreeNode family;
+  final Color cardBg;
+  final Color textPrimary;
+  final Color textSecondary;
   final Color roleBadgeColor;
   final IconData roleIcon;
   final String roleLabel;
@@ -376,7 +388,7 @@ class _FamilyCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _cardBg,
+        color: cardBg,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isAdmin ? _orange.withValues(alpha: 0.2) : _borderSubtle,
@@ -411,11 +423,11 @@ class _FamilyCard extends StatelessWidget {
                   children: [
                     Text(
                       family.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: _textPrimary,
+                        color: textPrimary,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -478,10 +490,10 @@ class _FamilyCard extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 '${family.memberCount} ${family.memberCount == 1 ? 'member' : 'members'}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
-                  color: _textSecondary,
+                  color: textSecondary,
                 ),
               ),
 
@@ -493,6 +505,7 @@ class _FamilyCard extends StatelessWidget {
                   label: 'Manage',
                   color: _orange,
                   isFilled: true,
+                  textPrimary: textPrimary,
                   onTap: onManage,
                 )
               else
@@ -500,6 +513,7 @@ class _FamilyCard extends StatelessWidget {
                   label: 'Leave',
                   color: Colors.redAccent,
                   isFilled: false,
+                  textPrimary: textPrimary,
                   onTap: onLeave,
                 ),
             ],
@@ -519,12 +533,14 @@ class _ActionButton extends StatelessWidget {
     required this.label,
     required this.color,
     required this.isFilled,
+    required this.textPrimary,
     required this.onTap,
   });
 
   final String label;
   final Color color;
   final bool isFilled;
+  final Color textPrimary;
   final VoidCallback onTap;
 
   @override
@@ -552,7 +568,7 @@ class _ActionButton extends StatelessWidget {
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: isFilled ? _textPrimary : color,
+              color: isFilled ? textPrimary : color,
             ),
           ),
         ),

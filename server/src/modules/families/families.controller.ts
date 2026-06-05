@@ -82,4 +82,17 @@ export class FamiliesController {
   ) {
     return this.familiesService.remove(userId, familyId);
   }
+
+  @Delete(':familyId/leave')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Leave a family as a non-admin member' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Left family successfully' })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Cannot leave as the only admin' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Not a member of this family' })
+  async leaveFamily(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+  ) {
+    return this.familiesService.leaveFamily(userId, familyId);
+  }
 }

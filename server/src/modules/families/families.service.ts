@@ -10,6 +10,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateFamilyDto } from './dto/create-family.dto';
 import { UpdateFamilyDto } from './dto/update-family.dto';
 import { FamilyIdService } from './family-id.service';
+import { KinrelGateway } from '../gateway/kinrel.gateway';
 
 const ROLE_HIERARCHY: Record<string, number> = {
   viewer: 1,
@@ -24,6 +25,7 @@ export class FamiliesService {
     private prisma: PrismaService,
     @Inject(forwardRef(() => FamilyIdService))
     private familyIdService: FamilyIdService,
+    private gateway: KinrelGateway,
   ) {}
 
   /** Creates a new family and assigns the creator as admin member. */
@@ -199,6 +201,64 @@ export class FamiliesService {
     });
 
     return { deleted: true, familyId };
+  }
+
+  /** Allows a non-admin member to leave a family. Admins must transfer admin first. */
+  async leaveFamily(userId: string, familyId: string) {
+    // 1. Verify the user is a member of the family
+    const membership = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId, userId } },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException('You are not a member of this family');
+    }
+
+    // 2. If the user is an admin, check if they are the only admin
+    if (membership.role === 'admin') {
+      const adminCount = await this.prisma.familyMember.count({
+        where: { familyId, role: 'admin' },
+      });
+
+      if (adminCount <= 1) {
+        throw new BadRequestException(
+          'You are the only admin of this family. Please transfer admin to another member before leaving.',
+        );
+      }
+    }
+
+    // 3. Delete the FamilyMember record and decrement memberCount in a transaction
+    await this.prisma.$transaction(async (tx) => {
+      await tx.familyMember.delete({
+        where: { familyId_userId: { familyId, userId } },
+      });
+
+      await tx.family.update({
+        where: { id: familyId },
+        data: {
+          memberCount: { decrement: 1 },
+          lastActivityAt: new Date(),
+        },
+      });
+    });
+
+    // 4. Emit WebSocket events
+    this.gateway.emitToFamily(familyId, 'member:left', {
+      id: membership.id,
+      updatedAt: new Date().toISOString(),
+      type: 'member:left',
+      familyId,
+      userId,
+    });
+
+    this.gateway.emitToFamily(familyId, 'graph:updated', {
+      id: familyId,
+      updatedAt: new Date().toISOString(),
+      type: 'graph:updated',
+      familyId,
+    });
+
+    return { left: true, familyId };
   }
 
   /** Verifies the user is a member of the family, throws if not. */

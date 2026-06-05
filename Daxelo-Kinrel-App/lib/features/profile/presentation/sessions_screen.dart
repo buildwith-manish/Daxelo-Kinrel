@@ -20,7 +20,7 @@ import '../../../core/utils/device_tier.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/profile_provider.dart';
 
-// ── Design Tokens ──────────────────────────────────────────────────
+// ── Design Tokens (theme-agnostic) ────────────────────────────────
 const Color _orange = Color(0xFFE8612A);
 
 class SessionsScreen extends ConsumerStatefulWidget {
@@ -379,6 +379,8 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
         final session = sessions[index];
         return _SessionCard(
           session: session,
+          cardBg: _cardBg,
+          textPrimary: _textPrimary,
           deviceIcon: _deviceIcon(session.deviceType),
           relativeTime: _relativeTime(session.lastActiveAt),
           onRevoke: session.isCurrentDevice
@@ -510,12 +512,16 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
 class _SessionCard extends StatelessWidget {
   const _SessionCard({
     required this.session,
+    required this.cardBg,
+    required this.textPrimary,
     required this.deviceIcon,
     required this.relativeTime,
     this.onRevoke,
   });
 
   final SessionModel session;
+  final Color cardBg;
+  final Color textPrimary;
   final IconData deviceIcon;
   final String relativeTime;
   final VoidCallback? onRevoke;

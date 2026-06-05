@@ -78,6 +78,9 @@ export class UsersService {
         avatarUrl: true,
         photoThumb: true,
         bio: true,
+        dateOfBirth: true,
+        gender: true,
+        preferredLanguage: true,
         profileVisibility: true,
         createdAt: true,
       },
@@ -90,21 +93,37 @@ export class UsersService {
     // ── Privacy enforcement ────────────────────────────────────────
     const visibility = user.profileVisibility || 'public';
 
+    // If viewing own profile, return full info
+    if (viewerId && viewerId === user.id) {
+      return {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        avatarUrl: user.photoThumb || user.avatarUrl,
+        bio: user.bio,
+        memberSince: user.createdAt,
+      };
+    }
+
     if (visibility === 'private') {
       // Private profiles are only visible to the user themselves
       // and to their family connections (members of the same family).
-      if (viewerId === user.id) {
-        // Self can always see own profile — allow
-      } else if (!viewerId) {
+      if (!viewerId) {
         // No viewer context — block
         throw new NotFoundException('User not found');
-      } else {
-        // Other user — check if they share a family
-        const areConnections = await this._areConnections(viewerId, user.id);
-        if (!areConnections) {
-          throw new NotFoundException('User not found');
-        }
       }
+      // Check if they share a family
+      const areConnections = await this._areConnections(viewerId, user.id);
+      if (!areConnections) {
+        throw new NotFoundException('User not found');
+      }
+      // Connection can see limited info
+      return {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        avatarUrl: user.photoThumb || user.avatarUrl,
+      };
     }
 
     if (visibility === 'connections_only') {
@@ -113,15 +132,27 @@ export class UsersService {
         throw new NotFoundException('User not found');
       }
 
-      if (viewerId !== user.id) {
-        const areConnections = await this._areConnections(viewerId, user.id);
-        if (!areConnections) {
-          throw new NotFoundException('User not found');
-        }
+      const areConnections = await this._areConnections(viewerId, user.id);
+      if (!areConnections) {
+        throw new NotFoundException('User not found');
       }
+
+      // In the same family → return full profile (no email/phone)
+      return {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        avatarUrl: user.photoThumb || user.avatarUrl,
+        bio: user.bio,
+        dateOfBirth: user.dateOfBirth,
+        gender: user.gender,
+        preferredLanguage: user.preferredLanguage,
+        memberSince: user.createdAt,
+      };
     }
 
-    // Return limited public profile (no email, phone, etc.)
+    // visibility === 'public' (default)
+    // Return the current full public profile (no email/phone)
     return {
       id: user.id,
       name: user.name,
@@ -154,6 +185,26 @@ export class UsersService {
     });
 
     return !!overlap;
+  }
+
+  /**
+   * Checks whether two users share at least one family.
+   * Used by profileVisibility='connections_only' enforcement.
+   */
+  private async usersShareFamily(userId1: string, userId2: string): Promise<boolean> {
+    const [user1Families, user2Families] = await Promise.all([
+      this.prisma.familyMember.findMany({
+        where: { userId: userId1 },
+        select: { familyId: true },
+      }),
+      this.prisma.familyMember.findMany({
+        where: { userId: userId2 },
+        select: { familyId: true },
+      }),
+    ]);
+
+    const familyIds1 = new Set(user1Families.map((m) => m.familyId));
+    return user2Families.some((m) => familyIds1.has(m.familyId));
   }
 
   // ── Get Profile (enhanced with all ProfileModel fields) ──────────

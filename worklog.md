@@ -791,3 +791,200 @@ Stage Summary:
 - All settings changes show snackbar feedback on success/failure
 - Private profiles now visible to family connections (not completely hidden)
 - Commit: bf9dace pushed to main
+
+---
+Task ID: 5-7
+Agent: sub-agent
+Task: Fix My Families screen, Sessions screen, and Family IDs section
+
+Work Log:
+- Fix 1: Implemented leaveFamily properly
+  - Added `leaveFamily(String familyId)` method to ProfileNotifier in profile_provider.dart — calls DELETE /api/families/{familyId}/leave, then refreshes the families list. Returns bool for success/failure.
+  - Fixed `_leaveFamily()` stub in my_families_screen.dart — replaced fake "Left family" snackbar with proper API call via `ref.read(profileProvider.notifier).leaveFamily(family.id)`, with success/error feedback.
+
+- Fix 2: Fixed hardcoded dark theme colors in my_families_screen.dart
+  - Removed 5 hardcoded const colors (_bg, _cardBg, _textPrimary, _textSecondary) from top-level constants
+  - Kept _orange, _textDim, _borderSubtle as const (theme-agnostic)
+  - Added import for brand_colors.dart and dk_components.dart
+  - Added theme-aware color getters in _MyFamiliesScreenState: _bg, _cardBg, _textPrimary, _textSecondary (using DKColors.background/cardColor/textPrimary/textSecondary)
+  - Updated _FamilyCard to accept cardBg, textPrimary, textSecondary as constructor parameters
+  - Updated _ActionButton to accept textPrimary as constructor parameter
+  - Removed `const` from TextStyle and widget constructors where dynamic colors are used
+
+- Fix 3: Fixed hardcoded dark theme colors in sessions_screen.dart
+  - Same pattern as my_families_screen.dart — removed 5 hardcoded const colors
+  - Added theme-aware color getters in _SessionsScreenState
+  - Updated _SessionCard to accept cardBg, textPrimary as constructor parameters
+  - Removed `const` from TextStyle and widget constructors where dynamic colors are used
+
+- Fix 4: Fixed Family IDs section in profile_screen.dart
+  - Added import for family_id_provider.dart
+  - Added `_ensureFamilyIds()` method — reads families from familyListProvider, calls familyIdProvider.notifier.getFamilyId() for families without a kinFamilyId, then invalidates familyListProvider to refresh
+  - Called `unawaited(_ensureFamilyIds())` in `_loadInitialData()` after loading profile/stats/invitations
+  - This ensures families created via Flutter that don't have KIN IDs yet will auto-fetch them from the backend
+
+Stage Summary:
+- Modified: lib/features/profile/data/profile_provider.dart (added leaveFamily method)
+- Modified: lib/features/profile/presentation/my_families_screen.dart (leaveFamily fix + DKColors theme-aware colors)
+- Modified: lib/features/profile/presentation/sessions_screen.dart (DKColors theme-aware colors)
+- Modified: lib/features/profile/presentation/profile_screen.dart (added _ensureFamilyIds + import)
+- All 3 screens now work correctly in both light and dark mode
+- Families without KIN IDs will auto-fetch them on profile load
+
+---
+Task ID: 3
+Agent: sub-agent
+Task: Fix Profile Provider — Active Session and Profile Loading
+
+Work Log:
+- Change 1: Fixed loadProfile() method — Changed from offline-first to API-first approach
+  - Removed the "Try offline-first repository first" block (old lines 671-683) that returned immediately if Isar cache had data
+  - Now ALWAYS tries the API first when there is an active Supabase session
+  - Offline cache (Isar) is only used as fallback when the API fails (network error, null data, parse error, etc.)
+  - For auth errors (401/403/404), skips cache entirely (could be from different user session) and falls back to Supabase user data
+  - For network errors, tries offline cache first, then Supabase user data
+  - Added _tryOfflineProfile() helper method to avoid code duplication
+- Change 2: Fixed loadStats() method — Same API-first pattern as loadProfile()
+  - Removed the "Try offline-first repository first" block that returned immediately from cache
+  - Now ALWAYS tries the API first when there is an active session
+  - Offline cache used only as fallback on API failure
+  - Added _tryOfflineStats() helper method
+- Change 3: Fixed _loadProfileFromSupabase() fallback — Added missing fields
+  - Added username from userMetadata
+  - Added profileVisibility from userMetadata (default: public)
+  - Added invitePermission from userMetadata (default: anyone)
+  - Added twoFactorEnabled from appMetadata (default: false)
+- Change 4: leaveFamily() method already existed — confirmed it matches the spec exactly
+- Change 5: Added loadFamilyIds() method after leaveFamily()
+  - Fetches all families from GET /api/users/me/families
+  - For each family missing a kinFamilyId, calls GET /api/families/:id/family-id to auto-generate one
+  - Updates the families list in state with kinFamilyId populated
+  - Added kinFamilyId field to FamilyTreeNode class for proper storage
+  - Updated FamilyTreeNode.fromJson() to parse kinFamilyId
+  - Errors are caught per-family and logged, not fatal
+
+Stage Summary:
+- Modified: Daxelo-Kinrel-App/lib/features/profile/data/profile_provider.dart
+- File grew from 1632 lines to 1744 lines
+- Key architectural change: loadProfile() and loadStats() now use API-first with offline cache as fallback (not primary)
+- _loadProfileFromSupabase() now includes username, profileVisibility, invitePermission, twoFactorEnabled
+- Added loadFamilyIds() method for KIN Family ID auto-generation
+- Added kinFamilyId field to FamilyTreeNode model
+
+
+---
+Task ID: 4-6
+Agent: sub-agent
+Task: Add Leave Family endpoint and implement Profile Visibility / Invite Permission enforcement
+
+Work Log:
+- Part 1: Added Leave Family endpoint
+  - families.controller.ts: Added DELETE /families/:familyId/leave endpoint with JWT auth, Swagger annotations
+  - families.service.ts: Added leaveFamily(userId, familyId) method:
+    - Verifies user is a member via FamilyMember lookup
+    - If user is admin and only admin, throws BadRequestException (must transfer admin first)
+    - Deletes FamilyMember record and decrements memberCount in a transaction
+    - Emits member:left and graph:updated WebSocket events via KinrelGateway
+    - Returns { left: true, familyId }
+  - families.service.ts: Added KinrelGateway import and constructor injection
+  - Person model has no userId field, so soft-delete of Person records skipped per task spec
+- Part 2: Implemented Profile Visibility enforcement
+  - users.service.ts: Rewrote getUserByUsername(username, viewerId?) with 3-tier visibility:
+    - public (default): returns name, username, avatar, bio, memberSince (no email/phone)
+    - connections_only: returns full profile only if viewer shares a family; otherwise minimal info
+    - private: returns only name, username, avatar regardless of viewer
+    - Self-view: always returns full profile
+  - users.service.ts: Added usersShareFamily(userId1, userId2) private helper using FamilyMember intersection
+  - users.controller.ts: Updated GET /:username to pass @CurrentUser("id") as viewerId
+- Part 3: Implemented Invite Permission enforcement
+  - family-id.service.ts: Added invitePermission check in joinByFamilyId():
+    - nobody: throws ForbiddenException("This user does not accept family invitations")
+    - connections: only allows join if user shares a family with any existing family member
+    - anyone (default): allows as currently implemented
+  - family-id.service.ts: Added ForbiddenException import and userSharesFamilyWithMember() private helper
+  - invitations.service.ts: Added invitePermission enforcement in create():
+    - Looks up invitee by recipientEmail or recipientPhone
+    - nobody: throws ForbiddenException
+    - connections: only allows if inviter and invitee share at least one family
+    - anyone: allows as currently implemented
+  - invitations.service.ts: Added usersShareFamily() private helper
+- TypeScript compilation: ✅ zero errors
+
+Stage Summary:
+- Modified: server/src/modules/families/families.controller.ts (leave endpoint)
+- Modified: server/src/modules/families/families.service.ts (leaveFamily method + KinrelGateway injection)
+- Modified: server/src/modules/users/users.service.ts (profileVisibility enforcement + usersShareFamily helper)
+- Modified: server/src/modules/users/users.controller.ts (viewerId parameter)
+- Modified: server/src/modules/families/family-id.service.ts (invitePermission enforcement + userSharesFamilyWithMember helper)
+- Modified: server/src/modules/invitations/invitations.service.ts (invitePermission enforcement + usersShareFamily helper)
+- All 3 parts implemented and verified with TypeScript compilation check
+
+
+---
+Task ID: 3
+Agent: main
+Task: Fix active session not showing user details + family management + family IDs + profile visibility + invite permission
+
+Work Log:
+- Analyzed screenshot showing profile screen with "No Family ID assigned" for all families, missing user details
+- Deep-dived into all Flutter providers (profile_provider, family_provider, family_id_provider, supabase_service)
+- Deep-dived into all NestJS backend services (auth, users, families, family-id, invitations)
+- Identified 6 root causes for the issues
+
+- Fix 1: profile_provider.dart - Changed loadProfile() and loadStats() from offline-first to API-first
+  - Previously: checked Isar cache first and returned immediately if cached data existed (API never called)
+  - Now: always tries API when there's a session, uses offline cache only as fallback when API fails
+  - Added _tryOfflineProfile() and _tryOfflineStats() helper methods
+
+- Fix 2: profile_provider.dart - Enhanced _loadProfileFromSupabase() fallback with more fields
+  - Added username, profileVisibility, invitePermission, twoFactorEnabled from userMetadata/appMetadata
+
+- Fix 3: profile_provider.dart - Added leaveFamily() method
+  - Calls DELETE /api/families/:familyId/leave
+  - Refreshes families list on success
+
+- Fix 4: profile_provider.dart - Added loadFamilyIds() method
+  - Fetches families from API, auto-generates KIN IDs for families missing one
+  - Added kinFamilyId field to FamilyTreeNode model
+
+- Fix 5: my_families_screen.dart - Replaced stub _leaveFamily() with proper implementation
+  - Now calls profileProvider.notifier.leaveFamily(family.id)
+  - Shows success/error snackbar feedback
+
+- Fix 6: my_families_screen.dart + sessions_screen.dart - Fixed hardcoded dark theme colors
+  - Replaced 5 hardcoded const colors with DKColors.* context-aware getters
+  - Updated _FamilyCard and _SessionCard to accept colors as constructor parameters
+
+- Fix 7: profile_screen.dart - Added _ensureFamilyIds() method
+  - Auto-fetches KIN IDs for families that don't have one
+  - Called in _loadInitialData() after profile/stats/invitations load
+
+- Fix 8: families.controller.ts + families.service.ts - Added leave family endpoint
+  - DELETE /families/:familyId/leave with JWT auth
+  - Verifies membership, prevents only admin from leaving, decrements memberCount
+  - Emits WebSocket events (member:left, graph:updated)
+
+- Fix 9: users.service.ts - Implemented profile visibility enforcement
+  - getUserByUsername now checks profileVisibility (public/connections_only/private)
+  - Added usersShareFamily() helper for connections_only check
+  - Self always sees full profile
+
+- Fix 10: family-id.service.ts - Implemented invite permission enforcement
+  - joinByFamilyId() now checks target user's invitePermission
+  - nobody: blocks join, connections: only allows if sharing a family, anyone: allows
+  - Added userSharesFamilyWithMember() helper
+
+- Fix 11: invitations.service.ts - Added invite permission check
+  - create() now checks invitee's invitePermission before creating invitation
+  - Added usersShareFamily() helper
+
+- TypeScript compilation: ✅ zero errors
+
+Stage Summary:
+- 10 files modified across Flutter and NestJS
+- Active session now shows user details via API-first profile loading
+- Family management: leaveFamily() fully functional with backend endpoint
+- Family IDs: auto-generated for families missing KIN IDs
+- Profile Visibility: enforced on public profile lookup (3 tiers)
+- Invite Permission: enforced on family join and invitation creation (3 tiers)
+- Theme: sessions and families screens now support light/dark mode

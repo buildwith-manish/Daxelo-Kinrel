@@ -37,6 +37,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../data/profile_provider.dart';
 import '../../../core/utils/share_helper.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/family/family_id_provider.dart';
 import '../../../presentation/widgets/skeletons/profile_skeleton.dart';
 import '../../family/providers/family_invite_provider.dart';
 
@@ -106,6 +107,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     unawaited(ref.read(profileProvider.notifier).loadStats().catchError((_) {}));
     unawaited(ref.read(profileProvider.notifier).loadInvitations().catchError((_) {}));
 
+    // Auto-fetch KIN IDs for families that don't have one
+    unawaited(_ensureFamilyIds());
+
     // Load app version
     final info = await PackageInfo.fromPlatform();
     if (mounted) {
@@ -116,6 +120,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             '${info.appName} — ${info.packageName}';
       });
     }
+  }
+
+  /// Auto-fetch KIN IDs for families that don't have one yet.
+  /// Families created via Flutter may not have a kinFamilyId until
+  /// the backend generates one on first access.
+  Future<void> _ensureFamilyIds() async {
+    final familiesAsync = ref.read(familyListProvider);
+    final families = familiesAsync.valueOrNull ?? [];
+
+    for (final family in families) {
+      if (family.kinFamilyId == null || family.kinFamilyId!.isEmpty) {
+        try {
+          await ref.read(familyIdProvider.notifier).getFamilyId(family.id);
+        } catch (e) {
+          debugPrint('⚠️ Failed to fetch KIN ID for ${family.name}: $e');
+        }
+      }
+    }
+    // Invalidate to refresh with new KIN IDs
+    ref.invalidate(familyListProvider);
   }
 
   // ── Toggle Providers ───────────────────────────────────────────

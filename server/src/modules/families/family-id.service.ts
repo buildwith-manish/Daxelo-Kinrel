@@ -3,6 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -196,6 +197,31 @@ export class FamilyIdService {
       );
     }
 
+    // ── 3.5. Check user's invitePermission setting ────────────────
+    const joiningUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { invitePermission: true },
+    });
+
+    const invitePermission = joiningUser?.invitePermission || 'anyone';
+
+    if (invitePermission === 'nobody') {
+      throw new ForbiddenException(
+        'This user does not accept family invitations',
+      );
+    }
+
+    if (invitePermission === 'connections') {
+      // Only allow join if the joining user shares at least one other family
+      // with any existing member of the target family
+      const sharedFamily = await this.userSharesFamilyWithMember(userId, family.id);
+      if (!sharedFamily) {
+        throw new ForbiddenException(
+          'This user only accepts invitations from family connections',
+        );
+      }
+    }
+
     // ── 4. Get user info for Person auto-creation ──────────────────
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -330,6 +356,39 @@ export class FamilyIdService {
   }
 
   // ── Private Methods ───────────────────────────────────────────────
+
+  /**
+   * Check if a user shares at least one family with any member of the target family.
+   * Used for invitePermission='connections' enforcement in joinByFamilyId.
+   */
+  private async userSharesFamilyWithMember(userId: string, targetFamilyId: string): Promise<boolean> {
+    // Get all family IDs the user is a member of
+    const userFamilies = await this.prisma.familyMember.findMany({
+      where: { userId },
+      select: { familyId: true },
+    });
+    const userFamilyIds = new Set(userFamilies.map((m) => m.familyId));
+
+    // Get all member userIds in the target family
+    const targetMembers = await this.prisma.familyMember.findMany({
+      where: { familyId: targetFamilyId },
+      select: { userId: true },
+    });
+
+    // Check if any target family member shares a family with the joining user
+    for (const member of targetMembers) {
+      if (member.userId === userId) continue; // Skip self
+      const memberFamilies = await this.prisma.familyMember.findMany({
+        where: { userId: member.userId },
+        select: { familyId: true },
+      });
+      if (memberFamilies.some((m) => userFamilyIds.has(m.familyId))) {
+        return true;
+      }
+    }
+
+    return false;
+  }
 
   /**
    * Generate a random Family ID using crypto.randomBytes().
