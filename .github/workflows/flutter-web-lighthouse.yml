@@ -1,0 +1,91 @@
+# ─────────────────────────────────────────────────────────────────
+# Flutter Web + Lighthouse CI — build web, run performance audit
+# Triggered manually or on push to main when Flutter app changes
+# ─────────────────────────────────────────────────────────────────
+
+name: Flutter Web & Lighthouse CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Daxelo-Kinrel-App/lib/**'
+      - 'Daxelo-Kinrel-App/web/**'
+      - 'Daxelo-Kinrel-App/pubspec.yaml'
+      - '.github/workflows/flutter-web-lighthouse.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: flutter-web-lighthouse-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lighthouse:
+    name: Build Web & Run Lighthouse
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.44.1'
+          cache: true
+
+      - name: Create .env file
+        run: |
+          cat > Daxelo-Kinrel-App/.env <<'EOF'
+          SUPABASE_URL=https://promxswvsnvilplmrtsj.supabase.co
+          SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY
+          API_BASE_URL=https://daxelo-kinrel-server.onrender.com
+          EOF
+
+      - name: Install dependencies
+        run: cd Daxelo-Kinrel-App && flutter pub get
+
+      - name: Generate Drift code
+        run: cd Daxelo-Kinrel-App && dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build Flutter Web
+        run: cd Daxelo-Kinrel-App && flutter build web --release
+
+      - name: Serve built web app
+        run: |
+          cd Daxelo-Kinrel-App/build/web
+          python3 -m http.server 8080 &
+          echo "Waiting for server to start..."
+          sleep 3
+          curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 || echo "Server not ready yet"
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli
+
+      - name: Run Lighthouse audit
+        run: |
+          lhci autorun \
+            --collect.url=http://localhost:8080 \
+            --collect.numberOfRuns=1 \
+            --assert.preset=lighthouse:recommended \
+            --assert.assertions.render-blocking-resources=off \
+            --assert.assertions.uses-http2=off \
+            --assert.assertions.service-worker=off \
+            --assert.assertions.works-offline=off \
+            --assert.assertions.offline-start-url=off \
+            --upload.target=filesystem \
+            --upload.outputDir=.lighthouseci
+        continue-on-error: true
+
+      - name: Upload Lighthouse results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-results-${{ github.run_number }}
+          path: .lighthouseci/
+          retention-days: 14
+          if-no-files-found: ignore

@@ -1,0 +1,82 @@
+# ─────────────────────────────────────────────────────────────────
+# Backend CI — lint, build, test, coverage enforcement
+# Triggered on push/PR to main when server/ changes
+# ─────────────────────────────────────────────────────────────────
+
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - '.github/workflows/backend-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Lint, Build & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: cd server && npm ci --legacy-peer-deps
+
+      - name: Generate Prisma client
+        run: cd server && npx prisma generate
+
+      - name: Lint
+        run: cd server && npm run lint --if-present
+
+      - name: Build
+        run: cd server && npm run build
+
+      - name: Run tests with coverage
+        run: cd server && npm run test:cov
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/test"
+          JWT_ACCESS_SECRET: "test-secret-for-ci-minimum-32-characters"
+          JWT_REFRESH_SECRET: "test-refresh-secret-for-ci-minimum-32-characters"
+          NODE_ENV: "test"
+
+      - name: Enforce 70% coverage minimum
+        run: |
+          cd server
+          if [ -f coverage/coverage-summary.json ]; then
+            LINES=$(node -e "const c=require('./coverage/coverage-summary.json'); console.log(c.total.lines.pct)")
+            echo "Line coverage: $LINES%"
+            node -e "if (parseFloat('$LINES') < 70) { console.error('Coverage below 70% — current: ' + '$LINES' + '%'); process.exit(1); } else { console.log('Coverage gate passed: ' + '$LINES' + '%'); }"
+          else
+            echo "⚠️  No coverage summary found — skipping gate (no tests yet)"
+          fi
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-${{ github.run_number }}
+          path: server/coverage/
+          retention-days: 7
+          if-no-files-found: ignore
