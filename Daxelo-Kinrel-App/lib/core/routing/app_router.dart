@@ -1079,14 +1079,56 @@ class _RoutePersistenceShellState extends State<RoutePersistenceShell>
 }
 
 /// Main shell with 5-tab bottom navigation using DKBottomNav
-class MainShell extends StatelessWidget {
-  MainShell({super.key, required this.child});
-
+class MainShell extends StatefulWidget {
+  const MainShell({super.key, required this.child});
   final Widget child;
+  @override
+  State<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends State<MainShell> {
+  DateTime? _lastBackPressTime;
+
+  Future<bool> _onWillPop() async {
+    final router = GoRouter.of(context);
+    // If router can pop (we're inside a sub-route), let it pop normally
+    if (router.canPop()) {
+      router.pop();
+      return false;
+    }
+    // We're at a root tab — double-back to exit
+    final now = DateTime.now();
+    if (_lastBackPressTime == null ||
+        now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+      _lastBackPressTime = now;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Press back again to exit'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return false;
+    }
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(body: child, bottomNavigationBar: const _BottomNav());
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldExit = await _onWillPop();
+        if (shouldExit && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        body: widget.child,
+        bottomNavigationBar: const _BottomNav(),
+      ),
+    );
   }
 }
 

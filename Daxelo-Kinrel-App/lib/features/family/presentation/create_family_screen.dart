@@ -1,12 +1,13 @@
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
-import '../../../core/constants/supported_languages.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/utils/form_validators.dart';
@@ -29,7 +30,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
   final _nameController = TextEditingController();
   final _codeController = TextEditingController();
   final _usernameController = TextEditingController();
-  SupportedLanguage? _selectedLanguage;
+  File? _avatarImageFile;
   String _selectedRegion = 'North India';
   bool _isCustomCode = false;
 
@@ -82,6 +83,19 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
   }
 
   String _lastAutoUsername = '';
+
+  Future<void> _pickAvatarImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 85,
+    );
+    if (picked != null && mounted) {
+      setState(() => _avatarImageFile = File(picked.path));
+    }
+  }
 
   String _generateCodeSuffix() {
     final random = Random();
@@ -144,7 +158,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
         ref: ref,
         name: _nameController.text.trim(),
         description: null,
-        primaryLanguage: _selectedLanguage?.code,
+        primaryLanguage: null,
         region: _selectedRegion,
         privacyMode: _privacyMode == _PrivacyMode.private
             ? 'private'
@@ -234,10 +248,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
                   codeController: _codeController,
                   usernameController: _usernameController,
                   fullFamilyCode: _fullFamilyCode,
-                  selectedLanguage: _selectedLanguage,
                   selectedRegion: _selectedRegion,
-                  onLanguageChanged: (lang) =>
-                      setState(() => _selectedLanguage = lang),
                   onRegionChanged: (region) =>
                       setState(() => _selectedRegion = region),
                   onEditCode: () {
@@ -250,6 +261,8 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
                   onPrivacyChanged: (mode) =>
                       setState(() => _privacyMode = mode),
                   familyName: _nameController.text.trim(),
+                  avatarImageFile: _avatarImageFile,
+                  onPickAvatar: _pickAvatarImage,
                 ),
                 _Step3AddYourself(
                   nameController: _personNameController,
@@ -361,9 +374,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
     required this.codeController,
     required this.usernameController,
     required this.fullFamilyCode,
-    required this.selectedLanguage,
     required this.selectedRegion,
-    required this.onLanguageChanged,
     required this.onRegionChanged,
     required this.onEditCode,
     required this.canProceed,
@@ -373,9 +384,7 @@ class _Step1FamilyIdentity extends StatelessWidget {
   final TextEditingController codeController;
   final TextEditingController usernameController;
   final String fullFamilyCode;
-  final SupportedLanguage? selectedLanguage;
   final String selectedRegion;
-  final ValueChanged<SupportedLanguage?> onLanguageChanged;
   final ValueChanged<String> onRegionChanged;
   final VoidCallback onEditCode;
   final bool canProceed;
@@ -599,23 +608,6 @@ class _Step1FamilyIdentity extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // Language Selector
-          Text(
-            'Primary Language',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: DKColors.textSecondary(context),
-            ),
-          ),
-          const SizedBox(height: 8),
-          _LanguageDropdown(
-            selectedLanguage: selectedLanguage,
-            onChanged: onLanguageChanged,
-          ),
-          const SizedBox(height: 20),
-
           // Region Dropdown
           Text(
             'Region',
@@ -646,11 +638,15 @@ class _Step2PrivacySetup extends StatelessWidget {
     required this.privacyMode,
     required this.onPrivacyChanged,
     required this.familyName,
+    required this.avatarImageFile,
+    required this.onPickAvatar,
   });
 
   final _PrivacyMode privacyMode;
   final ValueChanged<_PrivacyMode> onPrivacyChanged;
   final String familyName;
+  final File? avatarImageFile;
+  final VoidCallback onPickAvatar;
 
   @override
   Widget build(BuildContext context) {
@@ -732,19 +728,43 @@ class _Step2PrivacySetup extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Center(
-            child: DKAvatar(
-              initials: familyName.isNotEmpty
-                  ? familyName[0].toUpperCase()
-                  : '',
-              size: DKAvatarSize.xl,
-              borderColor: DKColors.brandGold.withValues(alpha: 0.4),
-              backgroundColor: DKColors.brandPurple,
+            child: GestureDetector(
+              onTap: onPickAvatar,
+              child: Stack(
+                children: [
+                  avatarImageFile != null
+                      ? CircleAvatar(
+                          radius: 40,
+                          backgroundImage: FileImage(avatarImageFile!),
+                        )
+                      : DKAvatar(
+                          initials: familyName.isNotEmpty
+                              ? familyName[0].toUpperCase()
+                              : 'S',
+                          size: DKAvatarSize.xl,
+                          borderColor: DKColors.brandGold.withValues(alpha: 0.4),
+                          backgroundColor: DKColors.brandPurple,
+                        ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: DKColors.brandPurple,
+                        shape: BoxShape.circle,
+                      ),
+                      padding: const EdgeInsets.all(6),
+                      child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 8),
           Center(
             child: Text(
-              'Uses initials by default',
+              avatarImageFile != null ? 'Tap to change photo' : 'Tap to add photo',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,
@@ -1092,68 +1112,6 @@ class _PrivacyCard extends StatelessWidget {
               size: 22,
             ),
         ],
-      ),
-    );
-  }
-}
-
-// ── Language Dropdown ─────────────────────────────────────────────
-
-class _LanguageDropdown extends StatelessWidget {
-  const _LanguageDropdown({
-    required this.selectedLanguage,
-    required this.onChanged,
-  });
-
-  final SupportedLanguage? selectedLanguage;
-  final ValueChanged<SupportedLanguage?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: DKColors.elevatedColor(context),
-        borderRadius: BorderRadius.circular(KinrelRadius.input),
-        border: Border.all(color: DKColors.brandPurple.withValues(alpha: 0.1)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<SupportedLanguage>(
-          value: selectedLanguage,
-          hint: Text(
-            'Select language',
-            style: TextStyle(color: DKColors.textSecondary(context)),
-          ),
-          isExpanded: true,
-          icon: Icon(Icons.arrow_drop_down, color: DKColors.brandPurple),
-          dropdownColor: DKColors.cardColor(context),
-          items: SupportedLanguage.values.map((lang) {
-            return DropdownMenuItem(
-              value: lang,
-              child: Row(
-                children: [
-                  Text(
-                    lang.nativeName,
-                    style: TextStyle(
-                      color: DKColors.textPrimary(context),
-                      fontFamily: KinrelTypography.bodyFont,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '(${lang.name})',
-                    style: TextStyle(
-                      color: DKColors.textSecondary(context),
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
-          onChanged: onChanged,
-        ),
       ),
     );
   }
