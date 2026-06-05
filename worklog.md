@@ -454,3 +454,30 @@ Stage Summary:
 - Deleted: deploy/Dockerfile, deploy/Dockerfile.koyeb, deploy/Dockerfile.production, render-build.sh
 - Commit: e28f485 pushed to main
 - No build triggered (following "no build until Part 6" rule)
+
+---
+Task ID: 5
+Agent: Main
+Task: Apply Part 5 — Security Hardening (S-01 to S-04) of DAXELO_KINREL_10_10_AUDIT.md
+
+Work Log:
+- S-01: Added Content-Security-Policy to helmet() config in main.ts — directives for defaultSrc, scriptSrc, styleSrc, imgSrc (Cloudinary), connectSrc (Supabase). Set crossOriginEmbedderPolicy: false for compatibility.
+- S-02: Added production domains to CORS_WHITELIST in main.ts — https://daxelokinrel.com and https://app.daxelokinrel.com. CORS was already well-implemented with dynamic origin callback and env override.
+- S-03: Verified regex in computeExpiryDate() — `/^(\d+)([smhd])$/` is correctly written with no double-escaped backslashes. No fix needed.
+- S-04: Implemented password-change access token revocation via Redis:
+  - Added @InjectRedis to AuthService constructor
+  - Added RedisModule import to AuthModule
+  - In changePassword(), after revoking refresh tokens, sets `pwd_changed:{userId}` key with 900s TTL (15 min = max access token lifetime)
+  - Converted JwtAuthGuard to async canActivate() — checks `pwd_changed:{userId}` in Redis, compares timestamp against JWT iat claim
+  - If password was changed after token was issued, throws UnauthorizedException('Session invalidated — please log in again')
+  - Redis check fails open (if Redis is unavailable, request passes through)
+  - Registered JwtAuthGuard as provider in AuthModule for Redis injection
+- Added node_modules/ and skills/ to .gitignore to prevent accidental commits
+- Ran verification checks: all files present, helmet CSP configured, CORS domains added, regex correct, Redis keys present in both service and guard, no TS errors in modified files
+- Committed and pushed: fix(part5)
+
+Stage Summary:
+- 5 files changed, 75 insertions, 10 deletions
+- Modified: server/src/main.ts (helmet CSP + CORS domains), server/src/modules/auth/auth.service.ts (Redis import + pwd_changed key), server/src/modules/auth/auth.module.ts (RedisModule import + JwtAuthGuard provider), server/src/common/guards/jwt-auth.guard.ts (async canActivate + Redis pwd_changed check), .gitignore
+- Commit: 96a555b pushed to main
+- No build triggered (following "no build until Part 6" rule)
