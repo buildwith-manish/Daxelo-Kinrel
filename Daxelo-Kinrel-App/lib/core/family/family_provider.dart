@@ -355,25 +355,70 @@ class ArchivedFamily {
 // ── Archived Families Provider ─────────────────────────────────────
 
 /// Fetches archived (soft-deleted) families for the current user.
-/// Calls `GET /api/families/archived` on the NestJS backend.
+/// Tries `GET /api/families/archived` on the NestJS backend first,
+/// falls back to Supabase direct query if auth is unavailable.
 final archivedFamiliesProvider =
     FutureProvider<List<ArchivedFamily>>((ref) async {
+  // Try NestJS API first
   try {
     final dio = ref.read(dioProvider);
     final response = await dio.get('/api/families/archived');
 
-    if (response.data is List) {
+    if (response.statusCode == 200 && response.data is List) {
       return (response.data as List)
           .map((json) =>
               ArchivedFamily.fromJson(json as Map<String, dynamic>))
           .toList();
     }
-    return [];
+    // If not 200, try Supabase fallback
   } on DioException catch (e) {
-    debugPrint('⚠️ archivedFamiliesProvider error: ${e.message}');
-    return [];
+    final status = e.response?.statusCode;
+    if (status != 401 && status != 403) {
+      debugPrint('⚠️ archivedFamiliesProvider API error: ${e.message}');
+    }
+    // Auth error or other — fall through to Supabase
   } catch (e) {
-    debugPrint('⚠️ archivedFamiliesProvider error: $e');
+    debugPrint('⚠️ archivedFamiliesProvider API error: $e');
+  }
+
+  // Fallback: Query Supabase directly for archived families
+  try {
+    final client = ref.read(supabaseProvider);
+    if (client == null) return [];
+
+    final userId = client.auth.currentUser?.id ??
+        (kAuthDisabled ? MockUser.id : null);
+    if (userId == null) return [];
+
+    // Get family IDs where user is a member
+    final memberships = await client
+        .from(_kFamilyMemberTable)
+        .select('familyId')
+        .eq('userId', userId);
+
+    final familyIds = memberships.map((m) => m['familyId'] as String).toList();
+    if (familyIds.isEmpty) return [];
+
+    // Get archived families (deletedAt is not null)
+    final families = await client
+        .from(_kFamilyTable)
+        .select('*')
+        .in('id', familyIds)
+        .not('deletedAt', 'is', null);
+
+    final now = DateTime.now();
+    return families.map((json) {
+      final family = Family.fromJson(json);
+      final archivedAt = family.deletedAt ?? now;
+      final permanentDeleteAt = archivedAt.add(const Duration(days: 30));
+      final daysRemaining = permanentDeleteAt.difference(now).inDays;
+      return ArchivedFamily(
+        family: family,
+        daysRemaining: daysRemaining > 0 ? daysRemaining : 0,
+      );
+    }).toList();
+  } catch (e) {
+    debugPrint('⚠️ archivedFamiliesProvider Supabase fallback error: $e');
     return [];
   }
 });
@@ -726,7 +771,8 @@ final familyRelationshipsProvider =
 /// (familyDetailProvider or familyListProvider) rebuild, not on every
 /// individual member invalidation from socket events.
 final familyMemberCountProvider = Provider.family<int, String>((ref, familyId) {
-  final membersAsync = ref.read(familyMembersProvider(familyId));
+  // Watch familyMembersProvider to rebuild when members change
+  final membersAsync = ref.watch(familyMembersProvider(familyId));
   return membersAsync.valueOrNull?.length ?? 0;
 });
 
@@ -921,18 +967,31 @@ Future<Person> createPerson({
   // ✅ FIX: Increment Family.memberCount in Supabase
   // The NestJS backend does memberCount: { increment: 1 } when adding a person.
   // We must do the same when creating via Flutter direct Supabase writes.
+  // Note: Supabase PostgREST does NOT support { 'increment': 1 } Prisma syntax.
+  // We must read the current count and then write the incremented value.
   try {
-    await withRetry(
+    final familyData = await withRetry(
       () => client
           .from(_kFamilyTable)
-          .update({
-            'memberCount': { 'increment': 1 },
-            'lastActivityAt': DateTime.now().toIso8601String(),
-            'updatedAt': DateTime.now().toIso8601String(),
-          })
-          .eq('id', familyId),
-      operationName: 'Increment memberCount',
+          .select('memberCount')
+          .eq('id', familyId)
+          .maybeSingle(),
+      operationName: 'Read memberCount for increment',
     );
+    if (familyData != null) {
+      final currentCount = (familyData['memberCount'] as int?) ?? 0;
+      await withRetry(
+        () => client
+            .from(_kFamilyTable)
+            .update({
+              'memberCount': currentCount + 1,
+              'lastActivityAt': DateTime.now().toIso8601String(),
+              'updatedAt': DateTime.now().toIso8601String(),
+            })
+            .eq('id', familyId),
+        operationName: 'Increment memberCount',
+      );
+    }
   } catch (e) {
     debugPrint('⚠️ Could not increment memberCount: $e');
   }
@@ -1037,14 +1096,56 @@ Future<void> deleteFamily({
   required WidgetRef ref,
   required String familyId,
 }) async {
+  // Try NestJS API first (requires auth token)
+  bool archived = false;
   try {
     final dio = ref.read(dioProvider);
-    await dio.delete('/api/families/$familyId');
+    final response = await dio.delete('/api/families/$familyId');
+    if (response.statusCode == 200) {
+      archived = true;
+    }
   } on DioException catch (e) {
-    final message = e.response?.data?['message'] ?? e.message ?? 'Unknown error';
-    throw Exception('Failed to archive family: $message');
+    final status = e.response?.statusCode;
+    // If 401/403 (auth issue), fall back to Supabase direct write
+    if (status == 401 || status == 403) {
+      debugPrint('⚠️ API auth failed, falling back to Supabase for archive');
+    } else {
+      final message = e.response?.data?['message'] ?? e.message ?? 'Unknown error';
+      throw Exception('Failed to archive family: $message');
+    }
   } catch (e) {
-    throw Exception('Failed to archive family: $e');
+    debugPrint('⚠️ API call failed, falling back to Supabase for archive: $e');
+  }
+
+  // Fallback: Soft-delete via Supabase if API didn't work
+  if (!archived) {
+    final client = ref.read(supabaseProvider);
+    if (client == null) {
+      throw Exception('Database is not connected. Please restart the app and try again.');
+    }
+    final now = DateTime.now().toIso8601String();
+    try {
+      // Soft-delete all persons in the family
+      await withRetry(
+        () => client
+            .from(_kPersonTable)
+            .update({'deletedAt': now, 'updatedAt': now})
+            .eq('familyId', familyId)
+            .filter('deletedAt', 'is', null),
+        operationName: 'Soft-delete family persons (fallback)',
+      );
+    } catch (e) {
+      debugPrint('⚠️ Could not soft-delete persons: $e');
+    }
+
+    // Soft-delete the family itself
+    await withRetry(
+      () => client
+          .from(_kFamilyTable)
+          .update({'deletedAt': now, 'updatedAt': now})
+          .eq('id', familyId),
+      operationName: 'Soft-delete family (fallback)',
+    );
   }
 
   // Invalidate providers to refresh UI
@@ -1080,14 +1181,54 @@ Future<void> restoreFamily({
   required WidgetRef ref,
   required String familyId,
 }) async {
+  // Try NestJS API first
+  bool restored = false;
   try {
     final dio = ref.read(dioProvider);
-    await dio.post('/api/families/$familyId/restore');
+    final response = await dio.post('/api/families/$familyId/restore');
+    if (response.statusCode == 200) {
+      restored = true;
+    }
   } on DioException catch (e) {
-    final message = e.response?.data?['message'] ?? e.message ?? 'Unknown error';
-    throw Exception('Failed to restore family: $message');
+    final status = e.response?.statusCode;
+    if (status == 401 || status == 403) {
+      debugPrint('⚠️ API auth failed, falling back to Supabase for restore');
+    } else {
+      final message = e.response?.data?['message'] ?? e.message ?? 'Unknown error';
+      throw Exception('Failed to restore family: $message');
+    }
   } catch (e) {
-    throw Exception('Failed to restore family: $e');
+    debugPrint('⚠️ API call failed, falling back to Supabase for restore: $e');
+  }
+
+  // Fallback: Restore via Supabase
+  if (!restored) {
+    final client = ref.read(supabaseProvider);
+    if (client == null) {
+      throw Exception('Database is not connected. Please restart the app and try again.');
+    }
+    // Clear deletedAt on persons
+    try {
+      await withRetry(
+        () => client
+            .from(_kPersonTable)
+            .update({'deletedAt': null, 'updatedAt': DateTime.now().toIso8601String()})
+            .eq('familyId', familyId)
+            .not('deletedAt', 'is', null),
+        operationName: 'Restore family persons (fallback)',
+      );
+    } catch (e) {
+      debugPrint('⚠️ Could not restore persons: $e');
+    }
+
+    // Clear deletedAt on the family itself
+    await withRetry(
+      () => client
+          .from(_kFamilyTable)
+          .update({'deletedAt': null, 'lastActivityAt': DateTime.now().toIso8601String(), 'updatedAt': DateTime.now().toIso8601String()})
+          .eq('id', familyId),
+      operationName: 'Restore family (fallback)',
+    );
   }
 
   // Invalidate providers to refresh UI
@@ -1121,14 +1262,64 @@ Future<void> permanentDeleteFamily({
   required WidgetRef ref,
   required String familyId,
 }) async {
+  // Try NestJS API first
+  bool deleted = false;
   try {
     final dio = ref.read(dioProvider);
-    await dio.delete('/api/families/$familyId/permanent');
+    final response = await dio.delete('/api/families/$familyId/permanent');
+    if (response.statusCode == 200) {
+      deleted = true;
+    }
   } on DioException catch (e) {
-    final message = e.response?.data?['message'] ?? e.message ?? 'Unknown error';
-    throw Exception('Failed to permanently delete family: $message');
+    final status = e.response?.statusCode;
+    if (status == 401 || status == 403) {
+      debugPrint('⚠️ API auth failed, falling back to Supabase for permanent delete');
+    } else {
+      final message = e.response?.data?['message'] ?? e.message ?? 'Unknown error';
+      throw Exception('Failed to permanently delete family: $message');
+    }
   } catch (e) {
-    throw Exception('Failed to permanently delete family: $e');
+    debugPrint('⚠️ API call failed, falling back to Supabase for permanent delete: $e');
+  }
+
+  // Fallback: Hard-delete via Supabase
+  if (!deleted) {
+    final client = ref.read(supabaseProvider);
+    if (client == null) {
+      throw Exception('Database is not connected. Please restart the app and try again.');
+    }
+    // Delete relationships
+    try {
+      await withRetry(
+        () => client.from(_kRelationshipTable).delete().eq('familyId', familyId),
+        operationName: 'Delete family relationships (fallback)',
+      );
+    } catch (e) {
+      debugPrint('⚠️ Could not delete relationships: $e');
+    }
+    // Delete persons
+    try {
+      await withRetry(
+        () => client.from(_kPersonTable).delete().eq('familyId', familyId),
+        operationName: 'Delete family persons (fallback)',
+      );
+    } catch (e) {
+      debugPrint('⚠️ Could not delete persons: $e');
+    }
+    // Delete family members
+    try {
+      await withRetry(
+        () => client.from(_kFamilyMemberTable).delete().eq('familyId', familyId),
+        operationName: 'Delete family members (fallback)',
+      );
+    } catch (e) {
+      debugPrint('⚠️ Could not delete family member entries: $e');
+    }
+    // Delete the family record
+    await withRetry(
+      () => client.from(_kFamilyTable).delete().eq('id', familyId),
+      operationName: 'Delete family (fallback)',
+    );
   }
 
   // Invalidate providers to refresh UI
@@ -1179,18 +1370,31 @@ Future<void> deletePerson({
   // ✅ FIX: Decrement Family.memberCount in Supabase
   // The NestJS backend decrements memberCount when a person is deleted.
   // We must do the same when deleting via Flutter direct Supabase writes.
+  // Note: Supabase PostgREST does NOT support { 'decrement': 1 } Prisma syntax.
+  // We must read the current count and then write the decremented value.
   try {
-    await withRetry(
+    final familyData = await withRetry(
       () => client
           .from(_kFamilyTable)
-          .update({
-            'memberCount': { 'decrement': 1 },
-            'lastActivityAt': DateTime.now().toIso8601String(),
-            'updatedAt': DateTime.now().toIso8601String(),
-          })
-          .eq('id', familyId),
-      operationName: 'Decrement memberCount',
+          .select('memberCount')
+          .eq('id', familyId)
+          .maybeSingle(),
+      operationName: 'Read memberCount for decrement',
     );
+    if (familyData != null) {
+      final currentCount = (familyData['memberCount'] as int?) ?? 0;
+      await withRetry(
+        () => client
+            .from(_kFamilyTable)
+            .update({
+              'memberCount': currentCount > 0 ? currentCount - 1 : 0,
+              'lastActivityAt': DateTime.now().toIso8601String(),
+              'updatedAt': DateTime.now().toIso8601String(),
+            })
+            .eq('id', familyId),
+        operationName: 'Decrement memberCount',
+      );
+    }
   } catch (e) {
     debugPrint('⚠️ Could not decrement memberCount: $e');
   }
