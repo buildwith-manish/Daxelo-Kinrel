@@ -430,3 +430,27 @@ Stage Summary:
 - Modified: README.md (rate limits section added), 12 service files (JSDoc additions)
 - Commit: e8d6efb pushed to main
 - No build triggered (following "no build until Part 6" rule)
+
+---
+Task ID: 4
+Agent: Main
+Task: Apply Part 4 — CI/CD & DevOps (CI-01 to CI-03) of DAXELO_KINREL_10_10_AUDIT.md
+
+Work Log:
+- Read audit file from /home/z/my-project/upload/DAXELO_KINREL_10_10_AUDIT.md
+- CI-01: Created .github/workflows/backend-ci.yml — new backend CI pipeline with lint, build, test:cov, and 70% coverage enforcement gate
+- CI-01: Added Flutter test + coverage steps to .github/workflows/build-apk.yml (flutter test --coverage + lcov summary + artifact upload)
+- CI-02: Created unified Dockerfile at repo root with NODE_VERSION, APP_PORT, SLIM build args — replaces 4 separate Dockerfiles
+- CI-02: Deleted deploy/Dockerfile, deploy/Dockerfile.koyeb, deploy/Dockerfile.production (3 redundant files)
+- CI-02: Deleted legacy render-build.sh (superseded by Docker-based render.yaml)
+- CI-03: Created .github/workflows/flutter-web-lighthouse.yml — builds Flutter web, serves locally, runs Lighthouse CI audit
+- Ran 6 verification checks: all files exist/removed correctly, YAML syntax valid, Dockerfile structure valid, git diff clean
+- Committed and pushed: ci(part4): CI-01 backend CI + coverage thresholds, CI-02 unified Dockerfile, CI-03 Lighthouse CI for Flutter Web
+
+Stage Summary:
+- 8 files changed, 238 insertions, 248 deletions
+- New files: .github/workflows/backend-ci.yml, .github/workflows/flutter-web-lighthouse.yml
+- Modified: .github/workflows/build-apk.yml (added Flutter test + coverage steps), Dockerfile (unified with build args)
+- Deleted: deploy/Dockerfile, deploy/Dockerfile.koyeb, deploy/Dockerfile.production, render-build.sh
+- Commit: e28f485 pushed to main
+- No build triggered (following "no build until Part 6" rule)
