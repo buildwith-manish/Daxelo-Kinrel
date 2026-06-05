@@ -38,6 +38,7 @@ import { AiVoiceModule } from './modules/ai-voice/ai-voice.module';
 import { SyncModule } from './modules/sync/sync.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { SearchModule } from './modules/search/search.module';
+import { StoriesModule } from './modules/stories/stories.module';
 import { CustomThrottlerGuard } from './common/guards/throttler.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { TwoFactorGuard } from './common/guards/two-factor.guard';
@@ -132,6 +133,9 @@ import { TwoFactorVerificationModule } from './common/services/two-factor-verifi
 
     // ── Search module (unified search) ───────────────────────
     SearchModule,
+
+    // ── Stories module (ephemeral stories) ─────────────────────
+    StoriesModule,
   ],
   providers: [
     // ── Global guards (executed in order) ────────────────────

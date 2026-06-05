@@ -124,6 +124,7 @@ model User {
   usernameChangeLog    UsernameChangeLog[]
   blockedUsers         BlockedUser[]            @relation("Blocker")
   blockedBy            BlockedUser[]            @relation("Blocked")
+  stories              Story[]
 }
 
 // ── Blocked Users (replaces JSON blockedUserIds anti-pattern) ────────
@@ -554,6 +555,7 @@ model Family {
   graphLayouts    GraphLayoutState[]
   graphChangeLogs GraphChangeLog[]
   feedPosts       FamilyPost[]
+  stories         Story[]
 
   @@index([name])
   @@index([familyCode])
@@ -1011,6 +1013,42 @@ model FamilyPost {
   @@index([postType])
   @@index([authorId])
   @@index([updatedAt])
+}
+
+// ── Family Stories (Instagram-like ephemeral stories) ──────────────
+
+model Story {
+  id         String   @id @default(cuid())
+  userId     String
+  familyId   String?
+  caption    String?
+  mediaUrl   String   @default("") // Image/video URL (or empty for text-only)
+  mediaType  String   @default("text") // text, image, video
+  bgGradient String? // Tailwind gradient class for text stories
+  expiresAt  DateTime // Story expiration (typically 24h from creation)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family Family?     @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  views  StoryView[]
+
+  @@index([familyId, createdAt])
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+}
+
+model StoryView {
+  id       String   @id @default(cuid())
+  storyId  String
+  viewerId String
+  viewedAt DateTime @default(now())
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, viewerId])
+  @@index([storyId])
+  @@index([viewerId])
 }
 
 // ══════════════════════════════════════════════════════════════════════

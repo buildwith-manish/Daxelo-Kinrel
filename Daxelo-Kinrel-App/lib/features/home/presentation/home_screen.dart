@@ -27,6 +27,9 @@ import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../feed/presentation/family_feed.dart';
 import '../../feed/providers/feed_provider.dart';
+import '../../stories/providers/stories_provider.dart';
+import '../../stories/presentation/stories_viewer_screen.dart';
+import '../../stories/presentation/add_story_sheet.dart';
 import '../../../core/utils/accessibility_utils.dart';
 
 // ── Color shortcuts for the Command Center ──────────────────────
@@ -192,6 +195,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ref.invalidate(familyRelationshipsProvider(primaryFamily.id));
         // familyDetailProvider auto-rebuilds via ref.watch on above providers
         ref.invalidate(feedProvider);
+        ref.invalidate(storiesProvider(primaryFamily.id));
       },
       child: CustomScrollView(
         physics: BouncingScrollPhysics(),
@@ -213,10 +217,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     .fadeIn(duration: 350.ms, delay: 50.ms)
                     .slideX(begin: -0.05, end: 0),
 
-                SizedBox(height: 24),
+                SizedBox(height: 20),
 
-                // Hero Family Card
-                _HeroFamilyCard(family: primaryFamily, detailAsync: detailAsync)
+                // Stories Row (Instagram-style circles)
+                _StoriesRow(familyId: primaryFamily.id)
+                    .animate()
+                    .fadeIn(duration: 350.ms, delay: 75.ms)
+                    .slideY(begin: -0.05, end: 0),
+
+                SizedBox(height: 20),
+
+                // Hero Family Card (avatar is tappable → opens stories)
+                _HeroFamilyCard(
+                  family: primaryFamily,
+                  detailAsync: detailAsync,
+                  familyId: primaryFamily.id,
+                )
                     .animate()
                     .fadeIn(duration: 400.ms, delay: 100.ms)
                     .slideY(begin: 0.08, end: 0),
@@ -750,17 +766,248 @@ class _DashedCirclePainter extends CustomPainter {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Hero Family Card
+// Stories Row (Instagram-style story circles)
 // ═══════════════════════════════════════════════════════════════════════
 
-class _HeroFamilyCard extends StatelessWidget {
-  const _HeroFamilyCard({required this.family, required this.detailAsync});
+class _StoriesRow extends ConsumerWidget {
+  const _StoriesRow({required this.familyId});
 
-  final Family family;
-  final AsyncValue<FamilyDetail?> detailAsync;
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final storiesAsync = ref.watch(storiesProvider(familyId));
+
+    return storiesAsync.when(
+      loading: () => SizedBox(
+        height: 84,
+        child: Row(
+          children: [
+            SizedBox(width: KinrelSpacing.base),
+            ...List.generate(
+              4,
+              (_) => Padding(
+                padding: const EdgeInsets.only(right: 14),
+                child: DKLoadingShimmer(width: 60, height: 84, radius: 12),
+              ),
+            ),
+          ],
+        ),
+      ),
+      error: (_, __) => const SizedBox.shrink(), // Fail silently
+      data: (storyGroups) {
+        if (storyGroups.isEmpty) return const SizedBox.shrink();
+
+        return SizedBox(
+          height: 84,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+            itemCount: storyGroups.length + 1, // +1 for "Add" story
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return _AddStoryCircle(
+                  onTap: () => showAddStorySheet(
+                    context,
+                    familyId: familyId,
+                    ref: ref,
+                  ),
+                );
+              }
+              final group = storyGroups[index - 1];
+              return _StoryCircle(
+                storyGroup: group,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => StoriesViewerScreen(
+                        storyGroups: storyGroups,
+                        initialGroupIndex: index - 1,
+                        familyId: familyId,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// "+" dashed circle with "Your Story" label — opens add story sheet
+class _AddStoryCircle extends StatelessWidget {
+  const _AddStoryCircle({required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: semanticButton(
+        label: 'Add story',
+        hint: 'Double tap to add a new story',
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CustomPaint(
+              size: Size(56, 56),
+              painter: _DashedCirclePainter(
+                color: _cOrange.withValues(alpha: 0.6),
+                dashWidth: 5,
+                dashGap: 4,
+                strokeWidth: 2,
+              ),
+              child: SizedBox(
+                width: 56,
+                height: 56,
+                child: Center(
+                  child: Icon(Icons.add_rounded, color: _cOrange, size: 24),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Your\nStory',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 9,
+                fontWeight: FontWeight.w500,
+                color: _cTextSecondary,
+                height: 1.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Story circle for a user with stories — shows avatar with orange ring if unviewed
+class _StoryCircle extends StatelessWidget {
+  const _StoryCircle({
+    required this.storyGroup,
+    required this.onTap,
+  });
+
+  final StoryGroup storyGroup;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: semanticButton(
+        label: '${storyGroup.userName} stories',
+        hint: 'Double tap to view ${storyGroup.userName}\'s stories',
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Avatar with orange ring if hasUnviewed
+            Container(
+              width: 56,
+              height: 56,
+              padding: EdgeInsets.all(storyGroup.hasUnviewed ? 3 : 1),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: storyGroup.hasUnviewed
+                    ? KinrelGradients.igniteGradient
+                    : null,
+                border: storyGroup.hasUnviewed
+                    ? null
+                    : Border.all(
+                        color: Colors.white24,
+                        width: 1,
+                      ),
+                boxShadow: storyGroup.hasUnviewed
+                    ? [
+                        BoxShadow(
+                          color: _cOrange.withValues(alpha: 0.25),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Container(
+                width: storyGroup.hasUnviewed ? 48 : 52,
+                height: storyGroup.hasUnviewed ? 48 : 52,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _cElevated,
+                  border: Border.all(
+                    color: _cBg,
+                    width: 2,
+                  ),
+                  image: storyGroup.userAvatarUrl != null
+                      ? DecorationImage(
+                          image: NetworkImage(storyGroup.userAvatarUrl!),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: storyGroup.userAvatarUrl == null
+                    ? Center(
+                        child: Text(
+                          storyGroup.initials,
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.displayFont,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: _cOrange,
+                          ),
+                        ),
+                      )
+                    : null,
+              ),
+            ),
+            const SizedBox(height: 4),
+            SizedBox(
+              width: 60,
+              child: Text(
+                storyGroup.userName.split(' ').first,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 9,
+                  fontWeight: storyGroup.hasUnviewed
+                      ? FontWeight.w600
+                      : FontWeight.w500,
+                  color: storyGroup.hasUnviewed ? _cOrange : _cTextSecondary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Hero Family Card
+// ═══════════════════════════════════════════════════════════════════════
+
+class _HeroFamilyCard extends ConsumerWidget {
+  const _HeroFamilyCard({required this.family, required this.detailAsync, required this.familyId});
+
+  final Family family;
+  final AsyncValue<FamilyDetail?> detailAsync;
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final storiesAsync = ref.watch(storiesProvider(familyId));
+    final hasStories = storiesAsync.valueOrNull?.isNotEmpty ?? false;
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       child: semanticButton(
@@ -826,34 +1073,93 @@ class _HeroFamilyCard extends StatelessWidget {
                           child: Column(
                             children: [
                               // Family initial avatar (48px, Ignite gradient bg)
-                              Container(
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: KinrelGradients.igniteGradient,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: _cOrange.withValues(alpha: 0.4),
-                                      blurRadius: 12,
-                                      spreadRadius: 2,
+                            // — Tappable: opens stories viewer for this family
+                            // — Eye icon glow indicates stories are available
+                            GestureDetector(
+                              onTap: () {
+                                if (hasStories) {
+                                  final groups = storiesAsync.valueOrNull ?? [];
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => StoriesViewerScreen(
+                                        storyGroups: groups,
+                                        familyId: familyId,
+                                      ),
                                     ),
-                                  ],
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    family.name.isNotEmpty
-                                        ? family.name[0].toUpperCase()
-                                        : 'F',
-                                    style: TextStyle(
-                                      fontFamily: KinrelTypography.displayFont,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
+                                  );
+                                }
+                              },
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: KinrelGradients.igniteGradient,
+                                      boxShadow: hasStories
+                                          ? [
+                                              BoxShadow(
+                                                color: _cOrange.withValues(alpha: 0.4),
+                                                blurRadius: 12,
+                                                spreadRadius: 2,
+                                              ),
+                                              // Extra glow ring when stories exist
+                                              BoxShadow(
+                                                color: _cOrange.withValues(alpha: 0.15),
+                                                blurRadius: 20,
+                                                spreadRadius: 4,
+                                              ),
+                                            ]
+                                          : [
+                                              BoxShadow(
+                                                color: _cOrange.withValues(alpha: 0.4),
+                                                blurRadius: 12,
+                                                spreadRadius: 2,
+                                              ),
+                                            ],
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        family.name.isNotEmpty
+                                            ? family.name[0].toUpperCase()
+                                            : 'F',
+                                        style: TextStyle(
+                                          fontFamily: KinrelTypography.displayFont,
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
+                                  // Small eye icon hint when stories are available
+                                  if (hasStories)
+                                    Positioned(
+                                      right: -2,
+                                      bottom: -2,
+                                      child: Container(
+                                        width: 18,
+                                        height: 18,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: _cOrange,
+                                          border: Border.all(
+                                            color: _cBg,
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          Icons.visibility_rounded,
+                                          size: 10,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
+                            ),
                               const SizedBox(height: 12),
                               // Family name (Heading Large, #F5F0EE)
                               Text(

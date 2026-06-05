@@ -1208,3 +1208,107 @@ Stage Summary:
   - Relationships are now bidirectional (both directions created)
   - Stats properly filter out soft-deleted persons and inactive relationships
   - memberCount in Family table stays accurate
+
+---
+Task ID: 2
+Agent: sub-agent
+Task: Add Story model to NestJS Prisma schema
+
+Work Log:
+- Read existing schema.prisma to understand current models and their locations
+- Added Story model after FamilyPost model (line ~1018) with fields: id, userId, familyId, caption, mediaUrl, mediaType, bgGradient, expiresAt, createdAt, updatedAt
+- Added StoryView model right after Story model with fields: id, storyId, viewerId, viewedAt
+- Added reverse relation `stories Story[]` to User model (line 127, after blockedBy)
+- Added reverse relation `stories Story[]` to Family model (line 558, after feedPosts)
+- Ran `npx prisma format` — schema formatted successfully, confirming valid syntax
+- Prisma validate showed only env var error (DIRECT_URL not set), no schema errors
+
+Stage Summary:
+- Modified: server/prisma/schema.prisma
+- Added 2 new models: Story (ephemeral Instagram-like stories) and StoryView (view tracking)
+- Added reverse relations on User and Family models
+- Schema syntax verified valid via `prisma format`
+
+---
+Task ID: 3
+Agent: sub-agent
+Task: Create NestJS Stories module
+
+Work Log:
+- Read worklog.md to understand previous project history
+- Studied families module pattern (controller, service, module, DTO) for reference
+- Verified Story and StoryView models already exist in Prisma schema (lines 1018-1052)
+- Verified User model already has `stories Story[]` relation and Family model has `stories Story[]`
+- Ran `npx prisma generate` to ensure Prisma client includes Story/StoryView models
+- Created stories/dto/create-story.dto.ts with class-validator decorators (familyId, caption, mediaUrl, mediaType, bgGradient, expiresAt)
+- Created stories/stories.service.ts with PrismaService injection and 5 methods: create, findByFamily, findByUser, markViewed, remove
+- Created stories/stories.controller.ts with @ApiTags('Stories'), JWT auth, 5 routes: GET /stories, GET /stories/mine, POST /stories, POST /stories/:id/view, DELETE /stories/:id
+- Created stories/stories.module.ts importing PrismaModule, registering StoriesService and StoriesController
+- Registered StoriesModule in app.module.ts imports array
+- Fixed TypeScript error: replaced `ReturnType<typeof this.formatStory>` with `Record<string, unknown>` in Map generic type
+- TypeScript compilation: zero errors
+
+Stage Summary:
+- Created 5 new files: stories/dto/create-story.dto.ts, stories.service.ts, stories.controller.ts, stories.module.ts
+- Modified: server/src/app.module.ts (added StoriesModule import and registration)
+- All 5 API endpoints implemented: GET /stories?familyId=xxx, GET /stories/mine, POST /stories, POST /stories/:id/view, DELETE /stories/:id
+- TypeScript compiles with zero errors
+
+
+---
+Task ID: 4
+Agent: sub-agent
+Task: Create Flutter stories feature
+
+Work Log:
+- Read existing files: home_screen.dart, brand_colors.dart, dio_client.dart, family_provider.dart, dk_components.dart, env_config.dart, supabase_service.dart
+- Studied patterns: Riverpod FutureProvider.family, DKAvatar with initials param, DKColors context methods, KinrelColors constants, KinrelGradients, KinrelTypography
+- Created lib/features/stories/providers/stories_provider.dart (363 lines):
+  - Story model with fromJson/toJson, isViewedBy(), timeAgo, isExpired getters
+  - StoryGroup model with fromJson/toJson, initials getter, hasUnviewed flag
+  - storiesProvider (FutureProvider.family) — GET /stories?familyId=xxx via Dio client, handles response envelope {data:[...]} or direct list, 404 graceful fallback
+  - myStoriesProvider — fetches current user stories filtered by userId
+  - createStoryProvider — POST /stories with CreateStoryParams, invalidates storiesProvider
+  - markStoryViewedProvider — POST /stories/{id}/view with MarkViewedParams, invalidates storiesProvider
+  - storyGradients constant with 10 curated Kinrel-themed gradient presets (Ignite, Sunrise, Ember, Dark Fire, etc.)
+- Created lib/features/stories/presentation/stories_viewer_screen.dart (530 lines):
+  - Full-screen Instagram-like stories viewer with ConsumerStatefulWidget + TickerProviderStateMixin
+  - AnimationController-based 5-second auto-advance timer with progress bar
+  - Progress bars at top showing story position using KinrelAnimatedBuilder
+  - User avatar + name + time ago at top using DKAvatar component
+  - Story content: gradient background for text stories (parsed from hex strings), Image.network for image stories
+  - Gradient overlay for readability (top + bottom dark gradients)
+  - Tap left 1/3 to go back, right 2/3 to go forward with pause/resume on tap
+  - Pause/play button and close (X) button in header
+  - Reply input at bottom with ignite-gradient send button
+  - Swipe down to dismiss via onVerticalDragEnd velocity check
+  - Marks stories as viewed on auto-advance via markStoryViewedProvider
+- Created lib/features/stories/presentation/add_story_sheet.dart (290 lines):
+  - Bottom sheet via showAddStorySheet() helper function
+  - Text input field for caption with KinrelRadius.md border radius
+  - Live gradient preview showing 9:16 aspect ratio story preview
+  - Gradient color picker with 10 preset circles (orange ring on selected)
+  - Post Story button using DKButton gradient variant
+  - Dark card background (_cCard), orange accents, KinrelRadius.bottomSheet shape
+- Modified lib/features/home/presentation/home_screen.dart:
+  - Added imports for stories_provider, stories_viewer_screen, add_story_sheet
+  - Added _StoriesRow widget (ConsumerWidget) between Family Switcher and Hero Family Card
+    - Shows shimmer loading when stories loading, hides when empty
+    - Horizontal scroll: "Your Story" dashed circle + story circles per user
+    - Each _StoryCircle shows DKAvatar-style initials with orange ignite gradient ring if hasUnviewed, white24 border if all viewed
+    - Tapping a story circle opens StoriesViewerScreen with all groups
+    - "Your Story" circle opens add_story_sheet via showAddStorySheet()
+  - Converted _HeroFamilyCard from StatelessWidget to ConsumerWidget
+    - Added familyId param, watches storiesProvider(familyId) for hasStories
+    - Made family avatar GestureDetector — tapping opens StoriesViewerScreen when stories exist
+    - Added eye icon badge (visibility_rounded) at bottom-right of avatar when stories available
+    - Added extra orange glow (blurRadius: 20, spreadRadius: 4) when stories exist
+  - Added ref.invalidate(storiesProvider(primaryFamily.id)) to RefreshIndicator.onRefresh
+
+Stage Summary:
+- Created: lib/features/stories/providers/stories_provider.dart (363 lines)
+- Created: lib/features/stories/presentation/stories_viewer_screen.dart (530 lines)
+- Created: lib/features/stories/presentation/add_story_sheet.dart (290 lines)
+- Modified: lib/features/home/presentation/home_screen.dart (stories row + tappable avatar + eye icon badge)
+- All files follow existing project patterns: KinrelColors, DKColors context methods, KinrelTypography, KinrelSpacing, DKAvatar, DKButton, semanticButton/semanticHeader, flutter_animate
+- Stories feature is backend-dependent (GET /stories endpoint) — gracefully returns empty list on 404
