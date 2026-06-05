@@ -101,13 +101,16 @@ export class UsersController {
     return this.usersService.getBlockedUsers(userId);
   }
 
-  // ── Get User by Username (public profile) ────────────────────────
+  // ── Get User by Username (public profile with privacy) ─────────────
   //    MUST be the LAST @Get route — the ':username' parameter matches
   //    any single path segment and would shadow all static routes if
   //    placed before them.
   @Get(':username')
-  async getUserByUsername(@Param('username') username: string) {
-    return this.usersService.getUserByUsername(username);
+  async getUserByUsername(
+    @Param('username') username: string,
+    @CurrentUser('id') viewerId: string,
+  ) {
+    return this.usersService.getUserByUsername(username, viewerId);
   }
 
   // ── Update Profile (enhanced) ────────────────────────────────────
@@ -250,3 +253,4 @@ export class UsersController {
     return this.usersService.deleteFcmToken(userId, body.fcmToken);
   }
 }
+
