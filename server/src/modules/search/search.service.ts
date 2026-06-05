@@ -47,15 +47,23 @@ export class SearchService {
    * Searches:
    *  - Users by username, displayName (name), bio
    *  - Families by name, kinFamilyId, gotra
+   *
+   * Privacy enforcement for users:
+   *  - public: visible to everyone
+   *  - connections_only: visible only to users who share a family
+   *  - private: never visible in search results
+   *
+   * @param dto Search query parameters
+   * @param viewerId (optional) The authenticated user performing the search
    */
-  async search(dto: SearchQueryDto): Promise<SearchResponse> {
+  async search(dto: SearchQueryDto, viewerId?: string): Promise<SearchResponse> {
     const { q, type } = dto;
     const limit = dto.limit ?? 20;
     const offset = dto.offset ?? 0;
     const query = q.trim();
 
-    // Check cache first
-    const cacheKey = `search:${query}:${type}:${limit}:${offset}`;
+    // Check cache first (include viewerId in cache key for privacy-correct caching)
+    const cacheKey = `search:${query}:${type}:${limit}:${offset}:${viewerId ?? 'anon'}`;
     const cached = this.cacheService.get<SearchResponse>(cacheKey);
     if (cached.hit && cached.value) {
       return cached.value;
@@ -66,6 +74,10 @@ export class SearchService {
 
     // ── Search Users ──
     if (type === SearchType.ALL || type === SearchType.USERS) {
+      // Build visibility filter:
+      // - Always exclude 'private' profiles
+      // - For 'connections_only', we need to check family overlap
+      // Simple approach: exclude 'private', then post-filter 'connections_only'
       const [users, userCount] = await Promise.all([
         this.prisma.user.findMany({
           where: {
@@ -101,7 +113,39 @@ export class SearchService {
         }),
       ]);
 
+      // Get viewer's family IDs for connections_only filtering
+      let viewerFamilyIds: Set<string> | null = null;
+      if (viewerId) {
+        const viewerFamilies = await this.prisma.familyMember.findMany({
+          where: { userId: viewerId },
+          select: { familyId: true },
+        });
+        viewerFamilyIds = new Set(viewerFamilies.map((m) => m.familyId));
+      }
+
       for (const user of users) {
+        const visibility = user.profileVisibility || 'public';
+
+        // For connections_only profiles, check if viewer shares a family
+        if (visibility === 'connections_only') {
+          if (!viewerId || !viewerFamilyIds) {
+            // No viewer context → skip connections_only profiles
+            continue;
+          }
+
+          // Check if this user shares any family with the viewer
+          const userInViewerFamilies = await this.prisma.familyMember.findFirst({
+            where: {
+              userId: user.id,
+              familyId: { in: [...viewerFamilyIds] },
+            },
+          });
+
+          if (!userInViewerFamilies) {
+            continue; // Skip — not a connection
+          }
+        }
+
         results.push({
           id: user.id,
           type: 'user',
@@ -203,3 +247,4 @@ export class SearchService {
     return response;
   }
 }
+
