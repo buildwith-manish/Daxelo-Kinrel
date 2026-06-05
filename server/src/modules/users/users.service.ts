@@ -754,6 +754,7 @@ export class UsersService {
             username: true,
             avatarUrl: true,
             memberCount: true,
+            kinFamilyId: true,
           },
         },
       },
@@ -767,6 +768,7 @@ export class UsersService {
       role: m.role,
       memberCount: m.family.memberCount,
       avatarUrl: m.family.avatarUrl,
+      kinFamilyId: m.family.kinFamilyId,
       joinedAt: m.joinedAt,
     }));
 

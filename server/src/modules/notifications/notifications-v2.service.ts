@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FcmService } from './fcm.service';
+import { KinrelGateway } from '../gateway/kinrel.gateway';
 
 // ── Types & Interfaces ─────────────────────────────────────────────────
 
@@ -100,6 +101,7 @@ export class NotificationsV2Service {
   constructor(
     private readonly prisma: PrismaService,
     private readonly fcmService: FcmService,
+    private readonly gateway: KinrelGateway,
   ) {}
 
   // ── Specific notification triggers ─────────────────────────────────
@@ -726,6 +728,23 @@ export class NotificationsV2Service {
         actionUrl: actionUrl || null,
       },
     });
+
+    // ── 5.5 Emit real-time WebSocket notification ────────────────────
+    try {
+      this.gateway.emitToUser(userId, 'notification:new', {
+        id: notification.id,
+        eventType,
+        title,
+        body,
+        familyId: familyId || null,
+        personId: personId || null,
+        priority,
+        actionUrl: actionUrl || null,
+        createdAt: notification.createdAt,
+      });
+    } catch (err: any) {
+      this.logger.warn(`Failed to emit WebSocket notification: ${err?.message}`);
+    }
 
     // ── 6. Create delivery tracking records ────────────────────────
     const deliveryRecords = finalChannels.map((channel) => ({

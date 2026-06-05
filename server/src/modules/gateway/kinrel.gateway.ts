@@ -135,6 +135,21 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.to(roomName).emit('user:left', { userId, familyId: data.familyId });
   }
 
+  /**
+   * Emit a notification event to a specific user.
+   * Finds all socket connections for the user and sends the event.
+   */
+  emitToUser(userId: string, event: string, payload: Record<string, unknown>) {
+    for (const [socketId, uid] of this.connectedUsers.entries()) {
+      if (uid === userId) {
+        this.server.to(socketId).emit(event, {
+          ...payload,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+  }
+
   emitToFamily(familyId: string, event: string, payload: MinimalPayload) {
     if (event === 'graph:updated') {
       this._debouncedGraphEmit(familyId, payload);

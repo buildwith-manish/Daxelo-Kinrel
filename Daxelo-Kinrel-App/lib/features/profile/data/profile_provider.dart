@@ -729,6 +729,11 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
 
       final profile = ProfileModel.fromJson(userData);
       state = state.copyWith(profile: profile, isLoading: false);
+
+      // Load related data in the background
+      loadFamilies();
+      loadStats();
+      loadInvitations();
     } on DioException catch (e) {
       // ── API failed: Try offline cache first, then Supabase fallback ──
       final statusCode = e.response?.statusCode;
@@ -1416,7 +1421,20 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
 
     try {
       final response = await _dio.get('/api/auth/sessions');
-      final list = (response.data as List)
+
+      // Defensive: handle both array response and wrapped object response
+      List<dynamic> listData;
+      if (response.data is List) {
+        listData = response.data as List;
+      } else if (response.data is Map) {
+        final map = response.data as Map;
+        // Try common wrapper keys
+        listData = (map['sessions'] ?? map['data'] ?? map['items'] ?? []) as List;
+      } else {
+        listData = [];
+      }
+
+      final list = listData
           .map((e) => SessionModel.fromJson(e as Map<String, dynamic>))
           .toList();
       state = state.copyWith(sessions: list);
@@ -1480,7 +1498,19 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
 
     try {
       final response = await _dio.get('/api/users/me/families');
-      final list = (response.data as List)
+
+      // Defensive: handle both array and wrapped object response
+      List<dynamic> listData;
+      if (response.data is List) {
+        listData = response.data as List;
+      } else if (response.data is Map) {
+        final map = response.data as Map;
+        listData = (map['families'] ?? map['data'] ?? map['items'] ?? []) as List;
+      } else {
+        listData = [];
+      }
+
+      final list = listData
           .map((e) => FamilyTreeNode.fromJson(e as Map<String, dynamic>))
           .toList();
       state = state.copyWith(families: list);
@@ -1571,7 +1601,19 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
 
     try {
       final response = await _dio.get('/api/users/me/invitations');
-      final list = (response.data as List)
+
+      // Defensive: handle both array and wrapped object response
+      List<dynamic> listData;
+      if (response.data is List) {
+        listData = response.data as List;
+      } else if (response.data is Map) {
+        final map = response.data as Map;
+        listData = (map['invitations'] ?? map['data'] ?? map['items'] ?? []) as List;
+      } else {
+        listData = [];
+      }
+
+      final list = listData
           .map((e) => InvitationModel.fromJson(e as Map<String, dynamic>))
           .toList();
       state = state.copyWith(invitations: list);
