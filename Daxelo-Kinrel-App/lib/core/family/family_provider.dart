@@ -10,6 +10,7 @@ import '../graph/graph_service.dart';
 import '../database/isar_database.dart';
 import '../database/repositories/offline_family_repository.dart';
 import '../database/sync/cache_invalidation.dart';
+import '../../features/profile/data/profile_provider.dart';
 
 // ── Table name constants (matching Prisma schema PascalCase) ────────
 const _kFamilyTable = 'Family';
@@ -623,10 +624,13 @@ final familyRelationshipsProvider =
         // When kAuthDisabled, allow access even without a session
         if (client.auth.currentSession == null && !kAuthDisabled) return [];
 
+        // ✅ FIX: Filter by isActive = true to match NestJS backend behavior
+        // The backend's RelationshipsService.findAll() filters by isActive: true
         final response = await client
             .from(_kRelationshipTable)
             .select()
             .eq('familyId', familyId)
+            .eq('isActive', true)
             .order('createdAt', ascending: true);
 
         final list = response as List;
@@ -794,6 +798,12 @@ Future<Family> createFamily({
     } catch (_) {}
   }
 
+  // ✅ FIX: Refresh profile stats after family creation
+  // Without this, the profile screen still shows 0 Family Trees
+  try {
+    await ref.read(profileProvider.notifier).loadStats();
+  } catch (_) {}
+
   // P5-F1: Track family creation
   AnalyticsService.instance.logFamilyCreated();
 
@@ -851,12 +861,37 @@ Future<Person> createPerson({
   ref.invalidate(familyMembersProvider(familyId));
   // familyDetailProvider auto-rebuilds via ref.watch on familyMembersProvider
 
+  // ✅ FIX: Increment Family.memberCount in Supabase
+  // The NestJS backend does memberCount: { increment: 1 } when adding a person.
+  // We must do the same when creating via Flutter direct Supabase writes.
+  try {
+    await withRetry(
+      () => client
+          .from(_kFamilyTable)
+          .update({
+            'memberCount': { 'increment': 1 },
+            'lastActivityAt': DateTime.now().toIso8601String(),
+            'updatedAt': DateTime.now().toIso8601String(),
+          })
+          .eq('id', familyId),
+      operationName: 'Increment memberCount',
+    );
+  } catch (e) {
+    debugPrint('⚠️ Could not increment memberCount: $e');
+  }
+
   // Invalidate the Isar cache for this family
   if (IsarDatabase.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
     } catch (_) {}
   }
+
+  // ✅ FIX: Refresh profile stats after member addition
+  // Without this, the profile screen still shows old Members Added count
+  try {
+    await ref.read(profileProvider.notifier).loadStats();
+  } catch (_) {}
 
   // P5-F1: Track member addition
   AnalyticsService.instance.logMemberAdded(gender ?? 'unknown');
@@ -924,6 +959,11 @@ Future<Person> updatePerson({
       await CacheInvalidation.invalidateFamily(familyId);
     } catch (_) {}
   }
+
+  // ✅ FIX: Refresh profile stats after person update
+  try {
+    await ref.read(profileProvider.notifier).loadStats();
+  } catch (_) {}
 
   return Person.fromJson(response);
 }
@@ -1030,6 +1070,11 @@ Future<void> deleteFamily({
       await ref.read(familyListProvider.future);
     } catch (_) {}
   }
+
+  // ✅ FIX: Refresh profile stats after family deletion
+  try {
+    await ref.read(profileProvider.notifier).loadStats();
+  } catch (_) {}
 }
 
 /// Delete person (soft delete) in Supabase with retry for cold starts
@@ -1057,15 +1102,47 @@ Future<void> deletePerson({
   ref.invalidate(familyMembersProvider(familyId));
   // familyDetailProvider auto-rebuilds via ref.watch on familyMembersProvider
 
+  // ✅ FIX: Decrement Family.memberCount in Supabase
+  // The NestJS backend decrements memberCount when a person is deleted.
+  // We must do the same when deleting via Flutter direct Supabase writes.
+  try {
+    await withRetry(
+      () => client
+          .from(_kFamilyTable)
+          .update({
+            'memberCount': { 'decrement': 1 },
+            'lastActivityAt': DateTime.now().toIso8601String(),
+            'updatedAt': DateTime.now().toIso8601String(),
+          })
+          .eq('id', familyId),
+      operationName: 'Decrement memberCount',
+    );
+  } catch (e) {
+    debugPrint('⚠️ Could not decrement memberCount: $e');
+  }
+
   // Invalidate the Isar cache for this family
   if (IsarDatabase.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
     } catch (_) {}
   }
+
+  // ✅ FIX: Refresh profile stats after person deletion
+  try {
+    await ref.read(profileProvider.notifier).loadStats();
+  } catch (_) {}
 }
 
-/// Create relationship in Supabase with retry for cold starts
+/// Create relationship in Supabase with retry for cold starts.
+///
+/// ✅ FIX: Now creates BIDIRECTIONAL relationships — both the forward
+/// relationship (A is father of B) AND the inverse relationship
+/// (B is child of A). The NestJS backend does the same. Previously,
+/// only the forward direction was created, causing:
+/// - Incomplete relationship graph (half the edges missing)
+/// - Relationship count showing half the expected value
+/// - Path finding failing between some persons
 Future<FamilyRelationship> createRelationship({
   required WidgetRef ref,
   required String familyId,
@@ -1080,13 +1157,20 @@ Future<FamilyRelationship> createRelationship({
     );
   }
 
-  final relId = _generateId();
+  final forwardRelId = _generateId();
+  final inverseRelId = _generateId();
   final now = DateTime.now().toIso8601String();
+
+  // ✅ FIX: Look up the inverse relationship key
+  // e.g., "father" → "child", "husband" → "wife", "brother" → "sibling"
+  final inverseKey = _relationshipInverseMap[relationshipKey] ?? relationshipKey;
+
+  // 1. Create the forward relationship
   final response = await withRetry(
     () => client
         .from(_kRelationshipTable)
         .insert({
-          'id': relId,
+          'id': forwardRelId,
           'familyId': familyId,
           'fromPersonId': fromPersonId,
           'toPersonId': toPersonId,
@@ -1098,7 +1182,7 @@ Future<FamilyRelationship> createRelationship({
         })
         .select()
         .maybeSingle(),
-    operationName: 'Create relationship',
+    operationName: 'Create forward relationship',
   );
 
   if (response == null) {
@@ -1106,6 +1190,46 @@ Future<FamilyRelationship> createRelationship({
       'Failed to create relationship — no data returned from server.',
     );
   }
+
+  // 2. Create the inverse relationship (best-effort)
+  // The NestJS backend creates both in a transaction. We do best-effort
+  // since Supabase client doesn't support transactions easily.
+  try {
+    await withRetry(
+      () => client.from(_kRelationshipTable).insert({
+        'id': inverseRelId,
+        'familyId': familyId,
+        'fromPersonId': toPersonId,
+        'toPersonId': fromPersonId,
+        'relationshipKey': inverseKey,
+        'direction': 'from',
+        'isActive': true,
+        'createdAt': now,
+        'updatedAt': now,
+      }),
+      operationName: 'Create inverse relationship',
+    );
+  } catch (e) {
+    // Best-effort — inverse creation failure shouldn't block the user
+    debugPrint('⚠️ Could not create inverse relationship: $e');
+  }
+
+  // 3. Update Family.lastActivityAt
+  try {
+    await withRetry(
+      () => client
+          .from(_kFamilyTable)
+          .update({
+            'lastActivityAt': now,
+            'updatedAt': now,
+          })
+          .eq('id', familyId),
+      operationName: 'Update family activity timestamp',
+    );
+  } catch (e) {
+    debugPrint('⚠️ Could not update family activity: $e');
+  }
+
   ref.invalidate(familyRelationshipsProvider(familyId));
   // familyDetailProvider auto-rebuilds via ref.watch on familyRelationshipsProvider
 
@@ -1115,6 +1239,12 @@ Future<FamilyRelationship> createRelationship({
       await CacheInvalidation.invalidateFamily(familyId);
     } catch (_) {}
   }
+
+  // ✅ FIX: Refresh profile stats after relationship creation
+  // Without this, the profile screen still shows old Relations count
+  try {
+    await ref.read(profileProvider.notifier).loadStats();
+  } catch (_) {}
 
   return FamilyRelationship.fromJson(response);
 }

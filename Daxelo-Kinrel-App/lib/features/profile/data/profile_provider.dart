@@ -821,7 +821,19 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       if (client?.auth.currentSession != null) {
         // Fall through to real API call below
       } else {
-        // No real session — use mock data
+        // ✅ FIX: Even without a session when auth is disabled, try Supabase
+        // fallback to get real data. The user may have families/members from
+        // a previous session. Only return 0s if we truly have no data.
+        // When kAuthDisabled, try using MockUser.id for Supabase queries.
+        try {
+          await _loadStatsFromSupabase();
+          // If stats were loaded, don't override with zeros
+          if (state.stats != null && (state.stats!.familyTrees > 0 || state.stats!.membersAdded > 0 || state.stats!.relations > 0)) {
+            return;
+          }
+        } catch (_) {}
+
+        // No real data found — use mock zeros
         state = state.copyWith(
           stats: UserStatsModel(familyTrees: 0, membersAdded: 0, relations: 0),
         );
@@ -922,7 +934,10 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       final client = _ref.read(supabaseProvider);
       if (client == null) return;
 
-      final userId = client.auth.currentUser?.id;
+      // ✅ FIX: When auth is disabled, use MockUser.id as fallback
+      // so stats can still be loaded for the debug user
+      final userId = client.auth.currentUser?.id ??
+          (kAuthDisabled ? MockUser.id : null);
       if (userId == null) return;
 
       // Query family member count (table name must match Supabase: PascalCase)
@@ -946,14 +961,39 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
         debugPrint('⚠️ Family ID extraction failed: $e');
       }
 
+      // ✅ FIX: Also find families where user is the creator
+      // (fallback for missing FamilyMember entries, matching familyListProvider logic)
+      try {
+        final createdFamilies = await client
+            .from('Family')
+            .select('id')
+            .eq('createdBy', userId)
+            .filter('deletedAt', 'is', null);
+        for (final row in (createdFamilies as List)) {
+          final familyId = _parseString(row['id']);
+          if (familyId.isNotEmpty) {
+            familyIds.add(familyId);
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ createdBy fallback lookup failed: $e');
+      }
+
+      // ✅ FIX: Count distinct families (not FamilyMember rows)
+      // A user could theoretically have duplicate FamilyMember entries
+      final familyTreeCount = familyIds.length;
+
       // Query persons in user's families
+      // ✅ FIX: Filter out soft-deleted persons (deletedAt IS NULL)
+      // to match the NestJS backend behavior which also excludes deleted persons
       int personCount = 0;
       try {
         if (familyIds.isNotEmpty) {
           final persons = await client
               .from('Person')
               .select('id')
-              .inFilter('familyId', familyIds.toList());
+              .inFilter('familyId', familyIds.toList())
+              .filter('deletedAt', 'is', null);
           personCount = (persons as List).length;
         }
       } catch (e) {
@@ -961,13 +1001,16 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       }
 
       // Query relationships in user's families
+      // ✅ FIX: Filter out inactive relationships (isActive = true)
+      // to match the NestJS backend behavior which also excludes inactive relationships
       int relationshipCount = 0;
       try {
         if (familyIds.isNotEmpty) {
           final relationships = await client
               .from('Relationship')
               .select('id')
-              .inFilter('familyId', familyIds.toList());
+              .inFilter('familyId', familyIds.toList())
+              .eq('isActive', true);
           relationshipCount = (relationships as List).length;
         }
       } catch (e) {
@@ -976,7 +1019,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
 
       state = state.copyWith(
         stats: UserStatsModel(
-          familyTrees: (familyMembers as List).length,
+          familyTrees: familyTreeCount,
           membersAdded: personCount,
           relations: relationshipCount,
         ),
