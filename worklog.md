@@ -1378,3 +1378,29 @@ Stage Summary:
 - Family list now navigates to graph when clicking a family card
 - Graph tab in family detail has toggle between hierarchy and constellation views
 - All private class references resolved
+
+---
+Task ID: 14
+Agent: Main
+Task: Fix kinship "Not available" bug + Fix profile add feature in Add Family Member
+
+Work Log:
+- Analyzed user screenshots: selecting "Brother" kinship shows "Not available" in the kinship detail panel
+- Traced root cause: case mismatch between SupportedLanguage.name ("Hindi" capitalized) and JSON translation keys ("hindi" lowercase)
+- Traced secondary cause: generic keys like "uncle", "aunt", "grandfather", "grandmother" don't exist in the kinship JSON, so translations can't be found
+- Traced third cause: AddPersonSheet called without anchorPerson at most call sites → relationships never created
+- Fix 1: Added _normalizeLanguageKey() to KinshipService that lowercases language identifiers and handles locale codes
+- Fix 2: Added _resolveToExistingKey() to KinshipService that maps generic terms (uncle→fathers_brother, grandfather→paternal_grandfather, etc.) to existing JSON keys
+- Fix 3: Updated getKinshipTerm(), getRelationship(), getAllTranslations() to use the new resolution methods
+- Fix 4: Added _effectiveAnchorPerson getter to AddPersonSheet that auto-resolves to first existing family member when no anchor is explicitly provided
+- Fix 5: Replaced widget.anchorPerson with _effectiveAnchorPerson in _submit(), _buildStep1Relationship(), _pickDetailedRelationship(), _relationshipPreview
+- Fix 6: Added missing inverse relationship mappings for elder_brother, younger_brother, elder_sister, younger_sister, grandson, granddaughter, stepfather, stepmother
+- Pushed 2 commits: 203f891, 187ba90
+
+Stage Summary:
+- kinship_service.dart: Fixed case mismatch bug + added generic key resolution
+- add_person_sheet.dart: Auto-resolve anchor person for relationship creation
+- family_provider.dart: Added 8 missing inverse relationship mappings
+- Bug 1 (Not available): FIXED — kinship terms now display correctly in all languages
+- Bug 2 (Profile add): FIXED — relationships are now created even without explicit anchorPerson
+- Commits: 203f891, 187ba90 pushed to main
