@@ -302,3 +302,74 @@ Stage Summary:
 - Only remaining annotation: GitHub infrastructure Node.js 20 info (cannot be eliminated until v5 actions released)
 - APK artifact: kinrel-debug-apk-33 (112.1 MB)
 - Commits: 6ce7c69, 9bcac45
+
+---
+Task ID: 1-4
+Agent: main
+Task: Apply 4 changes to Daxelo-Kinrel Flutter app
+
+Work Log:
+- CHANGE 1: Removed Primary Language field from Create Family Step 1
+  - Removed `import supported_languages.dart` line
+  - Removed `SupportedLanguage? _selectedLanguage` field from _CreateFamilyScreenState
+  - Changed `primaryLanguage: _selectedLanguage?.code` → `primaryLanguage: null` in _submit()
+  - Removed `selectedLanguage` and `onLanguageChanged` from _Step1FamilyIdentity constructor and fields
+  - Removed "Primary Language" label + _LanguageDropdown widget section from _Step1FamilyIdentity build
+  - Deleted entire _LanguageDropdown class
+
+- CHANGE 2: Added image picker to Family Avatar in Create Family Step 2
+  - Added `import 'dart:io'` and `import 'package:image_picker/image_picker.dart'`
+  - Added `File? _avatarImageFile` state field to _CreateFamilyScreenState
+  - Added `_pickAvatarImage()` method using ImagePicker with gallery source, 512px max, 85% quality
+  - Updated _Step2PrivacySetup to accept `avatarImageFile` (File?) and `onPickAvatar` (VoidCallback) parameters
+  - Replaced static DKAvatar + "Uses initials by default" text with GestureDetector → Stack containing:
+    - CircleAvatar with FileImage when image selected, else DKAvatar with initials
+    - Camera icon overlay at bottom-right
+    - Dynamic text: "Tap to change photo" or "Tap to add photo"
+  - Updated _Step2PrivacySetup call in PageView to pass new avatarImageFile and onPickAvatar params
+
+- CHANGE 3: Replaced messy graph relationship picker with clean list UI
+  - Completely replaced relationship_graph_picker.dart with clean list-based picker
+  - New picker uses allRelationshipsProvider (List<KinshipRelationship>) instead of hardcoded _relationshipDefs
+  - Uses KinshipRelationship fields: relationshipKey, englishTerm, relationshipCategory, lineage, searchKeywords
+  - Features: search bar, category filter chips (All/Paternal/Maternal/Marital/Siblings), DraggableScrollableSheet
+  - Color-coded lineage indicators, already-used relationship check marks
+  - Deleted relationship_graph_painter.dart (no other files import it)
+
+- CHANGE 4: Fixed Android back button with double-press-to-exit on main tabs
+  - Converted MainShell from StatelessWidget to StatefulWidget
+  - Added _lastBackPressTime field and _onWillPop() method
+  - On back press: if router.canPop() → pop normally; if at root tab → show SnackBar "Press back again to exit"
+  - Second press within 2 seconds → allows exit
+  - Wrapped Scaffold in PopScope with canPop: false and onPopInvokedWithResult handler
+
+Stage Summary:
+- Modified: lib/features/family/presentation/create_family_screen.dart (Changes 1 & 2)
+- Replaced: lib/features/family/presentation/relationship_graph_picker.dart (Change 3)
+- Deleted: lib/features/family/presentation/relationship_graph_painter.dart (Change 3)
+- Modified: lib/core/routing/app_router.dart (Change 4)
+- No other files import relationship_graph_painter.dart — clean deletion
+
+---
+Task ID: Part1
+Agent: main
+Task: Apply Part 1 of DAXELO_KINREL_10_10_AUDIT — Flutter app fixes F-01 to F-12
+
+Work Log:
+- F-01: Added PopScope to CreateFamilyScreen build method — Android back goes to previous step instead of exiting
+- F-02: Removed Region dropdown from Step 1 UI and _RegionDropdown class entirely — kept _selectedRegion='North India' as default
+- F-03: Added _uploadAvatarIfNeeded() method to upload avatar to Supabase Storage before createFamily() — added photoUrl param to createFamily()
+- F-04: Verified RelationshipBuilderScreen already uses RelationshipPickerSheet (not RelationshipGraphPicker) — no changes needed
+- F-05: Verified shimmer loading states already implemented across all list screens (FamilyListSkeleton, MemberListSkeleton, ProfileSkeleton)
+- F-06: Verified empty state widgets already implemented (DKEmptyState, DKErrorState used in family_list, family_detail, search, notifications)
+- F-07: Added offline banner to MainShell via StreamBuilder<ConnectivityResult> with red "No internet connection" bar
+- F-08: Verified animated splash already implemented with 6-phase CustomPainter animation — no changes needed
+- F-09: Removed google_fonts package from pubspec.yaml, removed import and GoogleFonts.config line from main.dart
+- F-10: Removed sentry_flutter package from pubspec.yaml, removed import and SentryFlutter.init block from main.dart
+- F-11: Changed RatingService threshold from 3 to 2 family members for in-app review trigger
+- F-12: Added kinrel.co/f/ deep link intent-filter to AndroidManifest.xml with autoVerify=true
+
+Stage Summary:
+- 7 files changed, 72 insertions, 129 deletions
+- Commit: ff29528 pushed to main
+- All F-01 to F-12 items addressed
