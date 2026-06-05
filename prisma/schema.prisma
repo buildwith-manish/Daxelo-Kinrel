@@ -1,32 +1,78 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
 }
 
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
   name      String?
+  username  String?  @unique
+  avatar    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  stories   Story[]
+  families  FamilyMember[]
 }
 
-model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Family {
+  id              String   @id @default(cuid())
+  name            String
+  familyCode      String?  @unique
+  avatar          String?
+  description     String?
+  memberCount     Int      @default(0)
+  generationCount Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  members         FamilyMember[]
+  stories         Story[]
+}
+
+model FamilyMember {
+  id       String   @id @default(cuid())
+  userId   String
+  familyId String
+  role     String   @default("member")
+  joinedAt DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id])
+  family   Family   @relation(fields: [familyId], references: [id])
+
+  @@unique([userId, familyId])
+}
+
+model Story {
+  id         String   @id @default(cuid())
+  userId     String
+  familyId   String?
+  caption    String?
+  mediaUrl   String
+  mediaType  String   @default("image")
+  bgGradient String?
+  viewed     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+
+  user   User     @relation(fields: [userId], references: [id])
+  family Family?  @relation(fields: [familyId], references: [id])
+
+  views  StoryView[]
+}
+
+model StoryView {
+  id       String   @id @default(cuid())
+  storyId  String
+  viewerId String
+  viewedAt DateTime @default(now())
+
+  story    Story    @relation(fields: [storyId], references: [id])
+
+  @@unique([storyId, viewerId])
 }
