@@ -4,11 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
-import '../../../core/kinship/kinship_service.dart';
 import 'family_tree_painter.dart';
 import 'family_tree_model.dart';
 
@@ -92,7 +90,6 @@ class _FamilyTreeScreenState extends ConsumerState<FamilyTreeScreen>
     }
 
     // Assign generations starting from roots
-    final personMap = {for (final p in members) p.id: p};
     for (final p in members) {
       if (p.generationIndex > 0) {
         generationMap[p.id] = p.generationIndex;
