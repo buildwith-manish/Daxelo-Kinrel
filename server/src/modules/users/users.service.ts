@@ -4,12 +4,17 @@ import {
   BadRequestException,
   ConflictException,
   UnauthorizedException,
+  ForbiddenException,
   HttpException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { CacheService } from '../../common/cache/cache.service';
 import * as bcrypt from 'bcryptjs';
+
+// ── Allowed values for privacy settings ──────────────────────────────
+const VALID_PROFILE_VISIBILITY = ['public', 'connections_only', 'private'] as const;
+const VALID_INVITE_PERMISSION = ['anyone', 'connections', 'nobody'] as const;
 
 /**
  * Rate limit tracker for username availability checks.
@@ -39,10 +44,19 @@ export class UsersService {
     private readonly cacheService: CacheService,
   ) {}
 
-  // ── Get User by Username (public profile) ──────────────────────
+  // ── Get User by Username (public profile with privacy enforcement) ──
 
-  /** Returns a limited public profile for a user by username. */
-  async getUserByUsername(username: string) {
+  /**
+   * Returns a limited public profile for a user by username.
+   * Enforces profileVisibility:
+   *   - public: anyone can see
+   *   - connections_only: only users who share a family can see
+   *   - private: no one can see (except self, handled by getProfile)
+   *
+   * @param username The username to look up
+   * @param viewerId (optional) The authenticated user viewing the profile
+   */
+  async getUserByUsername(username: string, viewerId?: string) {
     if (!username || username.trim().length < 3) {
       throw new BadRequestException('Invalid username');
     }
@@ -64,12 +78,35 @@ export class UsersService {
         avatarUrl: true,
         photoThumb: true,
         bio: true,
+        profileVisibility: true,
         createdAt: true,
       },
     });
 
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+
+    // ── Privacy enforcement ────────────────────────────────────────
+    const visibility = user.profileVisibility || 'public';
+
+    if (visibility === 'private') {
+      // Private profiles are never visible to others
+      throw new NotFoundException('User not found');
+    }
+
+    if (visibility === 'connections_only') {
+      // Only users who share a family with this user can see their profile
+      if (!viewerId) {
+        throw new NotFoundException('User not found');
+      }
+
+      if (viewerId !== user.id) {
+        const areConnections = await this._areConnections(viewerId, user.id);
+        if (!areConnections) {
+          throw new NotFoundException('User not found');
+        }
+      }
     }
 
     // Return limited public profile (no email, phone, etc.)
@@ -81,6 +118,30 @@ export class UsersService {
       bio: user.bio,
       memberSince: user.createdAt,
     };
+  }
+
+  // ── Check if two users share a family (are "connections") ────────
+
+  /** Returns true if two users are members of at least one common family. */
+  private async _areConnections(userIdA: string, userIdB: string): Promise<boolean> {
+    // Get family IDs for user A
+    const familiesA = await this.prisma.familyMember.findMany({
+      where: { userId: userIdA },
+      select: { familyId: true },
+    });
+    const familyIdsA = new Set(familiesA.map((m) => m.familyId));
+
+    if (familyIdsA.size === 0) return false;
+
+    // Check if user B is in any of user A's families
+    const overlap = await this.prisma.familyMember.findFirst({
+      where: {
+        userId: userIdB,
+        familyId: { in: [...familyIdsA] },
+      },
+    });
+
+    return !!overlap;
   }
 
   // ── Get Profile (enhanced with all ProfileModel fields) ──────────
@@ -187,10 +248,24 @@ export class UsersService {
     if (data.gender !== undefined) updateData.gender = data.gender || null;
     if (data.avatarUrl !== undefined)
       updateData.avatarUrl = data.avatarUrl || null;
-    if (data.profileVisibility !== undefined)
+    if (data.profileVisibility !== undefined) {
+      // Validate the value
+      if (!VALID_PROFILE_VISIBILITY.includes(data.profileVisibility as any)) {
+        throw new BadRequestException(
+          `Invalid profileVisibility. Must be one of: ${VALID_PROFILE_VISIBILITY.join(', ')}`,
+        );
+      }
       updateData.profileVisibility = data.profileVisibility;
-    if (data.invitePermission !== undefined)
+    }
+    if (data.invitePermission !== undefined) {
+      // Validate the value
+      if (!VALID_INVITE_PERMISSION.includes(data.invitePermission as any)) {
+        throw new BadRequestException(
+          `Invalid invitePermission. Must be one of: ${VALID_INVITE_PERMISSION.join(', ')}`,
+        );
+      }
       updateData.invitePermission = data.invitePermission;
+    }
 
     const user = await this.prisma.user.update({
       where: { id: userId },
@@ -1019,3 +1094,4 @@ export class UsersService {
     return { success: true, message: 'FCM token deleted' };
   }
 }
+
