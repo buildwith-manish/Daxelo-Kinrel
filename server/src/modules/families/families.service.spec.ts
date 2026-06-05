@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { FamiliesService } from './families.service';
 import { FamilyIdService } from './family-id.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { KinrelGateway } from '../gateway/kinrel.gateway';
 import {
   BadRequestException,
   NotFoundException,
@@ -40,6 +41,16 @@ const mockFamilyIdService = {
   generateFamilyId: jest.fn(),
 };
 
+// ── Mock KinrelGateway ───────────────────────────────────────────────────
+
+const mockKinrelGateway = {
+  emitFamilyUpdated: jest.fn(),
+  emitMemberAdded: jest.fn(),
+  emitMemberRemoved: jest.fn(),
+  emitPersonCreated: jest.fn(),
+  emitRelationshipCreated: jest.fn(),
+};
+
 describe('FamiliesService', () => {
   let service: FamiliesService;
 
@@ -51,6 +62,7 @@ describe('FamiliesService', () => {
         FamiliesService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: FamilyIdService, useValue: mockFamilyIdService },
+        { provide: KinrelGateway, useValue: mockKinrelGateway },
       ],
     }).compile();
 

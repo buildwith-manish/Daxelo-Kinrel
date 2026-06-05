@@ -99,6 +99,7 @@ jobs:
           keyAlias=${{ secrets.KEY_ALIAS }}
           storeFile=daxelo-release.jks
           EOF
+          sed -i 's/^[[:space:]]*//' ${{ env.FLUTTER_DIR }}/android/key.properties
           echo "key.properties created"
 
       # ── Create .env file with fallback defaults ──────────────────
@@ -117,6 +118,7 @@ jobs:
           SUPABASE_ANON_KEY=$FINAL_SUPABASE_ANON_KEY
           API_BASE_URL=$FINAL_API_BASE_URL
           EOF
+          sed -i 's/^[[:space:]]*//' ${{ env.FLUTTER_DIR }}/.env
 
           echo ".env file created"
 

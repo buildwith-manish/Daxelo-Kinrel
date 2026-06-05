@@ -24,4 +24,5 @@ module.exports = {
     '!src/**/*.spec.ts',
     '!src/**/index.ts',
   ],
+  coverageReporters: ['text', 'text-summary', 'lcov', 'json-summary'],
 };
