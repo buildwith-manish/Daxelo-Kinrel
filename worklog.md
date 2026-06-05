@@ -248,3 +248,24 @@ Stage Summary:
 - 5 files modified: family_provider.dart, family_tree_canvas.dart, profile_screen.dart, family_detail_screen.dart, family_list_screen.dart
 - Commit: cc447a0 pushed to origin/main
 - All 6 bugs fixed and pushed
+
+---
+Task ID: 12
+Agent: main
+Task: Monitor debug build and fix build failures
+
+Work Log:
+- Checked GitHub Actions build status for commit cc447a0 (6 bug fixes) → FAILED
+- Root cause: profile_screen.dart had "Not a constant expression" errors on 11 lines
+- The theme-aware getters (_textPrimary, _textSecondary, etc.) replaced the old const values but were still used inside `const TextStyle(...)` constructors
+- Wrote Python script to find all `const Constructor()` calls that reference non-const instance getters and remove the `const` keyword
+- Fixed 11 `const TextStyle(` → `TextStyle(` in profile_screen.dart
+- Pushed fix as commit 2e0063e
+- Monitored rebuild — all 15 steps passed ✅
+- APK artifact: kinrel-debug-apk-31 (112.1 MB)
+
+Stage Summary:
+- Commit 2e0063e pushed and build succeeded
+- APK download: https://github.com/buildwith-manish/Daxelo-Kinrel/actions/runs/26999835069/artifacts/7430524443
+- All 6 original bug fixes + const fix are now in the build
+- Codemagic API key still returns 401 — GitHub Actions is the working CI/CD path
