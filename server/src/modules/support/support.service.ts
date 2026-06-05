@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TicketCategory, TicketSeverity } from '@prisma/client';
 
 // SLA deadlines per tier (in hours)
 const SLA_DEADLINES: Record<string, { firstResponse: number; resolution: number }> = {
@@ -85,13 +86,13 @@ export class SupportService {
       data: {
         ticketNumber,
         userId,
-        category,
+        category: category as TicketCategory,
         subcategory: data.subcategory || null,
-        severity,
+        severity: severity as TicketSeverity,
         priority: SEVERITY_PRIORITY[severity] || 50,
         subject: data.subject,
         description: data.description,
-        attachments: JSON.stringify(data.attachments || []),
+        attachments: data.attachments || [],
         appVersion: data.appVersion || null,
         platform: data.platform || null,
         deviceInfo: data.deviceInfo || null,
@@ -248,7 +249,7 @@ export class SupportService {
         senderId: userId,
         senderName: user?.name || user?.email || 'Unknown',
         content: data.content,
-        attachments: JSON.stringify(data.attachments || []),
+        attachments: data.attachments || [],
         channel: data.channel || 'in_app',
       },
     });
@@ -281,7 +282,7 @@ export class SupportService {
       senderId: message.senderId,
       senderName: message.senderName,
       content: message.content,
-      attachments: JSON.parse(message.attachments),
+      attachments: message.attachments,
       channel: message.channel,
       createdAt: message.createdAt,
     };

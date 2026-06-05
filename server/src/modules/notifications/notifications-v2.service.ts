@@ -41,7 +41,7 @@ export interface PaginatedNotifications {
     body: string;
     familyId: string | null;
     personId: string | null;
-    channels: string;
+    channels: string[];
     priority: string;
     read: boolean;
     readAt: Date | null;
@@ -721,7 +721,7 @@ export class NotificationsV2Service {
         body,
         familyId: familyId || null,
         personId: personId || null,
-        channels: JSON.stringify(finalChannels),
+        channels: finalChannels,
         priority,
         actionUrl: actionUrl || null,
       },
@@ -837,7 +837,7 @@ export class NotificationsV2Service {
         body,
         familyId: familyId || null,
         personId: personId || null,
-        channels: JSON.stringify(['inApp']),
+        channels: ['inApp'],
         priority,
         actionUrl: actionUrl || null,
       },

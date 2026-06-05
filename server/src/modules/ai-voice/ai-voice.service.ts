@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { KinshipService } from '../kinship/kinship.service';
+import OpenAI from 'openai';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -29,8 +31,17 @@ export interface LookupResult {
 @Injectable()
 export class AiVoiceService {
   private readonly logger = new Logger(AiVoiceService.name);
+  private readonly ai: OpenAI;
 
-  constructor(private readonly kinshipService: KinshipService) {}
+  constructor(
+    private readonly kinshipService: KinshipService,
+    private readonly configService: ConfigService,
+  ) {
+    this.ai = new OpenAI({
+      apiKey: this.configService.get('DEEPSEEK_API_KEY') || this.configService.get('GEMINI_API_KEY'),
+      baseURL: 'https://api.deepseek.com',
+    });
+  }
 
   /**
    * Transcribe audio and find matching kinship terms.
@@ -103,13 +114,13 @@ export class AiVoiceService {
 
   private async transcribeAudio(
     audio: string,
-    language: string,
+    _language: string,
   ): Promise<string> {
-    const ZAI = (await import('z-ai-web-dev-sdk')).default;
-    const sdk = await ZAI.create();
-
-    const response = await sdk.audio.asr.create({
-      file_base64: audio,
+    // Use OpenAI-compatible Whisper API via DeepSeek or compatible endpoint
+    const buffer = Buffer.from(audio, 'base64');
+    const response = await this.ai.audio.transcriptions.create({
+      model: 'whisper-1',
+      file: new File([buffer], 'audio.wav', { type: 'audio/wav' }),
     });
 
     if (response?.text) {

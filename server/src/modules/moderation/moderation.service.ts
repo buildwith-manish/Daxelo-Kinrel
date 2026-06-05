@@ -201,7 +201,7 @@ export class ModerationService {
           category: matchedCategory,
           autoAction: matchedAction,
           confidence,
-          flaggedCategories: JSON.stringify(flaggedCategories),
+          flaggedCategories,
           priority: matchedPriority,
           contentPreview: data.contentPreview.substring(0, 500),
         },

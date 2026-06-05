@@ -339,7 +339,7 @@ export class AdminService {
       category: t.category,
       status: t.status,
       whatsappId: t.whatsappId,
-      languages: JSON.parse(t.languages || '[]'),
+      languages: t.languages,
       rejectionReason: t.rejectionReason,
       lastSyncedAt: t.lastSyncedAt,
       createdAt: t.createdAt,

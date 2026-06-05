@@ -37,7 +37,7 @@ export class WhatsAppService {
       optOutMethod: consent.optOutMethod,
       optOutReason: consent.optOutReason,
       consentVersion: consent.consentVersion,
-      messageCategories: JSON.parse(consent.messageCategories || '[]'),
+      messageCategories: consent.messageCategories || [],
       marketingConsent: consent.marketingConsent,
       marketingOptInAt: consent.marketingOptInAt,
       createdAt: consent.createdAt,
@@ -76,13 +76,11 @@ export class WhatsAppService {
           optOutAt: null,
           optOutMethod: null,
           optOutReason: null,
-          messageCategories: JSON.stringify(
-            data.messageCategories || [
+          messageCategories: data.messageCategories || [
               'birthday_reminder',
               'family_invite',
               'new_match',
             ],
-          ),
           consentVersion: 'v1',
         },
       });
@@ -101,13 +99,11 @@ export class WhatsAppService {
         optedIn: true,
         optInMethod: data.optInMethod || 'app_settings',
         optInAt: new Date(),
-        messageCategories: JSON.stringify(
-          data.messageCategories || [
+        messageCategories: data.messageCategories || [
             'birthday_reminder',
             'family_invite',
             'new_match',
           ],
-        ),
         consentVersion: 'v1',
       },
     });
@@ -330,7 +326,7 @@ export class WhatsAppService {
       optOutMethod: consent.optOutMethod,
       optOutReason: consent.optOutReason,
       consentVersion: consent.consentVersion,
-      messageCategories: JSON.parse(consent.messageCategories || '[]'),
+      messageCategories: consent.messageCategories || [],
       marketingConsent: consent.marketingConsent,
       marketingOptInAt: consent.marketingOptInAt,
       updatedAt: consent.updatedAt,

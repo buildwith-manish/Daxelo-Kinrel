@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import OpenAI from 'openai';
 import { ExplainRelationshipDto } from './dto/explain-relationship.dto';
 import { SmartSearchDto } from './dto/smart-search.dto';
 import { KinshipService } from '../kinship/kinship.service';
@@ -44,7 +44,7 @@ export interface AiChatContext {
 
 const DAILY_RATE_LIMIT = 20;
 const MAX_INPUT_TOKENS = 4096;
-const MODEL_NAME = 'gemini-2.0-flash';
+const MODEL_NAME = 'deepseek-chat';
 
 const SYSTEM_PROMPT = `You are an expert assistant specializing in Indian kinship relationships and family terminology. Your name is KINREL AI.
 
@@ -67,80 +67,44 @@ Example: चाचा (Chacha)`;
 @Injectable()
 export class AiFeaturesService {
   private readonly logger = new Logger(AiFeaturesService.name);
-  private genAI: GoogleGenerativeAI | null = null;
-  private model: any = null;
+  private ai: OpenAI | null = null;
 
   constructor(
     private prisma: PrismaService,
     private configService: ConfigService,
     private kinshipService: KinshipService,
   ) {
-    this.initializeGemini();
+    this.initializeAI();
   }
 
   // ── Initialization ────────────────────────────────────────────────
 
-  private initializeGemini() {
-    const apiKey = this.configService.get<string>('GEMINI_API_KEY');
+  private initializeAI() {
+    const apiKey = this.configService.get<string>('DEEPSEEK_API_KEY') || this.configService.get<string>('GEMINI_API_KEY');
     if (!apiKey) {
       const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
       if (nodeEnv === 'production') {
         this.logger.error(
-          '❌ GEMINI_API_KEY is not set! AI features will NOT work in production. ' +
-          'Set the GEMINI_API_KEY environment variable to enable AI features.',
+          '❌ DEEPSEEK_API_KEY / GEMINI_API_KEY is not set! AI features will NOT work in production. ' +
+          'Set the environment variable to enable AI features.',
         );
-        // In production, we log an error but don't crash — fallback responses
-        // will be used. This prevents deployment failure if the key is
-        // temporarily missing, while still alerting operators.
       } else {
         this.logger.warn(
-          'GEMINI_API_KEY not set — AI features will use fallback responses',
+          'DEEPSEEK_API_KEY / GEMINI_API_KEY not set — AI features will use fallback responses',
         );
       }
       return;
     }
 
-    // Validate the key format (basic check — Gemini keys start with "AI")
-    if (!apiKey.startsWith('AI')) {
-      this.logger.warn(
-        'GEMINI_API_KEY appears to be invalid (does not start with "AI"). ' +
-        'AI features may not work correctly.',
-      );
-    }
-
     try {
-      this.genAI = new GoogleGenerativeAI(apiKey);
-      this.model = this.genAI.getGenerativeModel({
-        model: MODEL_NAME,
-        safetySettings: [
-          {
-            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-            threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-          },
-        ],
-        generationConfig: {
-          maxOutputTokens: 2048,
-          temperature: 0.4,
-          topP: 0.95,
-          topK: 40,
-        },
+      this.ai = new OpenAI({
+        apiKey,
+        baseURL: 'https://api.deepseek.com',
       });
-      this.logger.log(`✅ Gemini AI initialized with model: ${MODEL_NAME}`);
+      this.logger.log(`✅ AI initialized with model: ${MODEL_NAME}`);
     } catch (error) {
       this.logger.error(
-        `Failed to initialize Gemini: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to initialize AI: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
   }
@@ -203,13 +167,13 @@ export class AiFeaturesService {
 
   // ── Gemini API Call ───────────────────────────────────────────────
 
-  private async callGemini(
+  private async callAI(
     prompt: string,
     systemContext?: string,
   ): Promise<{ content: string; tokensUsed: number }> {
-    if (!this.model) {
+    if (!this.ai) {
       throw new InternalServerErrorException(
-        'AI service is not configured. Please set GEMINI_API_KEY.',
+        'AI service is not configured. Please set DEEPSEEK_API_KEY or GEMINI_API_KEY.',
       );
     }
 
@@ -219,21 +183,24 @@ export class AiFeaturesService {
       prompt.length > maxChars ? prompt.substring(0, maxChars) : prompt;
 
     try {
-      const result = await this.model.generateContent([
-        { text: systemContext || SYSTEM_PROMPT },
-        { text: truncatedPrompt },
-      ]);
+      const response = await this.ai.chat.completions.create({
+        model: MODEL_NAME,
+        messages: [
+          { role: 'system', content: systemContext || SYSTEM_PROMPT },
+          { role: 'user', content: truncatedPrompt },
+        ],
+        max_tokens: 2048,
+        temperature: 0.4,
+      });
 
-      const response = result.response;
-      const content = response.text();
-      const tokensUsed =
-        result.response?.usageMetadata?.totalTokenCount ?? 0;
+      const content = response.choices?.[0]?.message?.content || '';
+      const tokensUsed = response.usage?.total_tokens ?? 0;
 
       return { content, tokensUsed };
     } catch (error) {
       const errMessage =
-        error instanceof Error ? error.message : 'Unknown Gemini API error';
-      this.logger.error(`Gemini API error: ${errMessage}`);
+        error instanceof Error ? error.message : 'Unknown AI API error';
+      this.logger.error(`AI API error: ${errMessage}`);
       throw new InternalServerErrorException(
         `AI generation failed: ${errMessage}`,
       );
@@ -268,7 +235,7 @@ export class AiFeaturesService {
     let cached = false;
 
     try {
-      const result = await this.callGemini(fullPrompt);
+      const result = await this.callAI(fullPrompt);
       content = result.content;
       tokensUsed = result.tokensUsed;
     } catch (error) {
@@ -323,7 +290,7 @@ export class AiFeaturesService {
     let cached = false;
 
     try {
-      const result = await this.callGemini(prompt);
+      const result = await this.callAI(prompt);
       content = result.content;
       tokensUsed = result.tokensUsed;
     } catch (error) {
@@ -379,7 +346,7 @@ export class AiFeaturesService {
     let cached = false;
 
     try {
-      const result = await this.callGemini(prompt);
+      const result = await this.callAI(prompt);
       content = result.content;
       tokensUsed = result.tokensUsed;
     } catch (error) {
@@ -493,7 +460,7 @@ Respond in this exact JSON format:
     let tokensUsed: number;
 
     try {
-      const result = await this.callGemini(prompt);
+      const result = await this.callAI(prompt);
       content = result.content;
       tokensUsed = result.tokensUsed;
     } catch (error) {
@@ -596,7 +563,7 @@ Provide a helpful response about Indian kinship and family relationships. Includ
     let cached = false;
 
     try {
-      const result = await this.callGemini(prompt);
+      const result = await this.callAI(prompt);
       content = result.content;
       tokensUsed = result.tokensUsed;
     } catch (error) {

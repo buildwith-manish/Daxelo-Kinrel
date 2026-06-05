@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { KinshipService } from '../kinship/kinship.service';
+import OpenAI from 'openai';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -123,8 +125,17 @@ const PLACEHOLDER_IMAGE_BASE64 =
 @Injectable()
 export class AiCardsService {
   private readonly logger = new Logger(AiCardsService.name);
+  private readonly ai: OpenAI;
 
-  constructor(private readonly kinshipService: KinshipService) {}
+  constructor(
+    private readonly kinshipService: KinshipService,
+    private readonly configService: ConfigService,
+  ) {
+    this.ai = new OpenAI({
+      apiKey: this.configService.get('DEEPSEEK_API_KEY') || this.configService.get('GEMINI_API_KEY'),
+      baseURL: 'https://api.deepseek.com',
+    });
+  }
 
   /**
    * Get festival card templates.
@@ -241,16 +252,16 @@ export class AiCardsService {
   // ── Private Helpers ────────────────────────────────────────────────
 
   private async generateImage(prompt: string): Promise<string> {
-    const ZAI = (await import('z-ai-web-dev-sdk')).default;
-    const sdk = await ZAI.create();
-
-    const response = await sdk.images.generations.create({
+    const response = await this.ai.images.generate({
+      model: 'dall-e-3',
       prompt,
-      size: '768x1344', // Portrait card size
+      size: '1024x1792', // Portrait card size
+      response_format: 'b64_json',
+      n: 1,
     });
 
-    if (response?.data?.[0]?.base64) {
-      return response.data[0].base64;
+    if (response?.data?.[0]?.b64_json) {
+      return response.data[0].b64_json;
     }
 
     throw new Error('No image data in generation response');

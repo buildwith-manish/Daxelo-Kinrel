@@ -38,7 +38,7 @@ export class DeveloperService {
       id: k.id,
       name: k.name,
       keyPrefix: k.keyPrefix,
-      scopes: JSON.parse(k.scopes),
+      scopes: k.scopes,
       tier: k.tier,
       rateLimitPerMinute: k.rateLimitPerMinute,
       lastUsedAt: k.lastUsedAt,
@@ -85,7 +85,7 @@ export class DeveloperService {
         keyPrefix,
         keyHash,
         userId,
-        scopes: JSON.stringify(scopes),
+        scopes,
         tier: data.tier || 'free',
       },
     });
@@ -176,7 +176,7 @@ export class DeveloperService {
     return webhooks.map((w) => ({
       id: w.id,
       url: w.url,
-      events: JSON.parse(w.events),
+      events: w.events,
       active: w.active,
       description: w.description,
       deliveryCount: w._count.deliveries,
@@ -214,7 +214,7 @@ export class DeveloperService {
         userId,
         url: data.url,
         secret,
-        events: JSON.stringify(data.events),
+        events: data.events,
         description: data.description || null,
       },
     });
@@ -223,7 +223,7 @@ export class DeveloperService {
       id: webhook.id,
       url: webhook.url,
       secret: webhook.secret, // Only returned once!
-      events: JSON.parse(webhook.events),
+      events: webhook.events,
       active: webhook.active,
       description: webhook.description,
       createdAt: webhook.createdAt,
