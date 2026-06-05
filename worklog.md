@@ -409,3 +409,24 @@ Stage Summary:
 - TypeScript compiles with zero errors
 - Commit pushed: 050ae27
 - Key architectural changes: Redis-backed chat sessions, OpenAI/DeepSeek client, 2FA challenge token flow, Fisher-Yates shuffle, native Prisma arrays and enums, response envelope, request ID tracking
+
+---
+Task ID: 3
+Agent: Main
+Task: Apply Part 3 — Documentation (D-01 to D-04) of DAXELO_KINREL_10_10_AUDIT.md
+
+Work Log:
+- Read audit file to understand Part 3 requirements (4 documentation items)
+- D-01: Created CONTRIBUTING.md at repo root with setup instructions, branching strategy, commit format, PR checklist, code style guide
+- D-02: Created scripts/dev-setup.sh quickstart script with prerequisite checks, backend setup, Flutter app setup, interactive prompts
+- D-03: Added "API Rate Limits" section to README.md with table of tiers (general short/long, auth endpoints) and env var configuration
+- D-04: Added JSDoc comments to all public service methods missing them — primarily timeline.service.ts (2 methods) and users.service.ts (20 methods). Verified all other 30+ service files already had proper JSDoc.
+- Ran 6 verification checks: files exist, no broken syntax, git diff clean, only JSDoc additions
+- Committed and pushed: docs(part3): D-01 CONTRIBUTING.md, D-02 dev-setup.sh, D-03 rate limits in README, D-04 JSDoc on public service methods
+
+Stage Summary:
+- 15 files changed, 318 insertions
+- New files: CONTRIBUTING.md, scripts/dev-setup.sh
+- Modified: README.md (rate limits section added), 12 service files (JSDoc additions)
+- Commit: e8d6efb pushed to main
+- No build triggered (following "no build until Part 6" rule)
