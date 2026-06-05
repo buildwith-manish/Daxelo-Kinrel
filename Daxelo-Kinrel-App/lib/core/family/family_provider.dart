@@ -335,7 +335,9 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilies();
-        if (cached.isNotEmpty) return cached;
+        // ✅ FIX (BUG-01): Filter out soft-deleted families from Isar cache
+        final filtered = cached.where((f) => f.deletedAt == null).toList();
+        if (filtered.isNotEmpty) return filtered;
       } catch (_) {}
     }
     return [];
@@ -346,7 +348,10 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
     if (IsarDatabase.isInitialized) {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
-        return repo.getFamilies();
+        final cached = await repo.getFamilies();
+        // ✅ FIX (BUG-01): Filter out soft-deleted families from Isar cache
+        final filtered = cached.where((f) => f.deletedAt == null).toList();
+        if (filtered.isNotEmpty) return filtered;
       } catch (e) {
         debugPrint('⚠️ Offline repo getFamilies failed, falling back: $e');
         // Fall through to Supabase direct query
@@ -396,10 +401,13 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
     if (familyIds.isEmpty) return [];
 
     // 3. Fetch all families by IDs (deduplicated)
+    // ✅ FIX (BUG-01): Filter out soft-deleted families so they don't
+    // reappear after app restart
     final response = await client
         .from(_kFamilyTable)
         .select()
         .inFilter('id', familyIds.toList())
+        .filter('deletedAt', 'is', null)
         .order('createdAt', ascending: false);
 
     final list = response as List;
@@ -417,7 +425,9 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilies();
-        if (cached.isNotEmpty) return cached;
+        // ✅ FIX (BUG-01): Filter out soft-deleted families from Isar cache
+        final filtered = cached.where((f) => f.deletedAt == null).toList();
+        if (filtered.isNotEmpty) return filtered;
       } catch (_) {}
     }
 
@@ -1016,6 +1026,8 @@ Future<void> deleteFamily({
     try {
       await CacheInvalidation.invalidateFamily(familyId);
       await CacheInvalidation.invalidateFamilyList();
+      // ✅ FIX (BUG-01): Force a fresh fetch — do NOT use cached data after delete
+      await ref.read(familyListProvider.future);
     } catch (_) {}
   }
 }

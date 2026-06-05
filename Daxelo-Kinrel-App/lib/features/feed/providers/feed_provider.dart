@@ -6,6 +6,7 @@
 // FamilyPost records are auto-generated when family events happen.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -62,8 +63,10 @@ class FamilyPost {
       postType: FeedPostType.fromKey(
         json['postType'] as String? ?? 'member_joined',
       ),
-      content: json['content'] as Map<String, dynamic>? ?? {},
-      reactions: json['reactions'] as Map<String, dynamic>? ?? {},
+      // ✅ FIX (BUG-06): Safe cast — Supabase may return these as JSON strings
+      // instead of parsed Maps, causing "type 'String' is not a subtype" crash
+      content: _safeJsonMap(json['content']),
+      reactions: _safeJsonMap(json['reactions']),
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString())
           : null,
@@ -477,15 +480,17 @@ class FeedNotifier extends StateNotifier<FeedState> {
 
   /// Flatten Supabase join results into the FamilyPost model fields
   static Map<String, dynamic> _flattenJoins(Map<String, dynamic> json) {
-    final family = json['Family'] as Map<String, dynamic>?;
-    final person = json['Person'] as Map<String, dynamic>?;
+    // ✅ FIX (BUG-06): Safe cast for joined fields — Supabase may return
+    // these as JSON strings instead of parsed Maps
+    final family = _safeJsonMap(json['Family']);
+    final person = _safeJsonMap(json['Person']);
 
     return {
         ...json,
-        'familyName': family?['name'] as String?,
-        'familyUsername': family?['username'] as String?,
-        'authorName': person?['name'] as String?,
-        'authorUsername': person?['username'] as String?,
+        'familyName': family['name'] as String?,
+        'familyUsername': family['username'] as String?,
+        'authorName': person['name'] as String?,
+        'authorUsername': person['username'] as String?,
       }
       ..remove('Family')
       ..remove('Person');
@@ -526,6 +531,23 @@ class FeedNotifier extends StateNotifier<FeedState> {
           {'lang': 'hi', 'term': key},
         ];
   }
+}
+
+/// Safely parse a value that might be a Map<String, dynamic>, a JSON String,
+/// or null into a Map<String, dynamic>.
+/// ✅ FIX (BUG-06): Prevents "type 'String' is not a subtype of Map" crash
+/// when Supabase returns a JSON-encoded string instead of a parsed object.
+Map<String, dynamic> _safeJsonMap(dynamic value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) return Map<String, dynamic>.from(value);
+  if (value is String) {
+    try {
+      final decoded = jsonDecode(value);
+      if (decoded is Map<String, dynamic>) return decoded;
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    } catch (_) {}
+  }
+  return {};
 }
 
 /// Generate a CUID-like ID for database inserts.

@@ -6,7 +6,6 @@
 //   • Sticky Header: K-graph mini icon + time-based greeting + @username + avatar
 //   • Family Switcher: horizontal scroll with + Add + family avatars (Ignite gradient)
 //   • Hero Family Card: radial gradient bg, orange glow, dotted K-graph pattern
-//   • Quick Actions Row: 3 cards (Add Member, Share, Find Path) orange icons
 //   • Family Feed: Instagram-style vertical feed (replaces Recent Activity + Family at a Glance)
 //
 // Uses KinrelColors (orange #E8612A / amber #F59240 / ember #C44A18),
@@ -120,23 +119,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           // Hero card shimmer
           DKLoadingShimmer(width: double.infinity, height: 160, radius: 18),
           SizedBox(height: 20),
-          // Quick actions shimmer
-          Row(
-            children: List.generate(
-              3,
-              (_) => Expanded(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 5),
-                  child: DKLoadingShimmer(
-                    width: double.infinity,
-                    height: 100,
-                    radius: 14,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          SizedBox(height: 20),
           // Feed shimmer
           DKLoadingShimmer(width: 120, height: 18),
           SizedBox(height: 12),
@@ -241,12 +223,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
                 SizedBox(height: 20),
 
-                // Quick Actions Row
-                _QuickActionsRow(
-                  familyId: primaryFamily.id,
-                ).animate().fadeIn(duration: 350.ms, delay: 150.ms),
-
-                SizedBox(height: 24),
+                // ✅ REMOVED (BUG-10): _QuickActionsRow removed from home screen
+                // — Add Member / Share / Find Path actions remain available
+                // inside the family detail screen's floating bottom action bar
 
                 // Feed section header
                 Padding(
@@ -810,7 +789,10 @@ class _HeroFamilyCard extends StatelessWidget {
               children: [
                 // Radial gradient background #13141E → #191B2C with orange glow
                 Container(
-                  height: 160,
+                  // ✅ FIX (BUG-07): Use minHeight instead of fixed height
+                  // to prevent BOTTOM OVERFLOWED BY 18 PIXELS when content
+                  // (username, stats) is taller than the fixed 160px
+                  constraints: const BoxConstraints(minHeight: 160),
                   width: double.infinity,
                   decoration: BoxDecoration(
                     gradient: RadialGradient(
@@ -836,6 +818,7 @@ class _HeroFamilyCard extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Family avatar + name
@@ -1005,150 +988,4 @@ class _DottedKGraphPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _DottedKGraphPainter oldDelegate) =>
       oldDelegate.color != color;
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Quick Actions Row (3 cards)
-// ═══════════════════════════════════════════════════════════════════════
-
-class _QuickActionsRow extends StatelessWidget {
-  const _QuickActionsRow({required this.familyId});
-
-  final String familyId;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
-      child: Row(
-        children: [
-          Expanded(
-            child: _QuickActionCard(
-              icon: Icons.person_add_rounded,
-              iconColor: _cOrange,
-              title: 'Add Member',
-              subtitle: 'Expand your tree',
-              onTap: () => context.push('/family/$familyId/add-person'),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _QuickActionCard(
-              icon: Icons.share_rounded,
-              iconColor: _cOrange,
-              title: 'Share Family',
-              subtitle: 'Invite family',
-              onTap: () => context.push('/family/$familyId/share'),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _QuickActionCard(
-              icon: Icons.route_rounded,
-              iconColor: _cOrange,
-              title: 'Find Path',
-              subtitle: 'Find relationships',
-              onTap: () => context.push('/family/$familyId/path-finder'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Single quick action card — #191B2C bg, 1px border rgba(255,255,255,0.08), radius 14px
-class _QuickActionCard extends StatefulWidget {
-  const _QuickActionCard({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  State<_QuickActionCard> createState() => _QuickActionCardState();
-}
-
-class _QuickActionCardState extends State<_QuickActionCard> {
-  bool _isPressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
-      onTap: widget.onTap,
-      // Accessibility: semantic button with descriptive label
-      child: Semantics(
-        button: true,
-        label: '${widget.title}: ${widget.subtitle}',
-        hint: 'Double tap to ${widget.title.toLowerCase()}',
-        child: AnimatedContainer(
-        duration: Duration(milliseconds: 150),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: _cCard,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: _isPressed
-                ? _cOrange.withValues(alpha: 0.2)
-                : Colors.white.withValues(alpha: 0.08),
-            width: 1,
-          ),
-          boxShadow: _isPressed
-              ? [
-                  BoxShadow(
-                    color: _cOrange.withValues(alpha: 0.08),
-                    blurRadius: 12,
-                    spreadRadius: 0,
-                  ),
-                ]
-              : null,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Icon circle
-            Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                color: _cOrange.withValues(alpha: 0.12),
-              ),
-              child: Icon(widget.icon, color: widget.iconColor, size: 20),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              widget.title,
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: _cTextPrimary,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              widget.subtitle,
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 10,
-                color: _cTextDim,
-              ),
-            ),
-          ],
-        ),
-      ),
-      ),
-    );
-  }
 }

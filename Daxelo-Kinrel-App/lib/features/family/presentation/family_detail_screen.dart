@@ -613,7 +613,7 @@ class _GraphTab extends ConsumerWidget {
           child: _ToolbarButton(
             icon: Icons.route,
             tooltip: 'Find Path',
-            onTap: () => context.go('/family/$familyId/path-finder'),
+            onTap: () => context.push('/family/$familyId/path-finder'),
           ),
         ),
         // ✅ NEW: Constellation relationship view button
@@ -715,7 +715,7 @@ class _GraphTab extends ConsumerWidget {
               label: 'Find Path',
               onTap: () {
                 Navigator.pop(ctx);
-                context.go('/family/$familyId/path-finder');
+                context.push('/family/$familyId/path-finder');
               },
             ),
             _QuickActionTile(
@@ -1083,7 +1083,10 @@ class _BottomActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    // ✅ FIX (BUG-08): Wrap in IntrinsicWidth to prevent full-width stretching
+    // when rendered as a floating action bar
+    return IntrinsicWidth(
+      child: Container(
           margin: const EdgeInsets.symmetric(
             horizontal: KinrelSpacing.base,
             vertical: 6,
@@ -1105,6 +1108,7 @@ class _BottomActionBar extends StatelessWidget {
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Add Member
               DKButton(
@@ -1131,11 +1135,12 @@ class _BottomActionBar extends StatelessWidget {
                 variant: DKButtonVariant.icon,
                 icon: Icons.route,
                 size: DKButtonSize.sm,
-                onPressed: () => context.go('/family/$familyId/path-finder'),
+                onPressed: () => context.push('/family/$familyId/path-finder'),
               ),
             ],
           ),
-        )
+        ),
+    )
         .animate(onPlay: (c) => c.forward())
         .fadeIn(duration: 400.ms)
         .slideY(begin: 0.2, end: 0, duration: 400.ms);

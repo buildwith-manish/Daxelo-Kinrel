@@ -46,6 +46,19 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
   void initState() {
     super.initState();
     _nameController.addListener(_onNameChanged);
+
+    // ✅ FIX (BUG-02): Generate initial code and username so Next is enabled
+    // and the family code shows correctly on first render instead of
+    // showing "kinrel.co/f/" with the Next button disabled.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final suffix = _generateCodeSuffix();
+        _codeController.text = 'family-$suffix';
+        _usernameController.text = 'family$suffix';
+        _lastAutoUsername = 'family$suffix';
+        setState(() {}); // refresh _canProceedStep1
+      }
+    });
   }
 
   @override
@@ -101,14 +114,30 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
 
   Future<void> _uploadAvatarIfNeeded() async {
     if (_avatarImageFile == null) return;
-    final supabase = Supabase.instance.client;
-    final bytes = await _avatarImageFile!.readAsBytes();
-    final ext = _avatarImageFile!.path.split('.').last;
-    final path = 'family-avatars/${DateTime.now().millisecondsSinceEpoch}.$ext';
-    await supabase.storage.from('avatars').uploadBinary(path, bytes,
-        fileOptions: const FileOptions(
-            contentType: 'image/jpeg', upsert: true));
-    _avatarUrl = supabase.storage.from('avatars').getPublicUrl(path);
+    try {
+      final supabase = Supabase.instance.client;
+      final bytes = await _avatarImageFile!.readAsBytes();
+      final ext = _avatarImageFile!.path.split('.').last.toLowerCase();
+      final safeExt = ['jpg','jpeg','png','webp'].contains(ext) ? ext : 'jpg';
+      final path = 'family-avatars/${DateTime.now().millisecondsSinceEpoch}.$safeExt';
+
+      await supabase.storage.from('avatars').uploadBinary(
+        path,
+        bytes,
+        fileOptions: FileOptions(
+          contentType: 'image/$safeExt',
+          upsert: true,
+        ),
+      );
+      _avatarUrl = supabase.storage.from('avatars').getPublicUrl(path);
+    } on StorageException catch (e) {
+      // ✅ FIX (BUG-11): Don't crash — just skip avatar upload and continue with initials
+      debugPrint('⚠️ Avatar upload failed: ${e.message}. Continuing without photo.');
+      _avatarUrl = null;
+    } catch (e) {
+      debugPrint('⚠️ Avatar upload unexpected error: $e');
+      _avatarUrl = null;
+    }
   }
 
   String _generateCodeSuffix() {

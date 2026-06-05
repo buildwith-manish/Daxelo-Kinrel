@@ -1032,18 +1032,22 @@ class DKBottomNav extends StatelessWidget {
             : DKColors.textSecondaryLight;
 
         // Accessibility: wrap each nav item with semantic tab
-        return semanticTab(
-          label: item.label,
-          index: index,
-          isSelected: isSelected,
-          totalTabs: items.length,
-          child: _DKNavItemWidget(
-            item: item,
+        // Expanded must be direct child of Row, so we wrap the
+        // Semantics widget with Expanded (not the other way around)
+        return Expanded(
+          child: semanticTab(
+            label: item.label,
+            index: index,
             isSelected: isSelected,
-            activeColor: activeColor,
-            inactiveColor: inactiveColor,
-            isLight: isLight,
-            onTap: () => onTap(index),
+            totalTabs: items.length,
+            child: _DKNavItemWidget(
+              item: item,
+              isSelected: isSelected,
+              activeColor: activeColor,
+              inactiveColor: inactiveColor,
+              isLight: isLight,
+              onTap: () => onTap(index),
+            ),
           ),
         );
       }),
@@ -1072,8 +1076,7 @@ class _DKNavItemWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = isSelected ? activeColor : inactiveColor;
 
-    return Expanded(
-      child: GestureDetector(
+    return GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: SizedBox(

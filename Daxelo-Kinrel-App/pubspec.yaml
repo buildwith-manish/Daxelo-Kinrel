@@ -69,7 +69,7 @@ dependencies:
 
   # Media & Device
   image_picker: ^1.0.7
-  image_cropper: ^8.0.0
+  # image_cropper removed — BUG-03: crashes on Android with "Reply already submitted"
   local_auth: ^2.2.0
   webview_flutter: ^4.7.0
   

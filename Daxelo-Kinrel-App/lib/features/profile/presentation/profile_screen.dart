@@ -16,7 +16,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:image_cropper/image_cropper.dart';
+// image_cropper removed — BUG-03: Reply already submitted crash on Android
 import 'package:local_auth/local_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -91,7 +91,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   @override
   void initState() {
     super.initState();
-    _loadInitialData();
+    // ✅ FIX (BUG-05): Defer provider modification until after first frame
+    // to avoid "Tried to modify a provider while the widget tree was building"
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadInitialData();
+      }
+    });
   }
 
   Future<void> _loadInitialData() async {
@@ -1010,6 +1016,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   Future<void> _pickImage(ImageSource source) async {
     try {
+      // ✅ FIX (BUG-03): Removed image_cropper — uses image_picker with
+      // built-in resize instead. image_cropper v8.x crashes on some Android
+      // devices with "Reply already submitted" in onActivityResult.
       final picker = ImagePicker();
       final picked = await picker.pickImage(
         source: source,
@@ -1019,32 +1028,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       );
       if (picked == null) return;
 
-      // Crop to square
-      final cropped = await ImageCropper().cropImage(
-        sourcePath: picked.path,
-        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
-        compressQuality: 85,
-        maxWidth: 512,
-        maxHeight: 512,
-        uiSettings: [
-          AndroidUiSettings(
-            toolbarColor: _cardBg,
-            toolbarWidgetColor: _textPrimary,
-            activeControlsWidgetColor: _orange,
-            backgroundColor: _bg,
-            cropFrameColor: _orange,
-            dimmedLayerColor: _bg.withValues(alpha: 0.7),
-          ),
-          IOSUiSettings(aspectRatioLockEnabled: true),
-        ],
-      );
-      if (cropped == null) return;
-
       // Upload
       setState(() => _isUploadingAvatar = true);
       final success = await ref
           .read(profileProvider.notifier)
-          .uploadAvatar(cropped.path);
+          .uploadAvatar(picked.path);
       if (mounted) {
         setState(() => _isUploadingAvatar = false);
         if (!success) {

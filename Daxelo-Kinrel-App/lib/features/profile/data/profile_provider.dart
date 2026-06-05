@@ -1143,6 +1143,11 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       );
       state = state.copyWith(profile: profile, isLoading: false);
       return true;
+    } on StorageException catch (e) {
+      // ✅ FIX (BUG-11): Don't crash if 'avatars' bucket doesn't exist in Supabase
+      debugPrint('⚠️ Avatar upload failed (bucket not found): ${e.message}');
+      state = state.copyWith(isLoading: false);
+      return false;
     } on DioException catch (e) {
       final message =
           e.response?.data?['message'] ??
