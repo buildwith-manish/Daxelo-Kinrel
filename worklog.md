@@ -554,3 +554,82 @@ Stage Summary:
 - All API endpoints verified: / (200), /api/health (200), /api/auth/login (400 validation), /api/families (401 auth)
 - Server starts gracefully even without DATABASE_URL, REDIS_URL, or DEEPSEEK_API_KEY configured
 - Commits: 273c3d8, 7bafd3c, c3e1c9f, f241106, b628a51
+
+---
+Task ID: 4
+Agent: sub-agent
+Task: Fix settings_screen.dart — Add working Profile Visibility and Who Can Invite Me selection sheets
+
+Work Log:
+- Added import for profile_provider.dart to access ProfileNotifier.updateProfile()
+- Added two global StateProviders: _profileVisibilityProvider (default 'public') and _invitePermissionProvider (default 'anyone')
+- Added _visibilityLabel() helper: maps 'public'→'Public', 'connections_only'→'Connections Only', 'private'→'Private'
+- Added _inviteLabel() helper: maps 'anyone'→'Everyone', 'connections'→'Connections Only', 'nobody'→'Nobody'
+- Updated build() method: watches profileProvider.select((s) => s.profile) and syncs local providers with profile data via addPostFrameCallback
+- Updated "Profile visibility" row: dynamic subtitle via _visibilityLabel(ref.watch(_profileVisibilityProvider)), onTap calls _showVisibilitySheet()
+- Updated "Who can invite me" row: dynamic subtitle via _inviteLabel(ref.watch(_invitePermissionProvider)), onTap calls _showInvitePermissionSheet()
+- Added _showVisibilitySheet() method: bottom sheet with 3 options (public/connections_only/private), each with label + description, orange check_circle for selected, updates both local provider and calls profileProvider.notifier.updateProfile({'profileVisibility': option})
+- Added _showInvitePermissionSheet() method: bottom sheet with 3 options (anyone/connections/nobody), each with label + description, orange check_circle for selected, updates both local provider and calls profileProvider.notifier.updateProfile({'invitePermission': option})
+- Bottom sheets match existing design: dark _cardBg background, orange accents, drag handle, KinrelRadius.bottomSheet shape, SafeArea wrapping
+
+Stage Summary:
+- Modified: /home/z/daxelo-temp/flutter/features/settings/presentation/settings_screen.dart
+- All 11 requirements from task specification implemented
+- Profile Visibility and Invite Permission are now functional with bottom sheet selectors
+- Settings sync with backend profile data via profileProvider
+
+---
+Task ID: 5
+Agent: sub-agent
+Task: Fix profile_screen.dart privacy — align Profile Visibility and Who Can Invite Me with Prisma schema
+
+Work Log:
+- Updated _showVisibilitySheet method: changed options from `['public', 'private']` to 3-tuple records `('public', 'Public', 'Anyone can see your profile')`, `('connections_only', 'Connections Only', 'Only your family connections can see your profile')`, `('private', 'Private', 'No one can see your profile')` — adds missing `connections_only` option matching Prisma schema
+- Updated _showVisibilitySheet ListTile: title uses `opt.$2`, added subtitle with `opt.$3` description, selection check uses `opt.$1`
+- Updated _showInvitePermissionSheet method: changed options from `('people_i_know', 'Only people I know')` to `('connections', 'Connections Only', 'Only your family connections can invite you')` — aligns key with Prisma schema
+- Updated _showInvitePermissionSheet ListTile: added subtitle with `opt.$3` description
+- Updated _invitePermissionLabel method: changed `case 'people_i_know'` → `case 'connections'` with return `'Connections Only'`
+- Added _visibilityLabel method: maps `public`→'Public', `connections_only`→'Connections Only', `private`→'Private'
+- Updated Profile visibility row subtitle from `_capitalize(profile?.profileVisibility ?? 'public')` to `_visibilityLabel(profile?.profileVisibility ?? 'public')`
+
+Stage Summary:
+- Modified: /home/z/daxelo-temp/flutter/features/profile/presentation/profile_screen.dart
+- All 5 required changes implemented
+- Profile Visibility now includes `connections_only` option matching Prisma enum
+- Invite Permission now uses `connections` key matching Prisma schema instead of `people_i_know`
+- Both bottom sheets show descriptive subtitles for each option
+
+---
+Task ID: 4-8
+Agent: Main Agent
+Task: Implement complete profile visibility and invite permission logic across full stack
+
+Work Log:
+- Analyzed screenshot showing "Me" tab with Profile visibility (Public) and Who can invite me (Everyone) settings
+- Discovered settings_screen.dart had empty onTap: () {} for both privacy settings
+- Discovered profile_screen.dart had incomplete options (missing connections_only, using wrong key people_i_know)
+- Discovered backend had no enforcement of profileVisibility in getUserByUsername, no invitePermission check in invitations, and search only filtered private profiles
+- Fixed settings_screen.dart: Added _profileVisibilityProvider, _invitePermissionProvider, _showVisibilitySheet, _showInvitePermissionSheet with API persistence
+- Fixed profile_screen.dart: Added connections_only visibility option, changed people_i_know to connections, added description subtitles, added _visibilityLabel helper
+- Fixed users.service.ts: Added validation for profileVisibility (public/connections_only/private) and invitePermission (anyone/connections/nobody), enforced privacy in getUserByUsername with _areConnections check
+- Fixed users.controller.ts: Pass viewerId to getUserByUsername for privacy enforcement
+- Fixed invitations.service.ts: Added invitePermission check before creating invitations, added _enforceInvitePermission and _areConnections helpers
+- Fixed search.service.ts: Added connections_only filtering (only show to users who share a family), pass viewerId, privacy-aware caching
+- Fixed search.controller.ts: Pass authenticated userId to search service
+- All 7 files pushed to GitHub, Render auto-deploy triggered and went LIVE
+
+Stage Summary:
+- Profile Visibility: 3 options (Public, Connections Only, Private) with full enforcement
+  - Public: Anyone can see the profile
+  - Connections Only: Only users sharing a family can see the profile
+  - Private: Profile is hidden from everyone except self
+- Invite Permission: 3 options (Everyone, Connections Only, Nobody) with full enforcement
+  - Anyone: Anyone can send invitations
+  - Connections: Only family connections can invite
+  - Nobody: No one can invite this user
+- Both settings are selectable via bottom sheets in settings_screen.dart and profile_screen.dart
+- Both settings persist to backend via PATCH /api/users/me API
+- Search results filter based on profileVisibility (private never shown, connections_only only to connections)
+- Public profile lookup (/api/users/:username) enforces visibility
+- Invitation creation checks target user's invitePermission before creating
+- Deployment confirmed LIVE at https://daxelo-kinrel-server.onrender.com
