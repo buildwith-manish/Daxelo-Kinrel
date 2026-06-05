@@ -1,0 +1,183 @@
+# ─────────────────────────────────────────────────────────────────
+# Build Signed Release APK — auto on push + manual dispatch
+# ─────────────────────────────────────────────────────────────────
+# Produces a production-signed APK using a keystore stored in
+# GitHub Secrets. Triggers automatically on Flutter code changes
+# and can also be triggered manually via the GitHub Actions UI.
+#
+# Required GitHub Secrets:
+#   KEYSTORE_BASE64   — Base64-encoded .jks keystore file
+#   KEYSTORE_PASSWORD  — Keystore password
+#   KEY_ALIAS          — Key alias inside the keystore
+#   KEY_PASSWORD       — Password for the specific key alias
+#
+# Monorepo: Flutter project is in Daxelo-Kinrel-App/
+# ─────────────────────────────────────────────────────────────────
+
+name: Build Signed Release APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Daxelo-Kinrel-App/lib/**'
+      - 'Daxelo-Kinrel-App/android/**'
+      - 'Daxelo-Kinrel-App/pubspec.yaml'
+      - 'Daxelo-Kinrel-App/pubspec.lock'
+      - '.github/workflows/build-apk-release.yml'
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'beta'
+        type: choice
+        options:
+          - beta
+          - production
+
+# Only one signed release build at a time
+concurrency:
+  group: build-apk-release
+  cancel-in-progress: false
+
+env:
+  FLUTTER_DIR: Daxelo-Kinrel-App
+
+jobs:
+  build:
+    name: Build Signed APK (${{ github.event.inputs.release_type || 'auto' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      # ── Checkout ──────────────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── Java 17 ──────────────────────────────────────────────────
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+          cache: gradle
+
+      # ── Flutter SDK (stable channel) ─────────────────────────────
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.44.0'
+          cache: true
+
+      - name: Print Flutter version
+        run: flutter --version
+
+      # ── Install Android SDK & NDK ────────────────────────────────
+      - name: Install Android SDK & NDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;28.2.13676358" "platforms;android-36" "build-tools;35.0.1" "cmake;3.22.1"
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          ls "$ANDROID_HOME/ndk/" || echo "NDK directory not found"
+
+      # ── Decode keystore from GitHub Secrets ──────────────────────
+      - name: Decode Android keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ env.FLUTTER_DIR }}/android/app/daxelo-release.jks
+          echo "Keystore decoded successfully"
+
+      # ── Create key.properties for Gradle signing ────────────────
+      # build.gradle.kts reads this file to configure release signing.
+      # See android/key.properties.example for the expected format.
+      - name: Create key.properties
+        run: |
+          cat > ${{ env.FLUTTER_DIR }}/android/key.properties <<EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=daxelo-release.jks
+          EOF
+          echo "key.properties created"
+
+      # ── Create .env file with fallback defaults ──────────────────
+      - name: Create .env file
+        run: |
+          DEFAULT_SUPABASE_URL="https://promxswvsnvilplmrtsj.supabase.co"
+          DEFAULT_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY"
+          DEFAULT_API_BASE_URL="https://daxelo-kinrel-server.onrender.com"
+
+          FINAL_SUPABASE_URL="${{ secrets.SUPABASE_URL || env.DEFAULT_SUPABASE_URL }}"
+          FINAL_SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY || env.DEFAULT_SUPABASE_ANON_KEY }}"
+          FINAL_API_BASE_URL="${{ secrets.API_BASE_URL || env.DEFAULT_API_BASE_URL }}"
+
+          cat > ${{ env.FLUTTER_DIR }}/.env <<EOF
+          SUPABASE_URL=$FINAL_SUPABASE_URL
+          SUPABASE_ANON_KEY=$FINAL_SUPABASE_ANON_KEY
+          API_BASE_URL=$FINAL_API_BASE_URL
+          EOF
+
+          echo ".env file created"
+
+      # ── Cache pub dependencies ───────────────────────────────────
+      - name: Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ${{ env.FLUTTER_DIR }}/.dart_tool
+          key: pub-${{ runner.os }}-${{ hashFiles('${{ env.FLUTTER_DIR }}/pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-
+
+      # ── Install dependencies ─────────────────────────────────────
+      - name: Install dependencies
+        run: cd ${{ env.FLUTTER_DIR }} && flutter pub get
+
+      # ── Generate Drift code ──────────────────────────────────────
+      - name: Generate Drift code
+        run: cd ${{ env.FLUTTER_DIR }} && dart run build_runner build --delete-conflicting-outputs
+
+      # ── Code analysis ────────────────────────────────────────────
+      - name: Analyze Dart code
+        run: cd ${{ env.FLUTTER_DIR }} && flutter analyze --no-fatal-warnings
+        continue-on-error: true
+
+      # ── Build signed release APK ─────────────────────────────────
+      - name: Build signed APK
+        run: cd ${{ env.FLUTTER_DIR }} && flutter build apk --release --build-number=$GITHUB_RUN_NUMBER
+
+      # ── Rename APK with release info ─────────────────────────────
+      - name: Rename APK with release info
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            RELEASE_TYPE="${{ github.event.inputs.release_type }}"
+          else
+            RELEASE_TYPE="auto"
+          fi
+          SRC="${{ env.FLUTTER_DIR }}/build/app/outputs/flutter-apk/app-release.apk"
+          DST="${{ env.FLUTTER_DIR }}/build/app/outputs/flutter-apk/kinrel-${RELEASE_TYPE}-${GITHUB_RUN_NUMBER}.apk"
+          if [ -f "$SRC" ]; then
+            cp "$SRC" "$DST"
+            echo "APK renamed: kinrel-${RELEASE_TYPE}-${GITHUB_RUN_NUMBER}.apk"
+          else
+            echo "WARNING: APK not found at $SRC"
+          fi
+
+      # ── Upload signed APK artifact ───────────────────────────────
+      - name: Upload signed APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-signed-${{ github.event.inputs.release_type || 'auto' }}-${{ github.run_number }}
+          path: ${{ env.FLUTTER_DIR }}/build/app/outputs/flutter-apk/*.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      # ── Cleanup keystore from runner ─────────────────────────────
+      - name: Cleanup signing files
+        if: always()
+        run: |
+          rm -f ${{ env.FLUTTER_DIR }}/android/app/daxelo-release.jks
+          rm -f ${{ env.FLUTTER_DIR }}/android/key.properties
+          echo "Signing files cleaned up"

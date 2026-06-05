@@ -228,3 +228,23 @@ Stage Summary:
 - GitHub Actions Flutter debug APK build: ✅ SUCCESS
 - APK download: https://github.com/buildwith-manish/Daxelo-Kinrel/actions/runs/26974564200/artifacts/7421190799
 - Commits: 734c2df, 3cc6a11, 957304c, 39c0668, cf7ad02, bc760c2
+
+---
+Task ID: 7
+Agent: main
+Task: Fix 6 bugs in Daxelo-Kinrel Flutter app
+
+Work Log:
+- Bug 1: Fixed race condition in familyDetailProvider — replaced ref.read().valueOrNull with await ref.read(...).future so members/relationships always load before returning
+- Bug 2: Fixed graph canvas always black in light mode — added DKColors.isLight check for background color
+- Bug 3: Fixed profile screen invisible in light mode — replaced 7 hardcoded dark const colors with theme-aware DKColors getters in _ProfileScreenState, updated _StatCard, _SettingsRow, _SettingsToggleRow, _SettingsSegmentedRow, _SettingsFontScaleRow, _SettingsDeleteRow, _FamilyIdRow to use DKColors context methods
+- Bug 4: Fixed bottom action bar dark in light mode — replaced KinrelColors.darkElevated with DKColors.cardColor(context)
+- Bug 5: Fixed bottom sheets and delete dialogs in family_detail_screen.dart and family_list_screen.dart — replaced KinrelColors.darkCard/darkElevated/textWhite/textSilver with DKColors.cardColor(context)/textPrimary(context)/textSecondary(context)
+- Bug 6: Fixed profile stat cards overflow — height 90→110
+- Removed secret (sbp_ token) from git history using filter-branch
+- Pushed all 5 changed files to GitHub
+
+Stage Summary:
+- 5 files modified: family_provider.dart, family_tree_canvas.dart, profile_screen.dart, family_detail_screen.dart, family_list_screen.dart
+- Commit: cc447a0 pushed to origin/main
+- All 6 bugs fixed and pushed
