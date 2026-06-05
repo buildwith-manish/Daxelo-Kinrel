@@ -9,7 +9,6 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/graph/graph_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/utils/smart_preloader.dart';
-import '../../../core/utils/accessibility_utils.dart';
 import '../../../core/services/analytics_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 
@@ -623,34 +622,6 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
     final dy =
         math.cos(_ambientController.value * 2 * math.pi + phase * 0.7) * 1.5;
     return Offset(dx, dy);
-  }
-
-  // ══════════════════════════════════════════════════════════════════
-  // ZOOM / NAVIGATION HELPERS
-  // ══════════════════════════════════════════════════════════════════
-
-  void _zoomIn() {
-    final current = _transformationController.value;
-    final newScale = (_currentScale * 1.2).clamp(0.3, 3.0);
-    final scaleFactor = newScale / _currentScale;
-    setState(() {
-      final m = Matrix4.copy(current);
-      m.scaleByDouble(scaleFactor, scaleFactor, 1.0, 1.0);
-      _transformationController.value = m;
-      _currentScale = newScale;
-    });
-  }
-
-  void _zoomOut() {
-    final current = _transformationController.value;
-    final newScale = (_currentScale / 1.2).clamp(0.3, 3.0);
-    final scaleFactor = newScale / _currentScale;
-    setState(() {
-      final m = Matrix4.copy(current);
-      m.scaleByDouble(scaleFactor, scaleFactor, 1.0, 1.0);
-      _transformationController.value = m;
-      _currentScale = newScale;
-    });
   }
 
   void _fitToScreen() {

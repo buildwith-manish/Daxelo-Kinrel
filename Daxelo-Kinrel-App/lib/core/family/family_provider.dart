@@ -468,7 +468,7 @@ final familyDetailProvider = FutureProvider.family<FamilyDetail?, String>((
             .eq('id', familyId)
             .maybeSingle();
         if (response != null) {
-          family = Family.fromJson(response as Map<String, dynamic>);
+          family = Family.fromJson(response);
         }
       } catch (e) {
         debugPrint('⚠️ familyDetailProvider direct fetch failed: $e');

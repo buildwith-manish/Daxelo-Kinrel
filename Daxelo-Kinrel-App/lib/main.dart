@@ -48,9 +48,6 @@ import 'firebase_options.dart';
 // Generated localization imports (flutter gen-l10n)
 import 'package:kinrel/l10n/app_localizations.dart';
 
-// ── Global flag: has runApp been called? ──
-bool _appStarted = false;
-
 /// Global reference to the ProviderContainer so background initialization
 /// can update Riverpod providers (e.g., supabaseReadyStateProvider).
 ProviderContainer? _globalContainer;
@@ -183,7 +180,6 @@ void main() async {
   }
 
   // ── Call runApp FIRST — services init in background ────────────────
-  _appStarted = true;
   runApp(ProviderScope(child: KinrelApp()));
 
   // ── Background initialization (non-blocking) ──────────────────────

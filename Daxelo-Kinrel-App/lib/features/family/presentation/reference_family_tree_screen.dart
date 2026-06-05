@@ -20,7 +20,6 @@ class _FamilyTreeScreenState extends State<FamilyTreeScreen>
   late AnimationController _lineController;
   late AnimationController _orbitController;
   bool _focusMode = false;
-  bool _imagesLoaded = false;
 
   final TransformationController _transformController =
       TransformationController();
@@ -88,7 +87,7 @@ class _FamilyTreeScreenState extends State<FamilyTreeScreen>
         // Falls back to silhouette placeholder silently
       }
     }
-    if (mounted) setState(() => _imagesLoaded = true);
+    if (mounted) setState(() {});
   }
 
   @override

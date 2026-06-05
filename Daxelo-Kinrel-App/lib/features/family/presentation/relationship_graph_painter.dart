@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -68,7 +67,6 @@ class RelationshipGraphPainter extends CustomPainter {
   static const Color _nodeFill   = Color(0xFF1A1B2E);
   static const Color _selfFill   = Color(0xFF201818);
   static const Color _lineColor  = Color(0xFFE8612A);
-  static const Color _roleColor  = Color(0xFFF5F0EE);
   static const Color _nameColor  = Color(0xFFC9B4A8);
   static const Color _nickColor  = Color(0xFF8A7A72);
 

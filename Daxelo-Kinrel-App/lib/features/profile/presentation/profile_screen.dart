@@ -84,9 +84,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       ? const Color(0xFF6B7280)
       : const Color(0xFF8A7A72);
   Color get _borderSubtle => DKColors.borderColor(context);
-  Color get _chevronColor => DKColors.isLight(context)
-      ? const Color(0xFF9CA3AF)
-      : const Color(0xFF8A7A72);
 
   @override
   bool get wantKeepAlive => true;

@@ -22,8 +22,6 @@
 //   Anniversary: amber (#F59240)
 //   Festival:    gold (#D4AF37)
 
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
