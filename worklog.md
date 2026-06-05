@@ -269,3 +269,36 @@ Stage Summary:
 - APK download: https://github.com/buildwith-manish/Daxelo-Kinrel/actions/runs/26999835069/artifacts/7430524443
 - All 6 original bug fixes + const fix are now in the build
 - Codemagic API key still returns 401 — GitHub Actions is the working CI/CD path
+
+---
+Task ID: 13
+Agent: main
+Task: Fix all GitHub Actions build errors and warnings (zero-error build)
+
+Work Log:
+- User screenshot showed "1 error and 1 warning" on GitHub Actions build summary
+- Error: flutter analyze returned exit code 1 (11 warnings found)
+- Warning: Node.js 20 actions deprecated
+- Fixed 11 flutter analyze warnings across 8 files:
+  1. family_provider.dart:471 — removed unnecessary cast
+  2. events_screen.dart:25 — removed unused import dart:async
+  3. family_tree_canvas.dart:12 — removed unused import accessibility_utils
+  4. family_tree_canvas.dart:632-654 — removed unused _zoomIn/_zoomOut methods
+  5. reference_family_tree_painter.dart:2 — removed unused import dart:ui
+  6. reference_family_tree_screen.dart:23 — removed unused _imagesLoaded field
+  7. relationship_graph_painter.dart:4 — removed unused import brand_colors
+  8. relationship_graph_painter.dart:71 — removed unused _roleColor field
+  9. profile_screen.dart:87 — removed unused _chevronColor getter
+  10. main.dart:52 — removed unused _appStarted flag
+  11. family_tree_screen.dart:7,11,95 — removed 2 unused imports + unused local variable
+- Added FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true to both workflow files
+- Removed continue-on-error from analyze step (warnings now fixed)
+- Added --no-fatal-infos to flutter analyze command
+- Pushed commits 6ce7c69 and 9bcac45
+- Build 27001296491: ✅ SUCCESS — zero errors, zero flutter analyze warnings
+
+Stage Summary:
+- Build now passes with zero code errors and zero code warnings
+- Only remaining annotation: GitHub infrastructure Node.js 20 info (cannot be eliminated until v5 actions released)
+- APK artifact: kinrel-debug-apk-33 (112.1 MB)
+- Commits: 6ce7c69, 9bcac45
