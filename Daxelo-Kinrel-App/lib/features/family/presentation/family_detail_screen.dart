@@ -17,6 +17,7 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/member_list_skeleton.dart';
 import 'family_tree_canvas.dart';
+import 'relationship_graph_screen.dart';
 import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
 import 'relationship_builder_screen.dart';
@@ -561,14 +562,24 @@ class _FamilyDetailLoadingWidget extends ConsumerWidget {
 
 // ── Graph Tab ──────────────────────────────────────────────────────
 
-class _GraphTab extends ConsumerWidget {
+class _GraphTab extends ConsumerStatefulWidget {
   const _GraphTab({required this.detail, required this.familyId});
 
   final FamilyDetail detail;
   final String familyId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_GraphTab> createState() => _GraphTabState();
+}
+
+class _GraphTabState extends ConsumerState<_GraphTab> {
+  bool _showHierarchy = true; // Default to new hierarchy view
+
+  @override
+  Widget build(BuildContext context) {
+    final detail = widget.detail;
+    final familyId = widget.familyId;
+
     if (detail.members.isEmpty) {
       return DKEmptyState(
         icon: Icons.account_tree_outlined,
@@ -583,32 +594,48 @@ class _GraphTab extends ConsumerWidget {
 
     return Stack(
       children: [
-        FamilyTreeCanvas(
-          members: detail.members,
-          relationships: detail.relationships,
-          onNodeTap: (person) {
-            // P8: Smart preloading — warm profile provider BEFORE navigation push
-            try {
-              ref.read(profileProvider.notifier).loadProfile();
-            } catch (_) {
-              // Silently ignore — preloading is best-effort
-            }
+        // Primary graph view
+        if (_showHierarchy)
+          // Embedded relationship graph — navigates to full screen on tap
+          _EmbeddedHierarchyGraph(
+            detail: detail,
+            familyId: familyId,
+          )
+        else
+          FamilyTreeCanvas(
+            members: detail.members,
+            relationships: detail.relationships,
+            onNodeTap: (person) {
+              try {
+                ref.read(profileProvider.notifier).loadProfile();
+              } catch (_) {}
 
-            final kinshipAsync = ref.read(kinshipServiceProvider);
-            PersonDetailSheet.show(
-              context,
-              person: person,
-              familyId: familyId,
-              kinshipService: kinshipAsync,
-            );
-          },
-          onNodeLongPress: (person) {
-            _showQuickActions(context, ref, person);
-          },
+              final kinshipAsync = ref.read(kinshipServiceProvider);
+              PersonDetailSheet.show(
+                context,
+                person: person,
+                familyId: familyId,
+                kinshipService: kinshipAsync,
+              );
+            },
+            onNodeLongPress: (person) {
+              _showQuickActions(context, ref, person);
+            },
+          ),
+
+        // View toggle button (top-left)
+        Positioned(
+          top: 12,
+          left: 12,
+          child: _ViewTogglePill(
+            isHierarchy: _showHierarchy,
+            onToggle: () => setState(() => _showHierarchy = !_showHierarchy),
+          ),
         ),
+
         // Find path toolbar button
         Positioned(
-          top: 56,
+          top: 12,
           right: 12,
           child: _ToolbarButton(
             icon: Icons.route,
@@ -616,28 +643,15 @@ class _GraphTab extends ConsumerWidget {
             onTap: () => context.push('/family/$familyId/path-finder'),
           ),
         ),
-        // ✅ NEW: Constellation relationship view button
+
+        // Full-screen graph button
         Positioned(
-          top: 112,
+          top: 60,
           right: 12,
           child: _ToolbarButton(
-            icon: Icons.hub_outlined,
-            tooltip: 'Relationship View',
-            onTap: () => RelationshipGraphPicker.show(
-              context,
-              anchorName: detail.members.isNotEmpty
-                  ? detail.members.firstWhere(
-                      (p) => p.isAnchor,
-                      orElse: () => detail.members.first,
-                    ).name
-                  : null,
-              anchorGender: detail.members.isNotEmpty
-                  ? detail.members.firstWhere(
-                      (p) => p.isAnchor,
-                      orElse: () => detail.members.first,
-                    ).gender
-                  : null,
-            ),
+            icon: Icons.fullscreen_rounded,
+            tooltip: 'Full Screen Graph',
+            onTap: () => context.push('/family/$familyId/graph'),
           ),
         ),
       ],
@@ -1144,6 +1158,309 @@ class _BottomActionBar extends StatelessWidget {
         .animate(onPlay: (c) => c.forward())
         .fadeIn(duration: 400.ms)
         .slideY(begin: 0.2, end: 0, duration: 400.ms);
+  }
+}
+
+// ── Embedded Hierarchy Graph (opens full-screen on tap) ─────────────
+
+class _EmbeddedHierarchyGraph extends StatelessWidget {
+  const _EmbeddedHierarchyGraph({
+    required this.detail,
+    required this.familyId,
+  });
+
+  final FamilyDetail detail;
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context) {
+    final memberCount = detail.members.where((p) => p.deletedAt == null).length;
+    final relCount = detail.relationships.where((r) => r.isActive).length;
+
+    return Container(
+      color: DKColors.isLight(context) ? DKColors.lightBg : KinrelColors.darkBackground,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Graph preview card
+              GestureDetector(
+                onTap: () => context.push('/family/$familyId/graph'),
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: DKColors.cardColor(context),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: KinrelColors.orange.withValues(alpha: 0.3),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: KinrelColors.orange.withValues(alpha: 0.08),
+                        blurRadius: 24,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Graph icon with glow
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: KinrelColors.orange.withValues(alpha: 0.12),
+                          border: Border.all(
+                            color: KinrelColors.orange.withValues(alpha: 0.4),
+                            width: 2,
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.account_tree_rounded,
+                          size: 36,
+                          color: KinrelColors.orange,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Relationship Graph',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: DKColors.textPrimary(context),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'View the hierarchical family relationship\ngraph with color-coded generations',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 13,
+                          color: DKColors.textSecondary(context),
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      // Stats row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _StatBadge(
+                            icon: Icons.people_outline_rounded,
+                            value: '$memberCount',
+                            label: 'Members',
+                            color: KinrelColors.orange,
+                          ),
+                          const SizedBox(width: 16),
+                          _StatBadge(
+                            icon: Icons.link_rounded,
+                            value: '$relCount',
+                            label: 'Connections',
+                            color: KinrelColors.amber,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      // Open button
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFE8612A), Color(0xFFF59240)],
+                          ),
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Open Full Graph',
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.displayFont,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatBadge extends StatelessWidget {
+  const _StatBadge({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String value;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            value,
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 11,
+              color: DKColors.textSecondary(context),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── View Toggle Pill ─────────────────────────────────────────────────
+
+class _ViewTogglePill extends StatelessWidget {
+  const _ViewTogglePill({
+    required this.isHierarchy,
+    required this.onToggle,
+  });
+
+  final bool isHierarchy;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: DKColors.cardColor(context).withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ToggleOption(
+            icon: Icons.account_tree_rounded,
+            label: 'Tree',
+            isActive: isHierarchy,
+            onTap: isHierarchy ? null : onToggle,
+          ),
+          const SizedBox(width: 2),
+          _ToggleOption(
+            icon: Icons.hub_outlined,
+            label: 'Constellation',
+            isActive: !isHierarchy,
+            onTap: !isHierarchy ? null : onToggle,
+          ),
+        ],
+      ),
+    )
+    .animate(onPlay: (c) => c.forward())
+    .fadeIn(duration: 300.ms);
+  }
+}
+
+class _ToggleOption extends StatelessWidget {
+  const _ToggleOption({
+    required this.icon,
+    required this.label,
+    required this.isActive,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool isActive;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isActive
+              ? KinrelColors.orange.withValues(alpha: 0.15)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          border: isActive
+              ? Border.all(color: KinrelColors.orange.withValues(alpha: 0.3))
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: isActive ? KinrelColors.orange : KinrelColors.textSilver,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 11,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                color: isActive ? KinrelColors.orange : KinrelColors.textSilver,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

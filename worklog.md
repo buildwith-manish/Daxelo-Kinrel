@@ -1312,3 +1312,69 @@ Stage Summary:
 - Modified: lib/features/home/presentation/home_screen.dart (stories row + tappable avatar + eye icon badge)
 - All files follow existing project patterns: KinrelColors, DKColors context methods, KinrelTypography, KinrelSpacing, DKAvatar, DKButton, semanticButton/semanticHeader, flutter_animate
 - Stories feature is backend-dependent (GET /stories endpoint) — gracefully returns empty list on 404
+---
+Task ID: 3
+Agent: full-stack-developer
+Task: Create advanced family relationship graph screen
+
+Work Log:
+- Read existing codebase files (brand_colors, brand_typography, family_provider, graph_service, family_detail_screen, family_list_screen, dk_components, app_router)
+- Created relationship_graph_screen.dart with full hierarchical graph visualization
+- Modified family_detail_screen.dart to add _HierarchyGraphView, _ViewTogglePill, _ToggleOption widgets and switch _GraphTab to ConsumerStatefulWidget with hierarchy/constellation toggle
+- Modified app_router.dart to add /family/:id/graph route with RelationshipGraphScreen
+
+Stage Summary:
+- Created: Daxelo-Kinrel-App/lib/features/family/presentation/relationship_graph_screen.dart (~700 lines)
+  - Full-screen RelationshipGraphScreen with InteractiveViewer zoom/pan
+  - CustomPaint-based _RelationshipGraphPainter with generation-colored circular nodes
+  - Dashed connection lines (parent-child step-down, spouse horizontal with heart)
+  - Pulsing glow effect on anchor "You" node
+  - Generation-by-generation entry animation
+  - Generation labels on the left side with colored pill backgrounds
+  - Bottom control pill (zoom, center you, fit all)
+  - Bottom generation legend
+  - Tap-to-show PersonDetailSheet
+  - Empty state for no connections
+- Modified: family_detail_screen.dart
+  - _GraphTab now ConsumerStatefulWidget with _showHierarchy toggle
+  - Default view is new hierarchy tree (was constellation)
+  - Added _HierarchyGraphView (embedded graph widget for tab view)
+  - Added _ViewTogglePill with Tree/Constellation toggle
+  - Added _ToggleOption for pill buttons
+  - Added fullscreen button navigating to /family/:id/graph
+- Modified: app_router.dart
+  - Added import for RelationshipGraphScreen
+  - Added GoRoute for /family/:id/graph
+
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Create advanced family relationship graph screen for Daxelo-Kinrel
+
+Work Log:
+- Analyzed user's screenshots and Figma design reference
+- Explored existing codebase (FamilyTreeCanvas, FamilyTreeWidget, GraphService, FamilyProvider)
+- Created relationship_graph_screen.dart (~1410 lines) with:
+  - Hierarchical vertical layout (Great-Grandparents → Grandparents → Parents → You → Children)
+  - Circular nodes with initials, names, relationship labels
+  - Generation-based color coding (lavender/purple/blue/teal/pink)
+  - Pulsing glow effect on anchor "You" node
+  - Dashed connection lines (parent-child step-down, spouse horizontal with heart)
+  - Entry animation (generation-by-generation fade in with easeOutBack)
+  - Generation label pills on left side
+  - Bottom control pill (zoom, center, fit)
+  - Bottom generation legend
+  - InteractiveViewer for zoom/pan
+  - Node tap to show PersonDetailSheet
+- Added route /family/:id/graph in app_router.dart
+- Updated family_detail_screen.dart Graph tab with toggle between hierarchy view and constellation view
+- Fixed broken _HierarchyGraphView (referenced private classes) → replaced with _EmbeddedHierarchyGraph
+- Changed family_list_screen.dart navigation to go directly to graph screen on family click
+- Fixed AnimatedBuilder → KinrelAnimatedBuilder in graph screen
+
+Stage Summary:
+- Full relationship graph screen implemented at /family/:id/graph
+- Family list now navigates to graph when clicking a family card
+- Graph tab in family detail has toggle between hierarchy and constellation views
+- All private class references resolved
