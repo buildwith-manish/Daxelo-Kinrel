@@ -11,8 +11,17 @@ import { createHash, randomBytes } from 'crypto';
 export class InvitationsService {
   constructor(private prisma: PrismaService) {}
 
+  // ── Allowed values for invite permission ────────────────────────────
+  private static readonly INVITE_PERMISSION_ANYONE = 'anyone';
+  private static readonly INVITE_PERMISSION_CONNECTIONS = 'connections';
+  private static readonly INVITE_PERMISSION_NOBODY = 'nobody';
+
   /**
    * Create a new family invitation with a unique token.
+   * Enforces the target user's invitePermission setting:
+   *   - anyone: any authenticated user can invite
+   *   - connections: only users who share a family can invite
+   *   - nobody: no one can invite this user
    */
   async create(
     userId: string,
@@ -54,6 +63,32 @@ export class InvitationsService {
       throw new NotFoundException('Family not found');
     }
 
+    // ── Check target user's invitePermission ─────────────────────────
+    // If the invitation targets an existing user (by email or phone),
+    // we must respect their invite permission settings.
+    if (data.recipientEmail) {
+      const targetUser = await this.prisma.user.findUnique({
+        where: { email: data.recipientEmail },
+        select: { id: true, invitePermission: true },
+      });
+
+      if (targetUser) {
+        await this._enforceInvitePermission(userId, targetUser.id, targetUser.invitePermission);
+      }
+    }
+
+    if (data.recipientPhone && !data.recipientEmail) {
+      // Only check by phone if email wasn't provided (avoid double-checking)
+      const targetUser = await this.prisma.user.findFirst({
+        where: { phone: data.recipientPhone },
+        select: { id: true, invitePermission: true },
+      });
+
+      if (targetUser) {
+        await this._enforceInvitePermission(userId, targetUser.id, targetUser.invitePermission);
+      }
+    }
+
     // Generate unique token
     const token = randomBytes(24).toString('hex');
 
@@ -80,6 +115,70 @@ export class InvitationsService {
     });
 
     return this.formatInvitation(invitation);
+  }
+
+  // ── Enforce target user's invite permission ──────────────────────
+
+  /**
+   * Checks whether the inviter is allowed to invite the target user
+   * based on the target's invitePermission setting.
+   */
+  private async _enforceInvitePermission(
+    inviterId: string,
+    targetUserId: string,
+    invitePermission: string | null,
+  ): Promise<void> {
+    const permission = invitePermission || InvitationsService.INVITE_PERMISSION_ANYONE;
+
+    // Self-invite doesn't make sense but shouldn't be blocked by permission
+    if (inviterId === targetUserId) return;
+
+    switch (permission) {
+      case InvitationsService.INVITE_PERMISSION_ANYONE:
+        // Anyone can invite — no restriction
+        return;
+
+      case InvitationsService.INVITE_PERMISSION_CONNECTIONS:
+        // Only connections (users sharing a family) can invite
+        const areConnections = await this._areConnections(inviterId, targetUserId);
+        if (!areConnections) {
+          throw new ForbiddenException(
+            'This user only accepts invitations from their connections',
+          );
+        }
+        return;
+
+      case InvitationsService.INVITE_PERMISSION_NOBODY:
+        throw new ForbiddenException(
+          'This user does not accept invitations',
+        );
+
+      default:
+        // Unknown permission — default to allowing (backward compatibility)
+        return;
+    }
+  }
+
+  // ── Check if two users share a family (are "connections") ────────
+
+  /** Returns true if two users are members of at least one common family. */
+  private async _areConnections(userIdA: string, userIdB: string): Promise<boolean> {
+    const familiesA = await this.prisma.familyMember.findMany({
+      where: { userId: userIdA },
+      select: { familyId: true },
+    });
+    const familyIdsA = new Set(familiesA.map((m) => m.familyId));
+
+    if (familyIdsA.size === 0) return false;
+
+    const overlap = await this.prisma.familyMember.findFirst({
+      where: {
+        userId: userIdB,
+        familyId: { in: [...familyIdsA] },
+      },
+    });
+
+    return !!overlap;
   }
 
   /**
@@ -331,3 +430,4 @@ export class InvitationsService {
     };
   }
 }
+
