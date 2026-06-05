@@ -281,13 +281,13 @@ class _AddStorySheetState extends ConsumerState<_AddStorySheet> {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
                 caption,
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
                   color: _cTextPrimary,
                   height: 1.4,
-                  textAlign: TextAlign.center,
                 ),
                 maxLines: 8,
                 overflow: TextOverflow.ellipsis,

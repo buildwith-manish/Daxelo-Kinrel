@@ -432,7 +432,7 @@ _LayoutResult _computeLayout({
     positions: positions,
     anchorId: anchor.id,
     generations: sortedGens.toSet(),
-    canvasSize: Size(canvasW, canvasH),
+    canvasSize: Size(canvasW.toDouble(), canvasH.toDouble()),
   );
 }
 
@@ -637,8 +637,8 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
       final m = _transformationController.value.clone();
       final centerX = screenSize.width / 2;
       final centerY = screenSize.height / 2;
-      m.setEntry(0, 3, centerX - (centerX - m[0][3]) * (newScale / _currentScale));
-      m.setEntry(1, 3, centerY - (centerY - m[1][3]) * (newScale / _currentScale));
+      m.setEntry(0, 3, centerX - (centerX - m.entry(0, 3)) * (newScale / _currentScale));
+      m.setEntry(1, 3, centerY - (centerY - m.entry(1, 3)) * (newScale / _currentScale));
       _transformationController.value = m;
       _currentScale = newScale;
     });
@@ -651,8 +651,8 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
       final m = _transformationController.value.clone();
       final centerX = screenSize.width / 2;
       final centerY = screenSize.height / 2;
-      m.setEntry(0, 3, centerX - (centerX - m[0][3]) * (newScale / _currentScale));
-      m.setEntry(1, 3, centerY - (centerY - m[1][3]) * (newScale / _currentScale));
+      m.setEntry(0, 3, centerX - (centerX - m.entry(0, 3)) * (newScale / _currentScale));
+      m.setEntry(1, 3, centerY - (centerY - m.entry(1, 3)) * (newScale / _currentScale));
       _transformationController.value = m;
       _currentScale = newScale;
     });
@@ -798,7 +798,7 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
                 width: layout.canvasSize.width,
                 height: layout.canvasSize.height,
                 child: KinrelAnimatedBuilder(
-                  animation: Listenable.merge([_pulseController, _entryController]),
+                  listenable: Listenable.merge([_pulseController, _entryController]),
                   builder: (context, _) {
                     return RepaintBoundary(
                       child: CustomPaint(
@@ -1231,7 +1231,7 @@ class _ControlPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: DKColors.cardColor(context).withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(KinrelSpacing.radiusXxl),
+        borderRadius: BorderRadius.circular(KinrelSpacing.radiusXXl),
         border: Border.all(
           color: KinrelColors.orange.withValues(alpha: 0.2),
         ),

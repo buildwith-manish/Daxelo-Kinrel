@@ -267,7 +267,7 @@ final createStoryProvider =
       ref.invalidate(storiesProvider(params.familyId));
       return story;
     } else if (data is Map) {
-      final story = Story.fromJson(data);
+      final story = Story.fromJson(data as Map<String, dynamic>);
       ref.invalidate(storiesProvider(params.familyId));
       return story;
     }

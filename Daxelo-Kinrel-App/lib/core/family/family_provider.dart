@@ -55,6 +55,7 @@ class Family {
     this.lastActivityAt,
     this.username,
     this.kinFamilyId,
+    this.deletedAt,
   });
 
   factory Family.fromJson(Map<String, dynamic> json) {
@@ -82,6 +83,9 @@ class Family {
           : null,
       username: json['username'] as String?,
       kinFamilyId: json['kinFamilyId'] as String?,
+      deletedAt: json['deletedAt'] != null
+          ? DateTime.tryParse(json['deletedAt'].toString())
+          : null,
     );
   }
 
@@ -111,6 +115,9 @@ class Family {
   // KIN Family ID system
   final String? kinFamilyId;
 
+  // Soft-delete support
+  final DateTime? deletedAt;
+
   /// Display-friendly username with @ prefix
   String get displayUsername => username != null ? '@$username' : '';
 
@@ -135,6 +142,7 @@ class Family {
         'lastActivityAt': lastActivityAt?.toIso8601String(),
         'username': username,
         'kinFamilyId': kinFamilyId,
+        'deletedAt': deletedAt?.toIso8601String(),
       };
 }
 

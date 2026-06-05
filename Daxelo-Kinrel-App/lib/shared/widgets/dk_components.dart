@@ -1131,7 +1131,6 @@ class _DKNavItemWidget extends StatelessWidget {
             ],
           ),
         ),
-      ),
     );
   }
 }

@@ -704,7 +704,7 @@ class _GraphTabState extends ConsumerState<_GraphTab> {
                 Navigator.pop(ctx);
                 AddPersonSheet.show(
                   context,
-                  familyId: familyId,
+                  familyId: widget.familyId,
                   existingPerson: person,
                 );
               },
@@ -717,8 +717,8 @@ class _GraphTabState extends ConsumerState<_GraphTab> {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => RelationshipBuilderScreen(
-                      familyId: familyId,
-                      familyName: detail.family.name,
+                      familyId: widget.familyId,
+                      familyName: widget.detail.family.name,
                     ),
                   ),
                 );
@@ -729,7 +729,7 @@ class _GraphTabState extends ConsumerState<_GraphTab> {
               label: 'Find Path',
               onTap: () {
                 Navigator.pop(ctx);
-                context.push('/family/$familyId/path-finder');
+                context.push('/family/${widget.familyId}/path-finder');
               },
             ),
             _QuickActionTile(
@@ -742,7 +742,7 @@ class _GraphTabState extends ConsumerState<_GraphTab> {
                   await deletePerson(
                     ref: ref,
                     personId: person.id,
-                    familyId: familyId,
+                    familyId: widget.familyId,
                   );
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(

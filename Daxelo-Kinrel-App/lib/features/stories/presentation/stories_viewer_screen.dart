@@ -301,13 +301,13 @@ class _StoriesViewerScreenState extends ConsumerState<StoriesViewerScreen>
           padding: const EdgeInsets.symmetric(horizontal: 40),
           child: Text(
             story.caption ?? '',
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 24,
               fontWeight: FontWeight.w700,
               color: _cTextPrimary,
               height: 1.4,
-              textAlign: TextAlign.center,
             ),
           ),
         ),
