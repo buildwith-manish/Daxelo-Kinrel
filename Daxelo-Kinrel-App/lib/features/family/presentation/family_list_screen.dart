@@ -45,7 +45,12 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
             physics: const BouncingScrollPhysics(),
             slivers: [
               // Header
-              SliverToBoxAdapter(child: _Header(familyCount: families.length)),
+              SliverToBoxAdapter(
+                child: _Header(
+                  familyCount: families.length,
+                  onArchivedTap: () => _showArchivedFamilies(context),
+                ),
+              ),
               SliverToBoxAdapter(child: SizedBox(height: 16)),
 
               // Join Family card
@@ -217,6 +222,20 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
       ),
     );
   }
+
+  void _showArchivedFamilies(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: DKColors.cardColor(context),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
+        ),
+      ),
+      builder: (ctx) => const _ArchivedFamiliesSheet(),
+    );
+  }
 }
 
 // ── Loading Widget (extracted for zero-rebuild optimization) ─────
@@ -233,9 +252,10 @@ class _FamilyListLoadingWidget extends ConsumerWidget {
 // ── Header ───────────────────────────────────────────────────────
 
 class _Header extends StatelessWidget {
-  const _Header({required this.familyCount});
+  const _Header({required this.familyCount, required this.onArchivedTap});
 
   final int familyCount;
+  final VoidCallback onArchivedTap;
 
   @override
   Widget build(BuildContext context) {
@@ -272,6 +292,44 @@ class _Header extends StatelessWidget {
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: DKColors.brandPurple,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              // Archived Families button
+              GestureDetector(
+                onTap: onArchivedTap,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: DKColors.brandPurple.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: DKColors.brandPurple.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.archive_outlined,
+                        size: 16,
+                        color: DKColors.brandPurple,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Archived',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: DKColors.brandPurple,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -594,16 +652,16 @@ class _FamilyCard extends ConsumerWidget {
             if (isCreator)
               ListTile(
                 leading: Icon(
-                  Icons.delete_outline,
-                  color: KinrelColors.coral,
+                  Icons.archive_outlined,
+                  color: KinrelColors.warning,
                   size: 20,
                 ),
                 title: Text(
-                  'Delete Family',
+                  'Archive Family',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
-                    color: KinrelColors.coral,
+                    color: KinrelColors.warning,
                   ),
                 ),
                 onTap: () {
@@ -627,7 +685,7 @@ class _FamilyCard extends ConsumerWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Only the family creator can delete this family',
+                        'Only the family creator can archive this family',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 12,
@@ -656,6 +714,498 @@ class _FamilyCard extends ConsumerWidget {
         title: Row(
           children: [
             Icon(
+              Icons.archive_outlined,
+              color: KinrelColors.warning,
+              size: 24,
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                'Archive "${family.name}"?',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: DKColors.textPrimary(context),
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'This family will be archived and hidden from your active list.',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 14,
+                color: DKColors.textSecondary(context),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: KinrelColors.warning.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(KinrelRadius.md),
+                border: Border.all(
+                  color: KinrelColors.warning.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 18, color: KinrelColors.warning),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This family will be archived for 30 days. You can restore it anytime before it\'s permanently deleted.',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: KinrelColors.warning,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                color: DKColors.textSecondary(context),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await _performDeleteFromList(context, ref);
+            },
+            child: Text(
+              'Archive Family',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.warning,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performDeleteFromList(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    unawaited(
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => Center(
+          child: CircularProgressIndicator(color: KinrelColors.purple),
+        ),
+      ),
+    );
+
+    try {
+      await deleteFamily(ref: ref, familyId: family.id);
+
+      if (context.mounted) {
+        Navigator.of(context).pop(); // Close loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${family.name} archived'),
+            backgroundColor: KinrelColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context).pop(); // Close loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to archive: ${e.toString().split('\n').first}',
+            ),
+            backgroundColor: KinrelColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+}
+
+// ── Archived Families Bottom Sheet ────────────────────────────────
+
+class _ArchivedFamiliesSheet extends ConsumerStatefulWidget {
+  const _ArchivedFamiliesSheet();
+
+  @override
+  ConsumerState<_ArchivedFamiliesSheet> createState() =>
+      _ArchivedFamiliesSheetState();
+}
+
+class _ArchivedFamiliesSheetState
+    extends ConsumerState<_ArchivedFamiliesSheet> {
+  @override
+  void initState() {
+    super.initState();
+    // Refresh archived families when the sheet opens
+    Future.microtask(() => ref.invalidate(archivedFamiliesProvider));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final archivedAsync = ref.watch(archivedFamiliesProvider);
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) {
+        return Column(
+          children: [
+            // Handle bar
+            Padding(
+              padding: const EdgeInsets.only(top: 12, bottom: 4),
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: DKColors.textSecondary(context).withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: KinrelSpacing.base,
+                vertical: KinrelSpacing.sm,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.archive_outlined,
+                    color: DKColors.brandPurple,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Archived Families',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: DKColors.textPrimary(context),
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Icon(
+                      Icons.close,
+                      color: DKColors.textSecondary(context),
+                      size: 22,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(color: DKColors.borderColor(context), height: 1),
+            // Content
+            Expanded(
+              child: archivedAsync.when(
+                loading: () => Center(
+                  child: CircularProgressIndicator(
+                    color: DKColors.brandPurple,
+                    strokeWidth: 2,
+                  ),
+                ),
+                error: (error, _) => Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(KinrelSpacing.xl),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 40,
+                          color: KinrelColors.error,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Failed to load archived families',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            color: DKColors.textSecondary(context),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        DKButton(
+                          label: 'Retry',
+                          variant: DKButtonVariant.secondary,
+                          size: DKButtonSize.sm,
+                          onPressed: () =>
+                              ref.invalidate(archivedFamiliesProvider),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                data: (archivedFamilies) {
+                  if (archivedFamilies.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(KinrelSpacing.xl),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.archive_outlined,
+                              size: 48,
+                              color: DKColors.textSecondary(context)
+                                  .withValues(alpha: 0.4),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No Archived Families',
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.displayFont,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: DKColors.textPrimary(context),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Archived families will appear here.\nThey are automatically deleted after 30 days.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 13,
+                                color: DKColors.textSecondary(context),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  return ListView.separated(
+                    controller: scrollController,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: KinrelSpacing.base,
+                      vertical: KinrelSpacing.sm,
+                    ),
+                    itemCount: archivedFamilies.length,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final archived = archivedFamilies[index];
+                      return _ArchivedFamilyCard(archivedFamily: archived);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ── Archived Family Card ─────────────────────────────────────────
+
+class _ArchivedFamilyCard extends ConsumerStatefulWidget {
+  const _ArchivedFamilyCard({required this.archivedFamily});
+
+  final ArchivedFamily archivedFamily;
+
+  @override
+  ConsumerState<_ArchivedFamilyCard> createState() =>
+      _ArchivedFamilyCardState();
+}
+
+class _ArchivedFamilyCardState extends ConsumerState<_ArchivedFamilyCard> {
+  bool _isRestoring = false;
+  bool _isDeleting = false;
+
+  ArchivedFamily get archived => widget.archivedFamily;
+  Family get family => archived.family;
+
+  @override
+  Widget build(BuildContext context) {
+    final daysLeft = archived.daysRemaining;
+    final isUrgent = daysLeft <= 7;
+
+    return DKCard(
+      borderColor: isUrgent
+          ? KinrelColors.error.withValues(alpha: 0.3)
+          : DKColors.brandPurple.withValues(alpha: 0.15),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Family info row
+          Row(
+            children: [
+              DKAvatar(
+                initials: family.name.isNotEmpty
+                    ? family.name[0].toUpperCase()
+                    : 'F',
+                size: DKAvatarSize.md,
+                backgroundColor: DKColors.brandPurple.withValues(alpha: 0.5),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      family.name,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: DKColors.textPrimary(context),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    // Archived date
+                    if (archived.archivedAt != null)
+                      Text(
+                        'Archived ${_formatDate(archived.archivedAt!)}',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 11,
+                          color: DKColors.textSecondary(context),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              // Days remaining badge
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: isUrgent
+                      ? KinrelColors.error.withValues(alpha: 0.15)
+                      : KinrelColors.warning.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isUrgent
+                        ? KinrelColors.error.withValues(alpha: 0.3)
+                        : KinrelColors.warning.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Text(
+                  '$daysLeft ${daysLeft == 1 ? 'day' : 'days'} left',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: isUrgent ? KinrelColors.error : KinrelColors.warning,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Action buttons
+          Row(
+            children: [
+              // Restore button
+              Expanded(
+                child: DKButton(
+                  label: 'Restore',
+                  variant: DKButtonVariant.primary,
+                  size: DKButtonSize.sm,
+                  icon: Icons.restore,
+                  isLoading: _isRestoring,
+                  onPressed: _isRestoring ? null : _handleRestore,
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Permanent delete button
+              Expanded(
+                child: DKButton(
+                  label: 'Delete Forever',
+                  variant: DKButtonVariant.secondary,
+                  size: DKButtonSize.sm,
+                  icon: Icons.delete_forever,
+                  isLoading: _isDeleting,
+                  onPressed: _isDeleting ? null : _handlePermanentDelete,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleRestore() async {
+    setState(() => _isRestoring = true);
+    try {
+      await restoreFamily(ref: ref, familyId: family.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${family.name} restored'),
+            backgroundColor: KinrelColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to restore: ${e.toString().split('\n').first}',
+            ),
+            backgroundColor: KinrelColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isRestoring = false);
+    }
+  }
+
+  Future<void> _handlePermanentDelete() async {
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: DKColors.cardColor(context),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(KinrelRadius.lg),
+        ),
+        title: Row(
+          children: [
+            Icon(
               Icons.warning_amber_rounded,
               color: KinrelColors.error,
               size: 24,
@@ -663,7 +1213,7 @@ class _FamilyCard extends ConsumerWidget {
             const SizedBox(width: 10),
             Flexible(
               child: Text(
-                'Delete "${family.name}"?',
+                'Delete "${family.name}" permanently?',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 17,
@@ -718,7 +1268,7 @@ class _FamilyCard extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(
               'Cancel',
               style: TextStyle(
@@ -728,12 +1278,9 @@ class _FamilyCard extends ConsumerWidget {
             ),
           ),
           TextButton(
-            onPressed: () async {
-              Navigator.of(ctx).pop();
-              await _performDeleteFromList(context, ref);
-            },
+            onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(
-              'Delete Family',
+              'Delete Forever',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontWeight: FontWeight.w600,
@@ -744,38 +1291,23 @@ class _FamilyCard extends ConsumerWidget {
         ],
       ),
     );
-  }
 
-  Future<void> _performDeleteFromList(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    unawaited(
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => Center(
-          child: CircularProgressIndicator(color: KinrelColors.purple),
-        ),
-      ),
-    );
+    if (confirmed != true) return;
 
+    setState(() => _isDeleting = true);
     try {
-      await deleteFamily(ref: ref, familyId: family.id);
-
-      if (context.mounted) {
-        Navigator.of(context).pop(); // Close loading
+      await permanentDeleteFamily(ref: ref, familyId: family.id);
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${family.name} deleted'),
+            content: Text('${family.name} permanently deleted'),
             backgroundColor: KinrelColors.success,
             behavior: SnackBarBehavior.floating,
           ),
         );
       }
     } catch (e) {
-      if (context.mounted) {
-        Navigator.of(context).pop(); // Close loading
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -786,6 +1318,17 @@ class _FamilyCard extends ConsumerWidget {
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _isDeleting = false);
     }
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inDays == 0) return 'today';
+    if (diff.inDays == 1) return 'yesterday';
+    if (diff.inDays < 7) return '${diff.inDays} days ago';
+    return '${date.day}/${date.month}/${date.year}';
   }
 }

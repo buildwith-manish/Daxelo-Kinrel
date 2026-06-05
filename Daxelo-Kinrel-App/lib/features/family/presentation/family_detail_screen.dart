@@ -351,8 +351,8 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
             if (isCreator) ...[
               Divider(color: KinrelColors.border, height: 1),
               _QuickActionTile(
-                icon: Icons.delete_outline,
-                label: 'Delete Family',
+                icon: Icons.archive_outlined,
+                label: 'Archive Family',
                 isDestructive: true,
                 onTap: () {
                   Navigator.pop(ctx);
@@ -407,14 +407,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         title: Row(
           children: [
             Icon(
-              Icons.warning_amber_rounded,
-              color: KinrelColors.error,
+              Icons.archive_outlined,
+              color: KinrelColors.warning,
               size: 24,
             ),
             const SizedBox(width: 10),
             Flexible(
               child: Text(
-                'Delete "$familyName"?',
+                'Archive "$familyName"?',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 17,
@@ -430,7 +430,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'This will permanently delete this family and all its members, relationships, and data.',
+              'This family will be archived and hidden from your active list.',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
@@ -441,24 +441,24 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: KinrelColors.error.withValues(alpha: 0.1),
+                color: KinrelColors.warning.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
                 border: Border.all(
-                  color: KinrelColors.error.withValues(alpha: 0.3),
+                  color: KinrelColors.warning.withValues(alpha: 0.3),
                 ),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, size: 18, color: KinrelColors.error),
+                  Icon(Icons.info_outline, size: 18, color: KinrelColors.warning),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'This action cannot be undone.',
+                      'This family will be archived for 30 days. You can restore it anytime before it\'s permanently deleted.',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: KinrelColors.error,
+                        color: KinrelColors.warning,
                       ),
                     ),
                   ),
@@ -484,11 +484,11 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
               await _performDeleteFamily(context);
             },
             child: Text(
-              'Delete Family',
+              'Archive Family',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontWeight: FontWeight.w600,
-                color: KinrelColors.error,
+                color: KinrelColors.warning,
               ),
             ),
           ),
@@ -521,7 +521,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Family deleted successfully'),
+            content: Text('Family archived successfully'),
             backgroundColor: KinrelColors.success,
             behavior: SnackBarBehavior.floating,
           ),
@@ -538,7 +538,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Failed to delete family: ${e.toString().split('\n').first}',
+              'Failed to archive family: ${e.toString().split('\n').first}',
             ),
             backgroundColor: KinrelColors.error,
             behavior: SnackBarBehavior.floating,

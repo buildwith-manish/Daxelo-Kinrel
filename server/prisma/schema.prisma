@@ -547,6 +547,7 @@ model Family {
   generationCount Int      @default(1)
   lastActivityAt  DateTime @default(now())
   createdBy       String? // User ID who created this family
+  deletedAt       DateTime? // Soft-delete: archived for 30 days before permanent deletion
 
   members         FamilyMember[]
   persons         Person[]
@@ -561,6 +562,7 @@ model Family {
   @@index([familyCode])
   @@index([username])
   @@index([kinFamilyId])
+  @@index([deletedAt])
 }
 
 model FamilyMember {

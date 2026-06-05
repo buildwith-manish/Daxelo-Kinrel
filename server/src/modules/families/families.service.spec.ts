@@ -49,6 +49,7 @@ const mockKinrelGateway = {
   emitMemberRemoved: jest.fn(),
   emitPersonCreated: jest.fn(),
   emitRelationshipCreated: jest.fn(),
+  emitToFamily: jest.fn(),
 };
 
 describe('FamiliesService', () => {
@@ -391,13 +392,13 @@ describe('FamiliesService', () => {
     });
   });
 
-  // ── deleteFamily ────────────────────────────────────────────────────
+  // ── archive (soft-delete) ────────────────────────────────────────────
 
-  describe('remove', () => {
+  describe('archive', () => {
     const userId = 'user-123';
     const familyId = 'family-1';
 
-    it('should cascade delete members and persons', async () => {
+    it('should soft-delete family by setting deletedAt', async () => {
       mockPrismaService.familyMember.findUnique.mockResolvedValue({
         id: 'member-1',
         familyId,
@@ -407,6 +408,200 @@ describe('FamiliesService', () => {
       mockPrismaService.family.findUnique.mockResolvedValue({
         id: familyId,
         name: 'Sharma Family',
+        deletedAt: null,
+      });
+
+      mockPrismaService.$transaction.mockImplementation(async (cb) => {
+        const tx = {
+          person: {
+            updateMany: jest.fn().mockResolvedValue({ count: 2 }),
+          },
+          family: {
+            update: jest.fn().mockResolvedValue({
+              id: familyId,
+              name: 'Sharma Family',
+              deletedAt: new Date(),
+            }),
+          },
+        };
+        return cb(tx);
+      });
+
+      const result = await service.archive(userId, familyId);
+
+      expect(result.archived).toBe(true);
+      expect(result.familyId).toBe(familyId);
+      expect(result.daysUntilPermanentDeletion).toBe(30);
+      expect(result.message).toContain('30 days');
+    });
+
+    it('should throw BadRequestException if family is already archived', async () => {
+      mockPrismaService.familyMember.findUnique.mockResolvedValue({
+        id: 'member-1',
+        familyId,
+        userId,
+        role: 'admin',
+      });
+      mockPrismaService.family.findUnique.mockResolvedValue({
+        id: familyId,
+        name: 'Sharma Family',
+        deletedAt: new Date(),
+      });
+
+      await expect(
+        service.archive(userId, familyId),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw ForbiddenException if user is not admin', async () => {
+      mockPrismaService.familyMember.findUnique.mockResolvedValue({
+        id: 'member-1',
+        familyId,
+        userId,
+        role: 'viewer',
+      });
+
+      await expect(
+        service.archive(userId, familyId),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw NotFoundException if family not found', async () => {
+      mockPrismaService.familyMember.findUnique.mockResolvedValue({
+        id: 'member-1',
+        familyId,
+        userId,
+        role: 'admin',
+      });
+      mockPrismaService.family.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.archive(userId, familyId),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should emit family:archived WebSocket event', async () => {
+      mockPrismaService.familyMember.findUnique.mockResolvedValue({
+        id: 'member-1',
+        familyId,
+        userId,
+        role: 'admin',
+      });
+      mockPrismaService.family.findUnique.mockResolvedValue({
+        id: familyId,
+        name: 'Sharma Family',
+        deletedAt: null,
+      });
+
+      mockPrismaService.$transaction.mockImplementation(async (cb) => {
+        const tx = {
+          person: {
+            updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+          },
+          family: {
+            update: jest.fn().mockResolvedValue({
+              id: familyId,
+              name: 'Sharma Family',
+              deletedAt: new Date(),
+            }),
+          },
+        };
+        return cb(tx);
+      });
+
+      await service.archive(userId, familyId);
+
+      expect(mockKinrelGateway.emitToFamily).toHaveBeenCalledWith(
+        familyId,
+        'family:archived',
+        expect.objectContaining({
+          type: 'family:archived',
+          familyId,
+          archivedBy: userId,
+        }),
+      );
+    });
+  });
+
+  // ── restore ────────────────────────────────────────────────────────────
+
+  describe('restore', () => {
+    const userId = 'user-123';
+    const familyId = 'family-1';
+
+    it('should restore an archived family', async () => {
+      const archivedAt = new Date();
+      mockPrismaService.familyMember.findUnique.mockResolvedValue({
+        id: 'member-1',
+        familyId,
+        userId,
+        role: 'admin',
+      });
+      mockPrismaService.family.findUnique.mockResolvedValue({
+        id: familyId,
+        name: 'Sharma Family',
+        deletedAt: archivedAt,
+      });
+
+      mockPrismaService.$transaction.mockImplementation(async (cb) => {
+        const tx = {
+          person: {
+            updateMany: jest.fn().mockResolvedValue({ count: 2 }),
+          },
+          family: {
+            update: jest.fn().mockResolvedValue({
+              id: familyId,
+              name: 'Sharma Family',
+              deletedAt: null,
+            }),
+          },
+        };
+        return cb(tx);
+      });
+
+      const result = await service.restore(userId, familyId);
+
+      expect(result.restored).toBe(true);
+      expect(result.familyId).toBe(familyId);
+    });
+
+    it('should throw BadRequestException if family is not archived', async () => {
+      mockPrismaService.familyMember.findUnique.mockResolvedValue({
+        id: 'member-1',
+        familyId,
+        userId,
+        role: 'admin',
+      });
+      mockPrismaService.family.findUnique.mockResolvedValue({
+        id: familyId,
+        name: 'Sharma Family',
+        deletedAt: null,
+      });
+
+      await expect(
+        service.restore(userId, familyId),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw ForbiddenException if user is not a member', async () => {
+      mockPrismaService.familyMember.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.restore(userId, familyId),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  // ── permanentDelete ──────────────────────────────────────────────────
+
+  describe('permanentDelete', () => {
+    const familyId = 'family-1';
+
+    it('should permanently delete family and all related data', async () => {
+      mockPrismaService.family.findUnique.mockResolvedValue({
+        id: familyId,
+        name: 'Sharma Family',
+        deletedAt: new Date(),
       });
 
       mockPrismaService.$transaction.mockImplementation(async (cb) => {
@@ -421,6 +616,12 @@ describe('FamiliesService', () => {
           relationship: {
             deleteMany: jest.fn().mockResolvedValue({ count: 3 }),
           },
+          graphLayoutState: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }).mockRejectedValue(() => {}) },
+          graphChangeLog: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }).mockRejectedValue(() => {}) },
+          familyPost: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }).mockRejectedValue(() => {}) },
+          story: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }).mockRejectedValue(() => {}) },
+          invitation: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }).mockRejectedValue(() => {}) },
+          familyInvite: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }).mockRejectedValue(() => {}) },
           familyMember: {
             deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
           },
@@ -431,139 +632,18 @@ describe('FamiliesService', () => {
         return cb(tx);
       });
 
-      const result = await service.remove(userId, familyId);
+      const result = await service.permanentDelete(familyId);
 
       expect(result.deleted).toBe(true);
       expect(result.familyId).toBe(familyId);
     });
 
-    it('should delete relationships for persons in the family', async () => {
-      mockPrismaService.familyMember.findUnique.mockResolvedValue({
-        id: 'member-1',
-        familyId,
-        userId,
-        role: 'admin',
-      });
-      mockPrismaService.family.findUnique.mockResolvedValue({
-        id: familyId,
-        name: 'Sharma Family',
-      });
-
-      const relationshipDeleteMany = jest.fn().mockResolvedValue({ count: 3 });
-      const personFindMany = jest.fn().mockResolvedValue([
-        { id: 'p1' },
-        { id: 'p2' },
-      ]);
-      const personDeleteMany = jest.fn().mockResolvedValue({ count: 2 });
-      const memberDeleteMany = jest.fn().mockResolvedValue({ count: 1 });
-      const familyDelete = jest.fn().mockResolvedValue({ id: familyId });
-
-      mockPrismaService.$transaction.mockImplementation(async (cb) => {
-        const tx = {
-          person: {
-            findMany: personFindMany,
-            deleteMany: personDeleteMany,
-          },
-          relationship: {
-            deleteMany: relationshipDeleteMany,
-          },
-          familyMember: {
-            deleteMany: memberDeleteMany,
-          },
-          family: {
-            delete: familyDelete,
-          },
-        };
-        const result = await cb(tx);
-
-        // Verify the deletion order: relationships → persons → members → family
-        expect(relationshipDeleteMany).toHaveBeenCalledWith({
-          where: {
-            OR: [
-              { fromPersonId: { in: ['p1', 'p2'] } },
-              { toPersonId: { in: ['p1', 'p2'] } },
-            ],
-          },
-        });
-        expect(personDeleteMany).toHaveBeenCalledWith({
-          where: { familyId },
-        });
-        expect(memberDeleteMany).toHaveBeenCalledWith({
-          where: { familyId },
-        });
-        expect(familyDelete).toHaveBeenCalledWith({
-          where: { id: familyId },
-        });
-
-        return result;
-      });
-
-      await service.remove(userId, familyId);
-    });
-
-    it('should throw ForbiddenException if user is not admin', async () => {
-      mockPrismaService.familyMember.findUnique.mockResolvedValue({
-        id: 'member-1',
-        familyId,
-        userId,
-        role: 'member',
-      });
-
-      await expect(
-        service.remove(userId, familyId),
-      ).rejects.toThrow(ForbiddenException);
-    });
-
     it('should throw NotFoundException if family not found', async () => {
-      mockPrismaService.familyMember.findUnique.mockResolvedValue({
-        id: 'member-1',
-        familyId,
-        userId,
-        role: 'admin',
-      });
       mockPrismaService.family.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.remove(userId, familyId),
+        service.permanentDelete(familyId),
       ).rejects.toThrow(NotFoundException);
-    });
-
-    it('should handle empty family (no persons)', async () => {
-      mockPrismaService.familyMember.findUnique.mockResolvedValue({
-        id: 'member-1',
-        familyId,
-        userId,
-        role: 'admin',
-      });
-      mockPrismaService.family.findUnique.mockResolvedValue({
-        id: familyId,
-        name: 'Empty Family',
-      });
-
-      mockPrismaService.$transaction.mockImplementation(async (cb) => {
-        const tx = {
-          person: {
-            findMany: jest.fn().mockResolvedValue([]),
-            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-          },
-          relationship: {
-            deleteMany: jest.fn(),
-          },
-          familyMember: {
-            deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
-          },
-          family: {
-            delete: jest.fn().mockResolvedValue({ id: familyId }),
-          },
-        };
-        // Should NOT call relationship.deleteMany when there are no persons
-        const result = await cb(tx);
-        expect(tx.relationship.deleteMany).not.toHaveBeenCalled();
-        return result;
-      });
-
-      const result = await service.remove(userId, familyId);
-      expect(result.deleted).toBe(true);
     });
   });
 

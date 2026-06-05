@@ -1,8 +1,10 @@
 import 'dart:math';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../networking/dio_client.dart';
 import '../services/supabase_service.dart';
 import '../config/auth_config.dart';
 import '../services/analytics_service.dart';
@@ -328,6 +330,53 @@ class FamilyDetail {
   final List<Person> members;
   final List<FamilyRelationship> relationships;
 }
+
+/// Archived family with days-remaining info from the NestJS backend.
+class ArchivedFamily {
+  const ArchivedFamily({
+    required this.family,
+    required this.daysRemaining,
+  });
+
+  factory ArchivedFamily.fromJson(Map<String, dynamic> json) {
+    return ArchivedFamily(
+      family: Family.fromJson(json['family'] as Map<String, dynamic>? ?? json),
+      daysRemaining: json['daysRemaining'] as int? ?? 30,
+    );
+  }
+
+  final Family family;
+  final int daysRemaining;
+
+  /// The date the family was archived.
+  DateTime? get archivedAt => family.deletedAt;
+}
+
+// ── Archived Families Provider ─────────────────────────────────────
+
+/// Fetches archived (soft-deleted) families for the current user.
+/// Calls `GET /api/families/archived` on the NestJS backend.
+final archivedFamiliesProvider =
+    FutureProvider<List<ArchivedFamily>>((ref) async {
+  try {
+    final dio = ref.read(dioProvider);
+    final response = await dio.get('/api/families/archived');
+
+    if (response.data is List) {
+      return (response.data as List)
+          .map((json) =>
+              ArchivedFamily.fromJson(json as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  } on DioException catch (e) {
+    debugPrint('⚠️ archivedFamiliesProvider error: ${e.message}');
+    return [];
+  } catch (e) {
+    debugPrint('⚠️ archivedFamiliesProvider error: $e');
+    return [];
+  }
+});
 
 // ── Providers ──────────────────────────────────────────────────
 
@@ -976,97 +1025,33 @@ Future<Person> updatePerson({
   return Person.fromJson(response);
 }
 
-/// Delete a family and all its associated data.
+/// Archive (soft-delete) a family for 30 days.
 ///
-/// **Only the creator of the family can delete it.** This function:
-/// 1. Verifies the current user is the family creator
-/// 2. Soft-deletes all Person records in the family
-/// 3. Deletes all Relationship records in the family
-/// 4. Deletes all FamilyMember records for the family
-/// 5. Deletes the Family record itself
+/// Calls `DELETE /api/families/:familyId` on the NestJS backend,
+/// which now archives the family instead of permanently deleting it.
+/// The family can be restored within 30 days before it is
+/// permanently deleted.
 ///
-/// Throws an exception if the user is not the creator or if the
-/// database operations fail.
+/// Throws an exception if the API call fails.
 Future<void> deleteFamily({
   required WidgetRef ref,
   required String familyId,
 }) async {
-  final client = ref.read(supabaseProvider);
-  if (client == null) {
-    throw Exception(
-      'Database is not connected. Please restart the app and try again.',
-    );
-  }
-  final userId = client.auth.currentUser?.id ??
-      (kAuthDisabled ? MockUser.id : null);
-  if (userId == null) {
-    throw Exception('You must be signed in to delete a family.');
-  }
-
-  // 1. Fetch the family to verify ownership
-  final familyResponse = await withRetry(
-    () => client
-        .from(_kFamilyTable)
-        .select('createdBy')
-        .eq('id', familyId)
-        .maybeSingle(),
-    operationName: 'Fetch family for delete check',
-  );
-
-  if (familyResponse == null) {
-    throw Exception('Family not found.');
-  }
-
-  final createdBy = familyResponse['createdBy'] as String?;
-  if (createdBy != userId) {
-    throw Exception('Only the family creator can delete this family.');
-  }
-
-  // 2. Soft-delete all persons in the family
-  final now = DateTime.now().toIso8601String();
   try {
-    await withRetry(
-      () => client
-          .from(_kPersonTable)
-          .update({'deletedAt': now, 'updatedAt': now})
-          .eq('familyId', familyId)
-          .filter('deletedAt', 'is', null),
-      operationName: 'Soft-delete family persons',
-    );
+    final dio = ref.read(dioProvider);
+    await dio.delete('/api/families/$familyId');
+  } on DioException catch (e) {
+    final message = e.response?.data?['message'] ?? e.message ?? 'Unknown error';
+    throw Exception('Failed to archive family: $message');
   } catch (e) {
-    debugPrint('⚠️ Could not soft-delete persons: $e');
+    throw Exception('Failed to archive family: $e');
   }
 
-  // 3. Delete all relationships in the family
-  try {
-    await withRetry(
-      () => client.from(_kRelationshipTable).delete().eq('familyId', familyId),
-      operationName: 'Delete family relationships',
-    );
-  } catch (e) {
-    debugPrint('⚠️ Could not delete relationships: $e');
-  }
-
-  // 4. Delete all FamilyMember entries
-  try {
-    await withRetry(
-      () => client.from(_kFamilyMemberTable).delete().eq('familyId', familyId),
-      operationName: 'Delete family members',
-    );
-  } catch (e) {
-    debugPrint('⚠️ Could not delete family member entries: $e');
-  }
-
-  // 5. Delete the family record itself
-  await withRetry(
-    () => client.from(_kFamilyTable).delete().eq('id', familyId),
-    operationName: 'Delete family',
-  );
-
-  // 6. Invalidate providers to refresh UI
+  // Invalidate providers to refresh UI
   ref.invalidate(familyListProvider);
   ref.invalidate(familyMembersProvider(familyId));
   ref.invalidate(familyRelationshipsProvider(familyId));
+  ref.invalidate(archivedFamiliesProvider);
   // familyDetailProvider auto-rebuilds via ref.watch on above providers
 
   // Invalidate the Isar cache
@@ -1074,12 +1059,93 @@ Future<void> deleteFamily({
     try {
       await CacheInvalidation.invalidateFamily(familyId);
       await CacheInvalidation.invalidateFamilyList();
-      // ✅ FIX (BUG-01): Force a fresh fetch — do NOT use cached data after delete
+      // Force a fresh fetch — do NOT use cached data after archive
       await ref.read(familyListProvider.future);
     } catch (_) {}
   }
 
-  // ✅ FIX: Refresh profile stats after family deletion
+  // Refresh profile stats after family archival
+  try {
+    await ref.read(profileProvider.notifier).loadStats();
+  } catch (_) {}
+}
+
+/// Restore an archived family.
+///
+/// Calls `POST /api/families/:familyId/restore` on the NestJS backend.
+/// The family will reappear in the active family list.
+///
+/// Throws an exception if the API call fails.
+Future<void> restoreFamily({
+  required WidgetRef ref,
+  required String familyId,
+}) async {
+  try {
+    final dio = ref.read(dioProvider);
+    await dio.post('/api/families/$familyId/restore');
+  } on DioException catch (e) {
+    final message = e.response?.data?['message'] ?? e.message ?? 'Unknown error';
+    throw Exception('Failed to restore family: $message');
+  } catch (e) {
+    throw Exception('Failed to restore family: $e');
+  }
+
+  // Invalidate providers to refresh UI
+  ref.invalidate(familyListProvider);
+  ref.invalidate(familyMembersProvider(familyId));
+  ref.invalidate(familyRelationshipsProvider(familyId));
+  ref.invalidate(archivedFamiliesProvider);
+
+  // Invalidate the Isar cache
+  if (IsarDatabase.isInitialized) {
+    try {
+      await CacheInvalidation.invalidateFamily(familyId);
+      await CacheInvalidation.invalidateFamilyList();
+    } catch (_) {}
+  }
+
+  // Refresh profile stats
+  try {
+    await ref.read(profileProvider.notifier).loadStats();
+  } catch (_) {}
+}
+
+/// Permanently delete an archived family.
+///
+/// Calls `DELETE /api/families/:familyId/permanent` on the NestJS backend.
+/// This action **cannot be undone** — the family and all its data
+/// will be permanently removed.
+///
+/// Throws an exception if the API call fails.
+Future<void> permanentDeleteFamily({
+  required WidgetRef ref,
+  required String familyId,
+}) async {
+  try {
+    final dio = ref.read(dioProvider);
+    await dio.delete('/api/families/$familyId/permanent');
+  } on DioException catch (e) {
+    final message = e.response?.data?['message'] ?? e.message ?? 'Unknown error';
+    throw Exception('Failed to permanently delete family: $message');
+  } catch (e) {
+    throw Exception('Failed to permanently delete family: $e');
+  }
+
+  // Invalidate providers to refresh UI
+  ref.invalidate(familyListProvider);
+  ref.invalidate(familyMembersProvider(familyId));
+  ref.invalidate(familyRelationshipsProvider(familyId));
+  ref.invalidate(archivedFamiliesProvider);
+
+  // Invalidate the Isar cache
+  if (IsarDatabase.isInitialized) {
+    try {
+      await CacheInvalidation.invalidateFamily(familyId);
+      await CacheInvalidation.invalidateFamilyList();
+    } catch (_) {}
+  }
+
+  // Refresh profile stats
   try {
     await ref.read(profileProvider.notifier).loadStats();
   } catch (_) {}

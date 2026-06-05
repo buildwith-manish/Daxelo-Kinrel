@@ -27,13 +27,23 @@ export class FamiliesController {
   constructor(private familiesService: FamiliesService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get all families for the current user' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Returns paginated list of families' })
+  @ApiOperation({ summary: 'Get all active families for the current user' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Returns paginated list of active families' })
   async findAll(
     @CurrentUser('id') userId: string,
     @Query() pagination: PaginationDto,
   ) {
     return this.familiesService.findAll(userId, pagination);
+  }
+
+  @Get('archived')
+  @ApiOperation({ summary: 'Get all archived families for the current user' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Returns paginated list of archived families with days remaining' })
+  async findArchived(
+    @CurrentUser('id') userId: string,
+    @Query() pagination: PaginationDto,
+  ) {
+    return this.familiesService.findArchived(userId, pagination);
   }
 
   @Post()
@@ -73,14 +83,41 @@ export class FamiliesController {
 
   @Delete(':familyId')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Delete a family' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Family deleted successfully' })
+  @ApiOperation({ summary: 'Archive a family (soft-delete for 30 days)' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Family archived successfully. Can be restored within 30 days.' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Family not found' })
-  async remove(
+  async archive(
     @CurrentUser('id') userId: string,
     @Param('familyId') familyId: string,
   ) {
-    return this.familiesService.remove(userId, familyId);
+    return this.familiesService.archive(userId, familyId);
+  }
+
+  @Post(':familyId/restore')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Restore an archived family' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Family restored successfully' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Family not found' })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Family is not archived' })
+  async restore(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+  ) {
+    return this.familiesService.restore(userId, familyId);
+  }
+
+  @Delete(':familyId/permanent')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Permanently delete a family (only archived families)' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Family permanently deleted' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Family not found' })
+  async permanentDelete(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+  ) {
+    // Verify the user is a member before allowing permanent delete
+    await this.familiesService.requireFamilyMember(userId, familyId);
+    return this.familiesService.permanentDelete(familyId);
   }
 
   @Delete(':familyId/leave')
