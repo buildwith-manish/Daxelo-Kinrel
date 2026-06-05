@@ -628,6 +628,7 @@ model Person {
   @@index([familyId, dateOfBirth])
   @@index([deletedAt])
   @@index([familyId, generationIndex])
+  @@index([familyId, isAnchor])
   @@index([username])
   @@index([familyId])
   @@index([familyId, deletedAt])
@@ -1626,6 +1627,8 @@ model RefreshToken {
   @@index([userId])
   @@index([token])
   @@index([familyId])
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
 }
 
 // ── FCM Push Notification Tokens ───────────────────────────────────

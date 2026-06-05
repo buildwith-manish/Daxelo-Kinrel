@@ -66,39 +66,53 @@ export class FamiliesService {
     return this.formatFamily(family);
   }
 
-  /** Returns all families the user is a member of. */
-  async findAll(userId: string) {
-    const memberships = await this.prisma.familyMember.findMany({
-      where: { userId },
-      include: {
-        family: {
-          select: {
-            id: true,
-            name: true,
-            familyCode: true,
-            kinFamilyId: true,
-            username: true,
-            description: true,
-            primaryLanguage: true,
-            gotra: true,
-            originVillage: true,
-            privacyMode: true,
-            anchorPersonId: true,
-            memberCount: true,
-            generationCount: true,
-            createdBy: true,
-            avatarUrl: true,
-            region: true,
-            isOnboarded: true,
-            lastActivityAt: true,
-            createdAt: true,
+  /** Returns all families the user is a member of, with pagination. */
+  async findAll(userId: string, pagination?: { page?: number; limit?: number }) {
+    const page = pagination?.page ?? 1;
+    const limit = pagination?.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.familyMember.findMany({
+        where: { userId },
+        skip,
+        take: limit,
+        include: {
+          family: {
+            select: {
+              id: true,
+              name: true,
+              familyCode: true,
+              kinFamilyId: true,
+              username: true,
+              description: true,
+              primaryLanguage: true,
+              gotra: true,
+              originVillage: true,
+              privacyMode: true,
+              anchorPersonId: true,
+              memberCount: true,
+              generationCount: true,
+              createdBy: true,
+              avatarUrl: true,
+              region: true,
+              isOnboarded: true,
+              lastActivityAt: true,
+              createdAt: true,
+            },
           },
         },
-      },
-      orderBy: { joinedAt: 'desc' },
-    });
+        orderBy: { joinedAt: 'desc' },
+      }),
+      this.prisma.familyMember.count({ where: { userId } }),
+    ]);
 
-    return memberships.map((m) => this.formatFamily(m.family));
+    return {
+      items: items.map((m) => this.formatFamily(m.family)),
+      total,
+      page,
+      limit,
+    };
   }
 
   /** Returns a single family by ID after verifying membership. */

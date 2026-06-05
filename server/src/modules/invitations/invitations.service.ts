@@ -83,9 +83,9 @@ export class InvitationsService {
   }
 
   /**
-   * List invitations for a family.
+   * List invitations for a family, with pagination.
    */
-  async findByFamily(familyId: string, userId: string) {
+  async findByFamily(familyId: string, userId: string, pagination?: { page?: number; limit?: number }) {
     // Verify user is a member
     const membership = await this.prisma.familyMember.findUnique({
       where: {
@@ -99,15 +99,31 @@ export class InvitationsService {
       );
     }
 
-    const invitations = await this.prisma.invitation.findMany({
-      where: { familyId, status: { in: ['pending', 'accepted'] } },
-      include: {
-        inviter: { select: { id: true, name: true, email: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const page = pagination?.page ?? 1;
+    const limit = pagination?.limit ?? 20;
+    const skip = (page - 1) * limit;
 
-    return invitations.map((inv) => this.formatInvitation(inv));
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.invitation.findMany({
+        where: { familyId, status: { in: ['pending', 'accepted'] } },
+        skip,
+        take: limit,
+        include: {
+          inviter: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.invitation.count({
+        where: { familyId, status: { in: ['pending', 'accepted'] } },
+      }),
+    ]);
+
+    return {
+      items: items.map((inv) => this.formatInvitation(inv)),
+      total,
+      page,
+      limit,
+    };
   }
 
   /**

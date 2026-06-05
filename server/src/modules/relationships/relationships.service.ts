@@ -157,11 +157,12 @@ export class RelationshipsService {
     return this.formatRelationship(result);
   }
 
-  /** Returns all active relationships in a family, optionally filtered by person. */
+  /** Returns all active relationships in a family, optionally filtered by person, with pagination. */
   async findAll(
     userId: string,
     familyId: string,
     query: { personId?: string },
+    pagination?: { page?: number; limit?: number },
   ) {
     await this.requireFamilyMember(userId, familyId);
 
@@ -181,18 +182,32 @@ export class RelationshipsService {
       ];
     }
 
-    const relationships = await this.prisma.relationship.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        fromPerson: { select: { id: true, deletedAt: true } },
-        toPerson: { select: { id: true, deletedAt: true } },
-      },
-    });
+    const page = pagination?.page ?? 1;
+    const limit = pagination?.limit ?? 20;
+    const skip = (page - 1) * limit;
 
-    return relationships
-      .filter((r) => r.fromPerson && r.toPerson)
-      .map((r) => this.formatRelationship(r));
+    const [relationships, total] = await this.prisma.$transaction([
+      this.prisma.relationship.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          fromPerson: { select: { id: true, deletedAt: true } },
+          toPerson: { select: { id: true, deletedAt: true } },
+        },
+      }),
+      this.prisma.relationship.count({ where }),
+    ]);
+
+    return {
+      items: relationships
+        .filter((r) => r.fromPerson && r.toPerson)
+        .map((r) => this.formatRelationship(r)),
+      total,
+      page,
+      limit,
+    };
   }
 
   /** Deletes a relationship and its inverse pair. */

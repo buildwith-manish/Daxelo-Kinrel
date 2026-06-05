@@ -42,11 +42,13 @@ export class NotificationsController {
     @CurrentUser('id') userId: string,
     @Query('limit') limit?: string,
     @Query('unread') unread?: string,
+    @Query('page') page?: string,
   ) {
     return this.notificationsService.listForUser(
       userId,
       limit ? parseInt(limit, 10) : 30,
       unread === 'true',
+      page ? parseInt(page, 10) : 1,
     );
   }
 

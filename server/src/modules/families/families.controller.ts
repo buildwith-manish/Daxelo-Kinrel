@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -14,6 +15,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { FamiliesService } from './families.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CreateFamilyDto } from './dto/create-family.dto';
 import { UpdateFamilyDto } from './dto/update-family.dto';
 
@@ -26,9 +28,12 @@ export class FamiliesController {
 
   @Get()
   @ApiOperation({ summary: 'Get all families for the current user' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Returns list of families' })
-  async findAll(@CurrentUser('id') userId: string) {
-    return this.familiesService.findAll(userId);
+  @ApiResponse({ status: HttpStatus.OK, description: 'Returns paginated list of families' })
+  async findAll(
+    @CurrentUser('id') userId: string,
+    @Query() pagination: PaginationDto,
+  ) {
+    return this.familiesService.findAll(userId, pagination);
   }
 
   @Post()

@@ -5,32 +5,40 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Lists notifications for a user, optionally filtered to unread only. */
-  async listForUser(userId: string, limit: number = 30, unreadOnly: boolean = false) {
+  /** Lists notifications for a user, optionally filtered to unread only, with pagination. */
+  async listForUser(userId: string, limit: number = 30, unreadOnly: boolean = false, page: number = 1) {
     const where: Record<string, any> = { userId };
     if (unreadOnly) {
       where.read = false;
     }
-    return this.prisma.notification.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      select: {
-        id: true,
-        userId: true,
-        eventType: true,
-        title: true,
-        body: true,
-        familyId: true,
-        personId: true,
-        priority: true,
-        read: true,
-        readAt: true,
-        actionUrl: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.notification.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          userId: true,
+          eventType: true,
+          title: true,
+          body: true,
+          familyId: true,
+          personId: true,
+          priority: true,
+          read: true,
+          readAt: true,
+          actionUrl: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      this.prisma.notification.count({ where }),
+    ]);
+
+    return { items, total, page, limit };
   }
 
   /** Marks a single notification as read. */
