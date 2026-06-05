@@ -41,6 +41,7 @@ export class UsersService {
 
   // ── Get User by Username (public profile) ──────────────────────
 
+  /** Returns a limited public profile for a user by username. */
   async getUserByUsername(username: string) {
     if (!username || username.trim().length < 3) {
       throw new BadRequestException('Invalid username');
@@ -84,6 +85,7 @@ export class UsersService {
 
   // ── Get Profile (enhanced with all ProfileModel fields) ──────────
 
+  /** Returns the full authenticated user profile with all fields. */
   async getProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -119,6 +121,7 @@ export class UsersService {
 
   // ── Get Stats ───────────────────────────────────────────────────
 
+  /** Returns aggregate stats: number of family trees, members, and relationships. */
   async getStats(userId: string) {
     const userFamilies = await this.prisma.familyMember.findMany({
       where: { userId },
@@ -151,6 +154,7 @@ export class UsersService {
 
   // ── Update Profile (enhanced with more fields) ──────────────────
 
+  /** Updates the user's profile fields and returns the updated user. */
   async updateProfile(
     userId: string,
     data: {
@@ -219,6 +223,7 @@ export class UsersService {
 
   // ── Upload Avatar ───────────────────────────────────────────────
 
+  /** Uploads an avatar image to Cloudinary (or base64 fallback) and updates the user record. */
   async uploadAvatar(userId: string, file: Express.Multer.File) {
     if (!file) {
       throw new BadRequestException('No file provided');
@@ -308,6 +313,7 @@ export class UsersService {
 
   // ── Delete Account (with optional password confirmation) ────────
 
+  /** Permanently deletes the user account after optional password confirmation. */
   async deleteAccount(userId: string, password?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -343,6 +349,7 @@ export class UsersService {
 
   // ── Check Username Availability (with rate limiting + caching) ────
 
+  /** Checks username availability with rate limiting and short-lived cache. */
   async checkUsername(username: string, userId?: string) {
     if (!username || username.trim().length < 3) {
       return { available: false, reason: 'Username must be at least 3 characters' };
@@ -428,6 +435,7 @@ export class UsersService {
 
   // ── Generate Username Suggestions ────────────────────────────────
 
+  /** Generates up to 5 username suggestions based on the display name. */
   async generateUsernameSuggestions(displayName: string, userId: string) {
     if (!displayName || displayName.trim().length < 1) {
       throw new BadRequestException('Display name is required to generate suggestions');
@@ -500,6 +508,7 @@ export class UsersService {
 
   // ── Get Username Change History ──────────────────────────────────
 
+  /** Returns the user's username change history. */
   async getUsernameHistory(userId: string) {
     const history = await this.prisma.usernameChangeLog.findMany({
       where: { userId },
@@ -517,6 +526,7 @@ export class UsersService {
 
   // ── Update Username ─────────────────────────────────────────────
 
+  /** Updates the user's username and logs the change in the audit table. */
   async updateUsername(userId: string, username: string) {
     if (!username || username.trim().length < 3) {
       throw new BadRequestException('Username must be at least 3 characters');
@@ -594,6 +604,7 @@ export class UsersService {
 
   // ── Get User's Families (with role info) ────────────────────────
 
+  /** Returns all families the user is a member of, with role info. */
   async getFamilies(userId: string) {
     const memberships = await this.prisma.familyMember.findMany({
       where: { userId },
@@ -626,6 +637,7 @@ export class UsersService {
 
   // ── Get User's Pending Invitations ──────────────────────────────
 
+  /** Returns pending family invitations matching the user's email. */
   async getInvitations(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -678,6 +690,7 @@ export class UsersService {
 
   // ── Get Blocked Users ───────────────────────────────────────────
 
+  /** Returns the list of users blocked by the current user. */
   async getBlockedUsers(userId: string) {
     const blockedRecords = await this.prisma.blockedUser.findMany({
       where: { blockerId: userId },
@@ -707,6 +720,7 @@ export class UsersService {
 
   // ── Unblock a User ──────────────────────────────────────────────
 
+  /** Removes a user from the current user's blocked list. */
   async unblockUser(userId: string, blockedUserId: string) {
     const record = await this.prisma.blockedUser.findUnique({
       where: {
@@ -735,6 +749,7 @@ export class UsersService {
 
   // ── Block a User ────────────────────────────────────────────────
 
+  /** Adds a user to the current user's blocked list. */
   async blockUser(userId: string, targetUserId: string) {
     if (userId === targetUserId) {
       throw new BadRequestException('Cannot block yourself');
@@ -774,6 +789,7 @@ export class UsersService {
 
   // ── Request Data Export ─────────────────────────────────────────
 
+  /** Exports all user data (profile, families, notifications, tickets) for GDPR compliance. */
   async requestDataExport(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -866,6 +882,7 @@ export class UsersService {
 
   // ── Set Quiet Hours ─────────────────────────────────────────────
 
+  /** Sets or clears quiet hours for notification delivery. */
   async setQuietHours(
     userId: string,
     data: { start?: string; end?: string; enabled?: boolean },
@@ -917,6 +934,7 @@ export class UsersService {
 
   // ── Get Quiet Hours ─────────────────────────────────────────────
 
+  /** Returns the user's current quiet hours configuration. */
   async getQuietHours(userId: string) {
     const pref = await this.prisma.notificationPreference.findUnique({
       where: { userId_eventType: { userId, eventType: 'quiet_hours' } },
@@ -935,6 +953,7 @@ export class UsersService {
 
   // ── Register / Update FCM Token ────────────────────────────────
 
+  /** Registers or updates an FCM push notification token for the user. */
   async registerFcmToken(
     userId: string,
     data: { fcmToken: string; deviceType?: string },
@@ -974,6 +993,7 @@ export class UsersService {
 
   // ── Delete FCM Token ───────────────────────────────────────────
 
+  /** Removes an FCM token, typically on user logout. */
   async deleteFcmToken(userId: string, fcmToken: string) {
     if (!fcmToken) {
       throw new BadRequestException('FCM token is required');

@@ -100,6 +100,7 @@ export class GraphService {
     }
   }
 
+  /** Returns the family graph in flat, tree, or path format based on options. */
   async getGraph(
     userId: string,
     familyId: string,
@@ -138,6 +139,7 @@ export class GraphService {
     return this.getFlatGraph(familyId);
   }
 
+  /** Resolves the root person ID for tree rendering, falling back to anchor or oldest person. */
   async resolveRootPersonId(userId: string, familyId: string, root?: string): Promise<string> {
     if (root) {
       return root;
@@ -165,6 +167,7 @@ export class GraphService {
     throw new NotFoundException('No persons found in this family to use as tree root');
   }
 
+  /** Builds a hierarchical tree rooted at the given person up to the specified depth. */
   async getTree(familyId: string, rootPersonId: string, depth: number = DEFAULT_GRAPH_DEPTH): Promise<{ root: TreeNode | null; totalNodes: number }> {
     // Select only fields used by TreeNode — skips large photo fields (photoCard, photoFull),
     // notes, occupation, city, gotra, privacyLevel, etc. reducing DB row size
@@ -297,6 +300,7 @@ export class GraphService {
     return { root, totalNodes: visited.size };
   }
 
+  /** Finds the shortest relationship path between two persons using BFS. */
   async getPath(familyId: string, fromPersonId: string, toPersonId: string): Promise<PathResult> {
     // Select only fields used by formatPerson and path building
     const persons = await this.prisma.person.findMany({
@@ -441,11 +445,13 @@ export class GraphService {
     return { path: pathPersons, relationships: pathRelationships };
   }
 
+  /** Returns the relationship path between two persons after verifying family membership. */
   async getPathWithAuth(userId: string, familyId: string, fromPersonId: string, toPersonId: string) {
     await this.requireFamilyMember(userId, familyId);
     return this.getPath(familyId, fromPersonId, toPersonId);
   }
 
+  /** Returns all persons and relationships for a family as flat lists, with Redis caching. */
   async getFlatGraph(familyId: string): Promise<FlatGraphResult> {
     // ── Check Redis cache first ──────────────────────────────────────
     const cacheKey = `graph:flat:${familyId}`;

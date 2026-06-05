@@ -69,6 +69,7 @@ export class RelationshipsService {
     private gateway: KinrelGateway,
   ) {}
 
+  /** Creates a bidirectional relationship between two persons in the family. */
   async create(userId: string, familyId: string, dto: CreateRelationshipDto) {
     await this.requireFamilyRole(userId, familyId, 'editor');
 
@@ -156,6 +157,7 @@ export class RelationshipsService {
     return this.formatRelationship(result);
   }
 
+  /** Returns all active relationships in a family, optionally filtered by person. */
   async findAll(
     userId: string,
     familyId: string,
@@ -193,6 +195,7 @@ export class RelationshipsService {
       .map((r) => this.formatRelationship(r));
   }
 
+  /** Deletes a relationship and its inverse pair. */
   async remove(userId: string, familyId: string, relationshipId: string) {
     await this.requireFamilyRole(userId, familyId, 'editor');
 

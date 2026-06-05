@@ -124,6 +124,27 @@ npm run test:watch    # Watch mode
 npm run test:cov      # With coverage
 ```
 
+## API Rate Limits
+
+The backend enforces rate limiting on all endpoints using `@nestjs/throttler`.
+
+| Tier | Limit | Window | Scope |
+|------|-------|--------|-------|
+| General (short) | 20 requests | per second | All endpoints |
+| General (long) | 200 requests | per minute | All endpoints |
+| Auth endpoints | 5 attempts | per minute | `/auth/login`, `/auth/register`, `/auth/2fa/verify`, `/auth/forgot-password` |
+
+Requests exceeding limits receive `429 Too Many Requests` with a `Retry-After` header.
+
+Configuration is via environment variables:
+
+```env
+THROTTLE_SHORT_TTL=1000
+THROTTLE_SHORT_LIMIT=20
+THROTTLE_LONG_TTL=60000
+THROTTLE_LONG_LIMIT=200
+```
+
 ## Features
 
 - 🌳 Interactive family tree (500+ members, zoom/pan/collapse)

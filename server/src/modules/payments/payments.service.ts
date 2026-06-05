@@ -11,6 +11,7 @@ export class PaymentsService {
     private readonly config: ConfigService,
   ) {}
 
+  /** Creates a new payment order for a subscription plan. */
   async createOrder(userId: string, plan: string, amount: number, currency: string = 'INR') {
     this.logger.log(`Creating order for user ${userId}, plan: ${plan}, amount: ${amount}`);
     return {
@@ -21,6 +22,7 @@ export class PaymentsService {
     };
   }
 
+  /** Verifies a payment and activates or upgrades the user's subscription. */
   async verifyAndActivate(userId: string, paymentData: Record<string, any>) {
     this.logger.log(`Verifying payment for user ${userId}`);
 
@@ -42,10 +44,12 @@ export class PaymentsService {
     });
   }
 
+  /** Returns the current subscription for a user. */
   async getSubscription(userId: string) {
     return this.prisma.subscription.findUnique({ where: { userId } });
   }
 
+  /** Cancels the user's active subscription. */
   async cancelSubscription(userId: string) {
     return this.prisma.subscription.update({
       where: { userId },

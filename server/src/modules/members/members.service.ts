@@ -23,6 +23,7 @@ export class MembersService {
     private gateway: KinrelGateway,
   ) {}
 
+  /** Creates a new person in the family and increments the member count. */
   async create(userId: string, familyId: string, dto: CreateMemberDto) {
     await this.requireFamilyRole(userId, familyId, 'member');
 
@@ -76,6 +77,7 @@ export class MembersService {
     return this.formatPerson(person);
   }
 
+  /** Returns a paginated list of persons in the family with optional search and relationships. */
   async findAll(
     userId: string,
     familyId: string,
@@ -171,6 +173,7 @@ export class MembersService {
     };
   }
 
+  /** Returns a single person with their relationships by ID. */
   async findOne(userId: string, familyId: string, personId: string) {
     await this.requireFamilyMember(userId, familyId);
 
@@ -195,6 +198,7 @@ export class MembersService {
     return this.formatPerson(person);
   }
 
+  /** Updates a person's details and emits a WebSocket update event. */
   async update(userId: string, familyId: string, personId: string, dto: UpdateMemberDto) {
     await this.requireFamilyRole(userId, familyId, 'editor');
 
@@ -247,6 +251,7 @@ export class MembersService {
     return this.formatPerson(updated);
   }
 
+  /** Soft-deletes a person and deactivates their relationships. */
   async remove(userId: string, familyId: string, personId: string) {
     await this.requireFamilyRole(userId, familyId, 'editor');
 

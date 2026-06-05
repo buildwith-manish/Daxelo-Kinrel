@@ -32,6 +32,7 @@ export class AuthService {
 
   // ── Register ────────────────────────────────────────────────────
 
+  /** Registers a new user and auto-creates their first family. */
   async register(dto: { name: string; email: string; password: string }) {
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email.trim().toLowerCase() },
@@ -92,6 +93,7 @@ export class AuthService {
 
   // ── Login ───────────────────────────────────────────────────────
 
+  /** Authenticates a user and returns tokens, or a 2FA challenge if enabled. */
   async login(dto: { email: string; password: string }, userAgent?: string, ipAddress?: string) {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email.trim().toLowerCase() },
@@ -153,6 +155,7 @@ export class AuthService {
 
   // ── Refresh ─────────────────────────────────────────────────────
 
+  /** Rotates a refresh token and returns a new token pair within the same family. */
   async refresh(oldRefreshToken: string): Promise<TokenPair> {
     const stored = await this.prisma.refreshToken.findUnique({
       where: { token: oldRefreshToken },
@@ -197,6 +200,7 @@ export class AuthService {
 
   // ── Logout ──────────────────────────────────────────────────────
 
+  /** Revokes the given refresh token and clears 2FA verification status. */
   async logout(refreshToken: string) {
     let userId: string | null = null;
     if (refreshToken) {
@@ -222,6 +226,7 @@ export class AuthService {
 
   // ── Change Password ─────────────────────────────────────────────
 
+  /** Changes the user's password and revokes all active sessions. */
   async changePassword(
     userId: string,
     dto: { currentPassword: string; newPassword: string },
@@ -259,6 +264,7 @@ export class AuthService {
 
   // ── Get Current User ────────────────────────────────────────────
 
+  /** Returns the currently authenticated user's profile. */
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -283,6 +289,7 @@ export class AuthService {
 
   // ── 2FA Setup ───────────────────────────────────────────────────
 
+  /** Generates a TOTP secret and returns the QR code URL for 2FA setup. */
   async setup2FA(userId: string) {
     const secret = speakeasy.generateSecret({
       name: `Daxelo Kinrel`,
@@ -305,6 +312,7 @@ export class AuthService {
 
   // ── 2FA Verify ──────────────────────────────────────────────────
 
+  /** Verifies a TOTP code during 2FA setup and enables 2FA on success. */
   async verify2FA(userId: string, code: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -340,6 +348,7 @@ export class AuthService {
 
   // ── 2FA Login Verify ────────────────────────────────────────────
 
+  /** Verifies a TOTP code during login and issues real tokens on success. */
   async loginVerify2FA(userId: string, code: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -383,6 +392,7 @@ export class AuthService {
 
   // ── 2FA Disable ─────────────────────────────────────────────────
 
+  /** Disables 2FA for the user after confirming their password. */
   async disable2FA(userId: string, password: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -412,6 +422,7 @@ export class AuthService {
 
   // ── Validate User (for JWT Strategy) ────────────────────────────
 
+  /** Validates a JWT payload and returns the user record, or null. */
   async validateUser(payload: { sub: string; email: string }) {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
@@ -436,6 +447,7 @@ export class AuthService {
 
   // ── Token Generation ────────────────────────────────────────────
 
+  /** Generates an access/refresh token pair and persists the refresh token. */
   async generateTokenPair(
     userId: string,
     email: string,

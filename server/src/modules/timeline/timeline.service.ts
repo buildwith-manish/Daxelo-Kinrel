@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class TimelineService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Returns paginated family posts ordered by newest first with cursor-based pagination. */
   async getTimeline(familyId: string, limit: number = 20, cursor?: string) {
     const posts = await this.prisma.familyPost.findMany({
       where: { familyId },
@@ -35,6 +36,7 @@ export class TimelineService {
     };
   }
 
+  /** Creates a new post in the family timeline feed. */
   async createPost(familyId: string, authorId: string, postType: string, content: Record<string, any>) {
     return this.prisma.familyPost.create({
       data: {

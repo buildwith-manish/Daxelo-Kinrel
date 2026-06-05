@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class ChatService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Returns chat messages for a family, ordered by newest first with pagination. */
   async listMessages(familyId: string, limit: number = 50, before?: string) {
     const where: Record<string, any> = { familyId, postType: 'chat_message' };
     if (before) {
@@ -18,6 +19,7 @@ export class ChatService {
     });
   }
 
+  /** Posts a new chat message to the family feed. */
   async sendMessage(familyId: string, authorId: string, content: string) {
     return this.prisma.familyPost.create({
       data: {

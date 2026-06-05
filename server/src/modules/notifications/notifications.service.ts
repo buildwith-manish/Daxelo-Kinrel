@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Lists notifications for a user, optionally filtered to unread only. */
   async listForUser(userId: string, limit: number = 30, unreadOnly: boolean = false) {
     const where: Record<string, any> = { userId };
     if (unreadOnly) {
@@ -32,6 +33,7 @@ export class NotificationsService {
     });
   }
 
+  /** Marks a single notification as read. */
   async markRead(notificationId: string) {
     return this.prisma.notification.update({
       where: { id: notificationId },
@@ -39,6 +41,7 @@ export class NotificationsService {
     });
   }
 
+  /** Marks all unread notifications for a user as read. */
   async markAllRead(userId: string) {
     return this.prisma.notification.updateMany({
       where: { userId, read: false },
@@ -46,6 +49,7 @@ export class NotificationsService {
     });
   }
 
+  /** Creates a new notification record in the database. */
   async create(data: {
     userId: string;
     eventType: string;
@@ -59,12 +63,14 @@ export class NotificationsService {
     return this.prisma.notification.create({ data });
   }
 
+  /** Returns the count of unread notifications for a user. */
   async getUnreadCount(userId: string) {
     return this.prisma.notification.count({
       where: { userId, read: false },
     });
   }
 
+  /** Creates or updates a notification preference for a user and event type. */
   async updatePreference(userId: string, eventType: string, data: Record<string, any>) {
     return this.prisma.notificationPreference.upsert({
       where: { userId_eventType: { userId, eventType } },

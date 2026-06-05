@@ -26,6 +26,7 @@ export class FamiliesService {
     private familyIdService: FamilyIdService,
   ) {}
 
+  /** Creates a new family and assigns the creator as admin member. */
   async create(userId: string, dto: CreateFamilyDto) {
     if (!dto.name || typeof dto.name !== 'string' || dto.name.trim().length === 0) {
       throw new BadRequestException('Family name is required');
@@ -65,6 +66,7 @@ export class FamiliesService {
     return this.formatFamily(family);
   }
 
+  /** Returns all families the user is a member of. */
   async findAll(userId: string) {
     const memberships = await this.prisma.familyMember.findMany({
       where: { userId },
@@ -99,6 +101,7 @@ export class FamiliesService {
     return memberships.map((m) => this.formatFamily(m.family));
   }
 
+  /** Returns a single family by ID after verifying membership. */
   async findOne(userId: string, familyId: string) {
     await this.requireFamilyMember(userId, familyId);
 
@@ -113,6 +116,7 @@ export class FamiliesService {
     return this.formatFamily(family);
   }
 
+  /** Updates family details; requires at least editor role. */
   async update(userId: string, familyId: string, dto: UpdateFamilyDto) {
     await this.requireFamilyRole(userId, familyId, 'editor');
 
@@ -145,6 +149,7 @@ export class FamiliesService {
     return this.formatFamily(updated);
   }
 
+  /** Permanently deletes a family and all its persons, relationships, and members. */
   async remove(userId: string, familyId: string) {
     await this.requireFamilyRole(userId, familyId, 'admin');
 
@@ -182,6 +187,7 @@ export class FamiliesService {
     return { deleted: true, familyId };
   }
 
+  /** Verifies the user is a member of the family, throws if not. */
   async requireFamilyMember(userId: string, familyId: string) {
     const membership = await this.prisma.familyMember.findUnique({
       where: { familyId_userId: { familyId, userId } },
@@ -194,6 +200,7 @@ export class FamiliesService {
     return membership;
   }
 
+  /** Verifies the user has at least the specified role in the family. */
   async requireFamilyRole(userId: string, familyId: string, minRole: string) {
     const membership = await this.requireFamilyMember(userId, familyId);
 
