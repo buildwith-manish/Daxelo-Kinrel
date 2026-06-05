@@ -10,9 +10,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 // Hive removed — using Drift (AppDatabase) via IsarDatabase wrapper
 import 'core/database/isar_database.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:window_manager/window_manager.dart';
-import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/app_config.dart';
@@ -123,9 +121,6 @@ void main() async {
   // ═══════════════════════════════════════════════════════════════════
 
   // ── Quick, non-blocking setup ─────────────────────────────────────
-
-  // Disable Google Fonts runtime fetching (must be before runApp)
-  GoogleFonts.config.allowRuntimeFetching = false;
 
   // ── Set system UI (fast, non-blocking) ─────────────────────────────
   try {
@@ -274,33 +269,6 @@ Future<void> _initializeServices() async {
       debugPrint('⚠️ Failed to notify Supabase ready state: $e');
       break;
     }
-  }
-
-  // ── 8. Initialize Sentry (non-blocking, after runApp) ─────────────
-  // Sentry is NOT wrapped around runApp anymore. It initializes in the
-  // background. If it fails or hangs, the app is already running.
-  try {
-    final sentryDsn = const String.fromEnvironment(
-      'SENTRY_DSN',
-      defaultValue: '',
-    );
-    if (sentryDsn.isNotEmpty) {
-      await SentryFlutter.init(
-        (options) {
-          options.dsn = sentryDsn;
-          options.tracesSampleRate = 0.1;
-          options.environment = const String.fromEnvironment(
-            'ENV',
-            defaultValue: 'development',
-          );
-        },
-      ).timeout(const Duration(seconds: 3));
-      debugPrint('✅ Sentry initialized');
-    } else {
-      debugPrint('⏭️ Sentry skipped — no DSN configured');
-    }
-  } catch (e) {
-    debugPrint('⚠️ Sentry initialization failed: $e');
   }
 
   // ── Log environment info for crash context ────────────────────────

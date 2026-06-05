@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
@@ -31,6 +32,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
   final _codeController = TextEditingController();
   final _usernameController = TextEditingController();
   File? _avatarImageFile;
+  String? _avatarUrl;
   String _selectedRegion = 'North India';
   bool _isCustomCode = false;
 
@@ -97,6 +99,18 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
     }
   }
 
+  Future<void> _uploadAvatarIfNeeded() async {
+    if (_avatarImageFile == null) return;
+    final supabase = Supabase.instance.client;
+    final bytes = await _avatarImageFile!.readAsBytes();
+    final ext = _avatarImageFile!.path.split('.').last;
+    final path = 'family-avatars/${DateTime.now().millisecondsSinceEpoch}.$ext';
+    await supabase.storage.from('avatars').uploadBinary(path, bytes,
+        fileOptions: const FileOptions(
+            contentType: 'image/jpeg', upsert: true));
+    _avatarUrl = supabase.storage.from('avatars').getPublicUrl(path);
+  }
+
   String _generateCodeSuffix() {
     final random = Random();
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -154,12 +168,15 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
     setState(() => _isSubmitting = true);
 
     try {
+      await _uploadAvatarIfNeeded();
+
       final family = await createFamily(
         ref: ref,
         name: _nameController.text.trim(),
         description: null,
         primaryLanguage: null,
         region: _selectedRegion,
+        photoUrl: _avatarUrl,
         privacyMode: _privacyMode == _PrivacyMode.private
             ? 'private'
             : _privacyMode == _PrivacyMode.inviteOnly
@@ -221,18 +238,28 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return DKScaffold(
-      appBar: AppBar(
-        leading: IconButton(icon: Icon(Icons.arrow_back), onPressed: _prevStep),
-        title: Text(
-          'Create Family',
-          style: TextStyle(
-            fontFamily: KinrelTypography.displayFont,
-            fontWeight: FontWeight.w600,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_currentStep > 0) {
+          _prevStep(); // go to previous step
+        } else {
+          context.pop(); // go back to previous screen
+        }
+      },
+      child: DKScaffold(
+        appBar: AppBar(
+          leading: IconButton(icon: Icon(Icons.arrow_back), onPressed: _prevStep),
+          title: Text(
+            'Create Family',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
-      ),
-      body: Column(
+        body: Column(
         children: [
           // Step indicator
           _StepIndicator(currentStep: _currentStep, totalSteps: _totalSteps),
@@ -248,9 +275,6 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
                   codeController: _codeController,
                   usernameController: _usernameController,
                   fullFamilyCode: _fullFamilyCode,
-                  selectedRegion: _selectedRegion,
-                  onRegionChanged: (region) =>
-                      setState(() => _selectedRegion = region),
                   onEditCode: () {
                     setState(() => _isCustomCode = true);
                   },
@@ -289,6 +313,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
             isSubmitting: _isSubmitting,
           ),
         ],
+      ),
       ),
     );
   }
@@ -374,8 +399,6 @@ class _Step1FamilyIdentity extends StatelessWidget {
     required this.codeController,
     required this.usernameController,
     required this.fullFamilyCode,
-    required this.selectedRegion,
-    required this.onRegionChanged,
     required this.onEditCode,
     required this.canProceed,
   });
@@ -384,8 +407,6 @@ class _Step1FamilyIdentity extends StatelessWidget {
   final TextEditingController codeController;
   final TextEditingController usernameController;
   final String fullFamilyCode;
-  final String selectedRegion;
-  final ValueChanged<String> onRegionChanged;
   final VoidCallback onEditCode;
   final bool canProceed;
 
@@ -607,22 +628,6 @@ class _Step1FamilyIdentity extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-
-          // Region Dropdown
-          Text(
-            'Region',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: DKColors.textSecondary(context),
-            ),
-          ),
-          const SizedBox(height: 8),
-          _RegionDropdown(
-            selectedRegion: selectedRegion,
-            onChanged: onRegionChanged,
-          ),
         ],
       ),
     );
@@ -1112,63 +1117,6 @@ class _PrivacyCard extends StatelessWidget {
               size: 22,
             ),
         ],
-      ),
-    );
-  }
-}
-
-// ── Region Dropdown ──────────────────────────────────────────────
-
-class _RegionDropdown extends StatelessWidget {
-  const _RegionDropdown({
-    required this.selectedRegion,
-    required this.onChanged,
-  });
-
-  final String selectedRegion;
-  final ValueChanged<String> onChanged;
-
-  static const _regions = [
-    'North India',
-    'South India',
-    'East India',
-    'West India',
-    'Central India',
-    'North-East India',
-    'Diaspora (Global)',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: DKColors.elevatedColor(context),
-        borderRadius: BorderRadius.circular(KinrelRadius.input),
-        border: Border.all(color: DKColors.brandPurple.withValues(alpha: 0.1)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: selectedRegion,
-          isExpanded: true,
-          icon: Icon(Icons.arrow_drop_down, color: DKColors.brandPurple),
-          dropdownColor: DKColors.cardColor(context),
-          items: _regions.map((region) {
-            return DropdownMenuItem(
-              value: region,
-              child: Text(
-                region,
-                style: TextStyle(
-                  color: DKColors.textPrimary(context),
-                  fontFamily: KinrelTypography.bodyFont,
-                ),
-              ),
-            );
-          }).toList(),
-          onChanged: (val) {
-            if (val != null) onChanged(val);
-          },
-        ),
       ),
     );
   }

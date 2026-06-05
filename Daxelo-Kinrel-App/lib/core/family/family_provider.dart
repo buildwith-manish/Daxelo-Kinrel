@@ -687,6 +687,7 @@ Future<Family> createFamily({
   String? region,
   String? privacyMode,
   String? username,
+  String? photoUrl,
 }) async {
   final client = ref.read(supabaseProvider);
   if (client == null) {
@@ -724,6 +725,7 @@ Future<Family> createFamily({
               if (originVillage != null) 'originVillage': originVillage,
               if (region != null) 'region': region,
               'privacyMode': privacyMode ?? 'private',
+              if (photoUrl != null) 'photoUrl': photoUrl,
               if (usernameWithSuffix != null) 'username': usernameWithSuffix,
               if (usernameWithSuffix != null) 'familyCode': usernameWithSuffix,
               'isOnboarded': false,

@@ -107,6 +107,7 @@ import '../config/auth_config.dart';
 import '../services/crashlytics_service.dart';
 import '../services/deep_link_service.dart';
 import '../services/analytics_service.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../shared/widgets/dk_components.dart';
 import '../../core/family/family_provider.dart';
 import '../../features/profile/data/profile_provider.dart';
@@ -1125,7 +1126,26 @@ class _MainShellState extends State<MainShell> {
         }
       },
       child: Scaffold(
-        body: widget.child,
+        body: StreamBuilder<ConnectivityResult>(
+          stream: Connectivity().onConnectivityChanged,
+          builder: (context, snap) {
+            final offline = snap.data == ConnectivityResult.none;
+            return Column(
+              children: [
+                if (offline)
+                  Container(
+                    width: double.infinity,
+                    color: Colors.red.shade800,
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: const Text('No internet connection',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white, fontSize: 12)),
+                  ),
+                Expanded(child: widget.child),
+              ],
+            );
+          },
+        ),
         bottomNavigationBar: const _BottomNav(),
       ),
     );

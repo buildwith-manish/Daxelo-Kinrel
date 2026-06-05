@@ -55,6 +55,13 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="https" android:host="kinrel.app"/>
             </intent-filter>
+            <!-- Deep link intent-filter for https://kinrel.co/f/ (family code links) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="kinrel.co" android:pathPrefix="/f/"/>
+            </intent-filter>
             <!-- P3-F2: Deep link intent-filter for kinrel:// custom scheme -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>

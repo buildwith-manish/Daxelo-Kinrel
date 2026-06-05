@@ -86,14 +86,12 @@ dependencies:
 
   # Local Notifications (foreground FCM display)
   flutter_local_notifications: ^19.0.0
-  google_fonts: ^8.1.0
   socket_io_client: ^3.1.4
   app_links: ^7.1.1
 
   # QR Code generation
   qr_flutter: ^4.1.0
   window_manager: ^0.4.3
-  sentry_flutter: ^8.11.0
 
   # Timezone support (required by flutter_local_notifications scheduling)
   timezone: ^0.10.1

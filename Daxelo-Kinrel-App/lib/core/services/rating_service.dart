@@ -9,13 +9,13 @@ import '../database/isar_database.dart';
 ///
 /// ONLY shows the rating prompt when ALL conditions are met:
 /// - User has been using the app for at least 7 days
-/// - User has added at least 3 family members
+/// - User has added at least 2 family members
 /// - User has NOT been prompted before
 /// - Current session is at least 3 minutes old
 /// - App is in foreground
 ///
 /// Trigger points:
-/// - After successfully adding the 3rd family member
+/// - After successfully adding the 2nd family member
 /// - After user views the family graph for 30+ seconds
 /// - After user shares a profile
 class RatingService {
@@ -76,11 +76,11 @@ class RatingService {
       final alreadyPrompted = prefs.getBool('rating_prompted') ?? false;
       if (alreadyPrompted) return;
 
-      // Condition 5: User has added at least 3 family members
+      // Condition 5: User has added at least 2 family members
       if (IsarDatabase.isInitialized) {
         final db = IsarDatabase.instance;
         final memberCount = await db.personCount();
-        if (memberCount < 3) return;
+        if (memberCount < 2) return;
       } else {
         return; // Can't verify member count without database
       }
