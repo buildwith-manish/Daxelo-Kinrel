@@ -6,24 +6,22 @@
 // ability to revoke individual sessions or sign out all
 // other devices. Loads sessions from profileProvider.
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/extensions/context_extensions.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/device_tier.dart';
+import '../../../shared/widgets/dk_components.dart';
 import '../data/profile_provider.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
-const Color _bg = Color(0xFF131416);
-const Color _cardBg = Color(0xFF191B2C);
 const Color _orange = Color(0xFFE8612A);
-const Color _textPrimary = Color(0xFFF5F0EE);
-const Color _textSecondary = Color(0xFFC9B4A8);
-const Color _textDim = Color(0xFF8A7A72);
-const Color _borderSubtle = Color(0x0FFFFFFF);
 
 class SessionsScreen extends ConsumerStatefulWidget {
   const SessionsScreen({super.key});
@@ -34,6 +32,16 @@ class SessionsScreen extends ConsumerStatefulWidget {
 
 class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   bool _isRevokingAll = false;
+
+  // ── Theme-aware color getters (replace hardcoded dark consts) ──────
+  Color get _bg => DKColors.background(context);
+  Color get _cardBg => DKColors.cardColor(context);
+  Color get _textPrimary => DKColors.textPrimary(context);
+  Color get _textSecondary => DKColors.textSecondary(context);
+  Color get _textDim => DKColors.isLight(context)
+      ? const Color(0xFF6B7280)
+      : const Color(0xFF8A7A72);
+  Color get _borderSubtle => DKColors.borderColor(context);
 
   @override
   void initState() {
@@ -113,9 +121,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
         backgroundColor: _cardBg,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: _borderSubtle),
+          side: BorderSide(color: _borderSubtle),
         ),
-        title: const Text(
+        title: Text(
           'Sign Out All Other Devices?',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -124,7 +132,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
             color: _textPrimary,
           ),
         ),
-        content: const Text(
+        content: Text(
           'This will sign out all devices except the current one. You\'ll need to log in again on those devices.',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
@@ -136,7 +144,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: _textDim)),
+            child: Text('Cancel', style: TextStyle(color: _textDim)),
           ),
           TextButton(
             onPressed: () {
@@ -160,6 +168,8 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
   Widget build(BuildContext context) {
     final profileState = ref.watch(profileProvider);
     final sessions = profileState.sessions;
+    final user = ref.watch(currentUserProvider);
+    final profile = profileState.profile;
 
     return Scaffold(
       backgroundColor: _bg,
@@ -167,10 +177,10 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
         backgroundColor: _bg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: _textPrimary),
+          icon: Icon(Icons.arrow_back, color: _textPrimary),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
+        title: Text(
           'Active Sessions',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
@@ -182,6 +192,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
       ),
       body: Column(
         children: [
+          // ── User Info Header ────────────────────────────────────────
+          _buildUserInfoHeader(user, profile),
+
           Expanded(
             child: profileState.isLoading
                 ? _buildShimmerList()
@@ -223,9 +236,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                               ),
                             ),
                           )
-                        : Row(
+                        : const Row(
                             mainAxisAlignment: MainAxisAlignment.center,
-                            children: const [
+                            children: [
                               Icon(
                                 Icons.logout,
                                 color: Colors.redAccent,
@@ -247,6 +260,109 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  // ── User Info Header ─────────────────────────────────────────────
+
+  Widget _buildUserInfoHeader(dynamic user, ProfileModel? profile) {
+    final displayName =
+        profile?.name ??
+        user?.userMetadata?['name'] as String? ??
+        user?.email?.split('@').first ??
+        'Not signed in';
+    final email = profile?.email ?? user?.email ?? '';
+    final avatarUrl = profile?.avatarUrl;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        border: Border(
+          bottom: BorderSide(color: _borderSubtle, width: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Avatar
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: _orange, width: 2),
+            ),
+            child: ClipOval(
+              child: (avatarUrl != null && avatarUrl.isNotEmpty)
+                  ? CachedNetworkImage(
+                      imageUrl: avatarUrl,
+                      fit: BoxFit.cover,
+                      errorWidget: (_, __, ___) => Center(
+                        child: Text(
+                          displayName.isNotEmpty
+                              ? displayName[0].toUpperCase()
+                              : '?',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.displayFont,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: _textPrimary,
+                          ),
+                        ),
+                      ),
+                    )
+                  : Center(
+                      child: Text(
+                        displayName.isNotEmpty
+                            ? displayName[0].toUpperCase()
+                            : '?',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: _textPrimary,
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 14),
+
+          // Name + email
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: _textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (email.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    email,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 13,
+                      color: _textDim,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -290,7 +406,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
             child: const Icon(Icons.devices_outlined, color: _orange, size: 36),
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'No Active Sessions',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
@@ -300,7 +416,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Your active sessions will appear here',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
@@ -373,8 +489,12 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
         }
 
         return Shimmer.fromColors(
-          baseColor: const Color(0xFF202338),
-          highlightColor: const Color(0xFF13141E),
+          baseColor: DKColors.isLight(context)
+              ? const Color(0xFFE0E0E0)
+              : const Color(0xFF202338),
+          highlightColor: DKColors.isLight(context)
+              ? const Color(0xFFF5F5F5)
+              : const Color(0xFF13141E),
           period: const Duration(milliseconds: 1500),
           child: _shimmerChild,
         );
@@ -402,16 +522,24 @@ class _SessionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Resolve theme-aware colors at build time
+    final cardBg = DKColors.cardColor(context);
+    final textPrimary = DKColors.textPrimary(context);
+    final textDim = DKColors.isLight(context)
+        ? const Color(0xFF6B7280)
+        : const Color(0xFF8A7A72);
+    final borderSubtle = DKColors.borderColor(context);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _cardBg,
+        color: cardBg,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: session.isCurrentDevice
               ? _orange.withValues(alpha: 0.3)
-              : _borderSubtle,
+              : borderSubtle,
         ),
       ),
       child: Row(
@@ -438,11 +566,11 @@ class _SessionCard extends StatelessWidget {
                     Flexible(
                       child: Text(
                         session.deviceName ?? 'Unknown Device',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: _textPrimary,
+                          color: textPrimary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -478,28 +606,28 @@ class _SessionCard extends StatelessWidget {
                     if (session.location != null) ...[
                       Icon(
                         Icons.location_on_outlined,
-                        color: _textDim,
+                        color: textDim,
                         size: 12,
                       ),
                       const SizedBox(width: 3),
                       Text(
                         session.location!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 12,
-                          color: _textDim,
+                          color: textDim,
                         ),
                       ),
                       const SizedBox(width: 8),
                     ],
-                    Icon(Icons.schedule, color: _textDim, size: 12),
+                    Icon(Icons.schedule, color: textDim, size: 12),
                     const SizedBox(width: 3),
                     Text(
                       relativeTime,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
-                        color: _textDim,
+                        color: textDim,
                       ),
                     ),
                   ],

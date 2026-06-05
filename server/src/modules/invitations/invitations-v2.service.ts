@@ -411,6 +411,27 @@ export class InvitationsV2Service {
       };
     }
 
+    // ── 2.5. Check user's invitePermission ──────────────────────────
+    const targetUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, invitePermission: true },
+    });
+
+    if (targetUser && invitation?.inviterId) {
+      await this._enforceInvitePermission(invitation.inviterId, userId, targetUser.invitePermission);
+    }
+
+    // For FamilyInvite-based invites, check against the inviter member's user
+    if (targetUser && familyInvite) {
+      const inviterMember = await this.prisma.familyMember.findUnique({
+        where: { id: familyInvite.invitedBy },
+        select: { userId: true },
+      });
+      if (inviterMember) {
+        await this._enforceInvitePermission(inviterMember.userId, userId, targetUser.invitePermission);
+      }
+    }
+
     // ── 3. Get user info for Person creation ────────────────────
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -951,5 +972,65 @@ export class InvitationsV2Service {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + days);
     return expiresAt;
+  }
+
+  /**
+   * Enforce the user's invite permission setting.
+   * - anyone: any authenticated user can invite
+   * - connections: only users who share a family can invite
+   * - nobody: no one can invite this user
+   */
+  private async _enforceInvitePermission(
+    inviterId: string,
+    targetUserId: string,
+    invitePermission: string | null,
+  ): Promise<void> {
+    const permission = invitePermission || 'anyone';
+
+    if (inviterId === targetUserId) return; // Self-invite doesn't apply
+
+    switch (permission) {
+      case 'anyone':
+        return; // No restriction
+
+      case 'connections':
+        const areConnections = await this._areConnections(inviterId, targetUserId);
+        if (!areConnections) {
+          throw new ForbiddenException(
+            'This user only accepts invitations from their connections',
+          );
+        }
+        return;
+
+      case 'nobody':
+        throw new ForbiddenException(
+          'This user does not accept invitations',
+        );
+
+      default:
+        return; // Unknown — allow for backward compatibility
+    }
+  }
+
+  /**
+   * Check if two users share a family (are "connections").
+   */
+  private async _areConnections(userIdA: string, userIdB: string): Promise<boolean> {
+    const familiesA = await this.prisma.familyMember.findMany({
+      where: { userId: userIdA },
+      select: { familyId: true },
+    });
+    const familyIdsA = new Set(familiesA.map((m) => m.familyId));
+
+    if (familyIdsA.size === 0) return false;
+
+    const overlap = await this.prisma.familyMember.findFirst({
+      where: {
+        userId: userIdB,
+        familyId: { in: [...familyIdsA] },
+      },
+    });
+
+    return !!overlap;
   }
 }

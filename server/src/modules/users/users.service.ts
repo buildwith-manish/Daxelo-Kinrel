@@ -91,8 +91,20 @@ export class UsersService {
     const visibility = user.profileVisibility || 'public';
 
     if (visibility === 'private') {
-      // Private profiles are never visible to others
-      throw new NotFoundException('User not found');
+      // Private profiles are only visible to the user themselves
+      // and to their family connections (members of the same family).
+      if (viewerId === user.id) {
+        // Self can always see own profile — allow
+      } else if (!viewerId) {
+        // No viewer context — block
+        throw new NotFoundException('User not found');
+      } else {
+        // Other user — check if they share a family
+        const areConnections = await this._areConnections(viewerId, user.id);
+        if (!areConnections) {
+          throw new NotFoundException('User not found');
+        }
+      }
     }
 
     if (visibility === 'connections_only') {

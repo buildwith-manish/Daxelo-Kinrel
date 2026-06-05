@@ -335,6 +335,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               _SettingsRow(
                 icon: Icons.devices_outlined,
                 label: 'Active sessions',
+                subtitle: () {
+                  final count = ref.watch(profileProvider).sessions.length;
+                  return count > 0 ? '$count active ${count == 1 ? 'session' : 'sessions'}' : null;
+                }(),
                 onTap: () => context.push('/profile/sessions'),
               ),
               _divider(),
@@ -1308,11 +1312,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 trailing: isSelected
                     ? Icon(Icons.check, color: _orange, size: 20)
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.of(ctx).pop();
-                  ref.read(profileProvider.notifier).updateProfile({
+                  final success = await ref.read(profileProvider.notifier).updateProfile({
                     'profileVisibility': opt.$1,
                   });
+                  if (mounted) {
+                    if (success) {
+                      context.showSnackBar('Profile visibility updated to ${opt.$2}');
+                    } else {
+                      context.showSnackBar('Failed to update profile visibility', isError: true);
+                    }
+                  }
                 },
               );
             }),
@@ -1393,11 +1404,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 trailing: isSelected
                     ? Icon(Icons.check, color: _orange, size: 20)
                     : null,
-                onTap: () {
+                onTap: () async {
                   Navigator.of(ctx).pop();
-                  ref.read(profileProvider.notifier).updateProfile({
+                  final success = await ref.read(profileProvider.notifier).updateProfile({
                     'invitePermission': opt.$1,
                   });
+                  if (mounted) {
+                    if (success) {
+                      context.showSnackBar('Invite permission updated to ${opt.$2}');
+                    } else {
+                      context.showSnackBar('Failed to update invite permission', isError: true);
+                    }
+                  }
                 },
               );
             }),

@@ -637,17 +637,25 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
 
     // ── AUTH DISABLED: Load mock profile ──────────────────────────────
     if (kAuthDisabled) {
-      final mockProfile = ProfileModel(
-        id: 'debug_user',
-        email: 'debug@kinrel.app',
-        name: 'Manish',
-        username: 'manish',
-        preferredLanguage: 'en',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-      state = state.copyWith(profile: mockProfile, isLoading: false);
-      return;
+      // If there's a real Supabase session, try the real API first
+      // so the user sees their actual data (profileVisibility, invitePermission, etc.)
+      final client = _ref.read(supabaseProvider);
+      if (client?.auth.currentSession != null) {
+        // Fall through to real API call below
+      } else {
+        // No real session — use mock data
+        final mockProfile = ProfileModel(
+          id: 'debug_user',
+          email: 'debug@kinrel.app',
+          name: 'Manish',
+          username: 'manish',
+          preferredLanguage: 'en',
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        state = state.copyWith(profile: mockProfile, isLoading: false);
+        return;
+      }
     }
 
     // Guard against no valid session — skip API calls
@@ -774,10 +782,18 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   Future<void> loadStats() async {
     // ── AUTH DISABLED: Return mock stats ──────────────────────────────
     if (kAuthDisabled) {
-      state = state.copyWith(
-        stats: UserStatsModel(familyTrees: 0, membersAdded: 0, relations: 0),
-      );
-      return;
+      // If there's a real Supabase session, try the real API first
+      // so the user sees their actual stats from the backend
+      final client = _ref.read(supabaseProvider);
+      if (client?.auth.currentSession != null) {
+        // Fall through to real API call below
+      } else {
+        // No real session — use mock data
+        state = state.copyWith(
+          stats: UserStatsModel(familyTrees: 0, membersAdded: 0, relations: 0),
+        );
+        return;
+      }
     }
 
     // Guard against no valid session — skip API calls
@@ -975,6 +991,47 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   Future<bool> updateProfile(Map<String, dynamic> data) async {
     // Save previous state for rollback
     final previousProfile = state.profile;
+
+    // ── AUTH DISABLED: Skip API call unless real session exists ──
+    if (kAuthDisabled) {
+      final client = _ref.read(supabaseProvider);
+      if (client?.auth.currentSession == null) {
+        // No real session — apply optimistically but don't call API
+        if (state.profile != null) {
+          final optimisticProfile = ProfileModel(
+            id: state.profile!.id,
+            email: state.profile!.email,
+            name: data['name'] as String? ?? state.profile!.name,
+            phone: data['phone'] as String? ?? state.profile!.phone,
+            avatarUrl: data['avatarUrl'] as String? ?? state.profile!.avatarUrl,
+            bio: data['bio'] as String? ?? state.profile!.bio,
+            dateOfBirth: data['dateOfBirth'] != null
+                ? DateTime.tryParse(data['dateOfBirth'].toString())
+                : state.profile!.dateOfBirth,
+            gender: data['gender'] as String? ?? state.profile!.gender,
+            username: data['username'] as String? ?? state.profile!.username,
+            preferredLanguage:
+                data['preferredLanguage'] as String? ??
+                    state.profile!.preferredLanguage,
+            profileVisibility:
+                data['profileVisibility'] as String? ??
+                    state.profile!.profileVisibility,
+            invitePermission:
+                data['invitePermission'] as String? ??
+                    state.profile!.invitePermission,
+            twoFactorEnabled:
+                data['twoFactorEnabled'] as bool? ??
+                    state.profile!.twoFactorEnabled,
+            authProvider: state.profile!.authProvider,
+            createdAt: state.profile!.createdAt,
+            updatedAt: DateTime.now(),
+          );
+          state = state.copyWith(profile: optimisticProfile, clearError: true);
+        }
+        return true;
+      }
+      // Real session exists — fall through to real API call below
+    }
 
     // ── Optimistic update: apply changes to local state immediately ──
     if (state.profile != null) {
@@ -1298,6 +1355,17 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   // ── Sessions ───────────────────────────────────────────────────
 
   Future<void> loadSessions() async {
+    // ── AUTH DISABLED: Return empty sessions unless real session exists ──
+    if (kAuthDisabled) {
+      final client = _ref.read(supabaseProvider);
+      if (client?.auth.currentSession == null) {
+        // No real session — return empty sessions
+        state = state.copyWith(sessions: []);
+        return;
+      }
+      // Fall through to real API call below
+    }
+
     try {
       final response = await _dio.get('/api/auth/sessions');
       final list = (response.data as List)
@@ -1352,6 +1420,16 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   // ── Families ───────────────────────────────────────────────────
 
   Future<void> loadFamilies() async {
+    // ── AUTH DISABLED: Return empty families unless real session exists ──
+    if (kAuthDisabled) {
+      final client = _ref.read(supabaseProvider);
+      if (client?.auth.currentSession == null) {
+        state = state.copyWith(families: []);
+        return;
+      }
+      // Fall through to real API call below
+    }
+
     try {
       final response = await _dio.get('/api/users/me/families');
       final list = (response.data as List)
@@ -1368,6 +1446,16 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   // ── Invitations ────────────────────────────────────────────────
 
   Future<void> loadInvitations() async {
+    // ── AUTH DISABLED: Return empty invitations unless real session exists ──
+    if (kAuthDisabled) {
+      final client = _ref.read(supabaseProvider);
+      if (client?.auth.currentSession == null) {
+        state = state.copyWith(invitations: []);
+        return;
+      }
+      // Fall through to real API call below
+    }
+
     try {
       final response = await _dio.get('/api/users/me/invitations');
       final list = (response.data as List)
@@ -1423,6 +1511,16 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   // ── Blocked Users ──────────────────────────────────────────────
 
   Future<void> loadBlockedUsers() async {
+    // ── AUTH DISABLED: Return empty list unless real session exists ──
+    if (kAuthDisabled) {
+      final client = _ref.read(supabaseProvider);
+      if (client?.auth.currentSession == null) {
+        state = state.copyWith(blockedUsers: []);
+        return;
+      }
+      // Fall through to real API call below
+    }
+
     try {
       final response = await _dio.get('/api/users/me/blocked');
       final list = (response.data as List)
