@@ -6,10 +6,9 @@ import { AiFeaturesService } from './ai-features.service';
 import { KinshipModule } from '../kinship/kinship.module';
 import { GraphModule } from '../graph/graph.module';
 import { PrismaModule } from '../../prisma/prisma.module';
-import { RedisModule } from '@nestjs-modules/ioredis';
 
 @Module({
-  imports: [RedisModule, KinshipModule, GraphModule, PrismaModule],
+  imports: [KinshipModule, GraphModule, PrismaModule],
   controllers: [AiChatController, AiFeaturesController],
   providers: [AiChatService, AiFeaturesService],
   exports: [AiChatService, AiFeaturesService],

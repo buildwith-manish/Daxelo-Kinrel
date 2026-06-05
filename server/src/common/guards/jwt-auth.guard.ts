@@ -2,12 +2,10 @@ import {
   Injectable,
   ExecutionContext,
   UnauthorizedException,
-  Inject,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
-import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 
 /**
@@ -26,11 +24,34 @@ import Redis from 'ioredis';
  */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
+  private redis: Redis | null = null;
+
   constructor(
     private reflector: Reflector,
-    @InjectRedis() private readonly redis: Redis,
   ) {
     super();
+
+    const redisUrl = process.env.REDIS_URL;
+    if (redisUrl && redisUrl !== 'redis://localhost:6379') {
+      this.redis = new Redis(redisUrl, {
+        lazyConnect: true,
+        maxRetriesPerRequest: 1,
+        connectTimeout: 5000,
+      });
+
+      this.redis.on('error', (err) => {
+        if (err.message?.includes('ECONNREFUSED') || err.message?.includes('AggregateError')) {
+          if (this.redis) {
+            this.redis.disconnect();
+            this.redis = null;
+          }
+        }
+      });
+
+      this.redis.connect().catch(() => {
+        this.redis = null;
+      });
+    }
   }
 
   async canActivate(context: ExecutionContext) {
@@ -52,16 +73,18 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     const userId = request.user?.sub || request.user?.id;
     if (userId) {
       try {
-        const pwdChanged = await this.redis.get(`pwd_changed:${userId}`);
-        if (pwdChanged) {
-          const tokenIat = request.user?.iat
-            ? request.user.iat * 1000 // Convert JWT iat (seconds) to milliseconds
-            : 0;
-          const changedAt = parseInt(pwdChanged, 10);
-          if (changedAt > tokenIat) {
-            throw new UnauthorizedException(
-              'Session invalidated — please log in again',
-            );
+        if (this.redis) {
+          const pwdChanged = await this.redis.get(`pwd_changed:${userId}`);
+          if (pwdChanged) {
+            const tokenIat = request.user?.iat
+              ? request.user.iat * 1000 // Convert JWT iat (seconds) to milliseconds
+              : 0;
+            const changedAt = parseInt(pwdChanged, 10);
+            if (changedAt > tokenIat) {
+              throw new UnauthorizedException(
+                'Session invalidated — please log in again',
+              );
+            }
           }
         }
       } catch (error) {

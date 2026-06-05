@@ -9,7 +9,6 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TwoFactorVerificationService } from '../../common/services/two-factor-verification.service';
-import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
@@ -25,13 +24,36 @@ export interface TokenPair {
 
 @Injectable()
 export class AuthService {
+  private redis: Redis | null = null;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly twoFactorVerificationService: TwoFactorVerificationService,
-    @InjectRedis() private readonly redis: Redis,
-  ) {}
+  ) {
+    const redisUrl = this.config.get<string>('REDIS_URL', '');
+    if (redisUrl && redisUrl !== 'redis://localhost:6379') {
+      this.redis = new Redis(redisUrl, {
+        lazyConnect: true,
+        maxRetriesPerRequest: 1,
+        connectTimeout: 5000,
+      });
+
+      this.redis.on('error', (err) => {
+        if (err.message?.includes('ECONNREFUSED') || err.message?.includes('AggregateError')) {
+          if (this.redis) {
+            this.redis.disconnect();
+            this.redis = null;
+          }
+        }
+      });
+
+      this.redis.connect().catch(() => {
+        this.redis = null;
+      });
+    }
+  }
 
   // ── Register ────────────────────────────────────────────────────
 
@@ -266,7 +288,9 @@ export class AuthService {
     // JwtAuthGuard checks this key — if set, the access token is rejected
     // TTL of 15 minutes matches maximum access token lifetime
     try {
-      await this.redis.setex(`pwd_changed:${userId}`, 900, Date.now().toString());
+      if (this.redis) {
+        await this.redis.setex(`pwd_changed:${userId}`, 900, Date.now().toString());
+      }
     } catch {
       // Redis unavailable — refresh tokens are already revoked,
       // so the user will need to re-login when their access token expires

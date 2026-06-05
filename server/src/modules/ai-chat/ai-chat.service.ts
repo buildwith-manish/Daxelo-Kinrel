@@ -9,7 +9,6 @@ import { KinshipService, KinshipTerm } from '../kinship/kinship.service';
 import { GraphService } from '../graph/graph.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
-import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import OpenAI from 'openai';
 import { randomBytes } from 'crypto';
@@ -104,9 +103,10 @@ export class AiChatService {
   private readonly logger = new Logger(AiChatService.name);
   private readonly ai: OpenAI;
   private SESSION_TTL_SECONDS = 3600;
+  private redis: Redis | null = null;
+  private readonly memorySessions = new Map<string, { value: string; expiresAt: number }>();
 
   constructor(
-    @InjectRedis() private readonly redis: Redis,
     private readonly kinshipService: KinshipService,
     private readonly graphService: GraphService,
     private readonly prisma: PrismaService,
@@ -120,6 +120,32 @@ export class AiChatService {
     } catch {
       this.logger.warn('DEEPSEEK_API_KEY not set — AI chat will use fallback responses');
       this.ai = null as any;
+    }
+
+    const redisUrl = this.configService.get<string>('REDIS_URL', '');
+    if (redisUrl && redisUrl !== 'redis://localhost:6379') {
+      this.redis = new Redis(redisUrl, {
+        lazyConnect: true,
+        maxRetriesPerRequest: 1,
+        connectTimeout: 5000,
+      });
+
+      this.redis.on('error', (err) => {
+        if (err.message?.includes('ECONNREFUSED') || err.message?.includes('AggregateError')) {
+          this.logger.verbose(`Redis unavailable: ${err.message}. Using in-memory sessions.`);
+          if (this.redis) {
+            this.redis.disconnect();
+            this.redis = null;
+          }
+        }
+      });
+
+      this.redis.connect().catch(() => {
+        this.logger.verbose('Redis connection failed — using in-memory chat sessions');
+        this.redis = null;
+      });
+    } else {
+      this.logger.verbose('REDIS_URL not configured — using in-memory chat sessions');
     }
   }
 
@@ -312,20 +338,55 @@ export class AiChatService {
   // ── Redis Session Helpers ──────────────────────────────────────────
 
   private async getSession(id: string): Promise<ChatSession | null> {
-    const raw = await this.redis.get(`chat:session:${id}`);
-    return raw ? JSON.parse(raw) : null;
+    const key = `chat:session:${id}`;
+    if (this.redis) {
+      try {
+        const raw = await this.redis.get(key);
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        this.logger.warn(`Redis read failed for session ${id}, using memory store`);
+      }
+    }
+    // Fallback to memory store
+    const entry = this.memorySessions.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      this.memorySessions.delete(key);
+      return null;
+    }
+    return JSON.parse(entry.value);
   }
 
   private async saveSession(session: ChatSession): Promise<void> {
-    await this.redis.setex(
-      `chat:session:${session.id}`,
-      this.SESSION_TTL_SECONDS,
-      JSON.stringify(session),
-    );
+    const key = `chat:session:${session.id}`;
+    const value = JSON.stringify(session);
+    if (this.redis) {
+      try {
+        await this.redis.setex(key, this.SESSION_TTL_SECONDS, value);
+        return;
+      } catch {
+        this.logger.warn(`Redis write failed for session ${session.id}, using memory store`);
+      }
+    }
+    // Fallback to memory store
+    this.memorySessions.set(key, {
+      value,
+      expiresAt: Date.now() + this.SESSION_TTL_SECONDS * 1000,
+    });
   }
 
   private async deleteSessionFromRedis(id: string): Promise<void> {
-    await this.redis.del(`chat:session:${id}`);
+    const key = `chat:session:${id}`;
+    if (this.redis) {
+      try {
+        await this.redis.del(key);
+        return;
+      } catch {
+        this.logger.warn(`Redis delete failed for session ${id}`);
+      }
+    }
+    // Fallback to memory store
+    this.memorySessions.delete(key);
   }
 
   // ── New Public API Methods ─────────────────────────────────────────

@@ -37,6 +37,7 @@
     "@nestjs/websockets": "^11.0.0",
     "@prisma/client": "^6.0.0",
     "@supabase/supabase-js": "^2.106.2",
+    "@types/ws": "^8.18.1",
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
@@ -59,7 +60,8 @@
     "stripe": "^17.0.0",
     "uuid": "^10.0.0",
     "winston": "^3.19.0",
-    "winston-daily-rotate-file": "^5.0.0"
+    "winston-daily-rotate-file": "^5.0.0",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",

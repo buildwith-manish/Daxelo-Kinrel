@@ -7,7 +7,6 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
 import { PrismaModule } from '../../prisma/prisma.module';
-import { RedisModule } from '@nestjs-modules/ioredis';
 
 @Module({
   imports: [
@@ -24,7 +23,6 @@ import { RedisModule } from '@nestjs-modules/ioredis';
     }),
     ConfigModule,
     PrismaModule,
-    RedisModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, JwtAuthGuard],
