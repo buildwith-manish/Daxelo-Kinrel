@@ -1146,3 +1146,65 @@ Stage Summary:
 - Code changes are correct and deployed
 - Render deployment fails at database connection because DATABASE_URL env var is missing
 - User must configure Render environment variables: DATABASE_URL, DIRECT_URL, JWT_ACCESS_SECRET, SUPABASE_URL, etc.
+
+---
+Task ID: 14
+Agent: Main Agent
+Task: Fix family trees, members added, relations not syncing - comprehensive sync fix
+
+Work Log:
+- Analyzed user screenshot showing profile screen with Family Trees: 0, Members Added: 0, Relations: 0
+- Deep exploration of codebase revealed 6 root causes for the sync issue:
+  1. Profile stats never refreshed after family/member/relation mutations
+  2. createRelationship() only created forward direction (no inverse/bidirectional)
+  3. _loadStatsFromSupabase() missing deletedAt/isActive filters
+  4. Family.memberCount not updated on person create/delete in Flutter
+  5. familyRelationshipsProvider not filtering by isActive=true
+  6. loadStats() returned 0s immediately when kAuthDisabled without trying Supabase
+
+Fix 1: Added loadStats() refresh after all mutations in family_provider.dart
+  - After createFamily(): ref.read(profileProvider.notifier).loadStats()
+  - After createPerson(): ref.read(profileProvider.notifier).loadStats()
+  - After updatePerson(): ref.read(profileProvider.notifier).loadStats()
+  - After deleteFamily(): ref.read(profileProvider.notifier).loadStats()
+  - After deletePerson(): ref.read(profileProvider.notifier).loadStats()
+  - After createRelationship(): ref.read(profileProvider.notifier).loadStats()
+
+Fix 2: createRelationship() now creates BIDIRECTIONAL relationships
+  - Looks up inverse key from _relationshipInverseMap
+  - Creates forward: fromPersonId → toPersonId with relationshipKey
+  - Creates inverse: toPersonId → fromPersonId with inverseKey
+  - Updates Family.lastActivityAt timestamp
+  - Matches NestJS RelationshipsService.create() behavior
+
+Fix 3: _loadStatsFromSupabase() now has proper filters
+  - Person: filters by deletedAt IS NULL
+  - Relationship: filters by isActive = true
+  - Family count: uses createdBy fallback + distinct family IDs (not FamilyMember row count)
+  - Uses MockUser.id when kAuthDisabled and no session exists
+
+Fix 4: Family.memberCount updated in Supabase on person create/delete
+  - createPerson(): increments memberCount by 1
+  - deletePerson(): decrements memberCount by 1
+  - Matches NestJS backend behavior
+
+Fix 5: familyRelationshipsProvider now filters by isActive = true
+  - Matches NestJS RelationshipsService.findAll() behavior
+
+Fix 6: loadStats() now tries Supabase fallback even when kAuthDisabled
+  - Previously returned all zeros immediately
+  - Now attempts _loadStatsFromSupabase() before falling back to 0s
+
+- Pushed commit e31e6f5 to GitHub
+- Backend health check: 200 OK
+
+Stage Summary:
+- Modified: Daxelo-Kinrel-App/lib/core/family/family_provider.dart (6 fixes)
+- Modified: Daxelo-Kinrel-App/lib/features/profile/data/profile_provider.dart (3 fixes)
+- All sync issues should now be resolved:
+  - Family Trees count updates after creating/deleting families
+  - Members Added count updates after creating/deleting persons
+  - Relations count updates after creating relationships
+  - Relationships are now bidirectional (both directions created)
+  - Stats properly filter out soft-deleted persons and inactive relationships
+  - memberCount in Family table stays accurate
