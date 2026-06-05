@@ -1126,10 +1126,10 @@ class _MainShellState extends State<MainShell> {
         }
       },
       child: Scaffold(
-        body: StreamBuilder<ConnectivityResult>(
+        body: StreamBuilder<List<ConnectivityResult>>(
           stream: Connectivity().onConnectivityChanged,
           builder: (context, snap) {
-            final offline = snap.data == ConnectivityResult.none;
+            final offline = snap.data?.contains(ConnectivityResult.none) ?? false;
             return Column(
               children: [
                 if (offline)

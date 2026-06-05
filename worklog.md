@@ -481,3 +481,27 @@ Stage Summary:
 - Modified: server/src/main.ts (helmet CSP + CORS domains), server/src/modules/auth/auth.service.ts (Redis import + pwd_changed key), server/src/modules/auth/auth.module.ts (RedisModule import + JwtAuthGuard provider), server/src/common/guards/jwt-auth.guard.ts (async canActivate + Redis pwd_changed check), .gitignore
 - Commit: 96a555b pushed to main
 - No build triggered (following "no build until Part 6" rule)
+
+---
+Task ID: 6
+Agent: Main
+Task: Apply Part 6 — Performance (P-01 to P-02) of DAXELO_KINREL_10_10_AUDIT.md — FINAL PART
+
+Work Log:
+- P-01: Added pagination to families service findAll() — returns { items, total, page, limit } with PaginationDto on GET /families
+- P-01: Added pagination to relationships service findAll() — returns { items, total, page, limit } with PaginationDto on GET /families/:familyId/relationships
+- P-01: Added pagination to invitations service findByFamily() — returns { items, total, page, limit } on GET /invitations
+- P-01: Added pagination to notifications v1 service listForUser() — returns { items, total, page, limit } with page query param on GET /notifications
+- P-02: Added @@index([familyId, isAnchor]) on Person model in schema.prisma — for anchor person lookup
+- P-02: Added @@index([userId, revokedAt]) on RefreshToken model — for token validation queries
+- P-02: Added @@index([expiresAt]) on RefreshToken model — for cleanup cron query
+- P-02: Verified all other required indexes already exist: Person [familyId, deletedAt], Relationship [familyId, isActive], [fromPersonId], [toPersonId]
+- Ran verification checks: all files modified, PaginationDto imported in controllers, paginated responses in all 4 services, new indexes in schema, no TS errors in modified files
+- Committed and pushed: perf(part6)
+
+Stage Summary:
+- 8 files changed, 143 insertions, 78 deletions
+- Modified: families controller+service, relationships controller+service, invitations service, notifications controller+service, prisma schema
+- Commit: 8fc3bbd pushed to main
+- ALL 6 PARTS OF THE AUDIT ARE NOW COMPLETE
+- Build triggered by push — monitoring
