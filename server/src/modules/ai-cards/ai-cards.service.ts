@@ -137,7 +137,7 @@ export class AiCardsService {
         baseURL: 'https://api.deepseek.com',
       });
     } catch {
-      this.logger.warn('DEEPSEEK_API_KEY not set — AI card generation will be unavailable');
+      this.logger.verbose('DEEPSEEK_API_KEY not set — AI card generation will be unavailable');
       this.ai = null as any;
     }
   }

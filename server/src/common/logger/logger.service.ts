@@ -165,10 +165,19 @@ export class LoggerService {
         meta,
       );
     } else if (duration > 500) {
-      this.winston.warn(
-        `SLOW ${req.method} ${req.url} ${res.statusCode} — ${duration}ms`,
-        meta,
-      );
+      // Don't warn about slow /api/health requests — they're slow because
+      // DB is unreachable, not because of a performance regression
+      if (req.url === '/api/health') {
+        this.winston.verbose(
+          `${req.method} ${req.url} ${res.statusCode} — ${duration}ms`,
+          meta,
+        );
+      } else {
+        this.winston.warn(
+          `SLOW ${req.method} ${req.url} ${res.statusCode} — ${duration}ms`,
+          meta,
+        );
+      }
     } else {
       this.winston.info(
         `${req.method} ${req.url} ${res.statusCode} — ${duration}ms`,

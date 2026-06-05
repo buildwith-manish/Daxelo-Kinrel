@@ -84,12 +84,11 @@ export class AiFeaturesService {
     if (!apiKey) {
       const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
       if (nodeEnv === 'production') {
-        this.logger.error(
-          '❌ DEEPSEEK_API_KEY / GEMINI_API_KEY is not set! AI features will NOT work in production. ' +
-          'Set the environment variable to enable AI features.',
+        this.logger.verbose(
+          'DEEPSEEK_API_KEY / GEMINI_API_KEY not set — AI features will use fallback responses',
         );
       } else {
-        this.logger.warn(
+        this.logger.verbose(
           'DEEPSEEK_API_KEY / GEMINI_API_KEY not set — AI features will use fallback responses',
         );
       }
@@ -103,7 +102,7 @@ export class AiFeaturesService {
       });
       this.logger.log(`✅ AI initialized with model: ${MODEL_NAME}`);
     } catch (error) {
-      this.logger.error(
+      this.logger.warn(
         `Failed to initialize AI: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }

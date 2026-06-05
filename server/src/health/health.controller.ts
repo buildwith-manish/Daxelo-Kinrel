@@ -11,7 +11,7 @@ import { Public } from '../common/decorators/public.decorator';
  * as a lightweight ping instead of failing a real API call.
  *
  * Requirements:
- *  - DB check via Prisma.$queryRaw`SELECT 1`
+ *  - DB check via Prisma.$queryRaw`SELECT 1` (only if connected)
  *  - process.uptime() for uptime seconds
  *  - process.memoryUsage().heapUsed for MB used
  *  - Must respond in < 50ms always
@@ -26,10 +26,24 @@ export class HealthController {
   async check() {
     let db: 'ok' | 'error' = 'ok';
 
-    try {
-      await this.prisma.$queryRaw`SELECT 1`;
-    } catch {
+    // Skip DB query if we already know connection failed at startup.
+    // This prevents Prisma from logging "Can't reach database server" errors
+    // every 5 seconds when DATABASE_URL isn't configured.
+    if (this.prisma.connectionFailed) {
       db = 'error';
+    } else if (this.prisma.connected) {
+      try {
+        await this.prisma.$queryRaw`SELECT 1`;
+      } catch {
+        db = 'error';
+      }
+    } else {
+      // Not yet connected and not known-failed — try once
+      try {
+        await this.prisma.$queryRaw`SELECT 1`;
+      } catch {
+        db = 'error';
+      }
     }
 
     const uptime = Math.floor(process.uptime());

@@ -43,7 +43,7 @@ export class AiVoiceService {
         baseURL: 'https://api.deepseek.com',
       });
     } catch {
-      this.logger.warn('DEEPSEEK_API_KEY not set — AI voice features will be unavailable');
+      this.logger.verbose('DEEPSEEK_API_KEY not set — AI voice features will be unavailable');
       this.ai = null as any;
     }
   }

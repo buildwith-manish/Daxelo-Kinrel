@@ -118,7 +118,7 @@ export class AiChatService {
         baseURL: 'https://api.deepseek.com',
       });
     } catch {
-      this.logger.warn('DEEPSEEK_API_KEY not set — AI chat will use fallback responses');
+      this.logger.verbose('DEEPSEEK_API_KEY not set — AI chat will use fallback responses');
       this.ai = null as any;
     }
 
