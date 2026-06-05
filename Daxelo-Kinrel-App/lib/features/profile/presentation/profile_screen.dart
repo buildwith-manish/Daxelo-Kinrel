@@ -580,7 +580,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                                       displayName.isNotEmpty
                                           ? displayName[0].toUpperCase()
                                           : '?',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontFamily:
                                             KinrelTypography.displayFont,
                                         fontSize: 36,
@@ -594,7 +594,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                                       displayName.isNotEmpty
                                           ? displayName[0].toUpperCase()
                                           : '?',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontFamily:
                                             KinrelTypography.displayFont,
                                         fontSize: 36,
@@ -609,7 +609,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                                     displayName.isNotEmpty
                                         ? displayName[0].toUpperCase()
                                         : '?',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontFamily: KinrelTypography.displayFont,
                                       fontSize: 36,
                                       fontWeight: FontWeight.w700,
@@ -658,7 +658,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         // Name — Display Small
         Text(
           displayName,
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 24,
             fontWeight: FontWeight.w700,
@@ -710,7 +710,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         if (email.isNotEmpty)
           Text(
             email,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
               color: _textSecondary,
@@ -966,7 +966,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             const SizedBox(height: 16),
             Text(
               'Change Profile Photo',
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -1097,7 +1097,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             const SizedBox(height: 16),
             Text(
               'Select Language',
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -1283,7 +1283,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             const SizedBox(height: 16),
             Text(
               'Profile Visibility',
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -1360,7 +1360,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             const SizedBox(height: 16),
             Text(
               'Who Can Invite Me',
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -1436,7 +1436,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               const SizedBox(height: 16),
               Text(
                 'Download Your Data',
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -1545,7 +1545,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   const SizedBox(height: 16),
                   Text(
                     'Export Family Tree',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: KinrelTypography.displayFont,
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
