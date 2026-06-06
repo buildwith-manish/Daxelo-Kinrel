@@ -15,7 +15,7 @@
 // Flutter/Dart CLI is unavailable in this sandbox — verify locally.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 
 import 'package:kinrel/core/database/app_database.dart';

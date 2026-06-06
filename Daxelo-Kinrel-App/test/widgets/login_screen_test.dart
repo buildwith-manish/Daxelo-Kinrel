@@ -16,12 +16,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:kinrel/features/auth/presentation/sign_in_screen.dart';
 import 'package:kinrel/core/services/supabase_service.dart';
-import 'package:kinrel/core/routing/app_router.dart';
-import 'package:kinrel/core/networking/dio_client.dart';
 
 void main() {
   // ── Test helpers ────────────────────────────────────────────────────
@@ -68,7 +65,7 @@ void main() {
   group('SignInScreen Rendering', () {
     testWidgets('should render email and password fields', (tester) async {
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
       ));
 
       // Verify email field exists with hint text
@@ -80,7 +77,7 @@ void main() {
 
     testWidgets('should render Sign In button', (tester) async {
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
       ));
 
       expect(find.text('Sign In'), findsOneWidget);
@@ -88,7 +85,7 @@ void main() {
 
     testWidgets('should render Google sign-in button', (tester) async {
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
       ));
 
       expect(find.text('Google'), findsOneWidget);
@@ -96,7 +93,7 @@ void main() {
 
     testWidgets('should render Forgot Password link', (tester) async {
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
       ));
 
       expect(find.text('Forgot Password?'), findsOneWidget);
@@ -104,7 +101,7 @@ void main() {
 
     testWidgets('should render Sign Up link', (tester) async {
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
       ));
 
       expect(find.text("Don't have an account? "), findsOneWidget);
@@ -113,7 +110,7 @@ void main() {
 
     testWidgets('should render KINREL wordmark', (tester) async {
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
       ));
 
       expect(find.text('KINREL'), findsOneWidget);
@@ -121,7 +118,7 @@ void main() {
 
     testWidgets('should render welcome subtitle', (tester) async {
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
       ));
 
       expect(find.text('Welcome back'), findsOneWidget);
@@ -129,7 +126,7 @@ void main() {
 
     testWidgets('should have password visibility toggle', (tester) async {
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
       ));
 
       // Password field should start obscured with visibility_off icon
@@ -144,7 +141,7 @@ void main() {
   group('SignInScreen Validation', () {
     testWidgets('should show validation errors on empty submit', (tester) async {
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
       ));
 
       // Tap Sign In button without entering any data
@@ -160,7 +157,7 @@ void main() {
 
     testWidgets('should show email validation error for invalid email', (tester) async {
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
       ));
 
       // Enter invalid email
@@ -179,7 +176,7 @@ void main() {
 
     testWidgets('should not show email error for valid email', (tester) async {
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
       ));
 
       // Enter valid email and password
@@ -203,7 +200,7 @@ void main() {
 
     testWidgets('should toggle password visibility', (tester) async {
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
       ));
 
       // Initially password is obscured
@@ -231,7 +228,7 @@ void main() {
       });
 
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
         overrides: [authServiceProviderOverride],
       ));
 
@@ -260,7 +257,7 @@ void main() {
       });
 
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
         overrides: [authServiceProviderOverride],
       ));
 
@@ -298,7 +295,7 @@ void main() {
       });
 
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
         overrides: [authServiceProviderOverride],
       ));
 
@@ -332,7 +329,7 @@ void main() {
       });
 
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
         overrides: [authServiceProviderOverride],
       ));
 
@@ -362,7 +359,7 @@ void main() {
   group('SignInScreen Navigation', () {
     testWidgets('should navigate to sign-up when Sign Up link is tapped', (tester) async {
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
       ));
 
       // Find and tap the Sign Up text button
@@ -385,18 +382,18 @@ void main() {
   group('SignInScreen Accessibility', () {
     testWidgets('should have Semantics for Google Sign-In button', (tester) async {
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
       ));
 
       // The Google button is wrapped in Semantics(button: true, label: 'Sign in with Google')
       final semantics = tester.getSemantics(find.bySemanticsLabel('Sign in with Google'));
       expect(semantics.label, equals('Sign in with Google'));
-      expect(semantics.isButton, isTrue);
+      expect(semantics.hasFlag(SemanticsFlag.isButton), isTrue);
     });
 
     testWidgets('should have accessible text fields with hint text', (tester) async {
       await tester.pumpWidget(createTestWidget(
-        child: const SignInScreen(),
+        child: SignInScreen(),
       ));
 
       // TextFormField hint text serves as accessibility label

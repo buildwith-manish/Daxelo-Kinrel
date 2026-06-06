@@ -76,11 +76,7 @@ void main() {
 
       // Banner should be visible (height > 0)
       // The OfflineBanner uses AnimatedContainer with height 28 when shown
-      final animatedContainer = tester.widget<AnimatedContainer>(
-        find.byType(AnimatedContainer),
-      );
-      // After animation settles, height should be 28.0
-      // Check that the "No internet connection" text is visible
+      // After animation settles, the "No internet connection" text should be visible
       expect(find.text('No internet connection'), findsOneWidget);
     });
 
@@ -316,7 +312,7 @@ void main() {
       // which wraps the content in Semantics(liveRegion: true)
       final semantics = tester.getSemantics(find.byType(OfflineBanner));
       // Live region semantics should be present for screen readers
-      expect(semantics.isLiveRegion, isTrue);
+      expect(semantics.hasFlag(SemanticsFlag.isLiveRegion), isTrue);
     });
   });
 }
