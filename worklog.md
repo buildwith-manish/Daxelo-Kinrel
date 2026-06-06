@@ -454,3 +454,23 @@ Stage Summary:
 - Deleted: deploy/Dockerfile, deploy/Dockerfile.koyeb, deploy/Dockerfile.production, render-build.sh
 - Commit: e28f485 pushed to main
 - No build triggered (following "no build until Part 6" rule)
+---
+Task ID: 1
+Agent: main
+Task: Fix family graph issues - delete button, YOU node positioning, zoom buttons
+
+Work Log:
+- Analyzed 2 user screenshots using VLM to identify 3 bugs
+- Explored entire Flutter family graph codebase (family_tree_canvas.dart, family_tree_widget.dart, family_list_screen.dart, family_detail_screen.dart)
+- Fixed Bug 1: "YOU" node far from Manish - root cause was anchorPersonId not being passed to FamilyTreeCanvas in _GraphTab. Added anchorPersonId parameter and reduced radial layout first ring radius from 180px to 120px
+- Fixed Bug 2: Zoom +/- buttons moving instead of zooming - replaced Matrix4.scaleByDouble() (which scales from origin 0,0) with viewport-center-aware zooming that computes graph-space center and adjusts translation. Added zoom +/- buttons to _GraphPill. Also fixed FamilyTreeWidget zoom methods.
+- Fixed Bug 3: No delete button - Added "Archive Family" button (gold color, 30-day retention info) to both family_list_screen and family_detail_screen bottom sheets. Added "Delete Family" button visible to creators. Added _confirmArchiveFamily and _performArchiveFamily methods.
+- Resolved merge conflict in family_detail_screen.dart (HEAD had _showHierarchy toggle, our branch added anchorPersonId - merged both)
+- Pushed to GitHub, all 5 CI workflows passed: Backend CI ✅, Flutter Web & Lighthouse CI ✅, Build Flutter APK ✅, Build Flutter APK (path-filtered) ✅, Build Signed Release APK ✅
+- Render deployment is LIVE with latest commit
+
+Stage Summary:
+- 4 files changed, 393 insertions, 13 deletions
+- All 5 GitHub Actions workflows: SUCCESS
+- Render deployment: LIVE and healthy
+- Key fixes: anchorPersonId → proper node centering, viewport-center zoom, archive/delete buttons
