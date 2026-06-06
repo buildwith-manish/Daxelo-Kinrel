@@ -83,3 +83,28 @@ Stage Summary:
 - 12 files created/modified: 4 new DTO files, 2 notification controllers, 4 existing DTOs, schema.prisma, configuration.ts, health.controller.ts, health.module.ts, pagination.dto.ts
 - TypeScript compilation: 0 errors (npx tsc --noEmit passes cleanly)
 - Prisma schema formatted successfully
+
+---
+Task ID: Phase 1
+Agent: Main Agent
+Task: Phase 1 — Foundation: Security & Robustness (12 fixes)
+
+Work Log:
+- 1.1: Changed kAuthDisabled from hardcoded `true` to `bool.fromEnvironment('AUTH_DISABLED', defaultValue: false)` — auth now ENABLED by default
+- 1.2: Added `_param()` helper in app_router.dart, replaced 13 force-unwraps with safe null checks
+- 1.3: Replaced hardcoded 'Debug@123456' with `String.fromEnvironment('DEBUG_PASSWORD')`, skipped email auth when empty
+- 1.4: Added Razorpay HMAC-SHA256 signature verification to payments.service.ts; production rejects unsigned requests
+- 1.5: Removed @Public() from feature-flags POST endpoint, added JwtAuthGuard + admin role check
+- 1.6: Replaced `cors: { origin: '*' }` on both WebSocket gateways with CORS whitelist callback + family membership verification on room join
+- 1.7: Added @Throttle decorators: AI endpoints 10/min, invitations 5/min, payment verify 3/min
+- 1.8: Created 4 new notification DTOs with full validation; enhanced 4 existing DTOs with @MaxLength, @IsUUID, @IsUrl
+- 1.9: Added 7 @@index declarations to Prisma schema (Invitation, FamilyInvite, UsernameChangeLog, User, Family, FamilyMember, Story)
+- 1.10: Added 5 missing required env vars (CLOUDINARY_*, DEEPSEEK_API_KEY, SUPABASE_JWT_SECRET); STRICT_CONFIG defaults true in production
+- 1.11: Added Redis health check via ioredis PING to /api/health endpoint
+- 1.12: Added SAFE_SORT_FIELDS whitelist to paginationToPrisma(); unknown sort fields fall back to createdAt
+
+Stage Summary:
+- 33 files changed, 706 insertions, 120 deletions
+- TypeScript compilation: 0 errors
+- Backend tests: 107/107 passing
+- All Phase 1 items complete and pushed to GitHub
