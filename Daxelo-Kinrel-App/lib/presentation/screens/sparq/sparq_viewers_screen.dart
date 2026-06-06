@@ -12,7 +12,6 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../data/repositories/follow_repository.dart';
 import '../../../data/repositories/sparq_repository.dart';
-import '../../providers/sparq_provider.dart';
 
 class SparqViewersScreen extends ConsumerStatefulWidget {
   const SparqViewersScreen({

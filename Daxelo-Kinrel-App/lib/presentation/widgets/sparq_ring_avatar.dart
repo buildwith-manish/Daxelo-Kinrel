@@ -13,7 +13,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/brand_colors.dart';
-import '../../data/repositories/follow_repository.dart';
 import '../providers/sparq_provider.dart';
 
 class SparqRingAvatar extends ConsumerWidget {

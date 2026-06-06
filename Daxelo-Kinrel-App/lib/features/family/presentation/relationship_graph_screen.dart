@@ -387,20 +387,6 @@ _LayoutResult _computeLayout({
       }
     }
 
-    // Compute total width
-    double totalWidth = 0;
-    for (int i = 0; i < units.length; i++) {
-      final unit = units[i];
-      if (unit.length == 2) {
-        totalWidth += nodeRadius * 2 * 2 + spouseGap;
-      } else {
-        totalWidth += nodeRadius * 2;
-      }
-      if (i < units.length - 1) {
-        totalWidth += horizontalGap;
-      }
-    }
-
     // Position each unit
     double x = leftPadding;
     for (int i = 0; i < units.length; i++) {

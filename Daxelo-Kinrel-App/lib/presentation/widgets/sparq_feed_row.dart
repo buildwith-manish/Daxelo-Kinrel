@@ -14,8 +14,6 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
-import '../../core/services/supabase_service.dart';
-import '../../core/config/auth_config.dart';
 import '../../features/profile/data/profile_provider.dart';
 import '../providers/sparq_provider.dart';
 import 'sparq_ring_avatar.dart';

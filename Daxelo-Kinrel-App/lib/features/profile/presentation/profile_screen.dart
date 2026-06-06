@@ -23,7 +23,6 @@ import 'package:package_info_plus/package_info_plus.dart';
 // Hive removed — using shared_preferences for local settings
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -725,7 +724,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         Builder(builder: (context) {
           final stats = ref.watch(profileStatsProvider);
           final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
-          final isOwnProfile = profile == null || currentUserId == null || profile.id == currentUserId;
 
           return Row(
             mainAxisAlignment: MainAxisAlignment.center,

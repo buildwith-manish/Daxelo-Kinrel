@@ -52,7 +52,6 @@ class PrivacyNotifier extends StateNotifier<PrivacyState> {
   PrivacyNotifier(this._ref) : super(const PrivacyState());
 
   final Ref _ref;
-  dynamic get _dio => _ref.read(dioProvider);
 
   /// Load privacy settings from the API.
   Future<void> loadPrivacy() async {

@@ -30,10 +30,8 @@ import '../../../core/widgets/global_error_widget.dart';
 const _cOrange = KinrelColors.orange;
 const _cBg = KinrelColors.darkBackground;
 const _cCard = KinrelColors.darkCard;
-const _cElevatedUnused = KinrelColors.darkElevated;
 const _cTextPrimary = KinrelColors.textWhite;
 const _cTextSecondary = KinrelColors.textSilver;
-const _cTextDimUnused = KinrelColors.textDim;
 
 /// Full-screen stories viewer.
 ///
@@ -64,7 +62,6 @@ class _StoriesViewerScreenState extends ConsumerState<StoriesViewerScreen>
   late AnimationController _progressController;
   Timer? _autoAdvanceTimer;
   bool _isPaused = false;
-  bool _isReplyingUnused = false;
   final _replyController = TextEditingController();
 
   static const _storyDuration = Duration(seconds: 5);

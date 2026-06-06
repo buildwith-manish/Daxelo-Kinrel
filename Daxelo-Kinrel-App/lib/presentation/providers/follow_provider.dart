@@ -205,6 +205,14 @@ class FollowNotifier extends StateNotifier<FollowState> {
     }
   }
 
+  /// Update the status cache externally (e.g., from socket events).
+  /// Merges the given entries into the existing cache.
+  void updateStatusCache(Map<String, String> updates) {
+    final merged = Map<String, String>.from(super.state.statusCache);
+    merged.addAll(updates);
+    state = super.state.copyWith(statusCache: merged);
+  }
+
   /// Get the follow status for a specific user.
   /// Checks cache first, fetches from API if missing.
   Future<String> getStatus(String userId) async {

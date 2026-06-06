@@ -13,7 +13,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
-import '../config/app_config.dart';
 import '../config/app_environment.dart';
 import '../utils/device_tier.dart';
 import 'error_handler.dart';

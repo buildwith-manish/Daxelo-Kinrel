@@ -27,8 +27,6 @@ import '../services/remote_config_service.dart';
 import '../services/supabase_service.dart';
 import '../routing/app_router.dart';
 import '../storage/local_cache.dart';
-import '../storage/secure_storage.dart';
-import '../theme/theme_provider.dart';
 import '../utils/a11y_checker.dart';
 import '../utils/memory_monitor.dart';
 import '../../features/profile/data/profile_provider.dart';

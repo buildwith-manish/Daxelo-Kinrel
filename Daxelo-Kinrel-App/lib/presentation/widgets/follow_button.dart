@@ -14,7 +14,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
-import '../../data/repositories/follow_repository.dart';
 import '../providers/follow_provider.dart';
 
 class FollowButton extends ConsumerStatefulWidget {

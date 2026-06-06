@@ -5,9 +5,6 @@
 // Contains the KinrelApp ConsumerStatefulWidget and its state.
 // Moved from main.dart as part of CQ-01 (split main.dart).
 
-import 'dart:async' show unawaited;
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
@@ -15,7 +12,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/app_config.dart';
-import 'core/config/auth_config.dart';
 import 'core/routing/app_router.dart';
 import 'core/services/crashlytics_service.dart';
 import 'core/services/rating_service.dart';

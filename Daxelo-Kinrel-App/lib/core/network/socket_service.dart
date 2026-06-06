@@ -351,13 +351,9 @@ class SocketService {
         final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
         final userId = json['userId'] as String? ?? '';
         // Update follow status cache for that userId → 'following'
-        final updatedCache = Map<String, String>.from(
-          _ref.read(followProvider).statusCache,
-        );
-        updatedCache[userId] = 'following';
-        _ref.read(followProvider.notifier).state = _ref.read(followProvider).copyWith(
-          statusCache: updatedCache,
-        );
+        _ref.read(followProvider.notifier).updateStatusCache({
+          userId: 'following',
+        });
         // Reload following list
         _ref.read(followProvider.notifier).loadFollowing();
         // Show in-app notification

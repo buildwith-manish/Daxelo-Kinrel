@@ -3,13 +3,6 @@
 # ─────────────────────────────────────────────────────────────────
 # Runs a simple HTTP health check against the production server
 # to confirm the deployment is responding correctly.
-#
-# Triggers:
-#   - After a successful push to main (server/ changes only)
-#   - Manual dispatch for on-demand verification
-#
-# The /api/health endpoint is public (no auth required) and
-# returns { status: 'ok', db, redis, uptime, memory, ts }.
 # ─────────────────────────────────────────────────────────────────
 
 name: Post-Deploy Health Check
@@ -21,34 +14,20 @@ on:
       - 'server/**'
       - '.github/workflows/deploy-health.yml'
   workflow_dispatch:
-    inputs:
-      health_url:
-        description: 'Health check URL (override default)'
-        required: false
-        default: ${{ vars.HEALTH_CHECK_URL || 'https://daxelo-kinrel-server.onrender.com/api/health' }}
-      max_retries:
-        description: 'Max retries (1-10)'
-        required: false
-        default: '10'
-      retry_delay:
-        description: 'Seconds between retries'
-        required: false
-        default: '60'
 
 concurrency:
   group: deploy-health-${{ github.ref }}
   cancel-in-progress: true
-
-env:
-  HEALTH_URL: ${{ github.event.inputs.health_url || vars.HEALTH_CHECK_URL || 'https://daxelo-kinrel-server.onrender.com/api/health' }}
-  MAX_RETRIES: ${{ github.event.inputs.max_retries || '5' }}
-  RETRY_DELAY: ${{ github.event.inputs.retry_delay || '30' }}
 
 jobs:
   health-check:
     name: Post-deploy health check
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      HEALTH_URL: 'https://daxelo-kinrel-server.onrender.com/api/health'
+      MAX_RETRIES: '5'
+      RETRY_DELAY: '30'
 
     steps:
       - name: Post-deploy health check
@@ -65,7 +44,6 @@ jobs:
             STATUS=$(curl -s -o /tmp/health-response.json -w "%{http_code}" "$HEALTH_URL" --max-time 15)
 
             if [ "$STATUS" = "200" ]; then
-              # Validate the JSON health status
               HEALTH_STATUS=$(python3 -c "
           import json, sys
           try:
@@ -73,7 +51,6 @@ jobs:
             status = d.get('data', d).get('status', 'unknown')
             db = d.get('data', d).get('db', 'unknown')
             redis = d.get('data', d).get('redis', 'unknown')
-            # Redis is optional: 'ok' or 'skipped' are both healthy
             redis_ok = redis in ('ok', 'skipped')
             overall_ok = db == 'ok' and redis_ok
             print('ok' if overall_ok else 'degraded')
@@ -89,9 +66,7 @@ jobs:
                 exit 0
               elif [ "$HEALTH_STATUS" = "degraded" ]; then
                 echo "Warning: Service is degraded (db or redis issue)"
-                echo "Response:"
                 cat /tmp/health-response.json | python3 -m json.tool 2>/dev/null || cat /tmp/health-response.json
-                # Still retry - might be mid-deploy
               else
                 echo "Warning: Could not parse health response"
                 cat /tmp/health-response.json 2>/dev/null
