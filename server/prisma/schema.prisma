@@ -85,6 +85,7 @@ model User {
   authProvider      String    @default("email") // email, google, apple, phone
   twoFactorEnabled  Boolean   @default(false) // Whether 2FA is enabled
   twoFactorSecret   String? // TOTP base32 secret for 2FA
+  backupCodes       String[]  @default([]) // Hashed backup codes for 2FA recovery
   preferredLanguage String    @default("en")
   role              String    @default("user") // user, admin, agent
   phone             String?

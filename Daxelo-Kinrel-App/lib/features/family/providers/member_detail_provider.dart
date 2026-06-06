@@ -14,7 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import '../../../core/database/app_database.dart';
-import '../../../core/database/isar_database.dart';
+import '../../../core/database/app_database_service.dart';
 import '../../../core/services/supabase_service.dart';
 
 // ── Data Models ──────────────────────────────────────────────────────
@@ -280,9 +280,9 @@ final memberDetailProvider = FutureProvider.family<MemberDetailModel, String>((
   personId,
 ) async {
   // 1. Try Drift cache first
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       final cached = await db.getPerson(personId);
       if (cached != null) {
         final data = _jsonDecode(cached.data);
@@ -439,9 +439,9 @@ Future<MemberDetailModel> _fetchFromSupabase(
     String? kinshipNameToUser;
     String? kinshipPathToUser;
     final userId = client.auth.currentUser?.id;
-    if (userId != null && IsarDatabase.isInitialized) {
+    if (userId != null && AppDatabaseService.isInitialized) {
       try {
-        final db = IsarDatabase.instance;
+        final db = AppDatabaseService.instance;
         final cachedPath = await db.getRelationshipPath(familyId, userId, personId);
         if (cachedPath != null) {
           kinshipNameToUser = cachedPath.kinshipTerm ?? cachedPath.kinshipTermHindi;
@@ -489,9 +489,9 @@ Future<MemberDetailModel> _fetchFromSupabase(
     );
 
     // 9. Cache in Drift
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
-        final db = IsarDatabase.instance;
+        final db = AppDatabaseService.instance;
         await db.upsertPerson(CachedPersonsCompanion(
           id: Value(personId),
           familyId: Value(familyId),

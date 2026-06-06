@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 
-import '../isar_database.dart';
+import '../app_database_service.dart';
 import '../app_database.dart';
 import '../sync/connectivity_service.dart';
 import '../sync/offline_queue.dart';
@@ -24,7 +24,7 @@ class OfflineProfileRepository {
 
   OfflineProfileRepository(this._ref);
 
-  AppDatabase get _db => _ref.read(isarProvider);
+  AppDatabase get _db => _ref.read(appDatabaseProvider);
   Dio get _dio => _ref.read(dioProvider);
   bool get _isOnline => _ref.read(connectivityServiceProvider).isOnline;
 
@@ -33,7 +33,7 @@ class OfflineProfileRepository {
   /// Get the current user's profile.
   /// Returns cached data immediately if available, then refreshes in background.
   Future<ProfileModel?> getProfile() async {
-    if (!IsarDatabase.isInitialized) return _fetchProfileFromNetwork();
+    if (!AppDatabaseService.isInitialized) return _fetchProfileFromNetwork();
 
     // Try cache first
     final cached = await _getCachedProfile();
@@ -95,7 +95,7 @@ class OfflineProfileRepository {
   }
 
   Future<void> _cacheProfile(ProfileModel profile) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
 
     await _db.upsertProfile(CachedProfilesCompanion(
       id: Value(profile.id),
@@ -153,7 +153,7 @@ class OfflineProfileRepository {
 
   /// Get user stats with caching.
   Future<UserStatsModel?> getStats() async {
-    if (!IsarDatabase.isInitialized) return _fetchStatsFromNetwork();
+    if (!AppDatabaseService.isInitialized) return _fetchStatsFromNetwork();
 
     // Try API cache first
     final cachedEntry = await _db.getApiCacheEntry('/api/users/me/stats');
@@ -186,7 +186,7 @@ class OfflineProfileRepository {
       );
 
       // Cache the result
-      if (IsarDatabase.isInitialized) {
+      if (AppDatabaseService.isInitialized) {
         await _db.upsertApiCacheEntry(ApiCacheEntriesCompanion(
           key: const Value('/api/users/me/stats'),
           responseBody: Value(jsonEncode(response.data)),
@@ -267,7 +267,7 @@ class OfflineProfileRepository {
     String filterType = 'all',
     int resultCount = 0,
   }) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
 
     // Remove duplicate entries
     await _db.deleteSearchHistoryByQuery(query);
@@ -283,7 +283,7 @@ class OfflineProfileRepository {
 
   /// Get recent search history.
   Future<List<String>> getSearchHistory({int limit = 10}) async {
-    if (!IsarDatabase.isInitialized) return [];
+    if (!AppDatabaseService.isInitialized) return [];
 
     final entries = await _db.getSearchHistory(limit: limit);
 
@@ -292,7 +292,7 @@ class OfflineProfileRepository {
 
   /// Clear all search history.
   Future<void> clearSearchHistory() async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
 
     await _db.clearSearchHistory();
   }

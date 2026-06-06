@@ -15,11 +15,8 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/env_config.dart';
-import '../database/isar_database.dart';
-import '../database/app_database.dart' hide CachedFamily, CachedPerson, CachedRelationship;
-import '../database/collections/cached_person.dart';
-import '../database/collections/cached_family.dart';
-import '../database/collections/cached_relationship.dart';
+import '../database/app_database_service.dart';
+import '../database/app_database.dart';
 import '../database/sync/cache_invalidation.dart';
 import '../services/supabase_service.dart';
 import '../networking/dio_client.dart';
@@ -349,7 +346,7 @@ class SocketService {
       );
 
       // Invalidate Isar cache for this family
-      if (IsarDatabase.isInitialized) {
+      if (AppDatabaseService.isInitialized) {
         try {
           await CacheInvalidation.invalidateFamily(familyId);
         } catch (_) {}
@@ -378,7 +375,7 @@ class SocketService {
       );
 
       // Invalidate Isar cache for this family
-      if (IsarDatabase.isInitialized) {
+      if (AppDatabaseService.isInitialized) {
         try {
           await CacheInvalidation.invalidateFamily(familyId);
         } catch (_) {}
@@ -405,7 +402,7 @@ class SocketService {
       );
 
       // Invalidate Isar cache for this family
-      if (IsarDatabase.isInitialized) {
+      if (AppDatabaseService.isInitialized) {
         try {
           await CacheInvalidation.invalidateFamily(event.familyId);
         } catch (_) {}
@@ -554,9 +551,9 @@ class SocketService {
 
   /// Merge the sync response into Drift silently.
   Future<void> _mergeSyncResponse(_SyncResponse sync) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
 
-    final db = IsarDatabase.instance;
+    final db = AppDatabaseService.instance;
     final affectedFamilyIds = <String>{};
 
     // Merge families
@@ -565,11 +562,10 @@ class SocketService {
         final familyId = familyJson['id'] as String? ?? '';
         if (familyId.isEmpty) continue;
 
-        final cached = CachedFamily.fromJson(familyJson);
         await db.upsertFamily(CachedFamiliesCompanion(
-          id: Value(cached.id),
-          name: Value(cached.name),
-          data: Value(_jsonEncode(cached.toJson())),
+          id: Value(familyJson['id']?.toString() ?? ''),
+          name: Value(familyJson['name'] as String? ?? 'Unnamed Family'),
+          data: Value(_jsonEncode(familyJson)),
           cachedAt: Value(DateTime.now()),
         ));
         affectedFamilyIds.add(familyId);
@@ -593,12 +589,11 @@ class SocketService {
           continue;
         }
 
-        final cached = CachedPerson.fromJson(personJson);
         await db.upsertPerson(CachedPersonsCompanion(
-          id: Value(cached.id),
-          familyId: Value(cached.familyId),
-          name: Value(cached.name),
-          data: Value(_jsonEncode(cached.toJson())),
+          id: Value(personJson['id']?.toString() ?? ''),
+          familyId: Value(personJson['familyId']?.toString() ?? ''),
+          name: Value(personJson['name'] as String? ?? 'Unknown'),
+          data: Value(_jsonEncode(personJson)),
           cachedAt: Value(DateTime.now()),
         ));
         affectedFamilyIds.add(familyId);
@@ -621,14 +616,13 @@ class SocketService {
           continue;
         }
 
-        final cached = CachedRelationship.fromJson(relJson);
         await db.upsertRelationship(CachedRelationshipsCompanion(
-          id: Value(cached.id),
-          fromId: Value(cached.fromPersonId),
-          toId: Value(cached.toPersonId),
-          relationshipType: Value(cached.relationshipKey),
-          kinshipName: Value(cached.label),
-          data: Value(_jsonEncode(cached.toJson())),
+          id: Value(relJson['id']?.toString() ?? ''),
+          fromId: Value(relJson['fromPersonId']?.toString() ?? ''),
+          toId: Value(relJson['toPersonId']?.toString() ?? ''),
+          relationshipType: Value(relJson['relationshipKey'] as String? ?? ''),
+          kinshipName: Value(relJson['label'] as String?),
+          data: Value(_jsonEncode(relJson)),
           cachedAt: Value(DateTime.now()),
         ));
         affectedFamilyIds.add(familyId);
@@ -705,10 +699,10 @@ class SocketService {
 
   /// Read lastSyncTimestamp from Drift UserSettings.
   Future<String?> _getLastSyncTimestamp() async {
-    if (!IsarDatabase.isInitialized) return null;
+    if (!AppDatabaseService.isInitialized) return null;
 
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       return db.getSetting('lastSyncTimestamp');
     } catch (e) {
       debugPrint('[SocketService] Error reading lastSyncTimestamp: $e');
@@ -718,10 +712,10 @@ class SocketService {
 
   /// Save lastSyncTimestamp to Drift UserSettings.
   Future<void> _saveLastSyncTimestamp(String timestamp) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
 
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       await db.setSetting('lastSyncTimestamp', timestamp);
     } catch (e) {
       debugPrint('[SocketService] Error saving lastSyncTimestamp: $e');

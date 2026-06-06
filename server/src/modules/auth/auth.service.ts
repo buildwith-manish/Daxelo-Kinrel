@@ -26,6 +26,8 @@ export interface TokenPair {
 @Injectable()
 export class AuthService {
   private redis: Redis | null = null;
+  private readonly MAX_LOGIN_ATTEMPTS = 10;
+  private readonly LOCKOUT_TTL = 900; // 15 minutes in seconds
 
   constructor(
     private readonly prisma: PrismaService,
@@ -129,10 +131,36 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    // Check lockout BEFORE password verification
+    if (this.redis) {
+      const locked = await this.redis.get(`login_lock:${user.id}`);
+      if (locked) {
+        const ttl = await this.redis.ttl(`login_lock:${user.id}`);
+        throw new UnauthorizedException(
+          `Account temporarily locked. Try again in ${Math.ceil(ttl / 60)} minutes.`
+        );
+      }
+    }
+
     const passwordValid = await this.verifyPasswordWithLegacyUpgrade(user.id, dto.password, user.passwordHash);
 
     if (!passwordValid) {
+      if (this.redis) {
+        const attemptsKey = `login_attempts:${user.id}`;
+        const attempts = await this.redis.incr(attemptsKey);
+        await this.redis.expire(attemptsKey, this.LOCKOUT_TTL);
+        if (attempts >= this.MAX_LOGIN_ATTEMPTS) {
+          await this.redis.setex(`login_lock:${user.id}`, this.LOCKOUT_TTL, '1');
+          await this.redis.del(attemptsKey);
+          throw new UnauthorizedException('Account locked after too many failed attempts. Try again in 15 minutes.');
+        }
+      }
       throw new UnauthorizedException('Invalid email or password');
+    }
+
+    // Clear attempt counter on successful login
+    if (this.redis) {
+      await this.redis.del(`login_attempts:${user.id}`);
     }
 
     // Check 2FA if enabled — issue challenge token instead of real tokens
@@ -337,13 +365,19 @@ export class AuthService {
     }
     const encryptedSecret = encrypt(secret, encryptionKey);
 
+    // Generate 8 backup codes
+    const backupCodes = Array.from({ length: 8 }, () =>
+      crypto.randomBytes(4).toString('hex').toUpperCase()
+    );
+    const hashedCodes = await Promise.all(backupCodes.map(c => bcrypt.hash(c, 10)));
+
     await this.prisma.user.update({
       where: { id: userId },
-      data: { twoFactorSecret: encryptedSecret },
+      data: { twoFactorSecret: encryptedSecret, twoFactorEnabled: false, backupCodes: hashedCodes },
     });
 
     const qrCodeUrl = authenticator.keyuri('Daxelo Kinrel', 'Daxelo Kinrel', secret);
-    return { secret, qrCodeUrl };
+    return { secret, qrCodeUrl, backupCodes };
   }
 
   // ── 2FA Verify ──────────────────────────────────────────────────
@@ -430,6 +464,27 @@ export class AuthService {
     const verified = authenticator.verify({ token: code, secret: decryptedSecret });
 
     if (!verified) {
+      // TOTP failed — try backup codes as fallback
+      if (user.backupCodes && user.backupCodes.length > 0) {
+        for (let i = 0; i < user.backupCodes.length; i++) {
+          const isValid = await bcrypt.compare(code, user.backupCodes[i]);
+          if (isValid) {
+            // Remove used backup code
+            const remaining = user.backupCodes.filter((_, idx) => idx !== i);
+            await this.prisma.user.update({
+              where: { id: userId },
+              data: { backupCodes: remaining },
+            });
+            await this.twoFactorVerificationService.markVerified(user.id);
+            const tokens = await this.generateTokenPair(user.id, user.email, user.role);
+            return {
+              verified: true,
+              accessToken: tokens.accessToken,
+              refreshToken: tokens.refreshToken,
+            };
+          }
+        }
+      }
       throw new UnauthorizedException('Invalid 2FA code');
     }
 
@@ -474,6 +529,7 @@ export class AuthService {
       data: {
         twoFactorEnabled: false,
         twoFactorSecret: null,
+        backupCodes: [],
       },
     });
 

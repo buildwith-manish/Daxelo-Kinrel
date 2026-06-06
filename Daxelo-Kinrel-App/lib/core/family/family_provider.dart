@@ -8,7 +8,7 @@ import '../services/supabase_service.dart';
 import '../config/auth_config.dart';
 import '../services/analytics_service.dart';
 import '../graph/graph_service.dart';
-import '../database/isar_database.dart';
+import '../database/app_database_service.dart';
 import '../database/repositories/offline_family_repository.dart';
 import '../database/sync/cache_invalidation.dart';
 import '../utils/id_generator.dart';
@@ -431,7 +431,7 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
   final isReady = ref.watch(isSupabaseReadyProvider);
   if (!isReady) {
     // Even when Supabase isn't ready, try Isar cache for offline access
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilies();
@@ -445,7 +445,7 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
 
   try {
     // Use offline-first repository if Isar is initialized
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilies();
@@ -523,7 +523,7 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
     debugPrint('⚠️ familyListProvider error: $e');
 
     // On network error, try Isar cache as last resort
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilies();
@@ -629,7 +629,7 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
   final isReady = ref.watch(isSupabaseReadyProvider);
   if (!isReady) {
     // Try Isar cache for offline access
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilyMembers(familyId);
@@ -641,7 +641,7 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
 
   try {
     // Use offline-first repository if Isar is initialized
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         return repo.getFamilyMembers(familyId);
@@ -677,7 +677,7 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
     debugPrint('⚠️ familyMembersProvider error: $e');
 
     // On network error, try Isar cache
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilyMembers(familyId);
@@ -701,7 +701,7 @@ final familyRelationshipsProvider =
       final isReady = ref.watch(isSupabaseReadyProvider);
       if (!isReady) {
         // Try Isar cache for offline access
-        if (IsarDatabase.isInitialized) {
+        if (AppDatabaseService.isInitialized) {
           try {
             final repo = ref.read(offlineFamilyRepositoryProvider);
             final cached = await repo.getFamilyRelationships(familyId);
@@ -713,7 +713,7 @@ final familyRelationshipsProvider =
 
       try {
         // Use offline-first repository if Isar is initialized
-        if (IsarDatabase.isInitialized) {
+        if (AppDatabaseService.isInitialized) {
           try {
             final repo = ref.read(offlineFamilyRepositoryProvider);
             return repo.getFamilyRelationships(familyId);
@@ -754,7 +754,7 @@ final familyRelationshipsProvider =
         debugPrint('⚠️ familyRelationshipsProvider error: $e');
 
         // On network error, try Isar cache
-        if (IsarDatabase.isInitialized) {
+        if (AppDatabaseService.isInitialized) {
           try {
             final repo = ref.read(offlineFamilyRepositoryProvider);
             final cached = await repo.getFamilyRelationships(familyId);
@@ -900,7 +900,7 @@ Future<Family> createFamily({
   ref.invalidate(familyListProvider);
 
   // Invalidate the Isar cache for the family list
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamilyList();
     } catch (_) {}
@@ -1001,7 +1001,7 @@ Future<Person> createPerson({
   }
 
   // Invalidate the Isar cache for this family
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
     } catch (_) {}
@@ -1074,7 +1074,7 @@ Future<Person> updatePerson({
   // familyDetailProvider auto-rebuilds via ref.watch on familyMembersProvider
 
   // Invalidate the Isar cache for this family
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
     } catch (_) {}
@@ -1160,7 +1160,7 @@ Future<void> deleteFamily({
   // familyDetailProvider auto-rebuilds via ref.watch on above providers
 
   // Invalidate the Isar cache
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
       await CacheInvalidation.invalidateFamilyList();
@@ -1242,7 +1242,7 @@ Future<void> restoreFamily({
   ref.invalidate(archivedFamiliesProvider);
 
   // Invalidate the Isar cache
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
       await CacheInvalidation.invalidateFamilyList();
@@ -1333,7 +1333,7 @@ Future<void> permanentDeleteFamily({
   ref.invalidate(archivedFamiliesProvider);
 
   // Invalidate the Isar cache
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
       await CacheInvalidation.invalidateFamilyList();
@@ -1404,7 +1404,7 @@ Future<void> deletePerson({
   }
 
   // Invalidate the Isar cache for this family
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
     } catch (_) {}
@@ -1516,7 +1516,7 @@ Future<FamilyRelationship> createRelationship({
   // familyDetailProvider auto-rebuilds via ref.watch on familyRelationshipsProvider
 
   // Invalidate the Isar cache for this family
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
     } catch (_) {}
@@ -1771,7 +1771,7 @@ Future<Family> joinFamilyByCode(WidgetRef ref, String familyCode) async {
   ref.invalidate(familyListProvider);
 
   // Invalidate the Isar cache for the family list
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamilyList();
     } catch (_) {}

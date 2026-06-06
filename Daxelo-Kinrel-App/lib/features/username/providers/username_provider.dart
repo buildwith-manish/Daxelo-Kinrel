@@ -21,7 +21,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/networking/dio_client.dart';
 import '../../../core/family/family_provider.dart';
-import '../../../core/database/isar_database.dart';
+import '../../../core/database/app_database_service.dart';
 import '../../../core/database/app_database.dart';
 
 // ── Table name constants ──────────────────────────────────────────
@@ -199,9 +199,9 @@ class UsernameNotifier extends StateNotifier<UsernameCheckState> {
   /// Check Drift cache for a previously-checked username availability.
   /// Returns null if not cached or expired (TTL = 5 minutes).
   Future<bool?> _getCachedAvailability(String username) async {
-    if (!IsarDatabase.isInitialized) return null;
+    if (!AppDatabaseService.isInitialized) return null;
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       final key = '$_cacheKeyPrefix${username.toLowerCase()}';
       final entry = await db.getApiCacheEntry(key);
       if (entry == null) return null;
@@ -220,9 +220,9 @@ class UsernameNotifier extends StateNotifier<UsernameCheckState> {
 
   /// Save username availability result to Drift cache.
   Future<void> _cacheAvailability(String username, bool available) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       final key = '$_cacheKeyPrefix${username.toLowerCase()}';
       await db.upsertApiCacheEntry(
         ApiCacheEntriesCompanion.insert(

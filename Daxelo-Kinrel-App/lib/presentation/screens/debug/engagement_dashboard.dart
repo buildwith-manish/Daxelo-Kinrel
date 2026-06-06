@@ -15,8 +15,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-// Hive removed — using Drift via IsarDatabase
-import '../../../core/database/isar_database.dart';
+// Hive removed — using Drift via AppDatabaseService
+import '../../../core/database/app_database_service.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -284,7 +284,7 @@ class _EngagementDashboardState extends ConsumerState<EngagementDashboard> {
   // ═══════════════════════════════════════════════════════════════════
 
   Widget _buildSystemInfoList(AppEnvironment env, DeviceTier tier) {
-    final isarReady = IsarDatabase.isInitialized;
+    final dbReady = AppDatabaseService.isInitialized;
     final rcInitialized = RemoteConfigService.instance.isInitialized;
 
     final items = [
@@ -295,7 +295,7 @@ class _EngagementDashboardState extends ConsumerState<EngagementDashboard> {
       _InfoRow('Premium', _isPremium ? 'Yes' : 'No'),
       _InfoRow('Access Token (masked)', _fcmTokenMasked ?? 'N/A'),
       _InfoRow('Referral Code', _referralCode ?? 'N/A'),
-      _InfoRow('Isar DB', isarReady ? 'Initialized' : 'Not ready'),
+      _InfoRow('Local DB', dbReady ? 'Initialized' : 'Not ready'),
       _InfoRow('Remote Config', rcInitialized ? 'Initialized' : 'Using defaults'),
       _InfoRow('Notifications Scheduled', 'Retention active'),
     ];

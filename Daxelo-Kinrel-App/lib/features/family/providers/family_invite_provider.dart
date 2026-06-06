@@ -29,7 +29,7 @@ import 'package:share_plus/share_plus.dart' as share_plus;
 import '../../../core/networking/dio_client.dart';
 import '../../../core/services/deep_link_service.dart';
 import '../../../core/services/analytics_service.dart';
-import '../../../core/database/isar_database.dart';
+import '../../../core/database/app_database_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // DATA MODELS
@@ -555,9 +555,9 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
   // ═══════════════════════════════════════════════════════════════════
 
   Future<void> _cacheInviteRecord(InviteRecord record) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       final key = 'invite_record:${record.familyId}:${record.id}';
       await db.cacheApiEntry(
         key,
@@ -570,9 +570,9 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
   }
 
   Future<List<InviteRecord>> _getCachedInviteRecords(String familyId) async {
-    if (!IsarDatabase.isInitialized) return [];
+    if (!AppDatabaseService.isInitialized) return [];
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       final allEntries = await db.getCachedApiEntriesWithPrefix('invite_record:$familyId:');
       return allEntries
           .map((jsonStr) {
@@ -592,9 +592,9 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
   }
 
   Future<void> _cacheAnalytics(String familyId, InviteAnalytics analytics) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       await db.cacheApiEntry(
         'invite_analytics:$familyId',
         jsonEncode(analytics.toJson()),
@@ -606,9 +606,9 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
   }
 
   Future<InviteAnalytics?> _getCachedAnalytics(String familyId) async {
-    if (!IsarDatabase.isInitialized) return null;
+    if (!AppDatabaseService.isInitialized) return null;
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       final cached = await db.getCachedApiEntry('invite_analytics:$familyId');
       if (cached != null) {
         return InviteAnalytics.fromJson(jsonDecode(cached) as Map<String, dynamic>);

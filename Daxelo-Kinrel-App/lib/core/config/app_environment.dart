@@ -73,16 +73,16 @@ enum AppEnvironment {
         AppEnvironment.dev => 'http://10.0.2.2:3001', // Android emulator → NestJS on host
         AppEnvironment.staging =>
           'https://daxelo-kinrel-staging.onrender.com',
-        AppEnvironment.prod => AppConfig.fallbackApiBaseUrl,
+        AppEnvironment.prod => AppConfig.apiBaseUrl,
       };
 
   /// Supabase URL for this environment
   /// All environments share the same Supabase project — value from AppConfig
-  String get supabaseUrl => AppConfig.fallbackSupabaseUrl;
+  String get supabaseUrl => AppConfig.supabaseUrl;
 
   /// Supabase anon key for this environment
   /// All environments share the same Supabase project — value from AppConfig
-  String get supabaseAnonKey => AppConfig.fallbackSupabaseAnonKey;
+  String get supabaseAnonKey => AppConfig.supabaseAnonKey;
 }
 
 /// Global current environment — resolved once at startup.

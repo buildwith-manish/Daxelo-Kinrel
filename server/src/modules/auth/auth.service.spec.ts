@@ -598,11 +598,18 @@ describe('AuthService', () => {
       expect(result.secret).toBeDefined();
       expect(result.qrCodeUrl).toBeDefined();
       expect(result.qrCodeUrl).toContain('otpauth://totp/');
+      // Should generate 8 backup codes
+      expect(result.backupCodes).toBeDefined();
+      expect(result.backupCodes).toHaveLength(8);
       // Should store encrypted secret in DB
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: userId },
-          data: { twoFactorSecret: expect.any(String) },
+          data: {
+            twoFactorSecret: expect.any(String),
+            twoFactorEnabled: false,
+            backupCodes: expect.any(Array),
+          },
         }),
       );
       // The stored secret should be encrypted (contains colons from iv:tag:ciphertext format)
@@ -831,7 +838,7 @@ describe('AuthService', () => {
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: userId },
-          data: { twoFactorEnabled: false, twoFactorSecret: null },
+          data: { twoFactorEnabled: false, twoFactorSecret: null, backupCodes: [] },
         }),
       );
     });

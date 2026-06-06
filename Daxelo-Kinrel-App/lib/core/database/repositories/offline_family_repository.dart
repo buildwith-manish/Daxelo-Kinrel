@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:drift/drift.dart';
 
-import '../isar_database.dart';
+import '../app_database_service.dart';
 import '../app_database.dart';
 import '../sync/connectivity_service.dart';
 import '../sync/offline_queue.dart';
@@ -27,7 +27,7 @@ class OfflineFamilyRepository {
 
   OfflineFamilyRepository(this._ref);
 
-  AppDatabase get _db => _ref.read(isarProvider);
+  AppDatabase get _db => _ref.read(appDatabaseProvider);
   bool get _isOnline => _ref.read(connectivityServiceProvider).isOnline;
 
   // ── Family List ─────────────────────────────────────────────────
@@ -35,7 +35,7 @@ class OfflineFamilyRepository {
   /// Get all families the current user has access to.
   /// Returns cached data immediately if available, then refreshes in background.
   Future<List<Family>> getFamilies() async {
-    if (!IsarDatabase.isInitialized) return _fetchFamiliesFromNetwork();
+    if (!AppDatabaseService.isInitialized) return _fetchFamiliesFromNetwork();
 
     // Try cache first
     final cached = await _getCachedFamilies();
@@ -132,7 +132,7 @@ class OfflineFamilyRepository {
 
   /// Cache families to Drift.
   Future<void> _cacheFamilies(List<Family> families) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
 
     for (final family in families) {
       final json = family.toJson();
@@ -150,7 +150,7 @@ class OfflineFamilyRepository {
   /// Get persons in a family.
   /// Returns cached data first if available, then refreshes in background.
   Future<List<Person>> getFamilyMembers(String familyId) async {
-    if (!IsarDatabase.isInitialized) return _fetchMembersFromNetwork(familyId);
+    if (!AppDatabaseService.isInitialized) return _fetchMembersFromNetwork(familyId);
 
     // Try cache first
     final cached = await _getCachedMembers(familyId);
@@ -210,7 +210,7 @@ class OfflineFamilyRepository {
   }
 
   Future<void> _cacheMembers(String familyId, List<Person> members) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
 
     // Remove old cached members for this family
     await _db.deletePersonsByFamily(familyId);
@@ -234,7 +234,7 @@ class OfflineFamilyRepository {
   Future<List<FamilyRelationship>> getFamilyRelationships(
     String familyId,
   ) async {
-    if (!IsarDatabase.isInitialized) {
+    if (!AppDatabaseService.isInitialized) {
       return _fetchRelationshipsFromNetwork(familyId);
     }
 
@@ -304,7 +304,7 @@ class OfflineFamilyRepository {
     String familyId,
     List<FamilyRelationship> relationships,
   ) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
 
     // Remove old cached relationships for this family
     await _db.deleteRelationshipsByFamily(familyId);
@@ -333,7 +333,7 @@ class OfflineFamilyRepository {
     required String personName,
     String? photoUrl,
   }) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
 
     // Remove existing entry for this person (will be re-added at top)
     await _db.deleteRecentlyViewedByPerson(personId);
@@ -350,7 +350,7 @@ class OfflineFamilyRepository {
 
   /// Get recently viewed profiles.
   Future<List<RecentlyViewedProfile>> getRecentlyViewed() async {
-    if (!IsarDatabase.isInitialized) return [];
+    if (!AppDatabaseService.isInitialized) return [];
 
     // Return the Drift rows directly — they already have the right shape
     return _db.getRecentlyViewed();

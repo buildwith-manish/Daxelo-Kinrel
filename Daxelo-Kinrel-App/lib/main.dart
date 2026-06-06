@@ -6,10 +6,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-// Hive removed — using Drift (AppDatabase) via IsarDatabase wrapper
-import 'core/database/isar_database.dart';
+// Hive removed — using Drift (AppDatabase) via AppDatabaseService wrapper
+import 'core/database/app_database_service.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -190,22 +189,16 @@ void main() async {
 Future<void> _initializeServices() async {
   // ── 2. Initialize Drift database ──────────────────────────────────
   try {
-    await IsarDatabase.initialize().timeout(const Duration(seconds: 5));
+    await AppDatabaseService.initialize().timeout(const Duration(seconds: 5));
     debugPrint('✅ Drift database initialized');
   } catch (e) {
     debugPrint('⚠️ Drift database initialization failed or timed out: $e');
   }
 
-  // ── 3. Load environment variables ─────────────────────────────────
-  try {
-    await dotenv.load(fileName: '.env');
-    debugPrint('✅ .env file loaded successfully');
-  } catch (e) {
-    try {
-      dotenv.loadFromString(envString: '# fallback — using hardcoded defaults');
-    } catch (_) {}
-    debugPrint('⚠️ .env file not found, using hardcoded defaults');
-  }
+  // ── 3. Environment variables loaded at compile time ────────────────
+  // All credentials are supplied via --dart-define at build time.
+  // No runtime .env file needed — see AppConfig for details.
+  debugPrint('✅ Environment variables from compile-time --dart-define');
 
   // ── 4. Initialize Firebase ────────────────────────────────────────
   try {
@@ -454,7 +447,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     // When kAuthDisabled, we still check for a real Supabase session
     // since the client is now initialized even in dev mode.
     Future.delayed(const Duration(seconds: 3), () {
-      if (IsarDatabase.isInitialized) {
+      if (AppDatabaseService.isInitialized) {
         try {
           final client = ref.read(supabaseProvider);
           final hasSession = client?.auth.currentSession != null;
@@ -537,8 +530,8 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
 
     // ── Record app open for retention tracking ──────────────────────
     try {
-      if (IsarDatabase.isInitialized) {
-        final db = IsarDatabase.instance;
+      if (AppDatabaseService.isInitialized) {
+        final db = AppDatabaseService.instance;
         final opensStr = await db.getSetting('app_opens');
         final opens = int.tryParse(opensStr ?? '0') ?? 0;
         await db.setSetting('app_opens', '${opens + 1}');

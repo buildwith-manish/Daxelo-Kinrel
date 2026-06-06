@@ -28,7 +28,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app_database.dart';
-import '../isar_database.dart';
+import '../app_database_service.dart';
 import '../../networking/dio_client.dart';
 import '../../services/crashlytics_service.dart';
 import '../../services/supabase_service.dart';
@@ -390,7 +390,7 @@ class SyncEngine {
 
   // ── Dependencies ─────────────────────────────────────────────────────
 
-  AppDatabase get _db => _ref.read(isarProvider);
+  AppDatabase get _db => _ref.read(appDatabaseProvider);
   Dio get _dio => _ref.read(dioProvider);
   ConnectivityService get _connectivity =>
       _ref.read(connectivityServiceProvider);

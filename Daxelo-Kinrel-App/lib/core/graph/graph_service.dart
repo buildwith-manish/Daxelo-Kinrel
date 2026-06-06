@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
 import '../kinship/kinship_service.dart';
-import '../database/isar_database.dart';
+import '../database/app_database_service.dart';
 import '../database/app_database.dart';
 
 /// Person node in the family graph
@@ -304,9 +304,9 @@ class GraphService {
     required String toPersonId,
     required PathResult result,
   }) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       final pathJson = jsonEncode(result.path.map((s) => s.toJson()).toList());
       final now = DateTime.now();
       final expiresAt = now.add(const Duration(hours: 1));
@@ -334,9 +334,9 @@ class GraphService {
     required String fromPersonId,
     required String toPersonId,
   }) async {
-    if (!IsarDatabase.isInitialized) return null;
+    if (!AppDatabaseService.isInitialized) return null;
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       final cached = await db.getRelationshipPath(
         familyId,
         fromPersonId,

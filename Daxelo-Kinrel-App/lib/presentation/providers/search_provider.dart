@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/storage/local_cache.dart';
-import '../../core/database/isar_database.dart';
+import '../../core/database/app_database_service.dart';
 import '../../core/database/repositories/offline_profile_repository.dart';
 import '../../data/repositories/search_repository.dart';
 
@@ -219,7 +219,7 @@ class SearchNotifier extends StateNotifier<SearchState> {
   /// Load recent searches from Isar (if available) or Hive.
   void loadRecentSearches() {
     // Try Isar first
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = _ref.read(offlineProfileRepositoryProvider);
         repo.getSearchHistory().then((searches) {
@@ -252,7 +252,7 @@ class SearchNotifier extends StateNotifier<SearchState> {
   /// Save a recent search query.
   Future<void> saveRecentSearch(String query) async {
     // Save to Isar (if available)
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = _ref.read(offlineProfileRepositoryProvider);
         await repo.saveSearchHistory(query: query);
@@ -283,7 +283,7 @@ class SearchNotifier extends StateNotifier<SearchState> {
   /// Clear all recent searches.
   Future<void> clearRecentSearches() async {
     // Clear from Isar (if available)
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = _ref.read(offlineProfileRepositoryProvider);
         await repo.clearSearchHistory();

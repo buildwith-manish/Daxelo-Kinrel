@@ -11,7 +11,7 @@ Indian family relationship intelligence app built with Flutter.
 - **Networking**: Dio
 - **Storage**: Hive, flutter_secure_storage
 - **Models**: Freezed + json_serializable
-- **Env**: flutter_dotenv
+- **Env**: --dart-define (compile-time)
 
 ## Getting Started
 
@@ -22,30 +22,37 @@ Indian family relationship intelligence app built with Flutter.
 
 ### Setup
 
-1. Copy `.env.example` to `.env` and fill in your credentials:
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Install dependencies:
+1. Install dependencies:
    ```bash
    flutter pub get
    ```
 
-3. Generate code (Freezed, json_serializable):
+2. Generate code (Freezed, json_serializable):
    ```bash
    dart run build_runner build --delete-conflicting-outputs
    ```
 
-4. Run the app:
+3. Run the app with --dart-define for credentials:
    ```bash
-   flutter run
+   flutter run \
+     --dart-define=SUPABASE_URL=https://xxx.supabase.co \
+     --dart-define=SUPABASE_ANON_KEY=eyJ... \
+     --dart-define=API_BASE_URL=https://api.example.com \
+     --dart-define=GOOGLE_WEB_CLIENT_ID=xxx.apps.googleusercontent.com \
+     --dart-define=GOOGLE_ANDROID_CLIENT_ID=xxx.apps.googleusercontent.com \
+     --dart-define=GOOGLE_IOS_CLIENT_ID=xxx.apps.googleusercontent.com
    ```
 
 ### Web Build
 
 ```bash
-flutter build web
+flutter build web \
+  --dart-define=SUPABASE_URL=... \
+  --dart-define=SUPABASE_ANON_KEY=... \
+  --dart-define=API_BASE_URL=... \
+  --dart-define=GOOGLE_WEB_CLIENT_ID=... \
+  --dart-define=GOOGLE_ANDROID_CLIENT_ID=... \
+  --dart-define=GOOGLE_IOS_CLIENT_ID=...
 ```
 
 ### Assets

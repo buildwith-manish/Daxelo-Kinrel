@@ -11,7 +11,7 @@ import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Value;
 
 import '../networking/dio_client.dart';
-import '../database/isar_database.dart';
+import '../database/app_database_service.dart';
 import '../database/app_database.dart';
 
 // ── Family ID Search Result ────────────────────────────────────────
@@ -165,9 +165,9 @@ class FamilyIdNotifier extends StateNotifier<FamilyIdState> {
       );
 
       // Cache the result locally for offline search
-      if (result.found && result.kinFamilyId != null && IsarDatabase.isInitialized) {
+      if (result.found && result.kinFamilyId != null && AppDatabaseService.isInitialized) {
         try {
-          final db = IsarDatabase.instance;
+          final db = AppDatabaseService.instance;
           await db.upsertFamilyId(CachedFamilyIdsCompanion(
             familyId: Value(result.familyId!),
             kinFamilyId: Value(result.kinFamilyId!),

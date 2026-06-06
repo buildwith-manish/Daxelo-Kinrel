@@ -16,7 +16,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide MultipartFile;
 import '../../../core/networking/dio_client.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/config/auth_config.dart';
-import '../../../core/database/isar_database.dart';
+import '../../../core/database/app_database_service.dart';
 import '../../../core/database/repositories/offline_profile_repository.dart';
 
 // ════════════════════════════════════════════════════════════════════
@@ -668,7 +668,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     final client = _ref.read(supabaseProvider);
     if (client?.auth.currentSession == null) {
       // No session — try offline cache, then give up gracefully
-      if (IsarDatabase.isInitialized) {
+      if (AppDatabaseService.isInitialized) {
         try {
           final repo = _ref.read(offlineProfileRepositoryProvider);
           final profile = await repo.getProfile();
@@ -794,7 +794,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   /// Try to load profile from offline Isar cache.
   /// Returns true if a cached profile was found and set in state.
   Future<bool> _tryOfflineProfile() async {
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = _ref.read(offlineProfileRepositoryProvider);
         final profile = await repo.getProfile();
@@ -845,7 +845,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     final client = _ref.read(supabaseProvider);
     if (client?.auth.currentSession == null) {
       // No session — try offline cache, then give up gracefully
-      if (IsarDatabase.isInitialized) {
+      if (AppDatabaseService.isInitialized) {
         try {
           final repo = _ref.read(offlineProfileRepositoryProvider);
           final stats = await repo.getStats();
@@ -913,7 +913,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   /// Try to load stats from offline Isar cache.
   /// Returns true if cached stats were found and set in state.
   Future<bool> _tryOfflineStats() async {
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = _ref.read(offlineProfileRepositoryProvider);
         final stats = await repo.getStats();
@@ -1165,7 +1165,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     // ── Fire API call in background ──
 
     // Try offline-first repository first if Isar is initialized
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = _ref.read(offlineProfileRepositoryProvider);
         final success = await repo.updateProfile(data);
@@ -1874,9 +1874,9 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     }
 
     // Clear Isar cache on logout
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
-        await IsarDatabase.clearCache(includePendingOps: true);
+        await AppDatabaseService.clearCache(includePendingOps: true);
       } catch (_) {}
     }
 

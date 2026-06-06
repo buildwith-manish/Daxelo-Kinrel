@@ -8,7 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
-import '../../../core/database/isar_database.dart';
+import '../../../core/database/app_database_service.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/config/auth_config.dart';
@@ -284,12 +284,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   /// Check Isar cache for a cached user profile.
   /// If found, set _hasCachedProfile = true so we can navigate faster.
   Future<void> _checkIsarCache() async {
-    if (!IsarDatabase.isInitialized) {
+    if (!AppDatabaseService.isInitialized) {
       debugPrint('📦 Database not initialized — skipping cache check');
       return;
     }
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       final profileCount = await db.profileCount();
       if (profileCount > 0) {
         _hasCachedProfile = true;

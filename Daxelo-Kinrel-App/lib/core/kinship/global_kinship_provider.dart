@@ -1,10 +1,16 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'global_kinship_service.dart';
 import 'global_kinship_models.dart';
+import '../services/kinship_loader_service.dart';
 
-/// Singleton global kinship service provider
+/// Singleton global kinship service provider.
+///
+/// Injects [KinshipLoaderService] so that global cultures (arabic, korean,
+/// japanese, vietnamese, russian, chinese) are fetched on demand from the
+/// server instead of being bundled in the APK (~165 MB savings).
 final globalKinshipServiceProvider = Provider<GlobalKinshipService>((ref) {
-  return GlobalKinshipService();
+  final loader = ref.watch(kinshipLoaderProvider);
+  return GlobalKinshipService(loader);
 });
 
 /// List of all 50+ cultures with metadata
