@@ -31,24 +31,40 @@ export class HealthController {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
   ) {
-    // Create a lightweight Redis client for health checks
-    const redisUrl = this.configService.get<string>('REDIS_URL') || 'redis://localhost:6379';
-    try {
-      this.redis = new Redis(redisUrl, {
-        lazyConnect: true,
-        maxRetriesPerRequest: 1,
-        connectTimeout: 3000,
-        retryStrategy: () => null, // Don't retry on failure
-      });
-    } catch {
-      this.redis = null;
+    // Only create a Redis client when REDIS_URL is explicitly configured
+    // Redis is optional — the app works fine without it (graceful degradation)
+    const redisUrl = this.configService.get<string>('REDIS_URL');
+    if (redisUrl && redisUrl !== 'redis://localhost:6379') {
+      try {
+        this.redis = new Redis(redisUrl, {
+          lazyConnect: true,
+          maxRetriesPerRequest: 1,
+          connectTimeout: 3000,
+          retryStrategy: () => null, // Don't retry on failure
+        });
+
+        this.redis.on('error', (err) => {
+          if (err.message?.includes('ECONNREFUSED') || err.message?.includes('AggregateError')) {
+            if (this.redis) {
+              this.redis.disconnect();
+              this.redis = null;
+            }
+          }
+        });
+
+        this.redis.connect().catch(() => {
+          this.redis = null;
+        });
+      } catch {
+        this.redis = null;
+      }
     }
   }
 
   @Get()
   async check() {
     let db: 'ok' | 'error' = 'ok';
-    let redis: 'ok' | 'error' = 'ok';
+    let redis: 'ok' | 'error' | 'skipped' = 'ok';
 
     // ── DB check ────────────────────────────────────────────────────
     if (this.prisma.connectionFailed) {
@@ -68,7 +84,8 @@ export class HealthController {
       }
     }
 
-    // ── Redis check ─────────────────────────────────────────────────
+    // ── Redis check (optional) ─────────────────────────────────────────
+    const redisUrl = this.configService.get<string>('REDIS_URL');
     if (this.redis) {
       try {
         const result = await this.redis.ping();
@@ -78,6 +95,9 @@ export class HealthController {
       } catch {
         redis = 'error';
       }
+    } else if (!redisUrl || redisUrl === 'redis://localhost:6379') {
+      // Redis not configured — this is fine, mark as 'skipped'
+      redis = 'skipped';
     } else {
       redis = 'error';
     }
@@ -87,7 +107,7 @@ export class HealthController {
       (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2),
     );
 
-    const isOk = db === 'ok' && redis === 'ok';
+    const isOk = db === 'ok' && (redis === 'ok' || redis === 'skipped');
 
     return {
       status: isOk ? ('ok' as const) : ('error' as const),

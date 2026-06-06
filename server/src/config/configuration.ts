@@ -73,7 +73,7 @@ export function validate(config: Record<string, unknown>) {
   // Return all config values as-is (with defaults for missing vars)
   return {
     ...config,
-    REDIS_URL: config.REDIS_URL || 'redis://localhost:6379',
+    REDIS_URL: config.REDIS_URL || '',
     PORT: config.PORT || 3000,
     API_PREFIX: config.API_PREFIX || 'api',
     NODE_ENV: config.NODE_ENV || 'development',
