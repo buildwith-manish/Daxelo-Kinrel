@@ -347,6 +347,18 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
               ),
             ],
 
+            // Archive option (available to all members)
+            Divider(color: KinrelColors.border, height: 1),
+            _QuickActionTile(
+              icon: Icons.archive_outlined,
+              label: 'Archive Family',
+              iconColor: KinrelColors.gold,
+              onTap: () {
+                Navigator.pop(ctx);
+                _confirmArchiveFamily(context, family?.name ?? 'Family');
+              },
+            ),
+
             // Only show delete option to the creator
             if (isCreator) ...[
               Divider(color: KinrelColors.border, height: 1),
@@ -376,7 +388,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Only the family creator can delete this family',
+                        'Only the family creator can permanently delete this family',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 12,
@@ -394,6 +406,148 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         ),
       ),
     );
+  }
+
+  void _confirmArchiveFamily(BuildContext context, String familyName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: DKColors.cardColor(context),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(KinrelRadius.lg),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              Icons.archive_outlined,
+              color: KinrelColors.gold,
+              size: 24,
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                'Archive "$familyName"?',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: DKColors.textPrimary(context),
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'This family will be archived and hidden from your active list. You can restore it within 30 days.',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 14,
+                color: DKColors.textSecondary(context),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: KinrelColors.gold.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(KinrelRadius.md),
+                border: Border.all(
+                  color: KinrelColors.gold.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 18, color: KinrelColors.gold),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'After 30 days, archived families are permanently deleted.',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: KinrelColors.gold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                color: DKColors.textSecondary(context),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await _performArchiveFamily(context);
+            },
+            child: Text(
+              'Archive Family',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.gold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performArchiveFamily(BuildContext context) async {
+    unawaited(
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => Center(
+          child: CircularProgressIndicator(color: KinrelColors.gold),
+        ),
+      ),
+    );
+
+    try {
+      await deleteFamily(ref: ref, familyId: widget.familyId);
+
+      if (context.mounted) {
+        Navigator.of(context).pop(); // Close loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Family archived. You can restore it within 30 days.'),
+            backgroundColor: KinrelColors.gold,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        context.pop(); // Navigate back from detail screen
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context).pop(); // Close loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to archive: ${e.toString().split('\n').first}',
+            ),
+            backgroundColor: KinrelColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   void _confirmDeleteFamily(BuildContext context, String familyName) {
@@ -605,10 +759,17 @@ class _GraphTabState extends ConsumerState<_GraphTab> {
           FamilyTreeCanvas(
             members: detail.members,
             relationships: detail.relationships,
+            anchorPersonId: detail.members.firstWhere(
+              (p) => p.isAnchor,
+              orElse: () => detail.members.first,
+            ).id,
             onNodeTap: (person) {
+              // P8: Smart preloading — warm profile provider BEFORE navigation push
               try {
                 ref.read(profileProvider.notifier).loadProfile();
-              } catch (_) {}
+              } catch (_) {
+                // Silently ignore — preloading is best-effort
+              }
 
               final kinshipAsync = ref.read(kinshipServiceProvider);
               PersonDetailSheet.show(
@@ -1506,17 +1667,20 @@ class _QuickActionTile extends StatelessWidget {
     required this.icon,
     required this.label,
     this.isDestructive = false,
+    this.iconColor,
     required this.onTap,
   });
 
   final IconData icon;
   final String label;
   final bool isDestructive;
+  final Color? iconColor;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = isDestructive ? KinrelColors.coral : KinrelColors.textSilver;
+    final color = iconColor ?? (isDestructive ? KinrelColors.coral : KinrelColors.textSilver);
+    final textColor = iconColor ?? (isDestructive ? KinrelColors.coral : KinrelColors.textWhite);
     return ListTile(
       leading: Icon(icon, color: color, size: 20),
       title: Text(
@@ -1524,7 +1688,7 @@ class _QuickActionTile extends StatelessWidget {
         style: TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 14,
-          color: isDestructive ? KinrelColors.coral : KinrelColors.textWhite,
+          color: textColor,
         ),
       ),
       onTap: onTap,

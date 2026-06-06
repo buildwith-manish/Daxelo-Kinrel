@@ -423,24 +423,40 @@ class _FamilyTreeWidgetState extends ConsumerState<FamilyTreeWidget>
   // ── Zoom helpers ────────────────────────────────────────────────
 
   void _zoomIn() {
-    final current = _transformationController.value;
+    final screenSize = MediaQuery.of(context).size;
+    final viewportCenter = Offset(screenSize.width / 2, screenSize.height / 2);
     final newScale = (_scale * 1.2).clamp(0.3, 3.0);
-    final scaleFactor = newScale / _scale;
+
     setState(() {
-      final m = Matrix4.copy(current);
-      m.scaleByDouble(scaleFactor, scaleFactor, 1.0, 1.0);
+      final inverse = Matrix4.identity()
+        ..copyInverse(_transformationController.value);
+      final graphCenter =
+          MatrixUtils.transformPoint(inverse, viewportCenter);
+
+      final m = Matrix4.identity();
+      m.setEntry(0, 3, viewportCenter.dx - graphCenter.dx * newScale);
+      m.setEntry(1, 3, viewportCenter.dy - graphCenter.dy * newScale);
+      m.scaleByDouble(newScale, newScale, 1.0, 1.0);
       _transformationController.value = m;
       _scale = newScale;
     });
   }
 
   void _zoomOut() {
-    final current = _transformationController.value;
+    final screenSize = MediaQuery.of(context).size;
+    final viewportCenter = Offset(screenSize.width / 2, screenSize.height / 2);
     final newScale = (_scale / 1.2).clamp(0.3, 3.0);
-    final scaleFactor = newScale / _scale;
+
     setState(() {
-      final m = Matrix4.copy(current);
-      m.scaleByDouble(scaleFactor, scaleFactor, 1.0, 1.0);
+      final inverse = Matrix4.identity()
+        ..copyInverse(_transformationController.value);
+      final graphCenter =
+          MatrixUtils.transformPoint(inverse, viewportCenter);
+
+      final m = Matrix4.identity();
+      m.setEntry(0, 3, viewportCenter.dx - graphCenter.dx * newScale);
+      m.setEntry(1, 3, viewportCenter.dy - graphCenter.dy * newScale);
+      m.scaleByDouble(newScale, newScale, 1.0, 1.0);
       _transformationController.value = m;
       _scale = newScale;
     });

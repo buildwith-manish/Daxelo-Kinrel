@@ -469,6 +469,8 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
                       _startLayoutTransition(); // Change 8
                     });
                   },
+                  onZoomIn: _zoomIn,
+                  onZoomOut: _zoomOut,
                   onCenterYou: _centerOnAnchor,
                   onFit: _fitToScreen,
                   onAddPerson: () {
@@ -645,6 +647,46 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
         _currentScale = 1.5;
       });
     }
+  }
+
+  void _zoomIn() {
+    final screenSize = MediaQuery.of(context).size;
+    final viewportCenter = Offset(screenSize.width / 2, screenSize.height / 2);
+    final newScale = (_currentScale * 1.3).clamp(0.3, 3.0);
+
+    setState(() {
+      final inverse = Matrix4.identity()
+        ..copyInverse(_transformationController.value);
+      final graphCenter =
+          MatrixUtils.transformPoint(inverse, viewportCenter);
+
+      final m = Matrix4.identity();
+      m.setEntry(0, 3, viewportCenter.dx - graphCenter.dx * newScale);
+      m.setEntry(1, 3, viewportCenter.dy - graphCenter.dy * newScale);
+      m.scaleByDouble(newScale, newScale, 1.0, 1.0);
+      _transformationController.value = m;
+      _currentScale = newScale;
+    });
+  }
+
+  void _zoomOut() {
+    final screenSize = MediaQuery.of(context).size;
+    final viewportCenter = Offset(screenSize.width / 2, screenSize.height / 2);
+    final newScale = (_currentScale / 1.3).clamp(0.3, 3.0);
+
+    setState(() {
+      final inverse = Matrix4.identity()
+        ..copyInverse(_transformationController.value);
+      final graphCenter =
+          MatrixUtils.transformPoint(inverse, viewportCenter);
+
+      final m = Matrix4.identity();
+      m.setEntry(0, 3, viewportCenter.dx - graphCenter.dx * newScale);
+      m.setEntry(1, 3, viewportCenter.dy - graphCenter.dy * newScale);
+      m.scaleByDouble(newScale, newScale, 1.0, 1.0);
+      _transformationController.value = m;
+      _currentScale = newScale;
+    });
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -1172,7 +1214,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
     for (final entry in byGeneration.entries) {
       final gen = entry.key;
       final ids = entry.value;
-      final ringRadius = 180.0 * gen;
+      final ringRadius = gen == 1 ? 120.0 : 120.0 + 100.0 * (gen - 1);
       final angleStep = 2 * math.pi / math.max(ids.length, 1);
 
       for (int i = 0; i < ids.length; i++) {
@@ -2406,6 +2448,8 @@ class _GraphPill extends StatelessWidget {
   const _GraphPill({
     required this.layoutMode,
     required this.onToggleLayout,
+    required this.onZoomIn,
+    required this.onZoomOut,
     required this.onCenterYou,
     required this.onFit,
     required this.onAddPerson,
@@ -2414,6 +2458,8 @@ class _GraphPill extends StatelessWidget {
 
   final GraphLayoutMode layoutMode;
   final ValueChanged<GraphLayoutMode> onToggleLayout;
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
   final VoidCallback onCenterYou;
   final VoidCallback onFit;
   final VoidCallback onAddPerson;
@@ -2442,6 +2488,9 @@ class _GraphPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          _PillIcon(icon: Icons.remove_rounded, onTap: onZoomOut),
+          _PillIcon(icon: Icons.add_rounded, onTap: onZoomIn),
+          const _PillDivider(),
           _PillToggle(
             icon: Icons.hub_rounded,
             label: 'Radial',
