@@ -170,3 +170,26 @@ Stage Summary:
 - Gamification leaderboard now supports limit/offset pagination
 - DeepSeek baseURL now configurable via DEEPSEEK_BASE_URL env var
 - Zero remaining encryptionKey! non-null assertions in auth.service.ts
+
+---
+Task ID: Phase 2
+Agent: Main Agent
+Task: Phase 2 — Quality & Robustness (10 fixes)
+
+Work Log:
+- 2.1: Added membership verification to chat.service.ts (verifyMembership helper + ForbiddenException); fixed authorId spoofing in chat.controller.ts (use @CurrentUser('id')); added @Throttle on sendMessage
+- 2.2: Added cursor-based pagination to stories.service.ts (findByFamily, findByUser with limit/cursor/nextCursor); added limit/offset to gamification.service.ts getLeaderboard; updated both controllers
+- 2.3: Changed hardcoded baseURL 'https://api.deepseek.com' → configService.get('DEEPSEEK_BASE_URL', default) in 4 AI services
+- 2.4: Replaced 3 encryptionKey! non-null assertions in auth.service.ts with proper null checks throwing InternalServerErrorException
+- 2.5: Fixed sync_engine.dart _entityTableMap from lowercase to PascalCase (Family, Person, Relationship, FamilyMember, Invitation); fixed hardcoded .from() calls
+- 2.6: Removed 'apikey': AppConfig.supabaseAnonKey from Dio BaseOptions headers — only needed for direct Supabase calls
+- 2.7: Token refresh failure now calls client.auth.signOut() to trigger auth state change → UI redirects to sign-in
+- 2.8: Replaced no-op _ErrorInterceptor with full implementation mapping DioExceptionType + HTTP status codes to user-friendly messages
+- 2.9: Wrapped member_detail_provider._fetchFromSupabase in try-catch; added state.copyWith(error:) to all 8 family_invite_provider methods
+- 2.10: Changed share.controller.ts from `return { error: 'Token is required' }` to `throw new BadRequestException('Token is required')`
+
+Stage Summary:
+- 18 files changed, 453 insertions, 195 deletions
+- TypeScript compilation: 0 errors
+- Backend tests: 107/107 passing
+- All Phase 2 items complete and pushed to GitHub
