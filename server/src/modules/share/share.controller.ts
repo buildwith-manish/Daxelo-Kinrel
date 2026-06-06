@@ -8,6 +8,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import { ShareService } from './share.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -48,7 +49,7 @@ export class ShareController {
   @UseGuards(JwtAuthGuard)
   async getShareStats(@Query('token') token: string) {
     if (!token) {
-      return { error: 'Token is required' };
+      throw new BadRequestException('Token is required');
     }
     return this.shareService.getShareStats(token);
   }

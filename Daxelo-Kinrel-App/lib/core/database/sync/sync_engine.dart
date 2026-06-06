@@ -364,11 +364,11 @@ const int _maxConflictLogEntries = 200;
 
 /// Supabase table names mapped from entity type strings.
 const Map<String, String> _entityTableMap = {
-  'family': 'families',
-  'person': 'persons',
-  'relationship': 'relationships',
-  'profile': 'profiles',
-  'invitation': 'invitations',
+  'family': 'Family',
+  'person': 'Person',
+  'relationship': 'Relationship',
+  'profile': 'FamilyMember',
+  'invitation': 'Invitation',
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1045,7 +1045,7 @@ class SyncEngine {
 
       // Fetch invitations for this user from Supabase
       final invitations = await client
-          .from('invitations')
+          .from('Invitation')
           .select()
           .or('inviter_id.eq.$userId,invitee_id.eq.$userId')
           .order('created_at', ascending: false);
@@ -1493,7 +1493,7 @@ class SyncEngine {
         final filter = batch.join(',');
 
         final relationships = await client
-            .from('relationships')
+            .from('Relationship')
             .select()
             .filter('family_id', 'in', '($filter)');
 

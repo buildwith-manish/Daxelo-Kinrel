@@ -4,6 +4,7 @@ import {
   ConflictException,
   BadRequestException,
   NotFoundException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -334,7 +335,10 @@ export class AuthService {
     });
 
     const encryptionKey = this.config.get<string>('ENCRYPTION_KEY');
-    const encryptedSecret = encrypt(secret.base32, encryptionKey!);
+    if (!encryptionKey) {
+      throw new InternalServerErrorException('ENCRYPTION_KEY is not configured — cannot process 2FA');
+    }
+    const encryptedSecret = encrypt(secret.base32, encryptionKey);
 
     await this.prisma.user.update({
       where: { id: userId },
@@ -372,7 +376,10 @@ export class AuthService {
     }
 
     const encryptionKey = this.config.get<string>('ENCRYPTION_KEY');
-    const decryptedSecret = decrypt(user.twoFactorSecret, encryptionKey!);
+    if (!encryptionKey) {
+      throw new InternalServerErrorException('ENCRYPTION_KEY is not configured — cannot process 2FA');
+    }
+    const decryptedSecret = decrypt(user.twoFactorSecret, encryptionKey);
 
     const verified = speakeasy.totp.verify({
       secret: decryptedSecret,
@@ -425,7 +432,10 @@ export class AuthService {
     }
 
     const encryptionKey = this.config.get<string>('ENCRYPTION_KEY');
-    const decryptedSecret = decrypt(user.twoFactorSecret, encryptionKey!);
+    if (!encryptionKey) {
+      throw new InternalServerErrorException('ENCRYPTION_KEY is not configured — cannot process 2FA');
+    }
+    const decryptedSecret = decrypt(user.twoFactorSecret, encryptionKey);
 
     const verified = speakeasy.totp.verify({
       secret: decryptedSecret,

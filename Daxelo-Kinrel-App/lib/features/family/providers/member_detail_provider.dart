@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/isar_database.dart';
@@ -329,180 +330,188 @@ Future<MemberDetailModel> _fetchFromSupabase(
   Ref ref,
   String personId,
 ) async {
-  final client = ref.read(supabaseProvider);
-  if (client == null) {
-    throw Exception('Database is not connected.');
-  }
-
-  // 1. Fetch the person record
-  final personResponse = await client
-      .from(_kPersonTable)
-      .select()
-      .eq('id', personId)
-      .filter('deletedAt', 'is', null)
-      .maybeSingle();
-
-  if (personResponse == null) {
-    throw Exception('Person not found.');
-  }
-
-  final personData = personResponse;
-  final familyId = personData['familyId']?.toString() ?? '';
-
-  // 2. Fetch relationships involving this person in the same family
-  List<Map<String, dynamic>> relationshipRows = [];
   try {
-    final relResponse = await client
-        .from(_kRelationshipTable)
+    final client = ref.read(supabaseProvider);
+    if (client == null) {
+      throw Exception('Database is not connected.');
+    }
+
+    // 1. Fetch the person record
+    final personResponse = await client
+        .from(_kPersonTable)
         .select()
-        .eq('familyId', familyId)
-        .eq('isActive', true);
-    relationshipRows = (relResponse as List)
-        .map((r) => r as Map<String, dynamic>)
-        .toList();
-  } catch (e) {
-    debugPrint('⚠️ memberDetailProvider: Failed to fetch relationships: $e');
-  }
+        .eq('id', personId)
+        .filter('deletedAt', 'is', null)
+        .maybeSingle();
 
-  // 3. Find relationships involving this person
-  final relatedPersonIds = <String>{};
-  final memberRelations = <MemberRelation>[];
-
-  for (final rel in relationshipRows) {
-    final fromId = rel['fromPersonId']?.toString() ?? '';
-    final toId = rel['toPersonId']?.toString() ?? '';
-
-    if (fromId == personId) {
-      // This person is the source — the related person is toId
-      relatedPersonIds.add(toId);
-    } else if (toId == personId) {
-      // This person is the target — the related person is fromId
-      relatedPersonIds.add(fromId);
+    if (personResponse == null) {
+      throw Exception('Person not found.');
     }
-  }
 
-  // 4. Fetch related person details
-  final relatedPersons = <String, Map<String, dynamic>>{};
-  if (relatedPersonIds.isNotEmpty) {
+    final personData = personResponse;
+    final familyId = personData['familyId']?.toString() ?? '';
+
+    // 2. Fetch relationships involving this person in the same family
+    List<Map<String, dynamic>> relationshipRows = [];
     try {
-      final personsResponse = await client
-          .from(_kPersonTable)
+      final relResponse = await client
+          .from(_kRelationshipTable)
           .select()
-          .inFilter('id', relatedPersonIds.toList())
-          .filter('deletedAt', 'is', null);
-      for (final p in (personsResponse as List)) {
-        final pData = p as Map<String, dynamic>;
-        final pid = pData['id']?.toString() ?? '';
-        relatedPersons[pid] = pData;
-      }
+          .eq('familyId', familyId)
+          .eq('isActive', true);
+      relationshipRows = (relResponse as List)
+          .map((r) => r as Map<String, dynamic>)
+          .toList();
     } catch (e) {
-      debugPrint('⚠️ memberDetailProvider: Failed to fetch related persons: $e');
-    }
-  }
-
-  // 5. Build MemberRelation list
-  for (final rel in relationshipRows) {
-    final fromId = rel['fromPersonId']?.toString() ?? '';
-    final toId = rel['toPersonId']?.toString() ?? '';
-    final relKey = rel['relationshipKey'] as String? ?? '';
-    final label = rel['label'] as String?;
-
-    String? relatedId;
-    String? kinshipName;
-
-    if (fromId == personId) {
-      relatedId = toId;
-      // Person is the source — relationshipKey describes how person relates to toId
-      kinshipName = label ?? relKey;
-    } else if (toId == personId) {
-      relatedId = fromId;
-      // Person is the target — relationshipKey describes how fromId relates to person
-      // The inverse is how person relates to fromId
-      kinshipName = label ?? _getInverseLabel(relKey);
+      debugPrint('⚠️ memberDetailProvider: Failed to fetch relationships: $e');
     }
 
-    if (relatedId != null && relatedPersons.containsKey(relatedId)) {
-      final rData = relatedPersons[relatedId]!;
-      memberRelations.add(MemberRelation(
-        memberId: relatedId,
-        name: rData['name'] as String? ?? 'Unknown',
-        photoUrl: rData['photoUrl'] as String?,
-        kinshipName: kinshipName,
-        gender: rData['gender'] as String?,
+    // 3. Find relationships involving this person
+    final relatedPersonIds = <String>{};
+    final memberRelations = <MemberRelation>[];
+
+    for (final rel in relationshipRows) {
+      final fromId = rel['fromPersonId']?.toString() ?? '';
+      final toId = rel['toPersonId']?.toString() ?? '';
+
+      if (fromId == personId) {
+        // This person is the source — the related person is toId
+        relatedPersonIds.add(toId);
+      } else if (toId == personId) {
+        // This person is the target — the related person is fromId
+        relatedPersonIds.add(fromId);
+      }
+    }
+
+    // 4. Fetch related person details
+    final relatedPersons = <String, Map<String, dynamic>>{};
+    if (relatedPersonIds.isNotEmpty) {
+      try {
+        final personsResponse = await client
+            .from(_kPersonTable)
+            .select()
+            .inFilter('id', relatedPersonIds.toList())
+            .filter('deletedAt', 'is', null);
+        for (final p in (personsResponse as List)) {
+          final pData = p as Map<String, dynamic>;
+          final pid = pData['id']?.toString() ?? '';
+          relatedPersons[pid] = pData;
+        }
+      } catch (e) {
+        debugPrint('⚠️ memberDetailProvider: Failed to fetch related persons: $e');
+      }
+    }
+
+    // 5. Build MemberRelation list
+    for (final rel in relationshipRows) {
+      final fromId = rel['fromPersonId']?.toString() ?? '';
+      final toId = rel['toPersonId']?.toString() ?? '';
+      final relKey = rel['relationshipKey'] as String? ?? '';
+      final label = rel['label'] as String?;
+
+      String? relatedId;
+      String? kinshipName;
+
+      if (fromId == personId) {
+        relatedId = toId;
+        // Person is the source — relationshipKey describes how person relates to toId
+        kinshipName = label ?? relKey;
+      } else if (toId == personId) {
+        relatedId = fromId;
+        // Person is the target — relationshipKey describes how fromId relates to person
+        // The inverse is how person relates to fromId
+        kinshipName = label ?? _getInverseLabel(relKey);
+      }
+
+      if (relatedId != null && relatedPersons.containsKey(relatedId)) {
+        final rData = relatedPersons[relatedId]!;
+        memberRelations.add(MemberRelation(
+          memberId: relatedId,
+          name: rData['name'] as String? ?? 'Unknown',
+          photoUrl: rData['photoUrl'] as String?,
+          kinshipName: kinshipName,
+          gender: rData['gender'] as String?,
+        ));
+      }
+    }
+
+    // 6. Check for kinship path from current user to this person
+    String? kinshipNameToUser;
+    String? kinshipPathToUser;
+    final userId = client.auth.currentUser?.id;
+    if (userId != null && IsarDatabase.isInitialized) {
+      try {
+        final db = IsarDatabase.instance;
+        final cachedPath = await db.getRelationshipPath(familyId, userId, personId);
+        if (cachedPath != null) {
+          kinshipNameToUser = cachedPath.kinshipTerm ?? cachedPath.kinshipTermHindi;
+          kinshipPathToUser = _jsonDecode(cachedPath.path).toString();
+        }
+      } catch (_) {}
+    }
+
+    // 7. Build timeline events from person data
+    final timelineEvents = <TimelineEvent>[];
+    final name = personData['name'] as String? ?? 'Unknown';
+    final dateOfBirth = personData['dateOfBirth']?.toString();
+
+    if (dateOfBirth != null && dateOfBirth.isNotEmpty) {
+      timelineEvents.add(TimelineEvent(
+        id: '${personId}_birth',
+        title: 'Born',
+        date: dateOfBirth,
+        eventType: TimelineEventType.birth,
       ));
     }
-  }
 
-  // 6. Check for kinship path from current user to this person
-  String? kinshipNameToUser;
-  String? kinshipPathToUser;
-  final userId = client.auth.currentUser?.id;
-  if (userId != null && IsarDatabase.isInitialized) {
-    try {
-      final db = IsarDatabase.instance;
-      final cachedPath = await db.getRelationshipPath(familyId, userId, personId);
-      if (cachedPath != null) {
-        kinshipNameToUser = cachedPath.kinshipTerm ?? cachedPath.kinshipTermHindi;
-        kinshipPathToUser = _jsonDecode(cachedPath.path).toString();
+    // 8. Build MemberDetailModel
+    final detail = MemberDetailModel(
+      memberId: personId,
+      name: name,
+      nickname: personData['username'] as String?,
+      gender: personData['gender'] as String?,
+      dateOfBirth: dateOfBirth,
+      birthplace: null, // Not in Person schema
+      currentCity: personData['city'] as String?,
+      phone: null, // Not directly in Person schema
+      email: null, // Not directly in Person schema
+      occupation: personData['occupation'] as String?,
+      bio: personData['notes'] as String?,
+      photoUrl: personData['photoUrl'] as String?,
+      kinshipNameToUser: kinshipNameToUser,
+      kinshipPathToUser: kinshipPathToUser,
+      generationNumber: personData['generationIndex'] as int? ?? 0,
+      directConnectionsCount: memberRelations.length,
+      isDeceased: personData['isDeceased'] as bool? ?? false,
+      relations: memberRelations,
+      timelineEvents: timelineEvents,
+      notes: const [], // Notes not in current schema
+    );
+
+    // 9. Cache in Drift
+    if (IsarDatabase.isInitialized) {
+      try {
+        final db = IsarDatabase.instance;
+        await db.upsertPerson(CachedPersonsCompanion(
+          id: Value(personId),
+          familyId: Value(familyId),
+          name: Value(name),
+          data: Value(_jsonEncode(detail.toJson())),
+          cachedAt: Value(DateTime.now()),
+        ));
+      } catch (e) {
+        debugPrint('⚠️ memberDetailProvider: Failed to cache: $e');
       }
-    } catch (_) {}
-  }
-
-  // 7. Build timeline events from person data
-  final timelineEvents = <TimelineEvent>[];
-  final name = personData['name'] as String? ?? 'Unknown';
-  final dateOfBirth = personData['dateOfBirth']?.toString();
-
-  if (dateOfBirth != null && dateOfBirth.isNotEmpty) {
-    timelineEvents.add(TimelineEvent(
-      id: '${personId}_birth',
-      title: 'Born',
-      date: dateOfBirth,
-      eventType: TimelineEventType.birth,
-    ));
-  }
-
-  // 8. Build MemberDetailModel
-  final detail = MemberDetailModel(
-    memberId: personId,
-    name: name,
-    nickname: personData['username'] as String?,
-    gender: personData['gender'] as String?,
-    dateOfBirth: dateOfBirth,
-    birthplace: null, // Not in Person schema
-    currentCity: personData['city'] as String?,
-    phone: null, // Not directly in Person schema
-    email: null, // Not directly in Person schema
-    occupation: personData['occupation'] as String?,
-    bio: personData['notes'] as String?,
-    photoUrl: personData['photoUrl'] as String?,
-    kinshipNameToUser: kinshipNameToUser,
-    kinshipPathToUser: kinshipPathToUser,
-    generationNumber: personData['generationIndex'] as int? ?? 0,
-    directConnectionsCount: memberRelations.length,
-    isDeceased: personData['isDeceased'] as bool? ?? false,
-    relations: memberRelations,
-    timelineEvents: timelineEvents,
-    notes: const [], // Notes not in current schema
-  );
-
-  // 9. Cache in Drift
-  if (IsarDatabase.isInitialized) {
-    try {
-      final db = IsarDatabase.instance;
-      await db.upsertPerson(CachedPersonsCompanion(
-        id: Value(personId),
-        familyId: Value(familyId),
-        name: Value(name),
-        data: Value(_jsonEncode(detail.toJson())),
-        cachedAt: Value(DateTime.now()),
-      ));
-    } catch (e) {
-      debugPrint('⚠️ memberDetailProvider: Failed to cache: $e');
     }
-  }
 
-  return detail;
+    return detail;
+  } on PostgrestException catch (e) {
+    debugPrint('❌ _fetchFromSupabase PostgrestException: ${e.message}');
+    rethrow; // Let the FutureProvider handle it with .when(error:)
+  } catch (e) {
+    debugPrint('❌ _fetchFromSupabase error: $e');
+    rethrow;
+  }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────

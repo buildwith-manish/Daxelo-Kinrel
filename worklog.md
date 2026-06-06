@@ -108,3 +108,65 @@ Stage Summary:
 - TypeScript compilation: 0 errors
 - Backend tests: 107/107 passing
 - All Phase 1 items complete and pushed to GitHub
+
+---
+Task ID: 2.5-2.8
+Agent: Sub Agent
+Task: Flutter sync engine table name case, Dio apikey header leak, token refresh force-logout, error interceptor
+
+Work Log:
+- 2.5: Fixed _entityTableMap in sync_engine.dart — changed lowercase table names to PascalCase matching Supabase/Prisma schema: families→Family, persons→Person, relationships→Relationship, profiles→FamilyMember, invitations→Invitation. Also replaced hardcoded lowercase .from() calls: .from('invitations')→.from('Invitation'), .from('relationships')→.from('Relationship')
+- 2.6: Removed 'apikey': AppConfig.supabaseAnonKey from Dio BaseOptions headers in dio_client.dart — apikey is only needed for direct Supabase REST calls (handled by SupabaseClient), not for NestJS backend requests. Also removed now-unused import of app_config.dart
+- 2.7: Fixed _AuthInterceptor token refresh failure handling — when refreshSession() throws, now calls client.auth.signOut() to trigger auth state change (UI redirects to sign-in) instead of silently proceeding without a token. Also changed outer catch block from catch (_) to catch (e) with debugPrint logging
+- 2.8: Replaced no-op _ErrorInterceptor with full error transformation implementation — _getErrorMessage() maps DioExceptionType to user-friendly messages (timeout, connection error, cancelled, unknown/SocketException); _getResponseErrorMessage() extracts NestJS { message, statusCode } format, falls back to status-code-specific messages (400/401/403/404/429/500/503)
+
+Stage Summary:
+- 2 files modified: sync_engine.dart, dio_client.dart
+- 5 table name mappings corrected (Family, Person, Relationship, FamilyMember, Invitation)
+- 2 hardcoded .from() calls fixed
+- 1 leaked header removed (apikey)
+- 1 auth failure path now forces sign-out instead of silent 401
+- 1 error interceptor fully implemented (was a no-op pass-through)
+- Dart CLI unavailable in sandbox — verify compilation locally
+
+---
+Task ID: 2.9-2.10
+Agent: Sub Agent
+Task: Flutter provider error handling + NestJS share controller error handling
+
+Work Log:
+- 2.9a: Wrapped entire _fetchFromSupabase() body in try-catch in member_detail_provider.dart — catches PostgrestException with debugPrint + rethrow (lets FutureProvider .when(error:) handle it), and generic catch with debugPrint + rethrow; added `import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;`
+- 2.9b: Added `state = state.copyWith(error: '...')` to all 8 methods in family_invite_provider.dart that previously only did debugPrint on catch — generateInviteLinkInfo, regenerateInviteLink, trackInviteSent, trackInviteClick, trackBulkInvites, getInviteAnalytics, getRecentInvites, updateInviteStatus; each now sets a user-facing error string in both DioException and generic catch blocks; FamilyInviteState already has an `error` field with copyWith support
+- 2.10: Changed share.controller.ts `return { error: 'Token is required' }` (200 status) to `throw new BadRequestException('Token is required')` (400 status); added BadRequestException to @nestjs/common imports
+
+Stage Summary:
+- 3 files modified: member_detail_provider.dart, family_invite_provider.dart, share.controller.ts
+- TypeScript compilation: 0 errors (npx tsc --noEmit passes cleanly)
+- Dart CLI unavailable in sandbox — verify Flutter compilation locally
+
+---
+Task ID: 2.1-2.4
+Agent: Backend Fix Agent
+Task: Chat membership verification, stories/gamification pagination, DeepSeek baseURL env var, auth encryptionKey null checks
+
+Work Log:
+- 2.1a: Read chat.service.ts and chat.controller.ts
+- 2.1b: Added verifyMembership() private helper to ChatService (checks FamilyMember exists, throws ForbiddenException if not); added userId parameter to listMessages() and calls verifyMembership before querying; added verifyMembership call in sendMessage(); added content length validation (max 2000 chars, BadRequestException if exceeded)
+- 2.1c: Added @CurrentUser('id') userId to chat.controller.ts listMessages(); changed sendMessage to use @CurrentUser('id') for authorId instead of accepting from body (authorId spoofing fix); added @Throttle({ default: { limit: 30, ttl: 60000 } }) on sendMessage; removed authorId from body type
+- 2.2a: Read stories.service.ts, stories.controller.ts, gamification.service.ts, gamification.controller.ts
+- 2.2b: Added limit/cursor parameters to stories.service.ts findByFamily() and findByUser(); implemented cursor-based pagination with take: limit + 1, hasNext detection, and nextCursor in response
+- 2.2c: Added limit and cursor query params to stories.controller.ts for both findByFamily and findByUser endpoints
+- 2.2d: Added limit/offset parameters to gamification.service.ts getLeaderboard(); entries are sliced before rank assignment with offset-aware rank calculation
+- 2.2e: Added limit and offset query params to gamification.controller.ts getLeaderboard endpoint
+- 2.3: Changed hardcoded baseURL in 4 AI service files from 'https://api.deepseek.com' to this.configService.get<string>('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'): ai-chat.service.ts, ai-cards.service.ts, ai-features.service.ts, ai-voice.service.ts
+- 2.4: Replaced 3 encryptionKey! non-null assertions in auth.service.ts with proper null checks: added `if (!encryptionKey) throw new InternalServerErrorException('ENCRYPTION_KEY is not configured — cannot process 2FA')` in setup2FA(), verify2FA(), and loginVerify2FA(); added InternalServerErrorException to imports
+
+Stage Summary:
+- 10 files modified: chat.service.ts, chat.controller.ts, stories.service.ts, stories.controller.ts, gamification.service.ts, gamification.controller.ts, ai-chat.service.ts, ai-cards.service.ts, ai-features.service.ts, ai-voice.service.ts, auth.service.ts
+- TypeScript compilation: 0 errors (npx tsc --noEmit passes cleanly)
+- No new packages installed
+- Chat now requires family membership verification and prevents authorId spoofing
+- Stories endpoints now support cursor-based pagination
+- Gamification leaderboard now supports limit/offset pagination
+- DeepSeek baseURL now configurable via DEEPSEEK_BASE_URL env var
+- Zero remaining encryptionKey! non-null assertions in auth.service.ts

@@ -41,8 +41,14 @@ export class GamificationController {
 
   // ── Get Leaderboard ─────────────────────────────────────────────────
   @Get('leaderboard')
-  async getLeaderboard() {
-    return this.gamificationService.getLeaderboard();
+  async getLeaderboard(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.gamificationService.getLeaderboard(
+      limit ? parseInt(limit, 10) : 50,
+      offset ? parseInt(offset, 10) : 0,
+    );
   }
 
   // ── Get Daily Challenge ─────────────────────────────────────────────

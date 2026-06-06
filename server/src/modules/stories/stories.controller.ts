@@ -29,15 +29,30 @@ export class StoriesController {
   async findByFamily(
     @CurrentUser('id') userId: string,
     @Query('familyId') familyId: string,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
   ) {
-    return this.storiesService.findByFamily(familyId, userId);
+    return this.storiesService.findByFamily(
+      familyId,
+      userId,
+      limit ? parseInt(limit, 10) : 50,
+      cursor,
+    );
   }
 
   @Get('mine')
   @ApiOperation({ summary: "Get current user's stories" })
   @ApiResponse({ status: HttpStatus.OK, description: 'Returns the current user stories' })
-  async findByUser(@CurrentUser('id') userId: string) {
-    return this.storiesService.findByUser(userId);
+  async findByUser(
+    @CurrentUser('id') userId: string,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.storiesService.findByUser(
+      userId,
+      limit ? parseInt(limit, 10) : 50,
+      cursor,
+    );
   }
 
   @Post()

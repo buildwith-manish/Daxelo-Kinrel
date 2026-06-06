@@ -266,8 +266,10 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
       }
     } on DioException catch (e) {
       debugPrint('⚠️ generateInviteLinkInfo error: ${e.message}');
+      state = state.copyWith(error: 'Failed to load invite link info: ${e.message}');
     } catch (e) {
       debugPrint('⚠️ generateInviteLinkInfo error: $e');
+      state = state.copyWith(error: 'Failed to load invite link info. Please try again.');
     }
 
     // Default info without backend data
@@ -292,8 +294,10 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
     } on DioException catch (e) {
       debugPrint('⚠️ regenerateInviteLink error: ${e.message}');
       // Non-critical — the link format is deterministic anyway
+      state = state.copyWith(error: 'Failed to regenerate invite link: ${e.message}');
     } catch (e) {
       debugPrint('⚠️ regenerateInviteLink error: $e');
+      state = state.copyWith(error: 'Failed to regenerate invite link. Please try again.');
     }
 
     state = state.copyWith(isLoading: false);
@@ -379,8 +383,10 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
     } on DioException catch (e) {
       // Non-critical — don't block the user
       debugPrint('⚠️ trackInviteSent error: ${e.message}');
+      state = state.copyWith(error: 'Failed to track invite: ${e.message}');
     } catch (e) {
       debugPrint('⚠️ trackInviteSent error: $e');
+      state = state.copyWith(error: 'Failed to track invite. Please try again.');
     }
   }
 
@@ -401,8 +407,10 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
       );
     } on DioException catch (e) {
       debugPrint('⚠️ trackInviteClick error: ${e.message}');
+      state = state.copyWith(error: 'Failed to track invite click: ${e.message}');
     } catch (e) {
       debugPrint('⚠️ trackInviteClick error: $e');
+      state = state.copyWith(error: 'Failed to track invite click. Please try again.');
     }
   }
 
@@ -432,8 +440,10 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
       );
     } on DioException catch (e) {
       debugPrint('⚠️ trackBulkInvites error: ${e.message}');
+      state = state.copyWith(error: 'Failed to track bulk invites: ${e.message}');
     } catch (e) {
       debugPrint('⚠️ trackBulkInvites error: $e');
+      state = state.copyWith(error: 'Failed to track bulk invites. Please try again.');
     }
   }
 
@@ -456,8 +466,10 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
       }
     } on DioException catch (e) {
       debugPrint('⚠️ getInviteAnalytics error: ${e.message}');
+      state = state.copyWith(error: 'Failed to load analytics: ${e.message}');
     } catch (e) {
       debugPrint('⚠️ getInviteAnalytics error: $e');
+      state = state.copyWith(error: 'Failed to load analytics. Please try again.');
     }
 
     return InviteAnalytics.empty;
@@ -490,8 +502,10 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
       }
     } on DioException catch (e) {
       debugPrint('⚠️ getRecentInvites error: ${e.message}');
+      state = state.copyWith(error: 'Failed to load recent invites: ${e.message}');
     } catch (e) {
       debugPrint('⚠️ getRecentInvites error: $e');
+      state = state.copyWith(error: 'Failed to load recent invites. Please try again.');
     }
 
     return state.recentInvites;
@@ -529,8 +543,10 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
       );
     } on DioException catch (e) {
       debugPrint('⚠️ updateInviteStatus error: ${e.message}');
+      state = state.copyWith(error: 'Failed to update invite status: ${e.message}');
     } catch (e) {
       debugPrint('⚠️ updateInviteStatus error: $e');
+      state = state.copyWith(error: 'Failed to update invite status. Please try again.');
     }
   }
 
