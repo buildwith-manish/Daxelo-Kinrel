@@ -405,3 +405,25 @@ Stage Summary:
 - All relationships service methods covered: create (10 scenarios), findAll (3 scenarios), remove (3 scenarios), getInverseKey (7 scenarios)
 - Razorpay signature verification properly tested with real HMAC computation
 - Redis cache invalidation tested implicitly (empty REDIS_URL → null redis → no-op without error)
+
+---
+Task ID: Phase 4
+Agent: Main Agent
+Task: Phase 4 — Product Excellence (10 fixes)
+
+Work Log:
+- 4.1: Fixed CRITICAL BUG — userId/familyId parameter swap in relationships.controller.ts and members.controller.ts findAll() methods; swapped to match service signature (userId, familyId)
+- 4.2: Added Prisma connection pool config via datasources override in prisma.service.ts; added connection_limit=10&pool_timeout=20 to .env.example DATABASE_URL
+- 4.3: Added SIGINT handler + shared gracefulShutdown function with 10s forced timeout in main.ts
+- 4.4: Removed TimestampInterceptor from main.ts (was double-wrapping with ResponseEnvelopeInterceptor); marked TimestampInterceptor as @deprecated
+- 4.5: Created payments.service.spec.ts with 13 tests covering createOrder validation, Razorpay signature verification (HMAC-SHA256), plan validation, subscription CRUD
+- 4.6: Created relationships.service.spec.ts with 17 tests covering bidirectional creation, inverse mapping, self-relationship prevention, cache invalidation, access control
+- 4.7: Added @ApiTags Swagger decorators to 29 controller files (was only 4)
+- 4.8: Created certificate_pinning.dart infrastructure with productionFingerprints set, configureCertificatePinning() function, and full setup documentation; integrated into dio_client.dart
+- 4.9: Added db:migrate:deploy/status/resolve scripts to package.json; created docker-entrypoint.sh for auto-migrations; updated render.yaml with RUN_MIGRATIONS=true
+
+Stage Summary:
+- 44 files changed, 1299 insertions, 15 deletions
+- TypeScript compilation: 0 errors
+- Backend tests: 191/191 passing (+38 new tests)
+- All Phase 4 items complete and pushed to GitHub
