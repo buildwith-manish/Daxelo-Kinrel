@@ -18,11 +18,6 @@ const REQUIRED_VARS = [
   'SUPABASE_URL',
   'SUPABASE_SERVICE_ROLE_KEY',
   'ENCRYPTION_KEY',
-  // Variables critical for core features
-  'CLOUDINARY_CLOUD_NAME',
-  'CLOUDINARY_API_KEY',
-  'CLOUDINARY_API_SECRET',
-  'DEEPSEEK_API_KEY',
 ];
 
 const RECOMMENDED_VARS = [
@@ -32,6 +27,11 @@ const RECOMMENDED_VARS = [
   'SMTP_PASS',
   'RAZORPAY_KEY_ID',
   'RAZORPAY_KEY_SECRET',
+  // Feature-specific — not required for server to start
+  'CLOUDINARY_CLOUD_NAME',
+  'CLOUDINARY_API_KEY',
+  'CLOUDINARY_API_SECRET',
+  'DEEPSEEK_API_KEY',
 ];
 
 export function validate(config: Record<string, unknown>) {
