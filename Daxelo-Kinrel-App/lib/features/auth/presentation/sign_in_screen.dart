@@ -565,8 +565,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                             horizontal: 4,
                             vertical: 4,
                           ),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         child: Text(
                           'Forgot Password?',
@@ -693,15 +691,19 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     const SizedBox(height: 20),
 
                     // ── Google button ───────────────────────────────
-                    _SocialAuthButton(
-                      label: _isGoogleLoading ? 'Signing in...' : 'Google',
-                      icon: Icons.g_mobiledata_rounded,
-                      borderColor: _socialBorder,
-                      fillColor: _inputFill,
-                      textColor: _primaryText,
-                      isLoading: _isGoogleLoading,
-                      onPressed:
-                          (_isGoogleLoading || _isLoading) ? null : _signInWithGoogle,
+                    Semantics(
+                      button: true,
+                      label: 'Sign in with Google',
+                      child: _SocialAuthButton(
+                        label: _isGoogleLoading ? 'Signing in...' : 'Google',
+                        icon: Icons.g_mobiledata_rounded,
+                        borderColor: _socialBorder,
+                        fillColor: _inputFill,
+                        textColor: _primaryText,
+                        isLoading: _isGoogleLoading,
+                        onPressed:
+                            (_isGoogleLoading || _isLoading) ? null : _signInWithGoogle,
+                      ),
                     ).animate().fadeIn(duration: 300.ms, delay: 400.ms),
 
                     const SizedBox(height: 32),
@@ -722,8 +724,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           onPressed: () => context.go('/sign-up'),
                           style: TextButton.styleFrom(
                             padding: const EdgeInsets.symmetric(horizontal: 4),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
                           child: Text(
                             'Sign Up',

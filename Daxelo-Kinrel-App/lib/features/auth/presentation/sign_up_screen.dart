@@ -475,6 +475,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                     ),
+                    validator: (value) => phoneValidator(value),
                     decoration: _inputDecoration(
                       hintText: 'Phone number',
                       prefix: _CountryCodePicker(
@@ -825,8 +826,6 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         onPressed: () => context.go('/sign-in'),
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         child: Text(
                           'Sign In',

@@ -193,3 +193,81 @@ Stage Summary:
 - TypeScript compilation: 0 errors
 - Backend tests: 107/107 passing
 - All Phase 2 items complete and pushed to GitHub
+
+---
+Task ID: 3.1-3.4
+Agent: Backend Fix Agent
+Task: RolesGuard implementation, SSRF protection, inviterId spoofing fix, support DTO validation
+
+Work Log:
+- 3.1a: Created RolesGuard at common/guards/roles.guard.ts — uses Reflector to read @Roles metadata, returns true when no decorator present, checks request.user.role against required roles
+- 3.1b: Applied @UseGuards(JwtAuthGuard, RolesGuard) + @Roles('admin') at class level to AdminController; imported RolesGuard and Roles decorator
+- 3.1c: Applied @UseGuards(RolesGuard) + @Roles('admin') to listTickets endpoint (admin view) in SupportController; listMyTickets endpoint keeps only @UseGuards(JwtAuthGuard) at class level with no role restriction
+- 3.1d: Registered RolesGuard as 4th global APP_GUARD in app.module.ts (after ThrottlerGuard → JwtAuthGuard → TwoFactorGuard → RolesGuard); safe because RolesGuard returns true when no @Roles decorator is present
+- 3.2a: Created SSRF protection utility at common/utils/ssrf-protection.util.ts — validates URL format, requires HTTPS, blocks private IP ranges (127.x, 10.x, 172.16-31.x, 192.168.x, 169.254.x, 100.64.x, IPv6 loopback/unique-local/link-local), blocks metadata hostnames (localhost, metadata.google.internal), resolves DNS to check actual IPs before allowing
+- 3.2b: Replaced simple startsWith('https://') check in DeveloperService.createWebhook() with validateWebhookUrl() call; errors wrapped as BadRequestException
+- 3.3a: Created CreateInvitationDto with class-validator decorators: @IsUUID+@IsNotEmpty on familyId, @IsEmail+@MaxLength on recipientEmail, @IsString+@MaxLength on recipientPhone/recipientName, @IsIn on role and channel
+- 3.3b: Fixed inviterId spoofing in InvitationsController.create() — removed body.inviterId from DTO, now always uses userId from @CurrentUser('id'); replaced inline body type with CreateInvitationDto import
+- 3.4a: Created CreateTicketDto (subject, description, category, subcategory, severity, attachments, appVersion, platform, deviceInfo, language — all with proper validators) and AddMessageDto (content with @IsString+@IsNotEmpty+@MaxLength(5000))
+- 3.4b: Updated SupportController — replaced inline body types with CreateTicketDto and AddMessageDto imports; added @UseGuards(RolesGuard)+@Roles('admin') on listTickets; added RolesGuard and Roles imports
+
+Stage Summary:
+- 8 files created: roles.guard.ts, ssrf-protection.util.ts, create-invitation.dto.ts, create-ticket.dto.ts, add-message.dto.ts
+- 5 files modified: admin.controller.ts, support.controller.ts, app.module.ts, developer.service.ts, invitations.controller.ts
+- TypeScript compilation: 0 errors (npx tsc --noEmit passes cleanly)
+- No new packages installed
+- Admin endpoints now enforce 'admin' role via RolesGuard
+- Support ticket listing now restricted to admin role
+- Webhook URLs now validated against SSRF (DNS resolution + private IP blocklist)
+- Invitation creation no longer allows inviterId spoofing
+- Support ticket creation and message addition now have proper DTO validation
+
+---
+Task ID: 3.6-3.9
+Agent: Fix Agent
+Task: Phone validation, touch targets, 404 route, Logger, Semantics
+
+Work Log:
+- 3.6a: Added `validator: (value) => phoneValidator(value),` to the phone TextFormField in sign_up_screen.dart. form_validators.dart import already existed; phoneValidator already defined there (7-15 digit validation with character checks).
+- 3.6b: Removed `minimumSize: Size.zero` and `tapTargetSize: MaterialTapTargetSize.shrinkWrap` from 3 TextButton style declarations: sign_in_screen.dart "Forgot Password?" button and "Sign Up" link, sign_up_screen.dart "Sign In" link — ensures minimum 48px touch targets for accessibility compliance.
+- 3.7a: Added `errorBuilder` parameter to GoRouter in app_router.dart — renders a 404 page with "Page not found" message, the unmatched path, and a "Go Home" button navigating to /home. Uses Outfit font consistent with app branding.
+- 3.7b: Replaced 4 duplicate routes with redirects: `/family/:id/add-member` → `/family/:id/add-person`, `/legal/terms` → `/terms`, `/legal/privacy` → `/privacy`, `/profile/premium` → `/premium`.
+- 3.8: Replaced all `console.log`/`console.warn` calls in kinrel.gateway.ts with NestJS Logger: added `import { Logger } from '@nestjs/common'`, added `private readonly logger = new Logger(KinrelGateway.name)`, replaced 6 console calls (3 warn → logger.warn, 2 log → logger.log, 1 combined warn → single logger.warn). Removed `[WS]` prefix from all messages since Logger already includes class name.
+- 3.9a: Wrapped Google Sign-In button in sign_in_screen.dart with `Semantics(button: true, label: 'Sign in with Google')`. Email and password TextFormFields already have hintText providing accessibility labels.
+- 3.9b: Wrapped family card DKCard in family_list_screen.dart with `Semantics(button: true, label: 'Family: ${family.name}', hint: 'Tap to view family details')`.
+
+Stage Summary:
+- 5 files modified: sign_up_screen.dart, sign_in_screen.dart, app_router.dart, kinrel.gateway.ts, family_list_screen.dart
+- TypeScript compilation: 0 errors (npx tsc --noEmit passes cleanly)
+- Dart CLI unavailable in sandbox — verify Flutter compilation locally
+- All 4 fixes (3.6-3.9) complete
+
+---
+Task ID: 3.5
+Agent: Test Agent
+Task: Add auth.service.spec.ts — critical auth module tests
+
+Work Log:
+- 3.5a: Read auth.service.ts — identified constructor injection of PrismaService, JwtService, ConfigService, TwoFactorVerificationService; mapped all public methods (register, login, refresh, logout, changePassword, setup2FA, verify2FA, loginVerify2FA, disable2FA, validateUser, me, generateTokenPair, cleanupExpiredTokens) and private helpers (verifyPasswordWithLegacyUpgrade, hashSha256, computeExpiryDate, revokeTokenFamily, parseUserAgent)
+- 3.5b: Read families.service.spec.ts for test patterns — confirmed pattern: mock objects at module scope, jest.clearAllMocks() in beforeEach, Test.createTestingModule with useValue providers, nested describe blocks per method
+- 3.5c: Created auth.service.spec.ts with 46 test cases across 15 describe blocks:
+  - register: success with family auto-creation, duplicate email ConflictException, P2002 race condition, email trim/lowercase
+  - login: success with correct password, wrong password UnauthorizedException, non-existent user, null passwordHash, 2FA challenge response, legacy SHA-256 auto-upgrade to bcrypt
+  - refresh: valid token rotation, invalid token, expired token deletion, token reuse detection (revokes entire family), same familyId preserved
+  - logout: revoke token + clear 2FA, missing token success, already-revoked token no double-update
+  - changePassword: success with token revocation, wrong password, user not found, null passwordHash
+  - setup2FA: TOTP secret + QR code generation, missing ENCRYPTION_KEY InternalServerErrorException
+  - verify2FA: valid TOTP code verification, wrong code, setup not initiated, missing ENCRYPTION_KEY
+  - loginVerify2FA: valid code returns tokens + markVerified, user not found, 2FA not enabled, wrong code
+  - disable2FA: correct password, wrong password, user not found
+  - validateUser: valid payload, non-existent user returns null
+  - me: user profile, not found
+  - generateTokenPair: access+refresh tokens, existing familyId, userAgent/ipAddress storage
+  - cleanupExpiredTokens: delete expired and old revoked tokens
+  - Security edge cases: email trim/lowercase on login, encrypt/decrypt roundtrip
+
+Stage Summary:
+- 1 file created: auth.service.spec.ts (46 test cases)
+- Full test suite: 153/153 passing (was 107)
+- 46 new auth tests added, 0 failures
+- Covers all security-critical flows: password verification, token validation, 2FA, token family reuse detection, legacy password upgrade, ENCRYPTION_KEY validation

@@ -505,6 +505,34 @@ final routerProvider = Provider<GoRouter>((ref) {
       // P5-F1: Track every route change for analytics
       AnalyticsNavigatorObserver(),
     ],
+    errorBuilder: (context, state) => Scaffold(
+      appBar: AppBar(
+        title: Text('Page Not Found', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.explore_off, size: 64, color: Theme.of(context).disabledColor),
+            SizedBox(height: 16),
+            Text(
+              'Page not found',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, fontFamily: 'Outfit'),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'The page "${state.matchedLocation}" does not exist.',
+              style: TextStyle(color: Theme.of(context).hintColor),
+            ),
+            SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => context.go('/home'),
+              child: Text('Go Home'),
+            ),
+          ],
+        ),
+      ),
+    ),
     redirect: (context, state) {
       // ── SAFETY: Never throw in redirect — always return a route or null ──
       try {
@@ -664,10 +692,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/family/:id/add-member',
-        pageBuilder: (context, state) => _fastFadePage(
-          key: state.pageKey,
-          child: _AddPersonScreen(familyId: _param(state, 'id')),
-        ),
+        redirect: (context, state) => '/family/${_param(state, 'id')}/add-person',
       ),
       GoRoute(
         path: '/family/:id/link',
@@ -949,15 +974,11 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       GoRoute(
         path: '/legal/terms',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const LegalScreen(type: 'terms')),
+        redirect: (context, state) => '/terms',
       ),
       GoRoute(
         path: '/legal/privacy',
-        pageBuilder: (context, state) => _fastFadePage(
-          key: state.pageKey,
-          child: const LegalScreen(type: 'privacy'),
-        ),
+        redirect: (context, state) => '/privacy',
       ),
       GoRoute(
         path: '/profile/my-families',
@@ -983,8 +1004,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── P5: Premium Paywall (alternative path) ────────────────────
       GoRoute(
         path: '/profile/premium',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const PaywallScreen()),
+        redirect: (context, state) => '/premium',
       ),
     ],
   );

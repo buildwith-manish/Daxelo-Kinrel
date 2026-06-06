@@ -444,7 +444,11 @@ class _FamilyCard extends ConsumerWidget {
         ? '@${family.username}'
         : 'kinrel.co/f/$slug-$idSuffix';
 
-    return DKCard(
+    return Semantics(
+          button: true,
+          label: 'Family: ${family.name}',
+          hint: 'Tap to view family details',
+          child: DKCard(
           borderColor: DKColors.brandPurple.withValues(alpha: 0.2),
           onTap: onTap,
           onLongPress: () => _showFamilyQuickActions(context, ref),
@@ -580,7 +584,8 @@ class _FamilyCard extends ConsumerWidget {
           duration: 400.ms,
           delay: Duration(milliseconds: 100 + index * 60),
         )
-        .slideX(begin: 0.1, end: 0, duration: 400.ms);
+        .slideX(begin: 0.1, end: 0, duration: 400.ms),
+    );
   }
 
   bool _isCreator(WidgetRef ref) {

@@ -42,6 +42,7 @@ import { StoriesModule } from './modules/stories/stories.module';
 import { CustomThrottlerGuard } from './common/guards/throttler.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { TwoFactorGuard } from './common/guards/two-factor.guard';
+import { RolesGuard } from './common/guards/roles.guard';
 import { TwoFactorVerificationModule } from './common/services/two-factor-verification.module';
 
 @Module({
@@ -145,6 +146,8 @@ import { TwoFactorVerificationModule } from './common/services/two-factor-verifi
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     // 3. Two-factor authentication enforcement
     { provide: APP_GUARD, useClass: TwoFactorGuard },
+    // 4. Role-based access control (allows all when no @Roles decorator)
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule {}

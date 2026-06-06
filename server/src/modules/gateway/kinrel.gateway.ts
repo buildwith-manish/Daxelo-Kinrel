@@ -9,6 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import * as jwt from 'jsonwebtoken';
+import { Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 interface AuthPayload {
@@ -68,6 +69,7 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
+  private readonly logger = new Logger(KinrelGateway.name);
   private connectedUsers = new Map<string, string>();
   private graphDebounceTimers = new Map<string, NodeJS.Timeout>();
 
@@ -81,7 +83,7 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.handshake.headers?.authorization?.replace('Bearer ', '');
 
       if (!token) {
-        console.warn(`[WS] Connection rejected — no token: ${client.id}`);
+        this.logger.warn(`Connection rejected — no token: ${client.id}`);
         client.disconnect(true);
         return;
       }
@@ -114,7 +116,7 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       if (!payload) {
-        console.warn(`[WS] Connection rejected — invalid token: ${client.id}`);
+        this.logger.warn(`Connection rejected — invalid token: ${client.id}`);
         client.disconnect(true);
         return;
       }
@@ -123,9 +125,9 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.connectedUsers.set(client.id, userId);
       (client as any).userId = userId;
 
-      console.log(`[WS] Connected: ${client.id} (user: ${userId})`);
+      this.logger.log(`Connected: ${client.id} (user: ${userId})`);
     } catch (err) {
-      console.warn(`[WS] Connection rejected — error: ${client.id}`, (err as Error).message);
+      this.logger.warn(`Connection rejected — error: ${client.id}: ${(err as Error).message}`);
       client.disconnect(true);
     }
   }
@@ -135,7 +137,7 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (userId) {
       this.connectedUsers.delete(client.id);
     }
-    console.log(`[WS] Disconnected: ${client.id}`);
+    this.logger.log(`Disconnected: ${client.id}`);
   }
 
   @SubscribeMessage('join:family')
@@ -165,7 +167,7 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
     } catch (err) {
-      console.warn(`[WS] Membership check failed for user ${userId}, family ${data.familyId}: ${(err as Error).message}`);
+      this.logger.warn(`Membership check failed for user ${userId}, family ${data.familyId}: ${(err as Error).message}`);
       client.emit('error', { message: 'Unable to verify membership' });
       return;
     }
