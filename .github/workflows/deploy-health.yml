@@ -25,7 +25,7 @@ on:
       health_url:
         description: 'Health check URL (override default)'
         required: false
-        default: 'https://daxelo-kinrel-server.onrender.com/api/health'
+        default: ${{ vars.HEALTH_CHECK_URL || 'https://daxelo-kinrel-server.onrender.com/api/health' }}
       max_retries:
         description: 'Max retries (1-10)'
         required: false
@@ -40,7 +40,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  HEALTH_URL: ${{ github.event.inputs.health_url || 'https://daxelo-kinrel-server.onrender.com/api/health' }}
+  HEALTH_URL: ${{ github.event.inputs.health_url || vars.HEALTH_CHECK_URL || 'https://daxelo-kinrel-server.onrender.com/api/health' }}
   MAX_RETRIES: ${{ github.event.inputs.max_retries || '5' }}
   RETRY_DELAY: ${{ github.event.inputs.retry_delay || '30' }}
 
