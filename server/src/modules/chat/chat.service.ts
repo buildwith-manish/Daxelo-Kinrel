@@ -17,6 +17,8 @@ export class ChatService {
 
   /** Returns chat messages for a family, ordered by newest first with pagination. */
   async listMessages(familyId: string, userId: string, limit: number = 50, before?: string) {
+    limit = Math.max(1, Math.min(limit, 100));
+
     await this.verifyMembership(userId, familyId);
 
     const where: Record<string, any> = { familyId, postType: 'chat_message' };

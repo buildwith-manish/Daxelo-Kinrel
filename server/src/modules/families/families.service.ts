@@ -259,13 +259,8 @@ export class FamiliesService {
    * Also restores all persons that were soft-deleted at the same time.
    */
   async restore(userId: string, familyId: string) {
-    const membership = await this.prisma.familyMember.findUnique({
-      where: { familyId_userId: { familyId, userId } },
-    });
-
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this family');
-    }
+    // Only admins can restore a family — viewers should not undo an admin's archival
+    const membership = await this.requireFamilyRole(userId, familyId, 'admin');
 
     const family = await this.prisma.family.findUnique({
       where: { id: familyId },

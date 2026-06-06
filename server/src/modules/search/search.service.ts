@@ -123,6 +123,8 @@ export class SearchService {
         viewerFamilyIds = new Set(viewerFamilies.map((m) => m.familyId));
       }
 
+      let filteredOutCount = 0;
+
       for (const user of users) {
         const visibility = user.profileVisibility || 'public';
 
@@ -130,6 +132,7 @@ export class SearchService {
         if (visibility === 'connections_only') {
           if (!viewerId || !viewerFamilyIds) {
             // No viewer context → skip connections_only profiles
+            filteredOutCount++;
             continue;
           }
 
@@ -142,6 +145,7 @@ export class SearchService {
           });
 
           if (!userInViewerFamilies) {
+            filteredOutCount++;
             continue; // Skip — not a connection
           }
         }
@@ -156,7 +160,7 @@ export class SearchService {
         });
       }
 
-      total += userCount;
+      total += (userCount - filteredOutCount);
     }
 
     // ── Search Families ──

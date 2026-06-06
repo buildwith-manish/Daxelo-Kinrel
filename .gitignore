@@ -50,6 +50,12 @@ local-*
 *.freezed.dart
 *.mocks.dart
 -e 
+# ── Firebase Config (real keys must not be committed) ──
+**/google-services.json
+!**/google-services.json.example
+**/GoogleService-Info.plist
+!**/GoogleService-Info.plist.example
+
 # ── Android Signing ──
 *.jks
 *.keystore

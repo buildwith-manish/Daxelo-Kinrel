@@ -9,6 +9,8 @@ import { KinrelGateway, MinimalPayload } from '../gateway/kinrel.gateway';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 
+const SAFE_MEMBER_SORT_FIELDS = ['name', 'createdAt', 'updatedAt', 'role', 'joinedAt'] as const;
+
 const ROLE_HIERARCHY: Record<string, number> = {
   viewer: 1,
   member: 2,
@@ -103,9 +105,11 @@ export class MembersService {
       where.name = { contains: query.search };
     }
 
-    const sortField = query.sort || 'createdAt';
+    const sortField: string = (query.sort && (SAFE_MEMBER_SORT_FIELDS as readonly string[]).includes(query.sort))
+      ? query.sort
+      : 'createdAt';
     const sortOrder = query.order?.toLowerCase() === 'asc' ? 'asc' : 'desc';
-    const orderBy: Record<string, string> = { [sortField]: sortOrder };
+    const orderBy: Record<string, string> = { [sortField as string]: sortOrder };
 
     const includeRelationships = query.includeRelationships === 'true';
 

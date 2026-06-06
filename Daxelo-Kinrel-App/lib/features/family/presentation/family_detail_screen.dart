@@ -347,24 +347,22 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
               ),
             ],
 
-            // Archive option (available to all members)
-            Divider(color: KinrelColors.border, height: 1),
-            _QuickActionTile(
-              icon: Icons.archive_outlined,
-              label: 'Archive Family',
-              iconColor: KinrelColors.gold,
-              onTap: () {
-                Navigator.pop(ctx);
-                _confirmArchiveFamily(context, family?.name ?? 'Family');
-              },
-            ),
-
-            // Only show delete option to the creator
+            // Archive option (available to creator only)
             if (isCreator) ...[
               Divider(color: KinrelColors.border, height: 1),
               _QuickActionTile(
                 icon: Icons.archive_outlined,
                 label: 'Archive Family',
+                iconColor: KinrelColors.gold,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _confirmArchiveFamily(context, family?.name ?? 'Family');
+                },
+              ),
+              Divider(color: KinrelColors.border, height: 1),
+              _QuickActionTile(
+                icon: Icons.delete_forever,
+                label: 'Permanently Delete Family',
                 isDestructive: true,
                 onTap: () {
                   Navigator.pop(ctx);
@@ -388,7 +386,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Only the family creator can permanently delete this family',
+                        'Only the family creator can archive or delete this family',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 12,
@@ -561,14 +559,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         title: Row(
           children: [
             Icon(
-              Icons.archive_outlined,
+              Icons.delete_forever,
               color: KinrelColors.warning,
               size: 24,
             ),
             const SizedBox(width: 10),
             Flexible(
               child: Text(
-                'Archive "$familyName"?',
+                'Permanently Delete "$familyName"?',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 17,
@@ -584,7 +582,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'This family will be archived and hidden from your active list.',
+              'This action is irreversible. The family and all its data will be permanently deleted.',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
@@ -607,7 +605,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'This family will be archived for 30 days. You can restore it anytime before it\'s permanently deleted.',
+                      'This cannot be undone. All members, relationships, and stories will be permanently removed.',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13,
@@ -638,7 +636,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
               await _performDeleteFamily(context);
             },
             child: Text(
-              'Archive Family',
+              'Permanently Delete',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontWeight: FontWeight.w600,

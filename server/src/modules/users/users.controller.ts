@@ -19,7 +19,8 @@ import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UsersService } from './users.service';
-import { IsString, IsNotEmpty, MaxLength, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 // ── DTOs for new username endpoints ──────────────────────────────────
 
@@ -119,21 +120,9 @@ export class UsersController {
   @Patch('me')
   async updateProfile(
     @CurrentUser('id') userId: string,
-    @Body()
-    body: {
-      name?: string;
-      phone?: string;
-      preferredLanguage?: string;
-      username?: string;
-      bio?: string;
-      dateOfBirth?: string;
-      gender?: string;
-      avatarUrl?: string;
-      profileVisibility?: string;
-      invitePermission?: string;
-    },
+    @Body() dto: UpdateProfileDto,
   ) {
-    return this.usersService.updateProfile(userId, body);
+    return this.usersService.updateProfile(userId, dto);
   }
 
   // ── Update Username ──────────────────────────────────────────────

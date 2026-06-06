@@ -115,8 +115,8 @@ export class FamiliesController {
     @CurrentUser('id') userId: string,
     @Param('familyId') familyId: string,
   ) {
-    // Verify the user is a member before allowing permanent delete
-    await this.familiesService.requireFamilyMember(userId, familyId);
+    // Verify the user is an admin before allowing permanent delete
+    await this.familiesService.requireFamilyRole(userId, familyId, 'admin');
     return this.familiesService.permanentDelete(familyId);
   }
 
