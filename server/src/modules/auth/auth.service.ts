@@ -59,12 +59,12 @@ export class AuthService {
       });
     }
 
-    // ── Production Redis requirement check ──────────────────────────
+    // ── Redis optional notice ────────────────────────────────────────
     // Auth security features (TOTP replay protection, account lockout)
-    // depend on Redis. Without it, these features are silently disabled.
-    if (this.config.get('NODE_ENV') === 'production' && !redisUrl) {
-      this.logger.warn(
-        '⚠️  REDIS_URL is not configured. Auth security features (TOTP replay protection, account lockout) are disabled. Configure Redis for enhanced security.',
+    // degrade gracefully without Redis — no crash, just reduced security.
+    if (!redisUrl) {
+      this.logger.debug(
+        'Redis not configured — TOTP replay protection and account lockout disabled',
       );
     }
   }

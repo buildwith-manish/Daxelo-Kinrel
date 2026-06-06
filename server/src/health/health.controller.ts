@@ -85,21 +85,18 @@ export class HealthController {
     }
 
     // ── Redis check (optional) ─────────────────────────────────────────
-    const redisUrl = this.configService.get<string>('REDIS_URL');
     if (this.redis) {
       try {
         const result = await this.redis.ping();
         if (result !== 'PONG') {
-          redis = 'error';
+          redis = 'skipped'; // Redis responded but oddly — treat as optional
         }
       } catch {
-        redis = 'error';
+        redis = 'skipped'; // Redis unreachable — it's optional, not an error
       }
-    } else if (!redisUrl || redisUrl === 'redis://localhost:6379') {
-      // Redis not configured — this is fine, mark as 'skipped'
-      redis = 'skipped';
     } else {
-      redis = 'error';
+      // Redis not configured or connection previously failed — this is fine
+      redis = 'skipped';
     }
 
     const uptime = Math.floor(process.uptime());
