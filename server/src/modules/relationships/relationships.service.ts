@@ -10,13 +10,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { KinrelGateway } from '../gateway/kinrel.gateway';
 import { CreateRelationshipDto } from './dto/create-relationship.dto';
 import Redis from 'ioredis';
-
-const ROLE_HIERARCHY: Record<string, number> = {
-  viewer: 1,
-  member: 2,
-  editor: 3,
-  admin: 4,
-};
+import { ROLE_HIERARCHY } from '../../common/constants';
 
 const INVERSE_RELATIONSHIP_MAP: Record<string, (toGender?: string | null) => string> = {
   father: (toGender) => toGender === 'female' ? 'daughter' : 'son',

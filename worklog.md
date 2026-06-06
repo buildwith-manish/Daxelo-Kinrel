@@ -820,3 +820,108 @@ Stage Summary:
 - Backend tests: 191/191 passing
 - All Phase 2 (V2 Audit) items complete and pushed to GitHub
 - Score projection: 8.8 → 9.4/10
+
+---
+Task ID: 3-a
+Agent: Backend Security Fix Agent
+Task: Phase 3 Backend Security + Auth fixes (8 items)
+
+Work Log:
+- C-1: Fixed invitePermission enum mismatch in update-profile.dto.ts — changed @IsIn(['anyone', 'members_only', 'admin_only']) to @IsIn(['anyone', 'connections', 'nobody']) to align with VALID_INVITE_PERMISSION in users.service.ts and the Prisma schema (comment: // anyone, connections, nobody)
+- C-2: Fixed stories markViewed viewerId spoofing in stories.controller.ts — replaced @Body() body: { viewerId: string } with @CurrentUser('id') userId; now uses authenticated user ID instead of client-supplied viewerId
+- C-3: Added @Roles('admin') to 4 admin-only endpoints in moderation.controller.ts — getQueue, classifyContent, listAppeals, reviewAppeal; imported Roles decorator from common/decorators/roles.decorator; submitReport endpoint remains accessible to all authenticated users; RolesGuard is already a global APP_GUARD
+- C-5: Added ownership check to notifications markRead in notifications.service.ts — added userId parameter and changed Prisma update where clause from { id: notificationId } to { id: notificationId, userId }; updated notifications.controller.ts to pass @CurrentUser('id') userId to markRead
+- H-7: Fixed referral stats allowing any user view in referral.controller.ts — removed userId query param and the targetUserId fallback logic; now always uses @CurrentUser('id') userId from authenticated user; removed unused Query import
+- H-8: Added FCM token ownership check — created removeTokenForUser(userId, token) method in fcm.service.ts that finds the token record with both token and userId match before deleting; updated notifications.controller.ts removeFcmToken to pass @CurrentUser('id') userId and call removeTokenForUser instead of removeToken
+- M-3: Added family membership verification to stories — added private verifyFamilyMembership() helper to StoriesService (checks FamilyMember exists, throws ForbiddenException if not); added verification call in create() (when familyId is provided) and findByFamily() (when userId is provided)
+- M-11: Added empty content check to chat sendMessage in chat.service.ts — added `if (!content || content.trim().length === 0) throw new BadRequestException('Message content cannot be empty')` before the existing length check
+
+Stage Summary:
+- 9 files modified: update-profile.dto.ts, stories.controller.ts, moderation.controller.ts, notifications.service.ts, notifications.controller.ts, referral.controller.ts, fcm.service.ts, stories.service.ts, chat.service.ts
+- TypeScript compilation: 0 errors (npx tsc --noEmit passes cleanly)
+- No new packages installed
+- invitePermission DTO now matches service validation and DB schema
+- Stories markViewed no longer allows viewerId spoofing
+- Moderation admin endpoints now require admin role via @Roles('admin')
+- Notifications markRead now verifies ownership before updating
+- Referral stats can no longer be queried for arbitrary users
+- FCM token removal now verifies token belongs to authenticated user
+- Stories creation and listing now verify family membership
+- Chat sendMessage rejects empty/whitespace-only messages
+
+---
+Task ID: 3-b
+Agent: Backend Architecture Fix Agent
+Task: Phase 3 Backend Architecture fixes (5 items)
+
+Work Log:
+- H-3: Deduplicated ROLE_HIERARCHY constant — moved from 3 service files to shared common/constants.ts; added `export const ROLE_HIERARCHY: Record<string, number> = { viewer: 1, member: 2, editor: 3, admin: 4 }` to constants.ts; replaced local definitions in families.service.ts, members.service.ts, relationships.service.ts with `import { ROLE_HIERARCHY } from '../../common/constants'`; kept requireFamilyRole/requireFamilyMember methods in each service since they use this.prisma
+- H-5: Fixed ticket number race condition in support.service.ts — wrapped generateTicketNumber() in `this.prisma.$transaction(async (tx) => {...})`; changed format from DK-YYYY-NNNNN to TK-YYYYMMDD-NNNN for tighter daily scope; added collision detection: after counting + generating a number, checks if it already exists; if collision found, queries for the highest existing ticket number for the day and increments past it
+- H-6: Wrapped JwtStrategy Supabase auto-creation in transaction — replaced 3 separate this.prisma calls (user.create → family.create → familyMember.create) with `this.prisma.$transaction(async (tx) => { tx.user.create → tx.family.create → tx.familyMember.create; return u; })`; prevents orphaned records if any step fails
+- H-1: Fixed N+1 query in search connections_only — replaced per-user `findFirst` DB query inside the for-loop with a single batched `findMany` query; collects all connections_only user IDs, does one query `{ userId: { in: connectionsOnlyUserIds }, familyId: { in: viewerFamilyIds } }`, builds a Set of connected user IDs, then uses O(1) `.has()` lookup in the loop
+- M-13: Added case-insensitive search to admin listUsers — changed `{ contains: search }` to `{ contains: search, mode: 'insensitive' }` for email, name, and username fields; kept phone field as-is since phone numbers should match exactly
+
+Stage Summary:
+- 6 files modified: common/constants.ts, families.service.ts, members.service.ts, relationships.service.ts, support.service.ts, jwt.strategy.ts, search.service.ts, admin.service.ts
+- TypeScript compilation: 0 errors (npx tsc --noEmit passes cleanly)
+- No new packages installed
+- ROLE_HIERARCHY now defined once in shared constants (was duplicated 3x)
+- Ticket number generation is now transactional with collision detection
+- Supabase user auto-creation is now atomic (all-or-nothing)
+- Search connections_only no longer has N+1 query (1 batched query + O(1) Set lookup)
+- Admin user search is now case-insensitive on email/name/username
+
+---
+Task ID: 3-c
+Agent: Database Schema Fix Agent
+Task: Phase 3 Database Schema fixes
+
+Work Log:
+- C-1: Added onDelete: Cascade to SupportEscalation.ticket → SupportTicket relation
+- C-2: Added onDelete: Cascade to SupportCSAT.ticket → SupportTicket relation
+- C-3: Added onDelete: SetNull to SLATracking.ticket → SupportTicket relation (ticketId already optional String?, SLA records survive for reporting)
+- C-4: Added onDelete: Cascade to Incident.author → User relation
+- C-5: Added onDelete: Cascade to FamilyMember.user → User relation (family memberships removed on user deletion)
+- C-6: Added onDelete: Cascade to Invitation.inviter → User relation
+- C-7: Added onDelete: Cascade to Invitation.family → Family relation
+- C-8: Added onDelete: Cascade to UserModerationStatus.user → User relation
+- C-9: Added onDelete: Cascade to Comment.author → User relation (comments deleted with user)
+- C-10: Added onDelete: Cascade to CommunityPost.author → User relation (posts deleted with user)
+- H-1/H-2: Verified project uses PostgreSQL — @unique on nullable fields allows multiple NULLs, so Family.username @unique is safe; Person.username has no @unique attribute, only application-level enforcement; updated comments to document this
+- I-1: Added @@index([familyId]) to Notification model
+- I-2: Person already had @@index([familyId, deletedAt]) from prior work; added @@index([phone]) to Person model
+- U-1: Added updatedAt DateTime @updatedAt to OnCallSchedule model (was missing)
+- U-2: Added updatedAt DateTime @updatedAt to SupportCSAT model (was missing)
+- F-1: Changed FamilyPost.reactions from String @default("{}") to Json @default("{}") @db.JsonB — proper PostgreSQL JSONB storage for structured reaction data { heart, comment, isHearted, isSaved }
+- Ran prisma format to clean up schema formatting
+- Prisma schema validation: PASSED
+- TypeScript compilation (npx tsc --noEmit): 0 errors
+- db:push could not run (no local PostgreSQL / remote Supabase unreachable from sandbox) — schema changes must be deployed via prisma migrate deploy
+
+Stage Summary:
+- 1 file modified: server/prisma/schema.prisma
+- 10 onDelete constraints added (9 Cascade + 1 SetNull)
+- 2 new indexes added (Notification.familyId, Person.phone)
+- 2 updatedAt fields added (OnCallSchedule, SupportCSAT)
+- 1 field type changed (FamilyPost.reactions String → Json @db.JsonB)
+- Schema validation: PASSED
+- TypeScript compilation: 0 errors
+- Note: db:push requires database connectivity — run prisma migrate deploy in deployment environment
+
+---
+Task ID: 3-d
+Agent: Flutter Fix Agent
+Task: Phase 3 Flutter fixes (6 items)
+
+Work Log:
+- Fix 1 (Flutter #27): Changed familyListErrorProvider from Provider<Object?> to StateProvider<String?> in family_provider.dart; set error in catch block when network+Isar both fail; clear error on successful load and on Isar cache hit; added error check in family_list_screen.dart — shows DKErrorState with retry button instead of "No Families Yet" when error is non-null and families is empty
+- Fix 2 (Flutter #42): Merged duplicate "Archive Family" buttons in family_list_screen.dart — creator sees only warning-colored "Archive Family" (calls _confirmDeleteFromList); non-creator sees "Leave Family" (calls _confirmArchiveFamily); removed redundant info text
+- Fix 3 (Flutter #43): Changed snackbar message from "Family archived successfully" to "Family permanently deleted" in _performDeleteFamily in family_detail_screen.dart
+- Fix 4 (Flutter #39): Created shared generateId() utility at lib/core/utils/id_generator.dart; replaced 3 local _generateId() implementations in family_provider.dart, offline_family_repository.dart, and feed_provider.dart; removed dart:math imports from family_provider.dart and feed_provider.dart; feed_provider no longer truncates to 25 chars (was causing collisions)
+- Fix 5 (Flutter #25): Added type check before cast in ai_chat_provider.dart — response.data is checked with is! Map<String, dynamic> before assignment, throws FormatException with descriptive message instead of TypeError
+- Fix 6 (Flutter #28): Added String? error and bool isLoading fields to NotificationsState; updated copyWith to support both fields; loadNotifications now sets isLoading=true/error=null on start, clears both on success, sets error=e.toString()/isLoading=false on catch
+
+Stage Summary:
+- 8 files modified/created: family_provider.dart, family_list_screen.dart, family_detail_screen.dart, id_generator.dart (NEW), offline_family_repository.dart, feed_provider.dart, ai_chat_provider.dart, notifications_provider.dart
+- Dart CLI unavailable in sandbox — verify Flutter compilation locally
+- All 6 Flutter fixes complete

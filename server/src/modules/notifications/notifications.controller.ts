@@ -53,8 +53,11 @@ export class NotificationsController {
   }
 
   @Patch(':id/read')
-  async markRead(@Param('id') id: string) {
-    return this.notificationsService.markRead(id);
+  async markRead(
+    @CurrentUser('id') userId: string,
+    @Param('id') id: string,
+  ) {
+    return this.notificationsService.markRead(id, userId);
   }
 
   @Post('mark-all-read')
@@ -97,8 +100,11 @@ export class NotificationsController {
    * Body: { token: string }
    */
   @Delete('fcm-token')
-  async removeFcmToken(@Body() dto: RemoveFcmTokenDto) {
-    const removed = await this.fcmService.removeToken(dto.token);
+  async removeFcmToken(
+    @CurrentUser('id') userId: string,
+    @Body() dto: RemoveFcmTokenDto,
+  ) {
+    const removed = await this.fcmService.removeTokenForUser(userId, dto.token);
     return {
       success: true,
       removed,

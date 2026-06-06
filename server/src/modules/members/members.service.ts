@@ -11,12 +11,7 @@ import { UpdateMemberDto } from './dto/update-member.dto';
 
 const SAFE_MEMBER_SORT_FIELDS = ['name', 'createdAt', 'updatedAt', 'role', 'joinedAt'] as const;
 
-const ROLE_HIERARCHY: Record<string, number> = {
-  viewer: 1,
-  member: 2,
-  editor: 3,
-  admin: 4,
-};
+import { ROLE_HIERARCHY } from '../../common/constants';
 
 @Injectable()
 export class MembersService {

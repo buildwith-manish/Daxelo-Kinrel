@@ -116,9 +116,9 @@ export class AdminService {
 
     if (search) {
       where.OR = [
-        { email: { contains: search } },
-        { name: { contains: search } },
-        { username: { contains: search } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
+        { username: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search } },
       ];
     }

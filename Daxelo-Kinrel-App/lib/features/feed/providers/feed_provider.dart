@@ -7,12 +7,12 @@
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/utils/id_generator.dart';
 
 // ── Table name constants ──────────────────────────────────────────
 const _kFamilyPostTable = 'FamilyPost';
@@ -379,7 +379,7 @@ class FeedNotifier extends StateNotifier<FeedState> {
       // Generate "member_joined" posts for each member
       for (final member in detail.members) {
         posts.add({
-          'id': _generateId(),
+          'id': generateId(),
           'familyId': familyId,
           'authorId': member.id,
           'postType': 'member_joined',
@@ -415,7 +415,7 @@ class FeedNotifier extends StateNotifier<FeedState> {
         if (fromPerson == null || toPerson == null) continue;
 
         posts.add({
-          'id': _generateId(),
+          'id': generateId(),
           'familyId': familyId,
           'authorId': userId,
           'postType': 'connection_added',
@@ -446,7 +446,7 @@ class FeedNotifier extends StateNotifier<FeedState> {
       // Generate "milestone" post if significant
       if (detail.members.length >= 3) {
         posts.add({
-          'id': _generateId(),
+          'id': generateId(),
           'familyId': familyId,
           'authorId': userId,
           'postType': 'milestone',
@@ -548,19 +548,6 @@ Map<String, dynamic> _safeJsonMap(dynamic value) {
     } catch (_) {}
   }
   return {};
-}
-
-/// Generate a CUID-like ID for database inserts.
-/// Uses Random to avoid duplicate IDs when generating in a tight loop
-/// (DateTime.now().microsecond doesn't change between iterations).
-String _generateId() {
-  final timestamp = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
-  final random = Random();
-  final rand = List.generate(
-    16,
-    (_) => random.nextInt(36),
-  ).map((v) => v.toRadixString(36)).join();
-  return 'c$timestamp$rand'.substring(0, 25);
 }
 
 // ── Providers ──────────────────────────────────────────────────

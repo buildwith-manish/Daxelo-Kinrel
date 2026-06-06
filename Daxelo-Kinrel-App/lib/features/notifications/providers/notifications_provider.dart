@@ -231,6 +231,8 @@ class NotificationsState {
     this.selectedCategory,
     this.notificationPreferences = const {},
     this.isLoadingPreferences = false,
+    this.isLoading = false,
+    this.error,
   });
 
   /// All notifications (unfiltered).
@@ -244,6 +246,12 @@ class NotificationsState {
 
   /// Whether preferences are currently loading from the server.
   final bool isLoadingPreferences;
+
+  /// Whether notifications are currently loading.
+  final bool isLoading;
+
+  /// Error message from the last failed load, or null.
+  final String? error;
 
   /// Unread count.
   int get unreadCount => notifications.where((n) => !n.isRead).length;
@@ -287,6 +295,8 @@ class NotificationsState {
     NotificationCategory? Function()? selectedCategory,
     Map<NotificationType, NotificationPreference>? notificationPreferences,
     bool? isLoadingPreferences,
+    bool? isLoading,
+    String? Function()? error,
   }) {
     return NotificationsState(
       notifications: notifications ?? this.notifications,
@@ -297,6 +307,8 @@ class NotificationsState {
           notificationPreferences ?? this.notificationPreferences,
       isLoadingPreferences:
           isLoadingPreferences ?? this.isLoadingPreferences,
+      isLoading: isLoading ?? this.isLoading,
+      error: error != null ? error() : this.error,
     );
   }
 }
@@ -335,6 +347,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
 
   /// Load notifications from the backend API
   Future<void> loadNotifications() async {
+    state = state.copyWith(isLoading: true, error: () => null);
     try {
       final response = await _dio.get(
         '/api/notifications/v2',
@@ -350,15 +363,18 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
             .map((e) => _mapNotification(e as Map<String, dynamic>))
             .toList();
 
-        state = state.copyWith(notifications: notifications);
+        state = state.copyWith(notifications: notifications, isLoading: false, error: () => null);
       } else if (data is List) {
         final notifications = data
             .map((e) => _mapNotification(e as Map<String, dynamic>))
             .toList();
-        state = state.copyWith(notifications: notifications);
+        state = state.copyWith(notifications: notifications, isLoading: false, error: () => null);
+      } else {
+        state = state.copyWith(isLoading: false, error: () => null);
       }
     } catch (e) {
       debugPrint('⚠️ Failed to load notifications: $e');
+      state = state.copyWith(error: () => e.toString(), isLoading: false);
     }
   }
 

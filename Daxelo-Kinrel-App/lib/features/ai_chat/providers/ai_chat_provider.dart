@@ -127,7 +127,11 @@ final aiChatSendMessageProvider = Provider<Future<void> Function(String)>((
         data: {'sessionId': sessionId, 'message': message},
       );
 
-      final data = response.data as Map<String, dynamic>;
+      final rawData = response.data;
+      if (rawData is! Map<String, dynamic>) {
+        throw FormatException('Unexpected response format from AI service');
+      }
+      final data = rawData;
       final aiResponse = data['response'] as String? ?? 'No response';
       final rawKinship = data['kinshipData'] as List<dynamic>?;
 

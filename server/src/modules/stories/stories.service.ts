@@ -10,8 +10,23 @@ import { CreateStoryDto } from './dto/create-story.dto';
 export class StoriesService {
   constructor(private prisma: PrismaService) {}
 
+  /** Verifies that the user is a member of the specified family. */
+  private async verifyFamilyMembership(userId: string, familyId: string): Promise<void> {
+    const member = await this.prisma.familyMember.findFirst({
+      where: { userId, familyId },
+    });
+    if (!member) {
+      throw new ForbiddenException('You are not a member of this family');
+    }
+  }
+
   /** Creates a new story for the given user. */
   async create(userId: string, dto: CreateStoryDto) {
+    // Verify family membership if a familyId is provided
+    if (dto.familyId) {
+      await this.verifyFamilyMembership(userId, dto.familyId);
+    }
+
     const story = await this.prisma.story.create({
       data: {
         userId,
@@ -40,6 +55,11 @@ export class StoriesService {
   /** Gets active (non-expired) stories for a family, grouped by user.
    *  Each group includes user info, their stories array, and a hasUnviewed flag. */
   async findByFamily(familyId: string, userId?: string, limit: number = 50, cursor?: string) {
+    // Verify family membership before listing stories
+    if (userId) {
+      await this.verifyFamilyMembership(userId, familyId);
+    }
+
     const now = new Date();
 
     const cursorFilter = cursor ? { id: { lt: cursor } } : {};

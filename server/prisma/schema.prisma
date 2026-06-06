@@ -292,7 +292,7 @@ model SupportMessage {
 model SupportEscalation {
   id       String        @id @default(cuid())
   ticketId String
-  ticket   SupportTicket @relation(fields: [ticketId], references: [id])
+  ticket   SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   fromAgentId String?
   toAgentId   String?
@@ -307,11 +307,12 @@ model SupportEscalation {
 model SupportCSAT {
   id       String        @id @default(cuid())
   ticketId String        @unique
-  ticket   SupportTicket @relation(fields: [ticketId], references: [id])
+  ticket   SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   rating    Int // 1-5
   comment   String?
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ── Pack 02: SLA Tracking ────────────────────────────────────────────
@@ -319,7 +320,7 @@ model SupportCSAT {
 model SLATracking {
   id       String         @id @default(cuid())
   ticketId String?
-  ticket   SupportTicket? @relation(fields: [ticketId], references: [id])
+  ticket   SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
 
   // SLA type
   type String // first_response, update, resolution, uptime
@@ -360,6 +361,7 @@ model OnCallSchedule {
   compensationPaid Boolean @default(false)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, weekStart, role])
   @@index([weekStart, role])
@@ -392,7 +394,7 @@ model Incident {
 
   // Author
   authorId String
-  author   User   @relation("IncidentAuthor", fields: [authorId], references: [id])
+  author   User   @relation("IncidentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
 
   // Post-mortem
   postMortem PostMortem?
@@ -539,7 +541,7 @@ model Family {
   // ── Graph-First Redesign Fields ──
   familyCode      String    @unique @default(cuid()) // Shareable family ID like Instagram handle
   kinFamilyId     String?   @unique // Human-readable Family ID: KIN-AB12CD34 (Feature 1: Family ID System)
-  username        String?   @unique // Unique @username for display (e.g. @sharmw)
+  username        String?   @unique // Unique @username for display (e.g. @sharmw) — safe on PostgreSQL: multiple NULLs allowed in UNIQUE constraint
   avatarUrl       String?
   region          String?
   privacyMode     String    @default("private") // private/invite/link
@@ -575,7 +577,7 @@ model FamilyMember {
   role     String @default("member") // owner, admin, member, viewer
 
   family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   joinedAt DateTime @default(now())
 
@@ -610,7 +612,7 @@ model Person {
   photoCard       String? // Photo card: w_150,h_150,c_fill,q_auto,f_auto
   photoFull       String? // Photo full: w_400,h_400,c_fill,q_auto,f_webp
   gender          String? // male, female, other
-  username        String? // Unique @username for display
+  username        String? // Unique @username for display — enforced at application level for non-null values; see @@index below
 
   // ── Full Member Profile Fields ──
   bloodGroup      String? // A+, A-, B+, B-, AB+, AB-, O+, O-
@@ -640,6 +642,7 @@ model Person {
   @@index([username])
   @@index([familyId])
   @@index([familyId, deletedAt])
+  @@index([phone])
   @@index([updatedAt])
 }
 
@@ -767,6 +770,7 @@ model Notification {
 
   @@index([userId, read, createdAt])
   @@index([userId, createdAt])
+  @@index([familyId])
 }
 
 // Notification Delivery Tracking (per channel)
@@ -791,8 +795,8 @@ model Invitation {
   token     String @unique
   familyId  String
   inviterId String
-  inviter   User   @relation("InvitationInviter", fields: [inviterId], references: [id])
-  family    Family @relation(fields: [familyId], references: [id])
+  inviter   User   @relation("InvitationInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  family    Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   // Recipient
   recipientEmail String?
@@ -1010,7 +1014,7 @@ model FamilyPost {
   authorId  String // Person ID who authored/is the subject of this post
   postType  String // "relationship_discovered" | "member_joined" | "milestone" | "connection_added" | "invite_shared"
   content   String   @default("{}") // JSON string for each post type's flexible data
-  reactions String   @default("{}") // JSON: { heart: 0, comment: 0, isHearted: false, isSaved: false }
+  reactions Json     @default("{}") @db.JsonB // JSON: { heart: 0, comment: 0, isHearted: false, isSaved: false }
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1205,7 +1209,7 @@ model ModerationAction {
 model UserModerationStatus {
   id             String    @id @default(cuid())
   userId         String    @unique
-  user           User      @relation(fields: [userId], references: [id])
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   status         String    @default("active") // active, warned, suspended, banned
   warningCount   Int       @default(0)
   suspendedUntil DateTime?
@@ -1306,7 +1310,7 @@ model CommunityPost {
   community    Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
   familyId     String?
   authorId     String
-  author       User       @relation(fields: [authorId], references: [id])
+  author       User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   type         String     @default("text") // text, photo, event, announcement, milestone, memorial
   title        String?
   body         String
@@ -1347,7 +1351,7 @@ model Comment {
   postId       String
   post         CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   authorId     String
-  author       User          @relation(fields: [authorId], references: [id])
+  author       User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
   parentId     String? // For threaded replies
   body         String
   isHidden     Boolean       @default(false)

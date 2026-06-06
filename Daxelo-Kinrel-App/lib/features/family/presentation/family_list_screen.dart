@@ -40,6 +40,8 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
           onRetry: () => ref.invalidate(familyListProvider),
         ),
         data: (families) {
+          // Check for error state from familyListErrorProvider
+          final listError = ref.watch(familyListErrorProvider);
           return CustomScrollView(
             scrollCacheExtent: ScrollCacheExtent.pixels(500),
             physics: const BouncingScrollPhysics(),
@@ -61,8 +63,18 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
               ),
               SliverToBoxAdapter(child: SizedBox(height: 20)),
 
-              // Family cards or empty state
-              if (families.isEmpty)
+              // Family cards, error state, or empty state
+              if (listError != null && families.isEmpty)
+                SliverToBoxAdapter(
+                  child: DKErrorState(
+                    message: listError,
+                    onRetry: () {
+                      ref.read(familyListErrorProvider.notifier).state = null;
+                      ref.invalidate(familyListProvider);
+                    },
+                  ),
+                )
+              else if (families.isEmpty)
                 SliverToBoxAdapter(
                   child: DKEmptyState(
                     icon: Icons.family_restroom_rounded,
@@ -654,25 +666,6 @@ class _FamilyCard extends ConsumerWidget {
                 context.push('/family/${family.id}');
               },
             ),
-            ListTile(
-              leading: Icon(
-                Icons.archive_outlined,
-                color: KinrelColors.gold,
-                size: 20,
-              ),
-              title: Text(
-                'Archive Family',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 14,
-                  color: KinrelColors.gold,
-                ),
-              ),
-              onTap: () {
-                Navigator.pop(ctx);
-                _confirmArchiveFamily(context, ref);
-              },
-            ),
             if (isCreator)
               ListTile(
                 leading: Icon(
@@ -692,33 +685,26 @@ class _FamilyCard extends ConsumerWidget {
                   Navigator.pop(ctx);
                   _confirmDeleteFromList(context, ref);
                 },
-              ),
-            if (!isCreator)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: KinrelSpacing.base,
-                  vertical: KinrelSpacing.sm,
+              )
+            else
+              ListTile(
+                leading: Icon(
+                  Icons.exit_to_app_rounded,
+                  color: KinrelColors.gold,
+                  size: 20,
                 ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      size: 16,
-                      color: KinrelColors.textDim,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Only the family creator can archive this family',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 12,
-                          color: KinrelColors.textDim,
-                        ),
-                      ),
-                    ),
-                  ],
+                title: Text(
+                  'Leave Family',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 14,
+                    color: KinrelColors.gold,
+                  ),
                 ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _confirmArchiveFamily(context, ref);
+                },
               ),
             const SizedBox(height: 8),
           ],

@@ -74,9 +74,9 @@ export class StoriesController {
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Story not found' })
   async markViewed(
     @Param('id') storyId: string,
-    @Body() body: { viewerId: string },
+    @CurrentUser('id') userId: string,
   ) {
-    return this.storiesService.markViewed(storyId, body.viewerId);
+    return this.storiesService.markViewed(storyId, userId);
   }
 
   @Delete(':id')

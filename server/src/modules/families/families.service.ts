@@ -13,13 +13,7 @@ import { UpdateFamilyDto } from './dto/update-family.dto';
 import { FamilyIdService } from './family-id.service';
 import { KinrelGateway } from '../gateway/kinrel.gateway';
 import { Cron, CronExpression } from '@nestjs/schedule';
-
-const ROLE_HIERARCHY: Record<string, number> = {
-  viewer: 1,
-  member: 2,
-  editor: 3,
-  admin: 4,
-};
+import { ROLE_HIERARCHY } from '../../common/constants';
 
 /** Number of days a family stays in archive before permanent deletion */
 const ARCHIVE_RETENTION_DAYS = 30;

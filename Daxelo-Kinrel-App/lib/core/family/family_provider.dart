@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +11,7 @@ import '../graph/graph_service.dart';
 import '../database/isar_database.dart';
 import '../database/repositories/offline_family_repository.dart';
 import '../database/sync/cache_invalidation.dart';
+import '../utils/id_generator.dart';
 import '../../features/profile/data/profile_provider.dart';
 
 // ── Table name constants (matching Prisma schema PascalCase) ────────
@@ -19,21 +19,6 @@ const _kFamilyTable = 'Family';
 const _kPersonTable = 'Person';
 const _kRelationshipTable = 'Relationship';
 const _kFamilyMemberTable = 'FamilyMember';
-
-/// Generate a CUID-like ID for database inserts.
-/// Since we use Supabase client directly (not Prisma), we must generate IDs ourselves.
-/// Uses Random to avoid duplicate IDs when generating in a tight loop
-/// (DateTime.now().microsecond doesn't change between iterations).
-String _generateId() {
-  final timestamp = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
-  final random = Random();
-  final rand = List.generate(
-    16,
-    (_) => random.nextInt(36),
-  ).map((v) => v.toRadixString(36)).join();
-  // Use full ID without truncation to maximise entropy and avoid collisions.
-  return 'c$timestamp$rand';
-}
 
 // ── Data Models ────────────────────────────────────────────────
 
@@ -526,6 +511,8 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
         .order('createdAt', ascending: false);
 
     final list = response as List;
+    // Data loaded successfully — clear any stale error
+    ref.read(familyListErrorProvider.notifier).state = null;
     if (list.length > 20) {
       return compute(_parseFamilyList, list);
     }
@@ -542,10 +529,16 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
         final cached = await repo.getFamilies();
         // ✅ FIX (BUG-01): Filter out soft-deleted families from Isar cache
         final filtered = cached.where((f) => f.deletedAt == null).toList();
-        if (filtered.isNotEmpty) return filtered;
+        if (filtered.isNotEmpty) {
+          // Cache hit — clear any stale error
+          ref.read(familyListErrorProvider.notifier).state = null;
+          return filtered;
+        }
       } catch (_) {}
     }
 
+    // No cached data available — set error so UI can show error state
+    ref.read(familyListErrorProvider.notifier).state = e.toString();
     return [];
   }
 });
@@ -800,10 +793,10 @@ final familyListIsLoadingProvider = Provider<bool>((ref) {
   return ref.watch(familyListProvider).isLoading;
 });
 
-/// Computed: whether family list has error
-final familyListErrorProvider = Provider<Object?>((ref) {
-  return ref.watch(familyListProvider).error;
-});
+/// Stores the last error message from familyListProvider.
+/// Set when the provider catches an exception (network failure, etc.)
+/// and cleared when data loads successfully.
+final familyListErrorProvider = StateProvider<String?>((ref) => null);
 
 /// Create family in Supabase with retry for cold starts
 Future<Family> createFamily({
@@ -832,7 +825,7 @@ Future<Family> createFamily({
 
   // 1. Create the family
   final now = DateTime.now().toIso8601String();
-  final familyId = _generateId();
+  final familyId = generateId();
   
   // Retry on familyCode uniqueness conflict (23505)
   Map<String, dynamic>? response;
@@ -890,7 +883,7 @@ Future<Family> createFamily({
   try {
     await withRetry(
       () => client.from(_kFamilyMemberTable).insert({
-        'id': _generateId(),
+        'id': generateId(),
         'familyId': family.id,
         'userId': userId,
         'role': 'admin',
@@ -945,7 +938,7 @@ Future<Person> createPerson({
     );
   }
 
-  final personId = _generateId();
+  final personId = generateId();
   final now = DateTime.now().toIso8601String();
   final response = await withRetry(
     () => client
@@ -1446,8 +1439,8 @@ Future<FamilyRelationship> createRelationship({
     );
   }
 
-  final forwardRelId = _generateId();
-  final inverseRelId = _generateId();
+  final forwardRelId = generateId();
+  final inverseRelId = generateId();
   final now = DateTime.now().toIso8601String();
 
   // ✅ FIX: Look up the inverse relationship key
@@ -1760,7 +1753,7 @@ Future<Family> joinFamilyByCode(WidgetRef ref, String familyCode) async {
   try {
     await withRetry(
       () => client.from(_kFamilyMemberTable).insert({
-        'id': _generateId(),
+        'id': generateId(),
         'familyId': family.id,
         'userId': userId,
         'role': 'member',

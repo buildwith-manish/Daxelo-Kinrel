@@ -37,6 +37,10 @@ export class ChatService {
   async sendMessage(familyId: string, authorId: string, content: string) {
     await this.verifyMembership(authorId, familyId);
 
+    if (!content || content.trim().length === 0) {
+      throw new BadRequestException('Message content cannot be empty');
+    }
+
     if (content.length > 2000) {
       throw new BadRequestException('Message content exceeds 2000 character limit');
     }

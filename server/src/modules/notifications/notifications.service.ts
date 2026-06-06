@@ -41,10 +41,10 @@ export class NotificationsService {
     return { items, total, page, limit };
   }
 
-  /** Marks a single notification as read. */
-  async markRead(notificationId: string) {
+  /** Marks a single notification as read. Verifies ownership before updating. */
+  async markRead(notificationId: string, userId: string) {
     return this.prisma.notification.update({
-      where: { id: notificationId },
+      where: { id: notificationId, userId },
       data: { read: true, readAt: new Date() },
     });
   }

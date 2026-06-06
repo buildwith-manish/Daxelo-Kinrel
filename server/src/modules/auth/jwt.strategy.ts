@@ -121,49 +121,57 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     // ── Auto-create user if authenticated via Supabase but not in local DB ──
     if (!user && isSupabaseToken && email) {
       try {
-        user = await this.prisma.user.create({
-          data: {
-            email: email.toLowerCase(),
-            name:
-              payload.user_metadata?.name ||
-              payload.user_metadata?.full_name ||
-              email.split('@')[0],
-            role: payload.role === 'admin' ? 'admin' : 'user',
-            preferredLanguage: 'en',
-            authProvider: payload.app_metadata?.provider || payload.user_metadata?.provider || 'email',
-            avatarUrl: payload.user_metadata?.avatar_url || payload.user_metadata?.picture || null,
-          },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            username: true,
-            role: true,
-            avatarUrl: true,
-            preferredLanguage: true,
-            twoFactorEnabled: true,
-          },
+        // Wrap user + family + familyMember creation in a transaction
+        // to avoid orphaned records if any step fails
+        const createdUser = await this.prisma.$transaction(async (tx) => {
+          const u = await tx.user.create({
+            data: {
+              email: email.toLowerCase(),
+              name:
+                payload.user_metadata?.name ||
+                payload.user_metadata?.full_name ||
+                email.split('@')[0],
+              role: payload.role === 'admin' ? 'admin' : 'user',
+              preferredLanguage: 'en',
+              authProvider: payload.app_metadata?.provider || payload.user_metadata?.provider || 'email',
+              avatarUrl: payload.user_metadata?.avatar_url || payload.user_metadata?.picture || null,
+            },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              username: true,
+              role: true,
+              avatarUrl: true,
+              preferredLanguage: true,
+              twoFactorEnabled: true,
+            },
+          });
+
+          // Auto-create "My Family" for the new user (same as /auth/register)
+          const family = await tx.family.create({
+            data: {
+              name: 'My Family',
+              createdBy: u.id,
+              primaryLanguage: 'en',
+              privacyMode: 'private',
+              memberCount: 1,
+              lastActivityAt: new Date(),
+            },
+          });
+
+          await tx.familyMember.create({
+            data: {
+              familyId: family.id,
+              userId: u.id,
+              role: 'admin',
+            },
+          });
+
+          return u;
         });
 
-        // Auto-create "My Family" for the new user (same as /auth/register)
-        const family = await this.prisma.family.create({
-          data: {
-            name: 'My Family',
-            createdBy: user.id,
-            primaryLanguage: 'en',
-            privacyMode: 'private',
-            memberCount: 1,
-            lastActivityAt: new Date(),
-          },
-        });
-
-        await this.prisma.familyMember.create({
-          data: {
-            familyId: family.id,
-            userId: user.id,
-            role: 'admin',
-          },
-        });
+        user = createdUser;
       } catch (createError) {
         // Race condition: user might have been created by another request
         // Try one more lookup

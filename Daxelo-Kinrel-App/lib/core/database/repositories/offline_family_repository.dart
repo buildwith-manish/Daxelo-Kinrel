@@ -8,6 +8,7 @@ import '../app_database.dart';
 import '../sync/connectivity_service.dart';
 import '../sync/offline_queue.dart';
 import '../sync/cache_invalidation.dart';
+import '../../utils/id_generator.dart';
 import '../../family/family_provider.dart';
 import '../../services/supabase_service.dart';
 
@@ -382,7 +383,7 @@ class OfflineFamilyRepository {
     if (_isOnline) {
       // Online — write directly to Supabase
       try {
-        final personId = _generateId();
+        final personId = generateId();
         final now = DateTime.now().toIso8601String();
         final response = await withRetry(
           () => client.from('Person').insert({
@@ -460,7 +461,7 @@ class OfflineFamilyRepository {
     int? birthYear,
     bool isAnchor = false,
   }) async {
-    final personId = _generateId();
+    final personId = generateId();
     final now = DateTime.now().toIso8601String();
 
     // Create optimistic local person
@@ -520,7 +521,7 @@ class OfflineFamilyRepository {
 
     if (_isOnline) {
       try {
-        final relId = _generateId();
+        final relId = generateId();
         final now = DateTime.now().toIso8601String();
         final response = await withRetry(
           () => client.from('Relationship').insert({
@@ -575,7 +576,7 @@ class OfflineFamilyRepository {
     required String toPersonId,
     required String relationshipKey,
   }) async {
-    final relId = _generateId();
+    final relId = generateId();
     final now = DateTime.now().toIso8601String();
 
     final rel = FamilyRelationship(
@@ -623,17 +624,6 @@ class OfflineFamilyRepository {
         errStr.contains('Network is unreachable') ||
         errStr.contains('Connection timed out') ||
         errStr.contains('TimeoutException');
-  }
-
-  /// Generate a CUID-like ID (same as family_provider.dart).
-  static String _generateId() {
-    final timestamp = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
-    final random = DateTime.now().microsecond;
-    final rand = List.generate(
-      16,
-      (i) => ((timestamp.hashCode + random + i) % 36).toRadixString(36),
-    ).join();
-    return 'c$timestamp$rand'.substring(0, 25);
   }
 
   static Map<String, dynamic> _jsonDecode(String data) {

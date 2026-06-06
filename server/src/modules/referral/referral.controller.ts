@@ -3,7 +3,6 @@ import {
   Get,
   Post,
   Body,
-  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -30,13 +29,8 @@ export class ReferralController {
 
   // ── Get Referral Stats ──────────────────────────────────────────────
   @Get('stats')
-  async getStats(
-    @CurrentUser('id') currentUserId: string,
-    @Query('userId') userId?: string,
-  ) {
-    // Allow querying own stats or specific user (for admin use)
-    const targetUserId = userId || currentUserId;
-    return this.referralService.getStats(targetUserId);
+  async getStats(@CurrentUser('id') userId: string) {
+    return this.referralService.getStats(userId);
   }
 
   // ── Apply Referral Code ─────────────────────────────────────────────

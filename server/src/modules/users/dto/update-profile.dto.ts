@@ -59,6 +59,6 @@ export class UpdateProfileDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['anyone', 'members_only', 'admin_only'])
+  @IsIn(['anyone', 'connections', 'nobody'])
   invitePermission?: string;
 }

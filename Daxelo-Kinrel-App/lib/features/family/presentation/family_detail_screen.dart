@@ -673,7 +673,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Family archived successfully'),
+            content: Text('Family permanently deleted'),
             backgroundColor: KinrelColors.success,
             behavior: SnackBarBehavior.floating,
           ),

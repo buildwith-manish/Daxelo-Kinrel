@@ -347,26 +347,38 @@ export class SupportService {
   }
 
   /**
-   * Generate ticket number: DK-YYYY-NNNNN
+   * Generate ticket number: TK-YYYYMMDD-NNNN
+   * Wrapped in a transaction with collision detection to prevent race conditions.
    */
   private async generateTicketNumber(): Promise<string> {
-    const year = new Date().getFullYear();
+    return this.prisma.$transaction(async (tx) => {
+      const today = new Date();
+      const prefix = `TK-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
-    // Count tickets this year to generate sequence
-    const yearStart = new Date(year, 0, 1);
-    const yearEnd = new Date(year + 1, 0, 1);
+      const count = await tx.supportTicket.count({
+        where: { createdAt: { gte: startOfDay, lt: endOfDay } },
+      });
 
-    const count = await this.prisma.supportTicket.count({
-      where: {
-        createdAt: {
-          gte: yearStart,
-          lt: yearEnd,
-        },
-      },
+      const ticketNumber = `${prefix}-${String(count + 1).padStart(4, '0')}`;
+
+      // Verify uniqueness - if collision, increment
+      const existing = await tx.supportTicket.findFirst({ where: { ticketNumber } });
+      if (existing) {
+        // Collision - find next available number
+        const allToday = await tx.supportTicket.findMany({
+          where: { ticketNumber: { startsWith: prefix }, createdAt: { gte: startOfDay, lt: endOfDay } },
+          select: { ticketNumber: true },
+          orderBy: { ticketNumber: 'desc' },
+          take: 1,
+        });
+        const lastNum = allToday.length > 0 ? parseInt(allToday[0].ticketNumber.split('-').pop() || '0') : 0;
+        return `${prefix}-${String(lastNum + 1).padStart(4, '0')}`;
+      }
+
+      return ticketNumber;
     });
-
-    const sequence = (count + 1).toString().padStart(5, '0');
-    return `DK-${year}-${sequence}`;
   }
 
   private formatTicket(ticket: any) {
