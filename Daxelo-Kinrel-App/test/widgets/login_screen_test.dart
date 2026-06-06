@@ -318,8 +318,6 @@ void main() {
       // The _cleanErrorMessage method transforms the error
       // Since AuthService(null) throws "Authentication service is not available"
       // the user should see a message about that
-      final _errorFinder = find.byType(SnackBar);
-      // SnackBar may or may not appear depending on how the error is handled
       // At minimum, the loading state should clear
       expect(find.text('Sign In'), findsOneWidget);
     });
