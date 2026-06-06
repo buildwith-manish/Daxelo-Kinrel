@@ -571,55 +571,54 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             hint: 'Double tap to change your profile photo',
             child: GestureDetector(
               onTap: _showAvatarSourceSheet,
-              child: SparqRingAvatar(
-                userId: profile?.id ?? '',
-                imageUrl: avatarUrl,
-                initials: displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
-                size: 100,
-                showRing: true,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // Camera icon overlay
-                    Positioned(
-                      right: -2,
-                      bottom: -2,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  SparqRingAvatar(
+                    userId: profile?.id ?? '',
+                    imageUrl: avatarUrl,
+                    initials: displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+                    size: 100,
+                  ),
+                  // Camera icon overlay
+                  Positioned(
+                    right: -2,
+                    bottom: -2,
+                    child: Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: _orange,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: _bg, width: 2),
+                      ),
+                      child: const Icon(
+                        Icons.camera_alt,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  // Upload spinner
+                  if (_isUploadingAvatar)
+                    Positioned.fill(
                       child: Container(
-                        width: 30,
-                        height: 30,
                         decoration: BoxDecoration(
-                          color: _orange,
                           shape: BoxShape.circle,
-                          border: Border.all(color: _bg, width: 2),
+                          color: Colors.black45,
                         ),
-                        child: const Icon(
-                          Icons.camera_alt,
-                          size: 16,
-                          color: Colors.white,
+                        alignment: Alignment.center,
+                        child: SizedBox(
+                          width: 32,
+                          height: 32,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            valueColor: AlwaysStoppedAnimation<Color>(_orange),
+                          ),
                         ),
                       ),
                     ),
-                    // Upload spinner
-                    if (_isUploadingAvatar)
-                      Positioned.fill(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.black45,
-                          ),
-                          alignment: Alignment.center,
-                          child: SizedBox(
-                            width: 32,
-                            height: 32,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 3,
-                              valueColor: AlwaysStoppedAnimation<Color>(_orange),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                ],
               ),
             ),
             )

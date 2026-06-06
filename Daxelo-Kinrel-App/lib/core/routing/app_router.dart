@@ -443,7 +443,8 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
       final token = currentLocation.replaceFirst('/join/', '');
       if (token.isNotEmpty) {
         const storage = FlutterSecureStorage();
-        await storage.write(key: 'pending_join_token', value: token);
+        // Fire-and-forget: can't await in sync redirect callback
+        storage.write(key: 'pending_join_token', value: token);
       }
     } catch (_) {}
   }
@@ -939,6 +940,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           key: state.pageKey,
           child: FamilyInviteScreen(
             familyId: state.pathParameters['familyId'] ?? '',
+            familyName: state.uri.queryParameters['familyName'] ?? 'Family',
           ),
         ),
       ),

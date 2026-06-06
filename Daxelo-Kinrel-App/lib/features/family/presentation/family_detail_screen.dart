@@ -89,6 +89,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           // ── Invite Members button (only for OWNER/ADMIN) ───────────
           Consumer(builder: (context, ref, _) {
             final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+            final family = ref.read(familyDetailProvider(widget.familyId)).valueOrNull?.family;
             final isCreator = family != null &&
                 family.createdBy != null &&
                 family.createdBy == currentUserId;
@@ -97,7 +98,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
               return IconButton(
                 icon: Icon(Icons.person_add_outlined, color: KinrelColors.purple),
                 tooltip: 'Invite Members',
-                onPressed: () => context.push('/families/${widget.familyId}/invite'),
+                onPressed: () => context.push('/families/${widget.familyId}/invite?familyName=${Uri.encodeComponent(family.name)}'),
               );
             }
             return const SizedBox.shrink();
@@ -110,6 +111,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           // ── Leave Family option in overflow menu ──────────────────
           Consumer(builder: (context, ref, _) {
             final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+            final family = ref.read(familyDetailProvider(widget.familyId)).valueOrNull?.family;
             final isCreator = family != null &&
                 family.createdBy != null &&
                 family.createdBy == currentUserId;
