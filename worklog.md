@@ -271,3 +271,25 @@ Stage Summary:
 - Full test suite: 153/153 passing (was 107)
 - 46 new auth tests added, 0 failures
 - Covers all security-critical flows: password verification, token validation, 2FA, token family reuse detection, legacy password upgrade, ENCRYPTION_KEY validation
+
+---
+Task ID: Phase 3
+Agent: Main Agent
+Task: Phase 3 — Authorization, SSRF, Tests & UX (10 fixes)
+
+Work Log:
+- 3.1: Created RolesGuard (common/guards/roles.guard.ts) using Reflector + @Roles decorator; applied @Roles('admin') + @UseGuards to admin controller and support listTickets; registered as 4th global APP_GUARD
+- 3.2: Created ssrf-protection.util.ts with DNS resolution, private IP blocklist (RFC 1918, link-local, metadata), and hostname blocklist; updated developer.service.ts createWebhook to use it
+- 3.3: Created CreateInvitationDto with @IsUUID, @IsEmail, @IsIn validators; fixed inviterId spoofing by removing body.inviterId and always using @CurrentUser('id')
+- 3.4: Created CreateTicketDto + AddMessageDto with class-validator; updated support.controller.ts to use DTOs
+- 3.5: Created auth.service.spec.ts with 46 test cases covering register, login, refresh/rotation, 2FA, replay protection, password change, token cleanup, encryption roundtrip
+- 3.6: Wired phoneValidator to sign-up phone field; fixed 3 touch targets from shrinkWrap to padded (sign-in forgot password, sign-up link, sign-in link)
+- 3.7: Added errorBuilder to GoRouter showing 404 page with "Go Home" button; added redirects for duplicate routes (/family/:id/add-member, /legal/*, /profile/premium)
+- 3.8: Replaced 6 console.log/warn calls with NestJS Logger in kinrel.gateway.ts
+- 3.9: Added Semantics(button: true, label: 'Sign in with Google') to sign-in; Semantics(button: true, label: 'Family: ...') to family list cards
+
+Stage Summary:
+- 19 files changed, 1502 insertions, 72 deletions
+- TypeScript compilation: 0 errors
+- Backend tests: 153/153 passing (+46 new auth tests)
+- All Phase 3 items complete and pushed to GitHub
