@@ -768,6 +768,9 @@ export class FamiliesService {
 
     // Emit socket event to all existing family members
     this.gateway.emitToFamily(invite.familyId, 'family:member:joined', {
+      id: member.id,
+      updatedAt: new Date().toISOString(),
+      type: 'family:member:joined',
       familyId: invite.familyId,
       userId,
       memberId: member.id,
@@ -910,6 +913,9 @@ export class FamiliesService {
     });
 
     this.gateway.emitToFamily(familyId, 'member:removed', {
+      id: familyId,
+      updatedAt: new Date().toISOString(),
+      type: 'member:removed',
       familyId,
       removedUserId: memberUserId,
       removedBy: userId,
@@ -1018,6 +1024,9 @@ export class FamiliesService {
 
     // Emit socket event
     this.gateway.emitToFamily(familyId, 'family:ownership:transferred', {
+      id: familyId,
+      updatedAt: new Date().toISOString(),
+      type: 'family:ownership:transferred',
       familyId,
       previousOwnerId: userId,
       newOwnerId,
