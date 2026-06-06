@@ -427,3 +427,62 @@ Stage Summary:
 - TypeScript compilation: 0 errors
 - Backend tests: 191/191 passing (+38 new tests)
 - All Phase 4 items complete and pushed to GitHub
+
+---
+Task ID: p0-backend
+Agent: Backend Phase 0 Fix Agent
+Task: Phase 0 Backend Fixes (CARRY-09, NEW-02, NEW-03, CI-02)
+
+Work Log:
+- CARRY-09: Raised backend coverage gate from 5% → 60% in backend-ci.yml line 70; updated error/success messages with emoji indicators and clearer wording
+- NEW-02: Created gitleaks.yml CI workflow — scans on push (all branches), PR to main/develop, and daily at 2am UTC; uses gitleaks/gitleaks-action@v2 with full history (fetch-depth: 0)
+- NEW-03: Fixed ESM import issues in main.ts — replaced `const compression = require('compression')` with `import compression from 'compression'`; replaced `require('crypto').randomBytes(8).toString('hex')` with `randomBytes(8).toString('hex')` using top-level `import { randomBytes } from 'crypto'`
+- CI-02: Added "Validate Prisma schema" step to backend-ci.yml after "Generate Prisma client" step — runs `npx prisma validate` to catch schema errors before build/test
+
+Stage Summary:
+- 3 files modified: backend-ci.yml (coverage gate + prisma validate), main.ts (ESM imports)
+- 1 file created: gitleaks.yml
+- TypeScript compilation: 0 errors (npx tsc --noEmit passes cleanly)
+- Backend tests: 191/191 passing
+- All Phase 0 backend items complete
+
+---
+Task ID: p0-otplib
+Agent: Sub Agent
+Task: CARRY-10 — Replace speakeasy with @otplib/preset-default in auth service
+
+Work Log:
+- Installed @otplib/preset-default (^12.0.1) and uninstalled speakeasy + @types/speakeasy
+- Updated auth.service.ts:
+  - Replaced `import * as speakeasy from 'speakeasy'` with `import { authenticator } from '@otplib/preset-default'`
+  - setup2FA(): Replaced `speakeasy.generateSecret({name, length})` with `authenticator.generateSecret()` (returns base32 string directly, not object); replaced `secret.base32` with `secret`; replaced `secret.otpauth_url` with `authenticator.keyuri('Daxelo Kinrel', 'Daxelo Kinrel', secret)`
+  - verify2FA(): Replaced `speakeasy.totp.verify({secret, encoding, token, window})` with `authenticator.verify({token: code, secret: decryptedSecret})` (otplib uses base32 by default and window=1 by default)
+  - loginVerify2FA(): Same replacement as verify2FA() — `speakeasy.totp.verify({...})` → `authenticator.verify({token: code, secret: decryptedSecret})`
+- Updated auth.service.spec.ts:
+  - Replaced `import * as speakeasy from 'speakeasy'` with `import { authenticator } from '@otplib/preset-default'`
+  - All 4 test blocks using speakeasy updated: `speakeasy.generateSecret({length: 32})` → `authenticator.generateSecret()`, `secret.base32` → `secret`, `speakeasy.totp({secret, encoding})` → `authenticator.generate(secret)`
+
+Stage Summary:
+- 2 files modified: auth.service.ts, auth.service.spec.ts
+- 2 packages changed: +@otplib/preset-default, -speakeasy, -@types/speakeasy
+- TypeScript compilation: 0 errors (npx tsc --noEmit passes cleanly)
+- Backend tests: 191/191 passing
+- Zero speakeasy references remaining in codebase
+
+---
+Task ID: p0-flutter
+Agent: Flutter Phase 0 Fix Agent
+Task: Phase 0 Flutter/Dart Fixes (NEW-11, CARRY-08, CARRY-06)
+
+Work Log:
+- NEW-11: Fixed Dart SDK constraint in pubspec.yaml — changed `sdk: ^3.12.0` to `sdk: '>=3.12.0 <4.0.0'` (explicit range is more robust; caret syntax can be ambiguous for pre-1.0 SDK versions)
+- CARRY-08a: Added storage boundary rule comment block to secure_storage.dart — documents that flutter_secure_storage (SecureStorageService) is for JWT tokens, user ID/email, 2FA secrets, PII, credentials (backed by Android Keystore / iOS Keychain); shared_preferences/Drift LocalCache is for theme, locale, onboarding flag, non-sensitive UI state only
+- CARRY-08b: Added storage boundary rule comment block to local_cache.dart — documents allowed data (theme, locale, onboarding, searches, kinship cache, app open count) and forbidden data (tokens, passwords, PII, credentials); directs to SecureStorageService for sensitive data
+- CARRY-06: Moved SystemChrome.setSystemUIOverlayStyle() out of MaterialApp.builder into a theme listener — added `ref.listen(themeModeProvider, ...)` in initState() via addPostFrameCallback with initial _updateSystemUIOverlay() call; removed duplicate SystemChrome call and brightness variables from builder callback; builder now only contains MediaQuery + OfflineBanner + child; existing _updateSystemUIOverlay() method (line 656) already handles the same logic with proper dark/light detection
+
+Stage Summary:
+- 4 files modified: pubspec.yaml, secure_storage.dart, local_cache.dart, main.dart
+- Dart CLI unavailable in sandbox — verify Flutter compilation locally
+- No new imports or dependencies added
+- SystemChrome overlay now reacts to theme changes via listener instead of rebuilding on every widget build
+- Storage boundary rules documented at top of both storage files

@@ -1,3 +1,14 @@
+// ── STORAGE RULE ──────────────────────────────────────────────────────
+// shared_preferences / Drift LocalCache (THIS FILE):
+//   Kinship cache, preferences, family cache, search history.
+//   Non-sensitive UI state only.
+//
+//   ✅ ALLOWED: theme, locale, onboarding flag, recent searches,
+//      cached kinship terms, app open count.
+//   ❌ FORBIDDEN: tokens, passwords, PII, credentials.
+//   For sensitive data, use SecureStorageService instead.
+// ─────────────────────────────────────────────────────────────────────
+
 // Migrated from Hive to Drift — LocalCacheService now uses AppDatabase
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

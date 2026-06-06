@@ -13,7 +13,7 @@ import { TwoFactorVerificationService } from '../../common/services/two-factor-v
 import { AuthService } from './auth.service';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
-import * as speakeasy from 'speakeasy';
+import { authenticator } from '@otplib/preset-default';
 import { encrypt, decrypt } from '../../common/utils/encryption.util';
 
 // ── Constants ──────────────────────────────────────────────────────────
@@ -647,14 +647,11 @@ describe('AuthService', () => {
 
     it('should verify a valid TOTP code and enable 2FA', async () => {
       // Generate a real TOTP secret for testing
-      const secret = speakeasy.generateSecret({ length: 32 });
-      const encryptedSecret = encrypt(secret.base32, ENCRYPTION_KEY);
+      const secret = authenticator.generateSecret();
+      const encryptedSecret = encrypt(secret, ENCRYPTION_KEY);
 
       // Generate a valid TOTP code
-      const validCode = speakeasy.totp({
-        secret: secret.base32,
-        encoding: 'base32',
-      });
+      const validCode = authenticator.generate(secret);
 
       mockPrisma.user.findUnique.mockResolvedValue({
         id: userId,
@@ -677,8 +674,8 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException with wrong TOTP code', async () => {
-      const secret = speakeasy.generateSecret({ length: 32 });
-      const encryptedSecret = encrypt(secret.base32, ENCRYPTION_KEY);
+      const secret = authenticator.generateSecret();
+      const encryptedSecret = encrypt(secret, ENCRYPTION_KEY);
 
       mockPrisma.user.findUnique.mockResolvedValue({
         id: userId,
@@ -741,12 +738,9 @@ describe('AuthService', () => {
     const userId = 'user-1';
 
     it('should return tokens on valid 2FA login verification', async () => {
-      const secret = speakeasy.generateSecret({ length: 32 });
-      const encryptedSecret = encrypt(secret.base32, ENCRYPTION_KEY);
-      const validCode = speakeasy.totp({
-        secret: secret.base32,
-        encoding: 'base32',
-      });
+      const secret = authenticator.generateSecret();
+      const encryptedSecret = encrypt(secret, ENCRYPTION_KEY);
+      const validCode = authenticator.generate(secret);
 
       mockPrisma.user.findUnique.mockResolvedValue({
         id: userId,
@@ -796,8 +790,8 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException with wrong TOTP code', async () => {
-      const secret = speakeasy.generateSecret({ length: 32 });
-      const encryptedSecret = encrypt(secret.base32, ENCRYPTION_KEY);
+      const secret = authenticator.generateSecret();
+      const encryptedSecret = encrypt(secret, ENCRYPTION_KEY);
 
       mockPrisma.user.findUnique.mockResolvedValue({
         id: userId,

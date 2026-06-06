@@ -351,6 +351,15 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       _loadSavedLocale();
     });
 
+    // Listen to theme changes and update system UI overlay accordingly
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.listen(themeModeProvider, (_, themeMode) {
+        _updateSystemUIOverlay();
+      });
+      // Also call once on init
+      _updateSystemUIOverlay();
+    });
+
     // ── DEFERRED INIT: non-critical services after first frame ───
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
@@ -692,31 +701,6 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       supportedLocales: S.supportedLocales,
       locale: ref.watch(localeProvider),
       builder: (context, child) {
-        // Update system UI overlay when theme changes
-        final brightness = MediaQuery.of(context).platformBrightness;
-        final effectiveDark =
-            themeMode == ThemeMode.dark ||
-            (themeMode == ThemeMode.system && brightness == Brightness.dark);
-
-        // Set system UI overlay on every build to stay in sync
-        SystemChrome.setSystemUIOverlayStyle(
-          SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent,
-            statusBarIconBrightness: effectiveDark
-                ? Brightness.light
-                : Brightness.dark,
-            statusBarBrightness: effectiveDark
-                ? Brightness.dark
-                : Brightness.light,
-            systemNavigationBarColor: effectiveDark
-                ? const Color(0xFF121212)
-                : const Color(0xFFF5F7FA),
-            systemNavigationBarIconBrightness: effectiveDark
-                ? Brightness.light
-                : Brightness.dark,
-          ),
-        );
-
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
             textScaler: TextScaler.linear(ref.watch(fontScaleProvider)),

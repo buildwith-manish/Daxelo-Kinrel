@@ -47,6 +47,9 @@ jobs:
       - name: Generate Prisma client
         run: cd server && npx prisma generate
 
+      - name: Validate Prisma schema
+        run: cd server && npx prisma validate
+
       - name: Lint
         run: cd server && npm run lint --if-present
 
@@ -67,7 +70,7 @@ jobs:
           if [ -f coverage/coverage-summary.json ]; then
             LINES=$(node -e "const c=require('./coverage/coverage-summary.json'); console.log(c.total.lines.pct)")
             echo "Line coverage: $LINES%"
-            node -e "if (parseFloat('$LINES') < 5) { console.error('Coverage below 5% — current: ' + '$LINES' + '%'); process.exit(1); } else { console.log('Coverage gate passed: ' + '$LINES' + '%'); }"
+            node -e "const pct = parseFloat('$LINES'); if (pct < 60) { console.error('❌ Coverage ' + pct + '% is below 60% threshold'); process.exit(1); } else { console.log('✅ Coverage gate passed: ' + pct + '%'); }"
           else
             echo "⚠️  No coverage summary found — skipping gate"
           fi

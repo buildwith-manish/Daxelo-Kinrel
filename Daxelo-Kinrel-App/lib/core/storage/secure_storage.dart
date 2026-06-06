@@ -1,3 +1,15 @@
+// ── STORAGE RULE ──────────────────────────────────────────────────────
+// flutter_secure_storage (SecureStorageService):
+//   JWT access token, JWT refresh token, user ID, user email,
+//   2FA secrets, any PII, any credential.
+//   Backed by Android Keystore / iOS Keychain.
+//
+// shared_preferences / Drift LocalCache:
+//   Theme mode, selected locale, last-viewed tab, onboarding complete flag,
+//   app open count, non-sensitive UI state.
+//   NOT for tokens, NOT for PII.
+// ─────────────────────────────────────────────────────────────────────
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Conditional import — flutter_secure_storage doesn't support web

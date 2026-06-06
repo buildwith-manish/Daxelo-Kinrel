@@ -12,7 +12,8 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { LoggerService } from './common/logger/logger.service';
 import { AlertingService } from './common/alerting/alerting.service';
 import helmet from 'helmet';
-const compression = require('compression');
+import compression from 'compression';
+import { randomBytes } from 'crypto';
 
 // ── CORS Whitelist ─────────────────────────────────────────────────
 const CORS_WHITELIST = [
@@ -56,7 +57,7 @@ async function bootstrap() {
 
   // ── Request ID tracking ────────────────────────────────────────
   app.use((req: any, res: any, next: any) => {
-    const requestId = req.headers['x-request-id'] || require('crypto').randomBytes(8).toString('hex');
+    const requestId = req.headers['x-request-id'] || randomBytes(8).toString('hex');
     req.headers['x-request-id'] = requestId;
     res.setHeader('x-request-id', requestId);
     next();

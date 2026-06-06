@@ -14,7 +14,7 @@ import Redis from 'ioredis';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
-import * as speakeasy from 'speakeasy';
+import { authenticator } from '@otplib/preset-default';
 import { encrypt, decrypt } from '../../common/utils/encryption.util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
@@ -329,26 +329,21 @@ export class AuthService {
 
   /** Generates a TOTP secret and returns the QR code URL for 2FA setup. */
   async setup2FA(userId: string) {
-    const secret = speakeasy.generateSecret({
-      name: `Daxelo Kinrel`,
-      length: 32,
-    });
+    const secret = authenticator.generateSecret();
 
     const encryptionKey = this.config.get<string>('ENCRYPTION_KEY');
     if (!encryptionKey) {
       throw new InternalServerErrorException('ENCRYPTION_KEY is not configured — cannot process 2FA');
     }
-    const encryptedSecret = encrypt(secret.base32, encryptionKey);
+    const encryptedSecret = encrypt(secret, encryptionKey);
 
     await this.prisma.user.update({
       where: { id: userId },
       data: { twoFactorSecret: encryptedSecret },
     });
 
-    return {
-      secret: secret.base32,
-      qrCodeUrl: secret.otpauth_url,
-    };
+    const qrCodeUrl = authenticator.keyuri('Daxelo Kinrel', 'Daxelo Kinrel', secret);
+    return { secret, qrCodeUrl };
   }
 
   // ── 2FA Verify ──────────────────────────────────────────────────
@@ -381,12 +376,7 @@ export class AuthService {
     }
     const decryptedSecret = decrypt(user.twoFactorSecret, encryptionKey);
 
-    const verified = speakeasy.totp.verify({
-      secret: decryptedSecret,
-      encoding: 'base32',
-      token: code,
-      window: 1, // Reduced from 2 → 1: ±30s tolerance is sufficient
-    });
+    const verified = authenticator.verify({ token: code, secret: decryptedSecret });
 
     if (!verified) {
       throw new UnauthorizedException('Invalid 2FA code');
@@ -437,12 +427,7 @@ export class AuthService {
     }
     const decryptedSecret = decrypt(user.twoFactorSecret, encryptionKey);
 
-    const verified = speakeasy.totp.verify({
-      secret: decryptedSecret,
-      encoding: 'base32',
-      token: code,
-      window: 1, // Reduced from 2 → 1: ±30s tolerance is sufficient
-    });
+    const verified = authenticator.verify({ token: code, secret: decryptedSecret });
 
     if (!verified) {
       throw new UnauthorizedException('Invalid 2FA code');
