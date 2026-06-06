@@ -5,7 +5,7 @@ import 'app_localizations.dart';
 // ignore_for_file: type=lint
 
 /// The translations for Gujarati (`gu`).
-class SGu extends S {
+class SGu extends AppLocalizations {
   SGu([String locale = 'gu']) : super(locale);
 
   @override

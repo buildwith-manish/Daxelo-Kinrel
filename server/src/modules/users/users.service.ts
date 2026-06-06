@@ -7,6 +7,7 @@ import {
   ForbiddenException,
   HttpException,
 } from '@nestjs/common';
+import { Gender } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { CacheService } from '../../common/cache/cache.service';
@@ -308,7 +309,7 @@ export class UsersService {
         ? new Date(data.dateOfBirth)
         : null;
     }
-    if (data.gender !== undefined) updateData.gender = data.gender || null;
+    if (data.gender !== undefined) updateData.gender = (data.gender as Gender) || null;
     if (data.avatarUrl !== undefined)
       updateData.avatarUrl = data.avatarUrl || null;
     if (data.profileVisibility !== undefined) {

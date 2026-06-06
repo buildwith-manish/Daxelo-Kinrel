@@ -23,19 +23,19 @@ export class CommunityController {
 
   /**
    * GET /api/v1/communities
-   * Search/browse communities.
+   * Search/browse communities with cursor-based pagination.
    */
   @Get()
   async search(
     @Query('search') search?: string,
     @Query('type') type?: string,
-    @Query('page') page?: string,
+    @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
     return this.communityService.search({
       search,
       type,
-      page: page ? parseInt(page, 10) : 1,
+      cursor,
       limit: limit ? parseInt(limit, 10) : 20,
     });
   }

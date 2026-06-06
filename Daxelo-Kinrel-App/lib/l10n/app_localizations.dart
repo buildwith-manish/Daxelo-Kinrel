@@ -74,17 +74,17 @@ import 'app_localizations_ur.dart';
 /// you wish to add from the pop-up menu in the Value field. This list should
 /// be consistent with the languages listed in the S.supportedLocales
 /// property.
-abstract class S {
-  S(String locale)
+abstract class AppLocalizations {
+  AppLocalizations(String locale)
     : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
-  static S? of(BuildContext context) {
-    return Localizations.of<S>(context, S);
+  static AppLocalizations? of(BuildContext context) {
+    return Localizations.of<AppLocalizations>(context, AppLocalizations);
   }
 
-  static const LocalizationsDelegate<S> delegate = _SDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -442,12 +442,12 @@ abstract class S {
   String get languageName;
 }
 
-class _SDelegate extends LocalizationsDelegate<S> {
-  const _SDelegate();
+class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
+  const _AppLocalizationsDelegate();
 
   @override
-  Future<S> load(Locale locale) {
-    return SynchronousFuture<S>(lookupS(locale));
+  Future<AppLocalizations> load(Locale locale) {
+    return SynchronousFuture<AppLocalizations>(lookupAppLocalizations(locale));
   }
 
   @override
@@ -470,10 +470,10 @@ class _SDelegate extends LocalizationsDelegate<S> {
   ].contains(locale.languageCode);
 
   @override
-  bool shouldReload(_SDelegate old) => false;
+  bool shouldReload(_AppLocalizationsDelegate old) => false;
 }
 
-S lookupS(Locale locale) {
+AppLocalizations lookupAppLocalizations(Locale locale) {
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
     case 'as':
@@ -509,7 +509,7 @@ S lookupS(Locale locale) {
   }
 
   throw FlutterError(
-    'S.delegate failed to load unsupported locale "$locale". This is likely '
+    'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
     'an issue with the localizations generation tool. Please file an issue '
     'on GitHub with a reproducible sample app and the gen-l10n configuration '
     'that was used.',

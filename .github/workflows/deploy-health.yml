@@ -1,0 +1,88 @@
+# ─────────────────────────────────────────────────────────────────
+# Post-Deploy Health Check — smoke test after backend deployment
+# ─────────────────────────────────────────────────────────────────
+# Runs a simple HTTP health check against the production server
+# to confirm the deployment is responding correctly.
+#
+# Triggers:
+#   - After a successful push to main (server/ changes only)
+#   - Manual dispatch for on-demand verification
+#
+# The /api/health endpoint is public (no auth required) and
+# returns { status: 'ok', db, redis, uptime, memory, ts }.
+# ─────────────────────────────────────────────────────────────────
+
+name: Post-Deploy Health Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - '.github/workflows/deploy-health.yml'
+  workflow_dispatch:
+    inputs:
+      health_url:
+        description: 'Health check URL (override default)'
+        required: false
+        default: 'https://daxelo-kinrel-server.onrender.com/api/health'
+      max_retries:
+        description: 'Max retries (1-10)'
+        required: false
+        default: '5'
+      retry_delay:
+        description: 'Seconds between retries'
+        required: false
+        default: '30'
+
+concurrency:
+  group: deploy-health-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HEALTH_URL: ${{ github.event.inputs.health_url || 'https://daxelo-kinrel-server.onrender.com/api/health' }}
+  MAX_RETRIES: ${{ github.event.inputs.max_retries || '5' }}
+  RETRY_DELAY: ${{ github.event.inputs.retry_delay || '30' }}
+
+jobs:
+  health-check:
+    name: Post-deploy health check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Post-deploy health check
+        run: |
+          echo "🔍 Checking health endpoint: $HEALTH_URL"
+          echo "   Max retries: $MAX_RETRIES | Retry delay: ${RETRY_DELAY}s"
+          echo ""
+
+          ATTEMPT=0
+          while [ "$ATTEMPT" -lt "$MAX_RETRIES" ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "Attempt $ATTEMPT of $MAX_RETRIES..."
+
+            STATUS=$(curl -s -o /tmp/health-response.json -w "%{http_code}" "$HEALTH_URL" --max-time 10)
+
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Health check passed: HTTP $STATUS"
+              echo ""
+              echo "Response:"
+              cat /tmp/health-response.json | python3 -m json.tool 2>/dev/null || cat /tmp/health-response.json
+              exit 0
+            fi
+
+            echo "⚠️  Received HTTP $STATUS"
+
+            if [ "$ATTEMPT" -lt "$MAX_RETRIES" ]; then
+              echo "   Retrying in ${RETRY_DELAY}s..."
+              sleep "$RETRY_DELAY"
+            fi
+          done
+
+          echo ""
+          echo "❌ Health check failed after $MAX_RETRIES attempts: HTTP $STATUS"
+          echo ""
+          echo "Last response:"
+          cat /tmp/health-response.json 2>/dev/null || echo "(no response body)"
+          exit 1

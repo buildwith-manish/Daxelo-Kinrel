@@ -5,7 +5,7 @@ import 'app_localizations.dart';
 // ignore_for_file: type=lint
 
 /// The translations for Kannada (`kn`).
-class SKn extends S {
+class SKn extends AppLocalizations {
   SKn([String locale = 'kn']) : super(locale);
 
   @override

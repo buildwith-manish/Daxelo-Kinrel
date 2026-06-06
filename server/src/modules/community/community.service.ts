@@ -11,16 +11,15 @@ export class CommunityService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Search/browse communities with pagination and filtering.
+   * Search/browse communities with cursor-based pagination and filtering.
    */
   async search(params: {
     search?: string;
     type?: string;
-    page?: number;
+    cursor?: string;
     limit?: number;
   }) {
-    const { search, type, page = 1, limit = 20 } = params;
-    const skip = (page - 1) * limit;
+    const { search, type, cursor, limit = 20 } = params;
 
     const where: any = {};
 
@@ -38,24 +37,21 @@ export class CommunityService {
       ];
     }
 
-    const [communities, total] = await Promise.all([
-      this.prisma.community.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { memberCount: 'desc' },
-      }),
-      this.prisma.community.count({ where }),
-    ]);
+    const data = await this.prisma.community.findMany({
+      where,
+      take: limit + 1,
+      cursor: cursor ? { id: cursor } : undefined,
+      skip: cursor ? 1 : 0,
+      orderBy: { memberCount: 'desc' },
+    });
+
+    const hasMore = data.length > limit;
+    const communities = hasMore ? data.slice(0, limit) : data;
 
     return {
       data: communities.map((c) => this.formatCommunity(c)),
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      nextCursor: hasMore ? communities[communities.length - 1].id : null,
+      hasMore,
     };
   }
 

@@ -14,8 +14,11 @@
 // - Bottom control pill (zoom, center, fit)
 // - Tap nodes for person detail sheet
 
+import 'dart:async' show unawaited;
+
 import 'dart:collection';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -570,9 +573,15 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
     );
 
     // Start entry animation after a brief delay
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) _entryController.forward();
-    });
+    unawaited(
+      Future.delayed(const Duration(milliseconds: 300), () async {
+        try {
+          if (mounted) _entryController.forward();
+        } catch (e) {
+          debugPrint('⚠️ Entry animation start failed: $e');
+        }
+      }),
+    );
 
     // Center on anchor after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {

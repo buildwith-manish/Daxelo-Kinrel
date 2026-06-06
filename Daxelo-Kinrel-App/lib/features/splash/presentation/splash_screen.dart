@@ -1,6 +1,8 @@
+import 'dart:async' show unawaited;
+
 import 'package:kinrel/core/widgets/global_error_widget.dart';
-import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,7 +14,7 @@ import '../../../core/database/app_database_service.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/config/auth_config.dart';
-import '../../../main.dart' show appInitCompleteProvider;
+import '../../../core/bootstrap/app_init_provider.dart' show appInitProvider;
 
 // ─────────────────────────────────────────────────────────────────────
 // KINREL Splash Screen — Animated K-Graph Experience
@@ -111,21 +113,27 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     // Safety timeout: force navigate after 12 seconds even if init hasn't completed.
     // This prevents the user from being stuck on splash forever.
-    Future.delayed(const Duration(seconds: 12), () {
-      if (mounted && !_navigated) {
-        debugPrint('⚠️ Splash safety timeout triggered — forcing navigation');
-        _navigated = true;
+    unawaited(
+      Future.delayed(const Duration(seconds: 12), () async {
         try {
-          if (ref.read(isAuthenticatedProvider) || _hasCachedProfile || _supabaseHasSession()) {
-            context.go('/home');
-          } else {
-            context.go('/sign-in');
+          if (mounted && !_navigated) {
+            debugPrint('⚠️ Splash safety timeout triggered — forcing navigation');
+            _navigated = true;
+            try {
+              if (ref.read(isAuthenticatedProvider) || _hasCachedProfile || _supabaseHasSession()) {
+                context.go('/home');
+              } else {
+                context.go('/sign-in');
+              }
+            } catch (_) {
+              try { context.go('/sign-in'); } catch (_) {}
+            }
           }
-        } catch (_) {
-          try { context.go('/sign-in'); } catch (_) {}
+        } catch (e) {
+          debugPrint('⚠️ Splash safety timeout failed: $e');
         }
-      }
-    });
+      }),
+    );
   }
 
   @override
@@ -151,7 +159,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     if (kAuthDisabled) {
       // Wait for background initialization to complete (Supabase, etc.)
       try {
-        await ref.read(appInitCompleteProvider.future).timeout(
+        await ref.read(appInitProvider.future).timeout(
           const Duration(seconds: 12),
           onTimeout: () {
             debugPrint('⚠️ Splash: background init timed out — proceeding anyway (auth disabled)');
@@ -189,18 +197,24 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // Preload kinship data in the background (5 300+ terms, ~15 MB JSON)
     // Delay kinship loading by 5 seconds so it doesn't compete
     // with auth and UI initialization on the main thread
-    Future.delayed(const Duration(seconds: 5), () {
-      if (mounted) {
-        ref.read(kinshipInitializedProvider.future).catchError((_) {});
-      }
-    });
+    unawaited(
+      Future.delayed(const Duration(seconds: 5), () async {
+        try {
+          if (mounted) {
+            ref.read(kinshipInitializedProvider.future).catchError((_) {});
+          }
+        } catch (e) {
+          debugPrint('⚠️ Kinship preload failed: $e');
+        }
+      }),
+    );
 
     // ── Wait for background initialization to complete ──────────────
     // Services (Drift, Firebase, Supabase) are now initialized in the
     // background AFTER runApp(). We must wait for them to finish before
     // checking auth state, otherwise we'll always navigate to sign-in.
     try {
-      await ref.read(appInitCompleteProvider.future).timeout(
+      await ref.read(appInitProvider.future).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
           debugPrint('⚠️ Splash: background init timed out after 10s — proceeding anyway');

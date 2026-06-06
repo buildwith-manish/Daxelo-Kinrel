@@ -5,7 +5,7 @@ import 'app_localizations.dart';
 // ignore_for_file: type=lint
 
 /// The translations for Assamese (`as`).
-class SAs extends S {
+class SAs extends AppLocalizations {
   SAs([String locale = 'as']) : super(locale);
 
   @override

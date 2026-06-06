@@ -1,0 +1,206 @@
+// lib/app.dart
+//
+// DAXELO KINREL — Root Application Widget
+//
+// Contains the KinrelApp ConsumerStatefulWidget and its state.
+// Moved from main.dart as part of CQ-01 (split main.dart).
+
+import 'dart:async' show unawaited;
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'core/config/app_config.dart';
+import 'core/config/auth_config.dart';
+import 'core/routing/app_router.dart';
+import 'core/services/crashlytics_service.dart';
+import 'core/services/rating_service.dart';
+import 'core/services/supabase_service.dart';
+import 'core/database/sync/background_sync_manager.dart';
+import 'core/network/socket_service.dart';
+import 'core/theme/theme_provider.dart';
+import 'core/storage/secure_storage.dart';
+import 'core/widgets/offline_banner.dart';
+
+import 'core/bootstrap/service_orchestrator.dart';
+import 'core/bootstrap/app_init_provider.dart';
+
+// Generated localization imports (flutter gen-l10n)
+import 'package:kinrel/l10n/app_localizations.dart' show AppLocalizations;
+
+class KinrelApp extends ConsumerStatefulWidget {
+  const KinrelApp({super.key});
+
+  @override
+  ConsumerState<KinrelApp> createState() => _KinrelAppState();
+}
+
+class _KinrelAppState extends ConsumerState<KinrelApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    // Register for app lifecycle events
+    WidgetsBinding.instance.addObserver(this);
+
+    // Load saved language preference — deferred to avoid synchronous
+    // platform channel initialization (SecureStorage) during the first
+    // frame build, which can block the main thread on cold starts.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSavedLocale();
+    });
+
+    // Listen to theme changes and update system UI overlay accordingly
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.listen(themeModeProvider, (_, themeMode) {
+        _updateSystemUIOverlay();
+      });
+      // Also call once on init
+      _updateSystemUIOverlay();
+    });
+
+    // ── DEFERRED INIT: non-critical services after first frame ───
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        // Trigger core init provider (Drift, Firebase, Supabase)
+        // This will start async — splash screen watches appInitProvider
+        ref.read(appInitProvider);
+        // Start deferred services (auth listener, connectivity, etc.)
+        ServiceOrchestrator.startDeferredServices(ref);
+      } catch (e) {
+        debugPrint('🔴 ServiceOrchestrator start failed: $e');
+      }
+    });
+  }
+
+  Future<void> _loadSavedLocale() async {
+    try {
+      final storage = SecureStorageService();
+      final lang = await storage.getPreferredLanguage();
+      if (lang != null && lang.isNotEmpty) {
+        ref.read(localeProvider.notifier).state = Locale(lang);
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // When app comes back to foreground, update system UI overlay
+    if (state == AppLifecycleState.resumed) {
+      _updateSystemUIOverlay();
+
+      // Silently refresh the session in the background
+      if (isSupabaseInitialized) {
+        try {
+          final client = ref.read(supabaseProvider);
+          if (client != null && client.auth.currentSession != null) {
+            client.auth.refreshSession().catchError((_) {
+              return AuthResponse();
+            });
+
+            // Reconnect socket if not connected
+            try {
+              final socketService = ref.read(socketServiceProvider);
+              if (!socketService.isConnected) {
+                socketService.connect();
+              }
+            } catch (_) {}
+
+            // Trigger background sync on app resume
+            try {
+              final bgSyncManager = ref.read(backgroundSyncManagerProvider);
+              bgSyncManager.onAppResumed();
+            } catch (_) {}
+          }
+        } catch (_) {}
+      }
+
+      logActionBreadcrumb('app_resume');
+      RatingService.instance.onForeground();
+    } else if (state == AppLifecycleState.paused) {
+      logActionBreadcrumb('app_background');
+      sendUnsentReports();
+      RatingService.instance.onBackground();
+
+      // Stop periodic sync while in background
+      try {
+        final bgSyncManager = ref.read(backgroundSyncManagerProvider);
+        bgSyncManager.stop();
+      } catch (_) {}
+    }
+  }
+
+  /// Update system UI overlay style to match the current theme brightness.
+  void _updateSystemUIOverlay() {
+    final themeMode = ref.read(themeModeProvider);
+    final isDark =
+        themeMode == ThemeMode.dark ||
+        (themeMode == ThemeMode.system &&
+            WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+                Brightness.dark);
+
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        systemNavigationBarColor: isDark
+            ? const Color(0xFF121212)
+            : const Color(0xFFF5F7FA),
+        systemNavigationBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final themeMode = ref.watch(themeModeProvider);
+    final lightTheme = ref.watch(lightThemeProvider);
+    final darkTheme = ref.watch(darkThemeProvider);
+    final router = ref.watch(routerProvider);
+
+    return MaterialApp.router(
+      title: AppConfig.appName,
+      debugShowCheckedModeBanner: false,
+      // Support both light and dark themes
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: themeMode,
+      routerConfig: router,
+      // Localization — 15 languages
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      locale: ref.watch(localeProvider),
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(ref.watch(fontScaleProvider)),
+          ),
+          child: Column(
+            children: [
+              const OfflineBanner(),
+              Expanded(child: child ?? const SizedBox.shrink()),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}

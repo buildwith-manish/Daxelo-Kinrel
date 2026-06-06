@@ -5,7 +5,7 @@ import 'app_localizations.dart';
 // ignore_for_file: type=lint
 
 /// The translations for Sanskrit (`sa`).
-class SSa extends S {
+class SSa extends AppLocalizations {
   SSa([String locale = 'sa']) : super(locale);
 
   @override

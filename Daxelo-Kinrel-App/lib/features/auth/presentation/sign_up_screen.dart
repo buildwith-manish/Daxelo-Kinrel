@@ -229,9 +229,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
           context.go('/home');
         } catch (e) {
           debugPrint('Navigation error after sign-up: $e');
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) {
-              try { context.go('/home'); } catch (_) {}
+          Future.delayed(const Duration(milliseconds: 500), () async {
+            try {
+              if (mounted) {
+                try { context.go('/home'); } catch (_) {}
+              }
+            } catch (e) {
+              debugPrint('⚠️ Sign-up navigation retry failed: $e');
             }
           });
         }

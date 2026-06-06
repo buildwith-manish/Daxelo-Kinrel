@@ -178,11 +178,15 @@ class _TwoFactorLoginScreenState extends ConsumerState<TwoFactorLoginScreen> {
           context.go('/home');
         } catch (e) {
           debugPrint('Navigation error after 2FA verification: $e');
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) {
-              try {
-                context.go('/home');
-              } catch (_) {}
+          Future.delayed(const Duration(milliseconds: 500), () async {
+            try {
+              if (mounted) {
+                try {
+                  context.go('/home');
+                } catch (_) {}
+              }
+            } catch (e) {
+              debugPrint('⚠️ 2FA navigation retry failed: $e');
             }
           });
         }

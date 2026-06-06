@@ -11,6 +11,7 @@ import { SecurityHeadersInterceptor } from './common/interceptors/security-heade
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { LoggerService } from './common/logger/logger.service';
 import { AlertingService } from './common/alerting/alerting.service';
+import { RedisIoAdapter } from './common/adapters/redis-io.adapter';
 import helmet from 'helmet';
 import compression from 'compression';
 import { randomBytes } from 'crypto';
@@ -160,6 +161,23 @@ async function bootstrap() {
   // WebSocket connections close, and in-flight requests complete
   // before the process exits. Prevents data corruption on restarts.
   app.enableShutdownHooks();
+
+  // ── Socket.IO Redis adapter for multi-instance deployments ────────
+  // When running multiple server instances behind a load balancer,
+  // WebSocket events (e.g., graph:updated, user:joined) must be
+  // broadcast across all instances. The Redis adapter enables this
+  // by using Redis pub/sub as the transport layer.
+  // Only activated in production with REDIS_URL configured.
+  const redisUrl = configService.get<string>('REDIS_URL');
+  if (redisUrl && configService.get('NODE_ENV') === 'production') {
+    const redisIoAdapter = new RedisIoAdapter(app);
+    await redisIoAdapter.connectToRedis(redisUrl);
+    app.useWebSocketAdapter(redisIoAdapter);
+    loggerService.log(
+      '🔌 Socket.IO Redis adapter configured for multi-instance WS',
+      'Bootstrap',
+    );
+  }
 
   // ── Swagger / OpenAPI documentation ────────────────────────────────
   // SECURITY: Only expose Swagger in non-production environments.

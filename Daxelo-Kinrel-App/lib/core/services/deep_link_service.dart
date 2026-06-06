@@ -585,9 +585,15 @@ class DeepLinkService {
           _trackDeepLinkOpen(route);
 
           // Navigate after a short delay to let the app fully initialize
-          Future.delayed(const Duration(milliseconds: 800), () {
-            onDeepLink(route.toLocation());
-          });
+          unawaited(
+            Future.delayed(const Duration(milliseconds: 800), () async {
+              try {
+                onDeepLink(route.toLocation());
+              } catch (e) {
+                debugPrint('⚠️ Deferred deep link navigation failed: $e');
+              }
+            }),
+          );
         }
       }
     } catch (e) {

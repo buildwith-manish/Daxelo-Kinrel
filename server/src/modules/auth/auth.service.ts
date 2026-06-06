@@ -5,6 +5,7 @@ import {
   BadRequestException,
   NotFoundException,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -28,6 +29,7 @@ export class AuthService {
   private redis: Redis | null = null;
   private readonly MAX_LOGIN_ATTEMPTS = 10;
   private readonly LOCKOUT_TTL = 900; // 15 minutes in seconds
+  private readonly logger = new Logger(AuthService.name);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -55,6 +57,15 @@ export class AuthService {
       this.redis.connect().catch(() => {
         this.redis = null;
       });
+    }
+
+    // ── Production Redis requirement check ──────────────────────────
+    // Auth security features (TOTP replay protection, account lockout)
+    // depend on Redis. Without it, these features are silently disabled.
+    if (this.config.get('NODE_ENV') === 'production' && !redisUrl) {
+      this.logger.error(
+        '🔴 REDIS_URL is not configured! Auth security features (TOTP replay protection, account lockout) are DISABLED. This is a critical security risk in production.',
+      );
     }
   }
 

@@ -16,6 +16,26 @@ datasource db {
 
 // ── Enums ──────────────────────────────────────────────────────────────
 
+enum Gender {
+  male
+  female
+  other
+  prefer_not_to_say
+}
+
+enum UserRole {
+  user
+  admin
+  agent
+}
+
+enum SupportTier {
+  basic
+  standard
+  premium
+  vip
+}
+
 enum SubscriptionPlan {
   free
   pro_monthly
@@ -79,7 +99,7 @@ model User {
   photoFull         String? // Avatar full: w_400,h_400,c_fill,q_auto,f_webp
   bio               String? // Short biography
   dateOfBirth       DateTime? // User's date of birth
-  gender            String? // male, female, other, prefer_not_to_say
+  gender            Gender?
   profileVisibility String    @default("public") // public, private, connections_only
   invitePermission  String    @default("anyone") // anyone, connections, nobody
   authProvider      String    @default("email") // email, google, apple, phone
@@ -87,7 +107,7 @@ model User {
   twoFactorSecret   String? // TOTP base32 secret for 2FA
   backupCodes       String[]  @default([]) // Hashed backup codes for 2FA recovery
   preferredLanguage String    @default("en")
-  role              String    @default("user") // user, admin, agent
+  role              UserRole  @default(user)
   phone             String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -153,7 +173,7 @@ model Subscription {
   user        User               @relation(fields: [userId], references: [id])
   plan        SubscriptionPlan   @default(free)
   status      SubscriptionStatus @default(active)
-  supportTier String             @default("basic") // basic, standard, premium, vip
+  supportTier SupportTier        @default(basic)
   startDate   DateTime           @default(now())
   endDate     DateTime?
   createdAt   DateTime           @default(now())
@@ -612,7 +632,7 @@ model Person {
   photoThumb      String? // Photo thumb: w_80,h_80,c_fill,q_auto,f_auto
   photoCard       String? // Photo card: w_150,h_150,c_fill,q_auto,f_auto
   photoFull       String? // Photo full: w_400,h_400,c_fill,q_auto,f_webp
-  gender          String? // male, female, other
+  gender          Gender?
   username        String? // Unique @username for display — enforced at application level for non-null values; see @@index below
 
   // ── Full Member Profile Fields ──

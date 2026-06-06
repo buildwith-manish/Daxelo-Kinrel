@@ -1,4 +1,7 @@
+import 'dart:async' show unawaited;
+
 import 'package:kinrel/core/widgets/global_error_widget.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -130,11 +133,17 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen>
     });
 
     // Fallback timeout
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted && _isSearching) {
-        setState(() => _isSearching = false);
-      }
-    });
+    unawaited(
+      Future.delayed(const Duration(seconds: 3), () async {
+        try {
+          if (mounted && _isSearching) {
+            setState(() => _isSearching = false);
+          }
+        } catch (e) {
+          debugPrint('⚠️ Path finder timeout failed: $e');
+        }
+      }),
+    );
   }
 
   void _onPersonSelected(String personId, bool isFrom) {

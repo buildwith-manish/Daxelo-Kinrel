@@ -5,7 +5,7 @@ import 'app_localizations.dart';
 // ignore_for_file: type=lint
 
 /// The translations for Urdu (`ur`).
-class SUr extends S {
+class SUr extends AppLocalizations {
   SUr([String locale = 'ur']) : super(locale);
 
   @override

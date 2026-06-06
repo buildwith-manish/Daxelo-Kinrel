@@ -5,7 +5,7 @@ import 'app_localizations.dart';
 // ignore_for_file: type=lint
 
 /// The translations for Bengali Bangla (`bn`).
-class SBn extends S {
+class SBn extends AppLocalizations {
   SBn([String locale = 'bn']) : super(locale);
 
   @override

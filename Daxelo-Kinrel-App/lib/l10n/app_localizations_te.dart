@@ -5,7 +5,7 @@ import 'app_localizations.dart';
 // ignore_for_file: type=lint
 
 /// The translations for Telugu (`te`).
-class STe extends S {
+class STe extends AppLocalizations {
   STe([String locale = 'te']) : super(locale);
 
   @override

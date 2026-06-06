@@ -43,7 +43,7 @@ export class UpdateProfileDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['male', 'female', 'non-binary', 'prefer-not-to-say'])
+  @IsIn(['male', 'female', 'other', 'prefer_not_to_say'])
   gender?: string;
 
   @IsOptional()

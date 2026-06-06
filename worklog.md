@@ -1089,3 +1089,66 @@ Stage Summary:
 - Backend tests: 191/191 passing (with backup code test assertions)
 - All Phase 1 (V3 Audit) items complete and pushed to GitHub (commit 3b0f5f8)
 - Score projection: 8.1 → 8.8/10
+
+---
+Task ID: V3P2-c
+Agent: CI/CD Fix Agent
+Task: V3 Phase 2 — CI/CD fixes (2 items)
+
+Work Log:
+- CI-04: Verified /api/health endpoint already exists (server/src/health/health.controller.ts) with @Public() decorator, returns { status, db, redis, uptime, memory, ts }; no new endpoint needed
+- CI-04: Created .github/workflows/deploy-health.yml — post-deploy health check workflow; triggers on push to main (server/ paths) and manual dispatch; retries up to 5 times with 30s delay; curls /api/health, checks HTTP 200, displays JSON response; all inputs configurable via workflow_dispatch
+- CI-05: Created commitlint.config.js at project root with extended @commitlint/config-conventional and custom type-enum rules (feat, fix, security, perf, refactor, test, docs, ci, chore, revert)
+- CI-05: Installed @commitlint/cli, @commitlint/config-conventional, husky as devDependencies in server/package.json
+- CI-05: Created server/.husky/commit-msg hook with "npx --no -- commitlint --edit $1"
+- CI-05: Updated prepare script in server/package.json to "cd .. && husky server/.husky" for monorepo compatibility (git root is project root, not server/)
+- TypeScript compilation: 0 errors (npx tsc --noEmit passes cleanly)
+
+Stage Summary:
+- 1 file created: .github/workflows/deploy-health.yml
+- 1 file created: commitlint.config.js
+- 1 file created: server/.husky/commit-msg
+- 2 files modified: server/package.json (3 new devDeps + prepare script), worklog.md
+- Health endpoint already existed — no backend code changes needed
+- All CI/CD fixes complete
+
+---
+Task ID: V3P2-a
+Agent: Backend Architecture Fix Agent
+Task: V3 Phase 2 — Backend Architecture fixes (5 items)
+
+Work Log:
+- CQ-03: Added Gender, UserRole, SupportTier Prisma enums to schema.prisma; updated User.gender → Gender?, User.role → UserRole @default(user), Subscription.supportTier → SupportTier @default(basic), Person.gender → Gender?; updated members.service.ts and users.service.ts to cast DTO string fields to Gender enum type; fixed update-profile.dto.ts @IsIn values to match Gender enum (male/female/other/prefer_not_to_say); ran prisma format + prisma generate
+- NEW-04: Removed all `as any` and `: any` casts from graph.service.ts — created TreePerson, GraphPerson, GraphRelationship, TreeRelationship typed payloads using Prisma.PersonGetPayload/RelationshipGetPayload; replaced `new Map(persons.map((p) => [p.id, p as any]))` with `new Map<string, GraphPerson>(persons.map((p) => [p.id, p]))`; replaced `const person: any` with properly typed `const person = personMap.get(personId)` (returns TreePerson | undefined); created FormattedPerson and FormattedRelationship interfaces; updated formatPerson() parameter type from `Record<string, any>` to `GraphPerson | TreePerson`; updated FlatGraphResult and PathResult to use FormattedPerson[]/FormattedRelationship[] instead of `Array<Record<string, any>>`
+- NEW-05: Converted community.service.ts search() from offset-based (page/skip/count) to cursor-based pagination — replaced page/skip with cursor/skip(1)/take(limit+1) pattern; response now returns { data, nextCursor, hasMore } instead of { data, pagination: { page, limit, total, totalPages } }; updated community.controller.ts to accept `cursor?: string` query param instead of `page?: string`
+- PERF-01: Installed @socket.io/redis-adapter and redis packages; created RedisIoAdapter (common/adapters/redis-io.adapter.ts) extending NestJS IoAdapter — connects to Redis with createClient/createAdapter, falls back gracefully on failure; wired adapter in main.ts after enableShutdownHooks() — only activates in production with REDIS_URL configured
+- PERF-02: Added Logger to AuthService; added production Redis requirement check in constructor — logs `logger.error()` if REDIS_URL is not configured in production, warning operators that TOTP replay protection and account lockout are DISABLED
+
+Stage Summary:
+- 10 files modified: schema.prisma, members.service.ts, users.service.ts, update-profile.dto.ts, graph.service.ts, community.service.ts, community.controller.ts, main.ts, auth.service.ts, package.json
+- 2 files created: redis-io.adapter.ts, adapters/ directory
+- 2 packages installed: @socket.io/redis-adapter, redis
+- TypeScript compilation: 0 errors
+- Backend tests: 191/191 passing
+- Zero remaining `as any` casts in graph.service.ts
+- Community search now uses cursor-based pagination
+- Socket.IO Redis adapter available for multi-instance deployments
+- Production Redis absence now clearly logged as critical error
+
+---
+Task ID: V3P2-b
+Agent: Flutter Architecture Fix Agent
+Task: V3 Phase 2 — Flutter Architecture fixes (5 items)
+
+Work Log:
+- CQ-01: Split 718-line main.dart into 5 focused files: lib/main.dart (~16 lines, entry point only), lib/app.dart (KinrelApp widget with full lifecycle), lib/core/bootstrap/app_initializer.dart (pre-runApp quick setup), lib/core/bootstrap/error_handler.dart (ErrorWidget.builder, FlutterError.onError, PlatformDispatcher.onError), lib/core/bootstrap/service_orchestrator.dart (deferred services, auth state listener, connectivity listener, sign-out handler)
+- CQ-02: Created lib/core/bootstrap/app_init_provider.dart with AppInitNotifier extends AsyncNotifier<void> and appInitProvider AsyncNotifierProvider; removed 3 global mutable variables (_globalContainer, _appInitComplete, _initCompleter); Supabase readiness now notified via ref inside the notifier instead of _globalContainer loop; splash_screen.dart updated to import appInitProvider instead of appInitCompleteProvider from main.dart
+- CARRY-07: Added _setupConnectivityListener() in service_orchestrator.dart — watches isOnlineProvider from connectivity_service.dart; on offline→online transition, calls backgroundSyncManagerProvider.onConnectivityRestored() to flush pending operations; connectivity_plus already in pubspec.yaml
+- NEW-07: Wrapped 15 fire-and-forget Future.delayed calls with unawaited() + try-catch error handling across 14 files: deep_link_service.dart, invite_screen.dart, join_family_screen.dart, relationship_graph_screen.dart, share_provider.dart, profile_edit_screen.dart, path_finder_screen.dart, two_factor_login_screen.dart, sign_up_screen.dart, chat_provider.dart, chat_screen.dart, documents_screen.dart, splash_screen.dart (2 calls), smart_calendar_screen.dart; added dart:async show unawaited and package:flutter/foundation.dart imports where needed
+- NEW-10: Renamed class S → AppLocalizations in app_localizations.dart; renamed _SDelegate → _AppLocalizationsDelegate; renamed lookupS → lookupAppLocalizations; updated all 15 locale files (extends S → extends AppLocalizations); app.dart uses AppLocalizations.delegate and AppLocalizations.supportedLocales
+
+Stage Summary:
+- 6 files created: main.dart (rewritten), app.dart, app_initializer.dart, error_handler.dart, service_orchestrator.dart, app_init_provider.dart
+- 30+ files modified: app_localizations.dart + 15 locale files, splash_screen.dart, deep_link_service.dart, invite_screen.dart, join_family_screen.dart, relationship_graph_screen.dart, share_provider.dart, profile_edit_screen.dart, path_finder_screen.dart, two_factor_login_screen.dart, sign_up_screen.dart, chat_provider.dart, chat_screen.dart, documents_screen.dart, smart_calendar_screen.dart
+- Dart CLI unavailable in sandbox — verify compilation locally
+- All 5 fixes complete

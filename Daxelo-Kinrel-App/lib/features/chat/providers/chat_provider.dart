@@ -14,6 +14,9 @@
 //   - React to messages with emoji
 //   - Online status per sender
 
+import 'dart:async' show unawaited;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -339,11 +342,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// Simulate typing indicator.
   void simulateTyping() {
     state = state.copyWith(isTyping: true, typingUserName: 'Maa');
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        state = state.copyWith(isTyping: false, typingUserName: null);
-      }
-    });
+    unawaited(
+      Future.delayed(const Duration(seconds: 3), () async {
+        try {
+          if (mounted) {
+            state = state.copyWith(isTyping: false, typingUserName: null);
+          }
+        } catch (e) {
+          debugPrint('⚠️ Chat typing reset failed: $e');
+        }
+      }),
+    );
   }
 
   // ── Demo Data ────────────────────────────────────────────────────
