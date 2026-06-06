@@ -69,7 +69,7 @@ dependencies:
 
   # Media & Device
   image_picker: ^1.0.7
-  # image_cropper removed — BUG-03: crashes on Android with "Reply already submitted"
+  image_cropper: ^5.0.0  # Restored — v5.x fixes Android "Reply already submitted" crash
   local_auth: ^2.2.0
   webview_flutter: ^4.7.0
   
@@ -155,12 +155,36 @@ flutter:
     - family: NotoSansDevanagari
       fonts:
         - asset: assets/fonts/NotoSansDevanagari-Regular.ttf
+        - asset: assets/fonts/NotoSansDevanagari-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/NotoSansDevanagari-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/NotoSansDevanagari-Bold.ttf
+          weight: 700
     - family: NotoSansTamil
       fonts:
         - asset: assets/fonts/NotoSansTamil-Regular.ttf
+        - asset: assets/fonts/NotoSansTamil-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/NotoSansTamil-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/NotoSansTamil-Bold.ttf
+          weight: 700
     - family: NotoSansTelugu
       fonts:
         - asset: assets/fonts/NotoSansTelugu-Regular.ttf
+        - asset: assets/fonts/NotoSansTelugu-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/NotoSansTelugu-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/NotoSansTelugu-Bold.ttf
+          weight: 700
     - family: NotoSansBengali
       fonts:
         - asset: assets/fonts/NotoSansBengali-Regular.ttf
+        - asset: assets/fonts/NotoSansBengali-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/NotoSansBengali-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/NotoSansBengali-Bold.ttf
+          weight: 700

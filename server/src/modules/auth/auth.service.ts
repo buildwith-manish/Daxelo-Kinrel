@@ -361,6 +361,16 @@ export class AuthService {
       );
     }
 
+    // ── TOTP Replay Protection (BUG-04 fix) ────────────────────
+    // Prevent the same TOTP code from being used more than once.
+    // Without this, a captured code could be replayed within the time window.
+    const usedKey = `totp_used:${userId}:${code}`;
+    if (this.redis && await this.redis.exists(usedKey)) {
+      throw new UnauthorizedException(
+        'TOTP code already used. Please wait for the next code.',
+      );
+    }
+
     const encryptionKey = this.config.get<string>('ENCRYPTION_KEY');
     const decryptedSecret = decrypt(user.twoFactorSecret, encryptionKey!);
 
@@ -368,11 +378,16 @@ export class AuthService {
       secret: decryptedSecret,
       encoding: 'base32',
       token: code,
-      window: 2,
+      window: 1, // Reduced from 2 → 1: ±30s tolerance is sufficient
     });
 
     if (!verified) {
       throw new UnauthorizedException('Invalid 2FA code');
+    }
+
+    // Mark this code as used — TTL matches the TOTP step window (60s covers 2 steps)
+    if (this.redis) {
+      await this.redis.setex(usedKey, 60, '1');
     }
 
     await this.prisma.user.update({
@@ -401,6 +416,14 @@ export class AuthService {
       );
     }
 
+    // ── TOTP Replay Protection (BUG-04 fix) ────────────────────
+    const usedKey = `totp_used:${userId}:${code}`;
+    if (this.redis && await this.redis.exists(usedKey)) {
+      throw new UnauthorizedException(
+        'TOTP code already used. Please wait for the next code.',
+      );
+    }
+
     const encryptionKey = this.config.get<string>('ENCRYPTION_KEY');
     const decryptedSecret = decrypt(user.twoFactorSecret, encryptionKey!);
 
@@ -408,11 +431,16 @@ export class AuthService {
       secret: decryptedSecret,
       encoding: 'base32',
       token: code,
-      window: 2,
+      window: 1, // Reduced from 2 → 1: ±30s tolerance is sufficient
     });
 
     if (!verified) {
       throw new UnauthorizedException('Invalid 2FA code');
+    }
+
+    // Mark this code as used — TTL matches the TOTP step window (60s covers 2 steps)
+    if (this.redis) {
+      await this.redis.setex(usedKey, 60, '1');
     }
 
     // Mark user as 2FA-verified so subsequent requests pass the TwoFactorGuard

@@ -63,13 +63,9 @@ class CachedPersons extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-class AuthTokens extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  TextColumn get accessToken => text()();
-  TextColumn get refreshToken => text()();
-  DateTimeColumn get expiresAt => dateTime()();
-  DateTimeColumn get savedAt => dateTime()();
-}
+// AuthTokens table REMOVED in v4 — tokens now stored exclusively in
+// flutter_secure_storage (SecureStorageService). SQLite is not a secure
+// token store. See BUG-09 / Phase 0.9.
 
 class UserSettings extends Table {
   TextColumn get key => text()();
@@ -211,7 +207,6 @@ class CachedFamilyIds extends Table {
   CachedRelationships,
   CachedFamilies,
   CachedPersons,
-  AuthTokens,
   UserSettings,
   SearchHistoryEntries,
   RecentlyViewedProfiles,
@@ -228,7 +223,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'daxelo_kinrel_db');
@@ -284,6 +279,11 @@ class AppDatabase extends _$AppDatabase {
             await migrator.addColumn(cachedFamilies, cachedFamilies.username);
             await migrator.createTable(cachedUsernames);
             await migrator.createTable(cachedFamilyIds);
+          }
+          if (from < 4) {
+            // v3 → v4: Remove AuthTokens table — tokens now in SecureStorage only
+            // Drift doesn't have a migrator.dropTable, so use custom SQL
+            await customStatement('DROP TABLE IF EXISTS auth_tokens');
           }
         },
       );
@@ -377,19 +377,9 @@ class AppDatabase extends _$AppDatabase {
   Future<void> clearRelationships() => delete(cachedRelationships).go();
 
   // ── Auth Tokens ───────────────────────────────────────────────────
-
-  Future<AuthToken?> getLatestToken() =>
-      (select(authTokens)
-            ..orderBy([(t) => OrderingTerm.desc(t.savedAt)])
-            ..limit(1))
-          .getSingleOrNull();
-
-  Future<void> saveToken(AuthTokensCompanion token) async {
-    await delete(authTokens).go();
-    await into(authTokens).insert(token);
-  }
-
-  Future<void> clearTokens() => delete(authTokens).go();
+  // REMOVED: Auth tokens are now stored exclusively in SecureStorageService.
+  // The auth_tokens Drift table was removed in schema v4.
+  // Use SecureStorageService.saveAuthTokens / clearAuthTokens instead.
 
   // ── User Settings ─────────────────────────────────────────────────
 
@@ -619,7 +609,7 @@ class AppDatabase extends _$AppDatabase {
       await clearAllCache();
       await delete(pendingOperations).go();
       await delete(userSettings).go();
-      await delete(authTokens).go();
+      // auth_tokens table removed in v4 — tokens in SecureStorage only
     });
   }
 

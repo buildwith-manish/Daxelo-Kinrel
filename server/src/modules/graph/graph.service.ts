@@ -58,7 +58,7 @@ const SPOUSE_KEYS = new Set(['husband', 'wife']);
 export class GraphService {
   private redis: Redis | null = null;
   private readonly logger = new Logger(GraphService.name);
-  private readonly CACHE_TTL = 60; // 60 seconds
+  private readonly CACHE_TTL = 300; // 5 minutes (increased from 60s — BUG-17 fix)
 
   constructor(
     private prisma: PrismaService,

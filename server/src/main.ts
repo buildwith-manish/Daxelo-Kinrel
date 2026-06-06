@@ -23,8 +23,8 @@ const CORS_WHITELIST = [
   'https://daxelokinrel.com',                          // Production domain
   'https://app.daxelokinrel.com',                      // App subdomain
   'https://daxelo-kinrel-server.onrender.com',         // Render backend
-  'capabile://',                                        // iOS app scheme
-  'com.daxelo.kinrel',                                 // Android app scheme
+  'com.daxelo.kinrel://',                              // Android app scheme
+  'kinrel://',                                          // iOS app scheme
 ];
 
 async function bootstrap() {
@@ -109,7 +109,7 @@ async function bootstrap() {
       }
       // In development, allow localhost on any port
       if (
-        !corsOriginsEnv &&
+        configService.get('NODE_ENV') === 'development' &&
         (origin.startsWith('http://localhost:') ||
          origin.startsWith('http://127.0.0.1:'))
       ) {
@@ -163,20 +163,22 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   // ── Swagger / OpenAPI documentation ────────────────────────────────
+  // SECURITY: Only expose Swagger in non-production environments.
+  // In production, attackers could use /docs to discover all endpoints and DTOs.
   // P6-FIX: Use 'docs' path (NOT 'api/docs') because app.setGlobalPrefix('api')
   // already prepends /api to controller routes. SwaggerModule.setup registers
   // its route directly on Express — it does NOT go through NestJS's prefix system.
   // With 'docs', the Swagger UI is at /docs and the JSON at /docs-json.
-  // Using 'api/docs' would try to register at /api/docs but the NestJS
-  // router with global prefix 'api' intercepts /api/* first and returns 404.
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Daxelo Kinrel API')
-    .setDescription('Indian Family Relationship Intelligence API')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, document);
+  if (configService.get<string>('NODE_ENV') !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Daxelo Kinrel API')
+      .setDescription('Indian Family Relationship Intelligence API')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('docs', app, document);
+  }
 
   const port = configService.get<number>('PORT', 3000);
   await app.listen(port);
@@ -188,10 +190,12 @@ async function bootstrap() {
     `📡 API routes: /${apiPrefix}/* and /${apiPrefix}/v1/* for Flutter compatibility`,
     'Bootstrap',
   );
-  loggerService.log(
-    `📖 Swagger docs: http://localhost:${port}/docs`,
-    'Bootstrap',
-  );
+  if (configService.get<string>('NODE_ENV') !== 'production') {
+    loggerService.log(
+      `📖 Swagger docs: http://localhost:${port}/docs`,
+      'Bootstrap',
+    );
+  }
 
   // Graceful shutdown on SIGTERM (e.g. Kubernetes pod termination, docker stop)
   process.on('SIGTERM', async () => {
