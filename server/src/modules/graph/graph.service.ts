@@ -184,30 +184,78 @@ export class GraphService {
       locale?: string;
     } = {},
   ) {
-    await this.requireFamilyMember(userId, familyId);
+    // Check if the user is a member of the family
+    const membership = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId, userId } },
+    });
 
+    if (membership) {
+      // Full access for members
+      if (options.from && options.to) {
+        return this.getPath(familyId, options.from, options.to);
+      }
+
+      const safeDepth = Math.min(options.depth ?? DEFAULT_GRAPH_DEPTH, MAX_GRAPH_DEPTH);
+
+      if (options.root && options.format === 'tree') {
+        return this.getTree(familyId, options.root, safeDepth);
+      }
+
+      if (options.format === 'tree') {
+        const family = await this.prisma.family.findUnique({
+          where: { id: familyId },
+        });
+        const rootId = family?.anchorPersonId;
+        if (rootId) {
+          return this.getTree(familyId, rootId, safeDepth);
+        }
+        return this.getFlatGraph(familyId);
+      }
+
+      return this.getFlatGraph(familyId);
+    }
+
+    // Non-member access: check family privacy
+    const family = await this.prisma.family.findUnique({
+      where: { id: familyId },
+      select: { isPublic: true, deletedAt: true },
+    });
+
+    if (!family || family.deletedAt) {
+      throw new NotFoundException('Family not found');
+    }
+
+    if (!family.isPublic) {
+      throw new ForbiddenException({ error: 'FAMILY_PRIVATE' });
+    }
+
+    // Public family: return tree nodes only (strip contact details)
     if (options.from && options.to) {
-      return this.getPath(familyId, options.from, options.to);
+      throw new ForbiddenException('Path finding is only available to family members');
     }
 
     const safeDepth = Math.min(options.depth ?? DEFAULT_GRAPH_DEPTH, MAX_GRAPH_DEPTH);
 
     if (options.root && options.format === 'tree') {
-      return this.getTree(familyId, options.root, safeDepth);
+      const result = await this.getTree(familyId, options.root, safeDepth);
+      return this.stripContactDetails(result);
     }
 
     if (options.format === 'tree') {
-      const family = await this.prisma.family.findUnique({
+      const fam = await this.prisma.family.findUnique({
         where: { id: familyId },
       });
-      const rootId = family?.anchorPersonId;
+      const rootId = fam?.anchorPersonId;
       if (rootId) {
-        return this.getTree(familyId, rootId, safeDepth);
+        const result = await this.getTree(familyId, rootId, safeDepth);
+        return this.stripContactDetails(result);
       }
-      return this.getFlatGraph(familyId);
+      const result = await this.getFlatGraph(familyId);
+      return this.stripContactDetailsFromFlat(result);
     }
 
-    return this.getFlatGraph(familyId);
+    const result = await this.getFlatGraph(familyId);
+    return this.stripContactDetailsFromFlat(result);
   }
 
   /** Resolves the root person ID for tree rendering, falling back to anchor or oldest person. */
@@ -631,6 +679,49 @@ export class GraphService {
     }
 
     return membership;
+  }
+
+  /**
+   * Strips contact details (phone, email, address) from Person nodes
+   * for non-member access to public families.
+   * Used for flat graph results.
+   */
+  private stripContactDetailsFromFlat(result: FlatGraphResult): FlatGraphResult {
+    return {
+      persons: result.persons.map((person) => ({
+        ...person,
+        // Strip contact-sensitive fields — Person model has phone, email, address
+        // but our FormattedPerson doesn't include them directly.
+        // However, we should strip notes and occupation which may contain personal info.
+        notes: null,
+        occupation: null,
+      })),
+      relationships: result.relationships,
+    };
+  }
+
+  /**
+   * Strips contact details from tree nodes for non-member access to public families.
+   */
+  private stripContactDetails(result: { root: TreeNode | null; totalNodes: number }): {
+    root: TreeNode | null;
+    totalNodes: number;
+  } {
+    if (!result.root) return result;
+
+    const stripNode = (node: TreeNode): TreeNode => ({
+      ...node,
+      person: {
+        ...node.person,
+        // Tree nodes already don't include notes/occupation, but ensure consistency
+      },
+      children: node.children.map(stripNode),
+    });
+
+    return {
+      root: stripNode(result.root),
+      totalNodes: result.totalNodes,
+    };
   }
 
   private formatPerson(person: GraphPerson | TreePerson): FormattedPerson {

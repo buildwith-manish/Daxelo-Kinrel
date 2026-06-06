@@ -108,10 +108,20 @@ import '../config/auth_config.dart';
 import '../services/crashlytics_service.dart';
 import '../services/deep_link_service.dart';
 import '../services/analytics_service.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../shared/widgets/dk_components.dart';
 import '../../core/family/family_provider.dart';
 import '../../features/profile/data/profile_provider.dart';
+import '../../presentation/screens/follow/followers_screen.dart';
+import '../../presentation/screens/follow/follow_requests_screen.dart';
+import '../../presentation/screens/family/family_invite_screen.dart';
+import '../../presentation/screens/family/join_family_preview_screen.dart';
+import '../../presentation/screens/sparq/sparq_create_screen.dart';
+import '../../presentation/screens/sparq/sparq_viewer_screen.dart';
+import '../../presentation/screens/sparq/sparq_viewers_screen.dart';
+import '../../presentation/screens/settings/privacy_settings_screen.dart';
+import '../../data/models/sparq_model.dart';
 
 /// Key for accessing the router's navigator state
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -426,6 +436,17 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
 
   // ── Compute redirect target ────────────────────────────────────────
   String? redirectTarget;
+
+  // ── Deep link: /join/:token — save for post-login ──────────────
+  if (!isAuthenticated && currentLocation.startsWith('/join/')) {
+    try {
+      final token = currentLocation.replaceFirst('/join/', '');
+      if (token.isNotEmpty) {
+        const storage = FlutterSecureStorage();
+        await storage.write(key: 'pending_join_token', value: token);
+      }
+    } catch (_) {}
+  }
 
   if (isAuthenticated && isAuth) {
     // Authenticated user on sign-in/sign-up → redirect to home
@@ -894,6 +915,77 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // ── Profile Feature Screens ──────────────────────────────────
+      // ── Follow Routes ────────────────────────────────────────────────
+      GoRoute(
+        path: '/users/:userId/followers',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FollowersScreen(
+            userId: state.pathParameters['userId'] ?? '',
+            initialTab: state.uri.queryParameters['tab'] == 'following' ? 1 : 0,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/follow-requests',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: FollowRequestsScreen()),
+      ),
+
+      // ── Family Invite Routes ────────────────────────────────────────
+      GoRoute(
+        path: '/families/:familyId/invite',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilyInviteScreen(
+            familyId: state.pathParameters['familyId'] ?? '',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/join/:token',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: JoinFamilyPreviewScreen(
+            token: state.pathParameters['token'] ?? '',
+          ),
+        ),
+      ),
+
+      // ── Sparq Routes ────────────────────────────────────────────────
+      GoRoute(
+        path: '/sparq/create',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: SparqCreateScreen()),
+      ),
+      GoRoute(
+        path: '/sparq/view',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: SparqViewerScreen(
+            groups: state.extra as List<UserSparqGroup>? ?? [],
+            initialGroupIndex: int.tryParse(state.uri.queryParameters['index'] ?? '0') ?? 0,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/sparq/:sparqId/viewers',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: SparqViewersScreen(
+            sparqId: state.pathParameters['sparqId'] ?? '',
+          ),
+        ),
+      ),
+
+      // ── Privacy Settings ────────────────────────────────────────────
+      GoRoute(
+        path: '/settings/privacy',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: PrivacySettingsScreen()),
+      ),
+
+      // ── Profile Feature Screens (existing) ──────────────────────────
       GoRoute(
         path: '/profile/change-password',
         pageBuilder: (context, state) => _fastFadePage(

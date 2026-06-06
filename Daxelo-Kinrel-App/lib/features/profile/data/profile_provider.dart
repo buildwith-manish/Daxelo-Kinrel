@@ -250,6 +250,9 @@ class UserStatsModel {
     this.familyTrees = 0,
     this.membersAdded = 0,
     this.relations = 0,
+    this.followersCount = 0,
+    this.followingCount = 0,
+    this.familiesCount = 0,
   });
 
   factory UserStatsModel.fromJson(Map<String, dynamic> json) {
@@ -257,12 +260,18 @@ class UserStatsModel {
       familyTrees: _parseInt(json['familyTrees']),
       membersAdded: _parseInt(json['membersAdded']),
       relations: _parseInt(json['relations']),
+      followersCount: _parseInt(json['followersCount']),
+      followingCount: _parseInt(json['followingCount']),
+      familiesCount: _parseInt(json['familiesCount']),
     );
   }
 
   final int familyTrees;
   final int membersAdded;
   final int relations;
+  final int followersCount;
+  final int followingCount;
+  final int familiesCount;
 }
 
 /// Active session for the current user.

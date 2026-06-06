@@ -86,16 +86,68 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           ),
         ),
         actions: [
+          // ── Invite Members button (only for OWNER/ADMIN) ───────────
+          Consumer(builder: (context, ref, _) {
+            final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+            final isCreator = family != null &&
+                family.createdBy != null &&
+                family.createdBy == currentUserId;
+            // For now, creator = OWNER/ADMIN. In future, check role field.
+            if (isCreator) {
+              return IconButton(
+                icon: Icon(Icons.person_add_outlined, color: KinrelColors.purple),
+                tooltip: 'Invite Members',
+                onPressed: () => context.push('/families/${widget.familyId}/invite'),
+              );
+            }
+            return const SizedBox.shrink();
+          }),
           IconButton(
             icon: Icon(Icons.share_outlined),
             tooltip: 'Share Family',
             onPressed: () => _shareFamily(context),
           ),
-          IconButton(
-            icon: Icon(Icons.settings_outlined),
-            tooltip: 'Settings',
-            onPressed: () => _showFamilySettings(context),
-          ),
+          // ── Leave Family option in overflow menu ──────────────────
+          Consumer(builder: (context, ref, _) {
+            final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+            final isCreator = family != null &&
+                family.createdBy != null &&
+                family.createdBy == currentUserId;
+            // Only show overflow menu for non-owners
+            if (!isCreator) {
+              return PopupMenuButton<String>(
+                icon: Icon(Icons.settings_outlined),
+                onSelected: (value) {
+                  if (value == 'leave') {
+                    _showLeaveFamilyDialog(context);
+                  }
+                },
+                itemBuilder: (ctx) => [
+                  const PopupMenuItem(
+                    value: 'leave',
+                    child: Row(
+                      children: [
+                        Icon(Icons.exit_to_app, size: 18, color: KinrelColors.error),
+                        SizedBox(width: 8),
+                        Text(
+                          'Leave Family',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            color: KinrelColors.error,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }
+            return IconButton(
+              icon: Icon(Icons.settings_outlined),
+              tooltip: 'Settings',
+              onPressed: () => _showFamilySettings(context),
+            );
+          }),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -400,6 +452,79 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
             const SizedBox(height: 8),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showLeaveFamilyDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: DKColors.cardColor(context),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(KinrelRadius.lg),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              Icons.exit_to_app,
+              color: KinrelColors.error,
+              size: 24,
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                'Leave Family?',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: DKColors.textPrimary(context),
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'You will no longer be a member of this family. You can rejoin if invited again.',
+          style: TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 14,
+            color: DKColors.textSecondary(context),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                color: DKColors.textSecondary(context),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              // TODO: Implement leave family API call
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Leave family — coming soon'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            child: Text(
+              'Leave Family',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.error,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

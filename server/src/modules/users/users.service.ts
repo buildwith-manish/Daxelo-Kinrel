@@ -1159,5 +1159,72 @@ export class UsersService {
 
     return { success: true, message: 'FCM token deleted' };
   }
+
+  // ── Get Privacy Settings ───────────────────────────────────────
+
+  /** Returns the user's privacy settings: isPrivate and isFamilyGraphPublic. */
+  async getPrivacy(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { isPrivate: true, isFamilyGraphPublic: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      isPrivate: user.isPrivate,
+      isFamilyGraphPublic: user.isFamilyGraphPublic,
+    };
+  }
+
+  // ── Update Privacy Settings ────────────────────────────────────
+
+  /** Updates the user's privacy settings: isPrivate and/or isFamilyGraphPublic. */
+  async updatePrivacy(
+    userId: string,
+    data: { isPrivate?: boolean; isFamilyGraphPublic?: boolean },
+  ) {
+    const updateData: Record<string, unknown> = {};
+
+    if (data.isPrivate !== undefined) {
+      updateData.isPrivate = data.isPrivate;
+    }
+    if (data.isFamilyGraphPublic !== undefined) {
+      updateData.isFamilyGraphPublic = data.isFamilyGraphPublic;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      throw new BadRequestException('At least one privacy field must be provided');
+    }
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: { isPrivate: true, isFamilyGraphPublic: true },
+    });
+
+    return {
+      isPrivate: user.isPrivate,
+      isFamilyGraphPublic: user.isFamilyGraphPublic,
+    };
+  }
+
+  // ── Get Follow Counts ──────────────────────────────────────────
+
+  /** Returns follower and following counts for a given user. */
+  async getFollowCounts(userId: string) {
+    const [followers, following] = await Promise.all([
+      this.prisma.follow.count({
+        where: { followingId: userId, status: 'ACCEPTED' },
+      }),
+      this.prisma.follow.count({
+        where: { followerId: userId, status: 'ACCEPTED' },
+      }),
+    ]);
+
+    return { followers, following };
+  }
 }
 

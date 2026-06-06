@@ -31,6 +31,8 @@ import '../../stories/providers/stories_provider.dart';
 import '../../stories/presentation/stories_viewer_screen.dart';
 import '../../stories/presentation/add_story_sheet.dart';
 import '../../../core/utils/accessibility_utils.dart';
+import '../../../presentation/widgets/sparq_feed_row.dart';
+import '../../../presentation/providers/sparq_provider.dart';
 
 // ── Color shortcuts for the Command Center ──────────────────────
 const _cOrange = KinrelColors.orange; // #E8612A
@@ -217,7 +219,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     .fadeIn(duration: 350.ms, delay: 50.ms)
                     .slideX(begin: -0.05, end: 0),
 
-                SizedBox(height: 20),
+                SizedBox(height: 12),
+
+                // Sparq Feed Row (horizontal sparq avatars)
+                SparqFeedRow(
+                  onOwnTap: () => context.push('/sparq/create'),
+                  onUserTap: (userId) {
+                    final sparqState = ref.read(sparqProvider);
+                    final groups = sparqState.feed;
+                    if (groups.isNotEmpty) {
+                      final index = groups.indexWhere((g) => g.userId == userId);
+                      if (index >= 0) {
+                        context.push('/sparq/view?index=$index', extra: groups);
+                      }
+                    }
+                  },
+                ),
+
+                SizedBox(height: 12),
 
                 // Stories Row (Instagram-style circles)
                 _StoriesRow(familyId: primaryFamily.id)

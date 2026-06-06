@@ -23,12 +23,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:ui';
+import 'package:dio/dio.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
+import '../../../core/networking/dio_client.dart';
 import '../../../shared/widgets/dk_components.dart';
 import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
@@ -548,6 +551,11 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
   double _currentScale = 1.0;
   String? _selectedNodeId;
 
+  // ── Access state (for private/public family handling) ────────────
+  bool _isFamilyPrivate = false;
+  bool _isPublicTree = false; // non-member viewing a public family
+  bool _isCheckingAccess = true;
+
   // ── Animation ───────────────────────────────────────────────────
   late AnimationController _pulseController;
   late AnimationController _entryController;
@@ -586,6 +594,56 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _centerOnAnchor();
     });
+
+    // Check family access (private/public handling)
+    _checkFamilyAccess();
+  }
+
+  /// Check family access permissions — handles FAMILY_PRIVATE (403)
+  /// and public tree with stripped contact details.
+  Future<void> _checkFamilyAccess() async {
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get('/v1/families/${widget.familyId}/access');
+
+      if (response.statusCode == 200) {
+        final data = response.data as Map<String, dynamic>;
+        final accessLevel = data['accessLevel'] as String? ?? 'full';
+
+        if (mounted) {
+          setState(() {
+            _isCheckingAccess = false;
+            _isFamilyPrivate = false;
+            _isPublicTree = accessLevel == 'public_limited';
+          });
+        }
+      }
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 403) {
+        final errorData = e.response?.data;
+        final errorCode = errorData is Map ? errorData['error'] as String? : '';
+        if (errorCode == 'FAMILY_PRIVATE') {
+          if (mounted) {
+            setState(() {
+              _isCheckingAccess = false;
+              _isFamilyPrivate = true;
+            });
+          }
+          return;
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _isCheckingAccess = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isCheckingAccess = false;
+        });
+      }
+    }
   }
 
   @override
@@ -750,10 +808,20 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
         loading: () => const Center(
           child: CircularProgressIndicator(color: KinrelColors.orange),
         ),
-        error: (e, _) => DKErrorState(
-          message: 'Failed to load family data',
-          onRetry: () => ref.invalidate(familyDetailProvider(widget.familyId)),
-        ),
+        error: (e, _) {
+          // Check if the error is a 403 with FAMILY_PRIVATE
+          if (e is DioException && e.response?.statusCode == 403) {
+            final errorData = e.response?.data;
+            final errorCode = errorData is Map ? errorData['error'] as String? : '';
+            if (errorCode == 'FAMILY_PRIVATE') {
+              return _buildPrivateOverlay();
+            }
+          }
+          return DKErrorState(
+            message: 'Failed to load family data',
+            onRetry: () => ref.invalidate(familyDetailProvider(widget.familyId)),
+          );
+        },
         data: (detail) {
           if (detail == null || detail.members.isEmpty) {
             return DKEmptyState(
@@ -765,13 +833,165 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
             );
           }
 
-          return _buildGraph(detail);
+          return Column(
+            children: [
+              // Public tree info banner (non-member, public family)
+              if (_isPublicTree)
+                _buildPublicTreeBanner(),
+
+              // Graph
+              Expanded(child: _buildGraph(detail)),
+            ],
+          );
         },
       ),
     );
   }
 
+  // ── Private Family Overlay ────────────────────────────────────────
+
+  Widget _buildPrivateOverlay() {
+    return Container(
+      color: KinrelColors.darkBackground.withValues(alpha: 0.9),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: KinrelColors.accent.withValues(alpha: 0.15),
+                  ),
+                  child: Icon(
+                    Icons.lock_outline,
+                    size: 36,
+                    color: KinrelColors.accent,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'This family tree is private',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Only members of this family can view the tree. '
+                  'Request an invite from a family member to get access.',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 14,
+                    color: KinrelColors.textSilver,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: 160,
+                  child: OutlinedButton(
+                    onPressed: () => context.pop(),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: KinrelColors.accent, width: 1.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Go Back',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.accent,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Public Tree Banner ────────────────────────────────────────────
+
+  Widget _buildPublicTreeBanner() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: KinrelColors.accent.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: KinrelColors.accent.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.visibility_outlined, size: 18, color: KinrelColors.accent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              "You're viewing a public tree. Join to see full details.",
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                color: KinrelColors.textWhite,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: () {
+              // Navigate to join family preview
+              context.push('/families/${widget.familyId}/invite');
+            },
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              'Request to Join',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.accent,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Private Family Overlay (no blur import fallback) ──────────────
+
   Widget _buildGraph(FamilyDetail detail) {
+    // If family is private and access check confirmed it, show overlay
+    if (_isFamilyPrivate) {
+      return _buildPrivateOverlay();
+    }
+
+    // If still checking access, show loading
+    if (_isCheckingAccess) {
+      return const Center(
+        child: CircularProgressIndicator(color: KinrelColors.orange),
+      );
+    }
+
     // Compute layout
     final layout = _computeLayout(
       members: detail.members,

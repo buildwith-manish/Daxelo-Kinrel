@@ -21,6 +21,9 @@ import '../database/sync/cache_invalidation.dart';
 import '../services/supabase_service.dart';
 import '../networking/dio_client.dart';
 import '../family/family_provider.dart';
+import '../../presentation/providers/follow_provider.dart';
+import '../../presentation/providers/sparq_provider.dart';
+import '../../features/notifications/providers/notifications_provider.dart';
 
 // ── Socket Status Enum ──────────────────────────────────────────────
 
@@ -323,6 +326,109 @@ class SocketService {
     socket.on('error', (data) {
       debugPrint('[SocketService] Error: $data');
     });
+
+    // ── Follow events ──────────────────────────────────────────────
+    socket.on('follow:request', (data) {
+      debugPrint('[SocketService] follow:request — $data');
+      try {
+        // Reload follow requests to show the new request
+        _ref.read(followProvider.notifier).loadRequests();
+        // Show in-app notification
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        final fromName = json['fromName'] as String? ?? 'Someone';
+        _showInAppNotification(
+          '@$fromName wants to follow you',
+          type: 'follow:request',
+        );
+      } catch (e) {
+        debugPrint('[SocketService] Error handling follow:request: $e');
+      }
+    });
+
+    socket.on('follow:accepted', (data) {
+      debugPrint('[SocketService] follow:accepted — $data');
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        final userId = json['userId'] as String? ?? '';
+        // Update follow status cache for that userId → 'following'
+        final updatedCache = Map<String, String>.from(
+          _ref.read(followProvider).statusCache,
+        );
+        updatedCache[userId] = 'following';
+        _ref.read(followProvider.notifier).state = _ref.read(followProvider).copyWith(
+          statusCache: updatedCache,
+        );
+        // Reload following list
+        _ref.read(followProvider.notifier).loadFollowing();
+        // Show in-app notification
+        final fromName = json['fromName'] as String? ?? 'Someone';
+        _showInAppNotification(
+          '@$fromName accepted your follow request',
+          type: 'follow:accepted',
+        );
+      } catch (e) {
+        debugPrint('[SocketService] Error handling follow:accepted: $e');
+      }
+    });
+
+    socket.on('follow:new', (data) {
+      debugPrint('[SocketService] follow:new — $data');
+      try {
+        // Reload followers to update count
+        _ref.read(followProvider.notifier).loadFollowers();
+        // Show in-app notification
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        final fromName = json['fromName'] as String? ?? 'Someone';
+        _showInAppNotification(
+          '@$fromName started following you',
+          type: 'follow:new',
+        );
+      } catch (e) {
+        debugPrint('[SocketService] Error handling follow:new: $e');
+      }
+    });
+
+    // ── Family events ──────────────────────────────────────────────
+    socket.on('family:member:joined', (data) {
+      debugPrint('[SocketService] family:member:joined — $data');
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        final familyId = json['familyId'] as String? ?? '';
+        if (familyId.isNotEmpty) {
+          _invalidateProvidersForFamily(familyId);
+        }
+        // Show in-app notification
+        final memberName = json['name'] as String? ?? 'Someone';
+        _showInAppNotification(
+          '@$memberName joined your family',
+          type: 'family:member:joined',
+        );
+      } catch (e) {
+        debugPrint('[SocketService] Error handling family:member:joined: $e');
+      }
+    });
+
+    // ── Sparq events ──────────────────────────────────────────────
+    socket.on('sparq:new', (data) {
+      debugPrint('[SocketService] sparq:new — $data');
+      try {
+        // Refresh sparq feed to show new sparq
+        _ref.read(sparqProvider.notifier).fetchFeed();
+      } catch (e) {
+        debugPrint('[SocketService] Error handling sparq:new: $e');
+      }
+    });
+  }
+
+  /// Show an in-app notification banner. Uses the notifications provider
+  /// if available, otherwise falls back to a debug print.
+  void _showInAppNotification(String message, {String type = 'info'}) {
+    try {
+      _ref.read(notificationsProvider.notifier).loadNotifications();
+    } catch (e) {
+      debugPrint('[SocketService] Could not update notifications: $e');
+    }
+    debugPrint('[SocketService] 🔔 Notification ($type): $message');
   }
 
   // ── Person Event Handler ────────────────────────────────────────

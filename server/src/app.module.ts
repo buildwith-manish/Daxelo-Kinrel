@@ -39,6 +39,8 @@ import { SyncModule } from './modules/sync/sync.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { SearchModule } from './modules/search/search.module';
 import { StoriesModule } from './modules/stories/stories.module';
+import { FollowModule } from './modules/follow/follow.module';
+import { SparqModule } from './modules/sparq/sparq.module';
 import { CustomThrottlerGuard } from './common/guards/throttler.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { TwoFactorGuard } from './common/guards/two-factor.guard';
@@ -137,6 +139,10 @@ import { TwoFactorVerificationModule } from './common/services/two-factor-verifi
 
     // ── Stories module (ephemeral stories) ─────────────────────
     StoriesModule,
+
+    // ── Social modules (follow + sparq) ──────────────────────────
+    FollowModule,
+    SparqModule,
   ],
   providers: [
     // ── Global guards (executed in order) ────────────────────

@@ -105,6 +105,18 @@ export class UsersController {
     return this.usersService.getBlockedUsers(userId);
   }
 
+  // ── Get Privacy Settings ────────────────────────────────────────
+  @Get('me/privacy')
+  async getPrivacy(@CurrentUser('id') userId: string) {
+    return this.usersService.getPrivacy(userId);
+  }
+
+  // ── Get Follow Counts for a User ────────────────────────────────
+  @Get(':userId/follow-counts')
+  async getFollowCounts(@Param('userId') userId: string) {
+    return this.usersService.getFollowCounts(userId);
+  }
+
   // ── Get User by Username (public profile with privacy) ─────────────
   //    MUST be the LAST @Get route — the ':username' parameter matches
   //    any single path segment and would shadow all static routes if
@@ -133,6 +145,15 @@ export class UsersController {
     @Body() body: { username: string },
   ) {
     return this.usersService.updateUsername(userId, body.username);
+  }
+
+  // ── Update Privacy Settings ─────────────────────────────────────
+  @Patch('me/privacy')
+  async updatePrivacy(
+    @CurrentUser('id') userId: string,
+    @Body() body: { isPrivate?: boolean; isFamilyGraphPublic?: boolean },
+  ) {
+    return this.usersService.updatePrivacy(userId, body);
   }
 
   // ── Upload Avatar (POST — existing endpoint) ─────────────────────

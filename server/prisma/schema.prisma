@@ -85,6 +85,25 @@ enum SubscriptionStatus {
   past_due
 }
 
+enum FollowStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum SparqType {
+  IMAGE
+  VIDEO
+  TEXT
+  VOICE
+}
+
+enum SparqAudience {
+  PUBLIC
+  FAMILY_ONLY
+}
+
+
 // ── Core Models ──────────────────────────────────────────────────────
 
 model User {
@@ -109,6 +128,8 @@ model User {
   preferredLanguage String    @default("en")
   role              UserRole  @default(user)
   phone             String?
+  isPrivate         Boolean   @default(false)
+  isFamilyGraphPublic Boolean @default(true)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -146,6 +167,11 @@ model User {
   blockedUsers         BlockedUser[]            @relation("Blocker")
   blockedBy            BlockedUser[]            @relation("Blocked")
   stories              Story[]
+  followers            Follow[]  @relation("UserFollowers")
+  following            Follow[]  @relation("UserFollowing")
+  sparqs               Sparq[]
+  sparqViews           SparqView[]
+  createdInvites       FamilyInvite[]
 
   @@index([phone])
 }
@@ -566,6 +592,7 @@ model Family {
   avatarUrl       String?
   region          String?
   privacyMode     String    @default("private") // private/invite/link
+  isPublic        Boolean   @default(false)
   isOnboarded     Boolean   @default(false)
   anchorPersonId  String? // The primary household anchor person
   memberCount     Int       @default(0)
@@ -1614,11 +1641,15 @@ model FamilyInvite {
   maxUses     Int       @default(1)
   currentUses Int       @default(0)
   useCount    Int       @default(0)
+  isActive    Boolean   @default(true)
   expiresAt   DateTime?
   createdAt   DateTime  @default(now())
 
+  createdByUserId String? // User ID who created this invite (for follow system)
+
   family        Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
   inviterMember FamilyMember @relation(fields: [invitedBy], references: [id], onDelete: Cascade)
+  creator       User?        @relation(fields: [createdByUserId], references: [id])
 
   @@index([familyId])
   @@index([status])
@@ -1809,4 +1840,61 @@ model UsernameChangeLog {
   @@index([userId])
   @@index([userId, changedAt])
   @@index([newUsername])
+}
+
+
+// ── Follow System ───────────────────────────────────────────────
+
+model Follow {
+  id          String       @id @default(cuid())
+  followerId  String
+  followingId String
+  status      FollowStatus @default(ACCEPTED)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  follower    User         @relation("UserFollowers", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User         @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+// ── Sparq System ────────────────────────────────────────────────
+
+model Sparq {
+  id           String        @id @default(cuid())
+  userId       String
+  type         SparqType
+  mediaUrl     String?
+  thumbnailUrl String?
+  text         String?
+  bgColor      String?
+  duration     Int?
+  audience     SparqAudience @default(PUBLIC)
+  expiresAt    DateTime
+  createdAt    DateTime      @default(now())
+  viewCount    Int           @default(0)
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  views        SparqView[]
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+  @@index([audience])
+}
+
+model SparqView {
+  id        String   @id @default(cuid())
+  sparqId   String
+  viewerId  String
+  viewedAt  DateTime @default(now())
+
+  sparq     Sparq    @relation(fields: [sparqId], references: [id], onDelete: Cascade)
+  viewer    User     @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@unique([sparqId, viewerId])
+  @@index([sparqId])
+  @@index([viewerId])
 }
