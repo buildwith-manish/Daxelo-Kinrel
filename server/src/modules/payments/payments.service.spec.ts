@@ -39,7 +39,7 @@ describe('PaymentsService', () => {
     jest.clearAllMocks();
 
     // Reset config mock to default implementation
-    mockConfig.get.mockImplementation((key: string) => {
+    (mockConfig.get as jest.Mock).mockImplementation((key: string) => {
       switch (key) {
         case 'RAZORPAY_KEY_SECRET':
           return 'test-razorpay-secret';
@@ -124,7 +124,7 @@ describe('PaymentsService', () => {
     };
 
     it('should reject without signature in production mode', async () => {
-      mockConfig.get.mockImplementation((key: string) => {
+      (mockConfig.get as jest.Mock).mockImplementation((key: string) => {
         switch (key) {
           case 'NODE_ENV':
             return 'production';
@@ -145,7 +145,7 @@ describe('PaymentsService', () => {
     });
 
     it('should allow without signature in development mode (with warning)', async () => {
-      mockConfig.get.mockImplementation((key: string) => {
+      (mockConfig.get as jest.Mock).mockImplementation((key: string) => {
         switch (key) {
           case 'NODE_ENV':
             return 'development';
@@ -211,7 +211,7 @@ describe('PaymentsService', () => {
     });
 
     it('should throw BadRequestException if RAZORPAY_KEY_SECRET is missing', async () => {
-      mockConfig.get.mockImplementation((key: string) => {
+      (mockConfig.get as jest.Mock).mockImplementation((key: string) => {
         switch (key) {
           case 'RAZORPAY_KEY_SECRET':
             return undefined; // Missing secret

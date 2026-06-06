@@ -29,11 +29,11 @@ on:
       max_retries:
         description: 'Max retries (1-10)'
         required: false
-        default: '5'
+        default: '10'
       retry_delay:
         description: 'Seconds between retries'
         required: false
-        default: '30'
+        default: '60'
 
 concurrency:
   group: deploy-health-${{ github.ref }}
@@ -53,7 +53,7 @@ jobs:
     steps:
       - name: Post-deploy health check
         run: |
-          echo "🔍 Checking health endpoint: $HEALTH_URL"
+          echo "Checking health endpoint: $HEALTH_URL"
           echo "   Max retries: $MAX_RETRIES | Retry delay: ${RETRY_DELAY}s"
           echo ""
 
@@ -62,17 +62,43 @@ jobs:
             ATTEMPT=$((ATTEMPT + 1))
             echo "Attempt $ATTEMPT of $MAX_RETRIES..."
 
-            STATUS=$(curl -s -o /tmp/health-response.json -w "%{http_code}" "$HEALTH_URL" --max-time 10)
+            STATUS=$(curl -s -o /tmp/health-response.json -w "%{http_code}" "$HEALTH_URL" --max-time 15)
 
             if [ "$STATUS" = "200" ]; then
-              echo "✅ Health check passed: HTTP $STATUS"
-              echo ""
-              echo "Response:"
-              cat /tmp/health-response.json | python3 -m json.tool 2>/dev/null || cat /tmp/health-response.json
-              exit 0
-            fi
+              # Validate the JSON health status
+              HEALTH_STATUS=$(python3 -c "
+          import json, sys
+          try:
+            d = json.load(open('/tmp/health-response.json'))
+            status = d.get('data', d).get('status', 'unknown')
+            db = d.get('data', d).get('db', 'unknown')
+            redis = d.get('data', d).get('redis', 'unknown')
+            # Redis is optional: 'ok' or 'skipped' are both healthy
+            redis_ok = redis in ('ok', 'skipped')
+            overall_ok = db == 'ok' and redis_ok
+            print('ok' if overall_ok else 'degraded')
+          except:
+            print('parse_error')
+          " 2>/dev/null || echo "parse_error")
 
-            echo "⚠️  Received HTTP $STATUS"
+              if [ "$HEALTH_STATUS" = "ok" ]; then
+                echo "Health check passed: HTTP $STATUS, status: ok"
+                echo ""
+                echo "Response:"
+                cat /tmp/health-response.json | python3 -m json.tool 2>/dev/null || cat /tmp/health-response.json
+                exit 0
+              elif [ "$HEALTH_STATUS" = "degraded" ]; then
+                echo "Warning: Service is degraded (db or redis issue)"
+                echo "Response:"
+                cat /tmp/health-response.json | python3 -m json.tool 2>/dev/null || cat /tmp/health-response.json
+                # Still retry - might be mid-deploy
+              else
+                echo "Warning: Could not parse health response"
+                cat /tmp/health-response.json 2>/dev/null
+              fi
+            else
+              echo "Warning: Received HTTP $STATUS"
+            fi
 
             if [ "$ATTEMPT" -lt "$MAX_RETRIES" ]; then
               echo "   Retrying in ${RETRY_DELAY}s..."
@@ -81,7 +107,7 @@ jobs:
           done
 
           echo ""
-          echo "❌ Health check failed after $MAX_RETRIES attempts: HTTP $STATUS"
+          echo "Health check failed after $MAX_RETRIES attempts"
           echo ""
           echo "Last response:"
           cat /tmp/health-response.json 2>/dev/null || echo "(no response body)"

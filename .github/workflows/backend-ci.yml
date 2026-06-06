@@ -46,6 +46,9 @@ jobs:
 
       - name: Generate Prisma client
         run: cd server && npx prisma generate
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/test"
+          DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/test"
 
       - name: Validate Prisma schema
         run: cd server && npx prisma validate

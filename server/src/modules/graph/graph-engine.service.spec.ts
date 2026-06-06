@@ -486,7 +486,7 @@ describe('GraphEngineService', () => {
         gender: 'male',
       }));
 
-      const relationships = [];
+      const relationships: Array<{ fromPersonId: string; toPersonId: string; relationshipKey: string }> = [];
       for (let i = 0; i < 7; i++) {
         relationships.push({
           fromPersonId: `p${i}`,
@@ -521,7 +521,7 @@ describe('GraphEngineService', () => {
         gender: 'male',
       }));
 
-      const relationships = [];
+      const relationships: Array<{ fromPersonId: string; toPersonId: string; relationshipKey: string }> = [];
       for (let i = 0; i < 4; i++) {
         relationships.push({
           fromPersonId: `p${i}`,
@@ -678,7 +678,7 @@ describe('GraphEngineService', () => {
       }));
 
       // Generate ~2000 relationships (each person has ~2 relationships)
-      const relationships = [];
+      const relationships: Array<{ fromPersonId: string; toPersonId: string; relationshipKey: string }> = [];
       for (let i = 1; i < 1000; i++) {
         relationships.push({
           fromPersonId: `person-${Math.floor(i / 2)}`,
@@ -706,7 +706,7 @@ describe('GraphEngineService', () => {
       }));
 
       // Create a chain: person-0 → person-1 → person-2 → ... → person-999
-      const relationships = [];
+      const relationships: Array<{ fromPersonId: string; toPersonId: string; relationshipKey: string }> = [];
       for (let i = 0; i < 999; i++) {
         relationships.push({
           fromPersonId: `person-${i}`,
@@ -739,7 +739,7 @@ describe('GraphEngineService', () => {
       }));
 
       // Binary tree structure: person-i has children at 2i+1 and 2i+2
-      const relationships = [];
+      const relationships: Array<{ fromPersonId: string; toPersonId: string; relationshipKey: string }> = [];
       for (let i = 0; i < 250; i++) {
         if (2 * i + 1 < 500) {
           relationships.push({
