@@ -486,3 +486,25 @@ Stage Summary:
 - No new imports or dependencies added
 - SystemChrome overlay now reacts to theme changes via listener instead of rebuilding on every widget build
 - Storage boundary rules documented at top of both storage files
+
+---
+Task ID: V2-Phase0
+Agent: Main Agent
+Task: Phase 0 (v2 Audit) — Quick Wins (8 fixes from kinrel-audit-v2-to-10.md)
+
+Work Log:
+- CARRY-09: Raised backend coverage gate from 5% → 60% in backend-ci.yml
+- NEW-02: Re-added Gitleaks CI secret scanning workflow (gitleaks.yml)
+- NEW-11: Fixed Dart SDK constraint ^3.12.0 → '>=3.12.0 <4.0.0' in pubspec.yaml
+- CARRY-08: Added storage boundary rule comments to secure_storage.dart and local_cache.dart
+- CARRY-10: Replaced speakeasy with @otplib/preset-default in auth.service.ts (import, setup2FA, verify2FA, loginVerify2FA) + updated auth.service.spec.ts
+- NEW-03: Fixed compression/crypto require() → ESM imports in main.ts
+- CI-02: Added prisma validate step to backend CI workflow
+- CARRY-06: Moved SystemChrome.setSystemUIOverlayStyle out of builder into theme listener in main.dart
+
+Stage Summary:
+- 12 files changed, 187 insertions, 100 deletions
+- TypeScript compilation: 0 errors
+- Backend tests: 191/191 passing
+- All Phase 0 (v2 Audit) items complete and pushed to GitHub
+- Score projection: 7.5 → 8.0/10
