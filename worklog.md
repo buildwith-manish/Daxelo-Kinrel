@@ -1178,3 +1178,158 @@ Stage Summary:
 - Backend tests: 191/191 passing
 - All Phase 2 (V3 Audit) items complete and pushed to GitHub (commit 282dd2e)
 - Score projection: 8.8 → 9.3/10
+
+---
+Task ID: V3P3-a
+Agent: Test Writing Agent
+Task: V3 Phase 3 — TEST-01: KinshipService 50+ test cases
+
+Work Log:
+- Read kinship.service.ts (1120 lines) — identified all public methods: lookup(), getByKey(), search(), searchByTermAndLang(), getSupportedLanguages(), getCategories(), getByCategory(), getRandomTerms(), findByNativeTerm(), getAllTerms()
+- Read kinship.controller.ts — confirmed service usage patterns (lookup with query params, searchByTermAndLang with term/lang/limit, getSupportedLanguages)
+- Read graph-engine.service.spec.ts — confirmed test patterns (direct instantiation, describe/it blocks, no NestJS Test module needed for services without dependencies)
+- Created kinship.service.spec.ts with 92 test cases across 13 describe blocks:
+  - lookup by key (8 tests): father/mother/brother/sister with Hindi/Marathi/Tamil translations, invalid key, extended family, in-laws, grandfather_paternal
+  - search by term and language (11 tests): native term (पिता), Latin transliteration (Pita), alias (papa), native (दादा), non-existent term, language filter, "en" bypass, limit parameter, empty string, case-insensitive
+  - getByKey (4 tests): valid key, non-existent key, all fields present, complex key
+  - search free-text (8 tests): English term, relationship key, alias, native, latin, non-matching, case-insensitive, partial matches
+  - lookup with filters (12 tests): category filter (in_laws, extended_paternal, extended_maternal, invalid), gender filter (male, female), lineage filter (paternal, maternal), combined filters, no filters
+  - getSupportedLanguages (6 tests): Hindi, Marathi, 7+ languages, specific languages, ISO 639-1 format, names present
+  - getCategories (5 tests): array, immediate_family, in_laws, by_marriage, no duplicates
+  - getByCategory (6 tests): immediate_family, in_laws, by_marriage, non-existent, no cross-contamination, expected keys
+  - getRandomTerms (7 tests): count, zero, overflow, category filter, non-existent category, randomness, no mutation
+  - findByNativeTerm (9 tests): native exact (0.95), Latin exact (0.9), alias exact (0.95), confidence sorting, non-matching, English exact (0.9), partial English (0.7), case-insensitive, whitespace trimming
+  - getAllTerms (2 tests): returns all terms, returns copy
+  - data integrity (8 tests): relationshipKey, englishTerm, valid gender, valid lineage, relationshipCategory, unique keys, at least one translation, native+latin fields
+  - edge cases (7 tests): undefined key, very long string, special characters, empty params, empty getByKey, limit 0, empty findByNativeTerm
+- All 92 tests pass on first run (0 failures)
+- Full test suite: 301/304 passing (3 pre-existing failures in graph-engine.service.spec.ts, unrelated to kinship tests)
+
+Stage Summary:
+- 1 file created: kinship.service.spec.ts (92 test cases, 3090 expect() calls)
+- All 92 kinship tests pass
+- 3 pre-existing failures in graph-engine.service.spec.ts (circular relationship and depth limit tests) — not caused by this task
+- Key coverage areas: lookup (key, search, category, gender, lineage filters), getByKey, search (free-text), searchByTermAndLang (language filter, limit), getSupportedLanguages, getCategories, getByCategory, getRandomTerms (randomness, category, bounds), findByNativeTerm (confidence scores, fuzzy matching), getAllTerms, data integrity (8 structural invariants), edge cases (7 boundary conditions)
+
+---
+Task ID: V3P3-c
+Agent: GraphEngine Test Agent
+Task: V3 Phase 3 — TEST-03: GraphEngine edge cases
+
+Work Log:
+- Read graph-engine.service.spec.ts (475 lines) — understood existing test structure: mock PrismaService at module scope, jest.clearAllMocks() in beforeEach, direct instantiation with `new GraphEngineService(mockPrismaService)`
+- Read graph-engine.service.ts (1466 lines) — understood buildGraph (adjacency list with bidirectional edges + self-loop skip), findPath (BFS with visited set, no depth limit), resolveKinship (KINSHIP_RULES lookup → progressive composition → descriptive fallback), getAllRelationships (maxDepth=6 default)
+- Moved makeStep helper from resolveKinship describe to outer describe scope for reuse across new test blocks
+- Added 6 new describe blocks with 21 test cases:
+  1. Depth Limit Enforcement (4 tests): getAllRelationships respects default maxDepth=6 (p7 at distance 7 excluded, p6 at distance 6 included), custom maxDepth=2, resolveKinship at depth limit works, exceeding depth limit gracefully falls back to descriptive term with lower confidence
+  2. Circular Relationship Prevention (4 tests): 2-node cycle A→B→A terminates with distance=1, 3-node cycle A→B→C→A terminates (distance 1-2 via bidirectional inverse edges), complex cycle A→B→C→D→B terminates (distance 1-3 via bidirectional shortcuts), buildGraph with circular husband/wife data doesn't crash
+  3. Large Family Performance (3 tests): 1000 persons + ~999 relationships buildGraph in <5s (actual: ~2ms), findPath in 1000-person chain in <1s (actual: ~1.5ms), getAllRelationships in 500-person binary tree in <2s (actual: ~2ms)
+  4. findPath on Disconnected Persons (3 tests): two disconnected components return not found, two persons with no relationships return not found, isolated person to connected person returns not found
+  5. findPath on Unknown Person (3 tests): unknown toPersonId throws NotFoundException, unknown fromPersonId throws NotFoundException, both unknown throws NotFoundException
+  6. Additional Edge Cases (4 tests): empty family (0 persons) returns empty adjacency, single person no relationships works with self-path, duplicate relationships to same person creates multiple edges + findPath still works, self-path for non-existent person returns found=true with empty path
+- Fixed 3 initial test failures: makeStep not in scope (moved to outer describe), bidirectional edge shortcuts in cycle tests (adjusted expected distances to ranges)
+
+Stage Summary:
+- 1 file modified: graph-engine.service.spec.ts (21 new tests added, was 39 → now 60)
+- Full test suite: 304/304 passing (0 failures)
+- 21 new GraphEngine edge case tests covering: depth limit enforcement (getAllRelationships maxDepth=6), circular relationship termination (2/3/4-node cycles via BFS visited set), large family performance (1000 members), disconnected persons, unknown persons (NotFoundException), additional edge cases (empty family, single person, duplicate edges, non-existent self-path)
+- Fixed pre-existing failures from V3P3-a run (3 graph-engine tests now pass)
+
+---
+Task ID: V3P3-d
+Agent: Flutter Test Agent
+Task: V3 Phase 3 — TEST-04 (Drift DB) + TEST-05 (Flutter widgets)
+
+Work Log:
+- Read app_database.dart — identified 15 Drift tables (CachedProfiles, CachedRelationships, CachedFamilies, CachedPersons, UserSettings, SearchHistoryEntries, RecentlyViewedProfiles, PendingOperations, ApiCacheEntries, CachedInvitations, CachedRelationshipPaths, SyncMetadata, ConflictLog, CachedUsernames, CachedFamilyIds) with schema version 4
+- Read app_database_service.dart — singleton pattern with Provider integration
+- Read offline_queue.dart — PendingOperations enqueue/dequeue with retry logic (max 5 retries)
+- Read sign_in_screen.dart — ConsumerStatefulWidget with email/password fields, Google sign-in, 2FA check, form validation, _cleanErrorMessage helper
+- Read offline_banner.dart — ConsumerStatefulWidget using isOnlineProvider + recentRequestFailureProvider, AnimatedContainer (28px), 30-second failure window, semanticLiveRegion
+- Read connectivity_service.dart — isOnlineProvider (StreamProvider with 1000ms debounce)
+- Read supabase_service.dart — authServiceProvider, AuthService class, pending2FAProvider
+- Added AppDatabase.forTesting(QueryExecutor) named constructor to app_database.dart for test dependency injection
+- Created test/database/app_database_test.dart with ~50 test cases across 18 groups:
+  - Database Initialization (3): instance creation, empty tables, stats keys
+  - CachedPerson Operations (7): insert, query by family, upsert update, delete by ID, delete by family, count, nullable fields
+  - CachedFamily Operations (6): insert, upsert update, delete, kinFamilyId/username, getAll, clearAll
+  - CachedRelationship Operations (4): insert, query by person (fromId/toId), delete by ID, kinshipName
+  - CachedProfile Operations (3): insert+retrieve, delete, count
+  - UserSettings Operations (5): set+get, non-existent, update, delete, clearAll
+  - SearchHistory Operations (4): insert+retrieve, limit, ordering, delete by query
+  - RecentlyViewed Operations (2): insert+retrieve, limit
+  - PendingOperations (9): enqueue, priority ordering, mark processing, retry count, max retries exclusion, expired ops, delete by ID, count, clearAll
+  - ApiCache TTL Expiry (6): cache+retrieve, custom TTL expiry, non-expired kept, non-existent key, prefix query, expired excluded from prefix
+  - CachedInvitation Operations (4): insert+retrieve, by family, by status, delete
+  - CachedRelationshipPath Operations (3): insert+retrieve, by family, delete by family
+  - SyncMetadata Operations (2): insert+retrieve, upsert update
+  - ConflictLog Operations (3): insert+pending query, by entity, resolution
+  - CachedUsername Operations (3): insert+retrieve, case-insensitive search, case-insensitive lookup
+  - CachedFamilyId Operations (3): insert+retrieve by kinFamilyId, case-insensitive lookup, search by prefix/name
+  - Bulk Operations (2): clearAllCache keeps settings, clearAll removes everything
+  - Migration (6): schemaVersion=4, v2 columns, v3 columns, v4 no auth_tokens, v2 tables exist, v3 tables exist
+- Created test/widgets/login_screen_test.dart with ~14 test cases across 6 groups:
+  - Rendering (8): email/password fields, Sign In button, Google button, Forgot Password, Sign Up link, KINREL wordmark, welcome subtitle, password visibility toggle
+  - Validation (4): empty submit errors, invalid email error, valid email no error, password visibility toggle
+  - Loading State (2): loading indicator, disabled button
+  - Error Handling (2): auth unavailable error, loading state clears after error
+  - Navigation (1): Sign Up link navigation
+  - Accessibility (2): Google button Semantics, accessible text fields
+- Created test/widgets/offline_banner_test.dart with ~9 test cases across 5 groups:
+  - Visibility (3): show when offline+failure, hide when online, hide when offline+no failure
+  - Failure Window (2): hide after 30s, show within 30s
+  - Reconnection (1): hide on offline→online transition
+  - Content and Styling (2): "No internet connection" text, error color from theme
+  - Accessibility (1): live region semantics
+
+Stage Summary:
+- 1 file modified: app_database.dart (added forTesting constructor)
+- 3 files created: app_database_test.dart (~50 tests), login_screen_test.dart (~14 tests), offline_banner_test.dart (~9 tests)
+- ~73 total test stubs across 3 test files
+- Flutter/Dart CLI unavailable in sandbox — tests require `dart run build_runner build` + `flutter test` locally
+
+---
+Task ID: V3P3-b
+Agent: Auth Security Test Agent
+Task: V3 Phase 3 — TEST-02: Auth security tests (TOTP replay, lockout, backup codes)
+
+Work Log:
+- Read existing auth.service.spec.ts (46 tests) and auth.service.ts to map all security-critical paths
+- Analyzed Redis-dependent features: TOTP replay protection (totp_used:${userId}:${code}), account lockout (login_lock:, login_attempts:), and backup code logic
+- Injected Redis mock via `(service as any).redis = mockRedis` since the service's private `redis` property is null by default (REDIS_URL='' in test config)
+- Created mockRedis object with: exists, setex, get, set, del, incr, expire, ttl — all as jest.fn() with sensible defaults
+- Added TOTP replay protection tests (4 tests):
+  - First TOTP use succeeds and marks code as used in Redis (exists check + setex with 60s TTL)
+  - Replayed TOTP code rejected in verify2FA (exists=1 → throws "TOTP code already used")
+  - Replayed TOTP code rejected in loginVerify2FA (same exists check)
+  - Code-specific Redis keys ensure different codes don't conflict (first use OK, replay blocked)
+- Added account lockout tests (6 tests):
+  - 9 failed attempts: NOT locked yet (incr=9 < MAX_LOGIN_ATTEMPTS=10)
+  - 10 failed attempts: IS locked (setex login_lock:900, del login_attempts:)
+  - Locked account rejects login with TTL in message ("Account temporarily locked...10 minutes")
+  - Successful login clears attempt counter (redis.del called)
+  - After lockout expires (Redis key gone), login works again
+  - 10th attempt lockout message includes "15 minutes"
+- Added counter reset tests (3 tests):
+  - Failed attempt then successful login clears counter
+  - After 5 failed attempts, successful login resets counter
+  - After successful login, subsequent failed attempts start from 1 (no lockout set)
+- Added backup code generation tests (4 tests):
+  - setup2FA() returns exactly 8 backup codes
+  - Each code is 8 uppercase hex characters (/^[0-9A-F]{8}$/)
+  - Codes stored hashed in DB (bcrypt $2a$/$2b$ format, not plaintext)
+  - Returned codes are plaintext only once (unique, not hash format)
+- Added backup code consumption tests (5 tests):
+  - Valid backup code authenticates via loginVerify2FA (TOTP fails, bcrypt.compare matches)
+  - Used backup code cannot be reused (removed from array, second call throws)
+  - After using one code, 7 remain (update called with length-1 array)
+  - All 8 backup codes used sequentially (loop with jest.clearAllMocks between iterations)
+  - Invalid backup code throws UnauthorizedException("Invalid 2FA code")
+- Fixed 1 test failure: backup code reuse test had expect.assertions(3) but 4 assertions were made; corrected to expect.assertions(4)
+- Used bcrypt.hashSync(code, 4) for backup code tests to improve speed (cost 4 instead of 10)
+
+Stage Summary:
+- 1 file modified: auth.service.spec.ts (+22 new tests, 46→68 total auth tests)
+- Full test suite: 326/326 passing (0 failures)
+- 22 new security-focused tests across 5 describe blocks
+- Key coverage areas: TOTP replay protection, account lockout (10-attempt threshold), counter reset on successful login, backup code generation (8 codes, hashed storage), backup code consumption (single-use, sequential exhaustion)

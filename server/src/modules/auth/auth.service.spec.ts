@@ -1048,4 +1048,551 @@ describe('AuthService', () => {
       expect(encrypted).not.toBe(original);
     });
   });
+
+  // ── TOTP Replay Protection ──────────────────────────────────────────
+
+  describe('TOTP replay protection', () => {
+    const userId = 'user-1';
+    let mockRedis: any;
+
+    beforeEach(() => {
+      mockRedis = {
+        exists: jest.fn().mockResolvedValue(0),
+        setex: jest.fn().mockResolvedValue('OK'),
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn().mockResolvedValue('OK'),
+        del: jest.fn().mockResolvedValue(1),
+        incr: jest.fn().mockResolvedValue(1),
+        expire: jest.fn().mockResolvedValue(1),
+        ttl: jest.fn().mockResolvedValue(-2),
+      };
+      (service as any).redis = mockRedis;
+    });
+
+    it('should succeed on first TOTP use and mark code as used in Redis', async () => {
+      const secret = authenticator.generateSecret();
+      const encryptedSecret = encrypt(secret, ENCRYPTION_KEY);
+      const validCode = authenticator.generate(secret);
+
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: userId,
+        twoFactorSecret: encryptedSecret,
+      });
+      mockPrisma.user.update.mockResolvedValue({ id: userId, twoFactorEnabled: true });
+
+      const result = await service.verify2FA(userId, validCode);
+
+      expect(result.verified).toBe(true);
+      // Should check if code was already used
+      expect(mockRedis.exists).toHaveBeenCalledWith(`totp_used:${userId}:${validCode}`);
+      // Should mark the code as used in Redis with 60s TTL
+      expect(mockRedis.setex).toHaveBeenCalledWith(`totp_used:${userId}:${validCode}`, 60, '1');
+    });
+
+    it('should reject a replayed TOTP code in verify2FA (second use fails)', async () => {
+      mockRedis.exists.mockResolvedValue(1); // Code already used
+
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: userId,
+        twoFactorSecret: 'some-encrypted-secret',
+      });
+
+      await expect(service.verify2FA(userId, '123456')).rejects.toThrow(UnauthorizedException);
+      await expect(service.verify2FA(userId, '123456')).rejects.toThrow('TOTP code already used');
+      // setex should NOT be called since verification was rejected before TOTP check
+      expect(mockRedis.setex).not.toHaveBeenCalled();
+    });
+
+    it('should reject a replayed TOTP code in loginVerify2FA', async () => {
+      mockRedis.exists.mockResolvedValue(1); // Code already used
+
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: userId,
+        email: 'john@example.com',
+        role: 'user',
+        twoFactorEnabled: true,
+        twoFactorSecret: 'some-encrypted-secret',
+      });
+
+      await expect(service.loginVerify2FA(userId, '123456')).rejects.toThrow(UnauthorizedException);
+      await expect(service.loginVerify2FA(userId, '123456')).rejects.toThrow('TOTP code already used');
+    });
+
+    it('should use code-specific Redis keys so different codes do not conflict', async () => {
+      const secret = authenticator.generateSecret();
+      const encryptedSecret = encrypt(secret, ENCRYPTION_KEY);
+      const validCode = authenticator.generate(secret);
+
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: userId,
+        twoFactorSecret: encryptedSecret,
+      });
+      mockPrisma.user.update.mockResolvedValue({ id: userId, twoFactorEnabled: true });
+
+      // First use: exists returns 0 → succeeds
+      mockRedis.exists.mockResolvedValueOnce(0);
+      const result = await service.verify2FA(userId, validCode);
+      expect(result.verified).toBe(true);
+
+      // Replay same code: exists returns 1 → fails
+      mockRedis.exists.mockResolvedValueOnce(1);
+      await expect(service.verify2FA(userId, validCode)).rejects.toThrow('TOTP code already used');
+
+      // The Redis key is code-specific: totp_used:${userId}:${code}
+      // A different code would use a different key and not be blocked
+      expect(mockRedis.exists).toHaveBeenCalledWith(`totp_used:${userId}:${validCode}`);
+    });
+  });
+
+  // ── Account Lockout ─────────────────────────────────────────────────
+
+  describe('account lockout', () => {
+    const userId = 'user-1';
+    const passwordHash = bcrypt.hashSync('SecurePass123!', 12);
+    let mockRedis: any;
+
+    const mockUser = {
+      id: userId,
+      email: 'john@example.com',
+      name: 'John Doe',
+      role: 'user',
+      preferredLanguage: 'en',
+      passwordHash,
+      twoFactorEnabled: false,
+    };
+
+    beforeEach(() => {
+      mockRedis = {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn().mockResolvedValue('OK'),
+        setex: jest.fn().mockResolvedValue('OK'),
+        del: jest.fn().mockResolvedValue(1),
+        incr: jest.fn().mockResolvedValue(1),
+        expire: jest.fn().mockResolvedValue(1),
+        ttl: jest.fn().mockResolvedValue(-2),
+        exists: jest.fn().mockResolvedValue(0),
+      };
+      (service as any).redis = mockRedis;
+    });
+
+    it('should NOT lock account after 9 failed login attempts', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockRedis.incr.mockResolvedValue(9);
+
+      await expect(
+        service.login({ email: 'john@example.com', password: 'WrongPassword!' }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      // Should NOT have set the lockout key
+      expect(mockRedis.setex).not.toHaveBeenCalledWith(
+        `login_lock:${userId}`,
+        expect.any(Number),
+        expect.any(String),
+      );
+      // Should have incremented the attempt counter
+      expect(mockRedis.incr).toHaveBeenCalledWith(`login_attempts:${userId}`);
+    });
+
+    it('should lock account after 10 failed login attempts', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockRedis.incr.mockResolvedValue(10);
+
+      await expect(
+        service.login({ email: 'john@example.com', password: 'WrongPassword!' }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      // Should have set the lockout key with 900s (15 min) TTL
+      expect(mockRedis.setex).toHaveBeenCalledWith(`login_lock:${userId}`, 900, '1');
+      // Should have deleted the attempt counter after locking
+      expect(mockRedis.del).toHaveBeenCalledWith(`login_attempts:${userId}`);
+    });
+
+    it('should reject login when account is locked and include TTL in message', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      // Account is locked
+      mockRedis.get.mockResolvedValue('1');
+      mockRedis.ttl.mockResolvedValue(600); // 10 minutes remaining
+
+      expect.assertions(3);
+      try {
+        await service.login({ email: 'john@example.com', password: 'SecurePass123!' });
+      } catch (e: any) {
+        expect(e).toBeInstanceOf(UnauthorizedException);
+        expect(e.message).toContain('Account temporarily locked');
+        expect(e.message).toContain('10 minutes');
+      }
+    });
+
+    it('should clear attempt counter on successful login', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockJwt.sign.mockReturnValue('access-token');
+      mockPrisma.refreshToken.create.mockResolvedValue({ token: 'refresh-token' });
+
+      const result = await service.login({
+        email: 'john@example.com',
+        password: 'SecurePass123!',
+      });
+
+      expect(result.accessToken).toBe('access-token');
+      // Should have cleared the attempt counter
+      expect(mockRedis.del).toHaveBeenCalledWith(`login_attempts:${userId}`);
+    });
+
+    it('should allow login after lockout expires (Redis key gone)', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      // Lockout key no longer exists in Redis (expired)
+      mockRedis.get.mockResolvedValue(null);
+      mockJwt.sign.mockReturnValue('access-token');
+      mockPrisma.refreshToken.create.mockResolvedValue({ token: 'refresh-token' });
+
+      const result = await service.login({
+        email: 'john@example.com',
+        password: 'SecurePass123!',
+      });
+
+      expect(result.accessToken).toBe('access-token');
+      // Should have checked the lockout key
+      expect(mockRedis.get).toHaveBeenCalledWith(`login_lock:${userId}`);
+    });
+
+    it('should throw lockout message with correct time on 10th failed attempt', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockRedis.incr.mockResolvedValue(10);
+
+      try {
+        await service.login({ email: 'john@example.com', password: 'WrongPassword!' });
+      } catch (e: any) {
+        expect(e).toBeInstanceOf(UnauthorizedException);
+        expect(e.message).toContain('Account locked after too many failed attempts');
+        expect(e.message).toContain('15 minutes');
+      }
+    });
+  });
+
+  // ── Counter Reset on Successful Login ───────────────────────────────
+
+  describe('counter reset on successful login', () => {
+    const userId = 'user-1';
+    const passwordHash = bcrypt.hashSync('SecurePass123!', 12);
+    let mockRedis: any;
+
+    const mockUser = {
+      id: userId,
+      email: 'john@example.com',
+      name: 'John Doe',
+      role: 'user',
+      preferredLanguage: 'en',
+      passwordHash,
+      twoFactorEnabled: false,
+    };
+
+    beforeEach(() => {
+      mockRedis = {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn().mockResolvedValue('OK'),
+        setex: jest.fn().mockResolvedValue('OK'),
+        del: jest.fn().mockResolvedValue(1),
+        incr: jest.fn().mockResolvedValue(1),
+        expire: jest.fn().mockResolvedValue(1),
+        ttl: jest.fn().mockResolvedValue(-2),
+        exists: jest.fn().mockResolvedValue(0),
+      };
+      (service as any).redis = mockRedis;
+    });
+
+    it('should clear attempt counter after a failed attempt then successful login', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+
+      // Failed attempt — incr returns 1
+      mockRedis.incr.mockResolvedValueOnce(1);
+      await expect(
+        service.login({ email: 'john@example.com', password: 'WrongPassword!' }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      // Successful login clears counter
+      mockJwt.sign.mockReturnValue('access-token');
+      mockPrisma.refreshToken.create.mockResolvedValue({ token: 'refresh-token' });
+
+      await service.login({ email: 'john@example.com', password: 'SecurePass123!' });
+
+      expect(mockRedis.del).toHaveBeenCalledWith(`login_attempts:${userId}`);
+    });
+
+    it('should reset counter after 5 failed attempts then a successful login', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+
+      // Simulate 5 failed attempts already recorded
+      // Then a successful login should clear the counter regardless
+      mockJwt.sign.mockReturnValue('access-token');
+      mockPrisma.refreshToken.create.mockResolvedValue({ token: 'refresh-token' });
+
+      await service.login({ email: 'john@example.com', password: 'SecurePass123!' });
+
+      // del should have been called to clear the attempt counter
+      expect(mockRedis.del).toHaveBeenCalledWith(`login_attempts:${userId}`);
+    });
+
+    it('should start counting from 1 after successful login resets counter', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+
+      // First: successful login clears the counter
+      mockJwt.sign.mockReturnValue('access-token');
+      mockPrisma.refreshToken.create.mockResolvedValue({ token: 'refresh-token' });
+      await service.login({ email: 'john@example.com', password: 'SecurePass123!' });
+      expect(mockRedis.del).toHaveBeenCalledWith(`login_attempts:${userId}`);
+
+      // Then: a failed attempt calls incr (which starts from 1 for a new/deleted key)
+      mockRedis.incr.mockResolvedValueOnce(1);
+      await expect(
+        service.login({ email: 'john@example.com', password: 'WrongPassword!' }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      // incr was called for the attempt key (counter starts from 1)
+      expect(mockRedis.incr).toHaveBeenCalledWith(`login_attempts:${userId}`);
+      // No lockout should be set since attempt count is only 1
+      expect(mockRedis.setex).not.toHaveBeenCalledWith(
+        `login_lock:${userId}`,
+        expect.any(Number),
+        expect.any(String),
+      );
+    });
+  });
+
+  // ── Backup Code Generation ──────────────────────────────────────────
+
+  describe('backup code generation', () => {
+    const userId = 'user-1';
+
+    it('should generate exactly 8 backup codes at 2FA setup', async () => {
+      mockPrisma.user.update.mockResolvedValue({ id: userId });
+
+      const result = await service.setup2FA(userId);
+
+      expect(result.backupCodes).toBeDefined();
+      expect(result.backupCodes).toHaveLength(8);
+    });
+
+    it('should generate 8-character uppercase hex backup codes', async () => {
+      mockPrisma.user.update.mockResolvedValue({ id: userId });
+
+      const result = await service.setup2FA(userId);
+
+      for (const code of result.backupCodes) {
+        // Each code should be 8 uppercase hex characters (0-9, A-F)
+        expect(code).toMatch(/^[0-9A-F]{8}$/);
+        expect(code).toBe(code.toUpperCase());
+      }
+    });
+
+    it('should store backup codes hashed in the database (not plaintext)', async () => {
+      mockPrisma.user.update.mockResolvedValue({ id: userId });
+
+      const result = await service.setup2FA(userId);
+
+      // The update call should contain hashed codes
+      const updateCall = mockPrisma.user.update.mock.calls[0][0];
+      const storedCodes = updateCall.data.backupCodes;
+
+      // Stored codes should be bcrypt hashes (start with $2a$ or $2b$)
+      for (const storedCode of storedCodes) {
+        expect(storedCode).toMatch(/^\$2[ab]\$/);
+      }
+
+      // Returned plaintext codes should NOT match stored hashes
+      for (let i = 0; i < result.backupCodes.length; i++) {
+        expect(storedCodes[i]).not.toBe(result.backupCodes[i]);
+      }
+    });
+
+    it('should return backup codes in plaintext only once and all unique', async () => {
+      mockPrisma.user.update.mockResolvedValue({ id: userId });
+
+      const result = await service.setup2FA(userId);
+
+      // All returned codes should be plaintext (8 hex chars, not bcrypt hashes)
+      for (const code of result.backupCodes) {
+        expect(code).toMatch(/^[0-9A-F]{8}$/);
+        expect(code).not.toMatch(/^\$2[ab]\$/);
+      }
+
+      // Each code should be unique
+      const uniqueCodes = new Set(result.backupCodes);
+      expect(uniqueCodes.size).toBe(8);
+    });
+  });
+
+  // ── Backup Code Consumption ─────────────────────────────────────────
+
+  describe('backup code consumption', () => {
+    const userId = 'user-1';
+    let mockRedis: any;
+
+    beforeEach(() => {
+      mockRedis = {
+        exists: jest.fn().mockResolvedValue(0),
+        setex: jest.fn().mockResolvedValue('OK'),
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn().mockResolvedValue('OK'),
+        del: jest.fn().mockResolvedValue(1),
+        incr: jest.fn().mockResolvedValue(1),
+        expire: jest.fn().mockResolvedValue(1),
+        ttl: jest.fn().mockResolvedValue(-2),
+      };
+      (service as any).redis = mockRedis;
+    });
+
+    it('should authenticate with a valid backup code in loginVerify2FA', async () => {
+      const plainCode = 'A1B2C3D4';
+      const hashedCode = bcrypt.hashSync(plainCode, 4); // Low cost for test speed
+      const secret = authenticator.generateSecret();
+      const encryptedSecret = encrypt(secret, ENCRYPTION_KEY);
+
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: userId,
+        email: 'john@example.com',
+        role: 'user',
+        twoFactorEnabled: true,
+        twoFactorSecret: encryptedSecret,
+        backupCodes: [hashedCode],
+      });
+      mockPrisma.user.update.mockResolvedValue({ id: userId });
+      mockJwt.sign.mockReturnValue('access-token');
+      mockPrisma.refreshToken.create.mockResolvedValue({ token: 'refresh-token' });
+
+      const result = await service.loginVerify2FA(userId, plainCode);
+
+      expect(result.verified).toBe(true);
+      expect(result.accessToken).toBe('access-token');
+      expect(result.refreshToken).toBeDefined();
+      expect(mockTwoFactorVerification.markVerified).toHaveBeenCalledWith(userId);
+    });
+
+    it('should not allow a used backup code to be reused (single-use)', async () => {
+      const plainCode = 'A1B2C3D4';
+      const hashedCode = bcrypt.hashSync(plainCode, 4);
+      const otherHashedCode = bcrypt.hashSync('E5F67890', 4);
+      const secret = authenticator.generateSecret();
+      const encryptedSecret = encrypt(secret, ENCRYPTION_KEY);
+
+      // First call: backup code exists in the array
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: userId,
+        email: 'john@example.com',
+        role: 'user',
+        twoFactorEnabled: true,
+        twoFactorSecret: encryptedSecret,
+        backupCodes: [hashedCode, otherHashedCode],
+      });
+      mockPrisma.user.update.mockResolvedValue({ id: userId });
+      mockJwt.sign.mockReturnValue('access-token');
+      mockPrisma.refreshToken.create.mockResolvedValue({ token: 'refresh-token' });
+
+      const result1 = await service.loginVerify2FA(userId, plainCode);
+      expect(result1.verified).toBe(true);
+
+      // Second call: backup code has been removed from the array (simulating DB update)
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: userId,
+        email: 'john@example.com',
+        role: 'user',
+        twoFactorEnabled: true,
+        twoFactorSecret: encryptedSecret,
+        backupCodes: [otherHashedCode], // Used code removed
+      });
+
+      expect.assertions(4);
+      try {
+        await service.loginVerify2FA(userId, plainCode);
+      } catch (e: any) {
+        expect(e).toBeInstanceOf(UnauthorizedException);
+        expect(e.message).toContain('Invalid 2FA code');
+      }
+      // Verify the first call did update the backup codes
+      expect(mockPrisma.user.update).toHaveBeenCalled();
+    });
+
+    it('should leave 7 backup codes after using one', async () => {
+      const plainCodes = ['AABB1122', 'CCDD3344', 'EEFF5566', '00112233', '44556677', '8899AABB', 'CCDDEEFF', '01234567'];
+      const hashedCodes = plainCodes.map(c => bcrypt.hashSync(c, 4));
+      const secret = authenticator.generateSecret();
+      const encryptedSecret = encrypt(secret, ENCRYPTION_KEY);
+
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: userId,
+        email: 'john@example.com',
+        role: 'user',
+        twoFactorEnabled: true,
+        twoFactorSecret: encryptedSecret,
+        backupCodes: hashedCodes,
+      });
+      mockPrisma.user.update.mockResolvedValue({ id: userId });
+      mockJwt.sign.mockReturnValue('access-token');
+      mockPrisma.refreshToken.create.mockResolvedValue({ token: 'refresh-token' });
+
+      await service.loginVerify2FA(userId, plainCodes[0]);
+
+      // The update should remove the used code, leaving 7
+      const updateCall = mockPrisma.user.update.mock.calls[0][0];
+      expect(updateCall.data.backupCodes).toHaveLength(7);
+    });
+
+    it('should allow all 8 backup codes to be used sequentially', async () => {
+      const plainCodes = ['AABB1122', 'CCDD3344', 'EEFF5566', '00112233', '44556677', '8899AABB', 'CCDDEEFF', '01234567'];
+      const secret = authenticator.generateSecret();
+      const encryptedSecret = encrypt(secret, ENCRYPTION_KEY);
+
+      // Start with all 8 hashed codes
+      let currentHashedCodes = plainCodes.map(c => bcrypt.hashSync(c, 4));
+
+      for (let i = 0; i < 8; i++) {
+        jest.clearAllMocks();
+        (service as any).redis = mockRedis;
+        mockRedis.exists.mockResolvedValue(0);
+
+        mockPrisma.user.findUnique.mockResolvedValue({
+          id: userId,
+          email: 'john@example.com',
+          role: 'user',
+          twoFactorEnabled: true,
+          twoFactorSecret: encryptedSecret,
+          backupCodes: currentHashedCodes,
+        });
+        mockPrisma.user.update.mockResolvedValue({ id: userId });
+        mockJwt.sign.mockReturnValue('access-token');
+        mockPrisma.refreshToken.create.mockResolvedValue({ token: 'refresh-token' });
+
+        const result = await service.loginVerify2FA(userId, plainCodes[i]);
+        expect(result.verified).toBe(true);
+
+        // Get the remaining codes from the update call
+        const updateCall = mockPrisma.user.update.mock.calls[0][0];
+        currentHashedCodes = updateCall.data.backupCodes;
+      }
+
+      // After using all 8 codes, no codes remain
+      expect(currentHashedCodes).toHaveLength(0);
+    });
+
+    it('should throw UnauthorizedException for an invalid backup code', async () => {
+      const hashedCode = bcrypt.hashSync('A1B2C3D4', 4);
+      const secret = authenticator.generateSecret();
+      const encryptedSecret = encrypt(secret, ENCRYPTION_KEY);
+
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: userId,
+        email: 'john@example.com',
+        role: 'user',
+        twoFactorEnabled: true,
+        twoFactorSecret: encryptedSecret,
+        backupCodes: [hashedCode],
+      });
+
+      await expect(
+        service.loginVerify2FA(userId, 'INVALID1'),
+      ).rejects.toThrow(UnauthorizedException);
+      await expect(
+        service.loginVerify2FA(userId, 'INVALID1'),
+      ).rejects.toThrow('Invalid 2FA code');
+    });
+  });
 });

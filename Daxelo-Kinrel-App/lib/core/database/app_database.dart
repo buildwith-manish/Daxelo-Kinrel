@@ -222,6 +222,10 @@ class CachedFamilyIds extends Table {
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
+  /// Constructor for testing — inject a custom QueryExecutor
+  /// (e.g., NativeDatabase.memory() for isolated in-memory tests).
+  AppDatabase.forTesting(QueryExecutor executor) : super(executor);
+
   @override
   int get schemaVersion => 4;
 
