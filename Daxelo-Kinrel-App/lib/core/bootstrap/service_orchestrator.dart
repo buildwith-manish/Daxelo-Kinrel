@@ -35,7 +35,7 @@ import '../../features/profile/data/profile_provider.dart';
 
 /// Handle sign-out operations (fire-and-forget).
 /// Called from the auth state listener — MUST NOT throw.
-Future<void> _handleSignOut(Ref ref) async {
+Future<void> _handleSignOut(dynamic ref) async {
   try {
     final pushService = ref.read(pushNotificationServiceProvider);
     await pushService.deleteToken().timeout(const Duration(seconds: 5));
@@ -46,7 +46,7 @@ class ServiceOrchestrator {
   /// Start deferred (non-critical) services after the first frame.
   /// These are NOT required for the app to render — they initialize
   /// in the background while the user sees the loading/splash screen.
-  static void startDeferredServices(Ref ref) {
+  static void startDeferredServices(dynamic ref) {
     // Wrap the entire deferred init in an async block with top-level error handling
     unawaited(
       _initDeferredServicesAsync(ref),
@@ -54,7 +54,7 @@ class ServiceOrchestrator {
   }
 
   /// Async implementation of deferred service initialization.
-  static Future<void> _initDeferredServicesAsync(Ref ref) async {
+  static Future<void> _initDeferredServicesAsync(dynamic ref) async {
     try {
       // 1. Local cache service
       try {
@@ -236,7 +236,7 @@ class ServiceOrchestrator {
   }
 
   /// Set up auth state change listener for crash context and sign-out handling.
-  static void _setupAuthStateListener(Ref ref, SupabaseClient client) {
+  static void _setupAuthStateListener(dynamic ref, SupabaseClient client) {
     AuthChangeEvent? _lastAuthEvent;
     String? _lastAuthUserId;
 
@@ -284,7 +284,7 @@ class ServiceOrchestrator {
 
   /// Listen to connectivity changes and flush pending operations
   /// when connectivity is restored after being offline (CARRY-07).
-  static void _setupConnectivityListener(Ref ref) {
+  static void _setupConnectivityListener(dynamic ref) {
     try {
       ref.listen<AsyncValue<bool>>(isOnlineProvider, (prev, next) {
         next.whenData((isOnline) {

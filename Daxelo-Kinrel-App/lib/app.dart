@@ -29,7 +29,7 @@ import 'core/widgets/offline_banner.dart';
 import 'core/bootstrap/service_orchestrator.dart';
 import 'core/bootstrap/app_init_provider.dart';
 
-// Generated localization imports (flutter gen-l10n)
+// Generated localization imports (flutter gen-l10n) — class name 'S' per l10n.yaml
 import 'package:kinrel/l10n/app_localizations.dart';
 
 class KinrelApp extends ConsumerStatefulWidget {
@@ -181,12 +181,12 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       routerConfig: router,
       // Localization — 15 languages
       localizationsDelegates: [
-        AppLocalizations.delegate,
+        S.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: AppLocalizations.supportedLocales,
+      supportedLocales: S.supportedLocales,
       locale: ref.watch(localeProvider),
       builder: (context, child) {
         return MediaQuery(

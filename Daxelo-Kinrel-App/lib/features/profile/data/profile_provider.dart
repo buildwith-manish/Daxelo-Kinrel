@@ -1055,16 +1055,16 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       final profile = ProfileModel(
         id: user.id,
         email: user.email ?? '',
-        name: user.userMetadata['name'] as String? ??
-            user.userMetadata['full_name'] as String? ??
+        name: user.userMetadata?['name'] as String? ??
+            user.userMetadata?['full_name'] as String? ??
             user.email?.split('@')[0],
-        phone: user.userMetadata['phone'] as String?,
-        avatarUrl: user.userMetadata['avatar_url'] as String?,
-        username: user.userMetadata['username'] as String?,
-        preferredLanguage: user.userMetadata['preferred_language'] as String? ?? 'en',
-        profileVisibility: user.userMetadata['profileVisibility'] as String? ?? 'public',
-        invitePermission: user.userMetadata['invitePermission'] as String? ?? 'anyone',
-        twoFactorEnabled: user.appMetadata['twoFactorEnabled'] as bool? ?? false,
+        phone: user.userMetadata?['phone'] as String?,
+        avatarUrl: user.userMetadata?['avatar_url'] as String?,
+        username: user.userMetadata?['username'] as String?,
+        preferredLanguage: user.userMetadata?['preferred_language'] as String? ?? 'en',
+        profileVisibility: user.userMetadata?['profileVisibility'] as String? ?? 'public',
+        invitePermission: user.userMetadata?['invitePermission'] as String? ?? 'anyone',
+        twoFactorEnabled: user.appMetadata?['twoFactorEnabled'] as bool? ?? false,
         createdAt: DateTime.tryParse(user.createdAt) ?? DateTime.now(),
         updatedAt: DateTime.now(),
       );
