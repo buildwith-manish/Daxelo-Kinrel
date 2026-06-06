@@ -1,11 +1,11 @@
-import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsUUID, MaxLength } from 'class-validator';
 
 export class CreateRelationshipDto {
-  @IsString()
+  @IsUUID()
   @IsNotEmpty()
   fromPersonId!: string;
 
-  @IsString()
+  @IsUUID()
   @IsNotEmpty()
   toPersonId!: string;
 

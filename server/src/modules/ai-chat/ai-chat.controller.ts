@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AiChatService } from './ai-chat.service';
@@ -64,6 +65,7 @@ export class AiChatController {
 
   // ── Send Message & Get AI Response ──────────────────────────────────
   @Post()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async chat(
     @CurrentUser('id') userId: string,

@@ -11,25 +11,8 @@ import {
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { NotificationsV2Service } from './notifications-v2.service';
-
-// ── DTOs ───────────────────────────────────────────────────────────────
-
-class MarkAsReadDto {
-  notificationIds!: string[];
-}
-
-class UpdatePreferenceDto {
-  eventType!: string;
-  push?: boolean;
-  inApp?: boolean;
-  email?: boolean;
-  whatsapp?: boolean;
-  quietHoursStart?: string;
-  quietHoursEnd?: string;
-  quietHoursTimezone?: string;
-  maxPerDay?: number;
-  digestMode?: string;
-}
+import { MarkAsReadDto } from './dto/mark-as-read.dto';
+import { UpdatePreferenceDto } from './dto/update-preference.dto';
 
 // ── Controller ─────────────────────────────────────────────────────────
 
@@ -186,7 +169,7 @@ export class NotificationsV2Controller {
           whatsapp: dto.whatsapp,
           quietHoursStart: dto.quietHoursStart,
           quietHoursEnd: dto.quietHoursEnd,
-          quietHoursTimezone: dto.quietHoursTimezone,
+          quietHoursTimezone: (dto as any).quietHoursTimezone,
           maxPerDay: dto.maxPerDay,
           digestMode: dto.digestMode,
         },

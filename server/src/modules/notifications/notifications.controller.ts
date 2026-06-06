@@ -13,17 +13,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { NotificationsService } from './notifications.service';
 import { FcmService } from './fcm.service';
-
-// ── DTOs ─────────────────────────────────────────────────────────────
-
-class RegisterFcmTokenDto {
-  token!: string;
-  deviceType?: string; // android, ios, web
-}
-
-class RemoveFcmTokenDto {
-  token!: string;
-}
+import { RegisterFcmTokenDto } from './dto/register-fcm-token.dto';
+import { RemoveFcmTokenDto } from './dto/remove-fcm-token.dto';
 
 // ── Controller ───────────────────────────────────────────────────────
 

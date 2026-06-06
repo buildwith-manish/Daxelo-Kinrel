@@ -155,6 +155,11 @@ CustomTransitionPage<void> _instantPage({
   );
 }
 
+/// Safe route parameter extraction with fallback to empty string.
+/// Returns empty string if the parameter is null, which triggers
+/// a "not found" state in the target screen instead of a crash.
+String _param(GoRouterState state, String key) => state.pathParameters[key] ?? '';
+
 // ═══════════════════════════════════════════════════════════════════════
 // P2 — Prefetch Wrappers for Most-Visited Routes
 // ═══════════════════════════════════════════════════════════════════════
@@ -624,7 +629,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/family/:id',
         pageBuilder: (context, state) {
-          final familyId = state.pathParameters['id']!;
+          final familyId = _param(state, 'id');
           return _fastFadePage(
             key: state.pageKey,
             child: _PrefetchFamilyDetail(
@@ -647,21 +652,21 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/path-finder',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: PathFinderScreen(familyId: state.pathParameters['id']!),
+          child: PathFinderScreen(familyId: _param(state, 'id')),
         ),
       ),
       GoRoute(
         path: '/family/:id/add-person',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: _AddPersonScreen(familyId: state.pathParameters['id']!),
+          child: _AddPersonScreen(familyId: _param(state, 'id')),
         ),
       ),
       GoRoute(
         path: '/family/:id/add-member',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: _AddPersonScreen(familyId: state.pathParameters['id']!),
+          child: _AddPersonScreen(familyId: _param(state, 'id')),
         ),
       ),
       GoRoute(
@@ -669,7 +674,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: RelationshipBuilderScreen(
-            familyId: state.pathParameters['id']!,
+            familyId: _param(state, 'id'),
             familyName: state.uri.queryParameters['name'] ?? 'Family',
           ),
         ),
@@ -678,7 +683,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/graph',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: RelationshipGraphScreen(familyId: state.pathParameters['id']!),
+          child: RelationshipGraphScreen(familyId: _param(state, 'id')),
         ),
       ),
 
@@ -687,7 +692,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/member/:id',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: PersonDetailScreen(memberId: state.pathParameters['id']!),
+          child: PersonDetailScreen(memberId: _param(state, 'id')),
         ),
       ),
 
@@ -697,7 +702,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: ChatScreen(
-            familyId: state.pathParameters['id']!,
+            familyId: _param(state, 'id'),
             familyName: state.uri.queryParameters['name'] ?? 'Family',
           ),
         ),
@@ -752,7 +757,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: CountryKinshipDetailScreen(
-            countryCode: state.pathParameters['code']!,
+            countryCode: _param(state, 'code'),
           ),
         ),
       ),
@@ -761,7 +766,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: KinshipDetailScreen(
-            relationshipKey: state.pathParameters['key']!,
+            relationshipKey: _param(state, 'key'),
           ),
         ),
       ),
@@ -815,7 +820,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: ShareScreen(
-            familyId: state.pathParameters['id']!,
+            familyId: _param(state, 'id'),
             familyName: state.uri.queryParameters['name'] ?? 'Family',
           ),
         ),
@@ -827,7 +832,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/share/:id',
         pageBuilder: (context, state) {
-          final familyId = state.pathParameters['id']!;
+          final familyId = _param(state, 'id');
           return _fastFadePage(
             key: state.pageKey,
             child: _DeepLinkShareScreen(familyId: familyId),
@@ -841,7 +846,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/invite/:code',
         pageBuilder: (context, state) {
-          final inviteCode = state.pathParameters['code']!;
+          final inviteCode = _param(state, 'code');
           return _fastFadePage(
             key: state.pageKey,
             child: InvitationsScreen(inviteCode: inviteCode),

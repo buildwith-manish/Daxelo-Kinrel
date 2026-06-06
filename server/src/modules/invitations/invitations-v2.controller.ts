@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { InvitationsV2Service } from './invitations-v2.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -34,6 +35,7 @@ export class InvitationsV2Controller {
    * The invitee can join by entering the Family ID (e.g. KIN-AB12CD34).
    */
   @Post('family-id')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.CREATED)
   async createFamilyIdInvite(
     @CurrentUser('id') userId: string,
@@ -54,6 +56,7 @@ export class InvitationsV2Controller {
    * Returns QR code data containing a deep link URL.
    */
   @Post('qr-code')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.CREATED)
   async createQrCodeInvite(
     @CurrentUser('id') userId: string,
@@ -79,6 +82,7 @@ export class InvitationsV2Controller {
    * Returns a URL that can be shared with the invitee.
    */
   @Post('link')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.CREATED)
   async createLinkInvite(
     @CurrentUser('id') userId: string,

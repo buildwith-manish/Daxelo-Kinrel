@@ -10,10 +10,37 @@ import {
 import { Logger } from '@nestjs/common';
 import { Socket } from 'socket.io';
 import * as jwt from 'jsonwebtoken';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: (origin, callback) => {
+      const allowed = [
+        'http://localhost:3001',
+        'http://localhost:8080',
+        'https://kinrel.app',
+        'https://daxelokinrel.com',
+        'https://app.daxelokinrel.com',
+        'https://daxelo-kinrel-server.onrender.com',
+        'com.daxelo.kinrel://',
+        'kinrel://',
+      ];
+      // Allow requests with no origin (mobile apps, Postman)
+      if (!origin) return callback(null, true);
+      // In development, allow any localhost
+      if (process.env.NODE_ENV === 'development' && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+        return callback(null, true);
+      }
+      if (allowed.some(o => origin.startsWith(o))) {
+        return callback(null, true);
+      }
+      // Also check CORS_ORIGINS env var
+      const extraOrigins = process.env.CORS_ORIGINS?.split(',').map(s => s.trim()) ?? [];
+      if (extraOrigins.some(o => origin.startsWith(o))) {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS'), false);
+    },
     credentials: true,
   },
   namespace: '/',
@@ -21,6 +48,8 @@ import * as jwt from 'jsonwebtoken';
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private server: any;
   private readonly logger = new Logger(RealtimeGateway.name);
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async handleConnection(client: Socket) {
     try {
@@ -75,7 +104,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   @SubscribeMessage('family:join')
-  handleJoinFamily(
+  async handleJoinFamily(
     @ConnectedSocket() client: any,
     @MessageBody() data: { familyId: string },
   ) {
@@ -84,6 +113,28 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       client.emit('error', { message: 'Not authenticated' });
       return;
     }
+
+    // Validate familyId
+    if (!data.familyId || typeof data.familyId !== 'string') {
+      client.emit('error', { message: 'Invalid family ID' });
+      return;
+    }
+
+    // Verify the user is a member of this family
+    try {
+      const membership = await this.prisma.familyMember.findFirst({
+        where: { userId, familyId: data.familyId },
+      });
+      if (!membership) {
+        client.emit('error', { message: 'Not a member of this family' });
+        return;
+      }
+    } catch (err) {
+      this.logger.warn(`Membership check failed for user ${userId}, family ${data.familyId}: ${(err as Error).message}`);
+      client.emit('error', { message: 'Unable to verify membership' });
+      return;
+    }
+
     client.join(`family:${data.familyId}`);
     this.logger.debug(`Client ${client.id} joined family:${data.familyId}`);
     return { event: 'family:joined', familyId: data.familyId };

@@ -125,6 +125,8 @@ model User {
   blockedUsers         BlockedUser[]            @relation("Blocker")
   blockedBy            BlockedUser[]            @relation("Blocked")
   stories              Story[]
+
+  @@index([phone])
 }
 
 // ── Blocked Users (replaces JSON blockedUserIds anti-pattern) ────────
@@ -535,17 +537,17 @@ model Family {
   updatedAt       DateTime @updatedAt
 
   // ── Graph-First Redesign Fields ──
-  familyCode      String   @unique @default(cuid()) // Shareable family ID like Instagram handle
-  kinFamilyId     String?  @unique // Human-readable Family ID: KIN-AB12CD34 (Feature 1: Family ID System)
-  username        String?  @unique // Unique @username for display (e.g. @sharmw)
+  familyCode      String    @unique @default(cuid()) // Shareable family ID like Instagram handle
+  kinFamilyId     String?   @unique // Human-readable Family ID: KIN-AB12CD34 (Feature 1: Family ID System)
+  username        String?   @unique // Unique @username for display (e.g. @sharmw)
   avatarUrl       String?
   region          String?
-  privacyMode     String   @default("private") // private/invite/link
-  isOnboarded     Boolean  @default(false)
+  privacyMode     String    @default("private") // private/invite/link
+  isOnboarded     Boolean   @default(false)
   anchorPersonId  String? // The primary household anchor person
-  memberCount     Int      @default(0)
-  generationCount Int      @default(1)
-  lastActivityAt  DateTime @default(now())
+  memberCount     Int       @default(0)
+  generationCount Int       @default(1)
+  lastActivityAt  DateTime  @default(now())
   createdBy       String? // User ID who created this family
   deletedAt       DateTime? // Soft-delete: archived for 30 days before permanent deletion
 
@@ -563,6 +565,7 @@ model Family {
   @@index([username])
   @@index([kinFamilyId])
   @@index([deletedAt])
+  @@index([createdBy])
 }
 
 model FamilyMember {
@@ -581,6 +584,7 @@ model FamilyMember {
   @@unique([familyId, userId])
   @@index([familyId])
   @@index([userId])
+  @@index([familyId, role])
 }
 
 model Person {
@@ -816,8 +820,10 @@ model Invitation {
   updatedAt  DateTime  @updatedAt
 
   @@index([familyId, status])
+  @@index([recipientEmail])
   @@index([recipientPhone])
   @@index([token])
+  @@index([status])
   @@index([status, createdAt])
 }
 
@@ -1038,6 +1044,7 @@ model Story {
   @@index([familyId, createdAt])
   @@index([userId, createdAt])
   @@index([expiresAt])
+  @@index([userId, expiresAt])
 }
 
 model StoryView {
@@ -1588,6 +1595,8 @@ model FamilyInvite {
   family        Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
   inviterMember FamilyMember @relation(fields: [invitedBy], references: [id], onDelete: Cascade)
 
+  @@index([familyId])
+  @@index([status])
   @@index([inviteCode])
 }
 
@@ -1772,6 +1781,7 @@ model UsernameChangeLog {
   newUsername String
   changedAt   DateTime @default(now())
 
+  @@index([userId])
   @@index([userId, changedAt])
   @@index([newUsername])
 }

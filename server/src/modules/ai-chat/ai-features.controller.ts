@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AiFeaturesService } from './ai-features.service';
@@ -22,6 +23,7 @@ export class AiFeaturesController {
 
   // ── Explain a Relationship ──────────────────────────────────────────
   @Post('explain-relationship')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async explainRelationship(
     @CurrentUser('id') userId: string,
@@ -32,6 +34,7 @@ export class AiFeaturesController {
 
   // ── Generate Family Summary ─────────────────────────────────────────
   @Post('family-summary/:id')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async generateFamilySummary(
     @CurrentUser('id') userId: string,
@@ -42,6 +45,7 @@ export class AiFeaturesController {
 
   // ── Generate Family History Summary ─────────────────────────────────
   @Post('family-history/:id')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async generateHistorySummary(
     @CurrentUser('id') userId: string,
@@ -52,6 +56,7 @@ export class AiFeaturesController {
 
   // ── Smart Search ────────────────────────────────────────────────────
   @Post('smart-search')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async smartSearch(
     @CurrentUser('id') userId: string,
@@ -62,6 +67,7 @@ export class AiFeaturesController {
 
   // ── General AI Chat ─────────────────────────────────────────────────
   @Post('chat')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async chat(
     @CurrentUser('id') userId: string,
