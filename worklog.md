@@ -1066,3 +1066,26 @@ Stage Summary:
 - APK size reduction: ~165 MB (from ~258 MB to ~93 MB estimated)
 - Indian kinship data (indian_kinship.json) stays bundled — primary market must work offline
 - Global cultures now load on-demand with local disk cache for offline reuse
+
+---
+Task ID: V3-Phase1
+Agent: Main Agent
+Task: V3 Phase 1 — Critical Blockers (8 fixes from V3 audit)
+
+Work Log:
+- CARRY-01: Removed ALL hardcoded fallback credentials from app_config.dart — replaced with String.fromEnvironment + assert() fail-fast; updated env_config.dart and app_environment.dart references
+- NEW-06: Removed flutter_dotenv dependency from pubspec.yaml + dotenv.load() from main.dart
+- CARRY-02: Renamed IsarDatabase → AppDatabaseService (22 files updated); isarProvider → appDatabaseProvider; isIsarInitializedProvider → isDatabaseInitializedProvider
+- CARRY-03: Deleted legacy collections/ folder (9 files); refactored socket_service.dart to use direct JSON field access instead of collection DTOs
+- CARRY-04: Per-account login lockout in auth.service.ts — 10 attempts → 15-min Redis lockout with TTL display; clears counter on success
+- CARRY-05: 2FA backup codes — 8 single-use bcrypt-hashed codes generated on setup; consumed on TOTP failure in loginVerify2FA; cleared on disable2FA; User.backupCodes String[] added to schema
+- NEW-01: Moved 165MB JSON kinship data off-bundle — KinshipLoaderService with 3-tier cache (memory→disk→network); server endpoint GET /v1/kinship/data/:languageCode; APK ~258MB → ~93MB
+- NEW-08: Removed unused responsive_framework from pubspec.yaml
+- Fixed 2 test assertions in auth.service.spec.ts for backup codes
+
+Stage Summary:
+- 58 files changed, 1013 insertions, ~4.7M deletions (mostly JSON assets)
+- TypeScript compilation: 0 errors
+- Backend tests: 191/191 passing (with backup code test assertions)
+- All Phase 1 (V3 Audit) items complete and pushed to GitHub (commit 3b0f5f8)
+- Score projection: 8.1 → 8.8/10
