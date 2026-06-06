@@ -9,7 +9,7 @@
 import 'dart:async' show unawaited;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/auth_config.dart';

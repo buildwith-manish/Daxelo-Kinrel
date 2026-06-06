@@ -13,6 +13,7 @@
 // These tests require `build_runner` to have generated any necessary .g.dart files.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -317,7 +318,7 @@ void main() {
       // The _cleanErrorMessage method transforms the error
       // Since AuthService(null) throws "Authentication service is not available"
       // the user should see a message about that
-      final errorFinder = find.byType(SnackBar);
+      final _errorFinder = find.byType(SnackBar);
       // SnackBar may or may not appear depending on how the error is handled
       // At minimum, the loading state should clear
       expect(find.text('Sign In'), findsOneWidget);

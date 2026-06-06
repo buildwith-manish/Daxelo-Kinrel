@@ -1,4 +1,4 @@
-import 'dart:async' show unawaited;
+import 'dart:async';
 
 import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:math' as math;

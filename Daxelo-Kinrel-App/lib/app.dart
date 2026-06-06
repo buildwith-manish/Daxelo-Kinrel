@@ -30,7 +30,7 @@ import 'core/bootstrap/service_orchestrator.dart';
 import 'core/bootstrap/app_init_provider.dart';
 
 // Generated localization imports (flutter gen-l10n)
-import 'package:kinrel/l10n/app_localizations.dart' show AppLocalizations;
+import 'package:kinrel/l10n/app_localizations.dart';
 
 class KinrelApp extends ConsumerStatefulWidget {
   const KinrelApp({super.key});
@@ -180,7 +180,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       themeMode: themeMode,
       routerConfig: router,
       // Localization — 15 languages
-      localizationsDelegates: const [
+      localizationsDelegates: [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,

@@ -154,7 +154,7 @@ Future<bool> initSupabase() async {
 
 /// Call after initSupabase() to update the Riverpod state provider.
 /// This must be called from a context that has access to a ProviderContainer.
-void notifySupabaseReady(ProviderContainer container) {
+void notifySupabaseReady(Ref container) {
   container.read(supabaseReadyStateProvider.notifier).state = _supabaseInitialized;
 }
 

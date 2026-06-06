@@ -74,7 +74,6 @@ import '../../features/profile/presentation/two_factor_screen.dart';
 import '../../features/profile/presentation/help_center_screen.dart';
 import '../../features/profile/presentation/contact_support_screen.dart';
 import '../../features/profile/presentation/report_bug_screen.dart';
-import '../../features/profile/presentation/legal_screen.dart';
 import '../../presentation/screens/legal/privacy_policy_screen.dart';
 import '../../presentation/screens/legal/terms_of_service_screen.dart';
 import '../../features/profile/presentation/my_families_screen.dart';

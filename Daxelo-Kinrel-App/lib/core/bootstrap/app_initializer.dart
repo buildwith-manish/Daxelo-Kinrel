@@ -10,7 +10,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../config/app_config.dart';
@@ -38,7 +38,7 @@ class AppInitializer {
     // ── 3. Set system UI overlay (fast, non-blocking) ────────────────
     try {
       SystemChrome.setSystemUIOverlayStyle(
-        const SystemUiOverlayStyle(
+        SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: Brightness.light,
           statusBarBrightness: Brightness.dark,

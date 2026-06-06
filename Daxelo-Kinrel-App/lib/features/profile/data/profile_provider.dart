@@ -598,7 +598,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     // Phone validation
     if (data.containsKey('phone')) {
       final phone = data['phone'] as String? ?? '';
-      if (phone.isNotEmpty && !RegExp(r'^\+?[0-9\s\-\(\)]{7,20}$').hasMatch(phone)) {
+      if (phone.isNotEmpty && !RegExp(r'^\+[0-9\s\-\(\)]{7,20}$').hasMatch(phone)) {
         errors['phone'] = 'Please enter a valid phone number';
       }
     }
@@ -1055,16 +1055,16 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       final profile = ProfileModel(
         id: user.id,
         email: user.email ?? '',
-        name: user.userMetadata?['name'] as String? ??
-            user.userMetadata?['full_name'] as String? ??
+        name: user.userMetadata['name'] as String? ??
+            user.userMetadata['full_name'] as String? ??
             user.email?.split('@')[0],
-        phone: user.userMetadata?['phone'] as String?,
-        avatarUrl: user.userMetadata?['avatar_url'] as String?,
-        username: user.userMetadata?['username'] as String?,
-        preferredLanguage: user.userMetadata?['preferred_language'] as String? ?? 'en',
-        profileVisibility: user.userMetadata?['profileVisibility'] as String? ?? 'public',
-        invitePermission: user.userMetadata?['invitePermission'] as String? ?? 'anyone',
-        twoFactorEnabled: user.appMetadata?['twoFactorEnabled'] as bool? ?? false,
+        phone: user.userMetadata['phone'] as String?,
+        avatarUrl: user.userMetadata['avatar_url'] as String?,
+        username: user.userMetadata['username'] as String?,
+        preferredLanguage: user.userMetadata['preferred_language'] as String? ?? 'en',
+        profileVisibility: user.userMetadata['profileVisibility'] as String? ?? 'public',
+        invitePermission: user.userMetadata['invitePermission'] as String? ?? 'anyone',
+        twoFactorEnabled: user.appMetadata['twoFactorEnabled'] as bool? ?? false,
         createdAt: DateTime.tryParse(user.createdAt) ?? DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -1190,7 +1190,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     } on DioException catch (e) {
       // ── Rollback: restore previous profile on failure ──
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to update profile';
       state = state.copyWith(
@@ -1303,7 +1303,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return false;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to upload avatar';
       state = state.copyWith(isLoading: false, error: message.toString());
@@ -1343,7 +1343,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to change password';
       state = state.copyWith(isLoading: false, error: message.toString());
@@ -1388,7 +1388,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ?? e.message ?? 'Failed to set username';
+          e.response?.data['message'] ?? e.message ?? 'Failed to set username';
       state = state.copyWith(isLoading: false, error: message.toString());
       return false;
     } catch (e) {
@@ -1405,7 +1405,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return TwoFASetupResponse.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ?? e.message ?? 'Failed to setup 2FA';
+          e.response?.data['message'] ?? e.message ?? 'Failed to setup 2FA';
       state = state.copyWith(error: message.toString());
       return null;
     } catch (e) {
@@ -1422,7 +1422,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ?? e.message ?? 'Failed to verify 2FA';
+          e.response?.data['message'] ?? e.message ?? 'Failed to verify 2FA';
       state = state.copyWith(error: message.toString());
       return false;
     } catch (e) {
@@ -1439,7 +1439,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ?? e.message ?? 'Failed to disable 2FA';
+          e.response?.data['message'] ?? e.message ?? 'Failed to disable 2FA';
       state = state.copyWith(error: message.toString());
       return false;
     } catch (e) {
@@ -1496,7 +1496,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to revoke session';
       state = state.copyWith(error: message.toString());
@@ -1515,7 +1515,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to revoke sessions';
       state = state.copyWith(error: message.toString());
@@ -1573,7 +1573,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to leave family';
       state = state.copyWith(error: message.toString());
@@ -1604,7 +1604,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
         if (kinFamilyId == null || kinFamilyId.isEmpty) {
           try {
             final idResponse = await _dio.get('/api/families/$familyId/family-id');
-            kinFamilyId = idResponse.data?['kinFamilyId'] as String?;
+            kinFamilyId = idResponse.data['kinFamilyId'] as String?;
           } catch (e) {
             debugPrint('⚠️ Failed to fetch KIN ID for family $familyId: $e');
           }
@@ -1676,7 +1676,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to accept invitation';
       state = state.copyWith(error: message.toString());
@@ -1695,7 +1695,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to decline invitation';
       state = state.copyWith(error: message.toString());
@@ -1740,7 +1740,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ?? e.message ?? 'Failed to unblock user';
+          e.response?.data['message'] ?? e.message ?? 'Failed to unblock user';
       state = state.copyWith(error: message.toString());
       return false;
     } catch (e) {
@@ -1757,7 +1757,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to request data export';
       state = state.copyWith(error: message.toString());
@@ -1779,7 +1779,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to delete account';
       state = state.copyWith(isLoading: false, error: message.toString());
@@ -1801,7 +1801,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to export family tree';
       state = state.copyWith(error: message.toString());
@@ -1820,7 +1820,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to submit ticket';
       state = state.copyWith(error: message.toString());
@@ -1844,7 +1844,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to update quiet hours';
       state = state.copyWith(error: message.toString());

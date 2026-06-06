@@ -29,7 +29,6 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
-import '../../../core/graph/graph_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
@@ -1230,13 +1229,6 @@ class _RelationshipGraphPainter extends CustomPainter {
     canvas.restore();
   }
 
-  @override
-  bool shouldRepaint(covariant _RelationshipGraphPainter oldDelegate) {
-    return oldDelegate.pulseValue != pulseValue ||
-        oldDelegate.entryValue != entryValue ||
-        oldDelegate.selectedNodeId != selectedNodeId ||
-        oldDelegate.layout != layout;
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════

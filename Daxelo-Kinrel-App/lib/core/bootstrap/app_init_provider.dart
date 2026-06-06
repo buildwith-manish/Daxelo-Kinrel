@@ -20,6 +20,7 @@ import '../config/app_environment.dart';
 import '../config/auth_config.dart';
 import '../database/app_database_service.dart';
 import '../services/crashlytics_service.dart';
+import '../services/push_notification_service.dart';
 import '../services/supabase_service.dart';
 import '../utils/device_tier.dart';
 

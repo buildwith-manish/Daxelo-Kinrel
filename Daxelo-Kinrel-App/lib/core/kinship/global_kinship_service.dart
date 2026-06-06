@@ -89,7 +89,7 @@ class GlobalKinshipService {
 
       if (_loader != null) {
         // Download-on-demand from server (primary path)
-        final loaded = await _loader!.loadGlobalKinshipData(cultureKey);
+        final loaded = await _loader.loadGlobalKinshipData(cultureKey);
         if (loaded == null) {
           throw Exception('Failed to download kinship data for $cultureKey');
         }
