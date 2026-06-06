@@ -49,6 +49,9 @@ jobs:
 
       - name: Validate Prisma schema
         run: cd server && npx prisma validate
+        env:
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/test"
+          DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/test"
 
       - name: Lint
         run: cd server && npm run lint --if-present
@@ -83,3 +86,4 @@ jobs:
           path: server/coverage/
           retention-days: 7
           if-no-files-found: ignore
+
