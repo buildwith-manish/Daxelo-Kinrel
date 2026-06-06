@@ -1,5 +1,5 @@
 import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus, Logger } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SyncService } from './sync.service';
@@ -16,6 +16,7 @@ import { SyncQueryDto } from './dto/sync-query.dto';
  * enabling offline-capable clients to stay in sync.
  */
 @ApiTags('Sync')
+@ApiBearerAuth()
 @Controller('sync')
 @UseGuards(JwtAuthGuard)
 export class SyncController {

@@ -9,13 +9,14 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { GamificationService } from './gamification.service';
 import { CreateQuizDto, SubmitQuizDto } from './dto/quiz.dto';
 
 @ApiTags('Gamification')
+@ApiBearerAuth()
 @Controller('v1/gamification')
 @UseGuards(JwtAuthGuard)
 export class GamificationController {

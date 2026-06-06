@@ -9,14 +9,17 @@ class AppConfig {
   static const String appNameByDaxelo = 'Daxelo KINREL';
   static const String version = '1.0.0';
 
-  // Hardcoded fallbacks — Supabase anon key is safe for client-side use
-  // (only service_role key is secret). These ensure the app ALWAYS has
-  // valid credentials even when .env is missing or env vars are empty.
-  static const String _fallbackSupabaseUrl =
+  // Single source of truth for fallback/default credentials.
+  // These are referenced by EnvConfig and AppEnvironment so that
+  // credentials are defined in exactly ONE place.
+  // Supabase anon key is safe for client-side use (only service_role key is secret).
+  // These ensure the app ALWAYS has valid credentials even when .env is missing
+  // or env vars are empty.
+  static const String fallbackSupabaseUrl =
       'https://promxswvsnvilplmrtsj.supabase.co';
-  static const String _fallbackSupabaseAnonKey =
+  static const String fallbackSupabaseAnonKey =
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY';
-  static const String _fallbackApiBaseUrl =
+  static const String fallbackApiBaseUrl =
       'https://daxelo-kinrel-server.onrender.com';
 
   /// Safely read a value from dotenv, returning null if dotenv is not
@@ -38,7 +41,7 @@ class AppConfig {
     if (env != null && env.isNotEmpty) return env;
     return const String.fromEnvironment(
       'SUPABASE_URL',
-      defaultValue: _fallbackSupabaseUrl,
+      defaultValue: fallbackSupabaseUrl,
     );
   }
 
@@ -47,7 +50,7 @@ class AppConfig {
     if (env != null && env.isNotEmpty) return env;
     return const String.fromEnvironment(
       'SUPABASE_ANON_KEY',
-      defaultValue: _fallbackSupabaseAnonKey,
+      defaultValue: fallbackSupabaseAnonKey,
     );
   }
 
@@ -57,7 +60,7 @@ class AppConfig {
     if (env != null && env.isNotEmpty) return env;
     return const String.fromEnvironment(
       'API_BASE_URL',
-      defaultValue: _fallbackApiBaseUrl,
+      defaultValue: fallbackApiBaseUrl,
     );
   }
 
@@ -77,14 +80,14 @@ class AppConfig {
   //
   // Supabase OAuth callback URL (for Google Cloud Console authorized redirect URIs):
   // https://promxswvsnvilplmrtsj.supabase.co/auth/v1/callback
-  static const String _fallbackGoogleWebClientId =
+  static const String fallbackGoogleWebClientId =
       '726935858050-b0q96taocaa7rto463u466c49jdqkp41.apps.googleusercontent.com';
   // Android client ID — registered in google-services.json with SHA-1 fingerprint
   // Updated: new OAuth2 credential with SHA-1 aee41e0947cce859c1028511d343826d704f3ef5
-  static const String _fallbackGoogleAndroidClientId =
+  static const String fallbackGoogleAndroidClientId =
       '643588134212-e74dp3uuh526ticm3c413b3gioefsenp.apps.googleusercontent.com';
   // iOS client ID — from GoogleService-Info.plist (reversed client ID)
-  static const String _fallbackGoogleIosClientId =
+  static const String fallbackGoogleIosClientId =
       '643588134212-ep2guf1q8fk5idsa224fu9e3t4bdu2e3.apps.googleusercontent.com';
 
   static String get googleWebClientId {
@@ -92,7 +95,7 @@ class AppConfig {
     if (env != null && env.isNotEmpty) return env;
     return const String.fromEnvironment(
       'GOOGLE_WEB_CLIENT_ID',
-      defaultValue: _fallbackGoogleWebClientId,
+      defaultValue: fallbackGoogleWebClientId,
     );
   }
 
@@ -101,7 +104,7 @@ class AppConfig {
     if (env != null && env.isNotEmpty) return env;
     return const String.fromEnvironment(
       'GOOGLE_ANDROID_CLIENT_ID',
-      defaultValue: _fallbackGoogleAndroidClientId,
+      defaultValue: fallbackGoogleAndroidClientId,
     );
   }
 
@@ -110,7 +113,7 @@ class AppConfig {
     if (env != null && env.isNotEmpty) return env;
     return const String.fromEnvironment(
       'GOOGLE_IOS_CLIENT_ID',
-      defaultValue: _fallbackGoogleIosClientId,
+      defaultValue: fallbackGoogleIosClientId,
     );
   }
 

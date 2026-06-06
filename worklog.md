@@ -664,3 +664,132 @@ Stage Summary:
 - Backend tests: 191/191 passing
 - All Phase 1 (V2 Audit) items complete and pushed to GitHub
 - Score projection: 8.0 → 8.8/10
+
+---
+Task ID: 2.2
+Agent: Sub Agent
+Task: H4+M4 BFS optimization — O(n) dequeue + path-copying fix
+
+Work Log:
+- H4 Flutter: Replaced `List.removeAt(0)` with `Queue.removeFirst()` in BFS generation-assignment loop in relationship_graph_screen.dart
+  - Added `import 'dart:collection';`
+  - Changed `final queue = <_QueueItem>[];` to `final queue = Queue<_QueueItem>();`
+  - Changed `queue.removeAt(0)` to `queue.removeFirst()`
+  - Queue.removeFirst() is O(1) vs List.removeAt(0) which is O(n)
+- H4 Server: Replaced `queue.shift()` (O(n) dequeue) with index-based BFS using `head` pointer (O(1) dequeue) in graph.service.ts getPath()
+  - Changed `const queue: Array<{personId, pathPersonIds, pathRelationships}>` to `const queue: string[]` with `let head = 0`
+  - Loop changed from `while (queue.length > 0) { const current = queue.shift()!; }` to `while (head < queue.length) { const currentId = queue[head++]; }`
+- M4 Server: Replaced path-copying BFS with parent-pointer tracking in graph.service.ts getPath()
+  - Removed `[...current.pathPersonIds, neighbor.neighborId]` and `[...current.pathRelationships, neighbor.relationship]` array copies per BFS step
+  - Added `parentMap: Map<string, string>` (child → parent) and `relMap: Map<string, Record<string, any>>` (child → relationship to parent)
+  - After BFS finds destination, reconstruct path by following parent pointers backward from toPersonId to fromPersonId, then reverse
+  - Memory reduced from O(n × path_length) to O(n)
+
+Stage Summary:
+- 2 files modified: relationship_graph_screen.dart, graph.service.ts
+- TypeScript compilation: 0 errors (npx tsc --noEmit passes cleanly)
+- Backend tests: 191/191 passing
+- Dart CLI unavailable in sandbox — verify Flutter compilation locally
+- BFS dequeue now O(1) in both Flutter (Queue.removeFirst) and server (head pointer)
+- BFS path search no longer copies entire path array at each step — uses parent pointers + reconstruction
+
+---
+Task ID: 2.1
+Agent: Backend Fix Agent
+Task: H2 — No timeout on DeepSeek API calls
+
+Work Log:
+- Read worklog.md to understand prior work context
+- Read all 4 AI service files to locate OpenAI constructor calls:
+  1. ai-chat.service.ts — constructor line 116-119
+  2. ai-cards.service.ts — constructor line 135-138
+  3. ai-features.service.ts (located in ai-chat/ module) — constructor line 99-102
+  4. ai-voice.service.ts — constructor line 41-44
+- Added `timeout: 30000` and `maxRetries: 1` to OpenAI constructor in all 4 service files:
+  1. ai-chat.service.ts: `new OpenAI({ apiKey, baseURL, timeout: 30000, maxRetries: 1 })`
+  2. ai-cards.service.ts: `new OpenAI({ apiKey, baseURL, timeout: 30000, maxRetries: 1 })`
+  3. ai-features.service.ts: `new OpenAI({ apiKey, baseURL, timeout: 30000, maxRetries: 1 })`
+  4. ai-voice.service.ts: `new OpenAI({ apiKey, baseURL, timeout: 30000, maxRetries: 1 })`
+- Checked @Timeout decorator availability:
+  - @nestjs/common v11.1.24: only has `GatewayTimeoutException` and `RequestTimeoutException` (error classes, not decorators)
+  - @nestjs/schedule: has `Timeout` decorator but it is for scheduling tasks (runs a method after a delay), NOT for request timeouts
+  - Skipped @Timeout decorator as instructed — relying on OpenAI SDK timeout (30s) instead
+- Note: ai-features.service.ts is located at ai-chat/ai-features.service.ts, not ai-features/ai-features.service.ts (directory does not exist)
+
+Stage Summary:
+- 4 files modified: ai-chat.service.ts, ai-cards.service.ts, ai-features.service.ts, ai-voice.service.ts
+- TypeScript compilation: 0 errors (npx tsc --noEmit passes cleanly)
+- Backend tests: 191/191 passing
+- No new packages installed
+- All DeepSeek API calls now have 30-second timeout and max 1 retry (previously unlimited)
+- @Timeout decorator skipped — @nestjs/schedule Timeout is for task scheduling, not request timeouts; SDK-level timeout is sufficient
+
+---
+Task ID: 2.5
+Agent: Fix Agent
+Task: M6+M7+L1+L2 — Memory session eviction, shouldRepaint, archived families format, ID collision
+
+Work Log:
+- M6: Added `evictExpiredSessions()` private method to AiChatService — iterates through `memorySessions` Map and deletes entries where `expiresAt < Date.now()`. Called at the start of `getSession()`, `saveSession()`, and `deleteSessionFromRedis()` before accessing memorySessions. The per-key lazy eviction in getSession() (checking `Date.now() > entry.expiresAt`) is retained as a safety net. This prevents unbounded memory growth when Redis is unavailable and sessions accumulate without cleanup.
+- M7: Added `shouldRepaint` override to `_RelationshipGraphPainter` — compares `layout`, `pulseValue`, `entryValue`, `selectedNodeId`, and `anchorId` between old and new delegates. Returns `true` only when any property differs, preventing unnecessary full repaints on every animation frame when values haven't changed. The constructor already stored all five properties as fields, so no constructor changes were needed.
+- L1: Fixed `archivedFamiliesProvider` response format mismatch — backend returns a paginated envelope `{ items, total, page, limit }` but the provider assumed `response.data` was a plain `List`. Updated to handle both formats: if `data` is a `Map` with an `'items'` key, extracts `data['items']`; if `data` is a `List`, uses it directly; otherwise falls back to empty list.
+- L2: Fixed `_generateId()` collision potential — removed `.substring(0, 25)` truncation that was discarding entropy from the generated ID. The full ID `'c' + timestamp + 16 random chars` is now returned without truncation, providing significantly more entropy and reducing collision probability. The uuid package (^4.5.1) is available in pubspec.yaml but was not used to avoid changing the ID format for existing records.
+
+Stage Summary:
+- 3 files modified: ai-chat.service.ts, relationship_graph_screen.dart, family_provider.dart
+- TypeScript compilation: 0 errors (npx tsc --noEmit passes cleanly)
+- Backend tests: 191/191 passing
+- Dart CLI unavailable in sandbox — verify Flutter compilation locally
+- memorySessions now has lazy eviction on every access (getSession, saveSession, deleteSessionFromRedis)
+- _RelationshipGraphPainter now avoids unnecessary repaints via shouldRepaint
+- archivedFamiliesProvider now handles both paginated and list response formats
+- _generateId() returns full entropy ID without truncation
+
+---
+Task ID: 2.3
+Agent: Concurrency Fix Agent
+Task: Fix H5+H6 Flutter concurrency issues
+
+Work Log:
+- H5: Fixed MemberCount race condition in createPerson() (family_provider.dart)
+  - Identified classic read-modify-write race: code was reading `memberCount` from Family table, incrementing by 1, then writing back — if two createPerson() calls ran concurrently, both would read the same count, increment to the same value, and write back, losing one increment
+  - Replaced with count-based approach: after inserting a person, query `SELECT id FROM Person WHERE familyId = ? AND deletedAt IS NULL`, then set `memberCount` to the actual row count
+  - This eliminates the race condition because the count is derived from actual data rather than incremented; also self-corrects any prior drift in the stored memberCount value
+  - Old code (lines 967-997): `client.from(_kFamilyTable).select('memberCount').eq('id', familyId)` → `currentCount + 1` → `client.from(_kFamilyTable).update({'memberCount': currentCount + 1})`
+  - New code: `client.from(_kPersonTable).select('id').eq('familyId', familyId).filter('deletedAt', 'is', null)` → `actualCount = rows.length` → `client.from(_kFamilyTable).update({'memberCount': actualCount})`
+
+- H6: Fixed SyncEngine _canSync() TOCTOU race allowing concurrent syncs (sync_engine.dart)
+  - Identified TOCTOU vulnerability: `_canSync()` checked `_status.isSyncing` but `_status.isSyncing` was only set to `true` asynchronously AFTER `_canSync()` returned — so `fullSync()` and `deltaSync()` could both pass `_canSync()` before either set `isSyncing = true`, running concurrently
+  - Added `bool _isSyncing = false` synchronous guard flag to SyncEngine class
+  - In `fullSync()`: check `_isSyncing` before `_canSync()`, set `_isSyncing = true` synchronously immediately after `_canSync()` passes, reset in `finally` block
+  - In `deltaSync()`: same pattern — check `_isSyncing` early, set synchronously, reset in `finally`
+  - Updated `_canSync()`: added `_isSyncing` check as first guard (before `_status.isSyncing` check) for defense-in-depth
+  - Dart's single-threaded event loop guarantees synchronous code between awaits is atomic, so the `_isSyncing = true` assignment before any `await` prevents the TOCTOU race
+
+Stage Summary:
+- 2 files modified: family_provider.dart, sync_engine.dart
+- memberCount race eliminated: derived from actual Person rows instead of read-modify-write increment
+- Concurrent sync race eliminated: synchronous _isSyncing guard prevents fullSync+deltaSync from running simultaneously
+- Dart CLI unavailable in sandbox — verify Flutter compilation locally
+
+---
+Task ID: 2.4
+Agent: Fix Agent
+Task: H1 — Triple credential duplication fix + L3 — Missing @ApiBearerAuth() on controllers
+
+Work Log:
+- H1a: Read all 3 Flutter config files — confirmed identical Supabase URL, anon key, API base URL, and Google client IDs copy-pasted across all 3 (9 duplicated fallback values)
+- H1b: Designated app_config.dart as single source of truth: made 6 fallback constants public (removed underscore prefix), updated internal references
+- H1c: Rewrote env_config.dart — removed 6 duplicated _fallback* constants, added import of app_config.dart, replaced all defaultValue references with AppConfig.fallbackXxx
+- H1d: Rewrote app_environment.dart — added import of app_config.dart, replaced 3-way switch for supabaseUrl/supabaseAnonKey with direct AppConfig.fallbackXxx reference (was identical across dev/staging/prod); replaced prod apiBaseUrl with AppConfig.fallbackApiBaseUrl; kept dev/staging as unique environment-specific values
+- L3a: Found only 4 of 32 JwtAuthGuard controllers had @ApiBearerAuth (auth, families, stories, graph)
+- L3b: Added @ApiBearerAuth() to 28 controllers missing it — class-level for 26 controllers with class-level @UseGuards, method-level for 2 controllers with per-method guards (share, feature-flags); added ApiBearerAuth to @nestjs/swagger imports
+
+Stage Summary:
+- 3 Flutter files modified: app_config.dart, env_config.dart, app_environment.dart
+- 29 NestJS controller files modified with @ApiBearerAuth()
+- 9 duplicated credential strings eliminated — single source of truth in AppConfig
+- All 32 controllers using JwtAuthGuard now have @ApiBearerAuth() for Swagger
+- TypeScript compilation: 0 errors
+- Backend tests: 191/191 passing
+- Dart CLI unavailable in sandbox — verify Flutter compilation locally

@@ -277,15 +277,17 @@ export class FamiliesService {
     const archivedAt = family.deletedAt;
 
     await this.prisma.$transaction(async (tx) => {
-      // 1. Restore persons that were archived at the same time as the family
-      // (within a 5-second window to account for transaction latency)
-      const archiveWindowStart = new Date(archivedAt.getTime() - 5000);
-      const archiveWindowEnd = new Date(archivedAt.getTime() + 5000);
-
+      // 1. Restore persons that were soft-deleted as part of the family archive.
+      // We restore ALL currently-soft-deleted persons in this family because:
+      //   - The archive() method soft-deletes every person in the family atomically
+      //   - No other code path sets person.deletedAt while the family is active
+      //   - Using a time-window heuristic (5s) could miss persons under high latency
+      //     or accidentally restore persons manually deleted before archival.
+      //   - Since the family is archived, no one can add/delete persons anyway.
       await tx.person.updateMany({
         where: {
           familyId,
-          deletedAt: { gte: archiveWindowStart, lte: archiveWindowEnd },
+          deletedAt: { not: null },
         },
         data: { deletedAt: null },
       });

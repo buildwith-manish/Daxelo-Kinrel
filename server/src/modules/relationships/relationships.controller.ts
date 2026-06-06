@@ -10,7 +10,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { RelationshipsService } from './relationships.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -18,6 +18,7 @@ import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CreateRelationshipDto } from './dto/create-relationship.dto';
 
 @ApiTags('Relationships')
+@ApiBearerAuth()
 @Controller('families/:familyId/relationships')
 @UseGuards(JwtAuthGuard)
 export class RelationshipsController {

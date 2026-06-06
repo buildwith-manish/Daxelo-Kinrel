@@ -1,11 +1,12 @@
 import { Controller, Get, Post, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ChatService } from './chat.service';
 
 @ApiTags('Chat')
+@ApiBearerAuth()
 @Controller('families/:familyId/chat')
 @UseGuards(JwtAuthGuard)
 export class ChatController {

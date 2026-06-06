@@ -10,6 +10,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { FamilyIdService } from './family-id.service';
 import { FamiliesService } from './families.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -26,6 +27,8 @@ import { JoinFamilyDto, SearchFamilyDto } from './dto/join-family.dto';
  *
  * All endpoints require JWT authentication.
  */
+@ApiTags('Family ID')
+@ApiBearerAuth()
 @Controller('families')
 @UseGuards(JwtAuthGuard)
 export class FamilyIdController {

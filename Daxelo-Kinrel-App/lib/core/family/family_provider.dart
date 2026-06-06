@@ -31,7 +31,8 @@ String _generateId() {
     16,
     (_) => random.nextInt(36),
   ).map((v) => v.toRadixString(36)).join();
-  return 'c$timestamp$rand'.substring(0, 25);
+  // Use full ID without truncation to maximise entropy and avoid collisions.
+  return 'c$timestamp$rand';
 }
 
 // ── Data Models ────────────────────────────────────────────────
@@ -364,8 +365,19 @@ final archivedFamiliesProvider =
     final dio = ref.read(dioProvider);
     final response = await dio.get('/api/families/archived');
 
-    if (response.statusCode == 200 && response.data is List) {
-      return (response.data as List)
+    if (response.statusCode == 200) {
+      // Backend may return a paginated envelope { items, total, page, limit }
+      // or a plain List — handle both.
+      final data = response.data;
+      final List<dynamic> items;
+      if (data is Map<String, dynamic> && data.containsKey('items')) {
+        items = data['items'] as List<dynamic>;
+      } else if (data is List) {
+        items = data;
+      } else {
+        items = [];
+      }
+      return items
           .map((json) =>
               ArchivedFamily.fromJson(json as Map<String, dynamic>))
           .toList();
@@ -964,36 +976,35 @@ Future<Person> createPerson({
   ref.invalidate(familyMembersProvider(familyId));
   // familyDetailProvider auto-rebuilds via ref.watch on familyMembersProvider
 
-  // ✅ FIX: Increment Family.memberCount in Supabase
-  // The NestJS backend does memberCount: { increment: 1 } when adding a person.
-  // We must do the same when creating via Flutter direct Supabase writes.
-  // Note: Supabase PostgREST does NOT support { 'increment': 1 } Prisma syntax.
-  // We must read the current count and then write the incremented value.
+  // ✅ FIX (H5): Derive memberCount from actual person count instead of
+  // read-modify-write (read currentCount → currentCount + 1 → write back),
+  // which is subject to a race condition when multiple createPerson() calls
+  // run concurrently on different devices or isolates. By counting actual
+  // Person rows and setting memberCount to that count, we eliminate the
+  // race and also self-correct any prior drift in the stored count.
   try {
-    final familyData = await withRetry(
+    final personRows = await withRetry(
+      () => client
+          .from(_kPersonTable)
+          .select('id')
+          .eq('familyId', familyId)
+          .filter('deletedAt', 'is', null),
+      operationName: 'Count persons for memberCount update',
+    );
+    final actualCount = (personRows as List).length;
+    await withRetry(
       () => client
           .from(_kFamilyTable)
-          .select('memberCount')
-          .eq('id', familyId)
-          .maybeSingle(),
-      operationName: 'Read memberCount for increment',
+          .update({
+            'memberCount': actualCount,
+            'lastActivityAt': DateTime.now().toIso8601String(),
+            'updatedAt': DateTime.now().toIso8601String(),
+          })
+          .eq('id', familyId),
+      operationName: 'Set memberCount from actual count',
     );
-    if (familyData != null) {
-      final currentCount = (familyData['memberCount'] as int?) ?? 0;
-      await withRetry(
-        () => client
-            .from(_kFamilyTable)
-            .update({
-              'memberCount': currentCount + 1,
-              'lastActivityAt': DateTime.now().toIso8601String(),
-              'updatedAt': DateTime.now().toIso8601String(),
-            })
-            .eq('id', familyId),
-        operationName: 'Increment memberCount',
-      );
-    }
   } catch (e) {
-    debugPrint('⚠️ Could not increment memberCount: $e');
+    debugPrint('⚠️ Could not update memberCount: $e');
   }
 
   // Invalidate the Isar cache for this family

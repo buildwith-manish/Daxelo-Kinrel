@@ -116,6 +116,8 @@ export class AiChatService {
       this.ai = new OpenAI({
         apiKey: this.configService.get('DEEPSEEK_API_KEY') || this.configService.get('GEMINI_API_KEY'),
         baseURL: this.configService.get<string>('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
+        timeout: 30000,
+        maxRetries: 1,
       });
     } catch {
       this.logger.verbose('DEEPSEEK_API_KEY not set — AI chat will use fallback responses');
@@ -337,6 +339,16 @@ export class AiChatService {
 
   // ── Redis Session Helpers ──────────────────────────────────────────
 
+  /** Evict all expired entries from the in-memory session store. */
+  private evictExpiredSessions(): void {
+    const now = Date.now();
+    for (const [key, value] of this.memorySessions.entries()) {
+      if (value.expiresAt < now) {
+        this.memorySessions.delete(key);
+      }
+    }
+  }
+
   private async getSession(id: string): Promise<ChatSession | null> {
     const key = `chat:session:${id}`;
     if (this.redis) {
@@ -347,7 +359,8 @@ export class AiChatService {
         this.logger.warn(`Redis read failed for session ${id}, using memory store`);
       }
     }
-    // Fallback to memory store
+    // Fallback to memory store — evict expired entries first
+    this.evictExpiredSessions();
     const entry = this.memorySessions.get(key);
     if (!entry) return null;
     if (Date.now() > entry.expiresAt) {
@@ -368,7 +381,8 @@ export class AiChatService {
         this.logger.warn(`Redis write failed for session ${session.id}, using memory store`);
       }
     }
-    // Fallback to memory store
+    // Fallback to memory store — evict expired entries first
+    this.evictExpiredSessions();
     this.memorySessions.set(key, {
       value,
       expiresAt: Date.now() + this.SESSION_TTL_SECONDS * 1000,
@@ -385,7 +399,8 @@ export class AiChatService {
         this.logger.warn(`Redis delete failed for session ${id}`);
       }
     }
-    // Fallback to memory store
+    // Fallback to memory store — evict expired entries, then delete the target
+    this.evictExpiredSessions();
     this.memorySessions.delete(key);
   }
 

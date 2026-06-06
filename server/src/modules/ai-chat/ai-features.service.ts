@@ -99,6 +99,8 @@ export class AiFeaturesService {
       this.ai = new OpenAI({
         apiKey,
         baseURL: this.configService.get<string>('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
+        timeout: 30000,
+        maxRetries: 1,
       });
       this.logger.log(`✅ AI initialized with model: ${MODEL_NAME}`);
     } catch (error) {

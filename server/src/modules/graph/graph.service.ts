@@ -387,51 +387,57 @@ export class GraphService {
     }
 
     const visited = new Set<string>();
-    const queue: Array<{
-      personId: string;
-      pathPersonIds: string[];
-      pathRelationships: Record<string, any>[];
-    }> = [{
-      personId: fromPersonId,
-      pathPersonIds: [fromPersonId],
-      pathRelationships: [],
-    }];
+    const parentMap = new Map<string, string>();          // child → parent
+    const relMap = new Map<string, Record<string, any>>(); // child → relationship to parent
+    const queue: string[] = [fromPersonId];
+    let head = 0;
 
     visited.add(fromPersonId);
 
-    let foundPath: { pathPersonIds: string[]; pathRelationships: Record<string, any>[] } | null = null;
+    let found = false;
 
-    while (queue.length > 0) {
-      const current = queue.shift()!;
+    while (head < queue.length) {
+      const currentId = queue[head++];
 
-      if (current.personId === toPersonId) {
-        foundPath = current;
+      if (currentId === toPersonId) {
+        found = true;
         break;
       }
 
-      const neighbors = adjacency.get(current.personId) || [];
+      const neighbors = adjacency.get(currentId) || [];
       for (const neighbor of neighbors) {
         if (!visited.has(neighbor.neighborId)) {
           visited.add(neighbor.neighborId);
-          queue.push({
-            personId: neighbor.neighborId,
-            pathPersonIds: [...current.pathPersonIds, neighbor.neighborId],
-            pathRelationships: [...current.pathRelationships, neighbor.relationship],
-          });
+          parentMap.set(neighbor.neighborId, currentId);
+          relMap.set(neighbor.neighborId, neighbor.relationship);
+          queue.push(neighbor.neighborId);
         }
       }
     }
 
-    if (!foundPath) {
+    if (!found) {
       return { path: [], relationships: [] };
     }
 
-    const pathPersons = foundPath.pathPersonIds
+    // Reconstruct path from destination back to source using parent pointers
+    const pathPersonIds: string[] = [];
+    const pathRelationships: Record<string, any>[] = [];
+    let cur: string | undefined = toPersonId;
+    while (cur !== undefined) {
+      pathPersonIds.push(cur);
+      const rel = relMap.get(cur);
+      if (rel) pathRelationships.push(rel);
+      cur = parentMap.get(cur);
+    }
+    pathPersonIds.reverse();
+    pathRelationships.reverse();
+
+    const pathPersons = pathPersonIds
       .map((id) => personMap.get(id))
       .filter(Boolean)
       .map((p) => this.formatPerson(p!));
 
-    const pathRelationships = foundPath.pathRelationships.map((r) => ({
+    const pathRels = pathRelationships.map((r) => ({
       id: r.id,
       familyId: r.familyId,
       fromPersonId: r.fromPersonId,
@@ -442,7 +448,7 @@ export class GraphService {
       label: r.label,
     }));
 
-    return { path: pathPersons, relationships: pathRelationships };
+    return { path: pathPersons, relationships: pathRels };
   }
 
   /** Returns the relationship path between two persons after verifying family membership. */

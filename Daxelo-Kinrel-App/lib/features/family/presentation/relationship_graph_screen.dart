@@ -14,6 +14,7 @@
 // - Bottom control pill (zoom, center, fit)
 // - Tap nodes for person detail sheet
 
+import 'dart:collection';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -224,7 +225,7 @@ _LayoutResult _computeLayout({
   // Assign generations via BFS from anchor
   final generationMap = <String, int>{};
   final visited = <String>{};
-  final queue = <_QueueItem>[];
+  final queue = Queue<_QueueItem>();
 
   // Anchor is generation 3 (center)
   generationMap[anchor.id] = 3;
@@ -233,7 +234,7 @@ _LayoutResult _computeLayout({
 
   // BFS to assign generations
   while (queue.isNotEmpty) {
-    final item = queue.removeAt(0);
+    final item = queue.removeFirst();
     final currentGen = item.generation;
 
     // Parents are one generation above
@@ -790,7 +791,19 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
             maxScale: 3.0,
             boundaryMargin: const EdgeInsets.all(2000),
             onInteractionUpdate: (details) {
-              setState(() => _currentScale = details.scale);
+              // Sync _currentScale from the InteractiveViewer's actual transform.
+              // Using details.scale is unreliable because it reports the scale
+              // *delta* during a pinch gesture, not the absolute scale — this
+              // caused drift when combining manual _zoomIn/_zoomOut with
+              // InteractiveViewer's built-in gestures.
+              final transform = _transformationController.value;
+              // Extract absolute scale from the 2x2 sub-matrix
+              final sx = transform.entry(0, 0);
+              final sy = transform.entry(1, 1);
+              final absoluteScale = (sx.abs() + sy.abs()) / 2;
+              if ((_currentScale - absoluteScale).abs() > 0.01) {
+                setState(() => _currentScale = absoluteScale);
+              }
             },
             child: GestureDetector(
               onTapUp: (details) => _handleTap(details.localPosition, layout),
@@ -868,6 +881,15 @@ class _RelationshipGraphPainter extends CustomPainter {
   final String? anchorId;
 
   static const double nodeRadius = 36.0;
+
+  @override
+  bool shouldRepaint(covariant _RelationshipGraphPainter oldDelegate) {
+    return oldDelegate.layout != layout ||
+        oldDelegate.selectedNodeId != selectedNodeId ||
+        oldDelegate.pulseValue != pulseValue ||
+        oldDelegate.entryValue != entryValue ||
+        oldDelegate.anchorId != anchorId;
+  }
 
   @override
   void paint(Canvas canvas, Size size) {

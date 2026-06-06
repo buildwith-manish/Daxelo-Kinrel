@@ -8,13 +8,14 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ReferralService } from './referral.service';
 import { GenerateReferralDto, ApplyReferralDto } from './dto/referral.dto';
 
 @ApiTags('Referral')
+@ApiBearerAuth()
 @Controller('v1/referral')
 @UseGuards(JwtAuthGuard)
 export class ReferralController {

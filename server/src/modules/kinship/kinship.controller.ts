@@ -1,10 +1,11 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { KinshipService } from './kinship.service';
 import { KinshipQueryDto } from './dto/kinship-query.dto';
 
 @ApiTags('Kinship')
+@ApiBearerAuth()
 @Controller('v1/kinship')
 @UseGuards(JwtAuthGuard)
 export class KinshipController {

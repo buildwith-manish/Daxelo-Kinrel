@@ -10,7 +10,7 @@ import {
   HttpStatus,
   BadRequestException,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { ShareService } from './share.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -26,6 +26,7 @@ export class ShareController {
    */
   @Post()
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   async createShareableLink(
     @CurrentUser('id') userId: string,
@@ -49,6 +50,7 @@ export class ShareController {
    */
   @Get()
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   async getShareStats(@Query('token') token: string) {
     if (!token) {
       throw new BadRequestException('Token is required');

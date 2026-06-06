@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Param, UseGuards, ForbiddenException } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { FeatureFlagsService } from './feature-flags.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -25,6 +25,7 @@ export class FeatureFlagsController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   async setFlag(
     @CurrentUser('role') role: string,
     @Body() body: { name: string; enabled: boolean; description?: string },

@@ -41,6 +41,8 @@ export class AiVoiceService {
       this.ai = new OpenAI({
         apiKey: this.configService.get('DEEPSEEK_API_KEY') || this.configService.get('GEMINI_API_KEY'),
         baseURL: this.configService.get<string>('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
+        timeout: 30000,
+        maxRetries: 1,
       });
     } catch {
       this.logger.verbose('DEEPSEEK_API_KEY not set — AI voice features will be unavailable');
