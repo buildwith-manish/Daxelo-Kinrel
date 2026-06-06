@@ -9,6 +9,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AiFeaturesService } from './ai-features.service';
@@ -16,6 +17,7 @@ import { ExplainRelationshipDto } from './dto/explain-relationship.dto';
 import { SmartSearchDto } from './dto/smart-search.dto';
 import { AiChatMessageDto } from './dto/ai-features-chat.dto';
 
+@ApiTags('AI Features')
 @Controller('v1/ai')
 @UseGuards(JwtAuthGuard)
 export class AiFeaturesController {

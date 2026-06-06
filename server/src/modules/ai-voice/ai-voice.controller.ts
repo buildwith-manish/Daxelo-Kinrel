@@ -7,10 +7,12 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AiVoiceService } from './ai-voice.service';
 import { TranscribeDto, VoiceLookupDto } from './dto/voice.dto';
 
+@ApiTags('AI Voice')
 @Controller('v1/ai-voice')
 @UseGuards(JwtAuthGuard)
 export class AiVoiceController {

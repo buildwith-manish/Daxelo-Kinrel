@@ -10,6 +10,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ApiTags } from '@nestjs/swagger';
 import { InvitationsV2Service } from './invitations-v2.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -22,6 +23,7 @@ import {
 
 // ── Controller ─────────────────────────────────────────────────────
 
+@ApiTags('Invitations V2')
 @Controller('invitations/v2')
 @UseGuards(JwtAuthGuard)
 export class InvitationsV2Controller {

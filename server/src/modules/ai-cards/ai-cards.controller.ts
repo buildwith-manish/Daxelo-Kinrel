@@ -8,10 +8,12 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AiCardsService } from './ai-cards.service';
 import { FestivalCardDto, KinshipCardDto } from './dto/card.dto';
 
+@ApiTags('AI Cards')
 @Controller('v1/ai-cards')
 @UseGuards(JwtAuthGuard)
 export class AiCardsController {

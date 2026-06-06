@@ -29,6 +29,11 @@ export class PrismaService
 
   constructor() {
     super({
+      datasources: {
+        db: {
+          url: process.env.DATABASE_URL,
+        },
+      },
       log: [
         { emit: 'event', level: 'query' },
         // Use 'event' for all levels so we control what gets logged
@@ -88,7 +93,10 @@ export class PrismaService
 
       await this.$connect();
       this.isConnected = true;
-      this.logger.log('📦 Database connected');
+      this.logger.log('📦 Database connected successfully');
+      if (process.env.NODE_ENV === 'production') {
+        this.logger.log(`Connection pool: DATABASE_URL includes ${process.env.DATABASE_URL?.includes('connection_limit') ? 'explicit' : 'default'} connection_limit`);
+      }
     } catch (error) {
       this._connectionFailed = true;
       this.logger.verbose(

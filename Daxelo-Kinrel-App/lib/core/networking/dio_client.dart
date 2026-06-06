@@ -9,6 +9,7 @@ import '../config/env_config.dart';
 import '../config/auth_config.dart';
 import '../services/crashlytics_service.dart';
 import '../services/supabase_service.dart';
+import '../security/certificate_pinning.dart';
 import '../widgets/offline_banner.dart';
 
 /// Configured Dio HTTP client with network resilience:
@@ -31,6 +32,13 @@ final dioProvider = Provider<Dio>((ref) {
       },
     ),
   );
+
+  // ── Certificate Pinning (Production) ──────────────────────────────────
+  // Validates SSL certificate fingerprints against known good values
+  // to prevent MITM attacks using compromised CAs or malicious proxies.
+  // Currently standard HTTPS validation only (CA-based).
+  // See lib/core/security/certificate_pinning.dart for setup instructions.
+  configureCertificatePinning(dio);
 
   dio.interceptors.addAll([
     ConnectivityInterceptor(ref: ref),

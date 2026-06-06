@@ -12,11 +12,13 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ApiTags } from '@nestjs/swagger';
 import { InvitationsService } from './invitations.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 
+@ApiTags('Invitations')
 @Controller('invitations')
 @UseGuards(JwtAuthGuard)
 export class InvitationsController {

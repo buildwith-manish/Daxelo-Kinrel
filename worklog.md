@@ -293,3 +293,115 @@ Stage Summary:
 - TypeScript compilation: 0 errors
 - Backend tests: 153/153 passing (+46 new auth tests)
 - All Phase 3 items complete and pushed to GitHub
+
+---
+Task ID: 4.7-4.9
+Agent: Fix Agent
+Task: @ApiTags Swagger decorators, Flutter certificate pinning, Prisma migrate scripts
+
+Work Log:
+- 4.7a: Read auth.controller.ts — confirmed @ApiTags pattern: import from '@nestjs/swagger', decorator placed before @Controller as first decorator
+- 4.7b: Added @ApiTags to 29 controller files that were missing it (auth, families, stories already had it; profile.module.ts has no controller):
+  1. payments.controller.ts → @ApiTags('Payments')
+  2. invitations.controller.ts → @ApiTags('Invitations')
+  3. invitations-v2.controller.ts → @ApiTags('Invitations V2')
+  4. members.controller.ts → @ApiTags('Members')
+  5. relationships.controller.ts → @ApiTags('Relationships')
+  6. chat.controller.ts → @ApiTags('Chat')
+  7. timeline.controller.ts → @ApiTags('Timeline')
+  8. notifications.controller.ts → @ApiTags('Notifications')
+  9. notifications-v2.controller.ts → @ApiTags('Notifications V2')
+  10. support.controller.ts → @ApiTags('Support')
+  11. community.controller.ts → @ApiTags('Community')
+  12. developer-keys.controller.ts → @ApiTags('Developer')
+  13. webhooks.controller.ts → @ApiTags('Webhooks')
+  14. moderation.controller.ts → @ApiTags('Moderation')
+  15. whatsapp.controller.ts → @ApiTags('WhatsApp')
+  16. share.controller.ts → @ApiTags('Share')
+  17. admin.controller.ts → @ApiTags('Admin')
+  18. kinship.controller.ts → @ApiTags('Kinship')
+  19. ai-chat.controller.ts → @ApiTags('AI Chat')
+  20. ai-features.controller.ts → @ApiTags('AI Features')
+  21. gamification.controller.ts → @ApiTags('Gamification')
+  22. ai-cards.controller.ts → @ApiTags('AI Cards')
+  23. referral.controller.ts → @ApiTags('Referral')
+  24. ai-voice.controller.ts → @ApiTags('AI Voice')
+  25. sync.controller.ts → @ApiTags('Sync')
+  26. search.controller.ts → @ApiTags('Search')
+  27. users.controller.ts → @ApiTags('Users')
+  28. feature-flags.controller.ts → @ApiTags('Feature Flags')
+  29. health.controller.ts → @ApiTags('Health')
+  Each file: added `import { ApiTags } from '@nestjs/swagger';`, placed @ApiTags as first decorator before @Controller
+- 4.8a: Read dio_client.dart and pubspec.yaml — confirmed no dio_certificate_pinning or crypto packages available
+- 4.8b: Created /Daxelo-Kinrel-App/lib/core/security/certificate_pinning.dart — infrastructure for SSL certificate pinning with productionFingerprints set, certificatePinningEnabled getter (release mode + non-empty fingerprints), configureCertificatePinning() function with documentation for adding dio_certificate_pinning package
+- 4.8c: Updated dio_client.dart — imported certificate_pinning.dart, added configureCertificatePinning(dio) call after Dio instance creation, added documentation comment about certificate pinning
+- 4.9a: Added 4 prisma migrate scripts to server/package.json: db:migrate:deploy, db:migrate:status, db:migrate:resolve, db:migrate:production
+- 4.9b: Created docker-entrypoint.sh — runs prisma migrate deploy before starting app, respects RUN_MIGRATIONS and SKIP_MIGRATIONS env vars
+- 4.9c: Updated Dockerfile — COPY docker-entrypoint.sh, chmod +x, changed CMD to use entrypoint script
+- 4.9d: Updated render.yaml — added RUN_MIGRATIONS=true env var with documentation comment
+
+Stage Summary:
+- 31 files modified/created: 29 controller files with @ApiTags, 1 new certificate_pinning.dart, dio_client.dart, package.json, Dockerfile, render.yaml, docker-entrypoint.sh
+- TypeScript compilation: 0 errors (npx tsc --noEmit passes cleanly)
+- All Swagger API docs now properly grouped by controller tag
+- Certificate pinning infrastructure ready for production (just add fingerprints + package)
+- Database migrations run automatically on deploy via docker-entrypoint.sh
+
+---
+Task ID: 4.1-4.4
+Agent: Backend Fix Agent
+Task: Critical param swap bug, Prisma connection pool, graceful shutdown, interceptor double-wrapping
+
+Work Log:
+- 4.1a: Read relationships.controller.ts, relationships.service.ts, members.controller.ts, members.service.ts
+- 4.1b: Fixed critical userId/familyId param swap in both controllers:
+  - relationships.controller.ts findAll: changed `this.relationshipsService.findAll(familyId, userId, ...)` → `this.relationshipsService.findAll(userId, familyId, ...)` (service expects userId first)
+  - members.controller.ts findAll: changed `this.membersService.findAll(familyId, userId, ...)` → `this.membersService.findAll(userId, familyId, ...)` (service expects userId first)
+  - Verified create/remove/findOne/update methods in both controllers already pass params in correct order — only findAll was swapped
+- 4.2a: Read prisma.service.ts
+- 4.2b: Added `datasources: { db: { url: process.env.DATABASE_URL } }` to PrismaService constructor (enables connection pool config via DATABASE_URL params); added production-only connection pool stats logging after $connect(); updated .env.example DATABASE_URL to include `connection_limit=10&pool_timeout=20` with explanatory comment
+- 4.3a: Read main.ts
+- 4.3b: Replaced SIGTERM-only handler with shared `gracefulShutdown(signal)` function handling both SIGTERM and SIGINT; added 10-second forced shutdown timeout with `process.exit(1)`; added try/catch around `app.close()` with error logging; added `clearTimeout` on successful shutdown
+- 4.4a: Read response-envelope.interceptor.ts, timestamp.interceptor.ts, transform.interceptor.ts
+- 4.4b: Removed TimestampInterceptor from main.ts registration and import (was causing double-wrapping: data.ts inside envelope + envelope.timestamp); kept file but marked as @deprecated with explanation; added comment to ResponseEnvelopeInterceptor explaining it provides timestamp so no separate interceptor needed; updated interceptor order comments (5 interceptors instead of 6)
+
+Stage Summary:
+- 7 files modified: relationships.controller.ts, members.controller.ts, prisma.service.ts, main.ts, timestamp.interceptor.ts, response-envelope.interceptor.ts, .env.example
+- TypeScript compilation: 0 errors (npx tsc --noEmit passes cleanly)
+- Critical bug fixed: userId/familyId swap caused wrong-family data leaks
+- Prisma connection pool now configurable via DATABASE_URL params
+- Graceful shutdown now handles SIGINT + timeout (not just SIGTERM)
+- Response envelope no longer double-wraps with timestamp
+
+---
+Task ID: 4.5-4.6
+Agent: Test Agent
+Task: Add payments.service.spec.ts and relationships.service.spec.ts tests
+
+Work Log:
+- 4.5a: Read payments.service.ts — identified constructor injection of PrismaService, ConfigService; mapped all public methods (createOrder, verifyAndActivate, getSubscription, cancelSubscription); noted Razorpay HMAC-SHA256 signature verification, production/development mode branching, SubscriptionPlan validation
+- 4.5b: Read payments.controller.ts — confirmed method signatures and DTO shapes
+- 4.5c: Read auth.service.spec.ts for test patterns — confirmed mock pattern: module-scope mock objects, jest.clearAllMocks() in beforeEach, Test.createTestingModule with useValue providers
+- 4.5d: Created payments.service.spec.ts with 13 test cases across 4 describe blocks:
+  - createOrder: success with valid plan and amount, BadRequestException for invalid plan, BadRequestException for invalid amount (0, negative, undefined)
+  - verifyAndActivate: production mode rejects without signature, development mode allows without signature, valid Razorpay HMAC-SHA256 signature activates subscription, invalid signature throws BadRequestException (using 64-char hex to match timingSafeEqual buffer length), missing RAZORPAY_KEY_SECRET throws BadRequestException, invalid plan throws BadRequestException
+  - getSubscription: returns subscription for user, returns null when no subscription
+  - cancelSubscription: success sets status to cancelled, throws NotFoundException when no subscription
+- 4.6a: Read relationships.service.ts — identified constructor injection of PrismaService, KinrelGateway, ConfigService; mapped all public methods (create, findAll, remove); private helpers (requireFamilyMember, requireFamilyRole, formatRelationship, invalidateGraphCache); noted INVERSE_RELATIONSHIP_MAP and getInverseKey exported function; noted Redis lazy-connect in constructor
+- 4.6b: Created relationships.service.spec.ts with 17 test cases across 4 describe blocks:
+  - getInverseKey: father→male=son, father→female=daughter, husband=wife, wife=husband, son=father, daughter=mother, unmapped key returns same key
+  - create: bidirectional relationship (main + inverse), ForbiddenException if not family member, ForbiddenException if role below editor, father→son inverse verification, husband→wife inverse verification, ConflictException if relationship exists, BadRequestException for self-relationship, NotFoundException if source person not found, NotFoundException if target person not found, graph cache invalidation (verified via gateway events)
+  - findAll: returns relationships for family, filters by personId, ForbiddenException if not member
+  - remove: deletes both directions, ForbiddenException if not admin/editor, NotFoundException if relationship not found
+- 4.6c: Fixed 3 initial test failures:
+  - Invalid Razorpay signature: changed from 'invalid_signature_hex' to '0'.repeat(64) to match SHA-256 HMAC buffer length for timingSafeEqual
+  - Relationship tests using double `await expect().rejects.toThrow()` pattern: restructured to single try/catch with both instance and message checks, because mockResolvedValueOnce values were consumed by first call
+- 4.6d: Full test suite: 191/191 passing (was 153); +38 new tests (13 payments + 25 relationships)
+
+Stage Summary:
+- 2 files created: payments.service.spec.ts (13 tests), relationships.service.spec.ts (17 tests + 7 getInverseKey tests)
+- Full test suite: 191/191 passing
+- All payments service methods covered: createOrder, verifyAndActivate (6 scenarios), getSubscription, cancelSubscription
+- All relationships service methods covered: create (10 scenarios), findAll (3 scenarios), remove (3 scenarios), getInverseKey (7 scenarios)
+- Razorpay signature verification properly tested with real HMAC computation
+- Redis cache invalidation tested implicitly (empty REDIS_URL → null redis → no-op without error)

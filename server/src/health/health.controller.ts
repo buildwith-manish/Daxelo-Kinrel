@@ -1,4 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,6 +21,7 @@ import { Public } from '../common/decorators/public.decorator';
  *  - Must respond in < 50ms always
  *  - Never throw — always return { status: 'error' } on fail
  */
+@ApiTags('Health')
 @Public()
 @Controller('health')
 export class HealthController {

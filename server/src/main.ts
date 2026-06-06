@@ -6,7 +6,6 @@ import { ConfigService } from '@nestjs/config';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { FieldTrimInterceptor } from './common/interceptors/field-trim.interceptor';
-import { TimestampInterceptor } from './common/interceptors/timestamp.interceptor';
 import { ResponseEnvelopeInterceptor } from './common/interceptors/response-envelope.interceptor';
 import { SecurityHeadersInterceptor } from './common/interceptors/security-headers.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -146,14 +145,13 @@ async function bootstrap() {
   // 2. LoggingInterceptor: adds X-Correlation-Id + structured request logging
   // 3. TransformInterceptor: adds X-Response-Time header
   // 4. FieldTrimInterceptor: removes null/undefined fields to save bandwidth
-  // 5. TimestampInterceptor: adds `ts` field for cache validation (no envelope)
-  // 6. ResponseEnvelopeInterceptor: wraps response in { success, data, timestamp } envelope
+  // 5. ResponseEnvelopeInterceptor: wraps response in { success, data, timestamp } envelope
+  //    (provides timestamp — no separate TimestampInterceptor needed)
   app.useGlobalInterceptors(
     new SecurityHeadersInterceptor(),
     new LoggingInterceptor(loggerService, alertingService),
     new TransformInterceptor(),
     new FieldTrimInterceptor(),
-    new TimestampInterceptor(),
     new ResponseEnvelopeInterceptor(),
   );
 
@@ -197,12 +195,26 @@ async function bootstrap() {
     );
   }
 
-  // Graceful shutdown on SIGTERM (e.g. Kubernetes pod termination, docker stop)
-  process.on('SIGTERM', async () => {
-    loggerService.log('SIGTERM received — shutting down gracefully...', 'Bootstrap');
-    await app.close();
+  // Graceful shutdown with timeout — ensures Prisma disconnects,
+  // WebSocket connections close, and in-flight requests complete
+  // before the process exits. Prevents data corruption on restarts.
+  const gracefulShutdown = async (signal: string) => {
+    loggerService.log(`${signal} received — shutting down gracefully...`, 'Bootstrap');
+    const timeout = setTimeout(() => {
+      loggerService.error('Forced shutdown after 10s timeout', 'Bootstrap');
+      process.exit(1);
+    }, 10000);
+    try {
+      await app.close();
+    } catch (err) {
+      loggerService.error('Error during shutdown', (err as Error).message, 'Bootstrap');
+    }
+    clearTimeout(timeout);
     loggerService.log('Application shut down complete', 'Bootstrap');
     process.exit(0);
-  });
+  };
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }
 bootstrap();

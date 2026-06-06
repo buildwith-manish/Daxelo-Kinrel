@@ -66,3 +66,6 @@ services:
         value: "false"
       - key: LOG_LEVEL
         value: info
+      # ── Migrations (run on deploy via docker-entrypoint.sh) ──
+      - key: RUN_MIGRATIONS
+        value: "true"

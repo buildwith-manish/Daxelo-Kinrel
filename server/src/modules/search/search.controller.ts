@@ -1,9 +1,11 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SearchService } from './search.service';
 import { SearchQueryDto } from './dto/search-query.dto';
 
+@ApiTags('Search')
 @Controller('search')
 @UseGuards(JwtAuthGuard)
 export class SearchController {

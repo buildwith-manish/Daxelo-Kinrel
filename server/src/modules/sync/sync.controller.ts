@@ -1,4 +1,5 @@
 import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus, Logger } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SyncService } from './sync.service';
@@ -14,6 +15,7 @@ import { SyncQueryDto } from './dto/sync-query.dto';
  * Returns all data modified after the `since` timestamp,
  * enabling offline-capable clients to stay in sync.
  */
+@ApiTags('Sync')
 @Controller('sync')
 @UseGuards(JwtAuthGuard)
 export class SyncController {

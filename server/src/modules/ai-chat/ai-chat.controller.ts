@@ -11,11 +11,13 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AiChatService } from './ai-chat.service';
 import { AiChatMessageDto } from './dto/ai-chat-message.dto';
 
+@ApiTags('AI Chat')
 @Controller('v1/ai-chat')
 @UseGuards(JwtAuthGuard)
 export class AiChatController {

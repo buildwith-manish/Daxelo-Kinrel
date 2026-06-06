@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { NotificationsV2Service } from './notifications-v2.service';
@@ -16,6 +17,7 @@ import { UpdatePreferenceDto } from './dto/update-preference.dto';
 
 // ── Controller ─────────────────────────────────────────────────────────
 
+@ApiTags('Notifications V2')
 @Controller('notifications/v2')
 @UseGuards(JwtAuthGuard)
 export class NotificationsV2Controller {

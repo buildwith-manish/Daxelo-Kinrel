@@ -1,7 +1,9 @@
 import { Controller, Get, Post, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TimelineService } from './timeline.service';
 
+@ApiTags('Timeline')
 @Controller('families/:familyId/timeline')
 @UseGuards(JwtAuthGuard)
 export class TimelineController {

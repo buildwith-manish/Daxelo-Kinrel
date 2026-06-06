@@ -10,10 +10,12 @@ import {
   HttpStatus,
   BadRequestException,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { ShareService } from './share.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
+@ApiTags('Share')
 @Controller('share')
 export class ShareController {
   constructor(private readonly shareService: ShareService) {}

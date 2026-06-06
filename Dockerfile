@@ -55,6 +55,10 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/package*.json ./
 
+# Copy the entrypoint script from repo root
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
+
 # Create writable directories and set ownership
 RUN mkdir -p logs && chown -R appuser:appgroup /app
 
@@ -68,5 +72,5 @@ EXPOSE ${APP_PORT}
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-${APP_PORT}}/api/health || exit 1
 
-# Start the application
-CMD ["node", "dist/main"]
+# Start the application via entrypoint (runs Prisma migrations first)
+CMD ["./docker-entrypoint.sh"]
