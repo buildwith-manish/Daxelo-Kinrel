@@ -111,10 +111,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _initialize();
 
-    // Safety timeout: force navigate after 8 seconds even if init hasn't completed.
+    // Safety timeout: force navigate after 3 seconds even if init hasn't completed.
     // This prevents the user from being stuck on splash forever.
+    // 3s limit stays under Android's 5s ANR threshold.
     unawaited(
-      Future.delayed(const Duration(seconds: 8), () async {
+      Future.delayed(const Duration(seconds: 3), () async {
         try {
           if (mounted && !_navigated) {
             debugPrint('⚠️ Splash safety timeout triggered — forcing navigation');

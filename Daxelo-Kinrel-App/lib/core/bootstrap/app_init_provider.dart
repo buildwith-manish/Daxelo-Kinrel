@@ -41,14 +41,14 @@ class AppInitNotifier extends AsyncNotifier<void> {
     // ── 1. Initialize Drift database ────────────────────────────────
     try {
       await AppDatabaseService.initialize()
-          .timeout(const Duration(seconds: 5));
-      debugPrint('✅ Drift database initialized');
+          .timeout(const Duration(seconds: 3));
+      if (kDebugMode) debugPrint('✅ Drift database initialized');
     } catch (e) {
-      debugPrint('⚠️ Drift database initialization failed or timed out: $e');
+      if (kDebugMode) debugPrint('⚠️ Drift database initialization failed or timed out: $e');
     }
 
     // ── 2. Environment variables loaded at compile time ─────────────
-    debugPrint('✅ Environment variables from compile-time --dart-define');
+    if (kDebugMode) debugPrint('✅ Environment variables from compile-time --dart-define');
 
     // ── 3. Initialize Firebase ──────────────────────────────────────
     // Safety net: Firebase was initialized in main() before onBackgroundMessage().
@@ -57,20 +57,20 @@ class AppInitNotifier extends AsyncNotifier<void> {
       if (Firebase.apps.isEmpty) {
         await Firebase.initializeApp(
           options: DefaultFirebaseOptions.currentPlatform,
-        ).timeout(const Duration(seconds: 5));
-        debugPrint('✅ Firebase initialized (safety net)');
+        ).timeout(const Duration(seconds: 3));
+        if (kDebugMode) debugPrint('✅ Firebase initialized (safety net)');
       } else {
-        debugPrint('✅ Firebase already initialized from main()');
+        if (kDebugMode) debugPrint('✅ Firebase already initialized from main()');
       }
     } catch (e) {
-      debugPrint('⚠️ Firebase initialization failed or timed out: $e');
+      if (kDebugMode) debugPrint('⚠️ Firebase initialization failed or timed out: $e');
     }
 
     // ── 4. Initialize Crashlytics ───────────────────────────────────
     try {
       await initCrashlytics();
     } catch (e) {
-      debugPrint('⚠️ Crashlytics initialization failed: $e');
+      if (kDebugMode) debugPrint('⚠️ Crashlytics initialization failed: $e');
     }
 
     // ── 5. Register FCM background handler ──────────────────────────
@@ -78,28 +78,28 @@ class AppInitNotifier extends AsyncNotifier<void> {
     try {
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     } catch (e) {
-      debugPrint('⚠️ FCM background handler registration failed: $e');
+      if (kDebugMode) debugPrint('⚠️ FCM background handler registration failed: $e');
     }
 
     // ── 6. Initialize Supabase ──────────────────────────────────────
     bool supabaseReady = false;
     try {
-      supabaseReady = await initSupabase().timeout(const Duration(seconds: 5));
-      debugPrint(
+      supabaseReady = await initSupabase().timeout(const Duration(seconds: 3));
+      if (kDebugMode) debugPrint(
         '🔧 Supabase initialized: $supabaseReady (kAuthDisabled=$kAuthDisabled)',
       );
     } catch (e) {
-      debugPrint('⚠️ Supabase init failed or timed out: $e');
+      if (kDebugMode) debugPrint('⚠️ Supabase init failed or timed out: $e');
     }
 
     // ── 6b. Notify Riverpod that Supabase is ready ──────────────────
     try {
       notifySupabaseReady(ref);
-      debugPrint(
+      if (kDebugMode) debugPrint(
         '🔧 Notified Riverpod: Supabase ready = $supabaseReady',
       );
     } catch (e) {
-      debugPrint('⚠️ Failed to notify Supabase ready state: $e');
+      if (kDebugMode) debugPrint('⚠️ Failed to notify Supabase ready state: $e');
     }
 
     // ── Log environment info for crash context ──────────────────────
@@ -112,11 +112,11 @@ class AppInitNotifier extends AsyncNotifier<void> {
     } catch (_) {}
 
     // ── Debug: log resolved AppConfig values ────────────────────────
-    debugPrint('🔧 AppConfig SUPABASE_URL: ${AppConfig.supabaseUrl}');
-    debugPrint(
+    if (kDebugMode) debugPrint('🔧 AppConfig SUPABASE_URL: ${AppConfig.supabaseUrl}');
+    if (kDebugMode) debugPrint(
       '🔧 AppConfig SUPABASE_ANON_KEY: ${AppConfig.supabaseAnonKey.isNotEmpty ? "SET (length: ${AppConfig.supabaseAnonKey.length})" : "EMPTY"}',
     );
-    debugPrint(
+    if (kDebugMode) debugPrint(
       '🔧 AppConfig isSupabaseConfigured: ${AppConfig.isSupabaseConfigured}',
     );
   }

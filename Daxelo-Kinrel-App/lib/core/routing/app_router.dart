@@ -315,6 +315,16 @@ Set<String> _visitedRoutes = {};
 DateTime? _lastRedirectTime;
 const Duration _redirectCooldown = Duration(milliseconds: 500);
 
+/// Hard redirect count limit — absolute safety against infinite recursion.
+/// GoRouter has NO built-in redirect limit. If the redirect callback
+/// returns non-null that triggers another redirect, it recurses
+/// synchronously on the main thread. After _maxRedirects evaluations
+/// within _redirectWindow, all redirects are blocked.
+int _redirectCount = 0;
+DateTime? _redirectWindowStart;
+const int _maxRedirects = 10;
+const Duration _redirectWindow = Duration(seconds: 5);
+
 /// Handle GoRouter redirect logic safely.
 ///
 /// CRITICAL RULES to avoid ANR and blank screen:
@@ -329,9 +339,29 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
 
   // ── Time-based cooldown ──────────────────────────────────────────
   final now = DateTime.now();
+
+  // ── Hard redirect count limit ─────────────────────────────────────
+  // If we've exceeded _maxRedirects within _redirectWindow, block ALL
+  // redirects. This is the absolute safety net against infinite
+  // synchronous recursion that causes ANR.
+  if (_redirectWindowStart != null &&
+      now.difference(_redirectWindowStart!) < _redirectWindow) {
+    _redirectCount++;
+    if (_redirectCount > _maxRedirects) {
+      if (kDebugMode) debugPrint('⚠️ Redirect hard limit exceeded ($_redirectCount in ${now.difference(_redirectWindowStart!).inMilliseconds}ms) — blocking redirect at $currentLocation');
+      _visitedRoutes.clear();
+      _lastRedirectTime = null;
+      return null;
+    }
+  } else {
+    // Reset the window
+    _redirectWindowStart = now;
+    _redirectCount = 1;
+  }
+
   if (_lastRedirectTime != null &&
       now.difference(_lastRedirectTime!) < _redirectCooldown) {
-    debugPrint('⚠️ Redirect cooldown active — breaking potential loop at $currentLocation');
+    if (kDebugMode) debugPrint('⚠️ Redirect cooldown active — breaking potential loop at $currentLocation');
     _visitedRoutes.clear();
     _lastRedirectTime = null;
     return null;
@@ -340,7 +370,7 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
   // ── Visited-set loop detection ───────────────────────────────────
   // If we've already visited this route in the current chain, we're in a loop
   if (_visitedRoutes.contains(currentLocation)) {
-    debugPrint('⚠️ Redirect loop detected: $currentLocation already visited in chain. Breaking loop.');
+    if (kDebugMode) debugPrint('⚠️ Redirect loop detected: $currentLocation already visited in chain. Breaking loop.');
     _visitedRoutes.clear();
     _lastRedirectTime = null;
     return null;
@@ -406,7 +436,7 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
             Supabase.instance.client.auth.currentSession != null;
         if (hasDirectSession) {
           isAuthenticated = true;
-          debugPrint('🔄 Redirect: Using direct Supabase session (Riverpod lag)');
+          if (kDebugMode) debugPrint('🔄 Redirect: Using direct Supabase session (Riverpod lag)');
         }
       } catch (_) {}
     }
@@ -563,7 +593,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         // If ANYTHING goes wrong in redirect logic, allow navigation.
         // A potentially wrong screen is better than a blank screen from
         // an unhandled redirect exception.
-        debugPrint('⚠️ Router redirect error, allowing navigation: $e');
+        if (kDebugMode) debugPrint('⚠️ Router redirect error, allowing navigation: $e');
         _visitedRoutes.clear();
         _lastRedirectTime = null;
         return null;
