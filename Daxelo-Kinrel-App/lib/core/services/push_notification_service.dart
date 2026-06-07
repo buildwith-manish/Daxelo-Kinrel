@@ -149,10 +149,15 @@ class PushNotificationService {
   /// Steps:
   /// 1. Request notification permissions
   /// 2. Register background message handler
-  /// 3. Get FCM token and sync to backend
-  /// 4. Set up foreground message listener
-  /// 5. Set up background/terminated tap handlers
-  /// 6. Listen for token refresh
+  /// 3. Set up foreground/background/terminated message handlers
+  /// 4. Listen for token refresh (fire-and-forget token acquisition)
+  ///
+  /// ANR FIX: getToken() is now fire-and-forget instead of awaited.
+  /// The native Firebase SDK's blockingGetToken() uses CountDownLatch.await()
+  /// which blocks the Android platform thread. A Dart .timeout() CANNOT
+  /// interrupt a native blocking call. By making token acquisition
+  /// fire-and-forget and relying on onTokenRefresh for backend sync,
+  /// we prevent the platform thread from being blocked during startup.
   Future<void> initialize() async {
     if (_initialized) return;
 
@@ -189,19 +194,27 @@ class PushNotificationService {
         }
       };
 
-      // 4. Get FCM token and sync to backend
-      await _acquireAndSyncToken();
-
-      // 5. Handle notification taps for all 3 app states
+      // 4. Handle notification taps for all 3 app states
+      //    Set these up BEFORE acquiring the token so taps aren't missed.
       _setupForegroundHandler();
       _setupBackgroundTapHandler();
-      await _setupTerminatedTapHandler();
+      _setupTerminatedTapHandlerFireAndForget();
 
-      // 6. Listen for token refresh
+      // 5. Listen for token refresh FIRST — this ensures we sync the token
+      //    to the backend whenever it arrives (even from the fire-and-forget
+      //    _acquireToken call below or from a native refresh).
       _setupTokenRefreshListener();
 
+      // 6. Acquire FCM token FIRE-AND-FORGET — do NOT await.
+      //    The native blockingGetToken() blocks the platform thread,
+      //    and a Dart .timeout() cannot interrupt it. By not awaiting,
+      //    we let the token arrive asynchronously and rely on
+      //    onTokenRefresh + the fire-and-forget _syncTokenToBackend
+      //    to sync it to the backend when ready.
+      _acquireTokenFireAndForget();
+
       _initialized = true;
-      debugPrint('✅ PushNotificationService initialized');
+      debugPrint('✅ PushNotificationService initialized (token acquisition deferred)');
       logActionBreadcrumb('push_notification_init_complete', {
         'hasToken': _currentToken != null,
       });
@@ -263,7 +276,49 @@ class PushNotificationService {
 
   // ── FCM Token Management ───────────────────────────────────────
 
+  /// Acquire FCM token FIRE-AND-FORGET — does NOT block the caller.
+  ///
+  /// ANR FIX: _messaging.getToken() calls the native Android SDK's
+  /// blockingGetToken() which uses CountDownLatch.await(). This blocks
+  /// the platform thread and cannot be interrupted by Dart .timeout().
+  /// By making this fire-and-forget, we prevent ANR during startup.
+  ///
+  /// The token will be synced to the backend via onTokenRefresh listener
+  /// or directly in this method when it resolves.
+  void _acquireTokenFireAndForget() {
+    // Check connectivity first (advisory only)
+    Connectivity().checkConnectivity().then((connectivityResult) {
+      final hasConnection = connectivityResult.any(
+        (c) => c != ConnectivityResult.none,
+      );
+      if (!hasConnection) {
+        debugPrint('⚠️ No connectivity — skipping FCM token acquisition');
+        return;
+      }
+
+      // Fire-and-forget: don't await getToken()
+      _messaging.getToken().then((token) {
+        if (token != null && token.isNotEmpty) {
+          _currentToken = token;
+          debugPrint('📬 FCM token acquired (async): ${token.substring(0, 20)}...');
+          // Sync to backend fire-and-forget
+          _syncTokenToBackend(token).catchError((e) {
+            debugPrint('⚠️ FCM token sync failed (async): $e');
+          });
+        } else {
+          debugPrint('⚠️ FCM token is null or empty (async)');
+        }
+      }).catchError((e) {
+        debugPrint('⚠️ FCM getToken failed (async): $e');
+        logError(e, StackTrace.current, reason: 'FCM getToken failed (fire-and-forget)');
+      });
+    }).catchError((e) {
+      debugPrint('⚠️ Connectivity check failed: $e');
+    });
+  }
+
   /// Acquire FCM token and sync it to the NestJS backend.
+  /// Used by resyncToken() for manual re-sync (not during startup).
   Future<void> _acquireAndSyncToken() async {
     try {
       // Check connectivity before attempting
@@ -458,6 +513,32 @@ class PushNotificationService {
     }
   }
 
+  /// Fire-and-forget version of terminated tap handler.
+  /// ANR FIX: getInitialMessage() can also block the platform thread
+  /// on some devices. By making it fire-and-forget, we don't block
+  /// the initialization sequence.
+  void _setupTerminatedTapHandlerFireAndForget() {
+    _messaging.getInitialMessage().then((initialMessage) {
+      if (initialMessage != null) {
+        debugPrint(
+          '📬 [TERMINATED→FG] Notification tapped: ${initialMessage.messageId}',
+        );
+        final deepLink = resolveDeepLink(initialMessage.data);
+        if (deepLink != null) {
+          _handleDeepLink(deepLink);
+        }
+
+        logActionBreadcrumb('fcm_terminated_tap', {
+          'messageId': initialMessage.messageId ?? 'unknown',
+          'type': initialMessage.data['type'] ?? 'unknown',
+          'deepLink': deepLink ?? 'none',
+        });
+      }
+    }).catchError((e) {
+      debugPrint('⚠️ getInitialMessage failed (async): $e');
+    });
+  }
+
   // ── Deep Link Navigation ───────────────────────────────────────
 
   /// Handle deep link navigation from a notification tap.
@@ -495,20 +576,19 @@ class PushNotificationService {
   /// Call this when the user signs out to prevent notifications
   /// from being delivered to a device where the user is no longer
   /// authenticated.
+  ///
+  /// ANR FIX: Made fire-and-forget to prevent blockingGetToken-style
+  /// ANR on the native side. deleteToken() also uses CountDownLatch
+  /// internally and can block the platform thread.
   Future<void> deleteToken() async {
-    try {
-      await _messaging.deleteToken().timeout(
-        const Duration(seconds: 5),
-        onTimeout: () {
-          debugPrint('⚠️ FCM deleteToken timed out');
-        },
-      );
-      _currentToken = null;
+    _currentToken = null;
+    // Fire-and-forget — don't await the native call
+    _messaging.deleteToken().then((_) {
       debugPrint('📬 FCM token deleted');
       logActionBreadcrumb('fcm_token_deleted');
-    } catch (e, st) {
-      logError(e, st, reason: 'Failed to delete FCM token');
-    }
+    }).catchError((e) {
+      debugPrint('⚠️ FCM deleteToken failed (async): $e');
+    });
   }
 
   // ── Cleanup ────────────────────────────────────────────────────

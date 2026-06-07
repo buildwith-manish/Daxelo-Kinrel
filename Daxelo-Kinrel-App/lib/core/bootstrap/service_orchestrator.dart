@@ -38,10 +38,13 @@ import '../../features/profile/data/profile_provider.dart';
 
 /// Handle sign-out operations (fire-and-forget).
 /// Called from the auth state listener — MUST NOT throw.
-Future<void> _handleSignOut(dynamic ref) async {
+/// ANR FIX: deleteToken() is now fire-and-forget to prevent
+/// native CountDownLatch blocking the platform thread.
+void _handleSignOut(dynamic ref) {
   try {
     final pushService = ref.read(pushNotificationServiceProvider);
-    await pushService.deleteToken().timeout(const Duration(seconds: 5));
+    // Fire-and-forget — don't await deleteToken()
+    pushService.deleteToken();
   } catch (_) {}
 }
 
@@ -137,34 +140,55 @@ class ServiceOrchestrator {
         }),
       );
 
-      // 4. Initialize Push Notifications if authenticated
-      try {
-        final client = ref.read(supabaseProvider);
-        if (client != null && client.auth.currentSession != null) {
-          final pushService = ref.read(pushNotificationServiceProvider);
-          pushService.onDeepLink = (route) {
-            try {
-              final router = ref.read(routerProvider);
-              router.push(route);
-            } catch (e) {
-              debugPrint('⚠️ Push notification deep link failed: $e');
+      // 4. Initialize Push Notifications (5s delay, fire-and-forget)
+      // ANR FIX: Deferred with 5s delay so it doesn't block startup.
+      // The initialize() method now uses fire-and-forget for getToken()
+      // which prevents native blockingGetToken() from causing ANR.
+      unawaited(
+        Future.delayed(const Duration(seconds: 5), () async {
+          try {
+            final client = ref.read(supabaseProvider);
+            if (client != null && client.auth.currentSession != null) {
+              final pushService = ref.read(pushNotificationServiceProvider);
+              pushService.onDeepLink = (route) {
+                try {
+                  final router = ref.read(routerProvider);
+                  router.push(route);
+                } catch (e) {
+                  debugPrint('⚠️ Push notification deep link failed: $e');
+                }
+              };
+              await pushService.initialize()
+                  .timeout(const Duration(seconds: 8), onTimeout: () {
+                debugPrint('⚠️ PushNotificationService init timed out');
+              });
+              debugPrint('📬 PushNotificationService initialized (deferred)');
+            } else if (kAuthDisabled) {
+              // Initialize even without session when auth is disabled
+              final pushService = ref.read(pushNotificationServiceProvider);
+              pushService.onDeepLink = (route) {
+                try {
+                  final router = ref.read(routerProvider);
+                  router.push(route);
+                } catch (e) {
+                  debugPrint('⚠️ Push notification deep link failed: $e');
+                }
+              };
+              await pushService.initialize()
+                  .timeout(const Duration(seconds: 8), onTimeout: () {
+                debugPrint('⚠️ PushNotificationService init timed out');
+              });
+              debugPrint('📬 PushNotificationService initialized (deferred, auth disabled)');
+            } else {
+              debugPrint(
+                '⏭️ PushNotificationService skipped — no auth session',
+              );
             }
-          };
-          await pushService.initialize()
-              .timeout(const Duration(seconds: 5), onTimeout: () {
-            debugPrint('⚠️ PushNotificationService init timed out');
-          });
-          debugPrint('📬 PushNotificationService initialized');
-        } else {
-          debugPrint(
-            '⏭️ PushNotificationService skipped — no auth session',
-          );
-        }
-      } catch (e) {
-        debugPrint('⚠️ PushNotificationService init failed: $e');
-      }
-
-      await _yield(); // ANR fix: yield after push init
+          } catch (e) {
+            debugPrint('⚠️ PushNotificationService init failed: $e');
+          }
+        }),
+      );
 
       // 5. Preload bottom nav tabs (3s delay)
       unawaited(
