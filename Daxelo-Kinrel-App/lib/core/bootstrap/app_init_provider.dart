@@ -68,11 +68,19 @@ class AppInitNotifier extends AsyncNotifier<void> {
     debugPrint('✅ Environment variables from compile-time --dart-define');
 
     // ── 4. Initialize Firebase ──────────────────────────────────────
+    // ANR FIX: Firebase is now pre-initialized in main() before
+    // FirebaseMessaging.onBackgroundMessage() is called. This block
+    // is kept as a safety net for cases where main() init failed,
+    // but guards against double-initialization with Firebase.apps.isEmpty.
     try {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      ).timeout(const Duration(seconds: 5));
-      debugPrint('✅ Firebase initialized successfully');
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        ).timeout(const Duration(seconds: 5));
+        debugPrint('✅ Firebase initialized in AppInitNotifier');
+      } else {
+        debugPrint('✅ Firebase already initialized (from main.dart) — skipping duplicate init');
+      }
     } catch (e) {
       debugPrint('⚠️ Firebase initialization failed or timed out: $e');
     }
