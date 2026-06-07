@@ -243,10 +243,10 @@ class PushNotificationService {
             lockScreen: AppleNotificationSetting.disabled,
             notificationCenter: AppleNotificationSetting.disabled,
             showPreviews: AppleShowPreviewSetting.never,
-            showSubtitles: AppleNotificationSetting.disabled,
             sound: AppleNotificationSetting.disabled,
             timeSensitive: AppleNotificationSetting.disabled,
             criticalAlert: AppleNotificationSetting.disabled,
+            providesAppNotificationSettings: AppleNotificationSetting.disabled,
           );
         },
       );

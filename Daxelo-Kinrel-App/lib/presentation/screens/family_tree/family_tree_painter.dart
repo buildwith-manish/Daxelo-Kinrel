@@ -219,7 +219,7 @@ class FamilyTreePainter extends CustomPainter {
         radius + (5.0 * i),
         Paint()
           ..color = accent.withOpacity(glowStrength * i * 0.5)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0 * i),
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 6.0 * i),
       );
     }
 

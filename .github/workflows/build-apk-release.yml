@@ -143,8 +143,7 @@ jobs:
 
       # ── Code analysis ────────────────────────────────────────────
       - name: Analyze Dart code
-        run: cd ${{ env.FLUTTER_DIR }} && flutter analyze --no-fatal-warnings
-        continue-on-error: true
+        run: cd ${{ env.FLUTTER_DIR }} && flutter analyze --no-fatal-warnings --no-fatal-infos
 
       # ── Build signed release APK ─────────────────────────────────
       # Credentials injected via --dart-define (compile-time constants).

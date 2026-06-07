@@ -23,10 +23,10 @@ jobs:
   health-check:
     name: Post-deploy health check
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       HEALTH_URL: 'https://daxelo-kinrel-server.onrender.com/api/health'
-      MAX_RETRIES: '5'
+      MAX_RETRIES: '20'
       RETRY_DELAY: '30'
 
     steps:
