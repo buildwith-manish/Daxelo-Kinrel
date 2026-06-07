@@ -48,15 +48,20 @@ class AppInitNotifier extends AsyncNotifier<void> {
 
   /// Initialize core services that MUST complete before the app
   /// can function (Drift, Firebase, Supabase, etc.).
+  ///
+  /// ANR FIX: Every single step is followed by `_yield()` to let the
+  /// Android message queue process pending touch/lifecycle events.
+  /// All timeouts are capped at 3s so total init never exceeds the
+  /// 4s splash timeout (which is under Android's 5s ANR threshold).
   Future<void> _startCoreServices() async {
     final sw = Stopwatch()..start();
     try {
     await _yield(); // ANR fix: yield before first heavy operation
 
-    // ── 2. Initialize Drift database ────────────────────────────────
+    // ── 1. Initialize Drift database ────────────────────────────────
     try {
       await AppDatabaseService.initialize()
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 3));
       debugPrint('✅ Drift database initialized');
     } catch (e) {
       debugPrint('⚠️ Drift database initialization failed or timed out: $e');
@@ -64,10 +69,12 @@ class AppInitNotifier extends AsyncNotifier<void> {
 
     await _yield(); // ANR fix: yield after Drift init
 
-    // ── 3. Environment variables loaded at compile time ─────────────
+    // ── 2. Environment variables loaded at compile time ─────────────
     debugPrint('✅ Environment variables from compile-time --dart-define');
 
-    // ── 4. Initialize Firebase ──────────────────────────────────────
+    await _yield(); // ANR fix: yield between steps
+
+    // ── 3. Initialize Firebase ──────────────────────────────────────
     // ANR FIX: Firebase is now pre-initialized in main() before
     // FirebaseMessaging.onBackgroundMessage() is called. This block
     // is kept as a safety net for cases where main() init failed,
@@ -76,7 +83,7 @@ class AppInitNotifier extends AsyncNotifier<void> {
       if (Firebase.apps.isEmpty) {
         await Firebase.initializeApp(
           options: DefaultFirebaseOptions.currentPlatform,
-        ).timeout(const Duration(seconds: 5));
+        ).timeout(const Duration(seconds: 3));
         debugPrint('✅ Firebase initialized in AppInitNotifier');
       } else {
         debugPrint('✅ Firebase already initialized (from main.dart) — skipping duplicate init');
@@ -87,25 +94,25 @@ class AppInitNotifier extends AsyncNotifier<void> {
 
     await _yield(); // ANR fix: yield after Firebase init
 
-    // ── 5. Initialize Crashlytics ───────────────────────────────────
+    // ── 4. Initialize Crashlytics ───────────────────────────────────
     try {
       await initCrashlytics();
     } catch (e) {
       debugPrint('⚠️ Crashlytics initialization failed: $e');
     }
 
-    // ── 6. FCM background handler already registered in main.dart ──
+    await _yield(); // ANR fix: yield after Crashlytics init
+
+    // ── 5. FCM background handler already registered in main.dart ──
     // FirebaseMessaging.onBackgroundMessage() must be called before
     // runApp() per Firebase docs — moved to main.dart top-level.
 
     await _yield(); // ANR fix: yield after FCM setup
-    await _yield(); // ANR fix: extra yield after FCM setup
-    await _yield(); // ANR fix: extra yield after FCM setup
 
-    // ── 7. Initialize Supabase ──────────────────────────────────────
+    // ── 6. Initialize Supabase ──────────────────────────────────────
     bool supabaseReady = false;
     try {
-      supabaseReady = await initSupabase().timeout(const Duration(seconds: 5));
+      supabaseReady = await initSupabase().timeout(const Duration(seconds: 3));
       debugPrint(
         '🔧 Supabase initialized: $supabaseReady (kAuthDisabled=$kAuthDisabled)',
       );
@@ -115,7 +122,7 @@ class AppInitNotifier extends AsyncNotifier<void> {
 
     await _yield(); // ANR fix: yield after Supabase init
 
-    // ── 7b. Notify Riverpod that Supabase is ready ──────────────────
+    // ── 6b. Notify Riverpod that Supabase is ready ──────────────────
     // Use ref directly — no need for _globalContainer since we're
     // inside a Riverpod provider.
     try {
@@ -127,7 +134,9 @@ class AppInitNotifier extends AsyncNotifier<void> {
       debugPrint('⚠️ Failed to notify Supabase ready state: $e');
     }
 
-    // ── Log environment info for crash context ──────────────────────
+    await _yield(); // ANR fix: yield after Supabase notify
+
+    // ── 7. Log environment info for crash context ──────────────────
     try {
       logNavigationBreadcrumb('/splash');
       logActionBreadcrumb('app_start', {
@@ -136,7 +145,9 @@ class AppInitNotifier extends AsyncNotifier<void> {
       });
     } catch (_) {}
 
-    // ── Debug: log resolved AppConfig values ────────────────────────
+    await _yield(); // ANR fix: yield after logging
+
+    // ── 8. Debug: log resolved AppConfig values ────────────────────
     debugPrint('🔧 AppConfig SUPABASE_URL: ${AppConfig.supabaseUrl}');
     debugPrint(
       '🔧 AppConfig SUPABASE_ANON_KEY: ${AppConfig.supabaseAnonKey.isNotEmpty ? "SET (length: ${AppConfig.supabaseAnonKey.length})" : "EMPTY"}',

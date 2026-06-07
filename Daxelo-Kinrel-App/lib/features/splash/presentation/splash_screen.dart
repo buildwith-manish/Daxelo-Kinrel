@@ -114,7 +114,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // Safety timeout: force navigate after 8 seconds even if init hasn't completed.
     // This prevents the user from being stuck on splash forever.
     unawaited(
-      Future.delayed(const Duration(seconds: 8), () async {
+      Future.delayed(const Duration(seconds: 6), () async {
         try {
           if (mounted && !_navigated) {
             debugPrint('⚠️ Splash safety timeout triggered — forcing navigation');
@@ -205,9 +205,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // checking auth state, otherwise we'll always navigate to sign-in.
     try {
       await ref.read(appInitProvider.future).timeout(
-        const Duration(seconds: 10),
+        const Duration(seconds: 4),
         onTimeout: () {
-          debugPrint('⚠️ Splash: background init timed out after 10s — proceeding anyway');
+          debugPrint('⚠️ Splash: background init timed out after 4s — proceeding anyway');
         },
       );
       debugPrint('📦 Splash: background initialization complete');
