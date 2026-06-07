@@ -27,7 +27,7 @@ jobs:
     env:
       HEALTH_URL: 'https://daxelo-kinrel-server.onrender.com/api/health'
       MAX_RETRIES: '20'
-      RETRY_DELAY: '30'
+      RETRY_DELAY: '15'
 
     steps:
       - name: Post-deploy health check
@@ -41,7 +41,7 @@ jobs:
             ATTEMPT=$((ATTEMPT + 1))
             echo "Attempt $ATTEMPT of $MAX_RETRIES..."
 
-            STATUS=$(curl -s -o /tmp/health-response.json -w "%{http_code}" "$HEALTH_URL" --max-time 15)
+            STATUS=$(curl -s -o /tmp/health-response.json -w "%{http_code}" "$HEALTH_URL" --max-time 30 --connect-timeout 10 || true)
 
             if [ "$STATUS" = "200" ]; then
               HEALTH_STATUS=$(python3 -c "
@@ -72,7 +72,7 @@ jobs:
                 cat /tmp/health-response.json 2>/dev/null
               fi
             else
-              echo "Warning: Received HTTP $STATUS"
+              echo "Warning: Received HTTP $STATUS (or timeout with empty response)"
             fi
 
             if [ "$ATTEMPT" -lt "$MAX_RETRIES" ]; then
