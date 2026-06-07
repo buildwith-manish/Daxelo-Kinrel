@@ -1,7 +1,6 @@
 import 'dart:async';
-
-import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,32 +9,22 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
-import '../../../core/database/app_database_service.dart';
-import '../../../core/kinship/kinship_provider.dart';
-import '../../../core/services/supabase_service.dart';
 import '../../../core/config/auth_config.dart';
-import '../../../core/bootstrap/app_init_provider.dart' show appInitProvider;
-
-/// Debug-only log. Eliminates __vfprintf/__sfvwrite overhead in release builds
-/// that causes ANR when the main thread blocks on I/O during startup.
-void _log(String msg) {
-  if (kDebugMode) debugPrint(msg);
-}
+import '../../../core/services/supabase_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────
 // KINREL Splash Screen — Animated K-Graph Experience
 //
-// Animation sequence (1.5–2.0 s total):
-//   Phase 1  0–300 ms    Radial glow fades in from center
-//   Phase 2  300–600 ms  Center "You" node scale-in + heartbeat glow
-//   Phase 3  600–900 ms  Edges draw outward → nodes appear
-//   Phase 4  900–1200 ms Orbit ring draws in + halo pulse
-//   Phase 5  1200–1500 ms "KINREL" fades up (gradient) + "BY DAXELO"
-//   Phase 6  1500–1800 ms Hold → fade out → navigate
+// ARCHITECTURE REWRITE: ZERO awaits in the splash screen.
 //
-// FAST STARTUP: Reads Isar cache instantly to determine if user
-// has a cached profile. If so, navigates to /home immediately
-// after the animation without waiting for full Supabase auth.
+// Navigation is driven by:
+//   1. ref.listen() on isAuthenticatedProvider — reactive redirect
+//      when auth state resolves (Supabase session restore, etc.)
+//   2. Fixed 2s timer — safety navigate regardless of init state
+//
+// Background services (Drift, Firebase, Supabase) initialize
+// independently via appInitProvider. The splash never reads or
+// awaits appInitProvider.
 // ─────────────────────────────────────────────────────────────────────
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -48,13 +37,12 @@ class SplashScreen extends ConsumerStatefulWidget {
 class _SplashScreenState extends ConsumerState<SplashScreen>
     with TickerProviderStateMixin {
   bool _navigated = false;
-  bool _initComplete = false;
-  bool _hasCachedProfile = false;
+  bool _animationComplete = false;
 
   // ── Animation Controllers ────────────────────────────────────────
   late final AnimationController _introController; // 1 500 ms – main sequence
   late final AnimationController
-  _breathingController; // 1 000 ms × 2 = 2 s cycle
+      _breathingController; // 1 000 ms × 2 = 2 s cycle
   late final AnimationController _fadeOutController; // 400 ms – screen exit
 
   // ── Phase Animations (derived from _introController) ─────────────
@@ -110,36 +98,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     // ── Kick off intro, then breathing if still waiting ─────────────
     _introController.forward().then((_) {
-      if (!_initComplete && mounted) {
+      _animationComplete = true;
+      if (!_navigated && mounted) {
         _breathingController.repeat(reverse: true);
+        // Auth might have already resolved during animation — try navigate
+        _tryNavigate();
       }
     });
 
-    _initialize();
-
-    // Safety timeout: force navigate after 8 seconds even if init hasn't completed.
-    // This prevents the user from being stuck on splash forever.
-    unawaited(
-      Future.delayed(const Duration(seconds: 6), () async {
-        try {
-          if (mounted && !_navigated) {
-            _log('⚠️ Splash safety timeout triggered — forcing navigation');
-            _navigated = true;
-            try {
-              if (ref.read(isAuthenticatedProvider) || _hasCachedProfile || _supabaseHasSession()) {
-                context.go('/home');
-              } else {
-                context.go('/sign-in');
-              }
-            } catch (_) {
-              try { context.go('/sign-in'); } catch (_) {}
-            }
-          }
-        } catch (e) {
-          _log('⚠️ Splash safety timeout failed: $e');
-        }
-      }),
-    );
+    // ── Fixed 2s safety timer ───────────────────────────────────────
+    // Navigate after 2s regardless of whether init has completed.
+    // ZERO awaits — just a Timer.
+    Future.delayed(const Duration(seconds: 2), _onSafetyTimeout);
   }
 
   @override
@@ -151,207 +121,79 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // Initialization — runs in parallel with animation
+  // Navigation — driven by ref.listen() + 2s safety timer
   // ─────────────────────────────────────────────────────────────────
-  Future<void> _initialize() async {
-    // FAST STARTUP: Check Isar cache — await to prevent race condition
-    // where _hasCachedProfile is read before the async check completes.
-    await _checkIsarCache();
 
-    // ── AUTH DISABLED: Skip login screen, go directly to home ──
-    // When auth is disabled, we don't need Supabase at all for navigation.
-    // Just wait for the splash animation to finish, then go to /home.
-    if (kAuthDisabled) {
-      // Wait for the minimum splash animation duration
-      await Future.delayed(const Duration(milliseconds: 1500));
+  /// Safety timeout: force navigate after 2s even if auth hasn't resolved.
+  void _onSafetyTimeout() {
+    if (!mounted || _navigated) return;
+    _navigate();
+  }
 
-      if (!mounted || _navigated) return;
+  /// Try to navigate if both animation is complete AND we have auth state.
+  /// Called when either animation completes or auth state changes.
+  void _tryNavigate() {
+    // Only navigate after animation finishes (no jarring mid-animation jump)
+    if (!_animationComplete || _navigated || !mounted) return;
 
-      // Try to initialize Supabase in the background (non-blocking)
-      // If it succeeds, API calls will work; if not, the app still shows
+    // Read current auth state synchronously — no awaits
+    final isAuth = _isAuthenticated();
+    if (isAuth != null) {
+      // Auth state is resolved — navigate now
+      _navigate();
+    }
+    // If auth state is null (still loading), wait for either:
+    //   - ref.listen() callback when auth resolves
+    //   - 2s safety timeout
+  }
+
+  /// Check if user is authenticated. Returns null if auth state
+  /// hasn't resolved yet (Supabase still initializing).
+  bool? _isAuthenticated() {
+    // AUTH DISABLED: Always treat as authenticated
+    if (kAuthDisabled) return true;
+
+    // Try Riverpod auth state (may not be ready yet)
+    try {
+      final isAuth = ref.read(isAuthenticatedProvider);
+      return isAuth;
+    } catch (_) {}
+
+    // Try Supabase directly (bypasses Riverpod lag)
+    if (isSupabaseInitialized) {
       try {
-        await ref.read(appInitProvider.future).timeout(
-          const Duration(seconds: 3),
-          onTimeout: () {
-            _log('⚠️ Splash: background init timed out (auth disabled) — proceeding to home');
-          },
-        );
-      } catch (e) {
-        _log('⚠️ Splash: init error (auth disabled, continuing): $e');
-      }
-
-      _initComplete = true;
-      _breathingController.stop();
-      await _fadeOutController.forward();
-      if (!mounted || _navigated) return;
-      _navigated = true;
-      _log('🧭 Splash → /home (auth disabled — direct bypass)');
-      context.go('/home');
-      return;
+        final hasSession =
+            Supabase.instance.client.auth.currentSession != null;
+        return hasSession;
+      } catch (_) {}
     }
 
-    // Preload kinship data in the background (5 300+ terms, ~15 MB JSON)
-    // Delay kinship loading by 5 seconds so it doesn't compete
-    // with auth and UI initialization on the main thread
-    unawaited(
-      Future.delayed(const Duration(seconds: 5), () async {
-        try {
-          if (mounted) {
-            ref.read(kinshipInitializedProvider.future).catchError((_) {});
-          }
-        } catch (e) {
-          _log('⚠️ Kinship preload failed: $e');
-        }
-      }),
-    );
+    // Can't determine auth state yet — return null (still loading)
+    return null;
+  }
 
-    // ── Wait for background initialization to complete ──────────────
-    // Services (Drift, Firebase, Supabase) are now initialized in the
-    // background AFTER runApp(). We must wait for them to finish before
-    // checking auth state, otherwise we'll always navigate to sign-in.
-    try {
-      await ref.read(appInitProvider.future).timeout(
-        const Duration(seconds: 4),
-        onTimeout: () {
-          _log('⚠️ Splash: background init timed out after 4s — proceeding anyway');
-        },
-      );
-      _log('📦 Splash: background initialization complete');
-    } catch (e) {
-      _log('⚠️ Splash: error waiting for init: $e');
-    }
-
-    // Start Supabase session restoration in the background.
-    unawaited(_restoreSession());
-
-    // Shorter hold if we have cached data — user sees app faster
-    final holdMs = _hasCachedProfile ? 800 : 1500;
-    await Future.delayed(Duration(milliseconds: holdMs));
-
+  /// Perform the actual navigation. Called exactly once.
+  void _navigate() {
     if (!mounted || _navigated) return;
-
-    // Read navigation state from LOCAL sources only — don't block on network.
-    // If Supabase is already initialized, use its auth state; otherwise
-    // fall back to cached profile presence to decide where to go.
-    bool isAuthenticated = false;
-    try {
-      isAuthenticated = ref.read(isAuthenticatedProvider);
-      // Also check Supabase directly — the Riverpod provider may not have
-      // received the stream event yet, but the Supabase client already
-      // knows about the session.
-      if (!isAuthenticated && _supabaseHasSession()) {
-        isAuthenticated = true;
-        _log('📦 Supabase has session but Riverpod provider not updated yet — treating as authenticated');
-      }
-    } catch (e) {
-      _log('⚠️ Cannot read auth state, using cached profile: $e');
-      // Fallback: check Supabase directly
-      if (_supabaseHasSession()) {
-        isAuthenticated = true;
-      }
-    }
-
-    if (!mounted || _navigated) return;
-
-    // Signal complete — stop breathing
-    _initComplete = true;
+    _navigated = true;
     _breathingController.stop();
 
-    // Fade out the splash, then navigate
-    await _fadeOutController.forward();
+    final isAuth = _isAuthenticated();
 
-    if (!mounted || _navigated) return;
+    // Fade out, then navigate
+    _fadeOutController.forward().then((_) {
+      if (!mounted) return;
 
-    _navigated = true;
-
-    if (isAuthenticated || _hasCachedProfile) {
-      String? lastRoute;
-      try {
-        lastRoute = await getLastRoute();
-      } catch (_) {}
-      if (!mounted || _navigated) return;
-      // Only restore safe top-level routes — never deep/parameterized routes
-      // that need data to render. Parameterized routes like /family/abc123
-      // or /member/xyz can cause a black screen if the data hasn't loaded yet
-      // or the route fails silently, putting GoRouter in an undefined state.
-      if (lastRoute != null && lastRoute != '/splash' && mounted) {
-        final safeRoutes = ['/home', '/search', '/families', '/notifications', '/profile'];
-        if (safeRoutes.contains(lastRoute)) {
-          _log('🧭 Splash → $lastRoute (restored last route)');
-          context.go(lastRoute);
-          return;
-        }
-        _log('🧭 Splash: skipping unsafe route restore: $lastRoute');
-      }
-      _log('🧭 Splash → /home (authenticated: $isAuthenticated, cached: $_hasCachedProfile)');
-      context.go('/home');
-    } else {
-      _log('🧭 Splash → /sign-in (not authenticated, login required first)');
-      context.go('/sign-in');
-    }
-  }
-
-  /// Check Isar cache for a cached user profile.
-  /// If found, set _hasCachedProfile = true so we can navigate faster.
-  Future<void> _checkIsarCache() async {
-    if (!AppDatabaseService.isInitialized) {
-      _log('📦 Database not initialized — skipping cache check');
-      return;
-    }
-    try {
-      final db = AppDatabaseService.instance;
-      final profileCount = await db.profileCount();
-      if (profileCount > 0) {
-        _hasCachedProfile = true;
-        _log('📦 Drift cache: found $profileCount cached profile(s)');
+      if (isAuth == true) {
+        context.go('/home');
       } else {
-        _log('📦 Drift cache: no cached profiles');
+        // Default to sign-in when:
+        //   - Not authenticated
+        //   - Auth state couldn't be determined (null)
+        // GoRouter redirect will move user to /home if auth resolves later
+        context.go('/sign-in');
       }
-    } catch (e) {
-      _log('📦 Drift cache check failed: $e');
-      // Don't crash — just treat as no cache
-    }
-  }
-
-  /// Check if Supabase has an active session directly (bypasses Riverpod).
-  /// This is used as a fallback when the Riverpod authStateProvider
-  /// hasn't received the stream event yet but the Supabase client
-  /// already has a valid session after sign-in.
-  bool _supabaseHasSession() {
-    if (!isSupabaseInitialized) return false;
-    try {
-      final client = Supabase.instance.client;
-      return client.auth.currentSession != null;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// Restore Supabase session (important for app resume & cold starts).
-  /// This runs in the background (fire-and-forget) and should NOT block
-  /// splash screen navigation. If Supabase isn't initialized yet, skip.
-  Future<void> _restoreSession() async {
-    if (!isSupabaseInitialized) return;
-    try {
-      final client = Supabase.instance.client;
-      final session = client.auth.currentSession;
-      if (session != null) {
-        _log('📦 Existing session found for ${session.user.email}');
-        return;
-      }
-      // ANR FIX: Yield before waiting for auth stream to let the message queue process
-      await Future.delayed(Duration.zero);
-      // Wait for auth state to restore (reduced from 3s to 2s to prevent ANR)
-      try {
-        await client.auth.onAuthStateChange.first
-            .timeout(const Duration(seconds: 2));
-        _log('📦 Auth state restored');
-      } on TimeoutException {
-        _log('📦 Auth state restore timed out — proceeding with cached state');
-      }
-    } catch (e) {
-      _log('⚠️ Session restoration failed: $e');
-    }
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -359,6 +201,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   // ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    // ── Reactive auth listener ──────────────────────────────────────
+    // Drives navigation when auth state resolves. This is the PRIMARY
+    // navigation trigger — the 2s timer is just a safety fallback.
+    ref.listen(isAuthenticatedProvider, (prev, next) {
+      _tryNavigate();
+    });
+
     return Scaffold(
       backgroundColor: KinrelColors.darkSurface,
       body: KinrelAnimatedBuilder(

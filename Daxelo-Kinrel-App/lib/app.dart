@@ -2,11 +2,11 @@
 //
 // DAXELO KINREL — Root Application Widget
 //
-// ANR FIX: AppInitializer.initialize() is called fire-and-forget from
-// main.dart (no await, no blocking). The heavy service initialization
-// (appInitProvider, ServiceOrchestrator) runs from initState after
-// the first frame via addPostFrameCallback — same as the original
-// working code but with yields to prevent ANR.
+// ARCHITECTURE: main.dart does ONLY 4 things (ensureInitialized,
+// Firebase init, onBackgroundMessage, runApp). All other initialization
+// runs here via postFrameCallback → appInitProvider (background
+// bootstrap) + ServiceOrchestrator (deferred services). The splash
+// screen NEVER awaits any init — it navigates after 2s.
 
 import 'dart:async';
 
@@ -67,10 +67,10 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     // ── DEFERRED INIT: non-critical services after first frame ───
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
-        // Trigger core init provider (Drift, Firebase, Supabase)
-        // This will start async — splash screen watches appInitProvider
+        // Trigger background bootstrap (Drift, Firebase, Crashlytics, Supabase, etc.)
+        // Nobody awaits this — splash navigates after 2s regardless.
         ref.read(appInitProvider);
-        // Start deferred services (auth listener, connectivity, etc.)
+        // Start deferred services (auth listener, connectivity, sync, etc.)
         ServiceOrchestrator.startDeferredServices(ref);
       } catch (e) {
         debugPrint('🔴 ServiceOrchestrator start failed: $e');

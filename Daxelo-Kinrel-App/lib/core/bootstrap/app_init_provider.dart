@@ -1,22 +1,37 @@
 // lib/core/bootstrap/app_init_provider.dart
 //
-// DAXELO KINREL — App Initialization Provider
+// DAXELO KINREL — Background Bootstrap Provider
 //
-// Replaces global mutable state (_globalContainer, _appInitComplete,
-// _initCompleter) with a Riverpod AsyncNotifier that tracks
-// initialization state in a reactive, testable way.
+// ARCHITECTURE REWRITE: This provider runs ALL service initialization
+// in the background. The splash screen NEVER awaits this provider.
+// It is triggered by KinrelApp's postFrameCallback and runs
+// independently while the user sees the splash animation.
 //
-// ANR FIX: Added `await Future.delayed(Duration.zero)` yields between
-// each heavy init step to let the Android message queue process pending
-// touch/lifecycle events. Without these yields, the Dart isolate blocks
-// the native main thread → ANR.
+// Init order:
+//   1. AppEnvironmentConfig (compile-time env)
+//   2. SystemChrome (UI overlay + orientations)
+//   3. DeviceTierCache (screen classification)
+//   4. Drift database (local storage)
+//   5. Firebase safety net (if main() init failed)
+//   6. Crashlytics (error reporting)
+//   7. Supabase (auth + API)
+//   8. Crash context logging
+//   9. Desktop window setup
+//
+// Every step is followed by _yield() to let the Android message
+// queue process touch/lifecycle events. All logging uses _log()
+// which is gated by kDebugMode — zero overhead in release builds.
 
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../../firebase_options.dart';
 import '../config/app_config.dart';
@@ -24,152 +39,205 @@ import '../config/app_environment.dart';
 import '../config/auth_config.dart';
 import '../database/app_database_service.dart';
 import '../services/crashlytics_service.dart';
-import '../services/push_notification_service.dart';
 import '../services/supabase_service.dart';
 import '../utils/device_tier.dart';
 
-/// Yield to the Android message queue between heavy operations.
-/// Uses a 16ms delay (one frame) to let the native main thread process
-/// pending touch/lifecycle events. Duration.zero only yields to the Dart
-/// microtask queue, which isn't sufficient to prevent ANR on slow devices.
-Future<void> _yield() => Future.delayed(const Duration(milliseconds: 16));
-
-/// Debug-only log. Eliminates __vfprintf/__sfvwrite overhead in release builds
-/// that causes ANR when the main thread blocks on I/O during startup.
+/// Debug-only log. Zero overhead in release builds — kDebugMode is
+/// compile-time constant so the call is tree-shaken by dart2js/AOT.
 void _log(String msg) {
   if (kDebugMode) debugPrint(msg);
 }
 
-/// AsyncNotifier that performs core service initialization.
-///
-/// When first watched, it runs all heavy initialization (Drift, Firebase,
-/// Supabase, Crashlytics, FCM). The AsyncValue transitions from
-/// AsyncLoading → AsyncData when complete, allowing the splash screen
-/// to reactively await initialization.
+/// Yield to the Android message queue between heavy operations.
+/// 16ms = one frame — lets the native main thread process pending
+/// touch/lifecycle events. Duration.zero only yields to the Dart
+/// microtask queue, insufficient to prevent ANR on slow devices.
+Future<void> _yield() => Future.delayed(const Duration(milliseconds: 16));
+
+/// AsyncNotifier that performs ALL core service initialization.
+/// Nobody awaits this — it runs independently in the background.
+/// Triggered by `ref.read(appInitProvider)` in KinrelApp's
+/// postFrameCallback.
 class AppInitNotifier extends AsyncNotifier<void> {
   @override
   Future<void> build() async {
-    await _startCoreServices();
+    await _bootstrap();
   }
 
-  /// Initialize core services that MUST complete before the app
-  /// can function (Drift, Firebase, Supabase, etc.).
-  ///
-  /// ANR FIX: Every single step is followed by `_yield()` to let the
-  /// Android message queue process pending touch/lifecycle events.
-  /// All timeouts are capped at 3s so total init never exceeds the
-  /// 4s splash timeout (which is under Android's 5s ANR threshold).
-  Future<void> _startCoreServices() async {
+  /// Run all initialization steps with yields between each.
+  /// Total worst-case: ~3s (3s × Drift timeout) + ~3s (Supabase)
+  /// + 8×16ms yields ≈ 6.1s if everything times out.
+  /// Splash navigates after 2s regardless — services catch up later.
+  Future<void> _bootstrap() async {
     final sw = Stopwatch()..start();
     try {
-    await _yield(); // ANR fix: yield before first heavy operation
+      await _yield(); // Yield before first heavy operation
 
-    // ── 1. Initialize Drift database ────────────────────────────────
-    try {
-      await AppDatabaseService.initialize()
-          .timeout(const Duration(seconds: 3));
-      _log('✅ Drift database initialized');
-    } catch (e) {
-      _log('⚠️ Drift database initialization failed or timed out: $e');
-    }
-
-    await _yield(); // ANR fix: yield after Drift init
-
-    // ── 2. Environment variables loaded at compile time ─────────────
-    _log('✅ Environment variables from compile-time --dart-define');
-
-    await _yield(); // ANR fix: yield between steps
-
-    // ── 3. Initialize Firebase ──────────────────────────────────────
-    // ANR FIX: Firebase is now pre-initialized in main() before
-    // FirebaseMessaging.onBackgroundMessage() is called. This block
-    // is kept as a safety net for cases where main() init failed,
-    // but guards against double-initialization with Firebase.apps.isEmpty.
-    try {
-      if (Firebase.apps.isEmpty) {
-        await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
-        ).timeout(const Duration(seconds: 3));
-        _log('✅ Firebase initialized in AppInitNotifier');
-      } else {
-        _log('✅ Firebase already initialized (from main.dart) — skipping duplicate init');
+      // ── 1. Environment config ─────────────────────────────────────
+      try {
+        AppEnvironmentConfig.initialize();
+        _log('✅ AppEnvironmentConfig initialized');
+      } catch (e) {
+        _log('⚠️ AppEnvironmentConfig failed: $e');
       }
-    } catch (e) {
-      _log('⚠️ Firebase initialization failed or timed out: $e');
-    }
 
-    await _yield(); // ANR fix: yield after Firebase init
+      await _yield();
 
-    // ── 4. Initialize Crashlytics ───────────────────────────────────
-    try {
-      await initCrashlytics();
-    } catch (e) {
-      _log('⚠️ Crashlytics initialization failed: $e');
-    }
-
-    await _yield(); // ANR fix: yield after Crashlytics init
-
-    // ── 5. FCM background handler already registered in main.dart ──
-    // FirebaseMessaging.onBackgroundMessage() must be called before
-    // runApp() per Firebase docs — moved to main.dart top-level.
-
-    await _yield(); // ANR fix: yield after FCM setup
-
-    // ── 6. Initialize Supabase ──────────────────────────────────────
-    bool supabaseReady = false;
-    try {
-      supabaseReady = await initSupabase().timeout(const Duration(seconds: 3));
-      _log(
-        '🔧 Supabase initialized: $supabaseReady (kAuthDisabled=$kAuthDisabled)',
+      // ── 2. System Chrome overlay ──────────────────────────────────
+      SystemChrome.setSystemUIOverlayStyle(
+        const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+          systemNavigationBarColor: Color(0xFF121212),
+          systemNavigationBarIconBrightness: Brightness.light,
+        ),
       );
-    } catch (e) {
-      _log('⚠️ Supabase init failed or timed out: $e');
-    }
 
-    await _yield(); // ANR fix: yield after Supabase init
+      await _yield();
 
-    // ── 6b. Notify Riverpod that Supabase is ready ──────────────────
-    // Use ref directly — no need for _globalContainer since we're
-    // inside a Riverpod provider.
-    try {
-      notifySupabaseReady(ref);
+      // ── 3. Preferred orientations ─────────────────────────────────
+      try {
+        await SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+        ]).timeout(
+          const Duration(seconds: 2),
+          onTimeout: () {
+            _log('⚠️ setPreferredOrientations timed out');
+          },
+        );
+      } catch (_) {}
+
+      await _yield();
+
+      // ── 4. Device tier detection ──────────────────────────────────
+      try {
+        final binding = WidgetsBinding.instance;
+        final view = binding.platformDispatcher.views.first;
+        final physicalSize = view.physicalSize;
+        final pixelRatio = view.devicePixelRatio;
+        final screenWidth = physicalSize.width / pixelRatio;
+        DeviceTierCache.instance.initialize(screenWidth, pixelRatio);
+        _log('✅ Device tier: ${DeviceTierCache.instance.tier.name}');
+      } catch (e) {
+        _log('⚠️ Device tier detection failed: $e');
+      }
+
+      await _yield();
+
+      // ── 5. Drift database ─────────────────────────────────────────
+      try {
+        await AppDatabaseService.initialize()
+            .timeout(const Duration(seconds: 3));
+        _log('✅ Drift database initialized');
+      } catch (e) {
+        _log('⚠️ Drift database failed or timed out: $e');
+      }
+
+      await _yield();
+
+      // ── 6. Firebase safety net ────────────────────────────────────
+      // Firebase was initialized in main() before onBackgroundMessage().
+      // This is a safety net for cases where main() init failed.
+      try {
+        if (Firebase.apps.isEmpty) {
+          await Firebase.initializeApp(
+            options: DefaultFirebaseOptions.currentPlatform,
+          ).timeout(const Duration(seconds: 3));
+          _log('✅ Firebase initialized (safety net)');
+        } else {
+          _log('✅ Firebase already initialized from main()');
+        }
+      } catch (e) {
+        _log('⚠️ Firebase safety net failed: $e');
+      }
+
+      await _yield();
+
+      // ── 7. Crashlytics ────────────────────────────────────────────
+      try {
+        FlutterError.onError =
+            FirebaseCrashlytics.instance.recordFlutterFatalError;
+        PlatformDispatcher.instance.onError = (error, stack) {
+          FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+          return true;
+        };
+        await FirebaseCrashlytics.instance
+            .setCrashlyticsCollectionEnabled(!kDebugMode);
+        await initCrashlytics();
+        _log('✅ Crashlytics initialized');
+      } catch (e) {
+        _log('⚠️ Crashlytics failed: $e');
+      }
+
+      await _yield();
+
+      // ── 8. Supabase ───────────────────────────────────────────────
+      try {
+        final ready =
+            await initSupabase().timeout(const Duration(seconds: 3));
+        notifySupabaseReady(ref);
+        _log('🔧 Supabase initialized: $ready (kAuthDisabled=$kAuthDisabled)');
+      } catch (e) {
+        _log('⚠️ Supabase failed or timed out: $e');
+      }
+
+      await _yield();
+
+      // ── 9. Log crash context ──────────────────────────────────────
+      try {
+        logNavigationBreadcrumb('/splash');
+        logActionBreadcrumb('app_start', {
+          'env': AppEnvironmentConfig.current.label,
+          'device_tier': DeviceTierCache.instance.tier.name,
+        });
+      } catch (_) {}
+
+      await _yield();
+
+      // ── 10. AppConfig debug ───────────────────────────────────────
+      _log('🔧 AppConfig SUPABASE_URL: ${AppConfig.supabaseUrl}');
       _log(
-        '🔧 Notified Riverpod: Supabase ready = $supabaseReady',
+        '🔧 AppConfig SUPABASE_ANON_KEY: ${AppConfig.supabaseAnonKey.isNotEmpty ? "SET (length: ${AppConfig.supabaseAnonKey.length})" : "EMPTY"}',
       );
-    } catch (e) {
-      _log('⚠️ Failed to notify Supabase ready state: $e');
-    }
+      _log(
+        '🔧 AppConfig isSupabaseConfigured: ${AppConfig.isSupabaseConfigured}',
+      );
 
-    await _yield(); // ANR fix: yield after Supabase notify
+      await _yield();
 
-    // ── 7. Log environment info for crash context ──────────────────
-    try {
-      logNavigationBreadcrumb('/splash');
-      logActionBreadcrumb('app_start', {
-        'env': AppEnvironmentConfig.current.label,
-        'device_tier': DeviceTierCache.instance.tier.name,
-      });
-    } catch (_) {}
-
-    await _yield(); // ANR fix: yield after logging
-
-    // ── 8. Debug: log resolved AppConfig values ────────────────────
-    _log('🔧 AppConfig SUPABASE_URL: ${AppConfig.supabaseUrl}');
-    _log(
-      '🔧 AppConfig SUPABASE_ANON_KEY: ${AppConfig.supabaseAnonKey.isNotEmpty ? "SET (length: ${AppConfig.supabaseAnonKey.length})" : "EMPTY"}',
-    );
-    _log(
-      '🔧 AppConfig isSupabaseConfigured: ${AppConfig.isSupabaseConfigured}',
-    );
+      // ── 11. Desktop window setup ──────────────────────────────────
+      if (!kIsWeb &&
+          (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+        try {
+          await windowManager.ensureInitialized();
+          const windowOptions = WindowOptions(
+            size: Size(1280, 800),
+            minimumSize: Size(900, 600),
+            center: true,
+            title: 'Daxelo Kinrel',
+            titleBarStyle: TitleBarStyle.normal,
+          );
+          await windowManager.waitUntilReadyToShow(windowOptions, () async {
+            await windowManager.show();
+            await windowManager.focus();
+          });
+          _log('✅ Desktop window initialized');
+        } catch (e) {
+          _log('⚠️ Desktop window setup failed: $e');
+        }
+      }
     } finally {
       sw.stop();
-      _log('⏱️ _startCoreServices completed in ${sw.elapsedMilliseconds}ms');
+      _log('⏱️ Bootstrap completed in ${sw.elapsedMilliseconds}ms');
     }
   }
 }
 
-/// Provider that tracks core app initialization state.
-/// Watches this to know when services (Drift, Firebase, Supabase) are ready.
+/// Provider that tracks background service initialization.
+/// Splash does NOT depend on this — it navigates after 2s regardless.
+/// KinrelApp triggers this in postFrameCallback via ref.read(appInitProvider).
 final appInitProvider = AsyncNotifierProvider<AppInitNotifier, void>(
   AppInitNotifier.new,
 );
