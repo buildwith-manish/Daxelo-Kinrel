@@ -74,7 +74,7 @@ class AppInitializer {
 
     // ── 5. Detect Device Tier (CPU-bound, fast) ──────────────────────
     try {
-      final binding = WidgetsFlutterBinding.instance;
+      final binding = WidgetsBinding.instance;
       final view = binding.platformDispatcher.views.first;
       final physicalSize = view.physicalSize;
       final pixelRatio = view.devicePixelRatio;
