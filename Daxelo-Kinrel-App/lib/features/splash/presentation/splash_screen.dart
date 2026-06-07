@@ -11,6 +11,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/config/auth_config.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/widgets/global_error_widget.dart';
 
 // ─────────────────────────────────────────────────────────────────────
 // KINREL Splash Screen — Animated K-Graph Experience
