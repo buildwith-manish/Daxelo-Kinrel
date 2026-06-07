@@ -152,36 +152,26 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // where _hasCachedProfile is read before the async check completes.
     await _checkIsarCache();
 
-    // ── AUTH DISABLED: Skip login screen, but wait for Supabase init ──
-    // Supabase is now initialized even when kAuthDisabled=true.
-    // We skip the login screen but MUST wait for Supabase to initialize
-    // so the client is available for CRUD operations.
+    // ── AUTH DISABLED: Skip login screen, go directly to home ──
+    // When auth is disabled, we don't need Supabase at all for navigation.
+    // Just wait for the splash animation to finish, then go to /home.
     if (kAuthDisabled) {
-      // Wait for background initialization to complete (Supabase, etc.)
+      // Wait for the minimum splash animation duration
+      await Future.delayed(const Duration(milliseconds: 1500));
+
+      if (!mounted || _navigated) return;
+
+      // Try to initialize Supabase in the background (non-blocking)
+      // If it succeeds, API calls will work; if not, the app still shows
       try {
         await ref.read(appInitProvider.future).timeout(
-          const Duration(seconds: 8),
+          const Duration(seconds: 3),
           onTimeout: () {
-            debugPrint('⚠️ Splash: background init timed out — proceeding anyway (auth disabled)');
+            debugPrint('⚠️ Splash: background init timed out (auth disabled) — proceeding to home');
           },
         );
-        debugPrint('📦 Splash: background initialization complete (auth disabled)');
       } catch (e) {
-        debugPrint('⚠️ Splash: error waiting for init: $e');
-      }
-
-      // Try to auto sign-in for debug mode to get a real Supabase session
-      try {
-        final signInResult = await autoSignInForDebug(ref).timeout(
-          const Duration(seconds: 8),
-          onTimeout: () {
-            debugPrint('⚠️ Splash: auto sign-in timed out');
-            return false;
-          },
-        );
-        debugPrint('🔧 Auto sign-in result: $signInResult (Supabase initialized: $isSupabaseInitialized)');
-      } catch (e) {
-        debugPrint('⚠️ Auto sign-in failed: $e');
+        debugPrint('⚠️ Splash: init error (auth disabled, continuing): $e');
       }
 
       _initComplete = true;
@@ -189,7 +179,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       await _fadeOutController.forward();
       if (!mounted || _navigated) return;
       _navigated = true;
-      debugPrint('🧭 Splash → /home (auth disabled — development mode, Supabase initialized: $isSupabaseInitialized)');
+      debugPrint('🧭 Splash → /home (auth disabled — direct bypass)');
       context.go('/home');
       return;
     }
