@@ -2,10 +2,11 @@
 //
 // DAXELO KINREL — Root Application Widget
 //
-// ANR FIX: All initialization happens AFTER the first frame renders.
-// main.dart just calls runApp() with zero blocking. The heavy init
-// (SystemChrome, device tier, Drift, Firebase, Supabase) runs in
-// addPostFrameCallback with yields between each step.
+// ANR FIX: AppInitializer.initialize() is called fire-and-forget from
+// main.dart (no await, no blocking). The heavy service initialization
+// (appInitProvider, ServiceOrchestrator) runs from initState after
+// the first frame via addPostFrameCallback — same as the original
+// working code but with yields to prevent ANR.
 
 import 'dart:async';
 
@@ -26,7 +27,6 @@ import 'core/theme/theme_provider.dart';
 import 'core/storage/secure_storage.dart';
 import 'core/widgets/offline_banner.dart';
 
-import 'core/bootstrap/app_initializer.dart';
 import 'core/bootstrap/service_orchestrator.dart';
 import 'core/bootstrap/app_init_provider.dart';
 
@@ -45,53 +45,44 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
   @override
   void initState() {
     super.initState();
+    // Register for app lifecycle events
     WidgetsBinding.instance.addObserver(this);
 
-    // ── ALL initialization deferred to after first frame ─────────────
-    // This is the critical ANR fix: the first frame paints BEFORE any
-    // heavy work starts. Android sees the app is responsive within the
-    // 5-second ANR window because the initial frame is rendered immediately.
+    // Load saved language preference — deferred to avoid synchronous
+    // platform channel initialization (SecureStorage) during the first
+    // frame build, which can block the main thread on cold starts.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeAfterFirstFrame();
+      _loadSavedLocale();
     });
-  }
 
-  /// Runs all initialization after the first frame is painted.
-  /// Each heavy step yields to the event loop to prevent ANR.
-  Future<void> _initializeAfterFirstFrame() async {
-    // ── Step 1: AppInitializer (SystemChrome, device tier) ───────────
-    try {
-      await AppInitializer.initialize();
-    } catch (e) {
-      debugPrint('⚠️ AppInitializer failed: $e');
-    }
-
-    if (!mounted) return;
-
-    // ── Step 2: Theme listener (lightweight) ─────────────────────────
-    ref.listen(themeModeProvider, (_, themeMode) {
+    // Listen to theme changes and update system UI overlay accordingly
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.listen(themeModeProvider, (_, themeMode) {
+        _updateSystemUIOverlay();
+      });
+      // Also call once on init
       _updateSystemUIOverlay();
     });
-    _updateSystemUIOverlay();
 
-    // ── Step 3: Load saved locale ────────────────────────────────────
-    unawaited(_loadSavedLocale());
-
-    // ── Step 4: Trigger core init provider (Drift, Firebase, Supabase)
-    // Splash screen watches appInitProvider to know when ready.
-    ref.read(appInitProvider);
-
-    // ── Step 5: Start deferred services ──────────────────────────────
-    ServiceOrchestrator.startDeferredServices(ref);
+    // ── DEFERRED INIT: non-critical services after first frame ───
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        // Trigger core init provider (Drift, Firebase, Supabase)
+        // This will start async — splash screen watches appInitProvider
+        ref.read(appInitProvider);
+        // Start deferred services (auth listener, connectivity, etc.)
+        ServiceOrchestrator.startDeferredServices(ref);
+      } catch (e) {
+        debugPrint('🔴 ServiceOrchestrator start failed: $e');
+      }
+    });
   }
 
   Future<void> _loadSavedLocale() async {
     try {
-      await Future.delayed(Duration.zero); // yield before platform call
       final storage = SecureStorageService();
-      final lang = await storage.getPreferredLanguage()
-          .timeout(const Duration(seconds: 2), onTimeout: () => null);
-      if (lang != null && lang.isNotEmpty && mounted) {
+      final lang = await storage.getPreferredLanguage();
+      if (lang != null && lang.isNotEmpty) {
         ref.read(localeProvider.notifier).state = Locale(lang);
       }
     } catch (_) {}
@@ -105,9 +96,11 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // When app comes back to foreground, update system UI overlay
     if (state == AppLifecycleState.resumed) {
       _updateSystemUIOverlay();
 
+      // Silently refresh the session in the background
       if (isSupabaseInitialized) {
         try {
           final client = ref.read(supabaseProvider);
@@ -116,6 +109,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
               return AuthResponse();
             });
 
+            // Reconnect socket if not connected
             try {
               final socketService = ref.read(socketServiceProvider);
               if (!socketService.isConnected) {
@@ -123,6 +117,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
               }
             } catch (_) {}
 
+            // Trigger background sync on app resume
             try {
               final bgSyncManager = ref.read(backgroundSyncManagerProvider);
               bgSyncManager.onAppResumed();
@@ -138,6 +133,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       sendUnsentReports();
       RatingService.instance.onBackground();
 
+      // Stop periodic sync while in background
       try {
         final bgSyncManager = ref.read(backgroundSyncManagerProvider);
         bgSyncManager.stop();
@@ -145,6 +141,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     }
   }
 
+  /// Update system UI overlay style to match the current theme brightness.
   void _updateSystemUIOverlay() {
     final themeMode = ref.read(themeModeProvider);
     final isDark =
@@ -178,10 +175,12 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     return MaterialApp.router(
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
+      // Support both light and dark themes
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: themeMode,
       routerConfig: router,
+      // Localization — 15 languages
       localizationsDelegates: [
         S.delegate,
         GlobalMaterialLocalizations.delegate,

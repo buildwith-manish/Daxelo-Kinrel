@@ -2,12 +2,9 @@
 //
 // DAXELO KINREL — App Initializer
 //
-// ANR FIX: This is now called AFTER runApp() renders the first frame,
-// from inside KinrelApp.initState(). Zero blocking work happens before
-// the first frame is painted.
-//
-// Previous approach: await initialize() → runApp() (blocked main thread → ANR)
-// New approach: runApp() → first frame painted → initialize() in background
+// Called fire-and-forget from main.dart (no await, no blocking).
+// Sets up SystemChrome, device tier, and other lightweight config
+// that doesn't block the first frame.
 
 import 'dart:io' show Platform;
 
@@ -23,9 +20,8 @@ import 'error_handler.dart';
 class AppInitializer {
   static bool _initialized = false;
 
-  /// Perform initialization AFTER the first frame has rendered.
-  /// Called from KinrelApp.initState() via addPostFrameCallback.
-  /// Each step yields to the event loop to prevent ANR.
+  /// Perform lightweight initialization.
+  /// Called fire-and-forget from main.dart — does NOT block the main thread.
   static Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
@@ -37,13 +33,10 @@ class AppInitializer {
       debugPrint('⚠️ AppEnvironmentConfig.initialize failed: $e');
     }
 
-    // Yield to let Android process pending messages
-    await Future.delayed(Duration.zero);
-
     // ── 2. Set up global error handlers ───────────────────────────────
     ErrorHandler.setup();
 
-    // ── 3. Set system UI overlay (fire-and-forget, non-blocking) ─────
+    // ── 3. Set system UI overlay (fire-and-forget) ────────────────────
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -53,9 +46,6 @@ class AppInitializer {
         systemNavigationBarIconBrightness: Brightness.light,
       ),
     );
-
-    // Yield again
-    await Future.delayed(Duration.zero);
 
     // ── 4. Set preferred orientations (with timeout) ──────────────────
     try {
@@ -69,9 +59,6 @@ class AppInitializer {
         },
       );
     } catch (_) {}
-
-    // Yield
-    await Future.delayed(Duration.zero);
 
     // ── 5. Detect Device Tier (CPU-bound, fast) ──────────────────────
     try {
@@ -105,7 +92,5 @@ class AppInitializer {
         debugPrint('⚠️ Desktop window setup failed: $e');
       }
     }
-
-    debugPrint('✅ AppInitializer.initialize() complete');
   }
 }
