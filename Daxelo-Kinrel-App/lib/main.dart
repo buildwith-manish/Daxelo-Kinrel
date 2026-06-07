@@ -2,15 +2,17 @@
 //
 // DAXELO KINREL — Application Entry Point
 //
-// This file is intentionally minimal (~20 lines). All initialization
-// logic lives in core/bootstrap/, and the app widget lives in app.dart.
-// See CQ-01 (split main.dart) for the rationale.
+// ANR FIX: No blocking work before runApp(). All initialization
+// happens AFTER the first frame renders inside the widget tree.
 
 import 'package:flutter/material.dart';
 import 'app.dart';
-import 'core/bootstrap/app_initializer.dart';
 
-void main() async {
-  await AppInitializer.initialize();
+void main() {
+  // Ensure Flutter bindings — fast, non-blocking.
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Render immediately. All heavy init happens in initState after
+  // the first frame is painted, preventing the 5-second ANR.
   runApp(const KinrelApp());
 }

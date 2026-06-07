@@ -2,9 +2,12 @@
 //
 // DAXELO KINREL — App Initializer
 //
-// Quick, non-blocking setup that MUST happen before runApp().
-// Heavy service initialization (Drift, Firebase, Supabase) is
-// handled by ServiceOrchestrator after the first frame renders.
+// ANR FIX: This is now called AFTER runApp() renders the first frame,
+// from inside KinrelApp.initState(). Zero blocking work happens before
+// the first frame is painted.
+//
+// Previous approach: await initialize() → runApp() (blocked main thread → ANR)
+// New approach: runApp() → first frame painted → initialize() in background
 
 import 'dart:io' show Platform;
 
@@ -18,16 +21,14 @@ import '../utils/device_tier.dart';
 import 'error_handler.dart';
 
 class AppInitializer {
-  /// Perform quick initialization before runApp().
-  /// This MUST be fast — the user sees a black screen until runApp() is called.
-  static Future<void> initialize() async {
-    // ── CRITICAL: Ensure Flutter binding BEFORE any async work ────────
-    WidgetsFlutterBinding.ensureInitialized();
+  static bool _initialized = false;
 
-    // ── Yield to the event loop to prevent ANR ───────────────────────
-    // The Android main thread needs to process pending messages (touch
-    // events, lifecycle callbacks) before we start heavy work.
-    await Future.delayed(Duration.zero);
+  /// Perform initialization AFTER the first frame has rendered.
+  /// Called from KinrelApp.initState() via addPostFrameCallback.
+  /// Each step yields to the event loop to prevent ANR.
+  static Future<void> initialize() async {
+    if (_initialized) return;
+    _initialized = true;
 
     // ── 1. Initialize environment (CPU-bound, fast) ──────────────────
     try {
@@ -36,12 +37,13 @@ class AppInitializer {
       debugPrint('⚠️ AppEnvironmentConfig.initialize failed: $e');
     }
 
+    // Yield to let Android process pending messages
+    await Future.delayed(Duration.zero);
+
     // ── 2. Set up global error handlers ───────────────────────────────
     ErrorHandler.setup();
 
-    // ── 3. Set system UI overlay (non-blocking platform channel) ──────
-    // Use unawaited to prevent blocking the main isolate while the
-    // platform channel processes. The UI overlay will apply asynchronously.
+    // ── 3. Set system UI overlay (fire-and-forget, non-blocking) ─────
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -52,11 +54,10 @@ class AppInitializer {
       ),
     );
 
-    // ── Yield again before platform channel call ──────────────────────
+    // Yield again
     await Future.delayed(Duration.zero);
 
-    // ── 4. Set preferred orientations (platform channel — can block) ──
-    // Wrap in a timeout to prevent indefinite blocking on slow devices.
+    // ── 4. Set preferred orientations (with timeout) ──────────────────
     try {
       await SystemChrome.setPreferredOrientations([
         DeviceOrientation.portraitUp,
@@ -64,12 +65,12 @@ class AppInitializer {
       ]).timeout(
         const Duration(seconds: 2),
         onTimeout: () {
-          debugPrint('⚠️ setPreferredOrientations timed out — continuing');
+          debugPrint('⚠️ setPreferredOrientations timed out');
         },
       );
     } catch (_) {}
 
-    // ── Yield to event loop ──────────────────────────────────────────
+    // Yield
     await Future.delayed(Duration.zero);
 
     // ── 5. Detect Device Tier (CPU-bound, fast) ──────────────────────
@@ -104,5 +105,7 @@ class AppInitializer {
         debugPrint('⚠️ Desktop window setup failed: $e');
       }
     }
+
+    debugPrint('✅ AppInitializer.initialize() complete');
   }
 }
