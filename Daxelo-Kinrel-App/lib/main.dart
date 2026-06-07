@@ -14,6 +14,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'app.dart';
 import 'core/bootstrap/app_initializer.dart';
@@ -40,6 +41,18 @@ Future<void> main() async {
     // Likely already initialized (hot restart) — safe to continue.
     debugPrint('⚠️ Firebase pre-init in main() failed (may already be initialized): $e');
   }
+
+  // ── Firebase Crashlytics: enable automatic error collection ──
+  // Pass all uncaught Flutter errors to Crashlytics so they appear in
+  // the Firebase console. In debug/profile builds, collection is disabled
+  // to avoid noise during development.
+  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+  PlatformDispatcher.instance.onError = (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
+  // Disable Crashlytics collection in debug mode to keep the console clean.
+  await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(!kDebugMode);
 
   // Register FCM background handler AFTER Firebase is initialized.
   // Must be a top-level call per Firebase docs — not a class method or closure.
