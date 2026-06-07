@@ -24,7 +24,12 @@ class AppInitializer {
     // ── CRITICAL: Ensure Flutter binding BEFORE any async work ────────
     WidgetsFlutterBinding.ensureInitialized();
 
-    // ── 1. Initialize environment ────────────────────────────────────
+    // ── Yield to the event loop to prevent ANR ───────────────────────
+    // The Android main thread needs to process pending messages (touch
+    // events, lifecycle callbacks) before we start heavy work.
+    await Future.delayed(Duration.zero);
+
+    // ── 1. Initialize environment (CPU-bound, fast) ──────────────────
     try {
       AppEnvironmentConfig.initialize();
     } catch (e) {
@@ -34,27 +39,42 @@ class AppInitializer {
     // ── 2. Set up global error handlers ───────────────────────────────
     ErrorHandler.setup();
 
-    // ── 3. Set system UI overlay (fast, non-blocking) ────────────────
-    try {
-      SystemChrome.setSystemUIOverlayStyle(
-        SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-          systemNavigationBarColor: Color(0xFF121212),
-          systemNavigationBarIconBrightness: Brightness.light,
-        ),
-      );
+    // ── 3. Set system UI overlay (non-blocking platform channel) ──────
+    // Use unawaited to prevent blocking the main isolate while the
+    // platform channel processes. The UI overlay will apply asynchronously.
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+        systemNavigationBarColor: Color(0xFF121212),
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
+    );
 
+    // ── Yield again before platform channel call ──────────────────────
+    await Future.delayed(Duration.zero);
+
+    // ── 4. Set preferred orientations (platform channel — can block) ──
+    // Wrap in a timeout to prevent indefinite blocking on slow devices.
+    try {
       await SystemChrome.setPreferredOrientations([
         DeviceOrientation.portraitUp,
         DeviceOrientation.portraitDown,
-      ]);
+      ]).timeout(
+        const Duration(seconds: 2),
+        onTimeout: () {
+          debugPrint('⚠️ setPreferredOrientations timed out — continuing');
+        },
+      );
     } catch (_) {}
 
-    // ── 4. Detect Device Tier (fast) ─────────────────────────────────
+    // ── Yield to event loop ──────────────────────────────────────────
+    await Future.delayed(Duration.zero);
+
+    // ── 5. Detect Device Tier (CPU-bound, fast) ──────────────────────
     try {
-      final binding = WidgetsFlutterBinding.ensureInitialized();
+      final binding = WidgetsFlutterBinding.instance;
       final view = binding.platformDispatcher.views.first;
       final physicalSize = view.physicalSize;
       final pixelRatio = view.devicePixelRatio;
@@ -64,7 +84,7 @@ class AppInitializer {
       debugPrint('⚠️ Device tier detection failed: $e');
     }
 
-    // ── 5. Desktop window setup (only on desktop platforms) ──────────
+    // ── 6. Desktop window setup (only on desktop platforms) ──────────
     if (!kIsWeb &&
         (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
       try {

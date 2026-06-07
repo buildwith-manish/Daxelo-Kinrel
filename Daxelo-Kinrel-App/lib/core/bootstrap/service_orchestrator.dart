@@ -5,6 +5,11 @@
 // Manages deferred service initialization, auth state listeners,
 // and connectivity-triggered sync flushing. Called from the
 // KinrelApp widget's initState after the first frame renders.
+//
+// ANR FIX: Every heavy async operation is followed by
+// `await Future.delayed(Duration.zero)` to yield to the Android
+// message queue. Without these yields, Dart native code blocks
+// the main thread from processing touch/lifecycle events → ANR.
 
 import 'dart:async' show unawaited;
 
@@ -51,6 +56,11 @@ class ServiceOrchestrator {
     );
   }
 
+  /// Yield to the Android message queue between heavy operations.
+  /// This prevents ANR by letting the main thread process pending
+  /// touch events, lifecycle callbacks, and frame rendering.
+  static Future<void> _yield() => Future.delayed(Duration.zero);
+
   /// Async implementation of deferred service initialization.
   static Future<void> _initDeferredServicesAsync(dynamic ref) async {
     try {
@@ -58,6 +68,7 @@ class ServiceOrchestrator {
       try {
         final cacheService = LocalCacheService();
         await cacheService.init();
+        await _yield(); // ANR fix: yield after init
       } catch (e) {
         debugPrint('⚠️ LocalCacheService init failed: $e');
       }
@@ -85,6 +96,8 @@ class ServiceOrchestrator {
           _setupAuthStateListener(ref, client);
         }
       } catch (_) {}
+
+      await _yield(); // ANR fix: yield after auth setup
 
       // 2. Start the SyncEngine + BackgroundSyncManager (3s delay)
       unawaited(
@@ -135,7 +148,10 @@ class ServiceOrchestrator {
               debugPrint('⚠️ Push notification deep link failed: $e');
             }
           };
-          await pushService.initialize();
+          await pushService.initialize()
+              .timeout(const Duration(seconds: 5), onTimeout: () {
+            debugPrint('⚠️ PushNotificationService init timed out');
+          });
           debugPrint('📬 PushNotificationService initialized');
         } else {
           debugPrint(
@@ -145,6 +161,8 @@ class ServiceOrchestrator {
       } catch (e) {
         debugPrint('⚠️ PushNotificationService init failed: $e');
       }
+
+      await _yield(); // ANR fix: yield after push init
 
       // 5. Preload bottom nav tabs (3s delay)
       unawaited(
@@ -163,18 +181,28 @@ class ServiceOrchestrator {
 
       // ── Initialize Analytics Service ──────────────────────────────
       try {
-        await AnalyticsService.instance.init();
+        await AnalyticsService.instance.init()
+            .timeout(const Duration(seconds: 3), onTimeout: () {
+          debugPrint('⚠️ Analytics init timed out');
+        });
       } catch (e) {
         debugPrint('⚠️ Analytics init failed: $e');
       }
 
+      await _yield(); // ANR fix: yield after analytics
+
       // ── Initialize Remote Config Service ──────────────────────────
       try {
-        await RemoteConfigService.instance.init();
+        await RemoteConfigService.instance.init()
+            .timeout(const Duration(seconds: 3), onTimeout: () {
+          debugPrint('⚠️ Remote Config init timed out');
+        });
         debugPrint('✅ Remote Config initialized');
       } catch (e) {
         debugPrint('⚠️ Remote Config init failed, using defaults: $e');
       }
+
+      await _yield(); // ANR fix: yield after remote config
 
       // ── Record app open for retention tracking ────────────────────
       try {
@@ -186,6 +214,8 @@ class ServiceOrchestrator {
           await db.setSetting('last_open', DateTime.now().toIso8601String());
         }
       } catch (_) {}
+
+      await _yield(); // ANR fix: yield after DB write
 
       // ── Initialize Rating Service ─────────────────────────────────
       RatingService.instance.init();
@@ -235,8 +265,8 @@ class ServiceOrchestrator {
 
   /// Set up auth state change listener for crash context and sign-out handling.
   static void _setupAuthStateListener(dynamic ref, SupabaseClient client) {
-    AuthChangeEvent? _lastAuthEvent;
-    String? _lastAuthUserId;
+    AuthChangeEvent? lastAuthEvent;
+    String? lastAuthUserId;
 
     client.auth.onAuthStateChange.listen((data) {
       final event = data.event;
@@ -245,13 +275,13 @@ class ServiceOrchestrator {
       try {
         final userId = session?.user.id;
         if (event == AuthChangeEvent.signedIn &&
-            _lastAuthEvent == AuthChangeEvent.signedIn &&
-            _lastAuthUserId == userId) {
+            lastAuthEvent == AuthChangeEvent.signedIn &&
+            lastAuthUserId == userId) {
           debugPrint('⏭️ Auth listener: skipping duplicate signedIn event');
           return;
         }
-        _lastAuthEvent = event;
-        _lastAuthUserId = userId;
+        lastAuthEvent = event;
+        lastAuthUserId = userId;
 
         if (event == AuthChangeEvent.signedIn && session != null) {
           try {

@@ -5,6 +5,8 @@
 // Contains the KinrelApp ConsumerStatefulWidget and its state.
 // Moved from main.dart as part of CQ-01 (split main.dart).
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
@@ -43,14 +45,16 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     // Register for app lifecycle events
     WidgetsBinding.instance.addObserver(this);
 
-    // Load saved language preference — deferred to avoid synchronous
-    // platform channel initialization (SecureStorage) during the first
-    // frame build, which can block the main thread on cold starts.
+    // ── Stage 1: Load locale (after first frame, non-blocking) ────
+    // Uses Future.delayed to yield to the event loop first, preventing
+    // ANR from SecureStorage platform channel calls blocking the UI thread.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadSavedLocale();
+      Future.delayed(const Duration(milliseconds: 50), () {
+        if (mounted) _loadSavedLocale();
+      });
     });
 
-    // Listen to theme changes and update system UI overlay accordingly
+    // ── Stage 2: Theme listener (after first frame, lightweight) ──
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.listen(themeModeProvider, (_, themeMode) {
         _updateSystemUIOverlay();
@@ -59,25 +63,35 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       _updateSystemUIOverlay();
     });
 
-    // ── DEFERRED INIT: non-critical services after first frame ───
+    // ── Stage 3: Heavy init (deferred to avoid ANR) ───────────────
+    // Delays by 100ms to ensure the first frame has fully rendered and
+    // the Android message queue is drained. This prevents the ANR that
+    // occurs when Dart native code blocks the main thread during cold start.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      try {
-        // Trigger core init provider (Drift, Firebase, Supabase)
-        // This will start async — splash screen watches appInitProvider
-        ref.read(appInitProvider);
-        // Start deferred services (auth listener, connectivity, etc.)
-        ServiceOrchestrator.startDeferredServices(ref);
-      } catch (e) {
-        debugPrint('🔴 ServiceOrchestrator start failed: $e');
-      }
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (!mounted) return;
+        try {
+          // Trigger core init provider (Drift, Firebase, Supabase)
+          // This will start async — splash screen watches appInitProvider
+          ref.read(appInitProvider);
+          // Start deferred services (auth listener, connectivity, etc.)
+          ServiceOrchestrator.startDeferredServices(ref);
+        } catch (e) {
+          debugPrint('🔴 ServiceOrchestrator start failed: $e');
+        }
+      });
     });
   }
 
   Future<void> _loadSavedLocale() async {
     try {
       final storage = SecureStorageService();
-      final lang = await storage.getPreferredLanguage();
-      if (lang != null && lang.isNotEmpty) {
+      // Add a yield before the platform channel call to let the
+      // Android message queue process pending touch/lifecycle events.
+      await Future.delayed(Duration.zero);
+      final lang = await storage.getPreferredLanguage()
+          .timeout(const Duration(seconds: 2), onTimeout: () => null);
+      if (lang != null && lang.isNotEmpty && mounted) {
         ref.read(localeProvider.notifier).state = Locale(lang);
       }
     } catch (_) {}

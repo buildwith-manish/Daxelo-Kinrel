@@ -5,6 +5,11 @@
 // Replaces global mutable state (_globalContainer, _appInitComplete,
 // _initCompleter) with a Riverpod AsyncNotifier that tracks
 // initialization state in a reactive, testable way.
+//
+// ANR FIX: Added `await Future.delayed(Duration.zero)` yields between
+// each heavy init step to let the Android message queue process pending
+// touch/lifecycle events. Without these yields, the Dart isolate blocks
+// the native main thread → ANR.
 
 import 'dart:async';
 
@@ -22,6 +27,10 @@ import '../services/crashlytics_service.dart';
 import '../services/push_notification_service.dart';
 import '../services/supabase_service.dart';
 import '../utils/device_tier.dart';
+
+/// Yield to the Android message queue between heavy operations.
+/// Prevents ANR by letting the native main thread process pending events.
+Future<void> _yield() => Future.delayed(Duration.zero);
 
 /// AsyncNotifier that performs core service initialization.
 ///
@@ -47,6 +56,8 @@ class AppInitNotifier extends AsyncNotifier<void> {
       debugPrint('⚠️ Drift database initialization failed or timed out: $e');
     }
 
+    await _yield(); // ANR fix: yield after Drift init
+
     // ── 3. Environment variables loaded at compile time ─────────────
     debugPrint('✅ Environment variables from compile-time --dart-define');
 
@@ -59,6 +70,8 @@ class AppInitNotifier extends AsyncNotifier<void> {
     } catch (e) {
       debugPrint('⚠️ Firebase initialization failed or timed out: $e');
     }
+
+    await _yield(); // ANR fix: yield after Firebase init
 
     // ── 5. Initialize Crashlytics ───────────────────────────────────
     try {
@@ -74,6 +87,8 @@ class AppInitNotifier extends AsyncNotifier<void> {
       debugPrint('⚠️ FCM background handler registration failed: $e');
     }
 
+    await _yield(); // ANR fix: yield after FCM setup
+
     // ── 7. Initialize Supabase ──────────────────────────────────────
     bool supabaseReady = false;
     try {
@@ -84,6 +99,8 @@ class AppInitNotifier extends AsyncNotifier<void> {
     } catch (e) {
       debugPrint('⚠️ Supabase init failed or timed out: $e');
     }
+
+    await _yield(); // ANR fix: yield after Supabase init
 
     // ── 7b. Notify Riverpod that Supabase is ready ──────────────────
     // Use ref directly — no need for _globalContainer since we're
