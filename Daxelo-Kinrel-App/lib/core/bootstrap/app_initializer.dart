@@ -17,6 +17,12 @@ import '../config/app_environment.dart';
 import '../utils/device_tier.dart';
 import 'error_handler.dart';
 
+/// Debug-only log. Eliminates __vfprintf/__sfvwrite overhead in release builds
+/// that causes ANR when the main thread blocks on I/O during startup.
+void _log(String msg) {
+  if (kDebugMode) debugPrint(msg);
+}
+
 class AppInitializer {
   static bool _initialized = false;
 
@@ -30,7 +36,7 @@ class AppInitializer {
     try {
       AppEnvironmentConfig.initialize();
     } catch (e) {
-      debugPrint('⚠️ AppEnvironmentConfig.initialize failed: $e');
+      _log('⚠️ AppEnvironmentConfig.initialize failed: $e');
     }
 
     // ── 2. Set up global error handlers ───────────────────────────────
@@ -55,7 +61,7 @@ class AppInitializer {
       ]).timeout(
         const Duration(seconds: 2),
         onTimeout: () {
-          debugPrint('⚠️ setPreferredOrientations timed out');
+          _log('⚠️ setPreferredOrientations timed out');
         },
       );
     } catch (_) {}
@@ -69,7 +75,7 @@ class AppInitializer {
       final screenWidth = physicalSize.width / pixelRatio;
       DeviceTierCache.instance.initialize(screenWidth, pixelRatio);
     } catch (e) {
-      debugPrint('⚠️ Device tier detection failed: $e');
+      _log('⚠️ Device tier detection failed: $e');
     }
 
     // ── 6. Desktop window setup (only on desktop platforms) ──────────
@@ -89,7 +95,7 @@ class AppInitializer {
           await windowManager.focus();
         });
       } catch (e) {
-        debugPrint('⚠️ Desktop window setup failed: $e');
+        _log('⚠️ Desktop window setup failed: $e');
       }
     }
   }

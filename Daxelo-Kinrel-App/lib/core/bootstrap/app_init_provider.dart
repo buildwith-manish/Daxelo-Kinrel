@@ -34,6 +34,12 @@ import '../utils/device_tier.dart';
 /// microtask queue, which isn't sufficient to prevent ANR on slow devices.
 Future<void> _yield() => Future.delayed(const Duration(milliseconds: 16));
 
+/// Debug-only log. Eliminates __vfprintf/__sfvwrite overhead in release builds
+/// that causes ANR when the main thread blocks on I/O during startup.
+void _log(String msg) {
+  if (kDebugMode) debugPrint(msg);
+}
+
 /// AsyncNotifier that performs core service initialization.
 ///
 /// When first watched, it runs all heavy initialization (Drift, Firebase,
@@ -62,15 +68,15 @@ class AppInitNotifier extends AsyncNotifier<void> {
     try {
       await AppDatabaseService.initialize()
           .timeout(const Duration(seconds: 3));
-      debugPrint('✅ Drift database initialized');
+      _log('✅ Drift database initialized');
     } catch (e) {
-      debugPrint('⚠️ Drift database initialization failed or timed out: $e');
+      _log('⚠️ Drift database initialization failed or timed out: $e');
     }
 
     await _yield(); // ANR fix: yield after Drift init
 
     // ── 2. Environment variables loaded at compile time ─────────────
-    debugPrint('✅ Environment variables from compile-time --dart-define');
+    _log('✅ Environment variables from compile-time --dart-define');
 
     await _yield(); // ANR fix: yield between steps
 
@@ -84,12 +90,12 @@ class AppInitNotifier extends AsyncNotifier<void> {
         await Firebase.initializeApp(
           options: DefaultFirebaseOptions.currentPlatform,
         ).timeout(const Duration(seconds: 3));
-        debugPrint('✅ Firebase initialized in AppInitNotifier');
+        _log('✅ Firebase initialized in AppInitNotifier');
       } else {
-        debugPrint('✅ Firebase already initialized (from main.dart) — skipping duplicate init');
+        _log('✅ Firebase already initialized (from main.dart) — skipping duplicate init');
       }
     } catch (e) {
-      debugPrint('⚠️ Firebase initialization failed or timed out: $e');
+      _log('⚠️ Firebase initialization failed or timed out: $e');
     }
 
     await _yield(); // ANR fix: yield after Firebase init
@@ -98,7 +104,7 @@ class AppInitNotifier extends AsyncNotifier<void> {
     try {
       await initCrashlytics();
     } catch (e) {
-      debugPrint('⚠️ Crashlytics initialization failed: $e');
+      _log('⚠️ Crashlytics initialization failed: $e');
     }
 
     await _yield(); // ANR fix: yield after Crashlytics init
@@ -113,11 +119,11 @@ class AppInitNotifier extends AsyncNotifier<void> {
     bool supabaseReady = false;
     try {
       supabaseReady = await initSupabase().timeout(const Duration(seconds: 3));
-      debugPrint(
+      _log(
         '🔧 Supabase initialized: $supabaseReady (kAuthDisabled=$kAuthDisabled)',
       );
     } catch (e) {
-      debugPrint('⚠️ Supabase init failed or timed out: $e');
+      _log('⚠️ Supabase init failed or timed out: $e');
     }
 
     await _yield(); // ANR fix: yield after Supabase init
@@ -127,11 +133,11 @@ class AppInitNotifier extends AsyncNotifier<void> {
     // inside a Riverpod provider.
     try {
       notifySupabaseReady(ref);
-      debugPrint(
+      _log(
         '🔧 Notified Riverpod: Supabase ready = $supabaseReady',
       );
     } catch (e) {
-      debugPrint('⚠️ Failed to notify Supabase ready state: $e');
+      _log('⚠️ Failed to notify Supabase ready state: $e');
     }
 
     await _yield(); // ANR fix: yield after Supabase notify
@@ -148,16 +154,16 @@ class AppInitNotifier extends AsyncNotifier<void> {
     await _yield(); // ANR fix: yield after logging
 
     // ── 8. Debug: log resolved AppConfig values ────────────────────
-    debugPrint('🔧 AppConfig SUPABASE_URL: ${AppConfig.supabaseUrl}');
-    debugPrint(
+    _log('🔧 AppConfig SUPABASE_URL: ${AppConfig.supabaseUrl}');
+    _log(
       '🔧 AppConfig SUPABASE_ANON_KEY: ${AppConfig.supabaseAnonKey.isNotEmpty ? "SET (length: ${AppConfig.supabaseAnonKey.length})" : "EMPTY"}',
     );
-    debugPrint(
+    _log(
       '🔧 AppConfig isSupabaseConfigured: ${AppConfig.isSupabaseConfigured}',
     );
     } finally {
       sw.stop();
-      debugPrint('⏱️ _startCoreServices completed in ${sw.elapsedMilliseconds}ms');
+      _log('⏱️ _startCoreServices completed in ${sw.elapsedMilliseconds}ms');
     }
   }
 }

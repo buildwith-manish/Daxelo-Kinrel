@@ -16,6 +16,12 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/config/auth_config.dart';
 import '../../../core/bootstrap/app_init_provider.dart' show appInitProvider;
 
+/// Debug-only log. Eliminates __vfprintf/__sfvwrite overhead in release builds
+/// that causes ANR when the main thread blocks on I/O during startup.
+void _log(String msg) {
+  if (kDebugMode) debugPrint(msg);
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // KINREL Splash Screen — Animated K-Graph Experience
 //
@@ -117,7 +123,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       Future.delayed(const Duration(seconds: 6), () async {
         try {
           if (mounted && !_navigated) {
-            debugPrint('⚠️ Splash safety timeout triggered — forcing navigation');
+            _log('⚠️ Splash safety timeout triggered — forcing navigation');
             _navigated = true;
             try {
               if (ref.read(isAuthenticatedProvider) || _hasCachedProfile || _supabaseHasSession()) {
@@ -130,7 +136,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             }
           }
         } catch (e) {
-          debugPrint('⚠️ Splash safety timeout failed: $e');
+          _log('⚠️ Splash safety timeout failed: $e');
         }
       }),
     );
@@ -167,11 +173,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         await ref.read(appInitProvider.future).timeout(
           const Duration(seconds: 3),
           onTimeout: () {
-            debugPrint('⚠️ Splash: background init timed out (auth disabled) — proceeding to home');
+            _log('⚠️ Splash: background init timed out (auth disabled) — proceeding to home');
           },
         );
       } catch (e) {
-        debugPrint('⚠️ Splash: init error (auth disabled, continuing): $e');
+        _log('⚠️ Splash: init error (auth disabled, continuing): $e');
       }
 
       _initComplete = true;
@@ -179,7 +185,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       await _fadeOutController.forward();
       if (!mounted || _navigated) return;
       _navigated = true;
-      debugPrint('🧭 Splash → /home (auth disabled — direct bypass)');
+      _log('🧭 Splash → /home (auth disabled — direct bypass)');
       context.go('/home');
       return;
     }
@@ -194,7 +200,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             ref.read(kinshipInitializedProvider.future).catchError((_) {});
           }
         } catch (e) {
-          debugPrint('⚠️ Kinship preload failed: $e');
+          _log('⚠️ Kinship preload failed: $e');
         }
       }),
     );
@@ -207,12 +213,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       await ref.read(appInitProvider.future).timeout(
         const Duration(seconds: 4),
         onTimeout: () {
-          debugPrint('⚠️ Splash: background init timed out after 4s — proceeding anyway');
+          _log('⚠️ Splash: background init timed out after 4s — proceeding anyway');
         },
       );
-      debugPrint('📦 Splash: background initialization complete');
+      _log('📦 Splash: background initialization complete');
     } catch (e) {
-      debugPrint('⚠️ Splash: error waiting for init: $e');
+      _log('⚠️ Splash: error waiting for init: $e');
     }
 
     // Start Supabase session restoration in the background.
@@ -235,10 +241,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       // knows about the session.
       if (!isAuthenticated && _supabaseHasSession()) {
         isAuthenticated = true;
-        debugPrint('📦 Supabase has session but Riverpod provider not updated yet — treating as authenticated');
+        _log('📦 Supabase has session but Riverpod provider not updated yet — treating as authenticated');
       }
     } catch (e) {
-      debugPrint('⚠️ Cannot read auth state, using cached profile: $e');
+      _log('⚠️ Cannot read auth state, using cached profile: $e');
       // Fallback: check Supabase directly
       if (_supabaseHasSession()) {
         isAuthenticated = true;
@@ -271,16 +277,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       if (lastRoute != null && lastRoute != '/splash' && mounted) {
         final safeRoutes = ['/home', '/search', '/families', '/notifications', '/profile'];
         if (safeRoutes.contains(lastRoute)) {
-          debugPrint('🧭 Splash → $lastRoute (restored last route)');
+          _log('🧭 Splash → $lastRoute (restored last route)');
           context.go(lastRoute);
           return;
         }
-        debugPrint('🧭 Splash: skipping unsafe route restore: $lastRoute');
+        _log('🧭 Splash: skipping unsafe route restore: $lastRoute');
       }
-      debugPrint('🧭 Splash → /home (authenticated: $isAuthenticated, cached: $_hasCachedProfile)');
+      _log('🧭 Splash → /home (authenticated: $isAuthenticated, cached: $_hasCachedProfile)');
       context.go('/home');
     } else {
-      debugPrint('🧭 Splash → /sign-in (not authenticated, login required first)');
+      _log('🧭 Splash → /sign-in (not authenticated, login required first)');
       context.go('/sign-in');
     }
   }
@@ -289,7 +295,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   /// If found, set _hasCachedProfile = true so we can navigate faster.
   Future<void> _checkIsarCache() async {
     if (!AppDatabaseService.isInitialized) {
-      debugPrint('📦 Database not initialized — skipping cache check');
+      _log('📦 Database not initialized — skipping cache check');
       return;
     }
     try {
@@ -297,12 +303,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       final profileCount = await db.profileCount();
       if (profileCount > 0) {
         _hasCachedProfile = true;
-        debugPrint('📦 Drift cache: found $profileCount cached profile(s)');
+        _log('📦 Drift cache: found $profileCount cached profile(s)');
       } else {
-        debugPrint('📦 Drift cache: no cached profiles');
+        _log('📦 Drift cache: no cached profiles');
       }
     } catch (e) {
-      debugPrint('📦 Drift cache check failed: $e');
+      _log('📦 Drift cache check failed: $e');
       // Don't crash — just treat as no cache
     }
   }
@@ -330,7 +336,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       final client = Supabase.instance.client;
       final session = client.auth.currentSession;
       if (session != null) {
-        debugPrint('📦 Existing session found for ${session.user.email}');
+        _log('📦 Existing session found for ${session.user.email}');
         return;
       }
       // ANR FIX: Yield before waiting for auth stream to let the message queue process
@@ -339,12 +345,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       try {
         await client.auth.onAuthStateChange.first
             .timeout(const Duration(seconds: 2));
-        debugPrint('📦 Auth state restored');
+        _log('📦 Auth state restored');
       } on TimeoutException {
-        debugPrint('📦 Auth state restore timed out — proceeding with cached state');
+        _log('📦 Auth state restore timed out — proceeding with cached state');
       }
     } catch (e) {
-      debugPrint('⚠️ Session restoration failed: $e');
+      _log('⚠️ Session restoration failed: $e');
     }
   }
 

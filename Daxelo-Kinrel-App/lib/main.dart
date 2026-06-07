@@ -21,6 +21,12 @@ import 'core/bootstrap/app_initializer.dart';
 import 'core/services/push_notification_service.dart';
 import 'firebase_options.dart';
 
+/// Debug-only log. Eliminates __vfprintf/__sfvwrite overhead in release builds
+/// that causes ANR when the main thread blocks on I/O during startup.
+void _log(String msg) {
+  if (kDebugMode) debugPrint(msg);
+}
+
 Future<void> main() async {
   // Ensure Flutter bindings — must be first.
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,10 +42,10 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    debugPrint('✅ Firebase pre-initialized in main()');
+    _log('✅ Firebase pre-initialized in main()');
   } catch (e) {
     // Likely already initialized (hot restart) — safe to continue.
-    debugPrint('⚠️ Firebase pre-init in main() failed (may already be initialized): $e');
+    _log('⚠️ Firebase pre-init in main() failed (may already be initialized): $e');
   }
 
   // ── Firebase Crashlytics: enable automatic error collection ──
