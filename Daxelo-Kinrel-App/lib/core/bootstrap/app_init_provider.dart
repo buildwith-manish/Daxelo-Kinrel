@@ -84,14 +84,13 @@ class AppInitNotifier extends AsyncNotifier<void> {
       debugPrint('⚠️ Crashlytics initialization failed: $e');
     }
 
-    // ── 6. Register FCM background handler ──────────────────────────
-    try {
-      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    } catch (e) {
-      debugPrint('⚠️ FCM background handler registration failed: $e');
-    }
+    // ── 6. FCM background handler already registered in main.dart ──
+    // FirebaseMessaging.onBackgroundMessage() must be called before
+    // runApp() per Firebase docs — moved to main.dart top-level.
 
     await _yield(); // ANR fix: yield after FCM setup
+    await _yield(); // ANR fix: extra yield after FCM setup
+    await _yield(); // ANR fix: extra yield after FCM setup
 
     // ── 7. Initialize Supabase ──────────────────────────────────────
     bool supabaseReady = false;

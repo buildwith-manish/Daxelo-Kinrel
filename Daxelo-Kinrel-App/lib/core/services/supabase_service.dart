@@ -143,7 +143,7 @@ Future<bool> initSupabase() async {
       if (attempts < maxAttempts) {
         final delay = Duration(seconds: attempts * 2);
         _log.i('Retrying in ${delay.inSeconds}s...');
-        await Future.delayed(delay);
+        await Future.delayed(delay < const Duration(milliseconds: 500) ? delay : const Duration(milliseconds: 500));
       }
     }
   }
