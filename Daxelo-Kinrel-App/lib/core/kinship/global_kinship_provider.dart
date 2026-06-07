@@ -38,6 +38,8 @@ final selectedCultureProvider = StateProvider<String?>((ref) => null);
 final globalKinshipSearchQueryProvider = StateProvider<String>((ref) => '');
 
 /// Search across all loaded cultures
+/// NOTE: Only searches already-loaded cultures — does NOT trigger loadAllAvailable()
+/// to avoid ANR. Cultures are loaded lazily via cultureKinshipDataProvider.
 final globalKinshipSearchResultsProvider =
     FutureProvider<List<GlobalKinshipTerm>>((ref) async {
       final query = ref.watch(globalKinshipSearchQueryProvider);
@@ -45,9 +47,7 @@ final globalKinshipSearchResultsProvider =
 
       final service = ref.watch(globalKinshipServiceProvider);
 
-      // Ensure all available cultures are loaded before searching
-      await service.loadAllAvailable();
-
+      // Search only already-loaded cultures (lazy approach to avoid ANR)
       return service.searchGlobally(query);
     });
 
@@ -59,6 +59,7 @@ final cultureKinshipDataProvider =
     });
 
 /// Cross-cultural comparison for a specific relationship key
+/// Only compares across already-loaded cultures to avoid ANR from eager loading
 final crossCulturalComparisonProvider =
     FutureProvider.family<CrossCulturalComparison?, String>((
       ref,
@@ -66,27 +67,25 @@ final crossCulturalComparisonProvider =
     ) async {
       final service = ref.watch(globalKinshipServiceProvider);
 
-      // Ensure all available cultures are loaded
-      await service.loadAllAvailable();
-
+      // Compare only already-loaded cultures (avoid loading all at once)
       return service.compareCrossCulturally(relationshipKey);
     });
 
 /// Get common relationship keys across all loaded cultures
+/// Only checks already-loaded cultures to avoid ANR
 final commonRelationshipKeysProvider = FutureProvider<List<String>>((
   ref,
 ) async {
   final service = ref.watch(globalKinshipServiceProvider);
-  await service.loadAllAvailable();
   return service.getCommonRelationshipKeys();
 });
 
 /// Get comparable relationship keys (in at least 2 cultures)
+/// Only checks already-loaded cultures to avoid ANR
 final comparableRelationshipKeysProvider = FutureProvider<List<String>>((
   ref,
 ) async {
   final service = ref.watch(globalKinshipServiceProvider);
-  await service.loadAllAvailable();
   return service.getComparableRelationshipKeys();
 });
 

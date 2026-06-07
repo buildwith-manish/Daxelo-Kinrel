@@ -514,7 +514,7 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
     final list = response as List;
     // Data loaded successfully — clear any stale error
     ref.read(familyListErrorProvider.notifier).state = null;
-    if (list.length > 20) {
+    if (list.length > 5) {
       return compute(_parseFamilyList, list);
     }
     return list
@@ -668,7 +668,7 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
         .order('createdAt', ascending: true);
 
     final list = response as List;
-    if (list.length > 20) {
+    if (list.length > 5) {
       return compute(_parsePersonList, list);
     }
     return list
@@ -742,7 +742,7 @@ final familyRelationshipsProvider =
             .order('createdAt', ascending: true);
 
         final list = response as List;
-        if (list.length > 20) {
+        if (list.length > 5) {
           return compute(_parseRelationshipList, list);
         }
         return list
@@ -1789,7 +1789,7 @@ Future<Family> joinFamilyByCode(WidgetRef ref, String familyCode) async {
 // because Dart's compute() requires them for spawning isolates.
 
 /// Parse a list of JSON objects into [Family] objects.
-/// Used by [familyListProvider] via compute() for large lists (> 20 items).
+/// Used by [familyListProvider] via compute() for large lists (> 5 items).
 List<Family> _parseFamilyList(List<dynamic> jsonList) {
   return jsonList
       .map((json) => Family.fromJson(json as Map<String, dynamic>))
@@ -1797,7 +1797,7 @@ List<Family> _parseFamilyList(List<dynamic> jsonList) {
 }
 
 /// Parse a list of JSON objects into [Person] objects.
-/// Used by [familyMembersProvider] via compute() for large lists (> 20 items).
+/// Used by [familyMembersProvider] via compute() for large lists (> 5 items).
 List<Person> _parsePersonList(List<dynamic> jsonList) {
   return jsonList
       .map((json) => Person.fromJson(json as Map<String, dynamic>))
@@ -1805,7 +1805,7 @@ List<Person> _parsePersonList(List<dynamic> jsonList) {
 }
 
 /// Parse a list of JSON objects into [FamilyRelationship] objects.
-/// Used by [familyRelationshipsProvider] via compute() for large lists (> 20 items).
+/// Used by [familyRelationshipsProvider] via compute() for large lists (> 5 items).
 List<FamilyRelationship> _parseRelationshipList(List<dynamic> jsonList) {
   return jsonList
       .map((json) => FamilyRelationship.fromJson(json as Map<String, dynamic>))

@@ -101,7 +101,7 @@ export interface SmartSearchSuggestion {
 @Injectable()
 export class AiChatService {
   private readonly logger = new Logger(AiChatService.name);
-  private readonly ai: OpenAI;
+  private readonly ai: OpenAI | null;
   private SESSION_TTL_SECONDS = 3600;
   private redis: Redis | null = null;
   private readonly memorySessions = new Map<string, { value: string; expiresAt: number }>();
@@ -121,7 +121,7 @@ export class AiChatService {
       });
     } catch {
       this.logger.verbose('DEEPSEEK_API_KEY not set — AI chat will use fallback responses');
-      this.ai = null as any;
+      this.ai = null;
     }
 
     const redisUrl = this.configService.get<string>('REDIS_URL', '');

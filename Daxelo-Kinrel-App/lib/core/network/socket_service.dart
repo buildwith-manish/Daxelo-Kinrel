@@ -674,6 +674,7 @@ class SocketService {
     final affectedFamilyIds = <String>{};
 
     // Merge families
+    var familyIdx = 0;
     for (final familyJson in sync.familyMeta) {
       try {
         final familyId = familyJson['id'] as String? ?? '';
@@ -686,6 +687,11 @@ class SocketService {
           cachedAt: Value(DateTime.now()),
         ));
         affectedFamilyIds.add(familyId);
+        // ANR FIX: Yield every 25 items to prevent main isolate blocking
+        familyIdx++;
+        if (familyIdx % 25 == 0) {
+          await Future.delayed(const Duration(milliseconds: 16));
+        }
       } catch (e) {
         debugPrint('[SocketService] Error merging family: $e');
       }
@@ -695,6 +701,7 @@ class SocketService {
     await Future.delayed(Duration.zero);
 
     // Merge persons
+    var personIdx = 0;
     for (final personJson in sync.members) {
       try {
         final personId = personJson['id'] as String? ?? '';
@@ -706,6 +713,11 @@ class SocketService {
         if (deletedAt != null) {
           await db.deletePerson(personId);
           affectedFamilyIds.add(familyId);
+          // ANR FIX: Yield every 25 items to prevent main isolate blocking
+          personIdx++;
+          if (personIdx % 25 == 0) {
+            await Future.delayed(const Duration(milliseconds: 16));
+          }
           continue;
         }
 
@@ -717,6 +729,11 @@ class SocketService {
           cachedAt: Value(DateTime.now()),
         ));
         affectedFamilyIds.add(familyId);
+        // ANR FIX: Yield every 25 items to prevent main isolate blocking
+        personIdx++;
+        if (personIdx % 25 == 0) {
+          await Future.delayed(const Duration(milliseconds: 16));
+        }
       } catch (e) {
         debugPrint('[SocketService] Error merging person: $e');
       }
@@ -726,6 +743,7 @@ class SocketService {
     await Future.delayed(Duration.zero);
 
     // Merge relationships (from events array)
+    var relIdx = 0;
     for (final relJson in sync.events) {
       try {
         final relId = relJson['id'] as String? ?? '';
@@ -736,6 +754,11 @@ class SocketService {
         if (!isActive) {
           await db.deleteRelationship(relId);
           affectedFamilyIds.add(familyId);
+          // ANR FIX: Yield every 25 items to prevent main isolate blocking
+          relIdx++;
+          if (relIdx % 25 == 0) {
+            await Future.delayed(const Duration(milliseconds: 16));
+          }
           continue;
         }
 
@@ -749,6 +772,11 @@ class SocketService {
           cachedAt: Value(DateTime.now()),
         ));
         affectedFamilyIds.add(familyId);
+        // ANR FIX: Yield every 25 items to prevent main isolate blocking
+        relIdx++;
+        if (relIdx % 25 == 0) {
+          await Future.delayed(const Duration(milliseconds: 16));
+        }
       } catch (e) {
         debugPrint('[SocketService] Error merging relationship: $e');
       }

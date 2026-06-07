@@ -54,10 +54,11 @@ class OfflineFamilyRepository {
   /// Get cached families from Drift.
   Future<List<Family>> _getCachedFamilies() async {
     final rows = await _db.getAllFamilies();
-    return rows.map((row) {
-      final data = _jsonDecode(row.data);
-      return Family.fromJson(data);
-    }).toList();
+    final dataList = rows.map((row) => row.data).toList();
+    if (dataList.length > 5) {
+      return compute(_parseFamilies, dataList);
+    }
+    return dataList.map((data) => Family.fromJson(_jsonDecode(data))).toList();
   }
 
   /// Fetch families from Supabase and cache the result.
@@ -134,15 +135,21 @@ class OfflineFamilyRepository {
   Future<void> _cacheFamilies(List<Family> families) async {
     if (!AppDatabaseService.isInitialized) return;
 
-    for (final family in families) {
-      final json = family.toJson();
-      await _db.upsertFamily(CachedFamiliesCompanion(
-        id: Value(family.id),
-        name: Value(family.name),
-        data: Value(_jsonEncode(json)),
-        cachedAt: Value(DateTime.now()),
-      ));
-    }
+    await _db.batch((b) {
+      for (final family in families) {
+        final json = family.toJson();
+        b.insert(
+          _db.cachedFamilies,
+          CachedFamiliesCompanion(
+            id: Value(family.id),
+            name: Value(family.name),
+            data: Value(_jsonEncode(json)),
+            cachedAt: Value(DateTime.now()),
+          ),
+          mode: InsertMode.insertOrReplace,
+        );
+      }
+    });
   }
 
   // ── Family Members ──────────────────────────────────────────────
@@ -166,10 +173,11 @@ class OfflineFamilyRepository {
 
   Future<List<Person>> _getCachedMembers(String familyId) async {
     final rows = await _db.getPersonsByFamily(familyId);
-    return rows.map((row) {
-      final data = _jsonDecode(row.data);
-      return Person.fromJson(data);
-    }).toList();
+    final dataList = rows.map((row) => row.data).toList();
+    if (dataList.length > 5) {
+      return compute(_parsePersons, dataList);
+    }
+    return dataList.map((data) => Person.fromJson(_jsonDecode(data))).toList();
   }
 
   Future<List<Person>> _fetchMembersFromNetwork(String familyId) async {
@@ -215,17 +223,23 @@ class OfflineFamilyRepository {
     // Remove old cached members for this family
     await _db.deletePersonsByFamily(familyId);
 
-    // Add new cached members
-    for (final member in members) {
-      final json = member.toJson();
-      await _db.upsertPerson(CachedPersonsCompanion(
-        id: Value(member.id),
-        familyId: Value(member.familyId),
-        name: Value(member.name),
-        data: Value(_jsonEncode(json)),
-        cachedAt: Value(DateTime.now()),
-      ));
-    }
+    // Add new cached members in a single batch
+    await _db.batch((b) {
+      for (final member in members) {
+        final json = member.toJson();
+        b.insert(
+          _db.cachedPersons,
+          CachedPersonsCompanion(
+            id: Value(member.id),
+            familyId: Value(member.familyId),
+            name: Value(member.name),
+            data: Value(_jsonEncode(json)),
+            cachedAt: Value(DateTime.now()),
+          ),
+          mode: InsertMode.insertOrReplace,
+        );
+      }
+    });
   }
 
   // ── Family Relationships ────────────────────────────────────────
@@ -253,10 +267,11 @@ class OfflineFamilyRepository {
     String familyId,
   ) async {
     final rows = await _db.getRelationshipsByFamily(familyId);
-    return rows.map((row) {
-      final data = _jsonDecode(row.data);
-      return FamilyRelationship.fromJson(data);
-    }).toList();
+    final dataList = rows.map((row) => row.data).toList();
+    if (dataList.length > 5) {
+      return compute(_parseRelationships, dataList);
+    }
+    return dataList.map((data) => FamilyRelationship.fromJson(_jsonDecode(data))).toList();
   }
 
   Future<List<FamilyRelationship>> _fetchRelationshipsFromNetwork(
@@ -309,19 +324,25 @@ class OfflineFamilyRepository {
     // Remove old cached relationships for this family
     await _db.deleteRelationshipsByFamily(familyId);
 
-    // Add new cached relationships
-    for (final rel in relationships) {
-      final json = rel.toJson();
-      await _db.upsertRelationship(CachedRelationshipsCompanion(
-        id: Value(rel.id),
-        fromId: Value(rel.fromPersonId),
-        toId: Value(rel.toPersonId),
-        relationshipType: Value(rel.relationshipKey),
-        kinshipName: Value(rel.label),
-        data: Value(_jsonEncode(json)),
-        cachedAt: Value(DateTime.now()),
-      ));
-    }
+    // Add new cached relationships in a single batch
+    await _db.batch((b) {
+      for (final rel in relationships) {
+        final json = rel.toJson();
+        b.insert(
+          _db.cachedRelationships,
+          CachedRelationshipsCompanion(
+            id: Value(rel.id),
+            fromId: Value(rel.fromPersonId),
+            toId: Value(rel.toPersonId),
+            relationshipType: Value(rel.relationshipKey),
+            kinshipName: Value(rel.label),
+            data: Value(_jsonEncode(json)),
+            cachedAt: Value(DateTime.now()),
+          ),
+          mode: InsertMode.insertOrReplace,
+        );
+      }
+    });
   }
 
   // ── Recently Viewed Profiles ────────────────────────────────────
@@ -632,6 +653,28 @@ class OfflineFamilyRepository {
 
   static String _jsonEncode(Map<String, dynamic> data) {
     return json.encode(data);
+  }
+
+  /// Parse families in a background isolate via compute().
+  static List<Family> _parseFamilies(List<String> dataList) {
+    return dataList
+        .map((data) => Family.fromJson(json.decode(data) as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Parse persons in a background isolate via compute().
+  static List<Person> _parsePersons(List<String> dataList) {
+    return dataList
+        .map((data) => Person.fromJson(json.decode(data) as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Parse relationships in a background isolate via compute().
+  static List<FamilyRelationship> _parseRelationships(List<String> dataList) {
+    return dataList
+        .map((data) =>
+            FamilyRelationship.fromJson(json.decode(data) as Map<String, dynamic>))
+        .toList();
   }
 }
 

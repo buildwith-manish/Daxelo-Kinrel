@@ -50,7 +50,8 @@ class KinshipLoaderService {
     if (await file.exists()) {
       try {
         final cached = await file.readAsString();
-        final parsed = jsonDecode(cached) as Map<String, dynamic>;
+        // Parse in background isolate to avoid ANR on large cached files
+        final parsed = await compute(_parseJsonStr, cached);
         _memoryCache[cultureKey] = parsed;
         return parsed;
       } catch (e) {
@@ -82,7 +83,8 @@ class KinshipLoaderService {
           parsed = data;
         }
       } else if (data is String) {
-        parsed = jsonDecode(data) as Map<String, dynamic>;
+        // Parse string response in background isolate
+        parsed = await compute(_parseJsonStr, data);
       } else {
         debugPrint('⚠️ Unexpected kinship data type for $cultureKey: ${data.runtimeType}');
         return null;
@@ -182,3 +184,8 @@ final kinshipLoaderProvider = Provider<KinshipLoaderService>((ref) {
   final dio = ref.read(dioProvider);
   return KinshipLoaderService(dio);
 });
+
+/// Static helper for parsing JSON in a background isolate via compute()
+Map<String, dynamic> _parseJsonStr(String jsonStr) {
+  return jsonDecode(jsonStr) as Map<String, dynamic>;
+}

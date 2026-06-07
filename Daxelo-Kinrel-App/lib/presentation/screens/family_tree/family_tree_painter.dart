@@ -5,6 +5,11 @@ import 'family_tree_model.dart';
 /// Pixel-perfect CustomPainter replicating the Daxelo Kinrel family tree UI.
 /// Features: glowing node rings, animated dashed connecting lines,
 /// 3-line labels (role / name / nickname), self-highlight node.
+///
+/// Performance optimizations:
+/// - Viewport culling: off-screen nodes and connections are skipped
+/// - Cached Paint objects: created once as static finals instead of per-frame
+/// - Proper shouldRepaint: checks members/connections identity changes
 class FamilyTreePainter extends CustomPainter {
   final List<FamilyMember> members;
   final List<FamilyConnection> connections;
@@ -26,6 +31,23 @@ class FamilyTreePainter extends CustomPainter {
   static const double _nodeRadius = 42.0;
   static const double _selfRadius = 48.0;
 
+  // ── Cached Paint objects (created once, reused every frame) ──────
+  static final Paint _bgPaint = Paint()..color = _bg;
+  static final Paint _lineGlowPaint = Paint()
+    ..color = _lineColor.withOpacity(0.15)
+    ..strokeWidth = 4
+    ..style = PaintingStyle.stroke
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+  static final Paint _dashPaint = Paint()
+    ..color = _lineColor.withOpacity(0.7)
+    ..strokeWidth = 1.5
+    ..style = PaintingStyle.stroke;
+  static final Paint _arrowPaint = Paint()
+    ..color = _lineColor.withOpacity(0.8)
+    ..strokeWidth = 1.5
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+
   FamilyTreePainter({
     required this.members,
     required this.connections,
@@ -44,23 +66,48 @@ class FamilyTreePainter extends CustomPainter {
     // Background fill
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),
-      Paint()..color = _bg,
+      _bgPaint,
     );
 
     final map = _memberMap;
 
-    // 1. Draw connections first (under nodes)
+    // Compute visible rect for viewport culling (with padding for labels/glow)
+    const viewportPadding = 80.0;
+    final visibleRect = Rect.fromLTWH(
+      -viewportPadding,
+      -viewportPadding,
+      size.width + viewportPadding * 2,
+      size.height + viewportPadding * 2,
+    );
+
+    // 1. Draw connections first (under nodes) — with viewport culling
     for (final conn in connections) {
       final from = map[conn.fromId];
       final to   = map[conn.toId];
       if (from == null || to == null) continue;
+      // Skip connections where both endpoints are off-screen
+      if (!_isVisible(from.position, visibleRect, _nodeRadius + 20) &&
+          !_isVisible(to.position, visibleRect, _nodeRadius + 20)) {
+        continue;
+      }
       _drawAnimatedLine(canvas, from.position, to.position);
     }
 
-    // 2. Draw nodes
+    // 2. Draw nodes — with viewport culling
     for (final member in members) {
+      final radius = member.isSelf ? _selfRadius : _nodeRadius;
+      // Skip off-screen nodes (including label space below)
+      if (!_isVisible(member.position, visibleRect, radius + 50)) {
+        continue;
+      }
       _drawNode(canvas, member);
     }
+  }
+
+  /// Check if a point is within the visible viewport (with padding)
+  bool _isVisible(Offset position, Rect visibleRect, double padding) {
+    final nodeRect = Rect.fromCircle(center: position, radius: padding);
+    return visibleRect.overlaps(nodeRect);
   }
 
   // ── Animated dashed arrow line ─────────────────────────────────
@@ -75,21 +122,11 @@ class FamilyTreePainter extends CustomPainter {
     final start = from + unit * r;
     final end   = to   - unit * r;
 
-    // Glow underline
-    final glowPaint = Paint()
-      ..color = _lineColor.withOpacity(0.15)
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-    canvas.drawLine(start, end, glowPaint);
+    // Glow underline (cached paint)
+    canvas.drawLine(start, end, _lineGlowPaint);
 
-    // Dashed animated line
-    final dashPaint = Paint()
-      ..color = _lineColor.withOpacity(0.7)
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-
-    _drawDashedLine(canvas, start, end, dashPaint, lineProgress);
+    // Dashed animated line (cached paint)
+    _drawDashedLine(canvas, start, end, _dashPaint, lineProgress);
 
     // Arrowhead
     _drawArrow(canvas, end, unit);
@@ -136,14 +173,7 @@ class FamilyTreePainter extends CustomPainter {
       ..moveTo(tip.dx, tip.dy)
       ..lineTo((tip - right).dx, (tip - right).dy);
 
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = _lineColor.withOpacity(0.8)
-        ..strokeWidth = 1.5
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round,
-    );
+    canvas.drawPath(path, _arrowPaint);
   }
 
   Offset _rotateOffset(Offset o, double angle) {
@@ -181,14 +211,15 @@ class FamilyTreePainter extends CustomPainter {
     }
 
     // Outer glow layers (pulse animation)
+    // Note: MaskFilter.blur is GPU-expensive; keep at 2 layers instead of 3
     final glowStrength = 0.08 + pulseValue * 0.07;
-    for (int i = 3; i >= 1; i--) {
+    for (int i = 2; i >= 1; i--) {
       canvas.drawCircle(
         center,
         radius + (5.0 * i),
         Paint()
           ..color = accent.withOpacity(glowStrength * i * 0.5)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 6.0 * i),
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0 * i),
       );
     }
 
@@ -202,7 +233,7 @@ class FamilyTreePainter extends CustomPainter {
     // Avatar placeholder (gradient face silhouette)
     _drawAvatarPlaceholder(canvas, center, radius, member);
 
-    // Glowing border ring
+    // Glowing border ring (single blur layer instead of two)
     canvas.drawCircle(
       center,
       radius,
@@ -213,7 +244,7 @@ class FamilyTreePainter extends CustomPainter {
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
     );
 
-    // Solid ring on top of glow
+    // Solid ring on top of glow (no blur — cheap)
     canvas.drawCircle(
       center,
       radius,
@@ -335,5 +366,8 @@ class FamilyTreePainter extends CustomPainter {
   bool shouldRepaint(FamilyTreePainter old) =>
       old.pulseValue != pulseValue ||
       old.lineProgress != lineProgress ||
-      old.focusMode != focusMode;
+      old.orbitProgress != orbitProgress ||
+      old.focusMode != focusMode ||
+      !identical(old.members, members) ||
+      !identical(old.connections, connections);
 }

@@ -61,8 +61,12 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
               done(null, anonKey);
               return;
             }
-            // Last resort: use a dummy secret (verification will fail, but
-            // we handle this in validate() by catching the error)
+            // Last resort: use a placeholder secret — verification will fail
+            // and Passport will reject the token before validate() is called
+            console.warn(
+              '⚠️  SUPABASE_JWT_SECRET and SUPABASE_ANON_KEY are not configured. ' +
+              'Supabase token verification will fail. Set SUPABASE_JWT_SECRET to fix this.',
+            );
             done(null, 'supabase-dev-fallback');
             return;
           }

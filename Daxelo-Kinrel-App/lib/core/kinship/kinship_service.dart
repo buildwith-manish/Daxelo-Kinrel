@@ -27,6 +27,7 @@ class KinshipService {
   List<String> get categories => _byCategory.keys.toList()..sort();
 
   /// Load kinship data from JSON asset
+  /// Uses a background isolate for JSON parsing to avoid ANR on low-end devices
   Future<void> load() async {
     if (_isLoaded) return;
 
@@ -34,8 +35,11 @@ class KinshipService {
       final jsonStr = await rootBundle.loadString(
         'assets/data/indian_kinship.json',
       );
-      final jsonData = jsonDecode(jsonStr) as Map<String, dynamic>;
-      _data = KinshipData.fromJson(jsonData);
+      // Parse JSON in a background isolate to avoid blocking the main thread
+      // The indian_kinship.json has 5359 relationships × 15 languages —
+      // jsonDecode + fromJson can take 50-200ms on low-end devices
+      final jsonData = await compute(_parseJsonInIsolate, jsonStr);
+      _data = jsonData;
 
       _buildIndices();
       _isLoaded = true;
@@ -47,6 +51,12 @@ class KinshipService {
       // Re-throw so the UI can show an error state
       rethrow;
     }
+  }
+
+  /// Parse JSON string in a background isolate
+  static KinshipData _parseJsonInIsolate(String jsonStr) {
+    final jsonData = jsonDecode(jsonStr) as Map<String, dynamic>;
+    return KinshipData.fromJson(jsonData);
   }
 
   void _buildIndices() {

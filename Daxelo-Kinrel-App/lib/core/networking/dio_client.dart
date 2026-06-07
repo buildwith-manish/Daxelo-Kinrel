@@ -240,7 +240,10 @@ class _AuthInterceptor extends Interceptor {
         // If session is expired, try to refresh it before proceeding
         if (session != null && session.isExpired) {
           try {
-            final response = await client.auth.refreshSession();
+            final response = await client.auth.refreshSession()
+                .timeout(const Duration(seconds: 3), onTimeout: () {
+              throw TimeoutException('Token refresh timed out after 3s');
+            });
             session = response.session;
           } catch (e) {
             debugPrint('Token refresh failed in _AuthInterceptor: $e');

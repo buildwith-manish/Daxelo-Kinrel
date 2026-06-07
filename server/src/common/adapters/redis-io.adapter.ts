@@ -1,7 +1,7 @@
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { ServerOptions } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
-import { createClient } from 'redis';
+import Redis from 'ioredis';
 import { Logger } from '@nestjs/common';
 
 /**
@@ -18,7 +18,11 @@ export class RedisIoAdapter extends IoAdapter {
 
   async connectToRedis(redisUrl: string): Promise<void> {
     try {
-      const pubClient = createClient({ url: redisUrl });
+      const pubClient = new Redis(redisUrl, {
+        lazyConnect: true,
+        maxRetriesPerRequest: 1,
+        connectTimeout: 5000,
+      });
       const subClient = pubClient.duplicate();
 
       await Promise.all([pubClient.connect(), subClient.connect()]);

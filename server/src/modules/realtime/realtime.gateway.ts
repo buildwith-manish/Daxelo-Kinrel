@@ -8,7 +8,7 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
-import { Socket } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -46,7 +46,8 @@ import { PrismaService } from '../../prisma/prisma.service';
   namespace: '/',
 })
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
-  private server: any;
+  @WebSocketServer()
+  server: Server;
   private readonly logger = new Logger(RealtimeGateway.name);
 
   constructor(private readonly prisma: PrismaService) {}
