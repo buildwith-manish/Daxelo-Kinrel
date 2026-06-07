@@ -49,6 +49,8 @@ class AppInitNotifier extends AsyncNotifier<void> {
   /// Initialize core services that MUST complete before the app
   /// can function (Drift, Firebase, Supabase, etc.).
   Future<void> _startCoreServices() async {
+    final sw = Stopwatch()..start();
+    try {
     await _yield(); // ANR fix: yield before first heavy operation
 
     // ── 2. Initialize Drift database ────────────────────────────────
@@ -134,6 +136,10 @@ class AppInitNotifier extends AsyncNotifier<void> {
     debugPrint(
       '🔧 AppConfig isSupabaseConfigured: ${AppConfig.isSupabaseConfigured}',
     );
+    } finally {
+      sw.stop();
+      debugPrint('⏱️ _startCoreServices completed in ${sw.elapsedMilliseconds}ms');
+    }
   }
 }
 

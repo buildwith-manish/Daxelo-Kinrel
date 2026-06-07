@@ -346,6 +346,7 @@ class ArchivedFamily {
 /// falls back to Supabase direct query if auth is unavailable.
 final archivedFamiliesProvider =
     FutureProvider<List<ArchivedFamily>>((ref) async {
+  await Future.delayed(Duration.zero); // ANR fix: yield before heavy work
   // Try NestJS API first
   try {
     final dio = ref.read(dioProvider);
@@ -429,6 +430,7 @@ final archivedFamiliesProvider =
 /// With offline-first: Returns cached data immediately if available,
 /// then refreshes from Supabase in the background.
 final familyListProvider = FutureProvider<List<Family>>((ref) async {
+  await Future.delayed(Duration.zero); // ANR fix: yield before heavy work
   final isReady = ref.watch(isSupabaseReadyProvider);
   if (!isReady) {
     // Even when Supabase isn't ready, try Isar cache for offline access
@@ -558,6 +560,7 @@ final familyDetailProvider = FutureProvider.family<FamilyDetail?, String>((
   ref,
   familyId,
 ) async {
+  await Future.delayed(Duration.zero); // ANR fix: yield before heavy work
   final isReady = ref.watch(isSupabaseReadyProvider);
   if (!isReady) return null;
 
@@ -627,6 +630,7 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
   ref,
   familyId,
 ) async {
+  await Future.delayed(Duration.zero); // ANR fix: yield before heavy work
   final isReady = ref.watch(isSupabaseReadyProvider);
   if (!isReady) {
     // Try Isar cache for offline access
@@ -699,6 +703,7 @@ final familyRelationshipsProvider =
       ref,
       familyId,
     ) async {
+      await Future.delayed(Duration.zero); // ANR fix: yield before heavy work
       final isReady = ref.watch(isSupabaseReadyProvider);
       if (!isReady) {
         // Try Isar cache for offline access

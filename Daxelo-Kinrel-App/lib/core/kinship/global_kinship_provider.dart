@@ -42,6 +42,7 @@ final globalKinshipSearchQueryProvider = StateProvider<String>((ref) => '');
 /// to avoid ANR. Cultures are loaded lazily via cultureKinshipDataProvider.
 final globalKinshipSearchResultsProvider =
     FutureProvider<List<GlobalKinshipTerm>>((ref) async {
+      await Future.delayed(Duration.zero); // ANR fix: yield before work
       final query = ref.watch(globalKinshipSearchQueryProvider);
       if (query.isEmpty) return [];
 
@@ -54,6 +55,7 @@ final globalKinshipSearchResultsProvider =
 /// Load data for a specific culture
 final cultureKinshipDataProvider =
     FutureProvider.family<GlobalKinshipData?, String>((ref, cultureKey) async {
+      await Future.delayed(Duration.zero); // ANR fix: yield before heavy JSON loading
       final service = ref.watch(globalKinshipServiceProvider);
       return service.loadCulture(cultureKey);
     });
@@ -65,6 +67,7 @@ final crossCulturalComparisonProvider =
       ref,
       relationshipKey,
     ) async {
+      await Future.delayed(Duration.zero); // ANR fix: yield before work
       final service = ref.watch(globalKinshipServiceProvider);
 
       // Compare only already-loaded cultures (avoid loading all at once)
@@ -76,6 +79,7 @@ final crossCulturalComparisonProvider =
 final commonRelationshipKeysProvider = FutureProvider<List<String>>((
   ref,
 ) async {
+  await Future.delayed(Duration.zero); // ANR fix: yield before work
   final service = ref.watch(globalKinshipServiceProvider);
   return service.getCommonRelationshipKeys();
 });
@@ -85,6 +89,7 @@ final commonRelationshipKeysProvider = FutureProvider<List<String>>((
 final comparableRelationshipKeysProvider = FutureProvider<List<String>>((
   ref,
 ) async {
+  await Future.delayed(Duration.zero); // ANR fix: yield before work
   final service = ref.watch(globalKinshipServiceProvider);
   return service.getComparableRelationshipKeys();
 });

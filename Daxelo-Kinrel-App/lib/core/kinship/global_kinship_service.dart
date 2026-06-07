@@ -4,6 +4,13 @@ import 'package:flutter/services.dart';
 import 'global_kinship_models.dart';
 import '../services/kinship_loader_service.dart';
 
+/// Parse JSON string in a background isolate via compute().
+/// Must be a top-level function (not a closure or instance method)
+/// so it can be sent to a separate isolate.
+Map<String, dynamic> _parseJsonInIsolate(String jsonStr) {
+  return jsonDecode(jsonStr) as Map<String, dynamic>;
+}
+
 /// Global Kinship Service — Loads and manages cross-cultural kinship data
 ///
 /// Features:
@@ -96,8 +103,12 @@ class GlobalKinshipService {
         jsonData = loaded;
       } else if (info.dataAssetPath != null) {
         // Legacy fallback: load from bundled assets (testing / offline)
+        // ANR FIX: Parse JSON in a background isolate instead of on the
+        // main thread. Large culture JSON files (~10-30 MB each) can take
+        // 100-500ms to parse on low-end devices, which blocks the Dart
+        // isolate → IO worker threads stuck on futex → ANR.
         final jsonStr = await rootBundle.loadString(info.dataAssetPath!);
-        jsonData = jsonDecode(jsonStr) as Map<String, dynamic>;
+        jsonData = await compute(_parseJsonInIsolate, jsonStr);
       } else {
         throw Exception('No data source available for $cultureKey');
       }
