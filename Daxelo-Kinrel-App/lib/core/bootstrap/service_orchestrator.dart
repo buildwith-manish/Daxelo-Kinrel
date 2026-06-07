@@ -331,7 +331,7 @@ class ServiceOrchestrator {
             captureRiverpodState('auth', {'status': 'signed_out'});
           } catch (_) {}
           if (!kAuthDisabled) {
-            unawaited(_handleSignOut(ref));
+            _handleSignOut(ref);
           }
           debugPrint('🔐 Auth listener: signedOut');
         }
