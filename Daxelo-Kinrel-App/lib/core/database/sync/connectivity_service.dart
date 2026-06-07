@@ -70,14 +70,15 @@ final connectivityServiceProvider = Provider<ConnectivityService>((ref) {
 
 /// Provider that reflects current online/offline status.
 /// Automatically updates when connectivity changes.
-/// Debounced (1000ms) to prevent rapid sync triggers during connectivity
+/// Debounced (2000ms) to prevent rapid sync triggers during connectivity
 /// flapping (e.g., mobile network switching between WiFi/cellular).
-/// Increased from 500ms to 1000ms because connectivity flapping can trigger
+/// Increased from 1000ms to 2000ms because connectivity flapping can trigger
 /// multiple fullSync operations that cascade into provider invalidations,
-/// causing ANR on slower devices.
+/// causing ANR on slower devices. A longer debounce absorbs rapid
+/// WiFi↔cellular switches without triggering redundant sync operations.
 final isOnlineProvider = StreamProvider<bool>((ref) {
   final service = ref.watch(connectivityServiceProvider);
-  return _debounceStream(service.onConnectivityChanged, const Duration(milliseconds: 1000));
+  return _debounceStream(service.onConnectivityChanged, const Duration(milliseconds: 2000));
 });
 
 /// Debounce a stream — only emits the latest value after [duration] of silence.

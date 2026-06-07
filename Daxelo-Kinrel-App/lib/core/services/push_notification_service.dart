@@ -230,6 +230,25 @@ class PushNotificationService {
         criticalAlert: false,
         provisional: false,
         sound: true,
+      ).timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          debugPrint('⚠️ Notification permission request timed out');
+          return NotificationSettings(
+            authorizationStatus: AuthorizationStatus.notDetermined,
+            alert: AppleNotificationSetting.disabled,
+            announcement: AppleNotificationSetting.disabled,
+            badge: AppleNotificationSetting.disabled,
+            carPlay: AppleNotificationSetting.disabled,
+            lockScreen: AppleNotificationSetting.disabled,
+            notificationCenter: AppleNotificationSetting.disabled,
+            showPreviews: AppleShowPreviewSetting.never,
+            showSubtitles: AppleNotificationSetting.disabled,
+            sound: AppleNotificationSetting.disabled,
+            timeSensitive: AppleNotificationSetting.disabled,
+            criticalAlert: AppleNotificationSetting.disabled,
+          );
+        },
       );
 
       debugPrint('📬 Notification permission status: ${settings.authorizationStatus}');
@@ -257,7 +276,13 @@ class PushNotificationService {
         return;
       }
 
-      final token = await _messaging.getToken();
+      final token = await _messaging.getToken().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          debugPrint('⚠️ FCM getToken timed out — will retry on token refresh');
+          return null;
+        },
+      );
       if (token != null && token.isNotEmpty) {
         _currentToken = token;
         debugPrint('📬 FCM token acquired: ${token.substring(0, 20)}...');
@@ -406,7 +431,13 @@ class PushNotificationService {
   /// or null if the app was launched normally (e.g., by tapping the icon).
   Future<void> _setupTerminatedTapHandler() async {
     try {
-      final initialMessage = await _messaging.getInitialMessage();
+      final initialMessage = await _messaging.getInitialMessage().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          debugPrint('⚠️ getInitialMessage timed out — skipping terminated tap handling');
+          return null;
+        },
+      );
       if (initialMessage != null) {
         debugPrint(
           '📬 [TERMINATED→FG] Notification tapped: ${initialMessage.messageId}',
@@ -466,7 +497,12 @@ class PushNotificationService {
   /// authenticated.
   Future<void> deleteToken() async {
     try {
-      await _messaging.deleteToken();
+      await _messaging.deleteToken().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          debugPrint('⚠️ FCM deleteToken timed out');
+        },
+      );
       _currentToken = null;
       debugPrint('📬 FCM token deleted');
       logActionBreadcrumb('fcm_token_deleted');

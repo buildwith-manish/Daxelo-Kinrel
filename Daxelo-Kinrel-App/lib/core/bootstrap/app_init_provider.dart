@@ -29,8 +29,10 @@ import '../services/supabase_service.dart';
 import '../utils/device_tier.dart';
 
 /// Yield to the Android message queue between heavy operations.
-/// Prevents ANR by letting the native main thread process pending events.
-Future<void> _yield() => Future.delayed(Duration.zero);
+/// Uses a 16ms delay (one frame) to let the native main thread process
+/// pending touch/lifecycle events. Duration.zero only yields to the Dart
+/// microtask queue, which isn't sufficient to prevent ANR on slow devices.
+Future<void> _yield() => Future.delayed(const Duration(milliseconds: 16));
 
 /// AsyncNotifier that performs core service initialization.
 ///
@@ -47,6 +49,8 @@ class AppInitNotifier extends AsyncNotifier<void> {
   /// Initialize core services that MUST complete before the app
   /// can function (Drift, Firebase, Supabase, etc.).
   Future<void> _startCoreServices() async {
+    await _yield(); // ANR fix: yield before first heavy operation
+
     // ── 2. Initialize Drift database ────────────────────────────────
     try {
       await AppDatabaseService.initialize()
@@ -92,7 +96,7 @@ class AppInitNotifier extends AsyncNotifier<void> {
     // ── 7. Initialize Supabase ──────────────────────────────────────
     bool supabaseReady = false;
     try {
-      supabaseReady = await initSupabase().timeout(const Duration(seconds: 8));
+      supabaseReady = await initSupabase().timeout(const Duration(seconds: 5));
       debugPrint(
         '🔧 Supabase initialized: $supabaseReady (kAuthDisabled=$kAuthDisabled)',
       );

@@ -57,9 +57,11 @@ class ServiceOrchestrator {
   }
 
   /// Yield to the Android message queue between heavy operations.
-  /// This prevents ANR by letting the main thread process pending
-  /// touch events, lifecycle callbacks, and frame rendering.
-  static Future<void> _yield() => Future.delayed(Duration.zero);
+  /// Uses a 16ms delay (one frame) to let the native main thread process
+  /// pending touch/lifecycle events. Duration.zero only yields to the Dart
+  /// microtask queue, which isn't sufficient to prevent ANR on slow devices.
+  static Future<void> _yield() =>
+      Future.delayed(const Duration(milliseconds: 16));
 
   /// Async implementation of deferred service initialization.
   static Future<void> _initDeferredServicesAsync(dynamic ref) async {
@@ -240,6 +242,7 @@ class ServiceOrchestrator {
       // ── Initialize Deep Link Service ──────────────────────────────
       try {
         final deepLinkService = ref.read(deepLinkServiceProvider);
+        // ANR FIX: Timeout on deep link init to prevent blocking the main isolate
         await deepLinkService.init(
           onDeepLink: (location) {
             try {
@@ -250,10 +253,14 @@ class ServiceOrchestrator {
               debugPrint('⚠️ Deep link navigation failed: $e');
             }
           },
-        );
+        ).timeout(const Duration(seconds: 3), onTimeout: () {
+          debugPrint('⚠️ Deep link service init timed out — deep links may not work until next app start');
+        });
       } catch (e) {
         debugPrint('⚠️ Deep link service init failed: $e');
       }
+
+      await _yield(); // ANR fix: yield after deep link init
 
       // ── Wire connectivity listener to background sync (CARRY-07) ──
       _setupConnectivityListener(ref);

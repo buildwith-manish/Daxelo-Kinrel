@@ -111,10 +111,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _initialize();
 
-    // Safety timeout: force navigate after 12 seconds even if init hasn't completed.
+    // Safety timeout: force navigate after 8 seconds even if init hasn't completed.
     // This prevents the user from being stuck on splash forever.
     unawaited(
-      Future.delayed(const Duration(seconds: 12), () async {
+      Future.delayed(const Duration(seconds: 8), () async {
         try {
           if (mounted && !_navigated) {
             debugPrint('⚠️ Splash safety timeout triggered — forcing navigation');
@@ -160,7 +160,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       // Wait for background initialization to complete (Supabase, etc.)
       try {
         await ref.read(appInitProvider.future).timeout(
-          const Duration(seconds: 12),
+          const Duration(seconds: 8),
           onTimeout: () {
             debugPrint('⚠️ Splash: background init timed out — proceeding anyway (auth disabled)');
           },
@@ -173,7 +173,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       // Try to auto sign-in for debug mode to get a real Supabase session
       try {
         final signInResult = await autoSignInForDebug(ref).timeout(
-          const Duration(seconds: 15),
+          const Duration(seconds: 8),
           onTimeout: () {
             debugPrint('⚠️ Splash: auto sign-in timed out');
             return false;
@@ -343,12 +343,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         debugPrint('📦 Existing session found for ${session.user.email}');
         return;
       }
-      // Wait for auth state to restore (up to 3 seconds)
+      // ANR FIX: Yield before waiting for auth stream to let the message queue process
+      await Future.delayed(Duration.zero);
+      // Wait for auth state to restore (reduced from 3s to 2s to prevent ANR)
       try {
         await client.auth.onAuthStateChange.first
-            .timeout(const Duration(seconds: 3));
-        // Small delay for state propagation
-        await Future.delayed(const Duration(milliseconds: 200));
+            .timeout(const Duration(seconds: 2));
         debugPrint('📦 Auth state restored');
       } on TimeoutException {
         debugPrint('📦 Auth state restore timed out — proceeding with cached state');

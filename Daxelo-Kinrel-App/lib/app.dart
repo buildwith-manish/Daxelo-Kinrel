@@ -88,6 +88,55 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     } catch (_) {}
   }
 
+  /// Handle app resume with staggered, non-blocking operations.
+  /// Yields between each heavy operation to prevent ANR.
+  Future<void> _handleAppResumed() async {
+    // Yield first to let the framework process the resume event
+    await Future.delayed(Duration.zero);
+
+    // Silently refresh the session in the background
+    if (isSupabaseInitialized) {
+      try {
+        final client = ref.read(supabaseProvider);
+        if (client != null && client.auth.currentSession != null) {
+          // ANR FIX: Use timeout on refreshSession to prevent blocking
+          await client.auth.refreshSession().timeout(
+            const Duration(seconds: 5),
+            onTimeout: () {
+              debugPrint('⚠️ Session refresh timed out on resume');
+              return AuthResponse();
+            },
+          ).catchError((_) {
+            return AuthResponse();
+          });
+
+          // Yield between operations
+          await Future.delayed(Duration.zero);
+
+          // Reconnect socket if not connected
+          try {
+            final socketService = ref.read(socketServiceProvider);
+            if (!socketService.isConnected) {
+              socketService.connect();
+            }
+          } catch (_) {}
+
+          // Yield before triggering sync
+          await Future.delayed(Duration.zero);
+
+          // Trigger background sync on app resume
+          try {
+            final bgSyncManager = ref.read(backgroundSyncManagerProvider);
+            bgSyncManager.onAppResumed();
+          } catch (_) {}
+        }
+      } catch (_) {}
+    }
+
+    logActionBreadcrumb('app_resume');
+    RatingService.instance.onForeground();
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -100,40 +149,17 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     if (state == AppLifecycleState.resumed) {
       _updateSystemUIOverlay();
 
-      // Silently refresh the session in the background
-      if (isSupabaseInitialized) {
-        try {
-          final client = ref.read(supabaseProvider);
-          if (client != null && client.auth.currentSession != null) {
-            client.auth.refreshSession().catchError((_) {
-              return AuthResponse();
-            });
-
-            // Reconnect socket if not connected
-            try {
-              final socketService = ref.read(socketServiceProvider);
-              if (!socketService.isConnected) {
-                socketService.connect();
-              }
-            } catch (_) {}
-
-            // Trigger background sync on app resume
-            try {
-              final bgSyncManager = ref.read(backgroundSyncManagerProvider);
-              bgSyncManager.onAppResumed();
-            } catch (_) {}
-          }
-        } catch (_) {}
-      }
-
-      logActionBreadcrumb('app_resume');
-      RatingService.instance.onForeground();
+      // ANR FIX: Defer heavy resume operations to prevent blocking the main
+      // thread. Session refresh, socket reconnect, and background sync are
+      // staggered with yields so the Android message queue can process
+      // pending touch/lifecycle events between each operation.
+      unawaited(_handleAppResumed());
     } else if (state == AppLifecycleState.paused) {
       logActionBreadcrumb('app_background');
       sendUnsentReports();
       RatingService.instance.onBackground();
 
-      // Stop periodic sync while in background
+      // ANR FIX: Stop periodic sync in background (fire-and-forget, no await needed)
       try {
         final bgSyncManager = ref.read(backgroundSyncManagerProvider);
         bgSyncManager.stop();

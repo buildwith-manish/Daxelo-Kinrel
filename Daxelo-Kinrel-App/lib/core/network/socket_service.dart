@@ -171,7 +171,7 @@ class SocketService {
   /// Minimum cooldown between provider invalidation batches.
   /// Prevents rapid socket events from triggering cascading rebuilds
   /// that block the main thread and cause ANR.
-  static const _invalidationCooldown = Duration(seconds: 2);
+  static const _invalidationCooldown = Duration(seconds: 3);
 
   // ── Public API ──────────────────────────────────────────────────
 
@@ -201,7 +201,7 @@ class SocketService {
     );
 
     _registerEventHandlers();
-    _socket!.connect();
+    _socket!.connect(); // Async — does not block the main isolate
 
     // Listen for auth state changes to reconnect with new token
     _authSubscription?.cancel();
@@ -454,6 +454,9 @@ class SocketService {
         } catch (_) {}
       }
 
+      // ANR FIX: Yield between cache invalidation and provider invalidation
+      await Future.delayed(Duration.zero);
+
       // Invalidate Riverpod providers so UI refetches
       _invalidateProvidersForFamily(familyId);
     } catch (e) {
@@ -483,6 +486,9 @@ class SocketService {
         } catch (_) {}
       }
 
+      // ANR FIX: Yield between cache invalidation and provider invalidation
+      await Future.delayed(Duration.zero);
+
       // Invalidate Riverpod providers
       _invalidateProvidersForFamily(familyId);
     } catch (e) {
@@ -509,6 +515,9 @@ class SocketService {
           await CacheInvalidation.invalidateFamily(event.familyId);
         } catch (_) {}
       }
+
+      // ANR FIX: Yield between cache invalidation and provider invalidation
+      await Future.delayed(Duration.zero);
 
       // Invalidate Riverpod providers
       _invalidateProvidersForFamily(event.familyId);
@@ -601,8 +610,14 @@ class SocketService {
         return;
       }
 
+      // ANR FIX: Yield before heavy DB merge operation
+      await Future.delayed(Duration.zero);
+
       // 3. Merge response into Isar silently
       await _mergeSyncResponse(syncResponse);
+
+      // ANR FIX: Yield before provider invalidation
+      await Future.delayed(Duration.zero);
 
       // 4. Invalidate affected Riverpod providers
       _invalidateAfterSync(syncResponse);
@@ -676,6 +691,9 @@ class SocketService {
       }
     }
 
+    // ANR FIX: Yield between merge batches to prevent main isolate blocking
+    await Future.delayed(Duration.zero);
+
     // Merge persons
     for (final personJson in sync.members) {
       try {
@@ -703,6 +721,9 @@ class SocketService {
         debugPrint('[SocketService] Error merging person: $e');
       }
     }
+
+    // ANR FIX: Yield between merge batches to prevent main isolate blocking
+    await Future.delayed(Duration.zero);
 
     // Merge relationships (from events array)
     for (final relJson in sync.events) {
