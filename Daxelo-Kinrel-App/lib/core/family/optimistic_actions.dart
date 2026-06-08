@@ -9,7 +9,7 @@
 
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 
 import 'family_provider.dart';
 import 'optimistic_provider.dart';
