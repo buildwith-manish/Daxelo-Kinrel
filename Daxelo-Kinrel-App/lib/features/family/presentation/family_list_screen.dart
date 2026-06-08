@@ -808,11 +808,17 @@ class _FamilyCard extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
+    // Capture navigator and messenger BEFORE async gap — the widget may be
+    // disposed after deleteFamily invalidates providers and the list rebuilds.
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final messenger = ScaffoldMessenger.of(context);
+
     unawaited(
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (ctx) => Center(
+        useRootNavigator: true,
+        builder: (_) => Center(
           child: CircularProgressIndicator(color: KinrelColors.purple),
         ),
       ),
@@ -821,29 +827,26 @@ class _FamilyCard extends ConsumerWidget {
     try {
       await deleteFamily(ref: ref, familyId: family.id);
 
-      if (context.mounted) {
-        Navigator.of(context).pop(); // Close loading
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${family.name} moved to archive'),
-            backgroundColor: KinrelColors.success,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+      // Use captured navigator — the original context may be unmounted now
+      navigator.pop(); // Close loading dialog
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('${family.name} moved to archive'),
+          backgroundColor: KinrelColors.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     } catch (e) {
-      if (context.mounted) {
-        Navigator.of(context).pop(); // Close loading
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Failed to delete: ${e.toString().split('\n').first}',
-            ),
-            backgroundColor: KinrelColors.error,
-            behavior: SnackBarBehavior.floating,
+      navigator.pop(); // Close loading dialog
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to delete: ${e.toString().split('\n').first}',
           ),
-        );
-      }
+          backgroundColor: KinrelColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 

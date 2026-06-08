@@ -569,11 +569,18 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
   }
 
   Future<void> _performDeleteFamily(BuildContext context) async {
+    // Capture navigator and messenger BEFORE async gap — the widget may be
+    // disposed after deleteFamily invalidates providers and the list rebuilds.
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+
     unawaited(
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (ctx) => Center(
+        useRootNavigator: true,
+        builder: (_) => Center(
           child: CircularProgressIndicator(color: KinrelColors.purple),
         ),
       ),
@@ -582,30 +589,27 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
     try {
       await deleteFamily(ref: ref, familyId: widget.familyId);
 
-      if (context.mounted) {
-        Navigator.of(context).pop(); // Close loading
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Family moved to archive. You can restore it from the Archived section.'),
-            backgroundColor: KinrelColors.success,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        context.go('/families');
-      }
+      // Use captured references — the original context may be unmounted now
+      navigator.pop(); // Close loading dialog
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Family moved to archive. You can restore it from the Archived section.'),
+          backgroundColor: KinrelColors.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      router.go('/families');
     } catch (e) {
-      if (context.mounted) {
-        Navigator.of(context).pop(); // Close loading
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Failed to delete: ${e.toString().split('\n').first}',
-            ),
-            backgroundColor: KinrelColors.error,
-            behavior: SnackBarBehavior.floating,
+      navigator.pop(); // Close loading dialog
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to delete: ${e.toString().split('\n').first}',
           ),
-        );
-      }
+          backgroundColor: KinrelColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -711,12 +715,18 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
   }
 
   Future<void> _performLeaveFamily(BuildContext context) async {
-    // Show a loading indicator
+    // Capture navigator and messenger BEFORE async gap — the widget may be
+    // disposed after provider invalidation and navigation.
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+
     unawaited(
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (ctx) => Center(
+        useRootNavigator: true,
+        builder: (_) => Center(
           child: CircularProgressIndicator(color: KinrelColors.warning),
         ),
       ),
@@ -726,43 +736,31 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
       final dio = ref.read(dioProvider);
       await dio.delete('/api/families/${widget.familyId}/leave');
 
-      // Close loading indicator
-      if (context.mounted) {
-        Navigator.of(context).pop();
-      }
-
       // Invalidate providers
       ref.invalidate(familyListProvider);
       ref.invalidate(familyMembershipsProvider(widget.familyId));
 
-      // Navigate back to home
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('You have left the family'),
-            backgroundColor: KinrelColors.success,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        context.go('/');
-      }
+      // Use captured references — the original context may be unmounted now
+      navigator.pop(); // Close loading dialog
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('You have left the family'),
+          backgroundColor: KinrelColors.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      router.go('/');
     } catch (e) {
-      // Close loading indicator
-      if (context.mounted) {
-        Navigator.of(context).pop();
-      }
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Failed to leave family: ${e.toString().split('\n').first}',
-            ),
-            backgroundColor: KinrelColors.error,
-            behavior: SnackBarBehavior.floating,
+      navigator.pop(); // Close loading dialog
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to leave family: ${e.toString().split('\n').first}',
           ),
-        );
-      }
+          backgroundColor: KinrelColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 }
