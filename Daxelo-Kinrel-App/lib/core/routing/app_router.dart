@@ -39,6 +39,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
@@ -73,7 +74,6 @@ import '../../features/profile/presentation/two_factor_screen.dart';
 import '../../features/profile/presentation/help_center_screen.dart';
 import '../../features/profile/presentation/contact_support_screen.dart';
 import '../../features/profile/presentation/report_bug_screen.dart';
-import '../../features/profile/presentation/legal_screen.dart';
 import '../../presentation/screens/legal/privacy_policy_screen.dart';
 import '../../presentation/screens/legal/terms_of_service_screen.dart';
 import '../../features/profile/presentation/my_families_screen.dart';
@@ -119,10 +119,20 @@ import '../config/auth_config.dart';
 import '../services/crashlytics_service.dart';
 import '../services/deep_link_service.dart';
 import '../services/analytics_service.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../shared/widgets/dk_components.dart';
 import '../../core/family/family_provider.dart';
 import '../../features/profile/data/profile_provider.dart';
+import '../../presentation/screens/follow/followers_screen.dart';
+import '../../presentation/screens/follow/follow_requests_screen.dart';
+import '../../presentation/screens/family/family_invite_screen.dart';
+import '../../presentation/screens/family/join_family_preview_screen.dart';
+import '../../presentation/screens/sparq/sparq_create_screen.dart';
+import '../../presentation/screens/sparq/sparq_viewer_screen.dart';
+import '../../presentation/screens/sparq/sparq_viewers_screen.dart';
+import '../../presentation/screens/settings/privacy_settings_screen.dart';
+import '../../data/models/sparq_model.dart';
 
 /// Key for accessing the router's navigator state
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -165,6 +175,11 @@ CustomTransitionPage<void> _instantPage({
     },
   );
 }
+
+/// Safe route parameter extraction with fallback to empty string.
+/// Returns empty string if the parameter is null, which triggers
+/// a "not found" state in the target screen instead of a crash.
+String _param(GoRouterState state, String key) => state.pathParameters[key] ?? '';
 
 // ═══════════════════════════════════════════════════════════════════════
 // P2 — Prefetch Wrappers for Most-Visited Routes
@@ -311,6 +326,16 @@ Set<String> _visitedRoutes = {};
 DateTime? _lastRedirectTime;
 const Duration _redirectCooldown = Duration(milliseconds: 500);
 
+/// Hard redirect count limit — absolute safety against infinite recursion.
+/// GoRouter has NO built-in redirect limit. If the redirect callback
+/// returns non-null that triggers another redirect, it recurses
+/// synchronously on the main thread. After _maxRedirects evaluations
+/// within _redirectWindow, all redirects are blocked.
+int _redirectCount = 0;
+DateTime? _redirectWindowStart;
+const int _maxRedirects = 10;
+const Duration _redirectWindow = Duration(seconds: 5);
+
 /// Handle GoRouter redirect logic safely.
 ///
 /// CRITICAL RULES to avoid ANR and blank screen:
@@ -325,9 +350,29 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
 
   // ── Time-based cooldown ──────────────────────────────────────────
   final now = DateTime.now();
+
+  // ── Hard redirect count limit ─────────────────────────────────────
+  // If we've exceeded _maxRedirects within _redirectWindow, block ALL
+  // redirects. This is the absolute safety net against infinite
+  // synchronous recursion that causes ANR.
+  if (_redirectWindowStart != null &&
+      now.difference(_redirectWindowStart!) < _redirectWindow) {
+    _redirectCount++;
+    if (_redirectCount > _maxRedirects) {
+      if (kDebugMode) debugPrint('⚠️ Redirect hard limit exceeded ($_redirectCount in ${now.difference(_redirectWindowStart!).inMilliseconds}ms) — blocking redirect at $currentLocation');
+      _visitedRoutes.clear();
+      _lastRedirectTime = null;
+      return null;
+    }
+  } else {
+    // Reset the window
+    _redirectWindowStart = now;
+    _redirectCount = 1;
+  }
+
   if (_lastRedirectTime != null &&
       now.difference(_lastRedirectTime!) < _redirectCooldown) {
-    debugPrint('⚠️ Redirect cooldown active — breaking potential loop at $currentLocation');
+    if (kDebugMode) debugPrint('⚠️ Redirect cooldown active — breaking potential loop at $currentLocation');
     _visitedRoutes.clear();
     _lastRedirectTime = null;
     return null;
@@ -336,7 +381,7 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
   // ── Visited-set loop detection ───────────────────────────────────
   // If we've already visited this route in the current chain, we're in a loop
   if (_visitedRoutes.contains(currentLocation)) {
-    debugPrint('⚠️ Redirect loop detected: $currentLocation already visited in chain. Breaking loop.');
+    if (kDebugMode) debugPrint('⚠️ Redirect loop detected: $currentLocation already visited in chain. Breaking loop.');
     _visitedRoutes.clear();
     _lastRedirectTime = null;
     return null;
@@ -402,7 +447,7 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
             Supabase.instance.client.auth.currentSession != null;
         if (hasDirectSession) {
           isAuthenticated = true;
-          debugPrint('🔄 Redirect: Using direct Supabase session (Riverpod lag)');
+          if (kDebugMode) debugPrint('🔄 Redirect: Using direct Supabase session (Riverpod lag)');
         }
       } catch (_) {}
     }
@@ -432,6 +477,18 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
 
   // ── Compute redirect target ────────────────────────────────────────
   String? redirectTarget;
+
+  // ── Deep link: /join/:token — save for post-login ──────────────
+  if (!isAuthenticated && currentLocation.startsWith('/join/')) {
+    try {
+      final token = currentLocation.replaceFirst('/join/', '');
+      if (token.isNotEmpty) {
+        const storage = FlutterSecureStorage();
+        // Fire-and-forget: can't await in sync redirect callback
+        storage.write(key: 'pending_join_token', value: token);
+      }
+    } catch (_) {}
+  }
 
   if (isAuthenticated && isAuth) {
     // Authenticated user on sign-in/sign-up → redirect to home
@@ -505,12 +562,40 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/splash',
-    debugLogDiagnostics: true,
+    debugLogDiagnostics: kDebugMode,
     refreshListenable: authNotifier,
     observers: [
       // P5-F1: Track every route change for analytics
       AnalyticsNavigatorObserver(),
     ],
+    errorBuilder: (context, state) => Scaffold(
+      appBar: AppBar(
+        title: Text('Page Not Found', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600)),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.explore_off, size: 64, color: Theme.of(context).disabledColor),
+            SizedBox(height: 16),
+            Text(
+              'Page not found',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, fontFamily: 'Outfit'),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'The page "${state.matchedLocation}" does not exist.',
+              style: TextStyle(color: Theme.of(context).hintColor),
+            ),
+            SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => context.go('/home'),
+              child: Text('Go Home'),
+            ),
+          ],
+        ),
+      ),
+    ),
     redirect: (context, state) {
       // ── SAFETY: Never throw in redirect — always return a route or null ──
       try {
@@ -519,7 +604,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         // If ANYTHING goes wrong in redirect logic, allow navigation.
         // A potentially wrong screen is better than a blank screen from
         // an unhandled redirect exception.
-        debugPrint('⚠️ Router redirect error, allowing navigation: $e');
+        if (kDebugMode) debugPrint('⚠️ Router redirect error, allowing navigation: $e');
         _visitedRoutes.clear();
         _lastRedirectTime = null;
         return null;
@@ -635,7 +720,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/family/:id',
         pageBuilder: (context, state) {
-          final familyId = state.pathParameters['id']!;
+          final familyId = _param(state, 'id');
           return _fastFadePage(
             key: state.pageKey,
             child: _PrefetchFamilyDetail(
@@ -658,29 +743,26 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/path-finder',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: PathFinderScreen(familyId: state.pathParameters['id']!),
+          child: PathFinderScreen(familyId: _param(state, 'id')),
         ),
       ),
       GoRoute(
         path: '/family/:id/add-person',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: _AddPersonScreen(familyId: state.pathParameters['id']!),
+          child: _AddPersonScreen(familyId: _param(state, 'id')),
         ),
       ),
       GoRoute(
         path: '/family/:id/add-member',
-        pageBuilder: (context, state) => _fastFadePage(
-          key: state.pageKey,
-          child: _AddPersonScreen(familyId: state.pathParameters['id']!),
-        ),
+        redirect: (context, state) => '/family/${_param(state, 'id')}/add-person',
       ),
       GoRoute(
         path: '/family/:id/link',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: RelationshipBuilderScreen(
-            familyId: state.pathParameters['id']!,
+            familyId: _param(state, 'id'),
             familyName: state.uri.queryParameters['name'] ?? 'Family',
           ),
         ),
@@ -689,7 +771,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/graph',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: RelationshipGraphScreen(familyId: state.pathParameters['id']!),
+          child: RelationshipGraphScreen(familyId: _param(state, 'id')),
         ),
       ),
 
@@ -698,7 +780,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/member/:id',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: PersonDetailScreen(memberId: state.pathParameters['id']!),
+          child: PersonDetailScreen(memberId: _param(state, 'id')),
         ),
       ),
 
@@ -708,7 +790,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: ChatScreen(
-            familyId: state.pathParameters['id']!,
+            familyId: _param(state, 'id'),
             familyName: state.uri.queryParameters['name'] ?? 'Family',
           ),
         ),
@@ -763,7 +845,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: CountryKinshipDetailScreen(
-            countryCode: state.pathParameters['code']!,
+            countryCode: _param(state, 'code'),
           ),
         ),
       ),
@@ -772,7 +854,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: KinshipDetailScreen(
-            relationshipKey: state.pathParameters['key']!,
+            relationshipKey: _param(state, 'key'),
           ),
         ),
       ),
@@ -826,7 +908,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: ShareScreen(
-            familyId: state.pathParameters['id']!,
+            familyId: _param(state, 'id'),
             familyName: state.uri.queryParameters['name'] ?? 'Family',
           ),
         ),
@@ -838,7 +920,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/share/:id',
         pageBuilder: (context, state) {
-          final familyId = state.pathParameters['id']!;
+          final familyId = _param(state, 'id');
           return _fastFadePage(
             key: state.pageKey,
             child: _DeepLinkShareScreen(familyId: familyId),
@@ -852,7 +934,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/invite/:code',
         pageBuilder: (context, state) {
-          final inviteCode = state.pathParameters['code']!;
+          final inviteCode = _param(state, 'code');
           return _fastFadePage(
             key: state.pageKey,
             child: InvitationsScreen(inviteCode: inviteCode),
@@ -875,6 +957,78 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // ── Profile Feature Screens ──────────────────────────────────
+      // ── Follow Routes ────────────────────────────────────────────────
+      GoRoute(
+        path: '/users/:userId/followers',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FollowersScreen(
+            userId: state.pathParameters['userId'] ?? '',
+            initialTab: state.uri.queryParameters['tab'] == 'following' ? 1 : 0,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/follow-requests',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: FollowRequestsScreen()),
+      ),
+
+      // ── Family Invite Routes ────────────────────────────────────────
+      GoRoute(
+        path: '/families/:familyId/invite',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilyInviteScreen(
+            familyId: state.pathParameters['familyId'] ?? '',
+            familyName: state.uri.queryParameters['familyName'] ?? 'Family',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/join/:token',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: JoinFamilyPreviewScreen(
+            token: state.pathParameters['token'] ?? '',
+          ),
+        ),
+      ),
+
+      // ── Sparq Routes ────────────────────────────────────────────────
+      GoRoute(
+        path: '/sparq/create',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: SparqCreateScreen()),
+      ),
+      GoRoute(
+        path: '/sparq/view',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: SparqViewerScreen(
+            groups: state.extra as List<UserSparqGroup>? ?? [],
+            initialGroupIndex: int.tryParse(state.uri.queryParameters['index'] ?? '0') ?? 0,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/sparq/:sparqId/viewers',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: SparqViewersScreen(
+            sparqId: state.pathParameters['sparqId'] ?? '',
+          ),
+        ),
+      ),
+
+      // ── Privacy Settings ────────────────────────────────────────────
+      GoRoute(
+        path: '/settings/privacy',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: PrivacySettingsScreen()),
+      ),
+
+      // ── Profile Feature Screens (existing) ──────────────────────────
       GoRoute(
         path: '/profile/change-password',
         pageBuilder: (context, state) => _fastFadePage(
@@ -955,15 +1109,11 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       GoRoute(
         path: '/legal/terms',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const LegalScreen(type: 'terms')),
+        redirect: (context, state) => '/terms',
       ),
       GoRoute(
         path: '/legal/privacy',
-        pageBuilder: (context, state) => _fastFadePage(
-          key: state.pageKey,
-          child: const LegalScreen(type: 'privacy'),
-        ),
+        redirect: (context, state) => '/privacy',
       ),
       GoRoute(
         path: '/profile/my-families',
@@ -989,8 +1139,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── P5: Premium Paywall (alternative path) ────────────────────
       GoRoute(
         path: '/profile/premium',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const PaywallScreen()),
+        redirect: (context, state) => '/premium',
       ),
 
       // ── Social Feature Routes ────────────────────────────────────────

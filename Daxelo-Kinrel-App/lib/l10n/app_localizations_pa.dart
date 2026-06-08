@@ -5,7 +5,7 @@ import 'app_localizations.dart';
 // ignore_for_file: type=lint
 
 /// The translations for Panjabi Punjabi (`pa`).
-class SPa extends S {
+class SPa extends AppLocalizations {
   SPa([String locale = 'pa']) : super(locale);
 
   @override

@@ -32,6 +32,7 @@ import '../../stories/presentation/stories_viewer_screen.dart';
 import '../../stories/presentation/add_story_sheet.dart';
 import '../../../core/utils/accessibility_utils.dart';
 import '../../../presentation/widgets/sparq_feed_row.dart';
+import '../../../presentation/providers/sparq_provider.dart';
 
 // ── Color shortcuts for the Command Center ──────────────────────
 const _cOrange = KinrelColors.orange; // #E8612A
@@ -185,7 +186,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // ── Has families — show Command Center with Feed ──────────────
   Widget _buildFamiliesView(dynamic user, List<Family> families) {
     final primaryFamily = families.first;
-    final detailAsync = ref.watch(familyDetailProvider(primaryFamily.id));
 
     return RefreshIndicator(
       color: _cOrange,
@@ -218,7 +218,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     .fadeIn(duration: 350.ms, delay: 50.ms)
                     .slideX(begin: -0.05, end: 0),
 
-                SizedBox(height: 20),
+                SizedBox(height: 12),
+
+                // Sparq Feed Row (horizontal sparq avatars)
+                SparqFeedRow(
+                  onOwnTap: () => context.push('/sparq/create'),
+                  onUserTap: (userId) {
+                    final sparqState = ref.read(sparqProvider);
+                    final groups = sparqState.feed;
+                    if (groups.isNotEmpty) {
+                      final index = groups.indexWhere((g) => g.userId == userId);
+                      if (index >= 0) {
+                        context.push('/sparq/view?index=$index', extra: groups);
+                      }
+                    }
+                  },
+                ),
+
+                SizedBox(height: 12),
 
                 // Sparq Feed Row (social stories at top)
                 SparqFeedRow()
@@ -236,17 +253,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
                 SizedBox(height: 20),
 
-                // Hero Family Card (avatar is tappable → opens stories)
-                _HeroFamilyCard(
-                  family: primaryFamily,
-                  detailAsync: detailAsync,
-                  familyId: primaryFamily.id,
-                )
-                    .animate()
-                    .fadeIn(duration: 400.ms, delay: 100.ms)
-                    .slideY(begin: 0.08, end: 0),
-
-                SizedBox(height: 20),
+                // ✅ REMOVED: Hero Family Card removed from home screen per user request
 
                 // ✅ REMOVED (BUG-10): _QuickActionsRow removed from home screen
                 // — Add Member / Share / Find Path actions remain available
@@ -1001,306 +1008,3 @@ class _StoryCircle extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Hero Family Card
-// ═══════════════════════════════════════════════════════════════════════
-
-class _HeroFamilyCard extends ConsumerWidget {
-  const _HeroFamilyCard({required this.family, required this.detailAsync, required this.familyId});
-
-  final Family family;
-  final AsyncValue<FamilyDetail?> detailAsync;
-  final String familyId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final storiesAsync = ref.watch(storiesProvider(familyId));
-    final hasStories = storiesAsync.valueOrNull?.isNotEmpty ?? false;
-
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
-      child: semanticButton(
-        label: '${family.name} family card',
-        hint: 'Double tap to open ${family.name} family details',
-        child: GestureDetector(
-          onTap: () => context.push('/family/${family.id}'),
-          child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: _cOrange.withValues(alpha: 0.15),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: _cOrange.withValues(alpha: 0.12),
-                blurRadius: 24,
-                spreadRadius: 2,
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: Stack(
-              children: [
-                // Radial gradient background #13141E → #191B2C with orange glow
-                Container(
-                  // ✅ FIX (BUG-07): Use minHeight instead of fixed height
-                  // to prevent BOTTOM OVERFLOWED BY 18 PIXELS when content
-                  // (username, stats) is taller than the fixed 160px
-                  constraints: const BoxConstraints(minHeight: 160),
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment.topRight,
-                      radius: 1.2,
-                      colors: [Color(0xFF191B2C), Color(0xFF13141E)],
-                      stops: [0.0, 1.0],
-                    ),
-                  ),
-                ),
-
-                // Subtle dotted K-graph pattern (low opacity)
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _DottedKGraphPainter(
-                      color: _cOrange.withValues(alpha: 0.04),
-                    ),
-                  ),
-                ),
-
-                // Content
-                Positioned.fill(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Family avatar + name
-                        Center(
-                          child: Column(
-                            children: [
-                              // Family initial avatar (48px, Ignite gradient bg)
-                            // — Tappable: opens stories viewer for this family
-                            // — Eye icon glow indicates stories are available
-                            GestureDetector(
-                              onTap: () {
-                                if (hasStories) {
-                                  final groups = storiesAsync.valueOrNull ?? [];
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => StoriesViewerScreen(
-                                        storyGroups: groups,
-                                        familyId: familyId,
-                                      ),
-                                    ),
-                                  );
-                                }
-                              },
-                              child: Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  Container(
-                                    width: 48,
-                                    height: 48,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      gradient: KinrelGradients.igniteGradient,
-                                      boxShadow: hasStories
-                                          ? [
-                                              BoxShadow(
-                                                color: _cOrange.withValues(alpha: 0.4),
-                                                blurRadius: 12,
-                                                spreadRadius: 2,
-                                              ),
-                                              // Extra glow ring when stories exist
-                                              BoxShadow(
-                                                color: _cOrange.withValues(alpha: 0.15),
-                                                blurRadius: 20,
-                                                spreadRadius: 4,
-                                              ),
-                                            ]
-                                          : [
-                                              BoxShadow(
-                                                color: _cOrange.withValues(alpha: 0.4),
-                                                blurRadius: 12,
-                                                spreadRadius: 2,
-                                              ),
-                                            ],
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        family.name.isNotEmpty
-                                            ? family.name[0].toUpperCase()
-                                            : 'F',
-                                        style: TextStyle(
-                                          fontFamily: KinrelTypography.displayFont,
-                                          fontSize: 22,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  // Small eye icon hint when stories are available
-                                  if (hasStories)
-                                    Positioned(
-                                      right: -2,
-                                      bottom: -2,
-                                      child: Container(
-                                        width: 18,
-                                        height: 18,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: _cOrange,
-                                          border: Border.all(
-                                            color: _cBg,
-                                            width: 1.5,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          Icons.visibility_rounded,
-                                          size: 10,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                              const SizedBox(height: 12),
-                              // Family name (Heading Large, #F5F0EE)
-                              Text(
-                                family.name,
-                                style: TextStyle(
-                                  fontFamily: KinrelTypography.displayFont,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w700,
-                                  color: _cTextPrimary,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              // Family @username
-                              if (family.familyCode != null) ...[
-                                const SizedBox(height: 2),
-                                Text(
-                                  '@${family.familyCode}',
-                                  style: TextStyle(
-                                    fontFamily: KinrelTypography.bodyFont,
-                                    fontSize: 12,
-                                    color: _cOrange,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 4),
-                              // Stats: Members · Links · Generations (Body Small, #C9B4A8)
-                              detailAsync.when(
-                                data: (detail) {
-                                  final members =
-                                      detail?.members.length ??
-                                      family.memberCount;
-                                  final links =
-                                      detail?.relationships.length ?? 0;
-                                  final generations = family.generationCount;
-                                  return Text(
-                                    '$members Members · $links Links · $generations Generations',
-                                    style: TextStyle(
-                                      fontFamily: KinrelTypography.bodyFont,
-                                      fontSize: 12,
-                                      color: _cTextSecondary,
-                                    ),
-                                  );
-                                },
-                                loading: () => SizedBox(
-                                  height: 18,
-                                  child: Center(
-                                    child: SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: _cOrange,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                error: (_, __) => SizedBox.shrink(),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      ),
-    );
-  }
-}
-
-/// Subtle dotted K-graph pattern for hero card background.
-class _DottedKGraphPainter extends CustomPainter {
-  _DottedKGraphPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-
-    // Draw a subtle node-and-edge pattern
-    final nodes = [
-      Offset(size.width * 0.15, size.height * 0.25),
-      Offset(size.width * 0.35, size.height * 0.15),
-      Offset(size.width * 0.55, size.height * 0.3),
-      Offset(size.width * 0.75, size.height * 0.2),
-      Offset(size.width * 0.85, size.height * 0.4),
-      Offset(size.width * 0.25, size.height * 0.55),
-      Offset(size.width * 0.5, size.height * 0.65),
-      Offset(size.width * 0.7, size.height * 0.7),
-      Offset(size.width * 0.4, size.height * 0.85),
-      Offset(size.width * 0.8, size.height * 0.85),
-    ];
-
-    final edges = [
-      [0, 1],
-      [1, 2],
-      [2, 3],
-      [3, 4],
-      [0, 5],
-      [5, 6],
-      [6, 7],
-      [2, 6],
-      [5, 8],
-      [7, 9],
-    ];
-
-    // Draw edges
-    for (final edge in edges) {
-      canvas.drawLine(nodes[edge[0]], nodes[edge[1]], paint);
-    }
-
-    // Draw dots at nodes
-    final dotPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    for (final node in nodes) {
-      canvas.drawCircle(node, 3, dotPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _DottedKGraphPainter oldDelegate) =>
-      oldDelegate.color != color;
-}

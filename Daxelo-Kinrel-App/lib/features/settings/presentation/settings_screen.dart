@@ -241,6 +241,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               onTap: () => _showInvitePermissionSheet(context, ref, ref.read(_invitePermissionProvider)),
             ),
             _divider(),
+            _SettingsRow(
+              icon: Icons.lock_outline,
+              label: 'Privacy',
+              iconColor: KinrelColors.accent,
+              onTap: () => context.push('/settings/privacy'),
+            ),
+            _divider(),
             _SettingsToggleRow(
               icon: Icons.fingerprint,
               label: 'Biometric lock',

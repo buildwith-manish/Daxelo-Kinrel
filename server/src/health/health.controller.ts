@@ -1,4 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
+import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { Public } from '../common/decorators/public.decorator';
 
@@ -12,23 +15,58 @@ import { Public } from '../common/decorators/public.decorator';
  *
  * Requirements:
  *  - DB check via Prisma.$queryRaw`SELECT 1` (only if connected)
+ *  - Redis check via PING command
  *  - process.uptime() for uptime seconds
  *  - process.memoryUsage().heapUsed for MB used
  *  - Must respond in < 50ms always
  *  - Never throw — always return { status: 'error' } on fail
  */
+@ApiTags('Health')
 @Public()
 @Controller('health')
 export class HealthController {
-  constructor(private readonly prisma: PrismaService) {}
+  private redis: Redis | null = null;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {
+    // Only create a Redis client when REDIS_URL is explicitly configured
+    // Redis is optional — the app works fine without it (graceful degradation)
+    const redisUrl = this.configService.get<string>('REDIS_URL');
+    if (redisUrl && redisUrl !== 'redis://localhost:6379') {
+      try {
+        this.redis = new Redis(redisUrl, {
+          lazyConnect: true,
+          maxRetriesPerRequest: 1,
+          connectTimeout: 3000,
+          retryStrategy: () => null, // Don't retry on failure
+        });
+
+        this.redis.on('error', (err) => {
+          if (err.message?.includes('ECONNREFUSED') || err.message?.includes('AggregateError')) {
+            if (this.redis) {
+              this.redis.disconnect();
+              this.redis = null;
+            }
+          }
+        });
+
+        this.redis.connect().catch(() => {
+          this.redis = null;
+        });
+      } catch {
+        this.redis = null;
+      }
+    }
+  }
 
   @Get()
   async check() {
     let db: 'ok' | 'error' = 'ok';
+    let redis: 'ok' | 'error' | 'skipped' = 'ok';
 
-    // Skip DB query if we already know connection failed at startup.
-    // This prevents Prisma from logging "Can't reach database server" errors
-    // every 5 seconds when DATABASE_URL isn't configured.
+    // ── DB check ────────────────────────────────────────────────────
     if (this.prisma.connectionFailed) {
       db = 'error';
     } else if (this.prisma.connected) {
@@ -46,14 +84,32 @@ export class HealthController {
       }
     }
 
+    // ── Redis check (optional) ─────────────────────────────────────────
+    if (this.redis) {
+      try {
+        const result = await this.redis.ping();
+        if (result !== 'PONG') {
+          redis = 'skipped'; // Redis responded but oddly — treat as optional
+        }
+      } catch {
+        redis = 'skipped'; // Redis unreachable — it's optional, not an error
+      }
+    } else {
+      // Redis not configured or connection previously failed — this is fine
+      redis = 'skipped';
+    }
+
     const uptime = Math.floor(process.uptime());
     const memory = parseFloat(
       (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2),
     );
 
+    const isOk = db === 'ok' && (redis === 'ok' || redis === 'skipped');
+
     return {
-      status: db === 'ok' ? ('ok' as const) : ('error' as const),
+      status: isOk ? ('ok' as const) : ('error' as const),
       db,
+      redis,
       uptime,
       memory,
       ts: Date.now(),

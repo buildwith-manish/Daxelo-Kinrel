@@ -14,18 +14,24 @@
 // - Bottom control pill (zoom, center, fit)
 // - Tap nodes for person detail sheet
 
+import 'dart:async' show unawaited;
+
+import 'dart:collection';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'dart:ui';
+import 'package:dio/dio.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
-import '../../../core/graph/graph_service.dart';
+import '../../../core/networking/dio_client.dart';
 import '../../../shared/widgets/dk_components.dart';
 import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
@@ -224,7 +230,7 @@ _LayoutResult _computeLayout({
   // Assign generations via BFS from anchor
   final generationMap = <String, int>{};
   final visited = <String>{};
-  final queue = <_QueueItem>[];
+  final queue = Queue<_QueueItem>();
 
   // Anchor is generation 3 (center)
   generationMap[anchor.id] = 3;
@@ -233,7 +239,7 @@ _LayoutResult _computeLayout({
 
   // BFS to assign generations
   while (queue.isNotEmpty) {
-    final item = queue.removeAt(0);
+    final item = queue.removeFirst();
     final currentGen = item.generation;
 
     // Parents are one generation above
@@ -378,20 +384,6 @@ _LayoutResult _computeLayout({
       } else {
         units.add([id]);
         usedInPair.add(id);
-      }
-    }
-
-    // Compute total width
-    double totalWidth = 0;
-    for (int i = 0; i < units.length; i++) {
-      final unit = units[i];
-      if (unit.length == 2) {
-        totalWidth += nodeRadius * 2 * 2 + spouseGap;
-      } else {
-        totalWidth += nodeRadius * 2;
-      }
-      if (i < units.length - 1) {
-        totalWidth += horizontalGap;
       }
     }
 
@@ -545,6 +537,11 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
   double _currentScale = 1.0;
   String? _selectedNodeId;
 
+  // ── Access state (for private/public family handling) ────────────
+  bool _isFamilyPrivate = false;
+  bool _isPublicTree = false; // non-member viewing a public family
+  bool _isCheckingAccess = true;
+
   // ── Animation ───────────────────────────────────────────────────
   late AnimationController _pulseController;
   late AnimationController _entryController;
@@ -569,14 +566,70 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
     );
 
     // Start entry animation after a brief delay
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) _entryController.forward();
-    });
+    unawaited(
+      Future.delayed(const Duration(milliseconds: 300), () async {
+        try {
+          if (mounted) _entryController.forward();
+        } catch (e) {
+          debugPrint('⚠️ Entry animation start failed: $e');
+        }
+      }),
+    );
 
     // Center on anchor after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _centerOnAnchor();
     });
+
+    // Check family access (private/public handling)
+    _checkFamilyAccess();
+  }
+
+  /// Check family access permissions — handles FAMILY_PRIVATE (403)
+  /// and public tree with stripped contact details.
+  Future<void> _checkFamilyAccess() async {
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get('/v1/families/${widget.familyId}/access');
+
+      if (response.statusCode == 200) {
+        final data = response.data as Map<String, dynamic>;
+        final accessLevel = data['accessLevel'] as String? ?? 'full';
+
+        if (mounted) {
+          setState(() {
+            _isCheckingAccess = false;
+            _isFamilyPrivate = false;
+            _isPublicTree = accessLevel == 'public_limited';
+          });
+        }
+      }
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 403) {
+        final errorData = e.response?.data;
+        final errorCode = errorData is Map ? errorData['error'] as String? : '';
+        if (errorCode == 'FAMILY_PRIVATE') {
+          if (mounted) {
+            setState(() {
+              _isCheckingAccess = false;
+              _isFamilyPrivate = true;
+            });
+          }
+          return;
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _isCheckingAccess = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isCheckingAccess = false;
+        });
+      }
+    }
   }
 
   @override
@@ -677,17 +730,120 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
       final node = layout.nodes[tappedId];
       if (node != null) {
         setState(() => _selectedNodeId = tappedId);
-        final kinshipAsync = ref.read(kinshipServiceProvider);
-        PersonDetailSheet.show(
-          context,
-          person: node.person,
-          familyId: widget.familyId,
-          kinshipService: kinshipAsync,
-        );
+        _showNodeOptions(node);
       }
     } else {
       setState(() => _selectedNodeId = null);
     }
+  }
+
+  /// Show options when a graph node is tapped.
+  /// Offers: View Details, Add Relative, Link to Another Member.
+  void _showNodeOptions(_GraphNode node) {
+    final person = node.person;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: DKColors.cardColor(context),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
+        ),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(KinrelSpacing.base),
+              child: Row(
+                children: [
+                  DKAvatar(
+                    initials: person.name.isNotEmpty
+                        ? person.name[0].toUpperCase()
+                        : '?',
+                    size: DKAvatarSize.md,
+                    backgroundColor: _GenColors.forGeneration(node.generation),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          person.name,
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.displayFont,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: DKColors.textPrimary(context),
+                          ),
+                        ),
+                        if (node.relationshipLabel != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            node.relationshipLabel!,
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 12,
+                              color: DKColors.textSecondary(context),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(color: KinrelColors.border, height: 1),
+
+            // View Details
+            _GraphActionTile(
+              icon: Icons.person_outline,
+              label: 'View Details',
+              onTap: () {
+                Navigator.pop(ctx);
+                final kinshipAsync = ref.read(kinshipServiceProvider);
+                PersonDetailSheet.show(
+                  context,
+                  person: person,
+                  familyId: widget.familyId,
+                  kinshipService: kinshipAsync,
+                );
+              },
+            ),
+
+            // Add Relative — opens AddPersonSheet with this person as anchor
+            _GraphActionTile(
+              icon: Icons.person_add_outlined,
+              label: 'Add Relative',
+              iconColor: KinrelColors.orange,
+              labelColor: KinrelColors.orange,
+              onTap: () {
+                Navigator.pop(ctx);
+                AddPersonSheet.show(
+                  context,
+                  familyId: widget.familyId,
+                  anchorPerson: person,
+                );
+              },
+            ),
+
+            // Link to Another Member
+            _GraphActionTile(
+              icon: Icons.link,
+              label: 'Link to Another Member',
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/family/${widget.familyId}/link');
+              },
+            ),
+
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -741,10 +897,20 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
         loading: () => const Center(
           child: CircularProgressIndicator(color: KinrelColors.orange),
         ),
-        error: (e, _) => DKErrorState(
-          message: 'Failed to load family data',
-          onRetry: () => ref.invalidate(familyDetailProvider(widget.familyId)),
-        ),
+        error: (e, _) {
+          // Check if the error is a 403 with FAMILY_PRIVATE
+          if (e is DioException && e.response?.statusCode == 403) {
+            final errorData = e.response?.data;
+            final errorCode = errorData is Map ? errorData['error'] as String? : '';
+            if (errorCode == 'FAMILY_PRIVATE') {
+              return _buildPrivateOverlay();
+            }
+          }
+          return DKErrorState(
+            message: 'Failed to load family data',
+            onRetry: () => ref.invalidate(familyDetailProvider(widget.familyId)),
+          );
+        },
         data: (detail) {
           if (detail == null || detail.members.isEmpty) {
             return DKEmptyState(
@@ -756,13 +922,165 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
             );
           }
 
-          return _buildGraph(detail);
+          return Column(
+            children: [
+              // Public tree info banner (non-member, public family)
+              if (_isPublicTree)
+                _buildPublicTreeBanner(),
+
+              // Graph
+              Expanded(child: _buildGraph(detail)),
+            ],
+          );
         },
       ),
     );
   }
 
+  // ── Private Family Overlay ────────────────────────────────────────
+
+  Widget _buildPrivateOverlay() {
+    return Container(
+      color: KinrelColors.darkBackground.withValues(alpha: 0.9),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: KinrelColors.accent.withValues(alpha: 0.15),
+                  ),
+                  child: Icon(
+                    Icons.lock_outline,
+                    size: 36,
+                    color: KinrelColors.accent,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'This family tree is private',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Only members of this family can view the tree. '
+                  'Request an invite from a family member to get access.',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 14,
+                    color: KinrelColors.textSilver,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: 160,
+                  child: OutlinedButton(
+                    onPressed: () => context.pop(),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: KinrelColors.accent, width: 1.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text(
+                      'Go Back',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.accent,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Public Tree Banner ────────────────────────────────────────────
+
+  Widget _buildPublicTreeBanner() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: KinrelColors.accent.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: KinrelColors.accent.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.visibility_outlined, size: 18, color: KinrelColors.accent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              "You're viewing a public tree. Join to see full details.",
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                color: KinrelColors.textWhite,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: () {
+              // Navigate to join family preview
+              context.push('/families/${widget.familyId}/invite');
+            },
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              'Request to Join',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.accent,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Private Family Overlay (no blur import fallback) ──────────────
+
   Widget _buildGraph(FamilyDetail detail) {
+    // If family is private and access check confirmed it, show overlay
+    if (_isFamilyPrivate) {
+      return _buildPrivateOverlay();
+    }
+
+    // If still checking access, show loading
+    if (_isCheckingAccess) {
+      return const Center(
+        child: CircularProgressIndicator(color: KinrelColors.orange),
+      );
+    }
+
     // Compute layout
     final layout = _computeLayout(
       members: detail.members,
@@ -790,7 +1108,19 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
             maxScale: 3.0,
             boundaryMargin: const EdgeInsets.all(2000),
             onInteractionUpdate: (details) {
-              setState(() => _currentScale = details.scale);
+              // Sync _currentScale from the InteractiveViewer's actual transform.
+              // Using details.scale is unreliable because it reports the scale
+              // *delta* during a pinch gesture, not the absolute scale — this
+              // caused drift when combining manual _zoomIn/_zoomOut with
+              // InteractiveViewer's built-in gestures.
+              final transform = _transformationController.value;
+              // Extract absolute scale from the 2x2 sub-matrix
+              final sx = transform.entry(0, 0);
+              final sy = transform.entry(1, 1);
+              final absoluteScale = (sx.abs() + sy.abs()) / 2;
+              if ((_currentScale - absoluteScale).abs() > 0.01) {
+                setState(() => _currentScale = absoluteScale);
+              }
             },
             child: GestureDetector(
               onTapUp: (details) => _handleTap(details.localPosition, layout),
@@ -816,6 +1146,15 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
                 ),
               ),
             ),
+          ),
+        ),
+
+        // ── Add Member FAB ────────────────────────────────────
+        Positioned(
+          top: 16,
+          right: 16,
+          child: _AddMemberFab(
+            familyId: widget.familyId,
           ),
         ),
 
@@ -868,6 +1207,15 @@ class _RelationshipGraphPainter extends CustomPainter {
   final String? anchorId;
 
   static const double nodeRadius = 36.0;
+
+  @override
+  bool shouldRepaint(covariant _RelationshipGraphPainter oldDelegate) {
+    return oldDelegate.layout != layout ||
+        oldDelegate.selectedNodeId != selectedNodeId ||
+        oldDelegate.pulseValue != pulseValue ||
+        oldDelegate.entryValue != entryValue ||
+        oldDelegate.anchorId != anchorId;
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1199,13 +1547,6 @@ class _RelationshipGraphPainter extends CustomPainter {
     canvas.restore();
   }
 
-  @override
-  bool shouldRepaint(covariant _RelationshipGraphPainter oldDelegate) {
-    return oldDelegate.pulseValue != pulseValue ||
-        oldDelegate.entryValue != entryValue ||
-        oldDelegate.selectedNodeId != selectedNodeId ||
-        oldDelegate.layout != layout;
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1386,6 +1727,105 @@ class _GenerationLegend extends StatelessWidget {
     )
     .animate(onPlay: (c) => c.forward())
     .fadeIn(duration: 500.ms, delay: 300.ms);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ADD MEMBER FAB — Floating button to add family members to the graph
+// ═══════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════
+// GRAPH ACTION TILE — Action option for tapped nodes
+// ═══════════════════════════════════════════════════════════════════════
+
+class _GraphActionTile extends StatelessWidget {
+  const _GraphActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.iconColor,
+    this.labelColor,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color? iconColor;
+  final Color? labelColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: iconColor ?? DKColors.textSecondary(context),
+        size: 20,
+      ),
+      title: Text(
+        label,
+        style: TextStyle(
+          fontFamily: KinrelTypography.bodyFont,
+          fontSize: 14,
+          color: labelColor ?? DKColors.textPrimary(context),
+        ),
+      ),
+      onTap: onTap,
+    );
+  }
+}
+
+class _AddMemberFab extends StatelessWidget {
+  const _AddMemberFab({required this.familyId});
+
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => AddPersonSheet.show(context, familyId: familyId),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [KinrelColors.orange, KinrelColors.orange.withValues(alpha: 0.85)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: KinrelColors.orange.withValues(alpha: 0.35),
+              blurRadius: 12,
+              spreadRadius: 2,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.person_add_rounded,
+              size: 18,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Add Member',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    )
+    .animate(onPlay: (c) => c.forward())
+    .fadeIn(duration: 400.ms, delay: 600.ms)
+    .slideY(begin: -0.2, end: 0, duration: 400.ms);
   }
 }
 

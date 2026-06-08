@@ -229,9 +229,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
           context.go('/home');
         } catch (e) {
           debugPrint('Navigation error after sign-up: $e');
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) {
-              try { context.go('/home'); } catch (_) {}
+          Future.delayed(const Duration(milliseconds: 500), () async {
+            try {
+              if (mounted) {
+                try { context.go('/home'); } catch (_) {}
+              }
+            } catch (e) {
+              debugPrint('⚠️ Sign-up navigation retry failed: $e');
             }
           });
         }
@@ -475,6 +479,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                     ),
+                    validator: (value) => phoneValidator(value),
                     decoration: _inputDecoration(
                       hintText: 'Phone number',
                       prefix: _CountryCodePicker(
@@ -825,8 +830,6 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         onPressed: () => context.go('/sign-in'),
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         child: Text(
                           'Sign In',

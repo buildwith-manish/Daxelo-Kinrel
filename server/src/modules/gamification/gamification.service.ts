@@ -142,15 +142,15 @@ export class GamificationService {
   /**
    * Get leaderboard sorted by score.
    */
-  getLeaderboard(): LeaderboardEntry[] {
+  getLeaderboard(limit: number = 50, offset: number = 0): LeaderboardEntry[] {
     const entries = [...this.leaderboard.values()].sort(
       (a, b) => b.score - a.score,
     );
 
-    // Assign ranks
-    return entries.map((entry, index) => ({
+    // Assign ranks after slicing
+    return entries.slice(offset, offset + limit).map((entry, index) => ({
       ...entry,
-      rank: index + 1,
+      rank: offset + index + 1,
     }));
   }
 

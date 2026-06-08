@@ -5,7 +5,7 @@ import 'app_localizations.dart';
 // ignore_for_file: type=lint
 
 /// The translations for Oriya (`or`).
-class SOr extends S {
+class SOr extends AppLocalizations {
   SOr([String locale = 'or']) : super(locale);
 
   @override

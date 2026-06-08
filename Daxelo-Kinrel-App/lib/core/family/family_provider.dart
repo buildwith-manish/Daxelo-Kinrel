@@ -9,9 +9,10 @@ import '../services/supabase_service.dart';
 import '../config/auth_config.dart';
 import '../services/analytics_service.dart';
 import '../graph/graph_service.dart';
-import '../database/isar_database.dart';
+import '../database/app_database_service.dart';
 import '../database/repositories/offline_family_repository.dart';
 import '../database/sync/cache_invalidation.dart';
+import '../utils/id_generator.dart';
 import '../../features/profile/data/profile_provider.dart';
 
 // ── Table name constants (matching Prisma schema PascalCase) ────────
@@ -19,20 +20,6 @@ const _kFamilyTable = 'Family';
 const _kPersonTable = 'Person';
 const _kRelationshipTable = 'Relationship';
 const _kFamilyMemberTable = 'FamilyMember';
-
-/// Generate a CUID-like ID for database inserts.
-/// Since we use Supabase client directly (not Prisma), we must generate IDs ourselves.
-/// Uses Random to avoid duplicate IDs when generating in a tight loop
-/// (DateTime.now().microsecond doesn't change between iterations).
-String _generateId() {
-  final timestamp = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
-  final random = Random();
-  final rand = List.generate(
-    16,
-    (_) => random.nextInt(36),
-  ).map((v) => v.toRadixString(36)).join();
-  return 'c$timestamp$rand'.substring(0, 25);
-}
 
 // ── Data Models ────────────────────────────────────────────────
 
@@ -359,13 +346,25 @@ class ArchivedFamily {
 /// falls back to Supabase direct query if auth is unavailable.
 final archivedFamiliesProvider =
     FutureProvider<List<ArchivedFamily>>((ref) async {
+  await Future.delayed(Duration.zero); // ANR fix: yield before heavy work
   // Try NestJS API first
   try {
     final dio = ref.read(dioProvider);
     final response = await dio.get('/api/families/archived');
 
-    if (response.statusCode == 200 && response.data is List) {
-      return (response.data as List)
+    if (response.statusCode == 200) {
+      // Backend may return a paginated envelope { items, total, page, limit }
+      // or a plain List — handle both.
+      final data = response.data;
+      final List<dynamic> items;
+      if (data is Map<String, dynamic> && data.containsKey('items')) {
+        items = data['items'] as List<dynamic>;
+      } else if (data is List) {
+        items = data;
+      } else {
+        items = [];
+      }
+      return items
           .map((json) =>
               ArchivedFamily.fromJson(json as Map<String, dynamic>))
           .toList();
@@ -431,10 +430,11 @@ final archivedFamiliesProvider =
 /// With offline-first: Returns cached data immediately if available,
 /// then refreshes from Supabase in the background.
 final familyListProvider = FutureProvider<List<Family>>((ref) async {
+  await Future.delayed(Duration.zero); // ANR fix: yield before heavy work
   final isReady = ref.watch(isSupabaseReadyProvider);
   if (!isReady) {
     // Even when Supabase isn't ready, try Isar cache for offline access
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilies();
@@ -448,7 +448,7 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
 
   try {
     // Use offline-first repository if Isar is initialized
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilies();
@@ -514,7 +514,9 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
         .order('createdAt', ascending: false);
 
     final list = response as List;
-    if (list.length > 20) {
+    // Data loaded successfully — clear any stale error
+    ref.read(familyListErrorProvider.notifier).state = null;
+    if (list.length > 5) {
       return compute(_parseFamilyList, list);
     }
     return list
@@ -524,16 +526,22 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
     debugPrint('⚠️ familyListProvider error: $e');
 
     // On network error, try Isar cache as last resort
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilies();
         // ✅ FIX (BUG-01): Filter out soft-deleted families from Isar cache
         final filtered = cached.where((f) => f.deletedAt == null).toList();
-        if (filtered.isNotEmpty) return filtered;
+        if (filtered.isNotEmpty) {
+          // Cache hit — clear any stale error
+          ref.read(familyListErrorProvider.notifier).state = null;
+          return filtered;
+        }
       } catch (_) {}
     }
 
+    // No cached data available — set error so UI can show error state
+    ref.read(familyListErrorProvider.notifier).state = e.toString();
     return [];
   }
 });
@@ -552,6 +560,7 @@ final familyDetailProvider = FutureProvider.family<FamilyDetail?, String>((
   ref,
   familyId,
 ) async {
+  await Future.delayed(Duration.zero); // ANR fix: yield before heavy work
   final isReady = ref.watch(isSupabaseReadyProvider);
   if (!isReady) return null;
 
@@ -621,10 +630,11 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
   ref,
   familyId,
 ) async {
+  await Future.delayed(Duration.zero); // ANR fix: yield before heavy work
   final isReady = ref.watch(isSupabaseReadyProvider);
   if (!isReady) {
     // Try Isar cache for offline access
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilyMembers(familyId);
@@ -636,7 +646,7 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
 
   try {
     // Use offline-first repository if Isar is initialized
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         return repo.getFamilyMembers(familyId);
@@ -662,7 +672,7 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
         .order('createdAt', ascending: true);
 
     final list = response as List;
-    if (list.length > 20) {
+    if (list.length > 5) {
       return compute(_parsePersonList, list);
     }
     return list
@@ -672,7 +682,7 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
     debugPrint('⚠️ familyMembersProvider error: $e');
 
     // On network error, try Isar cache
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilyMembers(familyId);
@@ -693,10 +703,11 @@ final familyRelationshipsProvider =
       ref,
       familyId,
     ) async {
+      await Future.delayed(Duration.zero); // ANR fix: yield before heavy work
       final isReady = ref.watch(isSupabaseReadyProvider);
       if (!isReady) {
         // Try Isar cache for offline access
-        if (IsarDatabase.isInitialized) {
+        if (AppDatabaseService.isInitialized) {
           try {
             final repo = ref.read(offlineFamilyRepositoryProvider);
             final cached = await repo.getFamilyRelationships(familyId);
@@ -708,7 +719,7 @@ final familyRelationshipsProvider =
 
       try {
         // Use offline-first repository if Isar is initialized
-        if (IsarDatabase.isInitialized) {
+        if (AppDatabaseService.isInitialized) {
           try {
             final repo = ref.read(offlineFamilyRepositoryProvider);
             return repo.getFamilyRelationships(familyId);
@@ -736,7 +747,7 @@ final familyRelationshipsProvider =
             .order('createdAt', ascending: true);
 
         final list = response as List;
-        if (list.length > 20) {
+        if (list.length > 5) {
           return compute(_parseRelationshipList, list);
         }
         return list
@@ -749,7 +760,7 @@ final familyRelationshipsProvider =
         debugPrint('⚠️ familyRelationshipsProvider error: $e');
 
         // On network error, try Isar cache
-        if (IsarDatabase.isInitialized) {
+        if (AppDatabaseService.isInitialized) {
           try {
             final repo = ref.read(offlineFamilyRepositoryProvider);
             final cached = await repo.getFamilyRelationships(familyId);
@@ -788,10 +799,10 @@ final familyListIsLoadingProvider = Provider<bool>((ref) {
   return ref.watch(familyListProvider).isLoading;
 });
 
-/// Computed: whether family list has error
-final familyListErrorProvider = Provider<Object?>((ref) {
-  return ref.watch(familyListProvider).error;
-});
+/// Stores the last error message from familyListProvider.
+/// Set when the provider catches an exception (network failure, etc.)
+/// and cleared when data loads successfully.
+final familyListErrorProvider = StateProvider<String?>((ref) => null);
 
 /// Create family in Supabase with retry for cold starts
 Future<Family> createFamily({
@@ -820,7 +831,7 @@ Future<Family> createFamily({
 
   // 1. Create the family
   final now = DateTime.now().toIso8601String();
-  final familyId = _generateId();
+  final familyId = generateId();
   
   // Retry on familyCode uniqueness conflict (23505)
   Map<String, dynamic>? response;
@@ -878,7 +889,7 @@ Future<Family> createFamily({
   try {
     await withRetry(
       () => client.from(_kFamilyMemberTable).insert({
-        'id': _generateId(),
+        'id': generateId(),
         'familyId': family.id,
         'userId': userId,
         'role': 'admin',
@@ -895,7 +906,7 @@ Future<Family> createFamily({
   ref.invalidate(familyListProvider);
 
   // Invalidate the Isar cache for the family list
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamilyList();
     } catch (_) {}
@@ -933,7 +944,7 @@ Future<Person> createPerson({
     );
   }
 
-  final personId = _generateId();
+  final personId = generateId();
   final now = DateTime.now().toIso8601String();
   final response = await withRetry(
     () => client
@@ -964,40 +975,39 @@ Future<Person> createPerson({
   ref.invalidate(familyMembersProvider(familyId));
   // familyDetailProvider auto-rebuilds via ref.watch on familyMembersProvider
 
-  // ✅ FIX: Increment Family.memberCount in Supabase
-  // The NestJS backend does memberCount: { increment: 1 } when adding a person.
-  // We must do the same when creating via Flutter direct Supabase writes.
-  // Note: Supabase PostgREST does NOT support { 'increment': 1 } Prisma syntax.
-  // We must read the current count and then write the incremented value.
+  // ✅ FIX (H5): Derive memberCount from actual person count instead of
+  // read-modify-write (read currentCount → currentCount + 1 → write back),
+  // which is subject to a race condition when multiple createPerson() calls
+  // run concurrently on different devices or isolates. By counting actual
+  // Person rows and setting memberCount to that count, we eliminate the
+  // race and also self-correct any prior drift in the stored count.
   try {
-    final familyData = await withRetry(
+    final personRows = await withRetry(
+      () => client
+          .from(_kPersonTable)
+          .select('id')
+          .eq('familyId', familyId)
+          .filter('deletedAt', 'is', null),
+      operationName: 'Count persons for memberCount update',
+    );
+    final actualCount = (personRows as List).length;
+    await withRetry(
       () => client
           .from(_kFamilyTable)
-          .select('memberCount')
-          .eq('id', familyId)
-          .maybeSingle(),
-      operationName: 'Read memberCount for increment',
+          .update({
+            'memberCount': actualCount,
+            'lastActivityAt': DateTime.now().toIso8601String(),
+            'updatedAt': DateTime.now().toIso8601String(),
+          })
+          .eq('id', familyId),
+      operationName: 'Set memberCount from actual count',
     );
-    if (familyData != null) {
-      final currentCount = (familyData['memberCount'] as int?) ?? 0;
-      await withRetry(
-        () => client
-            .from(_kFamilyTable)
-            .update({
-              'memberCount': currentCount + 1,
-              'lastActivityAt': DateTime.now().toIso8601String(),
-              'updatedAt': DateTime.now().toIso8601String(),
-            })
-            .eq('id', familyId),
-        operationName: 'Increment memberCount',
-      );
-    }
   } catch (e) {
-    debugPrint('⚠️ Could not increment memberCount: $e');
+    debugPrint('⚠️ Could not update memberCount: $e');
   }
 
   // Invalidate the Isar cache for this family
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
     } catch (_) {}
@@ -1070,7 +1080,7 @@ Future<Person> updatePerson({
   // familyDetailProvider auto-rebuilds via ref.watch on familyMembersProvider
 
   // Invalidate the Isar cache for this family
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
     } catch (_) {}
@@ -1156,7 +1166,7 @@ Future<void> deleteFamily({
   // familyDetailProvider auto-rebuilds via ref.watch on above providers
 
   // Invalidate the Isar cache
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
       await CacheInvalidation.invalidateFamilyList();
@@ -1238,7 +1248,7 @@ Future<void> restoreFamily({
   ref.invalidate(archivedFamiliesProvider);
 
   // Invalidate the Isar cache
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
       await CacheInvalidation.invalidateFamilyList();
@@ -1329,7 +1339,7 @@ Future<void> permanentDeleteFamily({
   ref.invalidate(archivedFamiliesProvider);
 
   // Invalidate the Isar cache
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
       await CacheInvalidation.invalidateFamilyList();
@@ -1400,7 +1410,7 @@ Future<void> deletePerson({
   }
 
   // Invalidate the Isar cache for this family
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
     } catch (_) {}
@@ -1435,8 +1445,8 @@ Future<FamilyRelationship> createRelationship({
     );
   }
 
-  final forwardRelId = _generateId();
-  final inverseRelId = _generateId();
+  final forwardRelId = generateId();
+  final inverseRelId = generateId();
   final now = DateTime.now().toIso8601String();
 
   // ✅ FIX: Look up the inverse relationship key
@@ -1512,7 +1522,7 @@ Future<FamilyRelationship> createRelationship({
   // familyDetailProvider auto-rebuilds via ref.watch on familyRelationshipsProvider
 
   // Invalidate the Isar cache for this family
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
     } catch (_) {}
@@ -1749,7 +1759,7 @@ Future<Family> joinFamilyByCode(WidgetRef ref, String familyCode) async {
   try {
     await withRetry(
       () => client.from(_kFamilyMemberTable).insert({
-        'id': _generateId(),
+        'id': generateId(),
         'familyId': family.id,
         'userId': userId,
         'role': 'member',
@@ -1767,7 +1777,7 @@ Future<Family> joinFamilyByCode(WidgetRef ref, String familyCode) async {
   ref.invalidate(familyListProvider);
 
   // Invalidate the Isar cache for the family list
-  if (IsarDatabase.isInitialized) {
+  if (AppDatabaseService.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamilyList();
     } catch (_) {}
@@ -1784,7 +1794,7 @@ Future<Family> joinFamilyByCode(WidgetRef ref, String familyCode) async {
 // because Dart's compute() requires them for spawning isolates.
 
 /// Parse a list of JSON objects into [Family] objects.
-/// Used by [familyListProvider] via compute() for large lists (> 20 items).
+/// Used by [familyListProvider] via compute() for large lists (> 5 items).
 List<Family> _parseFamilyList(List<dynamic> jsonList) {
   return jsonList
       .map((json) => Family.fromJson(json as Map<String, dynamic>))
@@ -1792,7 +1802,7 @@ List<Family> _parseFamilyList(List<dynamic> jsonList) {
 }
 
 /// Parse a list of JSON objects into [Person] objects.
-/// Used by [familyMembersProvider] via compute() for large lists (> 20 items).
+/// Used by [familyMembersProvider] via compute() for large lists (> 5 items).
 List<Person> _parsePersonList(List<dynamic> jsonList) {
   return jsonList
       .map((json) => Person.fromJson(json as Map<String, dynamic>))
@@ -1800,7 +1810,7 @@ List<Person> _parsePersonList(List<dynamic> jsonList) {
 }
 
 /// Parse a list of JSON objects into [FamilyRelationship] objects.
-/// Used by [familyRelationshipsProvider] via compute() for large lists (> 20 items).
+/// Used by [familyRelationshipsProvider] via compute() for large lists (> 5 items).
 List<FamilyRelationship> _parseRelationshipList(List<dynamic> jsonList) {
   return jsonList
       .map((json) => FamilyRelationship.fromJson(json as Map<String, dynamic>))

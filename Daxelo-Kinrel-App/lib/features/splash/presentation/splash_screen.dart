@@ -1,6 +1,8 @@
-import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:async';
+
+import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,11 +10,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
-import '../../../core/database/isar_database.dart';
+import '../../../core/database/app_database_service.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/config/auth_config.dart';
-import '../../../main.dart' show appInitCompleteProvider;
+import '../../../core/bootstrap/app_init_provider.dart' show appInitProvider;
 
 // ─────────────────────────────────────────────────────────────────────
 // KINREL Splash Screen — Animated K-Graph Experience
@@ -109,23 +111,30 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _initialize();
 
-    // Safety timeout: force navigate after 12 seconds even if init hasn't completed.
+    // Safety timeout: force navigate after 3 seconds even if init hasn't completed.
     // This prevents the user from being stuck on splash forever.
-    Future.delayed(const Duration(seconds: 12), () {
-      if (mounted && !_navigated) {
-        debugPrint('⚠️ Splash safety timeout triggered — forcing navigation');
-        _navigated = true;
+    // 3s limit stays under Android's 5s ANR threshold.
+    unawaited(
+      Future.delayed(const Duration(seconds: 3), () async {
         try {
-          if (ref.read(isAuthenticatedProvider) || _hasCachedProfile || _supabaseHasSession()) {
-            context.go('/home');
-          } else {
-            context.go('/sign-in');
+          if (mounted && !_navigated) {
+            debugPrint('⚠️ Splash safety timeout triggered — forcing navigation');
+            _navigated = true;
+            try {
+              if (ref.read(isAuthenticatedProvider) || _hasCachedProfile || _supabaseHasSession()) {
+                context.go('/home');
+              } else {
+                context.go('/sign-in');
+              }
+            } catch (_) {
+              try { context.go('/sign-in'); } catch (_) {}
+            }
           }
-        } catch (_) {
-          try { context.go('/sign-in'); } catch (_) {}
+        } catch (e) {
+          debugPrint('⚠️ Splash safety timeout failed: $e');
         }
-      }
-    });
+      }),
+    );
   }
 
   @override
@@ -144,36 +153,26 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // where _hasCachedProfile is read before the async check completes.
     await _checkIsarCache();
 
-    // ── AUTH DISABLED: Skip login screen, but wait for Supabase init ──
-    // Supabase is now initialized even when kAuthDisabled=true.
-    // We skip the login screen but MUST wait for Supabase to initialize
-    // so the client is available for CRUD operations.
+    // ── AUTH DISABLED: Skip login screen, go directly to home ──
+    // When auth is disabled, we don't need Supabase at all for navigation.
+    // Just wait for the splash animation to finish, then go to /home.
     if (kAuthDisabled) {
-      // Wait for background initialization to complete (Supabase, etc.)
-      try {
-        await ref.read(appInitCompleteProvider.future).timeout(
-          const Duration(seconds: 12),
-          onTimeout: () {
-            debugPrint('⚠️ Splash: background init timed out — proceeding anyway (auth disabled)');
-          },
-        );
-        debugPrint('📦 Splash: background initialization complete (auth disabled)');
-      } catch (e) {
-        debugPrint('⚠️ Splash: error waiting for init: $e');
-      }
+      // Wait for the minimum splash animation duration
+      await Future.delayed(const Duration(milliseconds: 1500));
 
-      // Try to auto sign-in for debug mode to get a real Supabase session
+      if (!mounted || _navigated) return;
+
+      // Try to initialize Supabase in the background (non-blocking)
+      // If it succeeds, API calls will work; if not, the app still shows
       try {
-        final signInResult = await autoSignInForDebug(ref).timeout(
-          const Duration(seconds: 15),
+        await ref.read(appInitProvider.future).timeout(
+          const Duration(seconds: 3),
           onTimeout: () {
-            debugPrint('⚠️ Splash: auto sign-in timed out');
-            return false;
+            debugPrint('⚠️ Splash: background init timed out (auth disabled) — proceeding to home');
           },
         );
-        debugPrint('🔧 Auto sign-in result: $signInResult (Supabase initialized: $isSupabaseInitialized)');
       } catch (e) {
-        debugPrint('⚠️ Auto sign-in failed: $e');
+        debugPrint('⚠️ Splash: init error (auth disabled, continuing): $e');
       }
 
       _initComplete = true;
@@ -181,7 +180,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       await _fadeOutController.forward();
       if (!mounted || _navigated) return;
       _navigated = true;
-      debugPrint('🧭 Splash → /home (auth disabled — development mode, Supabase initialized: $isSupabaseInitialized)');
+      debugPrint('🧭 Splash → /home (auth disabled — direct bypass)');
       context.go('/home');
       return;
     }
@@ -189,21 +188,27 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // Preload kinship data in the background (5 300+ terms, ~15 MB JSON)
     // Delay kinship loading by 5 seconds so it doesn't compete
     // with auth and UI initialization on the main thread
-    Future.delayed(const Duration(seconds: 5), () {
-      if (mounted) {
-        ref.read(kinshipInitializedProvider.future).catchError((_) {});
-      }
-    });
+    unawaited(
+      Future.delayed(const Duration(seconds: 5), () async {
+        try {
+          if (mounted) {
+            ref.read(kinshipInitializedProvider.future).catchError((_) {});
+          }
+        } catch (e) {
+          debugPrint('⚠️ Kinship preload failed: $e');
+        }
+      }),
+    );
 
     // ── Wait for background initialization to complete ──────────────
     // Services (Drift, Firebase, Supabase) are now initialized in the
     // background AFTER runApp(). We must wait for them to finish before
     // checking auth state, otherwise we'll always navigate to sign-in.
     try {
-      await ref.read(appInitCompleteProvider.future).timeout(
-        const Duration(seconds: 10),
+      await ref.read(appInitProvider.future).timeout(
+        const Duration(seconds: 3),
         onTimeout: () {
-          debugPrint('⚠️ Splash: background init timed out after 10s — proceeding anyway');
+          debugPrint('⚠️ Splash: background init timed out after 3s — proceeding anyway');
         },
       );
       debugPrint('📦 Splash: background initialization complete');
@@ -284,12 +289,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   /// Check Isar cache for a cached user profile.
   /// If found, set _hasCachedProfile = true so we can navigate faster.
   Future<void> _checkIsarCache() async {
-    if (!IsarDatabase.isInitialized) {
+    if (!AppDatabaseService.isInitialized) {
       debugPrint('📦 Database not initialized — skipping cache check');
       return;
     }
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       final profileCount = await db.profileCount();
       if (profileCount > 0) {
         _hasCachedProfile = true;
@@ -329,12 +334,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         debugPrint('📦 Existing session found for ${session.user.email}');
         return;
       }
-      // Wait for auth state to restore (up to 3 seconds)
+      // ANR FIX: Yield before waiting for auth stream to let the message queue process
+      await Future.delayed(Duration.zero);
+      // Wait for auth state to restore (reduced from 3s to 2s to prevent ANR)
       try {
         await client.auth.onAuthStateChange.first
-            .timeout(const Duration(seconds: 3));
-        // Small delay for state propagation
-        await Future.delayed(const Duration(milliseconds: 200));
+            .timeout(const Duration(seconds: 2));
         debugPrint('📦 Auth state restored');
       } on TimeoutException {
         debugPrint('📦 Auth state restore timed out — proceeding with cached state');

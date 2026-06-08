@@ -9,12 +9,16 @@ final kinshipServiceProvider = Provider<KinshipService>((ref) {
 
 /// Async initialization provider — loads data on first access
 final kinshipInitializedProvider = FutureProvider<void>((ref) async {
+  // ANR FIX: Yield before heavy kinship JSON parsing to let the
+  // Android message queue process pending touch/lifecycle events.
+  await Future.delayed(Duration.zero);
   final service = ref.watch(kinshipServiceProvider);
   await service.load();
 });
 
 /// Meta info provider
 final kinshipMetaProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  await Future.delayed(Duration.zero); // ANR fix: yield before work
   final kinshipReady = ref.watch(kinshipInitializedProvider);
   if (!kinshipReady.hasValue) return {};
   final service = ref.watch(kinshipServiceProvider);
@@ -27,6 +31,7 @@ final kinshipSearchProvider = StateProvider<String>((ref) => '');
 final kinshipSearchResultsProvider = FutureProvider<List<KinshipSearchResult>>((
   ref,
 ) async {
+  await Future.delayed(Duration.zero); // ANR fix: yield before work
   final kinshipReady = ref.watch(kinshipInitializedProvider);
   if (!kinshipReady.hasValue) return [];
   final query = ref.watch(kinshipSearchProvider);
@@ -40,6 +45,7 @@ final kinshipCategoryProvider = StateProvider<String?>((ref) => null);
 
 final kinshipCategoryResultsProvider =
     FutureProvider<List<KinshipRelationship>>((ref) async {
+      await Future.delayed(Duration.zero); // ANR fix: yield before work
       final kinshipReady = ref.watch(kinshipInitializedProvider);
       if (!kinshipReady.hasValue) return [];
       final category = ref.watch(kinshipCategoryProvider);
@@ -50,6 +56,7 @@ final kinshipCategoryResultsProvider =
 
 /// All categories provider
 final kinshipCategoriesProvider = FutureProvider<List<String>>((ref) async {
+  await Future.delayed(Duration.zero); // ANR fix: yield before work
   final kinshipReady = ref.watch(kinshipInitializedProvider);
   if (!kinshipReady.hasValue) return [];
   final service = ref.watch(kinshipServiceProvider);

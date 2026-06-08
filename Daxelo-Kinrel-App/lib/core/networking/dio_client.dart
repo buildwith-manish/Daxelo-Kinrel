@@ -5,11 +5,11 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../config/app_config.dart';
 import '../config/env_config.dart';
 import '../config/auth_config.dart';
 import '../services/crashlytics_service.dart';
 import '../services/supabase_service.dart';
+import '../security/certificate_pinning.dart';
 import '../widgets/offline_banner.dart';
 
 /// Configured Dio HTTP client with network resilience:
@@ -29,10 +29,16 @@ final dioProvider = Provider<Dio>((ref) {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'apikey': AppConfig.supabaseAnonKey,
       },
     ),
   );
+
+  // ── Certificate Pinning (Production) ──────────────────────────────────
+  // Validates SSL certificate fingerprints against known good values
+  // to prevent MITM attacks using compromised CAs or malicious proxies.
+  // Currently standard HTTPS validation only (CA-based).
+  // See lib/core/security/certificate_pinning.dart for setup instructions.
+  configureCertificatePinning(dio);
 
   dio.interceptors.addAll([
     ConnectivityInterceptor(ref: ref),
@@ -234,19 +240,27 @@ class _AuthInterceptor extends Interceptor {
         // If session is expired, try to refresh it before proceeding
         if (session != null && session.isExpired) {
           try {
-            final response = await client.auth.refreshSession();
+            final response = await client.auth.refreshSession()
+                .timeout(const Duration(seconds: 3), onTimeout: () {
+              throw TimeoutException('Token refresh timed out after 3s');
+            });
             session = response.session;
           } catch (e) {
-            // Refresh failed — proceed without token (will get 401)
             debugPrint('Token refresh failed in _AuthInterceptor: $e');
+            // Session is unrecoverable — sign out to trigger auth state change
+            // The UI will react and redirect to sign-in
+            try {
+              await client.auth.signOut();
+            } catch (_) {}
+            // Continue without token — the 401 will be handled by the app
           }
         }
         if (session != null && !session.isExpired) {
           options.headers['Authorization'] = 'Bearer ${session.accessToken}';
         }
       }
-    } catch (_) {
-      // Ignore — request will proceed without auth token
+    } catch (e) {
+      debugPrint('Auth interceptor error: $e');
     }
     handler.next(options);
   }
@@ -298,8 +312,69 @@ class _LoggingInterceptor extends Interceptor {
 class _ErrorInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    // Transform Dio errors to app exceptions
-    handler.next(err);
+    // Transform common Dio errors into more specific error types
+    // with user-friendly messages for the UI layer
+
+    final message = _getErrorMessage(err);
+    final transformed = DioException(
+      requestOptions: err.requestOptions,
+      response: err.response,
+      type: err.type,
+      error: message,
+    );
+
+    handler.next(transformed);
+  }
+
+  String _getErrorMessage(DioException err) {
+    switch (err.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return 'Connection timed out. Please check your internet and try again.';
+      case DioExceptionType.connectionError:
+        return 'Unable to connect to the server. Please check your internet connection.';
+      case DioExceptionType.badResponse:
+        return _getResponseErrorMessage(err.response);
+      case DioExceptionType.cancel:
+        return 'Request was cancelled.';
+      case DioExceptionType.unknown:
+        if (err.error?.toString().contains('SocketException') == true) {
+          return 'No internet connection. Please check your network settings.';
+        }
+        return 'Something went wrong. Please try again.';
+      default:
+        return 'Something went wrong. Please try again.';
+    }
+  }
+
+  String _getResponseErrorMessage(Response? response) {
+    if (response == null) return 'Server error. Please try again.';
+
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      // NestJS error format: { message: string, statusCode: number }
+      return data['message'] as String? ?? 'Server error.';
+    }
+
+    switch (response.statusCode) {
+      case 400:
+        return 'Invalid request. Please check your input.';
+      case 401:
+        return 'Session expired. Please sign in again.';
+      case 403:
+        return 'You don\'t have permission to perform this action.';
+      case 404:
+        return 'The requested resource was not found.';
+      case 429:
+        return 'Too many requests. Please wait a moment and try again.';
+      case 500:
+        return 'Server error. Please try again later.';
+      case 503:
+        return 'Service temporarily unavailable. Please try again later.';
+      default:
+        return 'Something went wrong (${response.statusCode}). Please try again.';
+    }
   }
 }
 

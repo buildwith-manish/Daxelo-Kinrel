@@ -21,7 +21,7 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/api_error_mapper.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/storage/secure_storage.dart';
-import '../../../core/database/isar_database.dart';
+import '../../../core/database/app_database_service.dart';
 import '../data/profile_provider.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
@@ -181,7 +181,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
 
     try {
       // Clear Drift database cache
-      await IsarDatabase.clearAll();
+      await AppDatabaseService.clearAll();
     } catch (_) {}
 
     try {

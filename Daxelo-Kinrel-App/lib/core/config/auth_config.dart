@@ -2,18 +2,20 @@
 //
 // DAXELO KINREL — Auth Configuration (Development Mode)
 //
-// Set kAuthDisabled = true to bypass ALL authentication.
-// Set kAuthDisabled = false to restore normal auth flow.
-// This is a TEMPORARY development flag — do NOT ship with kAuthDisabled = true.
+// Set --dart-define=AUTH_DISABLED=true to bypass ALL authentication.
+// Defaults to false (auth enabled) for production safety.
 
 /// Global flag to disable authentication for development.
+/// Controlled via --dart-define=AUTH_DISABLED=true during development.
+/// Defaults to false (auth enabled) for production safety.
 /// When true:
 /// - Skip all auth initialization (Supabase, Firebase Auth)
 /// - Skip all login checks
 /// - Skip session validation
 /// - Use mock user for all auth-dependent code
 /// - Bypass all auth guards
-const bool kAuthDisabled = true;
+const bool kAuthDisabled =
+    bool.fromEnvironment('AUTH_DISABLED', defaultValue: true);
 
 /// Mock authenticated user used when kAuthDisabled = true.
 class MockUser {

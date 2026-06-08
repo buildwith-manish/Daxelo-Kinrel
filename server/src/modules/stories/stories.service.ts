@@ -10,8 +10,23 @@ import { CreateStoryDto } from './dto/create-story.dto';
 export class StoriesService {
   constructor(private prisma: PrismaService) {}
 
+  /** Verifies that the user is a member of the specified family. */
+  private async verifyFamilyMembership(userId: string, familyId: string): Promise<void> {
+    const member = await this.prisma.familyMember.findFirst({
+      where: { userId, familyId },
+    });
+    if (!member) {
+      throw new ForbiddenException('You are not a member of this family');
+    }
+  }
+
   /** Creates a new story for the given user. */
   async create(userId: string, dto: CreateStoryDto) {
+    // Verify family membership if a familyId is provided
+    if (dto.familyId) {
+      await this.verifyFamilyMembership(userId, dto.familyId);
+    }
+
     const story = await this.prisma.story.create({
       data: {
         userId,
@@ -39,13 +54,21 @@ export class StoriesService {
 
   /** Gets active (non-expired) stories for a family, grouped by user.
    *  Each group includes user info, their stories array, and a hasUnviewed flag. */
-  async findByFamily(familyId: string, userId?: string) {
+  async findByFamily(familyId: string, userId?: string, limit: number = 50, cursor?: string) {
+    // Verify family membership before listing stories
+    if (userId) {
+      await this.verifyFamilyMembership(userId, familyId);
+    }
+
     const now = new Date();
+
+    const cursorFilter = cursor ? { id: { lt: cursor } } : {};
 
     const stories = await this.prisma.story.findMany({
       where: {
         familyId,
         expiresAt: { gt: now },
+        ...cursorFilter,
       },
       include: {
         user: {
@@ -59,7 +82,11 @@ export class StoriesService {
         views: true,
       },
       orderBy: { createdAt: 'desc' },
+      take: limit + 1,
     });
+
+    const hasNext = stories.length > limit;
+    const sliced = hasNext ? stories.slice(0, limit) : stories;
 
     // Group stories by user
     const groupedMap = new Map<
@@ -71,7 +98,7 @@ export class StoriesService {
       }
     >();
 
-    for (const story of stories) {
+    for (const story of sliced) {
       const existing = groupedMap.get(story.userId);
       const formatted = this.formatStory(story);
 
@@ -94,17 +121,23 @@ export class StoriesService {
       }
     }
 
-    return Array.from(groupedMap.values());
+    return {
+      data: Array.from(groupedMap.values()),
+      nextCursor: hasNext && sliced.length > 0 ? sliced[sliced.length - 1].id : null,
+    };
   }
 
   /** Gets active stories by a specific user. */
-  async findByUser(userId: string) {
+  async findByUser(userId: string, limit: number = 50, cursor?: string) {
     const now = new Date();
+
+    const cursorFilter = cursor ? { id: { lt: cursor } } : {};
 
     const stories = await this.prisma.story.findMany({
       where: {
         userId,
         expiresAt: { gt: now },
+        ...cursorFilter,
       },
       include: {
         user: {
@@ -118,9 +151,16 @@ export class StoriesService {
         views: true,
       },
       orderBy: { createdAt: 'desc' },
+      take: limit + 1,
     });
 
-    return stories.map((s) => this.formatStory(s));
+    const hasNext = stories.length > limit;
+    const sliced = hasNext ? stories.slice(0, limit) : stories;
+
+    return {
+      data: sliced.map((s) => this.formatStory(s)),
+      nextCursor: hasNext && sliced.length > 0 ? sliced[sliced.length - 1].id : null,
+    };
   }
 
   /** Marks a story as viewed by creating a StoryView record (upsert since storyId+viewerId is unique). */

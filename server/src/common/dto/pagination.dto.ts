@@ -1,17 +1,20 @@
 import { IsOptional, IsInt, IsString, IsIn, Min, Max } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
-/**
- * PaginationDto — Reusable DTO for paginated endpoints.
- *
- * Provides page-based or offset-based pagination with sorting.
- *
- * Fields:
- *  - page:   Page number (1-based), defaults to 1
- *  - limit:  Items per page, defaults to 20, max 100
- *  - sort:   Field name to sort by (default varies by endpoint)
- *  - order:  Sort direction — 'asc' or 'desc', defaults to 'desc'
- */
+// Common sort fields that are safe to use with Prisma orderBy
+export const SAFE_SORT_FIELDS = [
+  'createdAt',
+  'updatedAt',
+  'name',
+  'email',
+  'id',
+  'startDate',
+  'expiresAt',
+  'joinedAt',
+] as const;
+
+export type SafeSortField = typeof SAFE_SORT_FIELDS[number];
+
 export class PaginationDto {
   @IsOptional()
   @Type(() => Number)
@@ -38,16 +41,23 @@ export class PaginationDto {
 
 /**
  * Helper to convert PaginationDto to Prisma skip/take args.
+ * Sanitizes the sort field against a whitelist to prevent field injection.
  */
-export function paginationToPrisma(dto: PaginationDto) {
+export function paginationToPrisma(dto: PaginationDto, allowedSortFields?: string[]) {
   const page = dto.page ?? 1;
   const limit = dto.limit ?? 20;
   const skip = (page - 1) * limit;
+
+  // Sanitize sort field — only allow known safe fields
+  const sortField = dto.sort || 'createdAt';
+  const safeFields: readonly string[] = allowedSortFields ?? SAFE_SORT_FIELDS;
+  const safeSort = safeFields.includes(sortField) ? sortField : 'createdAt';
+
   return {
     skip,
     take: limit,
     orderBy: {
-      [dto.sort || 'createdAt']: dto.order || 'desc',
+      [safeSort]: dto.order || 'desc',
     },
   };
 }

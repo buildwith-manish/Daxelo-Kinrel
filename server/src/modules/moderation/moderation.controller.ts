@@ -10,10 +10,14 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { ModerationService } from './moderation.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 
+@ApiTags('Moderation')
+@ApiBearerAuth()
 @Controller('moderation')
 @UseGuards(JwtAuthGuard)
 export class ModerationController {
@@ -43,6 +47,7 @@ export class ModerationController {
    * Get moderation queue (admin).
    */
   @Get('queue')
+  @Roles('admin')
   async getQueue(
     @CurrentUser('id') userId: string,
     @Query('page') page?: string,
@@ -64,6 +69,7 @@ export class ModerationController {
    */
   @Post('classify')
   @HttpCode(HttpStatus.OK)
+  @Roles('admin')
   async classifyContent(
     @CurrentUser('id') userId: string,
     @Body()
@@ -78,9 +84,10 @@ export class ModerationController {
 
   /**
    * GET /api/moderation/appeal
-   * List appeals.
+   * List appeals (admin).
    */
   @Get('appeal')
+  @Roles('admin')
   async listAppeals(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -98,6 +105,7 @@ export class ModerationController {
    * Review an appeal (admin).
    */
   @Patch('appeal/:appealId/review')
+  @Roles('admin')
   async reviewAppeal(
     @CurrentUser('id') userId: string,
     @Param('appealId') appealId: string,

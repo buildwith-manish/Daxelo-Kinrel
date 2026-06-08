@@ -1,4 +1,7 @@
+import 'dart:async' show unawaited;
+
 import 'package:kinrel/core/widgets/global_error_widget.dart';
+import 'package:flutter/foundation.dart';
 // lib/features/chat/presentation/chat_screen.dart
 //
 // DAXELO KINREL — Family Chat Screen
@@ -154,11 +157,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _focusNode.requestFocus();
 
     // Simulate someone typing back after a brief delay
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        ref.read(chatProvider(widget.familyId).notifier).simulateTyping();
-      }
-    });
+    unawaited(
+      Future.delayed(const Duration(seconds: 1), () async {
+        try {
+          if (mounted) {
+            ref.read(chatProvider(widget.familyId).notifier).simulateTyping();
+          }
+        } catch (e) {
+          debugPrint('⚠️ Chat typing trigger failed: $e');
+        }
+      }),
+    );
   }
 
   void _showReactionPicker(String messageId) {

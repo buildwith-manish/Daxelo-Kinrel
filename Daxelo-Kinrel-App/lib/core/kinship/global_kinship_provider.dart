@@ -1,10 +1,16 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'global_kinship_service.dart';
 import 'global_kinship_models.dart';
+import '../services/kinship_loader_service.dart';
 
-/// Singleton global kinship service provider
+/// Singleton global kinship service provider.
+///
+/// Injects [KinshipLoaderService] so that global cultures (arabic, korean,
+/// japanese, vietnamese, russian, chinese) are fetched on demand from the
+/// server instead of being bundled in the APK (~165 MB savings).
 final globalKinshipServiceProvider = Provider<GlobalKinshipService>((ref) {
-  return GlobalKinshipService();
+  final loader = ref.watch(kinshipLoaderProvider);
+  return GlobalKinshipService(loader);
 });
 
 /// List of all 50+ cultures with metadata
@@ -32,55 +38,59 @@ final selectedCultureProvider = StateProvider<String?>((ref) => null);
 final globalKinshipSearchQueryProvider = StateProvider<String>((ref) => '');
 
 /// Search across all loaded cultures
+/// NOTE: Only searches already-loaded cultures — does NOT trigger loadAllAvailable()
+/// to avoid ANR. Cultures are loaded lazily via cultureKinshipDataProvider.
 final globalKinshipSearchResultsProvider =
     FutureProvider<List<GlobalKinshipTerm>>((ref) async {
+      await Future.delayed(Duration.zero); // ANR fix: yield before work
       final query = ref.watch(globalKinshipSearchQueryProvider);
       if (query.isEmpty) return [];
 
       final service = ref.watch(globalKinshipServiceProvider);
 
-      // Ensure all available cultures are loaded before searching
-      await service.loadAllAvailable();
-
+      // Search only already-loaded cultures (lazy approach to avoid ANR)
       return service.searchGlobally(query);
     });
 
 /// Load data for a specific culture
 final cultureKinshipDataProvider =
     FutureProvider.family<GlobalKinshipData?, String>((ref, cultureKey) async {
+      await Future.delayed(Duration.zero); // ANR fix: yield before heavy JSON loading
       final service = ref.watch(globalKinshipServiceProvider);
       return service.loadCulture(cultureKey);
     });
 
 /// Cross-cultural comparison for a specific relationship key
+/// Only compares across already-loaded cultures to avoid ANR from eager loading
 final crossCulturalComparisonProvider =
     FutureProvider.family<CrossCulturalComparison?, String>((
       ref,
       relationshipKey,
     ) async {
+      await Future.delayed(Duration.zero); // ANR fix: yield before work
       final service = ref.watch(globalKinshipServiceProvider);
 
-      // Ensure all available cultures are loaded
-      await service.loadAllAvailable();
-
+      // Compare only already-loaded cultures (avoid loading all at once)
       return service.compareCrossCulturally(relationshipKey);
     });
 
 /// Get common relationship keys across all loaded cultures
+/// Only checks already-loaded cultures to avoid ANR
 final commonRelationshipKeysProvider = FutureProvider<List<String>>((
   ref,
 ) async {
+  await Future.delayed(Duration.zero); // ANR fix: yield before work
   final service = ref.watch(globalKinshipServiceProvider);
-  await service.loadAllAvailable();
   return service.getCommonRelationshipKeys();
 });
 
 /// Get comparable relationship keys (in at least 2 cultures)
+/// Only checks already-loaded cultures to avoid ANR
 final comparableRelationshipKeysProvider = FutureProvider<List<String>>((
   ref,
 ) async {
+  await Future.delayed(Duration.zero); // ANR fix: yield before work
   final service = ref.watch(globalKinshipServiceProvider);
-  await service.loadAllAvailable();
   return service.getComparableRelationshipKeys();
 });
 

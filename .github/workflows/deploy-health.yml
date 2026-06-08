@@ -1,0 +1,89 @@
+# ─────────────────────────────────────────────────────────────────
+# Post-Deploy Health Check — smoke test after backend deployment
+# ─────────────────────────────────────────────────────────────────
+# Runs a simple HTTP health check against the production server
+# to confirm the deployment is responding correctly.
+# ─────────────────────────────────────────────────────────────────
+
+name: Post-Deploy Health Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - '.github/workflows/deploy-health.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-health-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  health-check:
+    name: Post-deploy health check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HEALTH_URL: 'https://daxelo-kinrel-server.onrender.com/api/health'
+      MAX_RETRIES: '20'
+      RETRY_DELAY: '15'
+
+    steps:
+      - name: Post-deploy health check
+        run: |
+          echo "Checking health endpoint: $HEALTH_URL"
+          echo "   Max retries: $MAX_RETRIES | Retry delay: ${RETRY_DELAY}s"
+          echo ""
+
+          ATTEMPT=0
+          while [ "$ATTEMPT" -lt "$MAX_RETRIES" ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "Attempt $ATTEMPT of $MAX_RETRIES..."
+
+            STATUS=$(curl -s -o /tmp/health-response.json -w "%{http_code}" "$HEALTH_URL" --max-time 30 --connect-timeout 10 || true)
+
+            if [ "$STATUS" = "200" ]; then
+              HEALTH_STATUS=$(python3 -c "
+          import json, sys
+          try:
+            d = json.load(open('/tmp/health-response.json'))
+            status = d.get('data', d).get('status', 'unknown')
+            db = d.get('data', d).get('db', 'unknown')
+            redis = d.get('data', d).get('redis', 'unknown')
+            redis_ok = redis in ('ok', 'skipped')
+            overall_ok = db == 'ok' and redis_ok
+            print('ok' if overall_ok else 'degraded')
+          except:
+            print('parse_error')
+          " 2>/dev/null || echo "parse_error")
+
+              if [ "$HEALTH_STATUS" = "ok" ]; then
+                echo "Health check passed: HTTP $STATUS, status: ok"
+                echo ""
+                echo "Response:"
+                cat /tmp/health-response.json | python3 -m json.tool 2>/dev/null || cat /tmp/health-response.json
+                exit 0
+              elif [ "$HEALTH_STATUS" = "degraded" ]; then
+                echo "Warning: Service is degraded (db or redis issue)"
+                cat /tmp/health-response.json | python3 -m json.tool 2>/dev/null || cat /tmp/health-response.json
+              else
+                echo "Warning: Could not parse health response"
+                cat /tmp/health-response.json 2>/dev/null
+              fi
+            else
+              echo "Warning: Received HTTP $STATUS (or timeout with empty response)"
+            fi
+
+            if [ "$ATTEMPT" -lt "$MAX_RETRIES" ]; then
+              echo "   Retrying in ${RETRY_DELAY}s..."
+              sleep "$RETRY_DELAY"
+            fi
+          done
+
+          echo ""
+          echo "Health check failed after $MAX_RETRIES attempts"
+          echo ""
+          echo "Last response:"
+          cat /tmp/health-response.json 2>/dev/null || echo "(no response body)"
+          exit 1

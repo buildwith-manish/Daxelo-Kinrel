@@ -5,7 +5,7 @@ import 'app_localizations.dart';
 // ignore_for_file: type=lint
 
 /// The translations for Marathi (`mr`).
-class SMr extends S {
+class SMr extends AppLocalizations {
   SMr([String locale = 'mr']) : super(locale);
 
   @override

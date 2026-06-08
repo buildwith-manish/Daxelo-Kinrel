@@ -68,7 +68,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: '3.44.0'
+          flutter-version: '3.44.1'
           cache: true
 
       - name: Print Flutter version
@@ -78,7 +78,7 @@ jobs:
       - name: Install Android SDK & NDK
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;28.2.13676358" "platforms;android-36" "build-tools;35.0.1" "cmake;3.22.1"
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;28.2.13676358" "platforms;android-31" "platforms;android-36" "build-tools;35.0.1" "cmake;3.22.1"
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
           ls "$ANDROID_HOME/ndk/" || echo "NDK directory not found"
 
@@ -102,25 +102,25 @@ jobs:
           sed -i 's/^[[:space:]]*//' ${{ env.FLUTTER_DIR }}/android/key.properties
           echo "key.properties created"
 
-      # ── Create .env file with fallback defaults ──────────────────
-      - name: Create .env file
+      # ── Verify required secrets ─────────────────────────────────
+      # Credentials are passed via --dart-define at build time.
+      # No .env file needed — flutter_dotenv was removed in v3.
+      # If any secret is missing, the build fails with assert().
+      - name: Verify required secrets
         run: |
-          DEFAULT_SUPABASE_URL="https://promxswvsnvilplmrtsj.supabase.co"
-          DEFAULT_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY"
-          DEFAULT_API_BASE_URL="https://daxelo-kinrel-server.onrender.com"
-
-          FINAL_SUPABASE_URL="${{ secrets.SUPABASE_URL || env.DEFAULT_SUPABASE_URL }}"
-          FINAL_SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY || env.DEFAULT_SUPABASE_ANON_KEY }}"
-          FINAL_API_BASE_URL="${{ secrets.API_BASE_URL || env.DEFAULT_API_BASE_URL }}"
-
-          cat > ${{ env.FLUTTER_DIR }}/.env <<EOF
-          SUPABASE_URL=$FINAL_SUPABASE_URL
-          SUPABASE_ANON_KEY=$FINAL_SUPABASE_ANON_KEY
-          API_BASE_URL=$FINAL_API_BASE_URL
-          EOF
-          sed -i 's/^[[:space:]]*//' ${{ env.FLUTTER_DIR }}/.env
-
-          echo ".env file created"
+          if [ -z "${{ secrets.SUPABASE_URL }}" ]; then
+            echo "❌ SUPABASE_URL secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SUPABASE_ANON_KEY }}" ]; then
+            echo "❌ SUPABASE_ANON_KEY secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.API_BASE_URL }}" ]; then
+            echo "❌ API_BASE_URL secret is not set"
+            exit 1
+          fi
+          echo "✅ All required secrets are configured"
 
       # ── Cache pub dependencies ───────────────────────────────────
       - name: Cache pub dependencies
@@ -143,12 +143,51 @@ jobs:
 
       # ── Code analysis ────────────────────────────────────────────
       - name: Analyze Dart code
-        run: cd ${{ env.FLUTTER_DIR }} && flutter analyze --no-fatal-warnings
-        continue-on-error: true
+        run: cd ${{ env.FLUTTER_DIR }} && flutter analyze --no-fatal-warnings --no-fatal-infos
 
       # ── Build signed release APK ─────────────────────────────────
+      # Credentials injected via --dart-define (compile-time constants).
+      # No .env file — flutter_dotenv was removed. Asserts in app_config.dart
+      # will fail at startup if any --dart-define is missing.
+      #
+      # --split-debug-info: separates Dart debug symbols into the specified
+      #   directory so they can be uploaded to Firebase Crashlytics for
+      #   deobfuscated stack traces in release builds.
+      # --obfuscate: enables Dart code obfuscation for release builds,
+      #   making reverse engineering harder. Requires --split-debug-info
+      #   to keep Crashlytics stack traces readable.
       - name: Build signed APK
-        run: cd ${{ env.FLUTTER_DIR }} && flutter build apk --release --build-number=$GITHUB_RUN_NUMBER
+        run: |
+          cd ${{ env.FLUTTER_DIR }} && flutter build apk --release \
+            --build-number=$GITHUB_RUN_NUMBER \
+            --obfuscate \
+            --split-debug-info=build/debug-info \
+            --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
+            --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }} \
+            --dart-define=API_BASE_URL=${{ secrets.API_BASE_URL }}
+
+      # ── Upload debug symbols to Firebase Crashlytics ──────────────
+      # After building with --split-debug-info, upload the Dart symbol
+      # files (symbols.json) to Firebase so Crashlytics can deobfuscate
+      # stack traces from release builds.
+      - name: Upload Crashlytics debug symbols
+        run: |
+          cd ${{ env.FLUTTER_DIR }}
+          # Upload Dart debug symbols generated by --split-debug-info
+          firebase crashlytics:symbols:upload --app=${{ secrets.FIREBASE_APP_ID }} build/debug-info 2>/dev/null || \
+            echo "⚠️ Crashlytics symbol upload skipped (FIREBASE_APP_ID not set or firebase-cli not installed)"
+
+      # ── Upload debug info as CI artifact ──────────────────────────
+      # Preserve the debug symbols as a CI artifact so they can be
+      # manually uploaded to Crashlytics if the automatic upload fails.
+      - name: Upload debug info artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crashlytics-debug-info-${{ github.run_number }}
+          path: ${{ env.FLUTTER_DIR }}/build/debug-info/
+          retention-days: 90
+          if-no-files-found: warn
 
       # ── Rename APK with release info ─────────────────────────────
       - name: Rename APK with release info

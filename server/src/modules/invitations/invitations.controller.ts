@@ -11,10 +11,15 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { InvitationsService } from './invitations.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CreateInvitationDto } from './dto/create-invitation.dto';
 
+@ApiTags('Invitations')
+@ApiBearerAuth()
 @Controller('invitations')
 @UseGuards(JwtAuthGuard)
 export class InvitationsController {
@@ -40,23 +45,15 @@ export class InvitationsController {
    * Create a new invitation.
    */
   @Post()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.CREATED)
   async create(
     @CurrentUser('id') userId: string,
-    @Body()
-    body: {
-      familyId: string;
-      inviterId?: string;
-      recipientEmail?: string;
-      recipientPhone?: string;
-      recipientName?: string;
-      role?: string;
-      channel?: string;
-    },
+    @Body() body: CreateInvitationDto,
   ) {
     return this.invitationsService.create(userId, {
       familyId: body.familyId,
-      inviterId: body.inviterId || userId,
+      inviterId: userId,  // Always use authenticated user's ID — prevent spoofing
       recipientEmail: body.recipientEmail,
       recipientPhone: body.recipientPhone,
       recipientName: body.recipientName,

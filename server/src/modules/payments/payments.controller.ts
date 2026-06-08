@@ -1,8 +1,12 @@
 import { Controller, Get, Post, Delete, Body, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaymentsService } from './payments.service';
 
+@ApiTags('Payments')
+@ApiBearerAuth()
 @Controller('payments')
 @UseGuards(JwtAuthGuard)
 export class PaymentsController {
@@ -17,9 +21,18 @@ export class PaymentsController {
   }
 
   @Post('verify')
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   async verifyPayment(
     @CurrentUser('id') userId: string,
-    @Body() body: Record<string, any>,
+    @Body() body: {
+      orderId?: string;
+      paymentId?: string;
+      signature?: string;
+      plan?: string;
+      razorpayOrderId?: string;
+      razorpayPaymentId?: string;
+      razorpaySignature?: string;
+    },
   ) {
     return this.paymentsService.verifyAndActivate(userId, body);
   }

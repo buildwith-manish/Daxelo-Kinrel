@@ -47,7 +47,7 @@ export class FamiliesController {
     return this.familiesService.findArchived(userId, pagination);
   }
 
-  // Join Family via Invite Token (preview)
+  // ── Join Family via Invite Token (preview) ────────────────────────
   // These MUST come before the dynamic :familyId routes to avoid
   // 'join' being captured by :familyId.
 
@@ -141,8 +141,8 @@ export class FamiliesController {
     @CurrentUser('id') userId: string,
     @Param('familyId') familyId: string,
   ) {
-    // Verify the user is a member before allowing permanent delete
-    await this.familiesService.requireFamilyMember(userId, familyId);
+    // Verify the user is an admin before allowing permanent delete
+    await this.familiesService.requireFamilyRole(userId, familyId, 'admin');
     return this.familiesService.permanentDelete(familyId);
   }
 
@@ -159,7 +159,7 @@ export class FamiliesController {
     return this.familiesService.leaveFamily(userId, familyId);
   }
 
-  ﻿// ── Family Invite Endpoints ─────────────────────────────────────
+  // ── Family Invite Endpoints ─────────────────────────────────────
 
   @Post(':familyId/invite/generate')
   @HttpCode(HttpStatus.CREATED)
@@ -186,7 +186,7 @@ export class FamiliesController {
     return this.familiesService.revokeInvites(userId, familyId);
   }
 
-  ﻿// ── Family Privacy ──────────────────────────────────────────────
+  // ── Family Privacy ──────────────────────────────────────────────
 
   @Patch(':familyId/privacy')
   @ApiOperation({ summary: 'Toggle family public/private (owner only)' })
@@ -199,7 +199,7 @@ export class FamiliesController {
     return this.familiesService.updatePrivacy(userId, familyId, body.isPublic);
   }
 
-  ﻿// ── Member Management ───────────────────────────────────────────
+  // ── Member Management ───────────────────────────────────────────
 
   @Delete(':familyId/members/leave')
   @HttpCode(HttpStatus.OK)

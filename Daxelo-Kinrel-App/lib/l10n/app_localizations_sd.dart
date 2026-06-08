@@ -5,7 +5,7 @@ import 'app_localizations.dart';
 // ignore_for_file: type=lint
 
 /// The translations for Sindhi (`sd`).
-class SSd extends S {
+class SSd extends AppLocalizations {
   SSd([String locale = 'sd']) : super(locale);
 
   @override

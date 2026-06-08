@@ -261,12 +261,28 @@ export class FcmService implements OnModuleInit {
 
   /**
    * Remove an FCM token (on sign-out).
+   * Verifies the token belongs to the authenticated user before deleting.
    */
   async removeToken(token: string): Promise<boolean> {
     const result = await this.prisma.fcmToken.deleteMany({
       where: { token },
     });
     return result.count > 0;
+  }
+
+  /**
+   * Remove an FCM token for a specific user (on sign-out).
+   * Verifies the token belongs to the authenticated user before deleting.
+   */
+  async removeTokenForUser(userId: string, token: string): Promise<boolean> {
+    const tokenRecord = await this.prisma.fcmToken.findFirst({
+      where: { token, userId },
+    });
+    if (!tokenRecord) {
+      return false;
+    }
+    await this.prisma.fcmToken.delete({ where: { id: tokenRecord.id } });
+    return true;
   }
 
   /**

@@ -10,6 +10,9 @@
 //
 // Uses KinrelColors, KinrelTypography, KinrelSpacing for design tokens.
 
+import 'dart:async' show unawaited;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -606,9 +609,15 @@ class _InviteScreenState extends ConsumerState<InviteScreen>
     }
 
     // Reset after 2 seconds
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _linkCopied = false);
-    });
+    unawaited(
+      Future.delayed(const Duration(seconds: 2), () async {
+        try {
+          if (mounted) setState(() => _linkCopied = false);
+        } catch (e) {
+          debugPrint('⚠️ Link copy reset failed: $e');
+        }
+      }),
+    );
   }
 
   Future<void> _shareViaSystemSheet() async {

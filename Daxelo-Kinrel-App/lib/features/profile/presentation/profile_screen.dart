@@ -23,7 +23,6 @@ import 'package:package_info_plus/package_info_plus.dart';
 // Hive removed — using shared_preferences for local settings
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -40,6 +39,9 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/family/family_id_provider.dart';
 import '../../../presentation/widgets/skeletons/profile_skeleton.dart';
 import '../../family/providers/family_invite_provider.dart';
+import '../../../presentation/widgets/sparq_ring_avatar.dart';
+import '../../../presentation/widgets/follow_button.dart';
+import '../../../presentation/providers/follow_provider.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
 const Color _orange = Color(0xFFE8612A);
@@ -561,117 +563,61 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
     return Column(
       children: [
-        // Avatar with orange ring + camera overlay
+        // Avatar with SparqRing + camera overlay
         Semantics(
             button: true,
             label: 'Change profile photo',
             hint: 'Double tap to change your profile photo',
             child: GestureDetector(
               onTap: _showAvatarSourceSheet,
-              child: SizedBox(
-                width: 100,
-                height: 100,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // Orange ring
-                    Container(
-                      width: 100,
-                      height: 100,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  SparqRingAvatar(
+                    userId: profile?.id ?? '',
+                    imageUrl: avatarUrl,
+                    initials: displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+                    size: 100,
+                  ),
+                  // Camera icon overlay
+                  Positioned(
+                    right: -2,
+                    bottom: -2,
+                    child: Container(
+                      width: 30,
+                      height: 30,
                       decoration: BoxDecoration(
+                        color: _orange,
                         shape: BoxShape.circle,
-                        border: Border.all(color: _orange, width: 3),
+                        border: Border.all(color: _bg, width: 2),
                       ),
-                      child: ClipOval(
-                        child: Container(
-                          color: KinrelColors.darkElevated,
-                          child: _isUploadingAvatar
-                              ? Center(
-                                  child: SizedBox(
-                                    width: 32,
-                                    height: 32,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 3,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        _orange,
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              : (avatarUrl != null && avatarUrl.isNotEmpty)
-                              ? CachedNetworkImage(
-                                  imageUrl: avatarUrl,
-                                  fit: BoxFit.cover,
-                                  imageBuilder: (ctx, img) => Image(
-                                    image: img,
-                                    semanticLabel: '$displayName\'s photo',
-                                  ),
-                                  placeholder: (_, __) => Center(
-                                    child: Text(
-                                      displayName.isNotEmpty
-                                          ? displayName[0].toUpperCase()
-                                          : '?',
-                                      style: TextStyle(
-                                        fontFamily:
-                                            KinrelTypography.displayFont,
-                                        fontSize: 36,
-                                        fontWeight: FontWeight.w700,
-                                        color: _textPrimary,
-                                      ),
-                                    ),
-                                  ),
-                                  errorWidget: (_, __, ___) => Center(
-                                    child: Text(
-                                      displayName.isNotEmpty
-                                          ? displayName[0].toUpperCase()
-                                          : '?',
-                                      style: TextStyle(
-                                        fontFamily:
-                                            KinrelTypography.displayFont,
-                                        fontSize: 36,
-                                        fontWeight: FontWeight.w700,
-                                        color: _textPrimary,
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              : Center(
-                                  child: Text(
-                                    displayName.isNotEmpty
-                                        ? displayName[0].toUpperCase()
-                                        : '?',
-                                    style: TextStyle(
-                                      fontFamily: KinrelTypography.displayFont,
-                                      fontSize: 36,
-                                      fontWeight: FontWeight.w700,
-                                      color: _textPrimary,
-                                    ),
-                                  ),
-                                ),
-                        ),
+                      child: const Icon(
+                        Icons.camera_alt,
+                        size: 16,
+                        color: Colors.white,
                       ),
                     ),
-                    // Camera icon overlay
-                    Positioned(
-                      right: -2,
-                      bottom: -2,
+                  ),
+                  // Upload spinner
+                  if (_isUploadingAvatar)
+                    Positioned.fill(
                       child: Container(
-                        width: 30,
-                        height: 30,
                         decoration: BoxDecoration(
-                          color: _orange,
                           shape: BoxShape.circle,
-                          border: Border.all(color: _bg, width: 2),
+                          color: Colors.black45,
                         ),
-                        child: const Icon(
-                          Icons.camera_alt,
-                          size: 16,
-                          color: Colors.white,
+                        alignment: Alignment.center,
+                        child: SizedBox(
+                          width: 32,
+                          height: 32,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            valueColor: AlwaysStoppedAnimation<Color>(_orange),
+                          ),
                         ),
                       ),
                     ),
-                  ],
-                ),
+                ],
               ),
             ),
             )
@@ -774,30 +720,128 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
         const SizedBox(height: 16),
 
-        // "Edit Profile" button — Outlined, orange border, orange text
-        SizedBox(
-          height: 38,
-          child: OutlinedButton(
-            onPressed: () => context.push('/profile/edit'),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: _orange, width: 1.5),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+        // ── Followers / Following / Families counts row ────────────────
+        Builder(builder: (context) {
+          final stats = ref.watch(profileStatsProvider);
+          final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Followers count (tappable)
+              _ProfileStatButton(
+                count: stats?.followersCount ?? 0,
+                label: 'Followers',
+                onTap: () => context.push('/users/${profile?.id ?? currentUserId ?? ''}/followers?tab=followers'),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 28),
-            ),
-            child: const Text(
-              'Edit Profile',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: _orange,
-                letterSpacing: 0.3,
+              Container(
+                width: 1,
+                height: 28,
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                color: _borderSubtle,
               ),
-            ),
-          ),
-        ),
+              // Following count (tappable)
+              _ProfileStatButton(
+                count: stats?.followingCount ?? 0,
+                label: 'Following',
+                onTap: () => context.push('/users/${profile?.id ?? currentUserId ?? ''}/followers?tab=following'),
+              ),
+              Container(
+                width: 1,
+                height: 28,
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                color: _borderSubtle,
+              ),
+              // Families count (tappable)
+              _ProfileStatButton(
+                count: stats?.familiesCount ?? stats?.familyTrees ?? 0,
+                label: 'Families',
+                onTap: () => context.push('/profile/my-families'),
+              ),
+            ],
+          );
+        }),
+
+        const SizedBox(height: 14),
+
+        // ── Action buttons: Edit Profile (own) or Follow + Message (other) ──
+        Builder(builder: (context) {
+          final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+          final isOwnProfile = profile == null || currentUserId == null || profile.id == currentUserId;
+
+          if (isOwnProfile) {
+            // Own profile → "Edit Profile" button
+            return SizedBox(
+              height: 38,
+              child: OutlinedButton(
+                onPressed: () => context.push('/profile/edit'),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: _orange, width: 1.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                ),
+                child: const Text(
+                  'Edit Profile',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _orange,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+            );
+          } else {
+            // Other user → FollowButton + Message button
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FollowButton(
+                  userId: profile?.id ?? '',
+                  username: profile?.username,
+                ),
+                const SizedBox(width: 10),
+                // Message button (visible if already following)
+                Consumer(builder: (context, ref, _) {
+                  final followState = ref.watch(followProvider);
+                  final status = followState.statusCache[profile?.id ?? ''];
+                  if (status == 'following') {
+                    return SizedBox(
+                      height: 38,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          // TODO: Navigate to chat with this user
+                          context.showSnackBar('Messages coming soon');
+                        },
+                        icon: const Icon(Icons.chat_bubble_outline, size: 16),
+                        label: const Text(
+                          'Message',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: _textDim, width: 1.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                        ),
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                }),
+              ],
+            );
+          }
+        }),
       ],
     );
   }
@@ -1887,6 +1931,52 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       default:
         return _capitalize(key);
     }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Profile Stat Button (for followers/following/families row)
+// ═══════════════════════════════════════════════════════════════════════
+
+class _ProfileStatButton extends StatelessWidget {
+  const _ProfileStatButton({
+    required this.count,
+    required this.label,
+    this.onTap,
+  });
+
+  final int count;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$count',
+            style: const TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: _orange,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 12,
+              color: DKColors.textSecondary(context),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

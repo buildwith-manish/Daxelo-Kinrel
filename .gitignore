@@ -9,10 +9,15 @@ desktop.ini
 *.swp
 *.swo
 *~
+.claude
+.z-ai-config
 
 # ── Logs ──
 *.log
 logs/
+dev.log
+dev.out.log
+server.log
 
 # ── Dependencies ──
 node_modules/
@@ -27,6 +32,8 @@ node_modules/
 build/
 dist/
 coverage/
+.next/
+out/
 
 # ── Environment ──
 .env
@@ -50,11 +57,41 @@ local-*
 *.freezed.dart
 *.mocks.dart
 -e 
+
+# ── Firebase Config (real keys must not be committed) ──
+**/google-services.json
+!**/google-services.json.example
+**/GoogleService-Info.plist
+!**/GoogleService-Info.plist.example
+
 # ── Android Signing ──
 *.jks
 *.keystore
 Daxelo-Kinrel-App/android/key.properties
-.next/
-server/.z-ai-config
-node_modules/
+
+# ── Yarn/Pnpm ──
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# ── Debug ──
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ── TypeScript ──
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Vercel ──
+.vercel
+
+# ── Misc ──
+test
+prompt
 skills/

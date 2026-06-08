@@ -27,6 +27,9 @@
 //   Festival:    gold (#D4AF37)
 //   Auspicious:  green (#4CAF7A)
 
+import 'dart:async' show unawaited;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -3331,17 +3334,26 @@ class _AuspiciousDateFinderSheetState
   void _search() {
     setState(() => _isLoading = true);
     // Simulate async
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (!mounted) return;
-      final results = HinduPanchangService.findAuspiciousDates(
-        _selectedType,
-        DateTime.now(),
-      );
-      setState(() {
-        _results = results;
-        _isLoading = false;
-      });
-    });
+    unawaited(
+      Future.delayed(const Duration(milliseconds: 500), () async {
+        try {
+          if (!mounted) return;
+          final results = HinduPanchangService.findAuspiciousDates(
+            _selectedType,
+            DateTime.now(),
+          );
+          setState(() {
+            _results = results;
+            _isLoading = false;
+          });
+        } catch (e) {
+          debugPrint('⚠️ Calendar search failed: $e');
+          if (mounted) {
+            setState(() => _isLoading = false);
+          }
+        }
+      }),
+    );
   }
 
   @override

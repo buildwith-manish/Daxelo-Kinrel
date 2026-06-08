@@ -11,6 +11,9 @@
 // Orange K-Graph DNA: Link=orange, QR=amber, WhatsApp=green,
 //   SMS=blue, Email=orange, Copy=white.
 
+import 'dart:async' show unawaited;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -373,9 +376,15 @@ class ShareNotifier extends StateNotifier<ShareState> {
   void markCopied() {
     state = state.copyWith(copiedToClipboard: true);
     // Reset after 2 seconds
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) state = state.copyWith(copiedToClipboard: false);
-    });
+    unawaited(
+      Future.delayed(const Duration(seconds: 2), () async {
+        try {
+          if (mounted) state = state.copyWith(copiedToClipboard: false);
+        } catch (e) {
+          debugPrint('⚠️ Clipboard reset failed: $e');
+        }
+      }),
+    );
   }
 
   /// Start graph export simulation.

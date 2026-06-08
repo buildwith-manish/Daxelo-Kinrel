@@ -15,10 +15,12 @@ import {
   HttpCode,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UsersService } from './users.service';
-import { IsString, IsNotEmpty, MaxLength, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 // ── DTOs for new username endpoints ──────────────────────────────────
 
@@ -29,23 +31,12 @@ export class UsernameSuggestionsDto {
   displayName!: string;
 }
 
+@ApiTags('Users')
+@ApiBearerAuth()
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
-
-  // Get Privacy Settings
-  @Get('me/privacy')
-  async getPrivacy(@CurrentUser('id') userId: string) {
-    return this.usersService.getPrivacy(userId);
-  }
-
-  // Get Follow Counts for a User
-  @Get(':userId/follow-counts')
-  async getFollowCounts(@Param('userId') userId: string) {
-    return this.usersService.getFollowCounts(userId);
-  }
-
 
 
   // ══════════════════════════════════════════════════════════════════════
@@ -115,6 +106,18 @@ export class UsersController {
     return this.usersService.getBlockedUsers(userId);
   }
 
+  // ── Get Privacy Settings ────────────────────────────────────────
+  @Get('me/privacy')
+  async getPrivacy(@CurrentUser('id') userId: string) {
+    return this.usersService.getPrivacy(userId);
+  }
+
+  // ── Get Follow Counts for a User ────────────────────────────────
+  @Get(':userId/follow-counts')
+  async getFollowCounts(@Param('userId') userId: string) {
+    return this.usersService.getFollowCounts(userId);
+  }
+
   // ── Get User by Username (public profile with privacy) ─────────────
   //    MUST be the LAST @Get route — the ':username' parameter matches
   //    any single path segment and would shadow all static routes if
@@ -131,21 +134,9 @@ export class UsersController {
   @Patch('me')
   async updateProfile(
     @CurrentUser('id') userId: string,
-    @Body()
-    body: {
-      name?: string;
-      phone?: string;
-      preferredLanguage?: string;
-      username?: string;
-      bio?: string;
-      dateOfBirth?: string;
-      gender?: string;
-      avatarUrl?: string;
-      profileVisibility?: string;
-      invitePermission?: string;
-    },
+    @Body() dto: UpdateProfileDto,
   ) {
-    return this.usersService.updateProfile(userId, body);
+    return this.usersService.updateProfile(userId, dto);
   }
 
   // ── Update Username ──────────────────────────────────────────────
@@ -157,7 +148,7 @@ export class UsersController {
     return this.usersService.updateUsername(userId, body.username);
   }
 
-  // Update Privacy Settings
+  // ── Update Privacy Settings ─────────────────────────────────────
   @Patch('me/privacy')
   async updatePrivacy(
     @CurrentUser('id') userId: string,

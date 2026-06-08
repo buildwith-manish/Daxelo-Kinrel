@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart';
 
-import '../isar_database.dart';
+import '../app_database_service.dart';
 import '../app_database.dart';
 import '../sync/connectivity_service.dart';
 import '../../services/supabase_service.dart';
@@ -19,7 +19,7 @@ class OfflineQueueManager {
 
   OfflineQueueManager(this._ref);
 
-  AppDatabase get _db => _ref.read(isarProvider);
+  AppDatabase get _db => _ref.read(appDatabaseProvider);
   ConnectivityService get _connectivity => _ref.read(connectivityServiceProvider);
   bool get _isOnline => _connectivity.isOnline;
 

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../database/isar_database.dart';
+import '../database/app_database_service.dart';
 
 /// In-App Rating Service — follows Play Store best practices.
 ///
@@ -77,8 +77,8 @@ class RatingService {
       if (alreadyPrompted) return;
 
       // Condition 5: User has added at least 2 family members
-      if (IsarDatabase.isInitialized) {
-        final db = IsarDatabase.instance;
+      if (AppDatabaseService.isInitialized) {
+        final db = AppDatabaseService.instance;
         final memberCount = await db.personCount();
         if (memberCount < 2) return;
       } else {

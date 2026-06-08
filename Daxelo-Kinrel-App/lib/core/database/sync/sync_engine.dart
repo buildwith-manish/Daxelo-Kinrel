@@ -28,7 +28,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app_database.dart';
-import '../isar_database.dart';
+import '../app_database_service.dart';
 import '../../networking/dio_client.dart';
 import '../../services/crashlytics_service.dart';
 import '../../services/supabase_service.dart';
@@ -364,11 +364,11 @@ const int _maxConflictLogEntries = 200;
 
 /// Supabase table names mapped from entity type strings.
 const Map<String, String> _entityTableMap = {
-  'family': 'families',
-  'person': 'persons',
-  'relationship': 'relationships',
-  'profile': 'profiles',
-  'invitation': 'invitations',
+  'family': 'Family',
+  'person': 'Person',
+  'relationship': 'Relationship',
+  'profile': 'FamilyMember',
+  'invitation': 'Invitation',
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -390,7 +390,7 @@ class SyncEngine {
 
   // ── Dependencies ─────────────────────────────────────────────────────
 
-  AppDatabase get _db => _ref.read(isarProvider);
+  AppDatabase get _db => _ref.read(appDatabaseProvider);
   Dio get _dio => _ref.read(dioProvider);
   ConnectivityService get _connectivity =>
       _ref.read(connectivityServiceProvider);
@@ -403,6 +403,13 @@ class SyncEngine {
   DateTime? _lastSyncAttempt;
   Timer? _periodicSyncTimer;
   bool _disposed = false;
+
+  /// Guard flag to prevent concurrent sync operations.
+  /// Unlike _status.isSyncing (which is set asynchronously after _canSync()
+  /// passes), this flag is checked AND set synchronously, eliminating the
+  /// TOCTOU race where fullSync() and deltaSync() could both pass _canSync()
+  /// before either sets isSyncing = true.
+  bool _isSyncing = false;
 
   /// In-memory conflict log (persisted to UserSettings periodically).
   List<ConflictLogEntry> _conflictLog = [];
@@ -500,7 +507,14 @@ class SyncEngine {
   ///   - Manual refresh
   Future<SyncResult> fullSync(String userId) async {
     if (_disposed) return SyncResult.empty;
+    if (_isSyncing) {
+      debugPrint('🔄 fullSync skipped — sync already in progress');
+      return SyncResult.empty;
+    }
     if (!_canSync()) return SyncResult.empty;
+
+    // Set synchronously to prevent TOCTOU race with deltaSync()
+    _isSyncing = true;
 
     final stopwatch = Stopwatch()..start();
     int pulled = 0;
@@ -602,6 +616,8 @@ class SyncEngine {
         errorMessages: errorMessages,
         duration: stopwatch.elapsed,
       );
+    } finally {
+      _isSyncing = false;
     }
   }
 
@@ -615,7 +631,14 @@ class SyncEngine {
   /// If [familyId] is provided, only sync data for that family.
   Future<SyncResult> deltaSync(String userId, {String? familyId}) async {
     if (_disposed) return SyncResult.empty;
+    if (_isSyncing) {
+      debugPrint('🔄 deltaSync skipped — sync already in progress');
+      return SyncResult.empty;
+    }
     if (!_canSync()) return SyncResult.empty;
+
+    // Set synchronously to prevent TOCTOU race with fullSync()
+    _isSyncing = true;
 
     final stopwatch = Stopwatch()..start();
     int pulled = 0;
@@ -724,6 +747,8 @@ class SyncEngine {
         errorMessages: errorMessages,
         duration: stopwatch.elapsed,
       );
+    } finally {
+      _isSyncing = false;
     }
   }
 
@@ -1045,7 +1070,7 @@ class SyncEngine {
 
       // Fetch invitations for this user from Supabase
       final invitations = await client
-          .from('invitations')
+          .from('Invitation')
           .select()
           .or('inviter_id.eq.$userId,invitee_id.eq.$userId')
           .order('created_at', ascending: false);
@@ -1493,7 +1518,7 @@ class SyncEngine {
         final filter = batch.join(',');
 
         final relationships = await client
-            .from('relationships')
+            .from('Relationship')
             .select()
             .filter('family_id', 'in', '($filter)');
 
@@ -1933,6 +1958,10 @@ class SyncEngine {
   ///   - Engine is disposed
   bool _canSync() {
     if (_disposed) return false;
+    if (_isSyncing) {
+      debugPrint('🔄 Sync already in progress (_isSyncing guard), skipping');
+      return false;
+    }
     if (_status.isSyncing) {
       debugPrint('🔄 Sync already in progress, skipping');
       return false;

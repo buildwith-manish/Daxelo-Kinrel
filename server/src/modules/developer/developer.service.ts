@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { createHash, randomBytes } from 'crypto';
+import { validateWebhookUrl } from '../../common/utils/ssrf-protection.util';
 
 const VALID_SCOPES = [
   'families:read',
@@ -196,11 +197,9 @@ export class DeveloperService {
       description?: string;
     },
   ) {
-    if (!data.url || !data.url.startsWith('https://')) {
-      throw new BadRequestException(
-        'Webhook URL must be a valid HTTPS URL',
-      );
-    }
+    await validateWebhookUrl(data.url).catch((err) => {
+      throw new BadRequestException(err.message);
+    });
 
     if (!data.events || data.events.length === 0) {
       throw new BadRequestException('At least one event type is required');

@@ -5,16 +5,12 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { KinrelGateway } from '../gateway/kinrel.gateway';
 import { CreateRelationshipDto } from './dto/create-relationship.dto';
-
-const ROLE_HIERARCHY: Record<string, number> = {
-  viewer: 1,
-  member: 2,
-  editor: 3,
-  admin: 4,
-};
+import Redis from 'ioredis';
+import { ROLE_HIERARCHY } from '../../common/constants';
 
 const INVERSE_RELATIONSHIP_MAP: Record<string, (toGender?: string | null) => string> = {
   father: (toGender) => toGender === 'female' ? 'daughter' : 'son',
@@ -64,10 +60,39 @@ export function getInverseKey(forwardKey: string, toGender?: string | null): str
 
 @Injectable()
 export class RelationshipsService {
+  private redis: Redis | null = null;
+
   constructor(
     private prisma: PrismaService,
     private gateway: KinrelGateway,
-  ) {}
+    private config: ConfigService,
+  ) {
+    // ── Redis for graph cache invalidation (BUG-12 fix) ───────────
+    const redisUrl = this.config.get<string>('REDIS_URL', '');
+    if (redisUrl && redisUrl !== 'redis://localhost:6379') {
+      this.redis = new Redis(redisUrl, {
+        lazyConnect: true,
+        maxRetriesPerRequest: 1,
+        connectTimeout: 5000,
+      });
+      this.redis.on('error', () => {
+        if (this.redis) {
+          this.redis.disconnect();
+          this.redis = null;
+        }
+      });
+      this.redis.connect().catch(() => {
+        this.redis = null;
+      });
+    }
+  }
+
+  /** Invalidates graph cache for a family after any relationship mutation. */
+  private async invalidateGraphCache(familyId: string): Promise<void> {
+    if (this.redis) {
+      await this.redis.del(`graph:flat:${familyId}`, `graph:tree:${familyId}`);
+    }
+  }
 
   /** Creates a bidirectional relationship between two persons in the family. */
   async create(userId: string, familyId: string, dto: CreateRelationshipDto) {
@@ -138,6 +163,9 @@ export class RelationshipsService {
 
       return forward;
     });
+
+    // ── Invalidate graph cache (BUG-12 fix) ───────────────────────
+    await this.invalidateGraphCache(familyId);
 
     // Emit MINIMAL payload — Flutter fetches full data from Isar/API if needed
     this.gateway.emitToFamily(familyId, 'relationship:created', {
@@ -245,6 +273,9 @@ export class RelationshipsService {
         data: { lastActivityAt: new Date() },
       });
     });
+
+    // ── Invalidate graph cache (BUG-12 fix) ───────────────────────
+    await this.invalidateGraphCache(familyId);
 
     // Emit MINIMAL payload — Flutter fetches full data from Isar/API if needed
     this.gateway.emitToFamily(familyId, 'relationship:deleted', {

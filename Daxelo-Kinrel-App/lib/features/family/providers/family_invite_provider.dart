@@ -29,7 +29,7 @@ import 'package:share_plus/share_plus.dart' as share_plus;
 import '../../../core/networking/dio_client.dart';
 import '../../../core/services/deep_link_service.dart';
 import '../../../core/services/analytics_service.dart';
-import '../../../core/database/isar_database.dart';
+import '../../../core/database/app_database_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // DATA MODELS
@@ -266,8 +266,10 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
       }
     } on DioException catch (e) {
       debugPrint('⚠️ generateInviteLinkInfo error: ${e.message}');
+      state = state.copyWith(error: 'Failed to load invite link info: ${e.message}');
     } catch (e) {
       debugPrint('⚠️ generateInviteLinkInfo error: $e');
+      state = state.copyWith(error: 'Failed to load invite link info. Please try again.');
     }
 
     // Default info without backend data
@@ -292,8 +294,10 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
     } on DioException catch (e) {
       debugPrint('⚠️ regenerateInviteLink error: ${e.message}');
       // Non-critical — the link format is deterministic anyway
+      state = state.copyWith(error: 'Failed to regenerate invite link: ${e.message}');
     } catch (e) {
       debugPrint('⚠️ regenerateInviteLink error: $e');
+      state = state.copyWith(error: 'Failed to regenerate invite link. Please try again.');
     }
 
     state = state.copyWith(isLoading: false);
@@ -379,8 +383,10 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
     } on DioException catch (e) {
       // Non-critical — don't block the user
       debugPrint('⚠️ trackInviteSent error: ${e.message}');
+      state = state.copyWith(error: 'Failed to track invite: ${e.message}');
     } catch (e) {
       debugPrint('⚠️ trackInviteSent error: $e');
+      state = state.copyWith(error: 'Failed to track invite. Please try again.');
     }
   }
 
@@ -401,8 +407,10 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
       );
     } on DioException catch (e) {
       debugPrint('⚠️ trackInviteClick error: ${e.message}');
+      state = state.copyWith(error: 'Failed to track invite click: ${e.message}');
     } catch (e) {
       debugPrint('⚠️ trackInviteClick error: $e');
+      state = state.copyWith(error: 'Failed to track invite click. Please try again.');
     }
   }
 
@@ -432,8 +440,10 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
       );
     } on DioException catch (e) {
       debugPrint('⚠️ trackBulkInvites error: ${e.message}');
+      state = state.copyWith(error: 'Failed to track bulk invites: ${e.message}');
     } catch (e) {
       debugPrint('⚠️ trackBulkInvites error: $e');
+      state = state.copyWith(error: 'Failed to track bulk invites. Please try again.');
     }
   }
 
@@ -456,8 +466,10 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
       }
     } on DioException catch (e) {
       debugPrint('⚠️ getInviteAnalytics error: ${e.message}');
+      state = state.copyWith(error: 'Failed to load analytics: ${e.message}');
     } catch (e) {
       debugPrint('⚠️ getInviteAnalytics error: $e');
+      state = state.copyWith(error: 'Failed to load analytics. Please try again.');
     }
 
     return InviteAnalytics.empty;
@@ -490,8 +502,10 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
       }
     } on DioException catch (e) {
       debugPrint('⚠️ getRecentInvites error: ${e.message}');
+      state = state.copyWith(error: 'Failed to load recent invites: ${e.message}');
     } catch (e) {
       debugPrint('⚠️ getRecentInvites error: $e');
+      state = state.copyWith(error: 'Failed to load recent invites. Please try again.');
     }
 
     return state.recentInvites;
@@ -529,8 +543,10 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
       );
     } on DioException catch (e) {
       debugPrint('⚠️ updateInviteStatus error: ${e.message}');
+      state = state.copyWith(error: 'Failed to update invite status: ${e.message}');
     } catch (e) {
       debugPrint('⚠️ updateInviteStatus error: $e');
+      state = state.copyWith(error: 'Failed to update invite status. Please try again.');
     }
   }
 
@@ -539,9 +555,9 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
   // ═══════════════════════════════════════════════════════════════════
 
   Future<void> _cacheInviteRecord(InviteRecord record) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       final key = 'invite_record:${record.familyId}:${record.id}';
       await db.cacheApiEntry(
         key,
@@ -554,9 +570,9 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
   }
 
   Future<List<InviteRecord>> _getCachedInviteRecords(String familyId) async {
-    if (!IsarDatabase.isInitialized) return [];
+    if (!AppDatabaseService.isInitialized) return [];
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       final allEntries = await db.getCachedApiEntriesWithPrefix('invite_record:$familyId:');
       return allEntries
           .map((jsonStr) {
@@ -576,9 +592,9 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
   }
 
   Future<void> _cacheAnalytics(String familyId, InviteAnalytics analytics) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       await db.cacheApiEntry(
         'invite_analytics:$familyId',
         jsonEncode(analytics.toJson()),
@@ -590,9 +606,9 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
   }
 
   Future<InviteAnalytics?> _getCachedAnalytics(String familyId) async {
-    if (!IsarDatabase.isInitialized) return null;
+    if (!AppDatabaseService.isInitialized) return null;
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       final cached = await db.getCachedApiEntry('invite_analytics:$familyId');
       if (cached != null) {
         return InviteAnalytics.fromJson(jsonDecode(cached) as Map<String, dynamic>);

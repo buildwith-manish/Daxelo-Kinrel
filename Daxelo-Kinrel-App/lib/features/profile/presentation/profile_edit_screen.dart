@@ -5,8 +5,9 @@
 // Full edit screen for profile details with validation,
 // unsaved changes dialog, and dark theme design.
 
-import 'dart:async';
+import 'dart:async' show unawaited;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -123,9 +124,15 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
 
     // Auto-focus bio if requested
     if (widget.focusField == 'bio') {
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) _bioFocusNode.requestFocus();
-      });
+      unawaited(
+        Future.delayed(const Duration(milliseconds: 300), () async {
+          try {
+            if (mounted) _bioFocusNode.requestFocus();
+          } catch (e) {
+            debugPrint('⚠️ Bio focus failed: $e');
+          }
+        }),
+      );
     }
   }
 

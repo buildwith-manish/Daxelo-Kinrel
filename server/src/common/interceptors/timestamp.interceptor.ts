@@ -8,6 +8,11 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 /**
+ * @deprecated This interceptor is NO LONGER REGISTERED in main.ts.
+ * The ResponseEnvelopeInterceptor already provides a `timestamp` field
+ * in the response envelope, making this redundant. Using both causes
+ * double-wrapping (data.ts + envelope.timestamp). Kept for reference only.
+ *
  * Adds a `ts` (unix ms timestamp) to response objects.
  * This allows the Flutter client to detect stale cache entries.
  *

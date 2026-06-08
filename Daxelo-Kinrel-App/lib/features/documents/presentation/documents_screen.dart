@@ -28,6 +28,9 @@
 //   Legal:       red (#F04E2A)
 //   Photos:      green (#4CAF7A)
 
+import 'dart:async' show unawaited;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -2268,34 +2271,40 @@ class _UploadDocumentSheetState extends ConsumerState<_UploadDocumentSheet> {
     setState(() => _isUploading = true);
 
     // Simulate upload with encryption
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return;
+    unawaited(
+      Future.delayed(const Duration(seconds: 2), () async {
+        try {
+          if (!mounted) return;
 
-      final newDoc = VaultDocument(
-        id: 'doc-${DateTime.now().millisecondsSinceEpoch}',
-        title: _titleController.text.trim(),
-        type: _selectedType!,
-        memberName: _memberController.text.trim().isEmpty
-            ? 'Unassigned'
-            : _memberController.text.trim(),
-        uploadDate: DateTime.now(),
-        fileSize: 1024000, // Placeholder 1 MB
-        fileExtension: 'pdf',
-        isEncrypted: true,
-        sharedWith: [],
-      );
+          final newDoc = VaultDocument(
+            id: 'doc-${DateTime.now().millisecondsSinceEpoch}',
+            title: _titleController.text.trim(),
+            type: _selectedType!,
+            memberName: _memberController.text.trim().isEmpty
+                ? 'Unassigned'
+                : _memberController.text.trim(),
+            uploadDate: DateTime.now(),
+            fileSize: 1024000, // Placeholder 1 MB
+            fileExtension: 'pdf',
+            isEncrypted: true,
+            sharedWith: [],
+          );
 
-      ref.read(documentsProvider.notifier).addDocument(newDoc);
+          ref.read(documentsProvider.notifier).addDocument(newDoc);
 
-      setState(() => _isUploading = false);
-      Navigator.of(context).pop();
+          setState(() => _isUploading = false);
+          Navigator.of(context).pop();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Document uploaded and encrypted successfully'),
-          backgroundColor: _cCard,
-        ),
-      );
-    });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Document uploaded and encrypted successfully'),
+              backgroundColor: _cCard,
+            ),
+          );
+        } catch (e) {
+          debugPrint('⚠️ Document upload simulation failed: $e');
+        }
+      }),
+    );
   }
 }

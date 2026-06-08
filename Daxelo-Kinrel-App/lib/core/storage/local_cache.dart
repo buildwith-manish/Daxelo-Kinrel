@@ -1,13 +1,24 @@
+// ── STORAGE RULE ──────────────────────────────────────────────────────
+// shared_preferences / Drift LocalCache (THIS FILE):
+//   Kinship cache, preferences, family cache, search history.
+//   Non-sensitive UI state only.
+//
+//   ✅ ALLOWED: theme, locale, onboarding flag, recent searches,
+//      cached kinship terms, app open count.
+//   ❌ FORBIDDEN: tokens, passwords, PII, credentials.
+//   For sensitive data, use SecureStorageService instead.
+// ─────────────────────────────────────────────────────────────────────
+
 // Migrated from Hive to Drift — LocalCacheService now uses AppDatabase
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../database/isar_database.dart';
+import '../database/app_database_service.dart';
 
 /// Local cache service using Drift (AppDatabase) for non-sensitive data
 /// Replaces Hive boxes with UserSettings table for key-value storage
 class LocalCacheService {
   Future<void> init() async {
-    // Drift database is initialized via IsarDatabase.initialize() in main()
+    // Drift database is initialized via AppDatabaseService.initialize() in main()
     // No additional setup needed
   }
 
@@ -17,8 +28,8 @@ class LocalCacheService {
     String language,
     String term,
   ) async {
-    if (!IsarDatabase.isInitialized) return;
-    await IsarDatabase.instance.setSetting('kinship_${key}_$language', term);
+    if (!AppDatabaseService.isInitialized) return;
+    await AppDatabaseService.instance.setSetting('kinship_${key}_$language', term);
   }
 
   String? getCachedKinshipTerm(String key, String language) {
@@ -27,19 +38,19 @@ class LocalCacheService {
   }
 
   Future<String?> getCachedKinshipTermAsync(String key, String language) async {
-    if (!IsarDatabase.isInitialized) return null;
-    return IsarDatabase.instance.getSetting('kinship_${key}_$language');
+    if (!AppDatabaseService.isInitialized) return null;
+    return AppDatabaseService.instance.getSetting('kinship_${key}_$language');
   }
 
   // ── Preferences ─────────────────────────────────────────────
   Future<void> setPreference(String key, dynamic value) async {
-    if (!IsarDatabase.isInitialized) return;
-    await IsarDatabase.instance.setSetting('pref_$key', jsonEncode(value));
+    if (!AppDatabaseService.isInitialized) return;
+    await AppDatabaseService.instance.setSetting('pref_$key', jsonEncode(value));
   }
 
   Future<T?> getPreference<T>(String key) async {
-    if (!IsarDatabase.isInitialized) return null;
-    final raw = await IsarDatabase.instance.getSetting('pref_$key');
+    if (!AppDatabaseService.isInitialized) return null;
+    final raw = await AppDatabaseService.instance.getSetting('pref_$key');
     if (raw == null) return null;
     try {
       return jsonDecode(raw) as T?;
@@ -53,13 +64,13 @@ class LocalCacheService {
     String familyId,
     Map<String, dynamic> data,
   ) async {
-    if (!IsarDatabase.isInitialized) return;
-    await IsarDatabase.instance.setSetting('family_$familyId', jsonEncode(data));
+    if (!AppDatabaseService.isInitialized) return;
+    await AppDatabaseService.instance.setSetting('family_$familyId', jsonEncode(data));
   }
 
   Future<Map<String, dynamic>?> getCachedFamilyData(String familyId) async {
-    if (!IsarDatabase.isInitialized) return null;
-    final raw = await IsarDatabase.instance.getSetting('family_$familyId');
+    if (!AppDatabaseService.isInitialized) return null;
+    final raw = await AppDatabaseService.instance.getSetting('family_$familyId');
     if (raw == null) return null;
     try {
       return jsonDecode(raw) as Map<String, dynamic>;
@@ -70,14 +81,14 @@ class LocalCacheService {
 
   Future<void> clearFamilyCache() async {
     // Would need a custom query to delete settings by prefix
-    // For now, clear all cache via IsarDatabase
-    await IsarDatabase.clearCache();
+    // For now, clear all cache via AppDatabaseService
+    await AppDatabaseService.clearCache();
   }
 
   // ── Search Cache ───────────────────────────────────────────
   Future<void> saveRecentSearch(String query) async {
-    if (!IsarDatabase.isInitialized) return;
-    final raw = await IsarDatabase.instance.getSetting('recent_searches');
+    if (!AppDatabaseService.isInitialized) return;
+    final raw = await AppDatabaseService.instance.getSetting('recent_searches');
     final List<String> searches = raw != null
         ? List<String>.from(jsonDecode(raw) as List)
         : <String>[];
@@ -86,12 +97,12 @@ class LocalCacheService {
     if (searches.length > 5) {
       searches.removeRange(5, searches.length);
     }
-    await IsarDatabase.instance.setSetting('recent_searches', jsonEncode(searches));
+    await AppDatabaseService.instance.setSetting('recent_searches', jsonEncode(searches));
   }
 
   Future<List<String>> getRecentSearches() async {
-    if (!IsarDatabase.isInitialized) return [];
-    final raw = await IsarDatabase.instance.getSetting('recent_searches');
+    if (!AppDatabaseService.isInitialized) return [];
+    final raw = await AppDatabaseService.instance.getSetting('recent_searches');
     if (raw == null) return [];
     try {
       return List<String>.from(jsonDecode(raw) as List);
@@ -101,23 +112,23 @@ class LocalCacheService {
   }
 
   Future<void> removeRecentSearch(String query) async {
-    if (!IsarDatabase.isInitialized) return;
-    final raw = await IsarDatabase.instance.getSetting('recent_searches');
+    if (!AppDatabaseService.isInitialized) return;
+    final raw = await AppDatabaseService.instance.getSetting('recent_searches');
     final List<String> searches = raw != null
         ? List<String>.from(jsonDecode(raw) as List)
         : <String>[];
     searches.remove(query);
-    await IsarDatabase.instance.setSetting('recent_searches', jsonEncode(searches));
+    await AppDatabaseService.instance.setSetting('recent_searches', jsonEncode(searches));
   }
 
   Future<void> clearRecentSearches() async {
-    if (!IsarDatabase.isInitialized) return;
-    await IsarDatabase.instance.setSetting('recent_searches', jsonEncode(<String>[]));
+    if (!AppDatabaseService.isInitialized) return;
+    await AppDatabaseService.instance.setSetting('recent_searches', jsonEncode(<String>[]));
   }
 
   // ── Clear All ───────────────────────────────────────────────
   Future<void> clearAll() async {
-    await IsarDatabase.clearCache();
+    await AppDatabaseService.clearCache();
   }
 }
 

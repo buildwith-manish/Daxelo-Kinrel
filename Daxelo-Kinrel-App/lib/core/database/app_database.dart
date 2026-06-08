@@ -63,13 +63,9 @@ class CachedPersons extends Table {
   Set<Column> get primaryKey => {id};
 }
 
-class AuthTokens extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  TextColumn get accessToken => text()();
-  TextColumn get refreshToken => text()();
-  DateTimeColumn get expiresAt => dateTime()();
-  DateTimeColumn get savedAt => dateTime()();
-}
+// AuthTokens table REMOVED in v4 — tokens now stored exclusively in
+// flutter_secure_storage (SecureStorageService). SQLite is not a secure
+// token store. See BUG-09 / Phase 0.9.
 
 class UserSettings extends Table {
   TextColumn get key => text()();
@@ -211,7 +207,6 @@ class CachedFamilyIds extends Table {
   CachedRelationships,
   CachedFamilies,
   CachedPersons,
-  AuthTokens,
   UserSettings,
   SearchHistoryEntries,
   RecentlyViewedProfiles,
@@ -227,8 +222,12 @@ class CachedFamilyIds extends Table {
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
+  /// Constructor for testing — inject a custom QueryExecutor
+  /// (e.g., NativeDatabase.memory() for isolated in-memory tests).
+  AppDatabase.forTesting(QueryExecutor executor) : super(executor);
+
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'daxelo_kinrel_db');
@@ -284,6 +283,11 @@ class AppDatabase extends _$AppDatabase {
             await migrator.addColumn(cachedFamilies, cachedFamilies.username);
             await migrator.createTable(cachedUsernames);
             await migrator.createTable(cachedFamilyIds);
+          }
+          if (from < 4) {
+            // v3 → v4: Remove AuthTokens table — tokens now in SecureStorage only
+            // Drift doesn't have a migrator.dropTable, so use custom SQL
+            await customStatement('DROP TABLE IF EXISTS auth_tokens');
           }
         },
       );
@@ -377,19 +381,9 @@ class AppDatabase extends _$AppDatabase {
   Future<void> clearRelationships() => delete(cachedRelationships).go();
 
   // ── Auth Tokens ───────────────────────────────────────────────────
-
-  Future<AuthToken?> getLatestToken() =>
-      (select(authTokens)
-            ..orderBy([(t) => OrderingTerm.desc(t.savedAt)])
-            ..limit(1))
-          .getSingleOrNull();
-
-  Future<void> saveToken(AuthTokensCompanion token) async {
-    await delete(authTokens).go();
-    await into(authTokens).insert(token);
-  }
-
-  Future<void> clearTokens() => delete(authTokens).go();
+  // REMOVED: Auth tokens are now stored exclusively in SecureStorageService.
+  // The auth_tokens Drift table was removed in schema v4.
+  // Use SecureStorageService.saveAuthTokens / clearAuthTokens instead.
 
   // ── User Settings ─────────────────────────────────────────────────
 
@@ -619,27 +613,34 @@ class AppDatabase extends _$AppDatabase {
       await clearAllCache();
       await delete(pendingOperations).go();
       await delete(userSettings).go();
-      await delete(authTokens).go();
+      // auth_tokens table removed in v4 — tokens in SecureStorage only
     });
   }
 
+  /// Collect table row counts in a single UNION ALL query instead of
+  /// issuing 15 separate COUNT(*) queries.
   Future<Map<String, int>> getStats() async {
+    final rows = await customSelect(
+      '''
+      SELECT 'families' AS tbl, COUNT(*) AS cnt FROM cached_families
+      UNION ALL SELECT 'persons', COUNT(*) FROM cached_persons
+      UNION ALL SELECT 'relationships', COUNT(*) FROM cached_relationships
+      UNION ALL SELECT 'profiles', COUNT(*) FROM cached_profiles
+      UNION ALL SELECT 'searchHistory', COUNT(*) FROM search_history_entries
+      UNION ALL SELECT 'recentlyViewed', COUNT(*) FROM recently_viewed_profiles
+      UNION ALL SELECT 'pendingOps', COUNT(*) FROM pending_operations
+      UNION ALL SELECT 'apiCache', COUNT(*) FROM api_cache_entries
+      UNION ALL SELECT 'settings', COUNT(*) FROM user_settings
+      UNION ALL SELECT 'invitations', COUNT(*) FROM cached_invitations
+      UNION ALL SELECT 'relationshipPaths', COUNT(*) FROM cached_relationship_paths
+      UNION ALL SELECT 'syncMetadata', COUNT(*) FROM sync_metadata
+      UNION ALL SELECT 'conflictLog', COUNT(*) FROM conflict_log
+      UNION ALL SELECT 'cachedUsernames', COUNT(*) FROM cached_usernames
+      UNION ALL SELECT 'cachedFamilyIds', COUNT(*) FROM cached_family_ids
+      ''',
+    ).get();
     return {
-      'families': await cachedFamilies.count().getSingle(),
-      'persons': await cachedPersons.count().getSingle(),
-      'relationships': await cachedRelationships.count().getSingle(),
-      'profiles': await cachedProfiles.count().getSingle(),
-      'searchHistory': await searchHistoryEntries.count().getSingle(),
-      'recentlyViewed': await recentlyViewedProfiles.count().getSingle(),
-      'pendingOps': await pendingOperations.count().getSingle(),
-      'apiCache': await apiCacheEntries.count().getSingle(),
-      'settings': await userSettings.count().getSingle(),
-      'invitations': await cachedInvitations.count().getSingle(),
-      'relationshipPaths': await cachedRelationshipPaths.count().getSingle(),
-      'syncMetadata': await syncMetadata.count().getSingle(),
-      'conflictLog': await conflictLog.count().getSingle(),
-      'cachedUsernames': await cachedUsernames.count().getSingle(),
-      'cachedFamilyIds': await cachedFamilyIds.count().getSingle(),
+      for (final row in rows) row.read<String>('tbl'): row.read<int>('cnt'),
     };
   }
 
@@ -705,17 +706,13 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Get all cached API entries matching a key prefix.
-  /// Checks TTL and returns only non-expired entries (just the responseBody).
+  /// Uses a SQL LIKE clause to filter at the DB level instead of loading
+  /// all entries and filtering in Dart. Only returns non-expired entries.
   Future<List<String>> getCachedApiEntriesWithPrefix(String prefix) async {
-    final allEntries = await getAllApiCacheEntries();
-    final now = DateTime.now();
-    final results = <String>[];
-    for (final entry in allEntries) {
-      if (!entry.key.startsWith(prefix)) continue;
-      final expiresAt = entry.cachedAt.add(Duration(seconds: entry.ttlSeconds));
-      if (now.isAfter(expiresAt)) continue;
-      results.add(entry.responseBody);
-    }
-    return results;
+    final results = await customSelect(
+      "SELECT response_body FROM api_cache_entries WHERE key LIKE ? AND datetime(cached_at, '+' || ttl_seconds || ' seconds') >= datetime('now')",
+      variables: [Variable.withString(prefix + '%')],
+    ).get();
+    return results.map((row) => row.read<String>('response_body')).toList();
   }
 }

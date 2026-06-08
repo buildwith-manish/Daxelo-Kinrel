@@ -4,17 +4,15 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import { Gender } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { KinrelGateway, MinimalPayload } from '../gateway/kinrel.gateway';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 
-const ROLE_HIERARCHY: Record<string, number> = {
-  viewer: 1,
-  member: 2,
-  editor: 3,
-  admin: 4,
-};
+const SAFE_MEMBER_SORT_FIELDS = ['name', 'createdAt', 'updatedAt', 'role', 'joinedAt'] as const;
+
+import { ROLE_HIERARCHY } from '../../common/constants';
 
 @Injectable()
 export class MembersService {
@@ -36,7 +34,7 @@ export class MembersService {
         data: {
           familyId,
           name: dto.name.trim(),
-          gender: dto.gender || null,
+          gender: (dto.gender as Gender) || null,
           dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
           city: dto.city?.trim() || null,
           gotra: dto.gotra?.trim() || null,
@@ -103,9 +101,11 @@ export class MembersService {
       where.name = { contains: query.search };
     }
 
-    const sortField = query.sort || 'createdAt';
+    const sortField: string = (query.sort && (SAFE_MEMBER_SORT_FIELDS as readonly string[]).includes(query.sort))
+      ? query.sort
+      : 'createdAt';
     const sortOrder = query.order?.toLowerCase() === 'asc' ? 'asc' : 'desc';
-    const orderBy: Record<string, string> = { [sortField]: sortOrder };
+    const orderBy: Record<string, string> = { [sortField as string]: sortOrder };
 
     const includeRelationships = query.includeRelationships === 'true';
 
@@ -213,7 +213,7 @@ export class MembersService {
     const updateData: Record<string, unknown> = {};
 
     if (dto.name !== undefined) updateData.name = dto.name.trim();
-    if (dto.gender !== undefined) updateData.gender = dto.gender || null;
+    if (dto.gender !== undefined) updateData.gender = (dto.gender as Gender) || null;
     if (dto.dateOfBirth !== undefined) updateData.dateOfBirth = dto.dateOfBirth ? new Date(dto.dateOfBirth) : null;
     if (dto.city !== undefined) updateData.city = dto.city?.trim() || null;
     if (dto.gotra !== undefined) updateData.gotra = dto.gotra?.trim() || null;

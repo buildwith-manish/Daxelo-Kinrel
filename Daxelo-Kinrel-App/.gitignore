@@ -14,10 +14,12 @@ flutter_*.png
 .env.local
 .env.*.local
 
-# Firebase — config files are SAFE to commit
-# API keys are restricted to com.daxelo.kinrel package/bundle by Firebase
-# They must be in the repo for CI/CD builds (Codemagic, GitHub Actions)
-# DO NOT gitignore these files!
+# Firebase — real config files contain API keys and must NOT be committed.
+# Only .example variants should be in the repo.
+**/google-services.json
+!**/google-services.json.example
+**/GoogleService-Info.plist
+!**/GoogleService-Info.plist.example
 
 # IDE
 .idea/

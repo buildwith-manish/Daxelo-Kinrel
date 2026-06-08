@@ -1,9 +1,47 @@
 import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { getInverseKey } from '../relationships/relationships.service';
 import { MAX_GRAPH_NODES, DEFAULT_GRAPH_DEPTH, MAX_GRAPH_DEPTH } from '../../common/constants';
 import Redis from 'ioredis';
+
+// ── Typed payloads matching Prisma select clauses ────────────────────
+
+type TreePerson = Prisma.PersonGetPayload<{
+  select: {
+    id: true; familyId: true; name: true; gender: true;
+    dateOfBirth: true; isDeceased: true; birthYear: true;
+    isAnchor: true; photoUrl: true; photoThumb: true;
+    sideOfFamily: true; generationIndex: true;
+  };
+}>;
+
+type GraphPerson = Prisma.PersonGetPayload<{
+  select: {
+    id: true; familyId: true; name: true; gender: true;
+    dateOfBirth: true; city: true; gotra: true; isDeceased: true;
+    deletedAt: true; birthYear: true; occupation: true;
+    privacyLevel: true; notes: true; sideOfFamily: true;
+    generationIndex: true; isAnchor: true; photoUrl: true;
+    photoThumb: true; username: true;
+  };
+}>;
+
+type GraphRelationship = Prisma.RelationshipGetPayload<{
+  select: {
+    id: true; familyId: true; fromPersonId: true;
+    toPersonId: true; relationshipKey: true; direction: true;
+    isActive: true; label: true;
+  };
+}>;
+
+type TreeRelationship = Prisma.RelationshipGetPayload<{
+  select: {
+    id: true; fromPersonId: true; toPersonId: true;
+    relationshipKey: true; direction: true; label: true;
+  };
+}>;
 
 export interface TreeNode {
   person: {
@@ -30,14 +68,47 @@ export interface TreeNode {
   children: TreeNode[];
 }
 
+export interface FormattedPerson {
+  id: string;
+  familyId: string;
+  name: string;
+  gender: string | null;
+  dateOfBirth: Date | null;
+  city: string | null;
+  gotra: string | null;
+  isDeceased: boolean;
+  deletedAt: Date | null;
+  birthYear: number | null;
+  occupation: string | null;
+  privacyLevel: string;
+  notes: string | null;
+  sideOfFamily: string | null;
+  generationIndex: number;
+  isAnchor: boolean;
+  photoUrl: string | null;
+  photoThumb: string | null;
+  username: string | null;
+}
+
+export interface FormattedRelationship {
+  id: string;
+  familyId: string;
+  fromPersonId: string;
+  toPersonId: string;
+  relationshipKey: string;
+  direction: string;
+  isActive: boolean;
+  label: string | null;
+}
+
 export interface FlatGraphResult {
-  persons: Array<Record<string, any>>;
-  relationships: Array<Record<string, any>>;
+  persons: FormattedPerson[];
+  relationships: FormattedRelationship[];
 }
 
 export interface PathResult {
-  path: Array<Record<string, any>>;
-  relationships: Array<Record<string, any>>;
+  path: FormattedPerson[];
+  relationships: FormattedRelationship[];
 }
 
 const PARENT_KEYS = new Set([
@@ -58,7 +129,7 @@ const SPOUSE_KEYS = new Set(['husband', 'wife']);
 export class GraphService {
   private redis: Redis | null = null;
   private readonly logger = new Logger(GraphService.name);
-  private readonly CACHE_TTL = 60; // 60 seconds
+  private readonly CACHE_TTL = 300; // 5 minutes (increased from 60s — BUG-17 fix)
 
   constructor(
     private prisma: PrismaService,
@@ -113,30 +184,78 @@ export class GraphService {
       locale?: string;
     } = {},
   ) {
-    await this.requireFamilyMember(userId, familyId);
+    // Check if the user is a member of the family
+    const membership = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId, userId } },
+    });
 
+    if (membership) {
+      // Full access for members
+      if (options.from && options.to) {
+        return this.getPath(familyId, options.from, options.to);
+      }
+
+      const safeDepth = Math.min(options.depth ?? DEFAULT_GRAPH_DEPTH, MAX_GRAPH_DEPTH);
+
+      if (options.root && options.format === 'tree') {
+        return this.getTree(familyId, options.root, safeDepth);
+      }
+
+      if (options.format === 'tree') {
+        const family = await this.prisma.family.findUnique({
+          where: { id: familyId },
+        });
+        const rootId = family?.anchorPersonId;
+        if (rootId) {
+          return this.getTree(familyId, rootId, safeDepth);
+        }
+        return this.getFlatGraph(familyId);
+      }
+
+      return this.getFlatGraph(familyId);
+    }
+
+    // Non-member access: check family privacy
+    const family = await this.prisma.family.findUnique({
+      where: { id: familyId },
+      select: { isPublic: true, deletedAt: true },
+    });
+
+    if (!family || family.deletedAt) {
+      throw new NotFoundException('Family not found');
+    }
+
+    if (!family.isPublic) {
+      throw new ForbiddenException({ error: 'FAMILY_PRIVATE' });
+    }
+
+    // Public family: return tree nodes only (strip contact details)
     if (options.from && options.to) {
-      return this.getPath(familyId, options.from, options.to);
+      throw new ForbiddenException('Path finding is only available to family members');
     }
 
     const safeDepth = Math.min(options.depth ?? DEFAULT_GRAPH_DEPTH, MAX_GRAPH_DEPTH);
 
     if (options.root && options.format === 'tree') {
-      return this.getTree(familyId, options.root, safeDepth);
+      const result = await this.getTree(familyId, options.root, safeDepth);
+      return this.stripContactDetails(result);
     }
 
     if (options.format === 'tree') {
-      const family = await this.prisma.family.findUnique({
+      const fam = await this.prisma.family.findUnique({
         where: { id: familyId },
       });
-      const rootId = family?.anchorPersonId;
+      const rootId = fam?.anchorPersonId;
       if (rootId) {
-        return this.getTree(familyId, rootId, safeDepth);
+        const result = await this.getTree(familyId, rootId, safeDepth);
+        return this.stripContactDetails(result);
       }
-      return this.getFlatGraph(familyId);
+      const result = await this.getFlatGraph(familyId);
+      return this.stripContactDetailsFromFlat(result);
     }
 
-    return this.getFlatGraph(familyId);
+    const result = await this.getFlatGraph(familyId);
+    return this.stripContactDetailsFromFlat(result);
   }
 
   /** Resolves the root person ID for tree rendering, falling back to anchor or oldest person. */
@@ -202,7 +321,9 @@ export class GraphService {
       },
     });
 
-    const personMap = new Map(persons.map((p) => [p.id, p as any]));
+    const personMap = new Map<string, TreePerson>(
+      persons.map((p) => [p.id, p]),
+    );
 
     if (!personMap.has(rootPersonId)) {
       throw new NotFoundException('Root person not found');
@@ -258,7 +379,7 @@ export class GraphService {
       if (visited.size >= MAX_GRAPH_NODES || visited.has(personId) || currentDepth > depth) return null;
       visited.add(personId);
 
-      const person: any = personMap.get(personId);
+      const person = personMap.get(personId);
       if (!person) return null;
 
       const spouseId = spouseMap.get(personId);
@@ -343,10 +464,12 @@ export class GraphService {
       },
     });
 
-    const personMap = new Map(persons.map((p) => [p.id, p as any]));
+    const personMap = new Map<string, GraphPerson>(
+      persons.map((p) => [p.id, p]),
+    );
 
-    const fromPerson: any = personMap.get(fromPersonId);
-    const toPerson: any = personMap.get(toPersonId);
+    const fromPerson = personMap.get(fromPersonId);
+    const toPerson = personMap.get(toPersonId);
 
     if (!fromPerson) {
       throw new NotFoundException('Source person not found');
@@ -362,7 +485,7 @@ export class GraphService {
       };
     }
 
-    const adjacency = new Map<string, Array<{ neighborId: string; relationship: Record<string, any> }>>();
+    const adjacency = new Map<string, Array<{ neighborId: string; relationship: GraphRelationship }>>();
 
     for (const rel of relationships) {
       if (!personMap.has(rel.fromPersonId) || !personMap.has(rel.toPersonId)) continue;
@@ -387,51 +510,57 @@ export class GraphService {
     }
 
     const visited = new Set<string>();
-    const queue: Array<{
-      personId: string;
-      pathPersonIds: string[];
-      pathRelationships: Record<string, any>[];
-    }> = [{
-      personId: fromPersonId,
-      pathPersonIds: [fromPersonId],
-      pathRelationships: [],
-    }];
+    const parentMap = new Map<string, string>();          // child → parent
+    const relMap = new Map<string, GraphRelationship>(); // child → relationship to parent
+    const queue: string[] = [fromPersonId];
+    let head = 0;
 
     visited.add(fromPersonId);
 
-    let foundPath: { pathPersonIds: string[]; pathRelationships: Record<string, any>[] } | null = null;
+    let found = false;
 
-    while (queue.length > 0) {
-      const current = queue.shift()!;
+    while (head < queue.length) {
+      const currentId = queue[head++];
 
-      if (current.personId === toPersonId) {
-        foundPath = current;
+      if (currentId === toPersonId) {
+        found = true;
         break;
       }
 
-      const neighbors = adjacency.get(current.personId) || [];
+      const neighbors = adjacency.get(currentId) || [];
       for (const neighbor of neighbors) {
         if (!visited.has(neighbor.neighborId)) {
           visited.add(neighbor.neighborId);
-          queue.push({
-            personId: neighbor.neighborId,
-            pathPersonIds: [...current.pathPersonIds, neighbor.neighborId],
-            pathRelationships: [...current.pathRelationships, neighbor.relationship],
-          });
+          parentMap.set(neighbor.neighborId, currentId);
+          relMap.set(neighbor.neighborId, neighbor.relationship);
+          queue.push(neighbor.neighborId);
         }
       }
     }
 
-    if (!foundPath) {
+    if (!found) {
       return { path: [], relationships: [] };
     }
 
-    const pathPersons = foundPath.pathPersonIds
+    // Reconstruct path from destination back to source using parent pointers
+    const pathPersonIds: string[] = [];
+    const pathRelationships: GraphRelationship[] = [];
+    let cur: string | undefined = toPersonId;
+    while (cur !== undefined) {
+      pathPersonIds.push(cur);
+      const rel = relMap.get(cur);
+      if (rel) pathRelationships.push(rel);
+      cur = parentMap.get(cur);
+    }
+    pathPersonIds.reverse();
+    pathRelationships.reverse();
+
+    const pathPersons = pathPersonIds
       .map((id) => personMap.get(id))
       .filter(Boolean)
       .map((p) => this.formatPerson(p!));
 
-    const pathRelationships = foundPath.pathRelationships.map((r) => ({
+    const pathRels = pathRelationships.map((r) => ({
       id: r.id,
       familyId: r.familyId,
       fromPersonId: r.fromPersonId,
@@ -442,7 +571,7 @@ export class GraphService {
       label: r.label,
     }));
 
-    return { path: pathPersons, relationships: pathRelationships };
+    return { path: pathPersons, relationships: pathRels };
   }
 
   /** Returns the relationship path between two persons after verifying family membership. */
@@ -552,28 +681,71 @@ export class GraphService {
     return membership;
   }
 
-  private formatPerson(person: Record<string, any>) {
+  /**
+   * Strips contact details (phone, email, address) from Person nodes
+   * for non-member access to public families.
+   * Used for flat graph results.
+   */
+  private stripContactDetailsFromFlat(result: FlatGraphResult): FlatGraphResult {
+    return {
+      persons: result.persons.map((person) => ({
+        ...person,
+        // Strip contact-sensitive fields — Person model has phone, email, address
+        // but our FormattedPerson doesn't include them directly.
+        // However, we should strip notes and occupation which may contain personal info.
+        notes: null,
+        occupation: null,
+      })),
+      relationships: result.relationships,
+    };
+  }
+
+  /**
+   * Strips contact details from tree nodes for non-member access to public families.
+   */
+  private stripContactDetails(result: { root: TreeNode | null; totalNodes: number }): {
+    root: TreeNode | null;
+    totalNodes: number;
+  } {
+    if (!result.root) return result;
+
+    const stripNode = (node: TreeNode): TreeNode => ({
+      ...node,
+      person: {
+        ...node.person,
+        // Tree nodes already don't include notes/occupation, but ensure consistency
+      },
+      children: node.children.map(stripNode),
+    });
+
+    return {
+      root: stripNode(result.root),
+      totalNodes: result.totalNodes,
+    };
+  }
+
+  private formatPerson(person: GraphPerson | TreePerson): FormattedPerson {
     return {
       id: person.id,
       familyId: person.familyId,
       name: person.name,
       gender: person.gender ?? null,
       dateOfBirth: person.dateOfBirth ?? null,
-      city: person.city ?? null,
-      gotra: person.gotra ?? null,
+      city: 'city' in person ? (person as GraphPerson).city ?? null : null,
+      gotra: 'gotra' in person ? (person as GraphPerson).gotra ?? null : null,
       isDeceased: person.isDeceased ?? false,
-      deletedAt: person.deletedAt ?? null,
+      deletedAt: 'deletedAt' in person ? (person as GraphPerson).deletedAt ?? null : null,
       birthYear: person.birthYear ?? null,
-      occupation: person.occupation ?? null,
-      privacyLevel: person.privacyLevel ?? 'family',
-      notes: person.notes ?? null,
+      occupation: 'occupation' in person ? (person as GraphPerson).occupation ?? null : null,
+      privacyLevel: 'privacyLevel' in person ? (person as GraphPerson).privacyLevel ?? 'family' : 'family',
+      notes: 'notes' in person ? (person as GraphPerson).notes ?? null : null,
       sideOfFamily: person.sideOfFamily ?? null,
       generationIndex: person.generationIndex ?? 0,
       isAnchor: person.isAnchor ?? false,
       // Graph endpoints return thumb URL for performance
       photoUrl: person.photoThumb ?? person.photoUrl ?? null,
       photoThumb: person.photoThumb ?? null,
-      username: person.username ?? null,
+      username: 'username' in person ? (person as GraphPerson).username ?? null : null,
     };
   }
 }

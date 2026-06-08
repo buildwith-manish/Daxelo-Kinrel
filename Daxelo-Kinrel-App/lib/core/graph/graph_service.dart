@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
 import '../kinship/kinship_service.dart';
-import '../database/isar_database.dart';
+import '../database/app_database_service.dart';
 import '../database/app_database.dart';
 
 /// Person node in the family graph
@@ -304,9 +304,9 @@ class GraphService {
     required String toPersonId,
     required PathResult result,
   }) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       final pathJson = jsonEncode(result.path.map((s) => s.toJson()).toList());
       final now = DateTime.now();
       final expiresAt = now.add(const Duration(hours: 1));
@@ -334,9 +334,9 @@ class GraphService {
     required String fromPersonId,
     required String toPersonId,
   }) async {
-    if (!IsarDatabase.isInitialized) return null;
+    if (!AppDatabaseService.isInitialized) return null;
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       final cached = await db.getRelationshipPath(
         familyId,
         fromPersonId,
@@ -425,7 +425,8 @@ class GraphService {
     return null; // No path found
   }
 
-  /// Async version of findPath that checks cache first and caches results.
+  /// Async version of findPath that checks cache first, then runs BFS
+  /// in a background isolate for large graphs to avoid ANR.
   Future<PathResult?> findPathAsync({
     required List<GraphPerson> persons,
     required List<({String fromId, String toId, String type})> relationships,
@@ -444,15 +445,32 @@ class GraphService {
     );
     if (cached != null) return cached;
 
-    // ── Fall back to BFS ────────────────────────────────────────
-    final result = findPath(
-      persons: persons,
-      relationships: relationships,
-      fromPersonId: fromPersonId,
-      toPersonId: toPersonId,
-      familyId: familyId,
-      locale: locale,
-    );
+    // ── Run BFS in background isolate for large graphs ──────────
+    PathResult? result;
+    if (persons.length > 50) {
+      // Serialize graph data for the isolate
+      final input = _BFSInput(
+        persons: persons.map((p) => _PersonData(id: p.id, name: p.name, deletedAt: p.deletedAt)).toList(),
+        relationships: relationships.map((r) => _RelData(fromId: r.fromId, toId: r.toId, type: r.type)).toList(),
+        fromPersonId: fromPersonId,
+        toPersonId: toPersonId,
+        locale: locale,
+      );
+      final bfsResult = await compute(_runBFSInIsolate, input);
+      if (bfsResult != null) {
+        result = _buildPathResultFromBFS(bfsResult, locale);
+      }
+    } else {
+      // Small graph — run synchronously on main isolate (fast enough)
+      result = findPath(
+        persons: persons,
+        relationships: relationships,
+        fromPersonId: fromPersonId,
+        toPersonId: toPersonId,
+        familyId: familyId,
+        locale: locale,
+      );
+    }
 
     // ── Cache the result if found ───────────────────────────────
     if (result != null && familyId.isNotEmpty) {
@@ -465,6 +483,74 @@ class GraphService {
     }
 
     return result;
+  }
+
+  /// Build PathResult from BFS isolate output
+  PathResult _buildPathResultFromBFS(_BFSOutput output, String locale) {
+    final path = output.path.map((s) => PathStep(
+      personId: s.personId,
+      personName: s.personName,
+      type: s.type,
+      direction: s.direction,
+    )).toList();
+    return _buildPathResult(path, locale);
+  }
+
+  /// Static BFS runner for background isolate
+  static _BFSOutput? _runBFSInIsolate(_BFSInput input) {
+    // Build adjacency list
+    final activePersonIds = input.persons
+        .where((p) => p.deletedAt == null)
+        .map((p) => p.id)
+        .toSet();
+
+    final adjacency = <String, List<_EdgeData>>{};
+    for (final p in input.persons) {
+      if (p.deletedAt != null) continue;
+      adjacency[p.id] = [];
+    }
+
+    for (final rel in input.relationships) {
+      if (!activePersonIds.contains(rel.fromId) ||
+          !activePersonIds.contains(rel.toId)) {
+        continue;
+      }
+      adjacency[rel.fromId]?.add(_EdgeData(rel.toId, rel.type, 'from'));
+      final inverse = inverseTypeMap[rel.type] ?? rel.type;
+      adjacency[rel.toId]?.add(_EdgeData(rel.fromId, inverse, 'to'));
+    }
+
+    final personMap = {for (final p in input.persons) p.id: p};
+
+    // BFS
+    final visited = <String>{};
+    final queue = <_BFSQueueNode>[];
+    visited.add(input.fromPersonId);
+    queue.add(_BFSQueueNode(input.fromPersonId, []));
+
+    while (queue.isNotEmpty) {
+      final current = queue.removeAt(0);
+      for (final edge in adjacency[current.personId] ?? []) {
+        if (visited.contains(edge.targetId)) continue;
+        visited.add(edge.targetId);
+
+        final neighbor = personMap[edge.targetId];
+        final newStep = _PathStepData(
+          personId: edge.targetId,
+          personName: neighbor?.name ?? 'Unknown',
+          type: edge.type,
+          direction: edge.direction,
+        );
+        final newPath = [...current.path, newStep];
+
+        if (edge.targetId == input.toPersonId) {
+          return _BFSOutput(path: newPath);
+        }
+
+        queue.add(_BFSQueueNode(edge.targetId, newPath));
+      }
+    }
+    return null;
   }
 
   PathResult _buildPathResult(List<PathStep> path, String locale) {
@@ -614,4 +700,66 @@ class BFSNode {
   final List<PathStep> path;
 
   final String personId;
+}
+
+// ── Isolate-safe data classes for background BFS ───────────────────
+
+class _PersonData {
+  const _PersonData({required this.id, required this.name, this.deletedAt});
+  final String id;
+  final String name;
+  final String? deletedAt;
+}
+
+class _RelData {
+  const _RelData({required this.fromId, required this.toId, required this.type});
+  final String fromId;
+  final String toId;
+  final String type;
+}
+
+class _EdgeData {
+  const _EdgeData(this.targetId, this.type, this.direction);
+  final String targetId;
+  final String type;
+  final String direction;
+}
+
+class _PathStepData {
+  const _PathStepData({
+    required this.personId,
+    required this.personName,
+    required this.type,
+    required this.direction,
+  });
+  final String personId;
+  final String personName;
+  final String type;
+  final String direction;
+}
+
+class _BFSInput {
+  const _BFSInput({
+    required this.persons,
+    required this.relationships,
+    required this.fromPersonId,
+    required this.toPersonId,
+    required this.locale,
+  });
+  final List<_PersonData> persons;
+  final List<_RelData> relationships;
+  final String fromPersonId;
+  final String toPersonId;
+  final String locale;
+}
+
+class _BFSOutput {
+  const _BFSOutput({required this.path});
+  final List<_PathStepData> path;
+}
+
+class _BFSQueueNode {
+  const _BFSQueueNode(this.personId, this.path);
+  final String personId;
+  final List<_PathStepData> path;
 }

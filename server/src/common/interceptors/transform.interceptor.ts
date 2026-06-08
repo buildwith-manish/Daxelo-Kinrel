@@ -33,8 +33,12 @@ export class TransformInterceptor<T> implements NestInterceptor<T, T> {
           response.setHeader('X-Response-Time', `${responseTime}ms`);
         },
         error: () => {
-          const responseTime = Date.now() - startTime;
-          response.setHeader('X-Response-Time', `${responseTime}ms`);
+          try {
+            const responseTime = Date.now() - startTime;
+            response.setHeader('X-Response-Time', `${responseTime}ms`);
+          } catch {
+            // Headers already sent — ignore
+          }
         },
       }),
     );

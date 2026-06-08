@@ -92,6 +92,7 @@ class BackgroundSyncManager {
 
   /// Called when app resumes from background.
   /// Performs a delta sync if the user is authenticated and online.
+  /// ANR FIX: Yields before sync to let the UI settle after resume.
   Future<void> onAppResumed() async {
     if (_isDisposed) return;
 
@@ -108,6 +109,10 @@ class BackgroundSyncManager {
     }
 
     debugPrint('🔄 App resumed — triggering delta sync');
+
+    // ANR FIX: Yield to let the framework finish processing the resume
+    // lifecycle event before starting a potentially heavy sync operation.
+    await Future.delayed(const Duration(milliseconds: 50));
 
     try {
       final engine = _ref.read(syncEngineProvider);

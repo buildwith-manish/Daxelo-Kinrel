@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsDateString, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsDateString, IsIn, IsUrl, MaxLength } from 'class-validator';
 
 export class CreateStoryDto {
   @IsOptional()
@@ -7,10 +7,12 @@ export class CreateStoryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   caption?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUrl()
+  @MaxLength(2048)
   mediaUrl?: string;
 
   @IsOptional()
@@ -19,6 +21,7 @@ export class CreateStoryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   bgGradient?: string;
 
   @IsDateString()

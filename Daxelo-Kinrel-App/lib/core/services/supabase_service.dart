@@ -32,6 +32,11 @@ import '../config/auth_config.dart';
 
 final _log = Logger(printer: PrettyPrinter(methodCount: 0));
 
+/// Debug credentials for development-only auto sign-in.
+/// Controlled via --dart-define=DEBUG_PASSWORD=xxx.
+/// Only used when kAuthDisabled=true.
+const String _debugPassword = String.fromEnvironment('DEBUG_PASSWORD', defaultValue: '');
+
 // ── Hardcoded fallback credentials ──────────────────────────────────
 // The anon key is safe for client-side use (only service_role is secret).
 const String _hardcodedSupabaseUrl = 'https://promxswvsnvilplmrtsj.supabase.co';
@@ -138,7 +143,7 @@ Future<bool> initSupabase() async {
       if (attempts < maxAttempts) {
         final delay = Duration(seconds: attempts * 2);
         _log.i('Retrying in ${delay.inSeconds}s...');
-        await Future.delayed(delay);
+        await Future.delayed(delay < const Duration(milliseconds: 500) ? delay : const Duration(milliseconds: 500));
       }
     }
   }
@@ -149,7 +154,7 @@ Future<bool> initSupabase() async {
 
 /// Call after initSupabase() to update the Riverpod state provider.
 /// This must be called from a context that has access to a ProviderContainer.
-void notifySupabaseReady(ProviderContainer container) {
+void notifySupabaseReady(Ref container) {
   container.read(supabaseReadyStateProvider.notifier).state = _supabaseInitialized;
 }
 
@@ -159,6 +164,11 @@ void notifySupabaseReady(ProviderContainer container) {
 Future<bool> autoSignInForDebug(WidgetRef ref) async {
   if (!kAuthDisabled) return false;
   if (!_supabaseInitialized) return false;
+
+  // Skip email sign-in if no debug password is configured
+  if (_debugPassword.isEmpty) {
+    _log.i('Auto-sign-in: no DEBUG_PASSWORD configured, skipping email auth');
+  }
 
   final client = Supabase.instance.client;
 
@@ -182,32 +192,34 @@ Future<bool> autoSignInForDebug(WidgetRef ref) async {
   }
 
   // 2. Try email sign-in with test credentials
-  try {
-    await client.auth.signInWithPassword(
-      email: MockUser.email,
-      password: 'Debug@123456',
-    ).timeout(const Duration(seconds: 8));
-    if (client.auth.currentSession != null) {
-      _log.i('Auto-sign-in: signed in with test credentials');
-      return true;
+  if (_debugPassword.isNotEmpty) {
+    try {
+      await client.auth.signInWithPassword(
+        email: MockUser.email,
+        password: _debugPassword,
+      ).timeout(const Duration(seconds: 8));
+      if (client.auth.currentSession != null) {
+        _log.i('Auto-sign-in: signed in with test credentials');
+        return true;
+      }
+    } catch (e) {
+      _log.w('Auto-sign-in: email sign-in failed: $e');
     }
-  } catch (e) {
-    _log.w('Auto-sign-in: email sign-in failed: $e');
-  }
 
-  // 3. Try to sign up with test credentials (create the account)
-  try {
-    final response = await client.auth.signUp(
-      email: MockUser.email,
-      password: 'Debug@123456',
-      data: MockUser.userMetadata,
-    ).timeout(const Duration(seconds: 8));
-    if (response.session != null || response.user != null) {
-      _log.i('Auto-sign-in: test account created and signed in');
-      return true;
+    // 3. Try to sign up with test credentials (create the account)
+    try {
+      final response = await client.auth.signUp(
+        email: MockUser.email,
+        password: _debugPassword,
+        data: MockUser.userMetadata,
+      ).timeout(const Duration(seconds: 8));
+      if (response.session != null || response.user != null) {
+        _log.i('Auto-sign-in: test account created and signed in');
+        return true;
+      }
+    } catch (e) {
+      _log.w('Auto-sign-in: email sign-up failed: $e');
     }
-  } catch (e) {
-    _log.w('Auto-sign-in: email sign-up failed: $e');
   }
 
   _log.e('Auto-sign-in: all methods failed — CRUD operations will fail without a session');

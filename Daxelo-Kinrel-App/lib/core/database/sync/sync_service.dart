@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../isar_database.dart';
+import '../app_database_service.dart';
 import 'connectivity_service.dart';
 import 'offline_queue.dart';
 
@@ -23,7 +23,7 @@ class SyncService {
   /// - Listens for connectivity changes to trigger sync
   /// - Sets up periodic sync (every 5 minutes when online)
   void start() {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
 
     debugPrint('🔄 Starting SyncService...');
 
@@ -94,30 +94,18 @@ class SyncService {
     }
   }
 
-  /// Remove expired API cache entries.
+  /// Remove expired API cache entries via a single SQL DELETE statement
+  /// instead of loading all rows and iterating in Dart.
   Future<void> _cleanupExpiredCache() async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
 
-    final db = IsarDatabase.instance;
-    final allEntries = await db.getAllApiCacheEntries();
-    int removedCount = 0;
-
-    for (final entry in allEntries) {
-      final cachedTime = DateTime.tryParse(entry.cachedAt.toIso8601String());
-      if (cachedTime == null) {
-        await db.deleteApiCacheEntry(entry.id);
-        removedCount++;
-        continue;
-      }
-      final expiresAt = cachedTime.add(Duration(seconds: entry.ttlSeconds));
-      if (DateTime.now().isAfter(expiresAt)) {
-        await db.deleteApiCacheEntry(entry.id);
-        removedCount++;
-      }
-    }
-
-    if (removedCount > 0) {
-      debugPrint('🗑️ Cleaned up $removedCount expired cache entries');
+    final db = AppDatabaseService.instance;
+    try {
+      await db.customStatement(
+        "DELETE FROM api_cache_entries WHERE datetime(cached_at, '+' || ttl_seconds || ' seconds') < datetime('now')",
+      );
+    } catch (e) {
+      debugPrint('Cache cleanup error: $e');
     }
   }
 

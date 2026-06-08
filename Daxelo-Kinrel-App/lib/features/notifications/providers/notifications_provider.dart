@@ -33,6 +33,14 @@ enum NotificationType {
   usernameChange,
   familyIdGenerated,
   memberJoined,
+  // ── Phase 7: Social notification types ───────────────────────────
+  newFollower,
+  followRequestReceived,
+  followRequestAccepted,
+  youJoinedFamily,
+  familyMemberJoined,
+  sparqViewsBatched,
+  sparqReply,
 }
 
 /// Map from NotificationType to display-friendly label.
@@ -47,6 +55,14 @@ const Map<NotificationType, String> notificationTypeLabels = {
   NotificationType.usernameChange: 'Username Change',
   NotificationType.familyIdGenerated: 'Family ID Generated',
   NotificationType.memberJoined: 'Member Joined',
+  // ── Phase 7: Social notification labels ─────────────────────────
+  NotificationType.newFollower: 'New Follower',
+  NotificationType.followRequestReceived: 'Follow Request',
+  NotificationType.followRequestAccepted: 'Follow Request Accepted',
+  NotificationType.youJoinedFamily: 'Joined Family',
+  NotificationType.familyMemberJoined: 'Family Member Joined',
+  NotificationType.sparqViewsBatched: 'Sparq Views',
+  NotificationType.sparqReply: 'Sparq Reply',
 };
 
 /// Map from NotificationType to NotificationCategory.
@@ -61,6 +77,14 @@ const Map<NotificationType, NotificationCategory> notificationTypeCategory = {
   NotificationType.usernameChange: NotificationCategory.system,
   NotificationType.familyIdGenerated: NotificationCategory.system,
   NotificationType.memberJoined: NotificationCategory.family,
+  // ── Phase 7: Social notification categories ─────────────────────
+  NotificationType.newFollower: NotificationCategory.engagement,
+  NotificationType.followRequestReceived: NotificationCategory.engagement,
+  NotificationType.followRequestAccepted: NotificationCategory.engagement,
+  NotificationType.youJoinedFamily: NotificationCategory.family,
+  NotificationType.familyMemberJoined: NotificationCategory.family,
+  NotificationType.sparqViewsBatched: NotificationCategory.engagement,
+  NotificationType.sparqReply: NotificationCategory.engagement,
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -231,6 +255,8 @@ class NotificationsState {
     this.selectedCategory,
     this.notificationPreferences = const {},
     this.isLoadingPreferences = false,
+    this.isLoading = false,
+    this.error,
   });
 
   /// All notifications (unfiltered).
@@ -244,6 +270,12 @@ class NotificationsState {
 
   /// Whether preferences are currently loading from the server.
   final bool isLoadingPreferences;
+
+  /// Whether notifications are currently loading.
+  final bool isLoading;
+
+  /// Error message from the last failed load, or null.
+  final String? error;
 
   /// Unread count.
   int get unreadCount => notifications.where((n) => !n.isRead).length;
@@ -287,6 +319,8 @@ class NotificationsState {
     NotificationCategory? Function()? selectedCategory,
     Map<NotificationType, NotificationPreference>? notificationPreferences,
     bool? isLoadingPreferences,
+    bool? isLoading,
+    String? Function()? error,
   }) {
     return NotificationsState(
       notifications: notifications ?? this.notifications,
@@ -297,6 +331,8 @@ class NotificationsState {
           notificationPreferences ?? this.notificationPreferences,
       isLoadingPreferences:
           isLoadingPreferences ?? this.isLoadingPreferences,
+      isLoading: isLoading ?? this.isLoading,
+      error: error != null ? error() : this.error,
     );
   }
 }
@@ -335,6 +371,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
 
   /// Load notifications from the backend API
   Future<void> loadNotifications() async {
+    state = state.copyWith(isLoading: true, error: () => null);
     try {
       final response = await _dio.get(
         '/api/notifications/v2',
@@ -350,15 +387,18 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
             .map((e) => _mapNotification(e as Map<String, dynamic>))
             .toList();
 
-        state = state.copyWith(notifications: notifications);
+        state = state.copyWith(notifications: notifications, isLoading: false, error: () => null);
       } else if (data is List) {
         final notifications = data
             .map((e) => _mapNotification(e as Map<String, dynamic>))
             .toList();
-        state = state.copyWith(notifications: notifications);
+        state = state.copyWith(notifications: notifications, isLoading: false, error: () => null);
+      } else {
+        state = state.copyWith(isLoading: false, error: () => null);
       }
     } catch (e) {
       debugPrint('⚠️ Failed to load notifications: $e');
+      state = state.copyWith(error: () => e.toString(), isLoading: false);
     }
   }
 
@@ -412,6 +452,21 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         return NotificationType.memberJoined;
       case 'family_id_generated':
         return NotificationType.familyIdGenerated;
+      // ── Phase 7: Social event type mappings ───────────────────────
+      case 'new_follower':
+        return NotificationType.newFollower;
+      case 'follow_request_received':
+        return NotificationType.followRequestReceived;
+      case 'follow_request_accepted':
+        return NotificationType.followRequestAccepted;
+      case 'you_joined_family':
+        return NotificationType.youJoinedFamily;
+      case 'family_member_joined':
+        return NotificationType.familyMemberJoined;
+      case 'sparq_views_batched':
+        return NotificationType.sparqViewsBatched;
+      case 'sparq_reply':
+        return NotificationType.sparqReply;
       default:
         return NotificationType.newMember;
     }
@@ -460,6 +515,21 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         return 0xFF06B6D4; // cyan
       case NotificationType.memberJoined:
         return 0xFF4CAF7A; // green
+      // ── Phase 7: Social notification colors ──────────────────────
+      case NotificationType.newFollower:
+        return 0xFFE8612A; // orange
+      case NotificationType.followRequestReceived:
+        return 0xFFF59240; // amber
+      case NotificationType.followRequestAccepted:
+        return 0xFF4CAF7A; // green
+      case NotificationType.youJoinedFamily:
+        return 0xFFD4AF37; // gold
+      case NotificationType.familyMemberJoined:
+        return 0xFF4CAF7A; // green
+      case NotificationType.sparqViewsBatched:
+        return 0xFFE8612A; // orange
+      case NotificationType.sparqReply:
+        return 0xFFF59240; // amber
     }
   }
 
@@ -638,6 +708,21 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         return 'family_id_generated';
       case NotificationType.memberJoined:
         return 'member_joined';
+      // ── Phase 7: Social type-to-event mappings ───────────────────
+      case NotificationType.newFollower:
+        return 'new_follower';
+      case NotificationType.followRequestReceived:
+        return 'follow_request_received';
+      case NotificationType.followRequestAccepted:
+        return 'follow_request_accepted';
+      case NotificationType.youJoinedFamily:
+        return 'you_joined_family';
+      case NotificationType.familyMemberJoined:
+        return 'family_member_joined';
+      case NotificationType.sparqViewsBatched:
+        return 'sparq_views_batched';
+      case NotificationType.sparqReply:
+        return 'sparq_reply';
     }
   }
 }

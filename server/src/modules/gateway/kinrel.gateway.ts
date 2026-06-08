@@ -9,6 +9,8 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import * as jwt from 'jsonwebtoken';
+import { Logger } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
 
 interface AuthPayload {
   sub: string;
@@ -28,7 +30,36 @@ export interface MinimalPayload {
 }
 
 @WebSocketGateway({
-  cors: { origin: '*' },
+  cors: {
+    origin: (origin, callback) => {
+      // Same whitelist as HTTP CORS in main.ts
+      const allowed = [
+        'http://localhost:3001',
+        'http://localhost:8080',
+        'https://kinrel.app',
+        'https://daxelokinrel.com',
+        'https://app.daxelokinrel.com',
+        'https://daxelo-kinrel-server.onrender.com',
+        'com.daxelo.kinrel://',
+        'kinrel://',
+      ];
+      // Allow requests with no origin (mobile apps, Postman)
+      if (!origin) return callback(null, true);
+      // In development, allow any localhost
+      if (process.env.NODE_ENV === 'development' && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+        return callback(null, true);
+      }
+      if (allowed.some(o => origin.startsWith(o))) {
+        return callback(null, true);
+      }
+      // Also check CORS_ORIGINS env var
+      const extraOrigins = process.env.CORS_ORIGINS?.split(',').map(s => s.trim()) ?? [];
+      if (extraOrigins.some(o => origin.startsWith(o))) {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS'), false);
+    },
+  },
   namespace: '/',
   transports: ['websocket'],
   pingTimeout: 10000,
@@ -38,8 +69,11 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
+  private readonly logger = new Logger(KinrelGateway.name);
   private connectedUsers = new Map<string, string>();
   private graphDebounceTimers = new Map<string, NodeJS.Timeout>();
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async handleConnection(client: Socket) {
     try {
@@ -49,7 +83,7 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.handshake.headers?.authorization?.replace('Bearer ', '');
 
       if (!token) {
-        console.warn(`[WS] Connection rejected — no token: ${client.id}`);
+        this.logger.warn(`Connection rejected — no token: ${client.id}`);
         client.disconnect(true);
         return;
       }
@@ -82,7 +116,7 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       if (!payload) {
-        console.warn(`[WS] Connection rejected — invalid token: ${client.id}`);
+        this.logger.warn(`Connection rejected — invalid token: ${client.id}`);
         client.disconnect(true);
         return;
       }
@@ -91,9 +125,9 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.connectedUsers.set(client.id, userId);
       (client as any).userId = userId;
 
-      console.log(`[WS] Connected: ${client.id} (user: ${userId})`);
+      this.logger.log(`Connected: ${client.id} (user: ${userId})`);
     } catch (err) {
-      console.warn(`[WS] Connection rejected — error: ${client.id}`, (err as Error).message);
+      this.logger.warn(`Connection rejected — error: ${client.id}: ${(err as Error).message}`);
       client.disconnect(true);
     }
   }
@@ -103,11 +137,11 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (userId) {
       this.connectedUsers.delete(client.id);
     }
-    console.log(`[WS] Disconnected: ${client.id}`);
+    this.logger.log(`Disconnected: ${client.id}`);
   }
 
   @SubscribeMessage('join:family')
-  handleJoinFamily(
+  async handleJoinFamily(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { familyId: string },
   ) {
@@ -116,6 +150,28 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.emit('error', { message: 'Not authenticated' });
       return;
     }
+
+    // Validate familyId is a non-empty string
+    if (!data.familyId || typeof data.familyId !== 'string') {
+      client.emit('error', { message: 'Invalid family ID' });
+      return;
+    }
+
+    // Verify the user is a member of this family
+    try {
+      const membership = await this.prisma.familyMember.findFirst({
+        where: { userId, familyId: data.familyId },
+      });
+      if (!membership) {
+        client.emit('error', { message: 'Not a member of this family' });
+        return;
+      }
+    } catch (err) {
+      this.logger.warn(`Membership check failed for user ${userId}, family ${data.familyId}: ${(err as Error).message}`);
+      client.emit('error', { message: 'Unable to verify membership' });
+      return;
+    }
+
     const roomName = `family:${data.familyId}`;
     client.join(roomName);
     client.emit('joined:family', { familyId: data.familyId });

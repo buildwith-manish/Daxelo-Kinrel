@@ -16,7 +16,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide MultipartFile;
 import '../../../core/networking/dio_client.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/config/auth_config.dart';
-import '../../../core/database/isar_database.dart';
+import '../../../core/database/app_database_service.dart';
 import '../../../core/database/repositories/offline_profile_repository.dart';
 
 // ════════════════════════════════════════════════════════════════════
@@ -250,6 +250,9 @@ class UserStatsModel {
     this.familyTrees = 0,
     this.membersAdded = 0,
     this.relations = 0,
+    this.followersCount = 0,
+    this.followingCount = 0,
+    this.familiesCount = 0,
   });
 
   factory UserStatsModel.fromJson(Map<String, dynamic> json) {
@@ -257,12 +260,18 @@ class UserStatsModel {
       familyTrees: _parseInt(json['familyTrees']),
       membersAdded: _parseInt(json['membersAdded']),
       relations: _parseInt(json['relations']),
+      followersCount: _parseInt(json['followersCount']),
+      followingCount: _parseInt(json['followingCount']),
+      familiesCount: _parseInt(json['familiesCount']),
     );
   }
 
   final int familyTrees;
   final int membersAdded;
   final int relations;
+  final int followersCount;
+  final int followingCount;
+  final int familiesCount;
 }
 
 /// Active session for the current user.
@@ -598,7 +607,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     // Phone validation
     if (data.containsKey('phone')) {
       final phone = data['phone'] as String? ?? '';
-      if (phone.isNotEmpty && !RegExp(r'^\+?[0-9\s\-\(\)]{7,20}$').hasMatch(phone)) {
+      if (phone.isNotEmpty && !RegExp(r'^\+[0-9\s\-\(\)]{7,20}$').hasMatch(phone)) {
         errors['phone'] = 'Please enter a valid phone number';
       }
     }
@@ -668,7 +677,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     final client = _ref.read(supabaseProvider);
     if (client?.auth.currentSession == null) {
       // No session — try offline cache, then give up gracefully
-      if (IsarDatabase.isInitialized) {
+      if (AppDatabaseService.isInitialized) {
         try {
           final repo = _ref.read(offlineProfileRepositoryProvider);
           final profile = await repo.getProfile();
@@ -794,7 +803,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   /// Try to load profile from offline Isar cache.
   /// Returns true if a cached profile was found and set in state.
   Future<bool> _tryOfflineProfile() async {
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = _ref.read(offlineProfileRepositoryProvider);
         final profile = await repo.getProfile();
@@ -845,7 +854,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     final client = _ref.read(supabaseProvider);
     if (client?.auth.currentSession == null) {
       // No session — try offline cache, then give up gracefully
-      if (IsarDatabase.isInitialized) {
+      if (AppDatabaseService.isInitialized) {
         try {
           final repo = _ref.read(offlineProfileRepositoryProvider);
           final stats = await repo.getStats();
@@ -913,7 +922,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   /// Try to load stats from offline Isar cache.
   /// Returns true if cached stats were found and set in state.
   Future<bool> _tryOfflineStats() async {
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = _ref.read(offlineProfileRepositoryProvider);
         final stats = await repo.getStats();
@@ -1165,7 +1174,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     // ── Fire API call in background ──
 
     // Try offline-first repository first if Isar is initialized
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
         final repo = _ref.read(offlineProfileRepositoryProvider);
         final success = await repo.updateProfile(data);
@@ -1190,7 +1199,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     } on DioException catch (e) {
       // ── Rollback: restore previous profile on failure ──
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to update profile';
       state = state.copyWith(
@@ -1303,7 +1312,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return false;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to upload avatar';
       state = state.copyWith(isLoading: false, error: message.toString());
@@ -1343,7 +1352,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to change password';
       state = state.copyWith(isLoading: false, error: message.toString());
@@ -1388,7 +1397,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ?? e.message ?? 'Failed to set username';
+          e.response?.data['message'] ?? e.message ?? 'Failed to set username';
       state = state.copyWith(isLoading: false, error: message.toString());
       return false;
     } catch (e) {
@@ -1405,7 +1414,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return TwoFASetupResponse.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ?? e.message ?? 'Failed to setup 2FA';
+          e.response?.data['message'] ?? e.message ?? 'Failed to setup 2FA';
       state = state.copyWith(error: message.toString());
       return null;
     } catch (e) {
@@ -1422,7 +1431,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ?? e.message ?? 'Failed to verify 2FA';
+          e.response?.data['message'] ?? e.message ?? 'Failed to verify 2FA';
       state = state.copyWith(error: message.toString());
       return false;
     } catch (e) {
@@ -1439,7 +1448,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ?? e.message ?? 'Failed to disable 2FA';
+          e.response?.data['message'] ?? e.message ?? 'Failed to disable 2FA';
       state = state.copyWith(error: message.toString());
       return false;
     } catch (e) {
@@ -1496,7 +1505,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to revoke session';
       state = state.copyWith(error: message.toString());
@@ -1515,7 +1524,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to revoke sessions';
       state = state.copyWith(error: message.toString());
@@ -1573,7 +1582,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to leave family';
       state = state.copyWith(error: message.toString());
@@ -1604,7 +1613,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
         if (kinFamilyId == null || kinFamilyId.isEmpty) {
           try {
             final idResponse = await _dio.get('/api/families/$familyId/family-id');
-            kinFamilyId = idResponse.data?['kinFamilyId'] as String?;
+            kinFamilyId = idResponse.data['kinFamilyId'] as String?;
           } catch (e) {
             debugPrint('⚠️ Failed to fetch KIN ID for family $familyId: $e');
           }
@@ -1676,7 +1685,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to accept invitation';
       state = state.copyWith(error: message.toString());
@@ -1695,7 +1704,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to decline invitation';
       state = state.copyWith(error: message.toString());
@@ -1740,7 +1749,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ?? e.message ?? 'Failed to unblock user';
+          e.response?.data['message'] ?? e.message ?? 'Failed to unblock user';
       state = state.copyWith(error: message.toString());
       return false;
     } catch (e) {
@@ -1757,7 +1766,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to request data export';
       state = state.copyWith(error: message.toString());
@@ -1779,7 +1788,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to delete account';
       state = state.copyWith(isLoading: false, error: message.toString());
@@ -1801,7 +1810,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to export family tree';
       state = state.copyWith(error: message.toString());
@@ -1820,7 +1829,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to submit ticket';
       state = state.copyWith(error: message.toString());
@@ -1844,7 +1853,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return true;
     } on DioException catch (e) {
       final message =
-          e.response?.data?['message'] ??
+          e.response?.data['message'] ??
           e.message ??
           'Failed to update quiet hours';
       state = state.copyWith(error: message.toString());
@@ -1874,9 +1883,9 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     }
 
     // Clear Isar cache on logout
-    if (IsarDatabase.isInitialized) {
+    if (AppDatabaseService.isInitialized) {
       try {
-        await IsarDatabase.clearCache(includePendingOps: true);
+        await AppDatabaseService.clearCache(includePendingOps: true);
       } catch (_) {}
     }
 

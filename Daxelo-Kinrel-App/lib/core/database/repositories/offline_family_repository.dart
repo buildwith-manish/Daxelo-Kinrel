@@ -3,11 +3,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:drift/drift.dart';
 
-import '../isar_database.dart';
+import '../app_database_service.dart';
 import '../app_database.dart';
 import '../sync/connectivity_service.dart';
 import '../sync/offline_queue.dart';
 import '../sync/cache_invalidation.dart';
+import '../../utils/id_generator.dart';
 import '../../family/family_provider.dart';
 import '../../services/supabase_service.dart';
 
@@ -26,7 +27,7 @@ class OfflineFamilyRepository {
 
   OfflineFamilyRepository(this._ref);
 
-  AppDatabase get _db => _ref.read(isarProvider);
+  AppDatabase get _db => _ref.read(appDatabaseProvider);
   bool get _isOnline => _ref.read(connectivityServiceProvider).isOnline;
 
   // ── Family List ─────────────────────────────────────────────────
@@ -34,7 +35,7 @@ class OfflineFamilyRepository {
   /// Get all families the current user has access to.
   /// Returns cached data immediately if available, then refreshes in background.
   Future<List<Family>> getFamilies() async {
-    if (!IsarDatabase.isInitialized) return _fetchFamiliesFromNetwork();
+    if (!AppDatabaseService.isInitialized) return _fetchFamiliesFromNetwork();
 
     // Try cache first
     final cached = await _getCachedFamilies();
@@ -53,10 +54,11 @@ class OfflineFamilyRepository {
   /// Get cached families from Drift.
   Future<List<Family>> _getCachedFamilies() async {
     final rows = await _db.getAllFamilies();
-    return rows.map((row) {
-      final data = _jsonDecode(row.data);
-      return Family.fromJson(data);
-    }).toList();
+    final dataList = rows.map((row) => row.data).toList();
+    if (dataList.length > 5) {
+      return compute(_parseFamilies, dataList);
+    }
+    return dataList.map((data) => Family.fromJson(_jsonDecode(data))).toList();
   }
 
   /// Fetch families from Supabase and cache the result.
@@ -131,17 +133,23 @@ class OfflineFamilyRepository {
 
   /// Cache families to Drift.
   Future<void> _cacheFamilies(List<Family> families) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
 
-    for (final family in families) {
-      final json = family.toJson();
-      await _db.upsertFamily(CachedFamiliesCompanion(
-        id: Value(family.id),
-        name: Value(family.name),
-        data: Value(_jsonEncode(json)),
-        cachedAt: Value(DateTime.now()),
-      ));
-    }
+    await _db.batch((b) {
+      for (final family in families) {
+        final json = family.toJson();
+        b.insert(
+          _db.cachedFamilies,
+          CachedFamiliesCompanion(
+            id: Value(family.id),
+            name: Value(family.name),
+            data: Value(_jsonEncode(json)),
+            cachedAt: Value(DateTime.now()),
+          ),
+          mode: InsertMode.insertOrReplace,
+        );
+      }
+    });
   }
 
   // ── Family Members ──────────────────────────────────────────────
@@ -149,7 +157,7 @@ class OfflineFamilyRepository {
   /// Get persons in a family.
   /// Returns cached data first if available, then refreshes in background.
   Future<List<Person>> getFamilyMembers(String familyId) async {
-    if (!IsarDatabase.isInitialized) return _fetchMembersFromNetwork(familyId);
+    if (!AppDatabaseService.isInitialized) return _fetchMembersFromNetwork(familyId);
 
     // Try cache first
     final cached = await _getCachedMembers(familyId);
@@ -165,10 +173,11 @@ class OfflineFamilyRepository {
 
   Future<List<Person>> _getCachedMembers(String familyId) async {
     final rows = await _db.getPersonsByFamily(familyId);
-    return rows.map((row) {
-      final data = _jsonDecode(row.data);
-      return Person.fromJson(data);
-    }).toList();
+    final dataList = rows.map((row) => row.data).toList();
+    if (dataList.length > 5) {
+      return compute(_parsePersons, dataList);
+    }
+    return dataList.map((data) => Person.fromJson(_jsonDecode(data))).toList();
   }
 
   Future<List<Person>> _fetchMembersFromNetwork(String familyId) async {
@@ -209,22 +218,28 @@ class OfflineFamilyRepository {
   }
 
   Future<void> _cacheMembers(String familyId, List<Person> members) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
 
     // Remove old cached members for this family
     await _db.deletePersonsByFamily(familyId);
 
-    // Add new cached members
-    for (final member in members) {
-      final json = member.toJson();
-      await _db.upsertPerson(CachedPersonsCompanion(
-        id: Value(member.id),
-        familyId: Value(member.familyId),
-        name: Value(member.name),
-        data: Value(_jsonEncode(json)),
-        cachedAt: Value(DateTime.now()),
-      ));
-    }
+    // Add new cached members in a single batch
+    await _db.batch((b) {
+      for (final member in members) {
+        final json = member.toJson();
+        b.insert(
+          _db.cachedPersons,
+          CachedPersonsCompanion(
+            id: Value(member.id),
+            familyId: Value(member.familyId),
+            name: Value(member.name),
+            data: Value(_jsonEncode(json)),
+            cachedAt: Value(DateTime.now()),
+          ),
+          mode: InsertMode.insertOrReplace,
+        );
+      }
+    });
   }
 
   // ── Family Relationships ────────────────────────────────────────
@@ -233,7 +248,7 @@ class OfflineFamilyRepository {
   Future<List<FamilyRelationship>> getFamilyRelationships(
     String familyId,
   ) async {
-    if (!IsarDatabase.isInitialized) {
+    if (!AppDatabaseService.isInitialized) {
       return _fetchRelationshipsFromNetwork(familyId);
     }
 
@@ -252,10 +267,11 @@ class OfflineFamilyRepository {
     String familyId,
   ) async {
     final rows = await _db.getRelationshipsByFamily(familyId);
-    return rows.map((row) {
-      final data = _jsonDecode(row.data);
-      return FamilyRelationship.fromJson(data);
-    }).toList();
+    final dataList = rows.map((row) => row.data).toList();
+    if (dataList.length > 5) {
+      return compute(_parseRelationships, dataList);
+    }
+    return dataList.map((data) => FamilyRelationship.fromJson(_jsonDecode(data))).toList();
   }
 
   Future<List<FamilyRelationship>> _fetchRelationshipsFromNetwork(
@@ -303,24 +319,30 @@ class OfflineFamilyRepository {
     String familyId,
     List<FamilyRelationship> relationships,
   ) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
 
     // Remove old cached relationships for this family
     await _db.deleteRelationshipsByFamily(familyId);
 
-    // Add new cached relationships
-    for (final rel in relationships) {
-      final json = rel.toJson();
-      await _db.upsertRelationship(CachedRelationshipsCompanion(
-        id: Value(rel.id),
-        fromId: Value(rel.fromPersonId),
-        toId: Value(rel.toPersonId),
-        relationshipType: Value(rel.relationshipKey),
-        kinshipName: Value(rel.label),
-        data: Value(_jsonEncode(json)),
-        cachedAt: Value(DateTime.now()),
-      ));
-    }
+    // Add new cached relationships in a single batch
+    await _db.batch((b) {
+      for (final rel in relationships) {
+        final json = rel.toJson();
+        b.insert(
+          _db.cachedRelationships,
+          CachedRelationshipsCompanion(
+            id: Value(rel.id),
+            fromId: Value(rel.fromPersonId),
+            toId: Value(rel.toPersonId),
+            relationshipType: Value(rel.relationshipKey),
+            kinshipName: Value(rel.label),
+            data: Value(_jsonEncode(json)),
+            cachedAt: Value(DateTime.now()),
+          ),
+          mode: InsertMode.insertOrReplace,
+        );
+      }
+    });
   }
 
   // ── Recently Viewed Profiles ────────────────────────────────────
@@ -332,7 +354,7 @@ class OfflineFamilyRepository {
     required String personName,
     String? photoUrl,
   }) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
 
     // Remove existing entry for this person (will be re-added at top)
     await _db.deleteRecentlyViewedByPerson(personId);
@@ -349,7 +371,7 @@ class OfflineFamilyRepository {
 
   /// Get recently viewed profiles.
   Future<List<RecentlyViewedProfile>> getRecentlyViewed() async {
-    if (!IsarDatabase.isInitialized) return [];
+    if (!AppDatabaseService.isInitialized) return [];
 
     // Return the Drift rows directly — they already have the right shape
     return _db.getRecentlyViewed();
@@ -382,7 +404,7 @@ class OfflineFamilyRepository {
     if (_isOnline) {
       // Online — write directly to Supabase
       try {
-        final personId = _generateId();
+        final personId = generateId();
         final now = DateTime.now().toIso8601String();
         final response = await withRetry(
           () => client.from('Person').insert({
@@ -460,7 +482,7 @@ class OfflineFamilyRepository {
     int? birthYear,
     bool isAnchor = false,
   }) async {
-    final personId = _generateId();
+    final personId = generateId();
     final now = DateTime.now().toIso8601String();
 
     // Create optimistic local person
@@ -520,7 +542,7 @@ class OfflineFamilyRepository {
 
     if (_isOnline) {
       try {
-        final relId = _generateId();
+        final relId = generateId();
         final now = DateTime.now().toIso8601String();
         final response = await withRetry(
           () => client.from('Relationship').insert({
@@ -575,7 +597,7 @@ class OfflineFamilyRepository {
     required String toPersonId,
     required String relationshipKey,
   }) async {
-    final relId = _generateId();
+    final relId = generateId();
     final now = DateTime.now().toIso8601String();
 
     final rel = FamilyRelationship(
@@ -625,23 +647,34 @@ class OfflineFamilyRepository {
         errStr.contains('TimeoutException');
   }
 
-  /// Generate a CUID-like ID (same as family_provider.dart).
-  static String _generateId() {
-    final timestamp = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
-    final random = DateTime.now().microsecond;
-    final rand = List.generate(
-      16,
-      (i) => ((timestamp.hashCode + random + i) % 36).toRadixString(36),
-    ).join();
-    return 'c$timestamp$rand'.substring(0, 25);
-  }
-
   static Map<String, dynamic> _jsonDecode(String data) {
     return json.decode(data) as Map<String, dynamic>;
   }
 
   static String _jsonEncode(Map<String, dynamic> data) {
     return json.encode(data);
+  }
+
+  /// Parse families in a background isolate via compute().
+  static List<Family> _parseFamilies(List<String> dataList) {
+    return dataList
+        .map((data) => Family.fromJson(json.decode(data) as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Parse persons in a background isolate via compute().
+  static List<Person> _parsePersons(List<String> dataList) {
+    return dataList
+        .map((data) => Person.fromJson(json.decode(data) as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Parse relationships in a background isolate via compute().
+  static List<FamilyRelationship> _parseRelationships(List<String> dataList) {
+    return dataList
+        .map((data) =>
+            FamilyRelationship.fromJson(json.decode(data) as Map<String, dynamic>))
+        .toList();
   }
 }
 

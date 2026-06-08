@@ -15,13 +15,7 @@ import { UpdateFamilyDto } from './dto/update-family.dto';
 import { FamilyIdService } from './family-id.service';
 import { KinrelGateway } from '../gateway/kinrel.gateway';
 import { Cron, CronExpression } from '@nestjs/schedule';
-
-const ROLE_HIERARCHY: Record<string, number> = {
-  viewer: 1,
-  member: 2,
-  editor: 3,
-  admin: 4,
-};
+import { ROLE_HIERARCHY } from '../../common/constants';
 
 /** Number of days a family stays in archive before permanent deletion */
 const ARCHIVE_RETENTION_DAYS = 30;
@@ -261,13 +255,8 @@ export class FamiliesService {
    * Also restores all persons that were soft-deleted at the same time.
    */
   async restore(userId: string, familyId: string) {
-    const membership = await this.prisma.familyMember.findUnique({
-      where: { familyId_userId: { familyId, userId } },
-    });
-
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this family');
-    }
+    // Only admins can restore a family — viewers should not undo an admin's archival
+    const membership = await this.requireFamilyRole(userId, familyId, 'admin');
 
     const family = await this.prisma.family.findUnique({
       where: { id: familyId },
@@ -284,15 +273,17 @@ export class FamiliesService {
     const archivedAt = family.deletedAt;
 
     await this.prisma.$transaction(async (tx) => {
-      // 1. Restore persons that were archived at the same time as the family
-      // (within a 5-second window to account for transaction latency)
-      const archiveWindowStart = new Date(archivedAt.getTime() - 5000);
-      const archiveWindowEnd = new Date(archivedAt.getTime() + 5000);
-
+      // 1. Restore persons that were soft-deleted as part of the family archive.
+      // We restore ALL currently-soft-deleted persons in this family because:
+      //   - The archive() method soft-deletes every person in the family atomically
+      //   - No other code path sets person.deletedAt while the family is active
+      //   - Using a time-window heuristic (5s) could miss persons under high latency
+      //     or accidentally restore persons manually deleted before archival.
+      //   - Since the family is archived, no one can add/delete persons anyway.
       await tx.person.updateMany({
         where: {
           familyId,
-          deletedAt: { gte: archiveWindowStart, lte: archiveWindowEnd },
+          deletedAt: { not: null },
         },
         data: { deletedAt: null },
       });

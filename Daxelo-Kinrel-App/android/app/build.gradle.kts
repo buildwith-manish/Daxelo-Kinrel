@@ -73,6 +73,14 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // ── Firebase Crashlytics: upload native symbols automatically ──
+            // Enables automatic upload of native debug symbols (.so files)
+            // to Firebase Crashlytics during the build. This is required for
+            // readable native stack traces in Crashlytics for release builds
+            // where code is obfuscated/minified.
+            firebaseCrashlytics {
+                nativeSymbolUploadEnabled = true
+            }
         }
     }
 }

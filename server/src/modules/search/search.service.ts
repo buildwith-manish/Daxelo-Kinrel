@@ -123,6 +123,27 @@ export class SearchService {
         viewerFamilyIds = new Set(viewerFamilies.map((m) => m.familyId));
       }
 
+      let filteredOutCount = 0;
+
+      // Collect connections_only user IDs for batched check
+      const connectionsOnlyUsers = users.filter(
+        (u) => (u.profileVisibility || 'public') === 'connections_only',
+      );
+
+      // Batched check: find all family members where these users share a family with the viewer
+      let connectedUserIds: Set<string> = new Set();
+      if (connectionsOnlyUsers.length > 0 && viewerId && viewerFamilyIds) {
+        const connectionsOnlyUserIds = connectionsOnlyUsers.map((u) => u.id);
+        const sharedMembers = await this.prisma.familyMember.findMany({
+          where: {
+            userId: { in: connectionsOnlyUserIds },
+            familyId: { in: [...viewerFamilyIds] },
+          },
+          select: { userId: true },
+        });
+        connectedUserIds = new Set(sharedMembers.map((m) => m.userId));
+      }
+
       for (const user of users) {
         const visibility = user.profileVisibility || 'public';
 
@@ -130,18 +151,13 @@ export class SearchService {
         if (visibility === 'connections_only') {
           if (!viewerId || !viewerFamilyIds) {
             // No viewer context → skip connections_only profiles
+            filteredOutCount++;
             continue;
           }
 
-          // Check if this user shares any family with the viewer
-          const userInViewerFamilies = await this.prisma.familyMember.findFirst({
-            where: {
-              userId: user.id,
-              familyId: { in: [...viewerFamilyIds] },
-            },
-          });
-
-          if (!userInViewerFamilies) {
+          // O(1) lookup in the pre-computed set
+          if (!connectedUserIds.has(user.id)) {
+            filteredOutCount++;
             continue; // Skip — not a connection
           }
         }
@@ -156,7 +172,7 @@ export class SearchService {
         });
       }
 
-      total += userCount;
+      total += (userCount - filteredOutCount);
     }
 
     // ── Search Families ──

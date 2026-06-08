@@ -20,7 +20,6 @@ import '../../../shared/widgets/dk_components.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────
 const _cOrange = KinrelColors.orange;
-const _cBg = KinrelColors.darkBackground;
 const _cCard = KinrelColors.darkCard;
 const _cElevated = KinrelColors.darkElevated;
 const _cTextPrimary = KinrelColors.textWhite;

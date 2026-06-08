@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 
 import '../../core/family/family_provider.dart';
 import '../../core/networking/dio_client.dart';
-import '../../core/database/isar_database.dart';
+import '../../core/database/app_database_service.dart';
 import '../../core/database/app_database.dart';
 
 // ── Display ID Helpers ────────────────────────────────────────────
@@ -339,9 +339,9 @@ class SearchRepository {
     required int limit,
     required int offset,
   }) async {
-    if (!IsarDatabase.isInitialized) return null;
+    if (!AppDatabaseService.isInitialized) return null;
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       final key = '$_searchCachePrefix${query.toLowerCase()}:$type:$limit:$offset';
       final entry = await db.getApiCacheEntry(key);
       if (entry == null) return null;
@@ -378,9 +378,9 @@ class SearchRepository {
     required int offset,
     required SearchResults results,
   }) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       final key = '$_searchCachePrefix${query.toLowerCase()}:$type:$limit:$offset';
       await db.upsertApiCacheEntry(
         ApiCacheEntriesCompanion.insert(

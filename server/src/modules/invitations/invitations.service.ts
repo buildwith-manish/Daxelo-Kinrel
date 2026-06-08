@@ -411,7 +411,7 @@ export class InvitationsService {
   private formatInvitation(inv: any) {
     return {
       id: inv.id,
-      token: inv.token,
+      hasToken: !!inv.token,
       familyId: inv.familyId,
       inviterId: inv.inviterId,
       family: inv.family || undefined,

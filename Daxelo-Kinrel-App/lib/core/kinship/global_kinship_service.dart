@@ -2,6 +2,14 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'global_kinship_models.dart';
+import '../services/kinship_loader_service.dart';
+
+/// Parse JSON string in a background isolate via compute().
+/// Must be a top-level function (not a closure or instance method)
+/// so it can be sent to a separate isolate.
+Map<String, dynamic> _parseJsonInIsolate(String jsonStr) {
+  return jsonDecode(jsonStr) as Map<String, dynamic>;
+}
 
 /// Global Kinship Service — Loads and manages cross-cultural kinship data
 ///
@@ -12,12 +20,22 @@ import 'global_kinship_models.dart';
 ///   - Cross-cultural comparison for a given relationship key
 ///   - Maps different JSON formats into unified GlobalKinshipTerm model
 class GlobalKinshipService {
+  // Loader service for downloading kinship data from the server
+  final KinshipLoaderService? _loader;
+
   // Cache of loaded culture data
   final Map<String, GlobalKinshipData> _loadedData = {};
 
   // Loading state tracking
   final Set<String> _loading = {};
   final Set<String> _loadErrors = {};
+
+  /// Creates a [GlobalKinshipService].
+  ///
+  /// When [loader] is provided, global kinship data is fetched from the
+  /// server via download-on-demand (keeps APK under 100 MB Play Store limit).
+  /// When null (legacy / testing), falls back to [rootBundle].
+  GlobalKinshipService([this._loader]);
 
   /// Get all registered cultures (50+)
   List<GlobalCultureInfo> get allCultures => _cultureRegistry;
@@ -52,6 +70,11 @@ class GlobalKinshipService {
   }
 
   /// Load a specific culture's kinship data (lazy loading with caching)
+  ///
+  /// Global cultures (arabic, korean, japanese, vietnamese, russian, chinese)
+  /// are now loaded from the server via [KinshipLoaderService] instead of
+  /// from bundled assets. This keeps the APK under the Play Store's 100 MB
+  /// limit (~165 MB of kinship JSON removed from the bundle).
   Future<GlobalKinshipData?> loadCulture(String cultureKey) async {
     // Return cached data
     if (_loadedData.containsKey(cultureKey)) {
@@ -62,15 +85,34 @@ class GlobalKinshipService {
     if (_loading.contains(cultureKey)) return null;
 
     final info = getCultureInfo(cultureKey);
-    if (info == null || !info.hasDataFile || info.dataAssetPath == null) {
+    if (info == null || !info.hasDataFile) {
       return null;
     }
 
     _loading.add(cultureKey);
 
     try {
-      final jsonStr = await rootBundle.loadString(info.dataAssetPath!);
-      final jsonData = jsonDecode(jsonStr) as Map<String, dynamic>;
+      Map<String, dynamic> jsonData;
+
+      if (_loader != null) {
+        // Download-on-demand from server (primary path)
+        final loaded = await _loader.loadGlobalKinshipData(cultureKey);
+        if (loaded == null) {
+          throw Exception('Failed to download kinship data for $cultureKey');
+        }
+        jsonData = loaded;
+      } else if (info.dataAssetPath != null) {
+        // Legacy fallback: load from bundled assets (testing / offline)
+        // ANR FIX: Parse JSON in a background isolate instead of on the
+        // main thread. Large culture JSON files (~10-30 MB each) can take
+        // 100-500ms to parse on low-end devices, which blocks the Dart
+        // isolate → IO worker threads stuck on futex → ANR.
+        final jsonStr = await rootBundle.loadString(info.dataAssetPath!);
+        jsonData = await compute(_parseJsonInIsolate, jsonStr);
+      } else {
+        throw Exception('No data source available for $cultureKey');
+      }
+
       final data = _parseCultureData(cultureKey, jsonData);
       _loadedData[cultureKey] = data;
       _loading.remove(cultureKey);
@@ -508,7 +550,8 @@ class GlobalKinshipService {
       ],
       isRTL: false,
       hasDataFile: true,
-      dataAssetPath: 'assets/data/global/japanese_kinship_production.json',
+      // Data loaded from server via KinshipLoaderService (not bundled)
+      // dataAssetPath removed — APK size reduction (NEW-01)
     ),
     const GlobalCultureInfo(
       cultureKey: 'korean',
@@ -528,7 +571,7 @@ class GlobalKinshipService {
       ],
       isRTL: false,
       hasDataFile: true,
-      dataAssetPath: 'assets/data/global/korean_kinship_production.json',
+      // Data loaded from server via KinshipLoaderService (not bundled)
     ),
     const GlobalCultureInfo(
       cultureKey: 'chinese',
@@ -549,7 +592,7 @@ class GlobalKinshipService {
       ],
       isRTL: false,
       hasDataFile: true,
-      dataAssetPath: 'assets/data/global/chinese_kinship_production.json',
+      // Data loaded from server via KinshipLoaderService (not bundled)
     ),
     const GlobalCultureInfo(
       cultureKey: 'arabic',
@@ -571,7 +614,7 @@ class GlobalKinshipService {
       ],
       isRTL: true,
       hasDataFile: true,
-      dataAssetPath: 'assets/data/global/arabic_kinship_production.json',
+      // Data loaded from server via KinshipLoaderService (not bundled)
     ),
     const GlobalCultureInfo(
       cultureKey: 'vietnamese',
@@ -592,7 +635,7 @@ class GlobalKinshipService {
       ],
       isRTL: false,
       hasDataFile: true,
-      dataAssetPath: 'assets/data/global/vietnamese_kinship_production_v2.json',
+      // Data loaded from server via KinshipLoaderService (not bundled)
     ),
     const GlobalCultureInfo(
       cultureKey: 'russian',
@@ -613,8 +656,7 @@ class GlobalKinshipService {
       ],
       isRTL: false,
       hasDataFile: true,
-      dataAssetPath:
-          'assets/data/global/russian_kinship_production_v2 (1).json',
+      // Data loaded from server via KinshipLoaderService (not bundled)
     ),
 
     // ── METADATA-ONLY CULTURES (Coming Soon) ─────────────────────────

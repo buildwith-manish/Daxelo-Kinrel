@@ -115,6 +115,7 @@ final countryKinshipDataProvider =
       ref,
       countryCode,
     ) async {
+      await Future.delayed(Duration.zero); // ANR fix: yield before parallel loading
       final cultures = ref.watch(countryCulturesProvider(countryCode));
       final result = <String, GlobalKinshipData?>{};
 

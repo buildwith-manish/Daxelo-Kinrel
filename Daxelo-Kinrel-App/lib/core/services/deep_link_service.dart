@@ -36,7 +36,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_links/app_links.dart';
 import 'package:share_plus/share_plus.dart' as share_plus;
 
-import '../database/isar_database.dart';
+import '../database/app_database_service.dart';
 import '../services/crashlytics_service.dart';
 import '../services/analytics_service.dart';
 
@@ -340,10 +340,10 @@ DeepLinkRoute? parseDeepLink(Uri uri) {
 /// the API call loads fresh data in the background.
 /// Returns the cached data if available, null otherwise.
 Future<DeepLinkCacheResult?> preloadFromCache(DeepLinkRoute route) async {
-  if (!IsarDatabase.isInitialized) return null;
+  if (!AppDatabaseService.isInitialized) return null;
 
   try {
-    final db = IsarDatabase.instance;
+    final db = AppDatabaseService.instance;
 
     switch (route.path) {
       case kPathFamily:
@@ -391,7 +391,7 @@ Future<DeepLinkCacheResult?> preloadFromCache(DeepLinkRoute route) async {
         // Join by KIN-XXXXXXXX — look up by kinFamilyId in CachedFamilyIds
         if (route.id != null) {
           try {
-            final db = IsarDatabase.instance;
+            final db = AppDatabaseService.instance;
             // Try exact match first using the dedicated method
             final cachedById = await db.getFamilyByKinId(route.id!.toUpperCase());
             if (cachedById != null) {
@@ -442,10 +442,10 @@ Future<DeepLinkCacheResult?> preloadFromCache(DeepLinkRoute route) async {
 /// Returns a [DeepLinkFamilyPreview] with name, member count, and
 /// other cached details if available.
 Future<DeepLinkFamilyPreview?> preloadFamilyPreview(String kinFamilyId) async {
-  if (!IsarDatabase.isInitialized) return null;
+  if (!AppDatabaseService.isInitialized) return null;
 
   try {
-    final db = IsarDatabase.instance;
+    final db = AppDatabaseService.instance;
     final normalizedId = kinFamilyId.trim().toUpperCase();
 
     // Try exact match in CachedFamilyIds table
@@ -585,9 +585,15 @@ class DeepLinkService {
           _trackDeepLinkOpen(route);
 
           // Navigate after a short delay to let the app fully initialize
-          Future.delayed(const Duration(milliseconds: 800), () {
-            onDeepLink(route.toLocation());
-          });
+          unawaited(
+            Future.delayed(const Duration(milliseconds: 800), () async {
+              try {
+                onDeepLink(route.toLocation());
+              } catch (e) {
+                debugPrint('⚠️ Deferred deep link navigation failed: $e');
+              }
+            }),
+          );
         }
       }
     } catch (e) {
@@ -672,10 +678,10 @@ final deepLinkFamilyNameProvider = FutureProvider.family<String?, String>((
   ref,
   familyId,
 ) async {
-  if (!IsarDatabase.isInitialized) return null;
+  if (!AppDatabaseService.isInitialized) return null;
 
   try {
-    final db = IsarDatabase.instance;
+    final db = AppDatabaseService.instance;
     final cached = await db.getFamily(familyId);
     return cached?.name;
   } catch (_) {
@@ -689,10 +695,10 @@ final deepLinkMemberNameProvider = FutureProvider.family<String?, String>((
   ref,
   memberId,
 ) async {
-  if (!IsarDatabase.isInitialized) return null;
+  if (!AppDatabaseService.isInitialized) return null;
 
   try {
-    final db = IsarDatabase.instance;
+    final db = AppDatabaseService.instance;
     final cached = await db.getPerson(memberId);
     return cached?.name;
   } catch (_) {

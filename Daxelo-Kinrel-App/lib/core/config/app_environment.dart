@@ -16,6 +16,7 @@
 //   - release mode → prod
 
 import 'package:flutter/foundation.dart';
+import 'app_config.dart';
 
 /// App environment enum — determines which backend, Crashlytics project,
 /// and feature flags are active.
@@ -72,29 +73,16 @@ enum AppEnvironment {
         AppEnvironment.dev => 'http://10.0.2.2:3001', // Android emulator → NestJS on host
         AppEnvironment.staging =>
           'https://daxelo-kinrel-staging.onrender.com',
-        AppEnvironment.prod => 'https://daxelo-kinrel-server.onrender.com',
+        AppEnvironment.prod => AppConfig.apiBaseUrl,
       };
 
   /// Supabase URL for this environment
-  /// (In production, these would be different per environment)
-  String get supabaseUrl => switch (this) {
-        AppEnvironment.dev =>
-          'https://promxswvsnvilplmrtsj.supabase.co',
-        AppEnvironment.staging =>
-          'https://promxswvsnvilplmrtsj.supabase.co',
-        AppEnvironment.prod =>
-          'https://promxswvsnvilplmrtsj.supabase.co',
-      };
+  /// All environments share the same Supabase project — value from AppConfig
+  String get supabaseUrl => AppConfig.supabaseUrl;
 
   /// Supabase anon key for this environment
-  String get supabaseAnonKey => switch (this) {
-        AppEnvironment.dev =>
-          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY',
-        AppEnvironment.staging =>
-          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY',
-        AppEnvironment.prod =>
-          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY',
-      };
+  /// All environments share the same Supabase project — value from AppConfig
+  String get supabaseAnonKey => AppConfig.supabaseAnonKey;
 }
 
 /// Global current environment — resolved once at startup.

@@ -9,10 +9,17 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { SupportService } from './support.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CreateTicketDto } from './dto/create-ticket.dto';
+import { AddMessageDto } from './dto/add-message.dto';
 
+@ApiTags('Support')
+@ApiBearerAuth()
 @Controller('support/tickets')
 @UseGuards(JwtAuthGuard)
 export class SupportController {
@@ -41,6 +48,8 @@ export class SupportController {
    * List all tickets (admin/agent view, paginated).
    */
   @Get()
+  @UseGuards(RolesGuard)
+  @Roles('admin')
   async listTickets(
     @CurrentUser('id') userId: string,
     @Query('page') page?: string,
@@ -64,19 +73,7 @@ export class SupportController {
   @HttpCode(HttpStatus.CREATED)
   async createTicket(
     @CurrentUser('id') userId: string,
-    @Body()
-    body: {
-      subject: string;
-      description: string;
-      category?: string;
-      subcategory?: string;
-      severity?: string;
-      attachments?: string[];
-      appVersion?: string;
-      platform?: string;
-      deviceInfo?: string;
-      language?: string;
-    },
+    @Body() body: CreateTicketDto,
   ) {
     return this.supportService.createTicket(userId, body);
   }
@@ -90,13 +87,7 @@ export class SupportController {
   async addMessage(
     @CurrentUser('id') userId: string,
     @Param('ticketId') ticketId: string,
-    @Body()
-    body: {
-      content: string;
-      attachments?: string[];
-      senderType?: string;
-      channel?: string;
-    },
+    @Body() body: AddMessageDto,
   ) {
     return this.supportService.addMessage(ticketId, userId, body);
   }

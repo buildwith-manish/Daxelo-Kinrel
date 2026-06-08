@@ -6,14 +6,15 @@ import { ConfigService } from '@nestjs/config';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { FieldTrimInterceptor } from './common/interceptors/field-trim.interceptor';
-import { TimestampInterceptor } from './common/interceptors/timestamp.interceptor';
 import { ResponseEnvelopeInterceptor } from './common/interceptors/response-envelope.interceptor';
 import { SecurityHeadersInterceptor } from './common/interceptors/security-headers.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { LoggerService } from './common/logger/logger.service';
 import { AlertingService } from './common/alerting/alerting.service';
+import { RedisIoAdapter } from './common/adapters/redis-io.adapter';
 import helmet from 'helmet';
-const compression = require('compression');
+import compression from 'compression';
+import { randomBytes } from 'crypto';
 
 // ── CORS Whitelist ─────────────────────────────────────────────────
 const CORS_WHITELIST = [
@@ -23,8 +24,8 @@ const CORS_WHITELIST = [
   'https://daxelokinrel.com',                          // Production domain
   'https://app.daxelokinrel.com',                      // App subdomain
   'https://daxelo-kinrel-server.onrender.com',         // Render backend
-  'capabile://',                                        // iOS app scheme
-  'com.daxelo.kinrel',                                 // Android app scheme
+  'com.daxelo.kinrel://',                              // Android app scheme
+  'kinrel://',                                          // iOS app scheme
 ];
 
 async function bootstrap() {
@@ -57,7 +58,7 @@ async function bootstrap() {
 
   // ── Request ID tracking ────────────────────────────────────────
   app.use((req: any, res: any, next: any) => {
-    const requestId = req.headers['x-request-id'] || require('crypto').randomBytes(8).toString('hex');
+    const requestId = req.headers['x-request-id'] || randomBytes(8).toString('hex');
     req.headers['x-request-id'] = requestId;
     res.setHeader('x-request-id', requestId);
     next();
@@ -109,7 +110,7 @@ async function bootstrap() {
       }
       // In development, allow localhost on any port
       if (
-        !corsOriginsEnv &&
+        configService.get('NODE_ENV') === 'development' &&
         (origin.startsWith('http://localhost:') ||
          origin.startsWith('http://127.0.0.1:'))
       ) {
@@ -146,14 +147,13 @@ async function bootstrap() {
   // 2. LoggingInterceptor: adds X-Correlation-Id + structured request logging
   // 3. TransformInterceptor: adds X-Response-Time header
   // 4. FieldTrimInterceptor: removes null/undefined fields to save bandwidth
-  // 5. TimestampInterceptor: adds `ts` field for cache validation (no envelope)
-  // 6. ResponseEnvelopeInterceptor: wraps response in { success, data, timestamp } envelope
+  // 5. ResponseEnvelopeInterceptor: wraps response in { success, data, timestamp } envelope
+  //    (provides timestamp — no separate TimestampInterceptor needed)
   app.useGlobalInterceptors(
     new SecurityHeadersInterceptor(),
     new LoggingInterceptor(loggerService, alertingService),
     new TransformInterceptor(),
     new FieldTrimInterceptor(),
-    new TimestampInterceptor(),
     new ResponseEnvelopeInterceptor(),
   );
 
@@ -162,21 +162,40 @@ async function bootstrap() {
   // before the process exits. Prevents data corruption on restarts.
   app.enableShutdownHooks();
 
+  // ── Socket.IO Redis adapter for multi-instance deployments ────────
+  // When running multiple server instances behind a load balancer,
+  // WebSocket events (e.g., graph:updated, user:joined) must be
+  // broadcast across all instances. The Redis adapter enables this
+  // by using Redis pub/sub as the transport layer.
+  // Only activated in production with REDIS_URL configured.
+  const redisUrl = configService.get<string>('REDIS_URL');
+  if (redisUrl && configService.get('NODE_ENV') === 'production') {
+    const redisIoAdapter = new RedisIoAdapter(app);
+    await redisIoAdapter.connectToRedis(redisUrl);
+    app.useWebSocketAdapter(redisIoAdapter);
+    loggerService.log(
+      '🔌 Socket.IO Redis adapter configured for multi-instance WS',
+      'Bootstrap',
+    );
+  }
+
   // ── Swagger / OpenAPI documentation ────────────────────────────────
+  // SECURITY: Only expose Swagger in non-production environments.
+  // In production, attackers could use /docs to discover all endpoints and DTOs.
   // P6-FIX: Use 'docs' path (NOT 'api/docs') because app.setGlobalPrefix('api')
   // already prepends /api to controller routes. SwaggerModule.setup registers
   // its route directly on Express — it does NOT go through NestJS's prefix system.
   // With 'docs', the Swagger UI is at /docs and the JSON at /docs-json.
-  // Using 'api/docs' would try to register at /api/docs but the NestJS
-  // router with global prefix 'api' intercepts /api/* first and returns 404.
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Daxelo Kinrel API')
-    .setDescription('Indian Family Relationship Intelligence API')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, document);
+  if (configService.get<string>('NODE_ENV') !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Daxelo Kinrel API')
+      .setDescription('Indian Family Relationship Intelligence API')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('docs', app, document);
+  }
 
   const port = configService.get<number>('PORT', 3000);
   await app.listen(port);
@@ -188,17 +207,33 @@ async function bootstrap() {
     `📡 API routes: /${apiPrefix}/* and /${apiPrefix}/v1/* for Flutter compatibility`,
     'Bootstrap',
   );
-  loggerService.log(
-    `📖 Swagger docs: http://localhost:${port}/docs`,
-    'Bootstrap',
-  );
+  if (configService.get<string>('NODE_ENV') !== 'production') {
+    loggerService.log(
+      `📖 Swagger docs: http://localhost:${port}/docs`,
+      'Bootstrap',
+    );
+  }
 
-  // Graceful shutdown on SIGTERM (e.g. Kubernetes pod termination, docker stop)
-  process.on('SIGTERM', async () => {
-    loggerService.log('SIGTERM received — shutting down gracefully...', 'Bootstrap');
-    await app.close();
+  // Graceful shutdown with timeout — ensures Prisma disconnects,
+  // WebSocket connections close, and in-flight requests complete
+  // before the process exits. Prevents data corruption on restarts.
+  const gracefulShutdown = async (signal: string) => {
+    loggerService.log(`${signal} received — shutting down gracefully...`, 'Bootstrap');
+    const timeout = setTimeout(() => {
+      loggerService.error('Forced shutdown after 10s timeout', 'Bootstrap');
+      process.exit(1);
+    }, 10000);
+    try {
+      await app.close();
+    } catch (err) {
+      loggerService.error('Error during shutdown', (err as Error).message, 'Bootstrap');
+    }
+    clearTimeout(timeout);
     loggerService.log('Application shut down complete', 'Bootstrap');
     process.exit(0);
-  });
+  };
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }
 bootstrap();

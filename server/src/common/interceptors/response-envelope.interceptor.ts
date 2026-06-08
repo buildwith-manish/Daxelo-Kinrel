@@ -9,6 +9,10 @@ import { map } from 'rxjs/operators';
  * This interceptor wraps the response data but does NOT apply to:
  * - Error responses (handled by AllExceptionsFilter)
  * - Streaming responses
+ *
+ * NOTE: This interceptor provides the `timestamp` field, so no separate
+ * TimestampInterceptor is needed. Using both would cause double-wrapping
+ * (data.ts inside the envelope + envelope.timestamp).
  */
 @Injectable()
 export class ResponseEnvelopeInterceptor implements NestInterceptor {

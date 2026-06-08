@@ -11,12 +11,15 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { MembersService } from './members.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 
+@ApiTags('Members')
+@ApiBearerAuth()
 @Controller('families/:familyId/persons')
 @UseGuards(JwtAuthGuard)
 export class MembersController {
@@ -33,7 +36,7 @@ export class MembersController {
     @Query('order') order?: string,
     @Query('includeRelationships') includeRelationships?: string,
   ) {
-    return this.membersService.findAll(familyId, userId, {
+    return this.membersService.findAll(userId, familyId, {
       cursor: cursor || undefined,
       limit: limit ? parseInt(limit, 10) : 50,
       search,

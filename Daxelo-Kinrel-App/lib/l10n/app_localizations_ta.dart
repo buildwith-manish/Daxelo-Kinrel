@@ -5,7 +5,7 @@ import 'app_localizations.dart';
 // ignore_for_file: type=lint
 
 /// The translations for Tamil (`ta`).
-class STa extends S {
+class STa extends AppLocalizations {
   STa([String locale = 'ta']) : super(locale);
 
   @override

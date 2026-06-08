@@ -9,11 +9,14 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { GamificationService } from './gamification.service';
 import { CreateQuizDto, SubmitQuizDto } from './dto/quiz.dto';
 
+@ApiTags('Gamification')
+@ApiBearerAuth()
 @Controller('v1/gamification')
 @UseGuards(JwtAuthGuard)
 export class GamificationController {
@@ -41,8 +44,14 @@ export class GamificationController {
 
   // ── Get Leaderboard ─────────────────────────────────────────────────
   @Get('leaderboard')
-  async getLeaderboard() {
-    return this.gamificationService.getLeaderboard();
+  async getLeaderboard(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.gamificationService.getLeaderboard(
+      limit ? parseInt(limit, 10) : 50,
+      offset ? parseInt(offset, 10) : 0,
+    );
   }
 
   // ── Get Daily Challenge ─────────────────────────────────────────────

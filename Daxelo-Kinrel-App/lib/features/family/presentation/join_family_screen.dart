@@ -15,6 +15,9 @@
 //   • Recently joined families section
 //   • Join request status feedback
 
+import 'dart:async' show unawaited;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -73,9 +76,15 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
   void initState() {
     super.initState();
     // Auto-focus the input field
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) _familyIdFocusNode.requestFocus();
-    });
+    unawaited(
+      Future.delayed(const Duration(milliseconds: 300), () async {
+        try {
+          if (mounted) _familyIdFocusNode.requestFocus();
+        } catch (e) {
+          debugPrint('⚠️ Auto-focus failed: $e');
+        }
+      }),
+    );
 
     // Check clipboard for KIN IDs
     _checkClipboardForKinId();

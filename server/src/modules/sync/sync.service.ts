@@ -72,6 +72,7 @@ export class SyncService {
         generationIndex: true,
         isAnchor: true,
         photoUrl: true,
+        photoThumb: true,
         username: true,
         updatedAt: true,
       },
@@ -132,24 +133,49 @@ export class SyncService {
       familyMeta[f.id] = f;
     }
 
+    // ── Fetch modified relationships ──────────────────────────
+    const remainingCapacity2 = this.MAX_RECORDS - members.length - events.length;
+    const relationships = remainingCapacity2 > 0
+      ? await this.prisma.relationship.findMany({
+          where: {
+            familyId: { in: familyIds },
+            updatedAt: { gt: sinceDate },
+          },
+          orderBy: { updatedAt: 'asc' },
+          take: remainingCapacity2,
+          select: {
+            id: true,
+            familyId: true,
+            fromPersonId: true,
+            toPersonId: true,
+            relationshipKey: true,
+            direction: true,
+            isActive: true,
+            label: true,
+            updatedAt: true,
+          },
+        })
+      : [];
+
     // ── Determine if there's more data ────────────────────────
     const serverTime = new Date().toISOString();
 
     // Check if there are more records beyond what we fetched
-    const totalModified = members.length + events.length;
+    const totalModified = members.length + events.length + relationships.length;
     const hasMore = totalModified >= this.MAX_RECORDS;
 
     // Check response size constraint (rough estimation)
-    const responsePayload = { members, events, familyMeta, serverTime, hasMore: false };
+    const responsePayload = { members, events, relationships, familyMeta, serverTime, hasMore: false };
     const estimatedSize = JSON.stringify(responsePayload).length;
 
     // If the response would exceed 50KB, truncate and set hasMore
     if (estimatedSize > this.MAX_RESPONSE_SIZE_BYTES) {
       // Truncate members to fit within size limit
-      const truncatedMembers = this.truncateToFit(members, events, familyMeta, serverTime);
+      const truncatedMembers = this.truncateToFit(members, events, relationships, familyMeta, serverTime);
       return {
         members: truncatedMembers.members,
         events: truncatedMembers.events,
+        relationships: truncatedMembers.relationships,
         familyMeta,
         serverTime,
         hasMore: true,
@@ -159,6 +185,7 @@ export class SyncService {
     return {
       members,
       events,
+      relationships,
       familyMeta,
       serverTime,
       hasMore,
@@ -171,14 +198,16 @@ export class SyncService {
   private truncateToFit(
     members: any[],
     events: any[],
+    relationships: any[],
     familyMeta: Record<string, any>,
     serverTime: string,
-  ): { members: any[]; events: any[] } {
+  ): { members: any[]; events: any[]; relationships: any[] } {
     // Start with all members and progressively remove from the end
     for (let i = members.length; i > 0; i--) {
       const payload = {
         members: members.slice(0, i),
         events: [],
+        relationships: [],
         familyMeta,
         serverTime,
         hasMore: true,
@@ -190,6 +219,7 @@ export class SyncService {
           const testPayload = {
             members: members.slice(0, i),
             events: events.slice(0, j),
+            relationships: [],
             familyMeta,
             serverTime,
             hasMore: true,
@@ -200,14 +230,32 @@ export class SyncService {
             break;
           }
         }
+        // Try to add some relationships too
+        let relCount = 0;
+        for (let k = 1; k <= relationships.length; k++) {
+          const testPayload = {
+            members: members.slice(0, i),
+            events: events.slice(0, eventCount),
+            relationships: relationships.slice(0, k),
+            familyMeta,
+            serverTime,
+            hasMore: true,
+          };
+          if (JSON.stringify(testPayload).length <= this.MAX_RESPONSE_SIZE_BYTES) {
+            relCount = k;
+          } else {
+            break;
+          }
+        }
         return {
           members: members.slice(0, i),
           events: events.slice(0, eventCount),
+          relationships: relationships.slice(0, relCount),
         };
       }
     }
 
-    return { members: [], events: [] };
+    return { members: [], events: [], relationships: [] };
   }
 
   /**
@@ -217,6 +265,7 @@ export class SyncService {
     return {
       members: [],
       events: [],
+      relationships: [],
       familyMeta: {},
       serverTime: new Date().toISOString(),
       hasMore: false,

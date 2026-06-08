@@ -9,24 +9,18 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { NotificationsService } from './notifications.service';
 import { FcmService } from './fcm.service';
-
-// ── DTOs ─────────────────────────────────────────────────────────────
-
-class RegisterFcmTokenDto {
-  token!: string;
-  deviceType?: string; // android, ios, web
-}
-
-class RemoveFcmTokenDto {
-  token!: string;
-}
+import { RegisterFcmTokenDto } from './dto/register-fcm-token.dto';
+import { RemoveFcmTokenDto } from './dto/remove-fcm-token.dto';
 
 // ── Controller ───────────────────────────────────────────────────────
 
+@ApiTags('Notifications')
+@ApiBearerAuth()
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
@@ -59,8 +53,11 @@ export class NotificationsController {
   }
 
   @Patch(':id/read')
-  async markRead(@Param('id') id: string) {
-    return this.notificationsService.markRead(id);
+  async markRead(
+    @CurrentUser('id') userId: string,
+    @Param('id') id: string,
+  ) {
+    return this.notificationsService.markRead(id, userId);
   }
 
   @Post('mark-all-read')
@@ -103,8 +100,11 @@ export class NotificationsController {
    * Body: { token: string }
    */
   @Delete('fcm-token')
-  async removeFcmToken(@Body() dto: RemoveFcmTokenDto) {
-    const removed = await this.fcmService.removeToken(dto.token);
+  async removeFcmToken(
+    @CurrentUser('id') userId: string,
+    @Body() dto: RemoveFcmTokenDto,
+  ) {
+    const removed = await this.fcmService.removeTokenForUser(userId, dto.token);
     return {
       success: true,
       removed,

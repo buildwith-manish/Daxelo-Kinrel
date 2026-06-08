@@ -15,8 +15,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-// Hive removed — using Drift via IsarDatabase
-import '../../../core/database/isar_database.dart';
+// Hive removed — using Drift via AppDatabaseService
+import '../../../core/database/app_database_service.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -66,17 +66,14 @@ class _EngagementDashboardState extends ConsumerState<EngagementDashboard> {
       referralCode = 'N/A';
     }
 
-    // Get masked FCM token
-    String? fcmTokenMasked;
+    // Get access token status (no partial exposure — JWT tokens must not leak)
+    String? accessTokenStatus;
     try {
-      // Try to get from secure storage or push notification service
       final storage = SecureStorageService();
       final token = await storage.getAccessToken();
-      fcmTokenMasked = token != null
-          ? '${token.substring(0, 6)}...${token.substring(token.length - 4)}'
-          : 'Not available';
+      accessTokenStatus = token != null ? 'Available' : 'Not available';
     } catch (_) {
-      fcmTokenMasked = 'Error';
+      accessTokenStatus = 'Error';
     }
 
     if (mounted) {
@@ -84,7 +81,7 @@ class _EngagementDashboardState extends ConsumerState<EngagementDashboard> {
         _stats = stats;
         _isPremium = premium;
         _referralCode = referralCode;
-        _fcmTokenMasked = fcmTokenMasked;
+        _fcmTokenMasked = accessTokenStatus;
         _remoteConfigValues = remoteConfig;
       });
     }
@@ -287,7 +284,7 @@ class _EngagementDashboardState extends ConsumerState<EngagementDashboard> {
   // ═══════════════════════════════════════════════════════════════════
 
   Widget _buildSystemInfoList(AppEnvironment env, DeviceTier tier) {
-    final isarReady = IsarDatabase.isInitialized;
+    final dbReady = AppDatabaseService.isInitialized;
     final rcInitialized = RemoteConfigService.instance.isInitialized;
 
     final items = [
@@ -296,9 +293,9 @@ class _EngagementDashboardState extends ConsumerState<EngagementDashboard> {
       _InfoRow('Crashlytics Enabled', env.shouldReportCrashes.toString()),
       _InfoRow('Analytics Enabled', (!env.isDev).toString()),
       _InfoRow('Premium', _isPremium ? 'Yes' : 'No'),
-      _InfoRow('FCM Token (masked)', _fcmTokenMasked ?? 'N/A'),
+      _InfoRow('Access Token (masked)', _fcmTokenMasked ?? 'N/A'),
       _InfoRow('Referral Code', _referralCode ?? 'N/A'),
-      _InfoRow('Isar DB', isarReady ? 'Initialized' : 'Not ready'),
+      _InfoRow('Local DB', dbReady ? 'Initialized' : 'Not ready'),
       _InfoRow('Remote Config', rcInitialized ? 'Initialized' : 'Using defaults'),
       _InfoRow('Notifications Scheduled', 'Retention active'),
     ];

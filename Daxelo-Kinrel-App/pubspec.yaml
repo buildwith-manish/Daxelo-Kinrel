@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.12.0
+  sdk: '>=3.12.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -40,9 +40,6 @@ dependencies:
     sdk: flutter
   intl: ^0.20.2
   
-  # Responsive
-  responsive_framework: ^1.5.1
-  
   # Animation
   flutter_animate: ^4.5.2
   lottie: ^3.3.1
@@ -69,13 +66,12 @@ dependencies:
 
   # Media & Device
   image_picker: ^1.0.7
-  # image_cropper removed — BUG-03: crashes on Android with "Reply already submitted"
+  image_cropper: ^8.0.0  # Restored — v5.x fixes Android "Reply already submitted" crash
   local_auth: ^2.2.0
   webview_flutter: ^4.7.0
   
   # Math/Graph
   collection: ^1.19.1
-  flutter_dotenv: ^6.0.1
 
   # Firebase — Crash Reporting, Analytics & Push Notifications
   firebase_core: ^3.13.0
@@ -115,7 +111,6 @@ flutter:
   
   assets:
     - assets/data/
-    - assets/data/global/
     - assets/icons/
     - assets/images/
     - assets/fonts/
@@ -155,12 +150,36 @@ flutter:
     - family: NotoSansDevanagari
       fonts:
         - asset: assets/fonts/NotoSansDevanagari-Regular.ttf
+        - asset: assets/fonts/NotoSansDevanagari-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/NotoSansDevanagari-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/NotoSansDevanagari-Bold.ttf
+          weight: 700
     - family: NotoSansTamil
       fonts:
         - asset: assets/fonts/NotoSansTamil-Regular.ttf
+        - asset: assets/fonts/NotoSansTamil-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/NotoSansTamil-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/NotoSansTamil-Bold.ttf
+          weight: 700
     - family: NotoSansTelugu
       fonts:
         - asset: assets/fonts/NotoSansTelugu-Regular.ttf
+        - asset: assets/fonts/NotoSansTelugu-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/NotoSansTelugu-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/NotoSansTelugu-Bold.ttf
+          weight: 700
     - family: NotoSansBengali
       fonts:
         - asset: assets/fonts/NotoSansBengali-Regular.ttf
+        - asset: assets/fonts/NotoSansBengali-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/NotoSansBengali-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/NotoSansBengali-Bold.ttf
+          weight: 700

@@ -3,16 +3,18 @@ import {
   Get,
   Post,
   Body,
-  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ReferralService } from './referral.service';
 import { GenerateReferralDto, ApplyReferralDto } from './dto/referral.dto';
 
+@ApiTags('Referral')
+@ApiBearerAuth()
 @Controller('v1/referral')
 @UseGuards(JwtAuthGuard)
 export class ReferralController {
@@ -27,13 +29,8 @@ export class ReferralController {
 
   // ── Get Referral Stats ──────────────────────────────────────────────
   @Get('stats')
-  async getStats(
-    @CurrentUser('id') currentUserId: string,
-    @Query('userId') userId?: string,
-  ) {
-    // Allow querying own stats or specific user (for admin use)
-    const targetUserId = userId || currentUserId;
-    return this.referralService.getStats(targetUserId);
+  async getStats(@CurrentUser('id') userId: string) {
+    return this.referralService.getStats(userId);
   }
 
   // ── Apply Referral Code ─────────────────────────────────────────────

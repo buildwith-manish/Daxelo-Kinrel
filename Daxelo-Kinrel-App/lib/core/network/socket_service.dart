@@ -15,15 +15,15 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/env_config.dart';
-import '../database/isar_database.dart';
-import '../database/app_database.dart' hide CachedFamily, CachedPerson, CachedRelationship;
-import '../database/collections/cached_person.dart';
-import '../database/collections/cached_family.dart';
-import '../database/collections/cached_relationship.dart';
+import '../database/app_database_service.dart';
+import '../database/app_database.dart';
 import '../database/sync/cache_invalidation.dart';
 import '../services/supabase_service.dart';
 import '../networking/dio_client.dart';
 import '../family/family_provider.dart';
+import '../../presentation/providers/follow_provider.dart';
+import '../../presentation/providers/sparq_provider.dart';
+import '../../features/notifications/providers/notifications_provider.dart';
 
 // ── Socket Status Enum ──────────────────────────────────────────────
 
@@ -171,7 +171,7 @@ class SocketService {
   /// Minimum cooldown between provider invalidation batches.
   /// Prevents rapid socket events from triggering cascading rebuilds
   /// that block the main thread and cause ANR.
-  static const _invalidationCooldown = Duration(seconds: 2);
+  static const _invalidationCooldown = Duration(seconds: 3);
 
   // ── Public API ──────────────────────────────────────────────────
 
@@ -201,7 +201,7 @@ class SocketService {
     );
 
     _registerEventHandlers();
-    _socket!.connect();
+    _socket!.connect(); // Async — does not block the main isolate
 
     // Listen for auth state changes to reconnect with new token
     _authSubscription?.cancel();
@@ -384,6 +384,17 @@ class SocketService {
     });
   }
 
+  /// Show an in-app notification banner. Uses the notifications provider
+  /// if available, otherwise falls back to a debug print.
+  void _showInAppNotification(String message, {String type = 'info'}) {
+    try {
+      _ref.read(notificationsProvider.notifier).loadNotifications();
+    } catch (e) {
+      debugPrint('[SocketService] Could not update notifications: $e');
+    }
+    debugPrint('[SocketService] 🔔 Notification ($type): $message');
+  }
+
   // ── Person Event Handler ────────────────────────────────────────
 
   /// Handles minimal person events from the server.
@@ -405,11 +416,14 @@ class SocketService {
       );
 
       // Invalidate Isar cache for this family
-      if (IsarDatabase.isInitialized) {
+      if (AppDatabaseService.isInitialized) {
         try {
           await CacheInvalidation.invalidateFamily(familyId);
         } catch (_) {}
       }
+
+      // ANR FIX: Yield between cache invalidation and provider invalidation
+      await Future.delayed(Duration.zero);
 
       // Invalidate Riverpod providers so UI refetches
       _invalidateProvidersForFamily(familyId);
@@ -434,11 +448,14 @@ class SocketService {
       );
 
       // Invalidate Isar cache for this family
-      if (IsarDatabase.isInitialized) {
+      if (AppDatabaseService.isInitialized) {
         try {
           await CacheInvalidation.invalidateFamily(familyId);
         } catch (_) {}
       }
+
+      // ANR FIX: Yield between cache invalidation and provider invalidation
+      await Future.delayed(Duration.zero);
 
       // Invalidate Riverpod providers
       _invalidateProvidersForFamily(familyId);
@@ -461,11 +478,14 @@ class SocketService {
       );
 
       // Invalidate Isar cache for this family
-      if (IsarDatabase.isInitialized) {
+      if (AppDatabaseService.isInitialized) {
         try {
           await CacheInvalidation.invalidateFamily(event.familyId);
         } catch (_) {}
       }
+
+      // ANR FIX: Yield between cache invalidation and provider invalidation
+      await Future.delayed(Duration.zero);
 
       // Invalidate Riverpod providers
       _invalidateProvidersForFamily(event.familyId);
@@ -590,8 +610,14 @@ class SocketService {
         return;
       }
 
+      // ANR FIX: Yield before heavy DB merge operation
+      await Future.delayed(Duration.zero);
+
       // 3. Merge response into Isar silently
       await _mergeSyncResponse(syncResponse);
+
+      // ANR FIX: Yield before provider invalidation
+      await Future.delayed(Duration.zero);
 
       // 4. Invalidate affected Riverpod providers
       _invalidateAfterSync(syncResponse);
@@ -642,31 +668,40 @@ class SocketService {
 
   /// Merge the sync response into Drift silently.
   Future<void> _mergeSyncResponse(_SyncResponse sync) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
 
-    final db = IsarDatabase.instance;
+    final db = AppDatabaseService.instance;
     final affectedFamilyIds = <String>{};
 
     // Merge families
+    var familyIdx = 0;
     for (final familyJson in sync.familyMeta) {
       try {
         final familyId = familyJson['id'] as String? ?? '';
         if (familyId.isEmpty) continue;
 
-        final cached = CachedFamily.fromJson(familyJson);
         await db.upsertFamily(CachedFamiliesCompanion(
-          id: Value(cached.id),
-          name: Value(cached.name),
-          data: Value(_jsonEncode(cached.toJson())),
+          id: Value(familyJson['id']?.toString() ?? ''),
+          name: Value(familyJson['name'] as String? ?? 'Unnamed Family'),
+          data: Value(_jsonEncode(familyJson)),
           cachedAt: Value(DateTime.now()),
         ));
         affectedFamilyIds.add(familyId);
+        // ANR FIX: Yield every 25 items to prevent main isolate blocking
+        familyIdx++;
+        if (familyIdx % 25 == 0) {
+          await Future.delayed(const Duration(milliseconds: 16));
+        }
       } catch (e) {
         debugPrint('[SocketService] Error merging family: $e');
       }
     }
 
+    // ANR FIX: Yield between merge batches to prevent main isolate blocking
+    await Future.delayed(Duration.zero);
+
     // Merge persons
+    var personIdx = 0;
     for (final personJson in sync.members) {
       try {
         final personId = personJson['id'] as String? ?? '';
@@ -678,24 +713,37 @@ class SocketService {
         if (deletedAt != null) {
           await db.deletePerson(personId);
           affectedFamilyIds.add(familyId);
+          // ANR FIX: Yield every 25 items to prevent main isolate blocking
+          personIdx++;
+          if (personIdx % 25 == 0) {
+            await Future.delayed(const Duration(milliseconds: 16));
+          }
           continue;
         }
 
-        final cached = CachedPerson.fromJson(personJson);
         await db.upsertPerson(CachedPersonsCompanion(
-          id: Value(cached.id),
-          familyId: Value(cached.familyId),
-          name: Value(cached.name),
-          data: Value(_jsonEncode(cached.toJson())),
+          id: Value(personJson['id']?.toString() ?? ''),
+          familyId: Value(personJson['familyId']?.toString() ?? ''),
+          name: Value(personJson['name'] as String? ?? 'Unknown'),
+          data: Value(_jsonEncode(personJson)),
           cachedAt: Value(DateTime.now()),
         ));
         affectedFamilyIds.add(familyId);
+        // ANR FIX: Yield every 25 items to prevent main isolate blocking
+        personIdx++;
+        if (personIdx % 25 == 0) {
+          await Future.delayed(const Duration(milliseconds: 16));
+        }
       } catch (e) {
         debugPrint('[SocketService] Error merging person: $e');
       }
     }
 
+    // ANR FIX: Yield between merge batches to prevent main isolate blocking
+    await Future.delayed(Duration.zero);
+
     // Merge relationships (from events array)
+    var relIdx = 0;
     for (final relJson in sync.events) {
       try {
         final relId = relJson['id'] as String? ?? '';
@@ -706,20 +754,29 @@ class SocketService {
         if (!isActive) {
           await db.deleteRelationship(relId);
           affectedFamilyIds.add(familyId);
+          // ANR FIX: Yield every 25 items to prevent main isolate blocking
+          relIdx++;
+          if (relIdx % 25 == 0) {
+            await Future.delayed(const Duration(milliseconds: 16));
+          }
           continue;
         }
 
-        final cached = CachedRelationship.fromJson(relJson);
         await db.upsertRelationship(CachedRelationshipsCompanion(
-          id: Value(cached.id),
-          fromId: Value(cached.fromPersonId),
-          toId: Value(cached.toPersonId),
-          relationshipType: Value(cached.relationshipKey),
-          kinshipName: Value(cached.label),
-          data: Value(_jsonEncode(cached.toJson())),
+          id: Value(relJson['id']?.toString() ?? ''),
+          fromId: Value(relJson['fromPersonId']?.toString() ?? ''),
+          toId: Value(relJson['toPersonId']?.toString() ?? ''),
+          relationshipType: Value(relJson['relationshipKey'] as String? ?? ''),
+          kinshipName: Value(relJson['label'] as String?),
+          data: Value(_jsonEncode(relJson)),
           cachedAt: Value(DateTime.now()),
         ));
         affectedFamilyIds.add(familyId);
+        // ANR FIX: Yield every 25 items to prevent main isolate blocking
+        relIdx++;
+        if (relIdx % 25 == 0) {
+          await Future.delayed(const Duration(milliseconds: 16));
+        }
       } catch (e) {
         debugPrint('[SocketService] Error merging relationship: $e');
       }
@@ -793,10 +850,10 @@ class SocketService {
 
   /// Read lastSyncTimestamp from Drift UserSettings.
   Future<String?> _getLastSyncTimestamp() async {
-    if (!IsarDatabase.isInitialized) return null;
+    if (!AppDatabaseService.isInitialized) return null;
 
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       return db.getSetting('lastSyncTimestamp');
     } catch (e) {
       debugPrint('[SocketService] Error reading lastSyncTimestamp: $e');
@@ -806,10 +863,10 @@ class SocketService {
 
   /// Save lastSyncTimestamp to Drift UserSettings.
   Future<void> _saveLastSyncTimestamp(String timestamp) async {
-    if (!IsarDatabase.isInitialized) return;
+    if (!AppDatabaseService.isInitialized) return;
 
     try {
-      final db = IsarDatabase.instance;
+      final db = AppDatabaseService.instance;
       await db.setSetting('lastSyncTimestamp', timestamp);
     } catch (e) {
       debugPrint('[SocketService] Error saving lastSyncTimestamp: $e');
