@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/brand_colors.dart';
-import '../../data/models/family_join_preview_model.dart';
+import '../../data/models/family_invite_model.dart';
 import '../../data/repositories/family_invite_repository.dart';
 import '../../data/providers/follow_provider.dart' hide Family;
 import '../../../../core/family/family_provider.dart';
