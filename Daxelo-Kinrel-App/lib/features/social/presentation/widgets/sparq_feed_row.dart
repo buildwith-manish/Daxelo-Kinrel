@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../data/models/sparq_model.dart';
 import '../../data/providers/sparq_provider.dart';
 import 'sparq_ring_avatar.dart';
 
@@ -39,8 +40,10 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
     // Sort: unseen first, then seen
     final sortedGroups = List<UserSparqGroup>.from(sparqState.feed)
       ..sort((a, b) {
-        if (!a.allSeen && b.allSeen) return -1;
-        if (a.allSeen && !b.allSeen) return 1;
+        final aSeen = a.allSeen;
+        final bSeen = b.allSeen;
+        if (!aSeen && bSeen) return -1;
+        if (aSeen && !bSeen) return 1;
         return 0;
       });
 

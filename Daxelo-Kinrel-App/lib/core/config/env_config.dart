@@ -95,4 +95,7 @@ class EnvConfig {
       defaultValue: _fallbackGoogleIosClientId,
     );
   }
+
+  /// Deep link scheme for the app (e.g. 'kinrel' → 'kinrel://')
+  static const String appDeepLinkScheme = 'kinrel';
 }
