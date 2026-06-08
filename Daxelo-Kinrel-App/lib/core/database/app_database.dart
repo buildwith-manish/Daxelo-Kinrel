@@ -598,7 +598,7 @@ class AppDatabase extends _$AppDatabase {
 
   // ── Bulk Operations ──────────────────────────────────────────────
 
-  Future<void> clearAllCache() async {
+  Future<void> clearAllCache() => transaction(() async {
     await delete(cachedProfiles).go();
     await delete(cachedFamilies).go();
     await delete(cachedPersons).go();
@@ -612,7 +612,7 @@ class AppDatabase extends _$AppDatabase {
     await delete(conflictLog).go();
     await delete(cachedUsernames).go();
     await delete(cachedFamilyIds).go();
-  }
+  });
 
   Future<void> clearAll() async {
     await transaction(() async {

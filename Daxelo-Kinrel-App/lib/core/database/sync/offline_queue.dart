@@ -142,6 +142,11 @@ class OfflineQueueManager {
       payload['updatedAt'] = DateTime.now().toIso8601String();
     }
 
+    // Sanitize Person payload — remove fields not in Person table schema
+    if (op.collection == 'Person') {
+      payload.remove('relationshipType');
+    }
+
     switch (op.operationType) {
       case 'create':
         await client.from(op.collection).insert(payload).select().maybeSingle();
