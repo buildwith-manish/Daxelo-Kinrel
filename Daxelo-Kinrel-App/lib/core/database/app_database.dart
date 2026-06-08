@@ -709,10 +709,19 @@ class AppDatabase extends _$AppDatabase {
   /// Uses a SQL LIKE clause to filter at the DB level instead of loading
   /// all entries and filtering in Dart. Only returns non-expired entries.
   Future<List<String>> getCachedApiEntriesWithPrefix(String prefix) async {
-    final results = await customSelect(
-      "SELECT response_body FROM api_cache_entries WHERE key LIKE ? AND datetime(cached_at, '+' || ttl_seconds || ' seconds') >= datetime('now')",
-      variables: [Variable.withString(prefix + '%')],
-    ).get();
-    return results.map((row) => row.read<String>('response_body')).toList();
+    // Use Dart-side filtering for TTL check to avoid SQLite datetime
+    // compatibility issues across platforms.
+    final allEntries = await (select(apiCacheEntries)
+          ..where((t) => t.key.like(prefix + '%')))
+        .get();
+    final now = DateTime.now();
+    final valid = <String>[];
+    for (final entry in allEntries) {
+      final expiresAt = entry.cachedAt.add(Duration(seconds: entry.ttlSeconds));
+      if (!now.isAfter(expiresAt)) {
+        valid.add(entry.responseBody);
+      }
+    }
+    return valid;
   }
 }
