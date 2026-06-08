@@ -730,17 +730,120 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
       final node = layout.nodes[tappedId];
       if (node != null) {
         setState(() => _selectedNodeId = tappedId);
-        final kinshipAsync = ref.read(kinshipServiceProvider);
-        PersonDetailSheet.show(
-          context,
-          person: node.person,
-          familyId: widget.familyId,
-          kinshipService: kinshipAsync,
-        );
+        _showNodeOptions(node);
       }
     } else {
       setState(() => _selectedNodeId = null);
     }
+  }
+
+  /// Show options when a graph node is tapped.
+  /// Offers: View Details, Add Relative, Link to Another Member.
+  void _showNodeOptions(_GraphNode node) {
+    final person = node.person;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: DKColors.cardColor(context),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
+        ),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(KinrelSpacing.base),
+              child: Row(
+                children: [
+                  DKAvatar(
+                    initials: person.name.isNotEmpty
+                        ? person.name[0].toUpperCase()
+                        : '?',
+                    size: DKAvatarSize.md,
+                    backgroundColor: _GenColors.forGeneration(node.generation),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          person.name,
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.displayFont,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: DKColors.textPrimary(context),
+                          ),
+                        ),
+                        if (node.relationshipLabel != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            node.relationshipLabel!,
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 12,
+                              color: DKColors.textSecondary(context),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(color: KinrelColors.border, height: 1),
+
+            // View Details
+            _GraphActionTile(
+              icon: Icons.person_outline,
+              label: 'View Details',
+              onTap: () {
+                Navigator.pop(ctx);
+                final kinshipAsync = ref.read(kinshipServiceProvider);
+                PersonDetailSheet.show(
+                  context,
+                  person: person,
+                  familyId: widget.familyId,
+                  kinshipService: kinshipAsync,
+                );
+              },
+            ),
+
+            // Add Relative — opens AddPersonSheet with this person as anchor
+            _GraphActionTile(
+              icon: Icons.person_add_outlined,
+              label: 'Add Relative',
+              iconColor: KinrelColors.orange,
+              labelColor: KinrelColors.orange,
+              onTap: () {
+                Navigator.pop(ctx);
+                AddPersonSheet.show(
+                  context,
+                  familyId: widget.familyId,
+                  anchorPerson: person,
+                );
+              },
+            ),
+
+            // Link to Another Member
+            _GraphActionTile(
+              icon: Icons.link,
+              label: 'Link to Another Member',
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/family/${widget.familyId}/link');
+              },
+            ),
+
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -1630,6 +1733,46 @@ class _GenerationLegend extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 // ADD MEMBER FAB — Floating button to add family members to the graph
 // ═══════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════
+// GRAPH ACTION TILE — Action option for tapped nodes
+// ═══════════════════════════════════════════════════════════════════════
+
+class _GraphActionTile extends StatelessWidget {
+  const _GraphActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.iconColor,
+    this.labelColor,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color? iconColor;
+  final Color? labelColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: iconColor ?? DKColors.textSecondary(context),
+        size: 20,
+      ),
+      title: Text(
+        label,
+        style: TextStyle(
+          fontFamily: KinrelTypography.bodyFont,
+          fontSize: 14,
+          color: labelColor ?? DKColors.textPrimary(context),
+        ),
+      ),
+      onTap: onTap,
+    );
+  }
+}
 
 class _AddMemberFab extends StatelessWidget {
   const _AddMemberFab({required this.familyId});

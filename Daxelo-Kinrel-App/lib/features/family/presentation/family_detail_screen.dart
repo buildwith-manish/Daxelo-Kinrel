@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +14,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
+import '../../../core/networking/dio_client.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/member_list_skeleton.dart';
@@ -399,26 +401,17 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
               ),
             ],
 
-            // Archive option (available to creator only)
+            // Delete option (available to creator only — moves family to deleted/archive)
             if (isCreator) ...[
               Divider(color: KinrelColors.border, height: 1),
               _QuickActionTile(
-                icon: Icons.archive_outlined,
-                label: 'Archive Family',
-                iconColor: KinrelColors.gold,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _confirmArchiveFamily(context, family?.name ?? 'Family');
-                },
-              ),
-              Divider(color: KinrelColors.border, height: 1),
-              _QuickActionTile(
-                icon: Icons.delete_forever,
-                label: 'Permanently Delete Family',
+                icon: Icons.delete_outline_rounded,
+                label: 'Delete Family',
+                iconColor: KinrelColors.error,
                 isDestructive: true,
                 onTap: () {
                   Navigator.pop(ctx);
-                  _confirmDeleteFamily(context, family.name);
+                  _confirmDeleteFamily(context, family?.name ?? 'Family');
                 },
               ),
             ] else if (family != null && family.createdBy != null) ...[
@@ -438,7 +431,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Only the family creator can archive or delete this family',
+                        'Only the family creator can delete this family',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 12,
@@ -509,13 +502,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              // TODO: Implement leave family API call
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Leave family — coming soon'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
+              _performLeaveFamily(context);
             },
             child: Text(
               'Leave Family',
@@ -531,131 +518,61 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
     );
   }
 
-  void _confirmArchiveFamily(BuildContext context, String familyName) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: DKColors.cardColor(context),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        ),
-        title: Row(
-          children: [
-            Icon(
-              Icons.archive_outlined,
-              color: KinrelColors.gold,
-              size: 24,
-            ),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Text(
-                'Archive "$familyName"?',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                  color: DKColors.textPrimary(context),
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'This family will be archived and hidden from your active list. You can restore it within 30 days.',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 14,
-                color: DKColors.textSecondary(context),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: KinrelColors.gold.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(KinrelRadius.md),
-                border: Border.all(
-                  color: KinrelColors.gold.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, size: 18, color: KinrelColors.gold),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'After 30 days, archived families are permanently deleted.',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: KinrelColors.gold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              'Cancel',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                color: DKColors.textSecondary(context),
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.of(ctx).pop();
-              await _performArchiveFamily(context);
-            },
-            child: Text(
-              'Archive Family',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontWeight: FontWeight.w600,
-                color: KinrelColors.gold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _performArchiveFamily(BuildContext context) async {
+  /// Perform leave family — removes the user's FamilyMember record
+  /// without deleting the family itself.
+  Future<void> _performLeaveFamily(BuildContext context) async {
     unawaited(
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => Center(
-          child: CircularProgressIndicator(color: KinrelColors.gold),
+          child: CircularProgressIndicator(color: KinrelColors.purple),
         ),
       ),
     );
 
     try {
-      await deleteFamily(ref: ref, familyId: widget.familyId);
+      final client = ref.read(supabaseProvider);
+      final userId = client?.auth.currentUser?.id;
+      if (client == null || userId == null) {
+        throw Exception('Not authenticated');
+      }
+
+      // Try NestJS API first
+      bool left = false;
+      try {
+        final dio = ref.read(dioProvider);
+        final response = await dio.delete('/api/families/${widget.familyId}/members/leave');
+        if (response.statusCode == 200) {
+          left = true;
+        }
+      } on DioException catch (_) {
+        // Fall through to Supabase fallback
+      }
+
+      // Fallback: Delete FamilyMember record directly
+      if (!left) {
+        await client
+            .from('FamilyMember')
+            .delete()
+            .eq('familyId', widget.familyId)
+            .eq('userId', userId);
+      }
+
+      // Invalidate providers to refresh UI
+      ref.invalidate(familyListProvider);
+      ref.invalidate(archivedFamiliesProvider);
 
       if (context.mounted) {
         Navigator.of(context).pop(); // Close loading
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Family archived. You can restore it within 30 days.'),
-            backgroundColor: KinrelColors.gold,
+            content: Text('You left the family'),
+            backgroundColor: KinrelColors.success,
             behavior: SnackBarBehavior.floating,
           ),
         );
-        context.pop(); // Navigate back from detail screen
+        context.go('/families');
       }
     } catch (e) {
       if (context.mounted) {
@@ -663,7 +580,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Failed to archive: ${e.toString().split('\n').first}',
+              'Failed to leave: ${e.toString().split('\n').first}',
             ),
             backgroundColor: KinrelColors.error,
             behavior: SnackBarBehavior.floating,
@@ -673,6 +590,8 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
     }
   }
 
+  /// Confirm Delete Family dialog — soft-deletes (moves to archive/deleted)
+  /// where it can be restored within 30 days or permanently deleted.
   void _confirmDeleteFamily(BuildContext context, String familyName) {
     showDialog(
       context: context,
@@ -684,14 +603,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         title: Row(
           children: [
             Icon(
-              Icons.delete_forever,
-              color: KinrelColors.warning,
+              Icons.delete_outline_rounded,
+              color: KinrelColors.error,
               size: 24,
             ),
             const SizedBox(width: 10),
             Flexible(
               child: Text(
-                'Permanently Delete "$familyName"?',
+                'Delete "$familyName"?',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 17,
@@ -707,7 +626,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'This action is irreversible. The family and all its data will be permanently deleted.',
+              'This family will be moved to deleted and hidden from your active list.',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
@@ -718,24 +637,24 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: KinrelColors.warning.withValues(alpha: 0.1),
+                color: KinrelColors.error.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
                 border: Border.all(
-                  color: KinrelColors.warning.withValues(alpha: 0.3),
+                  color: KinrelColors.error.withValues(alpha: 0.3),
                 ),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, size: 18, color: KinrelColors.warning),
+                  Icon(Icons.info_outline, size: 18, color: KinrelColors.error),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'This cannot be undone. All members, relationships, and stories will be permanently removed.',
+                      'You can restore it from deleted families within 30 days. After that, it will be permanently deleted.',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: KinrelColors.warning,
+                        color: KinrelColors.error,
                       ),
                     ),
                   ),
@@ -761,11 +680,11 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
               await _performDeleteFamily(context);
             },
             child: Text(
-              'Permanently Delete',
+              'Delete',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontWeight: FontWeight.w600,
-                color: KinrelColors.warning,
+                color: KinrelColors.error,
               ),
             ),
           ),
@@ -774,6 +693,8 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
     );
   }
 
+  /// Perform delete family — soft-deletes (moves to archive).
+  /// Can be restored from "Deleted Families" within 30 days.
   Future<void> _performDeleteFamily(BuildContext context) async {
     // Show a loading indicator
     unawaited(
@@ -798,7 +719,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Family permanently deleted'),
+            content: Text('Family moved to deleted. Restore within 30 days.'),
             backgroundColor: KinrelColors.success,
             behavior: SnackBarBehavior.floating,
           ),
@@ -815,7 +736,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Failed to archive family: ${e.toString().split('\n').first}',
+              'Failed to delete: ${e.toString().split('\n').first}',
             ),
             backgroundColor: KinrelColors.error,
             behavior: SnackBarBehavior.floating,
