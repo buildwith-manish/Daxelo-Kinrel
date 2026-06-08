@@ -10,6 +10,8 @@
 //   • markViewed → update viewed flag in feed cache
 //   • refreshFeed → called when app resumes
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -221,10 +223,7 @@ class SparqNotifier extends StateNotifier<SparqState> {
   }
 }
 
-/// Helper to avoid awaiting a future (fire-and-forget).
-void unawaited(Future<void> future) {
-  future.catchError((_) {});
-}
+// unawaited is provided by dart:async — no custom definition needed.
 
 // ═══════════════════════════════════════════════════════════════════════
 // PROVIDERS

@@ -15,7 +15,7 @@
 /// - Use mock user for all auth-dependent code
 /// - Bypass all auth guards
 const bool kAuthDisabled =
-    bool.fromEnvironment('AUTH_DISABLED', defaultValue: true);
+    bool.fromEnvironment('AUTH_DISABLED', defaultValue: false);
 
 /// Mock authenticated user used when kAuthDisabled = true.
 class MockUser {

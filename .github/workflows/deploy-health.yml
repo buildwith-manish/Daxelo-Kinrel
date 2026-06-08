@@ -25,6 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       HEALTH_URL: 'https://daxelo-kinrel-server.onrender.com/api/health'
       MAX_RETRIES: '20'
       RETRY_DELAY: '15'

@@ -104,10 +104,10 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
             const Duration(seconds: 5),
             onTimeout: () {
               debugPrint('⚠️ Session refresh timed out on resume');
-              return AuthResponse();
+              return AuthResponse(session: null, user: null);
             },
           ).catchError((_) {
-            return AuthResponse();
+            return AuthResponse(session: null, user: null);
           });
 
           // Yield between operations

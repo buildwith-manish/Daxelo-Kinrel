@@ -49,6 +49,8 @@ jobs:
     name: Build Signed APK (${{ github.event.inputs.release_type || 'auto' }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       # ── Checkout ──────────────────────────────────────────────────
@@ -129,7 +131,7 @@ jobs:
           path: |
             ~/.pub-cache
             ${{ env.FLUTTER_DIR }}/.dart_tool
-          key: pub-${{ runner.os }}-${{ hashFiles('${{ env.FLUTTER_DIR }}/pubspec.lock') }}
+          key: pub-${{ runner.os }}-${{ hashFiles('Daxelo-Kinrel-App/pubspec.lock') }}
           restore-keys: |
             pub-${{ runner.os }}-
 

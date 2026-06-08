@@ -37,7 +37,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: server/package-lock.json
 
@@ -77,7 +77,7 @@ jobs:
           if [ -f coverage/coverage-summary.json ]; then
             LINES=$(node -e "const c=require('./coverage/coverage-summary.json'); console.log(c.total.lines.pct)")
             echo "Line coverage: $LINES%"
-            node -e "const pct = parseFloat('$LINES'); if (pct < 15) { console.error('❌ Coverage ' + pct + '% is below 60% threshold'); process.exit(1); } else { console.log('✅ Coverage gate passed: ' + pct + '%'); }"
+            node -e "const pct = parseFloat('$LINES'); if (pct < 15) { console.error('❌ Coverage ' + pct + '% is below 15% threshold'); process.exit(1); } else { console.log('✅ Coverage gate passed: ' + pct + '%'); }"
           else
             echo "⚠️  No coverage summary found — skipping gate"
           fi
