@@ -454,3 +454,28 @@ Stage Summary:
 - Deleted: deploy/Dockerfile, deploy/Dockerfile.koyeb, deploy/Dockerfile.production, render-build.sh
 - Commit: e28f485 pushed to main
 - No build triggered (following "no build until Part 6" rule)
+---
+Task ID: 1
+Agent: main
+Task: Phase 1 — Database schema changes for Social System (Follow + Join + Sparq + Privacy)
+
+Work Log:
+- Cloned repository from GitHub and configured git (remote URL with PAT, user name/email)
+- Read full existing Prisma schema (1777 lines) to understand current models
+- Added 3 new enums: FollowStatus (PENDING/ACCEPTED/REJECTED), SparqType (IMAGE/VIDEO/TEXT/VOICE), SparqAudience (PUBLIC/FAMILY_ONLY)
+- Added 2 new fields to User model: isPrivate (Boolean, default false), isFamilyGraphPublic (Boolean, default true)
+- Added 5 new relation fields to User model: followers, following, sparqs, sparqViews, createdInvites
+- Added isPublic (Boolean, default false) field to Family model
+- Extended existing FamilyInvite model (instead of creating duplicate) with: creatorId (String?, User relation), active (Boolean, default true)
+- Created new Follow model with followerId, followingId, status, unique constraint on pair, cascade deletes
+- Created new Sparq model with userId, type, media fields, audience, expiresAt, viewCount
+- Created new SparqView model with sparqId, viewerId, unique constraint on pair, cascade deletes
+- Validated schema successfully with Prisma validate
+- Created migration SQL file at prisma/migrations/20250608000000_social_sparq_privacy_system/migration.sql
+- Regenerated Prisma client with `prisma generate` — success
+
+Stage Summary:
+- Schema is valid and Prisma client regenerated
+- Reused existing FamilyInvite model instead of creating duplicate SocialFamilyInvite
+- All new models (Follow, Sparq, SparqView) created with proper indexes, constraints, and cascade deletes
+- Migration SQL file ready for when database connection is available

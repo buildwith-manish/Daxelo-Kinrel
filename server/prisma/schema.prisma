@@ -65,6 +65,24 @@ enum SubscriptionStatus {
   past_due
 }
 
+enum FollowStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum SparqType {
+  IMAGE
+  VIDEO
+  TEXT
+  VOICE
+}
+
+enum SparqAudience {
+  PUBLIC
+  FAMILY_ONLY
+}
+
 // ── Core Models ──────────────────────────────────────────────────────
 
 model User {
@@ -125,6 +143,17 @@ model User {
   blockedUsers         BlockedUser[]            @relation("Blocker")
   blockedBy            BlockedUser[]            @relation("Blocked")
   stories              Story[]
+
+  // ── Social System Fields ──
+  isPrivate           Boolean                   @default(false) // Profile privacy: true = follow requests required
+  isFamilyGraphPublic Boolean                   @default(true) // Family tree visibility to non-members
+
+  // ── Social System Relations ──
+  followers           Follow[]                  @relation("UserFollowers")
+  following           Follow[]                  @relation("UserFollowing")
+  sparqs              Sparq[]
+  sparqViews          SparqView[]
+  createdInvites      FamilyInvite[]           @relation("UserCreatedInvites")
 }
 
 // ── Blocked Users (replaces JSON blockedUserIds anti-pattern) ────────
@@ -557,6 +586,9 @@ model Family {
   graphChangeLogs GraphChangeLog[]
   feedPosts       FamilyPost[]
   stories         Story[]
+
+  // ── Social System Fields ──
+  isPublic        Boolean  @default(false) // Family visibility: true = non-members can see tree (read-only)
 
   @@index([name])
   @@index([familyCode])
@@ -1585,10 +1617,16 @@ model FamilyInvite {
   expiresAt   DateTime?
   createdAt   DateTime  @default(now())
 
+  // ── Social System Fields ──
+  creatorId   String?   // User ID who created the invite (social system)
+  active      Boolean   @default(true) // Whether this invite link is still active
+
   family        Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
   inviterMember FamilyMember @relation(fields: [invitedBy], references: [id], onDelete: Cascade)
+  creator       User?        @relation("UserCreatedInvites", fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@index([inviteCode])
+  @@index([creatorId])
 }
 
 // ── Graph Layout State (user visualization preferences) ─────────────
@@ -1774,4 +1812,66 @@ model UsernameChangeLog {
 
   @@index([userId, changedAt])
   @@index([newUsername])
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Social System: Follow + Join + Sparq + Privacy
+// ══════════════════════════════════════════════════════════════════════
+
+// ── Follow (one-directional user follow, like Instagram/Twitter) ─────
+
+model Follow {
+  id          String       @id @default(cuid())
+  followerId  String
+  followingId String
+  status      FollowStatus @default(ACCEPTED)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  follower  User @relation("UserFollowers", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+// ── Sparq (24-hour expiring story) ──────────────────────────────────
+
+model Sparq {
+  id             String        @id @default(cuid())
+  userId         String
+  type           SparqType
+  mediaUrl       String?
+  thumbnailUrl   String?
+  text           String?
+  backgroundColor String?
+  duration       Int?
+  audience       SparqAudience @default(PUBLIC)
+  expiresAt      DateTime
+  createdAt      DateTime      @default(now())
+  viewCount      Int           @default(0)
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  views  SparqView[]
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+  @@index([audience])
+}
+
+// ── Sparq View (unique view tracking per Sparq per user) ────────────
+
+model SparqView {
+  id       String   @id @default(cuid())
+  sparqId  String
+  viewerId String
+  viewedAt DateTime @default(now())
+
+  sparq  Sparq @relation(fields: [sparqId], references: [id], onDelete: Cascade)
+  viewer User  @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@unique([sparqId, viewerId])
+  @@index([sparqId])
+  @@index([viewerId])
 }
