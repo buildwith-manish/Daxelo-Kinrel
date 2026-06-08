@@ -14,10 +14,12 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { FamiliesService } from './families.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CreateFamilyDto } from './dto/create-family.dto';
 import { UpdateFamilyDto } from './dto/update-family.dto';
+import { GenerateInviteDto, JoinByTokenDto } from './dto/join-family.dto';
 
 @ApiTags('families')
 @Controller('families')
@@ -131,5 +133,56 @@ export class FamiliesController {
     @Param('familyId') familyId: string,
   ) {
     return this.familiesService.leaveFamily(userId, familyId);
+  }
+
+  // ── Social System: Family Invite Endpoints ─────────────────────────────
+
+  @Post(':familyId/invite')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Generate an invite link for a family (owner/admin only)' })
+  async generateInvite(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+    @Body() dto: GenerateInviteDto,
+  ) {
+    return this.familiesService.generateInvite(userId, familyId, dto);
+  }
+
+  @Post(':familyId/invite/revoke')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Revoke all active invite links for a family (owner only)' })
+  async revokeInvites(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+  ) {
+    return this.familiesService.revokeInvites(userId, familyId);
+  }
+
+  @Get('invite/preview/:token')
+  @Public()
+  @ApiOperation({ summary: 'Preview a family from an invite token (no auth required)' })
+  async previewInvite(@Param('token') token: string) {
+    return this.familiesService.previewInvite(token);
+  }
+
+  @Post('invite/join')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Join a family using an invite token' })
+  async joinFamily(
+    @CurrentUser('id') userId: string,
+    @Body() dto: JoinByTokenDto,
+  ) {
+    return this.familiesService.joinFamily(userId, dto.token);
+  }
+
+  @Patch(':familyId/visibility')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Toggle family public/private visibility (owner only)' })
+  async toggleVisibility(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+    @Body() body: { isPublic: boolean },
+  ) {
+    return this.familiesService.toggleVisibility(userId, familyId, body.isPublic);
   }
 }

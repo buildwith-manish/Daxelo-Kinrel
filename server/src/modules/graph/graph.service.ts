@@ -113,7 +113,8 @@ export class GraphService {
       locale?: string;
     } = {},
   ) {
-    await this.requireFamilyMember(userId, familyId);
+    const membership = await this.requireFamilyMember(userId, familyId);
+    const isReadOnly = membership === null; // Non-member viewing a public family
 
     if (options.from && options.to) {
       return this.getPath(familyId, options.from, options.to);
@@ -121,22 +122,34 @@ export class GraphService {
 
     const safeDepth = Math.min(options.depth ?? DEFAULT_GRAPH_DEPTH, MAX_GRAPH_DEPTH);
 
-    if (options.root && options.format === 'tree') {
-      return this.getTree(familyId, options.root, safeDepth);
-    }
+    let result: any;
 
-    if (options.format === 'tree') {
+    if (options.root && options.format === 'tree') {
+      result = await this.getTree(familyId, options.root, safeDepth);
+    } else if (options.format === 'tree') {
       const family = await this.prisma.family.findUnique({
         where: { id: familyId },
       });
       const rootId = family?.anchorPersonId;
       if (rootId) {
-        return this.getTree(familyId, rootId, safeDepth);
+        result = await this.getTree(familyId, rootId, safeDepth);
+      } else {
+        result = await this.getFlatGraph(familyId);
       }
-      return this.getFlatGraph(familyId);
+    } else {
+      result = await this.getFlatGraph(familyId);
     }
 
-    return this.getFlatGraph(familyId);
+    // Strip contact details for non-members (read-only access)
+    if (isReadOnly) {
+      result = this.stripContactDetails(result);
+      if (typeof result === 'object' && !Array.isArray(result)) {
+        result.readOnly = true;
+        result.readOnlyBanner = 'You are viewing this family tree in read-only mode. Contact details are hidden.';
+      }
+    }
+
+    return result;
   }
 
   /** Resolves the root person ID for tree rendering, falling back to anchor or oldest person. */
@@ -545,11 +558,51 @@ export class GraphService {
       where: { familyId_userId: { familyId, userId } },
     });
 
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this family');
+    if (membership) {
+      return membership;
     }
 
-    return membership;
+    // Not a member — check family privacy
+    const family = await this.prisma.family.findUnique({
+      where: { id: familyId },
+      select: { isPublic: true },
+    });
+
+    if (!family) {
+      throw new NotFoundException('Family not found');
+    }
+
+    if (family.isPublic) {
+      // Allow read-only access for non-members on public families
+      // Return null to indicate read-only access (no membership)
+      return null;
+    }
+
+    // Private family — deny access
+    throw new ForbiddenException('This family tree is private. You must be a member to view it.');
+  }
+
+  /** Check if user has full (member) access to the family graph */
+  private async isFamilyMember(userId: string, familyId: string): Promise<boolean> {
+    const membership = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId, userId } },
+    });
+    return !!membership;
+  }
+
+  /** Strip contact details from graph results for non-member (read-only) access */
+  private stripContactDetails(result: any): any {
+    const contactFields = ['email', 'phone', 'address', 'bloodGroup', 'anniversaryDate'];
+    if (result && result.persons && Array.isArray(result.persons)) {
+      result.persons = result.persons.map((p: any) => {
+        const stripped = { ...p };
+        for (const field of contactFields) {
+          if (field in stripped) stripped[field] = null;
+        }
+        return stripped;
+      });
+    }
+    return result;
   }
 
   private formatPerson(person: Record<string, any>) {

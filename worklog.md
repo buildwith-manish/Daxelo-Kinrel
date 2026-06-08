@@ -479,3 +479,55 @@ Stage Summary:
 - Reused existing FamilyInvite model instead of creating duplicate SocialFamilyInvite
 - All new models (Follow, Sparq, SparqView) created with proper indexes, constraints, and cascade deletes
 - Migration SQL file ready for when database connection is available
+
+---
+Task ID: 2
+Agent: main
+Task: Phase 2 — Backend Modules for Social System
+
+Work Log:
+- Created Follow module (src/modules/follow/) with controller, service, DTOs, module
+  - POST /follow — follow a user (instant for public, pending for private)
+  - DELETE /follow/:userId — unfollow
+  - POST /follow/accept/:userId — accept follow request
+  - POST /follow/reject/:userId — reject follow request
+  - GET /follow/followers — paginated followers list
+  - GET /follow/following — paginated following list
+  - GET /follow/requests — pending follow requests
+  - GET /follow/status — follow status with specific user (none/pending/following/self)
+  - GET /follow/counts/:userId — follower and following counts
+  - Socket events: follow:request, follow:new, follow:accepted, follow:rejected
+- Added family invite endpoints to existing FamiliesModule (not a new module — reusing existing)
+  - POST /families/:familyId/invite — generate invite token (admin only)
+  - POST /families/:familyId/invite/revoke — revoke all active invites (admin only)
+  - GET /families/invite/preview/:token — preview family from token (public, no auth)
+  - POST /families/invite/join — join family by token
+  - PATCH /families/:familyId/visibility — toggle public/private (admin only)
+  - Reused existing FamilyInvite model (added creatorId and active fields in Phase 1)
+- Created Sparq module (src/modules/sparq/) with controller, service, DTOs, module
+  - GET /sparq/feed — feed grouped by user, unseen first
+  - POST /sparq — create Sparq (IMAGE/VIDEO/TEXT/VOICE, 24h expiry)
+  - GET /sparq/user/:userId — user's active Sparqs
+  - POST /sparq/:id/view — mark viewed
+  - GET /sparq/:id/viewers — viewer list (creator only)
+  - DELETE /sparq/:id — delete own Sparq
+  - @Cron hourly cleanup of expired Sparqs
+  - FAMILY_ONLY audience filtering based on family membership
+- Added privacy endpoints to existing UsersModule
+  - GET /users/me/privacy — get privacy settings (isPrivate, isFamilyGraphPublic)
+  - PATCH /users/me/privacy/profile — update isPrivate
+  - PATCH /users/me/privacy/family-graph — update isFamilyGraphPublic
+- Updated GraphService privacy enforcement
+  - requireFamilyMember now allows read-only access for non-members on public families
+  - Returns 403 for private families accessed by non-members
+  - Strips contact details (email, phone, address, bloodGroup, anniversaryDate) for read-only
+  - Adds readOnly flag and readOnlyBanner to response for non-member access
+- Registered FollowModule and SparqModule in AppModule
+- TypeScript compilation passes with no errors
+
+Stage Summary:
+- All backend modules created/updated: Follow, Sparq, Family Invite, Privacy, Graph privacy
+- Reused existing modules (FamiliesModule, UsersModule) instead of creating duplicates
+- Socket events emitted for follow and family join actions
+- Sparq expiry cleanup cron job added
+- TypeScript compiles cleanly

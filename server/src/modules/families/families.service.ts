@@ -565,6 +565,189 @@ export class FamiliesService {
     return { left: true, familyId };
   }
 
+  // ── Social System: Family Invite Methods ───────────────────────────────
+
+  /** Generate an invite link/token for a family — owners and admins only */
+  async generateInvite(userId: string, familyId: string, dto: { expiryDays?: number; maxUses?: number }) {
+    await this.requireFamilyRole(userId, familyId, 'admin');
+
+    const family = await this.prisma.family.findUnique({ where: { id: familyId } });
+    if (!family) throw new NotFoundException('Family not found');
+
+    // Get the family member record for the creator
+    const memberRecord = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId, userId } },
+    });
+
+    const token = `inv_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    const expiresAt = dto.expiryDays
+      ? new Date(Date.now() + dto.expiryDays * 24 * 60 * 60 * 1000)
+      : null;
+
+    const invite = await this.prisma.familyInvite.create({
+      data: {
+        familyId,
+        invitedBy: memberRecord!.id,
+        inviteCode: token,
+        inviteType: 'link',
+        maxUses: dto.maxUses ?? 0, // 0 = unlimited
+        currentUses: 0,
+        useCount: 0,
+        expiresAt,
+        creatorId: userId,
+        active: true,
+      },
+    });
+
+    // Generate the invite URL
+    const deepLinkUrl = `kinrel://join/${token}`;
+
+    return {
+      id: invite.id,
+      token: invite.inviteCode,
+      url: deepLinkUrl,
+      expiresAt: invite.expiresAt,
+      maxUses: invite.maxUses || null,
+      createdAt: invite.createdAt,
+    };
+  }
+
+  /** Revoke all active invite links for a family — owners only */
+  async revokeInvites(userId: string, familyId: string) {
+    const membership = await this.requireFamilyMember(userId, familyId);
+    if (membership.role !== 'admin') {
+      throw new ForbiddenException('Only admins can revoke invite links');
+    }
+
+    const result = await this.prisma.familyInvite.updateMany({
+      where: { familyId, active: true },
+      data: { active: false },
+    });
+
+    return { revoked: result.count };
+  }
+
+  /** Preview a family from an invite token — no auth required */
+  async previewInvite(token: string) {
+    const invite = await this.prisma.familyInvite.findUnique({
+      where: { inviteCode: token },
+      include: {
+        family: {
+          select: { id: true, name: true, memberCount: true },
+        },
+      },
+    });
+
+    if (!invite) {
+      return { valid: false, expired: false, error: 'Invalid invite token' };
+    }
+
+    if (!invite.active) {
+      return { valid: false, expired: false, error: 'Invite link has been revoked' };
+    }
+
+    const now = new Date();
+    if (invite.expiresAt && invite.expiresAt < now) {
+      return { valid: false, expired: true, error: 'Invite link has expired' };
+    }
+
+    if (invite.maxUses > 0 && invite.useCount >= invite.maxUses) {
+      return { valid: false, expired: false, error: 'Invite link has reached maximum uses' };
+    }
+
+    // Get owner name
+    const ownerMember = await this.prisma.familyMember.findFirst({
+      where: { familyId: invite.familyId, role: 'admin' },
+      include: { user: { select: { name: true } } },
+    });
+
+    return {
+      valid: true,
+      expired: false,
+      familyName: invite.family.name,
+      ownerName: ownerMember?.user?.name ?? 'Unknown',
+      memberCount: invite.family.memberCount,
+    };
+  }
+
+  /** Join a family using an invite token */
+  async joinFamily(userId: string, token: string) {
+    const invite = await this.prisma.familyInvite.findUnique({
+      where: { inviteCode: token },
+    });
+
+    if (!invite) throw new NotFoundException('Invite not found');
+    if (!invite.active) throw new BadRequestException('Invite link has been revoked');
+
+    const now = new Date();
+    if (invite.expiresAt && invite.expiresAt < now) {
+      throw new BadRequestException('Invite link has expired');
+    }
+
+    if (invite.maxUses > 0 && invite.useCount >= invite.maxUses) {
+      throw new BadRequestException('Invite link has reached maximum uses');
+    }
+
+    // Check if already a member
+    const existing = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId: invite.familyId, userId } },
+    });
+    if (existing) {
+      throw new BadRequestException('You are already a member of this family');
+    }
+
+    // Join as member
+    await this.prisma.$transaction(async (tx) => {
+      await tx.familyMember.create({
+        data: {
+          familyId: invite.familyId,
+          userId,
+          role: 'member',
+        },
+      });
+
+      await tx.family.update({
+        where: { id: invite.familyId },
+        data: {
+          memberCount: { increment: 1 },
+          lastActivityAt: new Date(),
+        },
+      });
+
+      // Increment use count
+      await tx.familyInvite.update({
+        where: { id: invite.id },
+        data: { useCount: { increment: 1 }, currentUses: { increment: 1 } },
+      });
+    });
+
+    // Emit socket event to family owner
+    this.gateway.emitToFamily(invite.familyId, 'family:member_joined', {
+      id: invite.id,
+      updatedAt: new Date().toISOString(),
+      type: 'family:member_joined',
+      familyId: invite.familyId,
+      userId,
+    });
+
+    return { joined: true, familyId: invite.familyId };
+  }
+
+  /** Toggle family public/private visibility — owners only */
+  async toggleVisibility(userId: string, familyId: string, isPublic: boolean) {
+    const membership = await this.requireFamilyMember(userId, familyId);
+    if (membership.role !== 'admin') {
+      throw new ForbiddenException('Only admins can toggle family visibility');
+    }
+
+    const updated = await this.prisma.family.update({
+      where: { id: familyId },
+      data: { isPublic, lastActivityAt: new Date() },
+    });
+
+    return { familyId, isPublic: updated.isPublic };
+  }
+
   // ── Helper Methods ───────────────────────────────────────────────────
 
   /** Verifies the user is a member of the family, throws if not. */

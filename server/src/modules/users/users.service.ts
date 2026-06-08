@@ -1158,5 +1158,40 @@ export class UsersService {
 
     return { success: true, message: 'FCM token deleted' };
   }
+
+  // ── Social System: Privacy Methods ──────────────────────────────
+
+  /** Get the current user's privacy settings */
+  async getPrivacySettings(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { isPrivate: true, isFamilyGraphPublic: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    return {
+      isPrivate: user.isPrivate,
+      isFamilyGraphPublic: user.isFamilyGraphPublic,
+    };
+  }
+
+  /** Update profile privacy (isPrivate) */
+  async updateProfilePrivacy(userId: string, isPrivate: boolean) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { isPrivate },
+      select: { id: true, isPrivate: true },
+    });
+    return { isPrivate: user.isPrivate };
+  }
+
+  /** Update family tree visibility (isFamilyGraphPublic) */
+  async updateFamilyGraphVisibility(userId: string, isFamilyGraphPublic: boolean) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { isFamilyGraphPublic },
+      select: { id: true, isFamilyGraphPublic: true },
+    });
+    return { isFamilyGraphPublic: user.isFamilyGraphPublic };
+  }
 }
 

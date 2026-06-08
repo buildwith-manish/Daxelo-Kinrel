@@ -252,5 +252,28 @@ export class UsersController {
   ) {
     return this.usersService.deleteFcmToken(userId, body.fcmToken);
   }
+
+  // ── Social System: Privacy Endpoints ──────────────────────────────
+
+  @Get('me/privacy')
+  async getPrivacySettings(@CurrentUser('id') userId: string) {
+    return this.usersService.getPrivacySettings(userId);
+  }
+
+  @Patch('me/privacy/profile')
+  async updateProfilePrivacy(
+    @CurrentUser('id') userId: string,
+    @Body() body: { isPrivate: boolean },
+  ) {
+    return this.usersService.updateProfilePrivacy(userId, body.isPrivate);
+  }
+
+  @Patch('me/privacy/family-graph')
+  async updateFamilyGraphVisibility(
+    @CurrentUser('id') userId: string,
+    @Body() body: { isFamilyGraphPublic: boolean },
+  ) {
+    return this.usersService.updateFamilyGraphVisibility(userId, body.isFamilyGraphPublic);
+  }
 }
 

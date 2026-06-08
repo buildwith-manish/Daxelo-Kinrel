@@ -1,4 +1,6 @@
-import { IsString, IsOptional, IsIn, Matches } from 'class-validator';
+import { IsString, IsOptional, IsIn, Matches, IsInt, Min, IsBoolean } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
  * DTO for joining a family using a Family ID.
@@ -34,4 +36,22 @@ export class SearchFamilyDto {
       'Family ID must follow the format KIN-XXXXXXXX (e.g. KIN-AB12CD34)',
   })
   familyId!: string;
+}
+
+// ── Social System: Invite Token DTOs ────────────────────────────────────
+
+export class GenerateInviteDto {
+  @ApiPropertyOptional({ description: 'Expiry in days' })
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1)
+  expiryDays?: number;
+
+  @ApiPropertyOptional({ description: 'Maximum number of uses' })
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1)
+  maxUses?: number;
+}
+
+export class JoinByTokenDto {
+  @ApiProperty({ description: 'Invite token' })
+  @IsString()
+  token!: string;
 }
