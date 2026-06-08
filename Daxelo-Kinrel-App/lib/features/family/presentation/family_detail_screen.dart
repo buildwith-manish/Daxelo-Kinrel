@@ -13,6 +13,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
+import '../../../core/networking/dio_client.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/member_list_skeleton.dart';
@@ -203,6 +204,21 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
         family.createdBy != null &&
         family.createdBy == currentUserId;
 
+    // Determine current user's role from FamilyMember table
+    final membershipsAsync = ref.read(familyMembershipsProvider(widget.familyId));
+    final memberships = membershipsAsync.valueOrNull ?? [];
+    final currentUserMembership = memberships
+        .where((m) => m.userId == currentUserId)
+        .firstOrNull;
+    final currentUserRole = currentUserMembership?.role;
+    final isAdminOrOwner = isCreator ||
+        currentUserRole == 'admin' ||
+        currentUserRole == 'owner';
+
+    // Count how many admins are in the family (to prevent sole admin from leaving)
+    final adminCount = memberships.where((m) => m.isAdmin).length;
+    final isOnlyAdmin = (currentUserMembership?.isAdmin ?? false) && adminCount <= 1;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: DKColors.cardColor(context),
@@ -317,6 +333,20 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
               Divider(color: KinrelColors.border, height: 1),
             ],
 
+            // Invite Members option (admin/owner only)
+            if (isAdminOrOwner) ...[
+              _QuickActionTile(
+                icon: Icons.person_add_outlined,
+                label: 'Invite Members',
+                iconColor: KinrelColors.purple,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  context.push('/family-invite/${widget.familyId}');
+                },
+              ),
+              Divider(color: KinrelColors.border, height: 1),
+            ],
+
             // Share option
             _QuickActionTile(
               icon: Icons.share_outlined,
@@ -389,6 +419,49 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
                     Expanded(
                       child: Text(
                         'Only the family creator can permanently delete this family',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 12,
+                          color: KinrelColors.textDim,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            // Leave Family option (not available if user is the only admin)
+            if (!isOnlyAdmin) ...[
+              Divider(color: KinrelColors.border, height: 1),
+              _QuickActionTile(
+                icon: Icons.exit_to_app_outlined,
+                label: 'Leave Family',
+                isDestructive: true,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _confirmLeaveFamily(context, family?.name ?? 'Family');
+                },
+              ),
+            ] else ...[
+              // Show info that sole admin must transfer role first
+              Divider(color: KinrelColors.border, height: 1),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: KinrelSpacing.base,
+                  vertical: KinrelSpacing.sm,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 16,
+                      color: KinrelColors.textDim,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Transfer your admin role to another member before leaving',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 12,
@@ -701,6 +774,163 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
       }
     }
   }
+
+  void _confirmLeaveFamily(BuildContext context, String familyName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: DKColors.cardColor(context),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(KinrelRadius.lg),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              Icons.exit_to_app_outlined,
+              color: KinrelColors.warning,
+              size: 24,
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                'Leave "$familyName"?',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: DKColors.textPrimary(context),
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'You will no longer have access to this family tree. Other members will still be able to view and edit it.',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 14,
+                color: DKColors.textSecondary(context),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: KinrelColors.warning.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(KinrelRadius.md),
+                border: Border.all(
+                  color: KinrelColors.warning.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 18, color: KinrelColors.warning),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This action cannot be undone. You will need a new invitation to rejoin.',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: KinrelColors.warning,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                color: DKColors.textSecondary(context),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop(); // Close dialog
+              await _performLeaveFamily(context);
+            },
+            child: Text(
+              'Leave Family',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.warning,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performLeaveFamily(BuildContext context) async {
+    // Show a loading indicator
+    unawaited(
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => Center(
+          child: CircularProgressIndicator(color: KinrelColors.warning),
+        ),
+      ),
+    );
+
+    try {
+      final dio = ref.read(dioProvider);
+      await dio.delete('/api/families/${widget.familyId}/leave');
+
+      // Close loading indicator
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // Invalidate providers
+      ref.invalidate(familyListProvider);
+      ref.invalidate(familyMembershipsProvider(widget.familyId));
+
+      // Navigate back to home
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('You have left the family'),
+            backgroundColor: KinrelColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        context.go('/');
+      }
+    } catch (e) {
+      // Close loading indicator
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to leave family: ${e.toString().split('\n').first}',
+            ),
+            backgroundColor: KinrelColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
 }
 
 // ── Loading Widget (extracted for zero-rebuild optimization) ─────
@@ -994,6 +1224,10 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
     // Use combined provider: real members + pending (optimistic) members
     final combinedMembers = ref.watch(combinedMembersProvider(widget.familyId));
 
+    // Watch memberships provider to get role info
+    final membershipsAsync = ref.watch(familyMembershipsProvider(widget.familyId));
+    final memberships = membershipsAsync.valueOrNull ?? [];
+
     final activeMembers = combinedMembers
         .where((p) => p.deletedAt == null)
         .toList();
@@ -1119,6 +1353,49 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
           ),
         ),
         const SizedBox(height: 8),
+
+        // Collaborators section with role chips
+        if (memberships.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.group_outlined,
+                      size: 14,
+                      color: KinrelColors.textSilver,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Team Members',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.textSilver,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: memberships.map((membership) {
+                    return _RoleChip(
+                      label: membership.displayRole,
+                      role: membership.role,
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
 
         // Member list
         Expanded(
@@ -1966,5 +2243,60 @@ class _ActivityTile extends StatelessWidget {
     if (diff.inDays < 7) return '${diff.inDays}d ago';
     if (diff.inDays < 30) return '${(diff.inDays / 7).round()}w ago';
     return '${(diff.inDays / 30).round()}mo ago';
+  }
+}
+
+// ── Role Chip Widget ─────────────────────────────────────────────────
+
+class _RoleChip extends StatelessWidget {
+  const _RoleChip({
+    required this.label,
+    required this.role,
+  });
+
+  final String label;
+  final String role;
+
+  /// Returns the color for a given role.
+  /// Admin (orange), Editor (blue), Member (grey), Viewer (grey)
+  Color get _chipColor {
+    switch (role.toLowerCase()) {
+      case 'admin':
+      case 'owner':
+        return KinrelColors.orange;
+      case 'editor':
+        return KinrelColors.blue;
+      case 'viewer':
+        return KinrelColors.textSilver;
+      case 'member':
+      default:
+        return KinrelColors.textDim;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _chipColor;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: KinrelTypography.bodyFont,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: color,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
   }
 }

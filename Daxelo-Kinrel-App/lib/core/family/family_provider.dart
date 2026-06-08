@@ -331,6 +331,54 @@ class FamilyDetail {
   final List<FamilyRelationship> relationships;
 }
 
+/// Represents a family membership (FamilyMember row) with user ID and role.
+class FamilyMembership {
+  const FamilyMembership({
+    required this.id,
+    required this.familyId,
+    required this.userId,
+    this.role = 'member',
+    this.joinedAt,
+  });
+
+  factory FamilyMembership.fromJson(Map<String, dynamic> json) {
+    return FamilyMembership(
+      id: json['id']?.toString() ?? '',
+      familyId: json['familyId']?.toString() ?? '',
+      userId: json['userId']?.toString() ?? '',
+      role: json['role'] as String? ?? 'member',
+      joinedAt: json['joinedAt'] != null
+          ? DateTime.tryParse(json['joinedAt'].toString())
+          : null,
+    );
+  }
+
+  final String id;
+  final String familyId;
+  final String userId;
+  final String role;
+  final DateTime? joinedAt;
+
+  /// Display-friendly role label (capitalized).
+  String get displayRole {
+    switch (role.toLowerCase()) {
+      case 'admin':
+      case 'owner':
+        return 'Admin';
+      case 'editor':
+        return 'Editor';
+      case 'viewer':
+        return 'Viewer';
+      case 'member':
+      default:
+        return 'Member';
+    }
+  }
+
+  /// Whether this membership has admin-level privileges.
+  bool get isAdmin => role.toLowerCase() == 'admin' || role.toLowerCase() == 'owner';
+}
+
 /// Archived family with days-remaining info from the NestJS backend.
 class ArchivedFamily {
   const ArchivedFamily({
@@ -774,6 +822,72 @@ final familyMemberCountProvider = Provider.family<int, String>((ref, familyId) {
   // Watch familyMembersProvider to rebuild when members change
   final membersAsync = ref.watch(familyMembersProvider(familyId));
   return membersAsync.valueOrNull?.length ?? 0;
+});
+
+/// Fetches FamilyMember rows for a given family — used to determine user roles.
+/// Returns a list of [FamilyMembership] objects with userId and role.
+final familyMembershipsProvider =
+    FutureProvider.family<List<FamilyMembership>, String>((ref, familyId) async {
+  final isReady = ref.watch(isSupabaseReadyProvider);
+  if (!isReady) return [];
+
+  try {
+    final client = ref.read(supabaseProvider);
+    if (client == null) return [];
+    if (client.auth.currentSession == null && !kAuthDisabled) return [];
+
+    // Try NestJS API first
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get('/api/families/$familyId/members');
+      if (response.statusCode == 200 && response.data is List) {
+        return (response.data as List)
+            .map((json) =>
+                FamilyMembership.fromJson(json as Map<String, dynamic>))
+            .toList();
+      }
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      if (status != 401 && status != 403) {
+        debugPrint('⚠️ familyMembershipsProvider API error: ${e.message}');
+      }
+      // Fall through to Supabase fallback
+    } catch (e) {
+      debugPrint('⚠️ familyMembershipsProvider API error: $e');
+    }
+
+    // Fallback: Query Supabase directly
+    final response = await client
+        .from(_kFamilyMemberTable)
+        .select()
+        .eq('familyId', familyId);
+
+    return (response as List)
+        .map((json) =>
+            FamilyMembership.fromJson(json as Map<String, dynamic>))
+        .toList();
+  } catch (e) {
+    debugPrint('⚠️ familyMembershipsProvider error: $e');
+    return [];
+  }
+});
+
+/// Computes the current user's role in a given family.
+/// Returns the role string (e.g. 'admin', 'editor', 'member', 'viewer')
+/// or null if the user is not a member or data is unavailable.
+final currentUserFamilyRoleProvider =
+    Provider.family<String?, String>((ref, familyId) {
+  final membershipsAsync = ref.watch(familyMembershipsProvider(familyId));
+  final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+  if (currentUserId == null) return null;
+
+  final memberships = membershipsAsync.valueOrNull;
+  if (memberships == null) return null;
+
+  final userMembership = memberships
+      .where((m) => m.userId == currentUserId)
+      .firstOrNull;
+  return userMembership?.role;
 });
 
 // ── Computed Providers (Zero Rebuild Optimizations) ────────────────

@@ -17,12 +17,18 @@ class SparqRingAvatar extends ConsumerWidget {
     this.avatarUrl,
     this.radius = 24,
     this.onTap,
+    this.child,
   });
 
   final String userId;
   final String? avatarUrl;
   final double radius;
   final VoidCallback? onTap;
+
+  /// Optional custom child widget. When provided, replaces the default
+  /// CircleAvatar so callers can supply their own avatar rendering
+  /// (e.g. CachedNetworkImage, upload spinner, camera overlay).
+  final Widget? child;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -57,7 +63,7 @@ class SparqRingAvatar extends ConsumerWidget {
           padding: ringColor != null
               ? EdgeInsets.all(ringWidth + 2.0)
               : EdgeInsets.zero,
-          child: CircleAvatar(
+          child: child ?? CircleAvatar(
             radius: radius,
             backgroundImage: avatarUrl != null && avatarUrl!.isNotEmpty
                 ? NetworkImage(avatarUrl!)

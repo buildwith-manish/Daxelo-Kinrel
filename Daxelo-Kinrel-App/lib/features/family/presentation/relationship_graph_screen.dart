@@ -29,6 +29,7 @@ import '../../../core/graph/graph_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
+import '../../social/data/providers/privacy_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // GENERATION COLORS (Figma reference)
@@ -756,13 +757,99 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
             );
           }
 
-          return _buildGraph(detail);
+          // ── Phase 7: Privacy gate ──────────────────────────────
+          final userFamilies = ref.watch(familyListProvider);
+          // While family list is still loading, assume member to
+          // avoid flashing the lock overlay for actual members.
+          final isMember = userFamilies.isLoading
+              ? true
+              : userFamilies.valueOrNull
+                      ?.any((f) => f.id == widget.familyId) ??
+                  false;
+          final isPrivate = detail.family.privacyMode == 'private';
+
+          // Private + non-member → lock overlay
+          if (!isMember && isPrivate) {
+            return _buildPrivateOverlay();
+          }
+
+          // Public + non-member → graph with read-only banner
+          return _buildGraph(detail, isReadOnly: !isMember);
         },
       ),
     );
   }
 
-  Widget _buildGraph(FamilyDetail detail) {
+  // ── Phase 7: Private family lock overlay ────────────────────────
+  Widget _buildPrivateOverlay() {
+    final isLight = DKColors.isLight(context);
+    return Container(
+      color: isLight ? KinrelColors.lightBackground : KinrelColors.darkBackground,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.lock_outline,
+                size: 64,
+                color: KinrelColors.orange.withValues(alpha: isLight ? 0.7 : 0.9),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'This family tree is private',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: isLight ? KinrelColors.textDark : KinrelColors.textWhite,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'You must be a member to view it.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: isLight ? KinrelColors.textSecondaryLight : KinrelColors.textSilver,
+                ),
+              ),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: 220,
+                child: ElevatedButton(
+                  onPressed: () => context.push('/family/${widget.familyId}/invite'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: KinrelColors.orange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    'Request Access',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGraph(FamilyDetail detail, {bool isReadOnly = false}) {
     // Compute layout
     final layout = _computeLayout(
       members: detail.members,
@@ -781,6 +868,47 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
 
     return Stack(
       children: [
+        // ── Phase 7: Read-only banner (non-member, public family) ──
+        if (isReadOnly)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: KinrelColors.orange.withValues(alpha: 0.12),
+                border: Border(
+                  bottom: BorderSide(
+                    color: KinrelColors.orange.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: KinrelColors.orange,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'You are viewing this family tree in read-only mode. Contact details are hidden.',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: KinrelColors.orange,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
         // ── Interactive graph canvas ─────────────────────────────
         Container(
           color: DKColors.isLight(context) ? DKColors.lightBg : KinrelColors.darkBackground,

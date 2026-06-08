@@ -40,6 +40,9 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/family/family_id_provider.dart';
 import '../../../presentation/widgets/skeletons/profile_skeleton.dart';
 import '../../family/providers/family_invite_provider.dart';
+import '../../social/data/providers/follow_provider.dart';
+import '../../social/presentation/widgets/follow_button.dart';
+import '../../social/presentation/widgets/sparq_ring_avatar.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
 const Color _orange = Color(0xFFE8612A);
@@ -561,100 +564,97 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
     return Column(
       children: [
-        // Avatar with orange ring + camera overlay
+        // Avatar with Sparq ring + camera overlay
         Semantics(
-            button: true,
-            label: 'Change profile photo',
-            hint: 'Double tap to change your profile photo',
-            child: GestureDetector(
-              onTap: _showAvatarSourceSheet,
-              child: SizedBox(
-                width: 100,
-                height: 100,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // Orange ring
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: _orange, width: 3),
-                      ),
-                      child: ClipOval(
-                        child: Container(
-                          color: KinrelColors.darkElevated,
-                          child: _isUploadingAvatar
-                              ? Center(
-                                  child: SizedBox(
-                                    width: 32,
-                                    height: 32,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 3,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        _orange,
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              : (avatarUrl != null && avatarUrl.isNotEmpty)
-                              ? CachedNetworkImage(
-                                  imageUrl: avatarUrl,
-                                  fit: BoxFit.cover,
-                                  imageBuilder: (ctx, img) => Image(
-                                    image: img,
-                                    semanticLabel: '$displayName\'s photo',
-                                  ),
-                                  placeholder: (_, __) => Center(
-                                    child: Text(
-                                      displayName.isNotEmpty
-                                          ? displayName[0].toUpperCase()
-                                          : '?',
-                                      style: TextStyle(
-                                        fontFamily:
-                                            KinrelTypography.displayFont,
-                                        fontSize: 36,
-                                        fontWeight: FontWeight.w700,
-                                        color: _textPrimary,
-                                      ),
-                                    ),
-                                  ),
-                                  errorWidget: (_, __, ___) => Center(
-                                    child: Text(
-                                      displayName.isNotEmpty
-                                          ? displayName[0].toUpperCase()
-                                          : '?',
-                                      style: TextStyle(
-                                        fontFamily:
-                                            KinrelTypography.displayFont,
-                                        fontSize: 36,
-                                        fontWeight: FontWeight.w700,
-                                        color: _textPrimary,
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              : Center(
-                                  child: Text(
-                                    displayName.isNotEmpty
-                                        ? displayName[0].toUpperCase()
-                                        : '?',
-                                    style: TextStyle(
-                                      fontFamily: KinrelTypography.displayFont,
-                                      fontSize: 36,
-                                      fontWeight: FontWeight.w700,
-                                      color: _textPrimary,
-                                    ),
+          button: true,
+          label: 'View Sparqs or change profile photo',
+          hint: 'Double tap to view Sparqs. Use camera icon to change photo.',
+          child: SparqRingAvatar(
+            userId: user?.id ?? profile?.id ?? '',
+            avatarUrl: avatarUrl,
+            radius: 47,
+            onTap: () => context.push('/sparq/create'),
+            child: SizedBox(
+              width: 94,
+              height: 94,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // Avatar content (ring drawn by SparqRingAvatar)
+                  ClipOval(
+                    child: Container(
+                      color: KinrelColors.darkElevated,
+                      child: _isUploadingAvatar
+                          ? Center(
+                              child: SizedBox(
+                                width: 32,
+                                height: 32,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    _orange,
                                   ),
                                 ),
-                        ),
-                      ),
+                              ),
+                            )
+                          : (avatarUrl != null && avatarUrl.isNotEmpty)
+                          ? CachedNetworkImage(
+                              imageUrl: avatarUrl,
+                              fit: BoxFit.cover,
+                              imageBuilder: (ctx, img) => Image(
+                                image: img,
+                                semanticLabel: '$displayName\'s photo',
+                              ),
+                              placeholder: (_, __) => Center(
+                                child: Text(
+                                  displayName.isNotEmpty
+                                      ? displayName[0].toUpperCase()
+                                      : '?',
+                                  style: TextStyle(
+                                    fontFamily:
+                                        KinrelTypography.displayFont,
+                                    fontSize: 36,
+                                    fontWeight: FontWeight.w700,
+                                    color: _textPrimary,
+                                  ),
+                                ),
+                              ),
+                              errorWidget: (_, __, ___) => Center(
+                                child: Text(
+                                  displayName.isNotEmpty
+                                      ? displayName[0].toUpperCase()
+                                      : '?',
+                                  style: TextStyle(
+                                    fontFamily:
+                                        KinrelTypography.displayFont,
+                                    fontSize: 36,
+                                    fontWeight: FontWeight.w700,
+                                    color: _textPrimary,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Center(
+                              child: Text(
+                                displayName.isNotEmpty
+                                    ? displayName[0].toUpperCase()
+                                    : '?',
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.displayFont,
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.w700,
+                                  color: _textPrimary,
+                                ),
+                              ),
+                            ),
                     ),
-                    // Camera icon overlay
-                    Positioned(
-                      right: -2,
-                      bottom: -2,
+                  ),
+                  // Camera icon overlay — separate tap for changing photo
+                  Positioned(
+                    right: -2,
+                    bottom: -2,
+                    child: GestureDetector(
+                      onTap: _showAvatarSourceSheet,
                       child: Container(
                         width: 30,
                         height: 30,
@@ -670,21 +670,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            )
-            .animate(onPlay: (c) => c.forward())
-            .fadeIn(duration: 500.ms)
-            .scale(
-              begin: const Offset(0.8, 0.8),
-              end: const Offset(1.0, 1.0),
-              duration: 400.ms,
-              curve: Curves.easeOutBack,
-            ),
+          ),
+        )
+        .animate(onPlay: (c) => c.forward())
+        .fadeIn(duration: 500.ms)
+        .scale(
+          begin: const Offset(0.8, 0.8),
+          end: const Offset(1.0, 1.0),
+          duration: 400.ms,
+          curve: Curves.easeOutBack,
+        ),
 
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
+
+        // ── Follower / Following counts (Phase 7 social) ──────────────
+        _buildFollowCountsRow(user?.id ?? profile?.id ?? ''),
+
+        const SizedBox(height: 12),
 
         // Name — Display Small
         Text(
@@ -799,6 +805,130 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           ),
         ),
       ],
+    );
+  }
+
+  // ── Follower / Following Counts Row (Phase 7 social) ────────────────
+
+  Widget _buildFollowCountsRow(String userId) {
+    if (userId.isEmpty) return const SizedBox.shrink();
+
+    final countsAsync = ref.watch(followCountsProvider(userId));
+
+    return countsAsync.when(
+      data: (counts) {
+        final followerCount = counts['followers'] ?? 0;
+        final followingCount = counts['following'] ?? 0;
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Followers
+            GestureDetector(
+              onTap: () => context.push('/followers/followers'),
+              child: Column(
+                children: [
+                  Text(
+                    '$followerCount',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: _textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Followers',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 12,
+                      color: _textSecondary,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: KinrelSpacing.xl),
+            // Following
+            GestureDetector(
+              onTap: () => context.push('/followers/following'),
+              child: Column(
+                children: [
+                  Text(
+                    '$followingCount',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: _textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Following',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 12,
+                      color: _textSecondary,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+      loading: () => Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Column(
+            children: [
+              SizedBox(
+                width: 28,
+                height: 14,
+                child: LinearProgressIndicator(
+                  backgroundColor: _borderSubtle,
+                  valueColor: AlwaysStoppedAnimation<Color>(_orange),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Followers',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 12,
+                  color: _textSecondary,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(width: KinrelSpacing.xl),
+          Column(
+            children: [
+              SizedBox(
+                width: 28,
+                height: 14,
+                child: LinearProgressIndicator(
+                  backgroundColor: _borderSubtle,
+                  valueColor: AlwaysStoppedAnimation<Color>(_orange),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Following',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 12,
+                  color: _textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 
