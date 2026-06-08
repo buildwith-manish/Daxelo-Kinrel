@@ -2,6 +2,6 @@
 # Supabase anon key is a PUBLIC key designed for client-side use.
 # It's safe to expose in source code and CI workflows.
 
-[[allowlist]]
+[allowlist]
   description = "Supabase anon key (public, client-side)"
   regexes = ['''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24i''']
