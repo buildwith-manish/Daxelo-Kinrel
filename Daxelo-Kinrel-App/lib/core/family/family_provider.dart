@@ -1270,14 +1270,18 @@ Future<void> deleteFamily({
       archived = true;
     }
   } on DioException catch (e) {
+    // ✅ FIX (BUG-DELETE): Fall back to Supabase for ALL DioException types,
+    // not just 401/403. When the NestJS server is sleeping (Render free tier),
+    // the request times out or gets a connection error, which previously
+    // threw an exception instead of falling back, causing infinite loading.
     final status = e.response?.statusCode;
-    // If 401/403 (auth issue), fall back to Supabase direct write
-    if (status == 401 || status == 403) {
-      debugPrint('⚠️ API auth failed, falling back to Supabase for archive');
-    } else {
+    if (status != null && status >= 400 && status < 500 && status != 401 && status != 403) {
+      // 4xx client errors (except auth) are real failures — don't silently fall back
       final message = e.response?.data?['message'] ?? e.message ?? 'Unknown error';
       throw Exception('Failed to archive family: $message');
     }
+    // For auth errors, timeouts, connection errors, and 5xx — fall back to Supabase
+    debugPrint('⚠️ API call failed (status=$status, type=${e.type}), falling back to Supabase for archive');
   } catch (e) {
     debugPrint('⚠️ API call failed, falling back to Supabase for archive: $e');
   }
@@ -1355,13 +1359,14 @@ Future<void> restoreFamily({
       restored = true;
     }
   } on DioException catch (e) {
+    // ✅ FIX (BUG-DELETE): Fall back to Supabase for ALL DioException types,
+    // not just 401/403. Timeouts and connection errors should also fall back.
     final status = e.response?.statusCode;
-    if (status == 401 || status == 403) {
-      debugPrint('⚠️ API auth failed, falling back to Supabase for restore');
-    } else {
+    if (status != null && status >= 400 && status < 500 && status != 401 && status != 403) {
       final message = e.response?.data?['message'] ?? e.message ?? 'Unknown error';
       throw Exception('Failed to restore family: $message');
     }
+    debugPrint('⚠️ API call failed (status=$status, type=${e.type}), falling back to Supabase for restore');
   } catch (e) {
     debugPrint('⚠️ API call failed, falling back to Supabase for restore: $e');
   }
@@ -1436,13 +1441,14 @@ Future<void> permanentDeleteFamily({
       deleted = true;
     }
   } on DioException catch (e) {
+    // ✅ FIX (BUG-DELETE): Fall back to Supabase for ALL DioException types,
+    // not just 401/403. Timeouts and connection errors should also fall back.
     final status = e.response?.statusCode;
-    if (status == 401 || status == 403) {
-      debugPrint('⚠️ API auth failed, falling back to Supabase for permanent delete');
-    } else {
+    if (status != null && status >= 400 && status < 500 && status != 401 && status != 403) {
       final message = e.response?.data?['message'] ?? e.message ?? 'Unknown error';
       throw Exception('Failed to permanently delete family: $message');
     }
+    debugPrint('⚠️ API call failed (status=$status, type=${e.type}), falling back to Supabase for permanent delete');
   } catch (e) {
     debugPrint('⚠️ API call failed, falling back to Supabase for permanent delete: $e');
   }

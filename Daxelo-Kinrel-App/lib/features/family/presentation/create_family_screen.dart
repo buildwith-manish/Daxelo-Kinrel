@@ -46,6 +46,9 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
   void initState() {
     super.initState();
     _nameController.addListener(_onNameChanged);
+    // ✅ FIX (BUG-NEXT): Also listen to person name and gender so
+    // _canProceedStep3 re-evaluates on Step 3.
+    _personNameController.addListener(_onStep3Changed);
 
     // ✅ FIX (BUG-02): Generate initial code and username so Next is enabled
     // and the family code shows correctly on first render instead of
@@ -64,6 +67,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
   @override
   void dispose() {
     _nameController.removeListener(_onNameChanged);
+    _personNameController.removeListener(_onStep3Changed);
     _nameController.dispose();
     _codeController.dispose();
     _usernameController.dispose();
@@ -79,8 +83,12 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
           .toLowerCase()
           .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
           .replaceAll(RegExp(r'^-|-$'), '');
-      final suffix = _generateCodeSuffix();
-      _codeController.text = slug.isEmpty ? '' : '$slug-$suffix';
+      // Reuse the same suffix that was generated in initState to avoid
+      // generating a new random suffix on every keystroke.
+      final currentCodeSuffix = _codeController.text.contains('-')
+          ? _codeController.text.split('-').last
+          : _generateCodeSuffix();
+      _codeController.text = slug.isEmpty ? '' : '$slug-$currentCodeSuffix';
     }
     // Auto-generate username from family name
     if (_usernameController.text.isEmpty ||
@@ -90,14 +98,27 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
           .replaceAll(RegExp(r'[^a-z0-9_]'), '')
           .replaceAll(RegExp(r'^[^a-z]+'), '');
       // ✅ FIX: append 4-char suffix to guarantee uniqueness
-      final suffix = _generateCodeSuffix();
-      final username = base.isEmpty ? 'family-$suffix' : '$base$suffix';
+      // Reuse the same suffix so it doesn't change on every keystroke
+      final currentSuffix = _usernameController.text.length >= 4
+          ? _usernameController.text.substring(_usernameController.text.length - 4)
+          : _generateCodeSuffix();
+      final username = base.isEmpty ? 'family$currentSuffix' : '$base$currentSuffix';
       _lastAutoUsername = username;
       _usernameController.text = username;
     }
+    // ✅ FIX (BUG-NEXT): Must call setState so the parent rebuilds and
+    // _canProceedStep1 / _canProceedStep3 re-evaluate. Without this,
+    // the Next / Create Family button state never updates after typing.
+    setState(() {});
   }
 
   String _lastAutoUsername = '';
+
+  // ✅ FIX (BUG-NEXT): Listener for Step 3 fields so the Create Family
+  // button state updates as the user types their name.
+  void _onStep3Changed() {
+    setState(() {});
+  }
 
   Future<void> _pickAvatarImage() async {
     final picker = ImagePicker();

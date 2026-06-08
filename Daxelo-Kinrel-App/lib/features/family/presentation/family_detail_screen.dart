@@ -867,10 +867,22 @@ class _GraphTabState extends ConsumerState<_GraphTab> {
           ),
         ),
 
+        // ✅ FIX: Add Member button in top-right so users can add members
+        // even when the graph is already populated.
+        Positioned(
+          top: 12,
+          right: 56,
+          child: _ToolbarButton(
+            icon: Icons.person_add_rounded,
+            tooltip: 'Add Member',
+            onTap: () => AddPersonSheet.show(context, familyId: familyId),
+          ),
+        ),
+
         // Full-screen graph button
         Positioned(
           top: 60,
-          right: 12,
+          right: 56,
           child: _ToolbarButton(
             icon: Icons.fullscreen_rounded,
             tooltip: 'Full Screen Graph',
