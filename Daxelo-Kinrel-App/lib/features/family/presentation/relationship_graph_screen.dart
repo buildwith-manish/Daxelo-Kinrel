@@ -728,19 +728,15 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
         actions: [
           // ✅ FIX: Add Member button in top-right corner so users can
           // add members even when the graph is already populated.
-          detailAsync.whenData((detail) {
-            if (detail != null && detail.members.isNotEmpty) {
-              return IconButton(
-                icon: const Icon(Icons.person_add_rounded, size: 22),
-                onPressed: () => AddPersonSheet.show(
-                  context,
-                  familyId: widget.familyId,
-                ),
-                tooltip: 'Add Member',
-              );
-            }
-            return const SizedBox.shrink();
-          }),
+          if (detailAsync.valueOrNull?.members.isNotEmpty ?? false)
+            IconButton(
+              icon: const Icon(Icons.person_add_rounded, size: 22),
+              onPressed: () => AddPersonSheet.show(
+                context,
+                familyId: widget.familyId,
+              ),
+              tooltip: 'Add Member',
+            ),
           IconButton(
             icon: const Icon(Icons.zoom_in, size: 22),
             onPressed: _zoomIn,
