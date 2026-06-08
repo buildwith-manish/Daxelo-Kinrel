@@ -1224,9 +1224,18 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
     // Use combined provider: real members + pending (optimistic) members
     final combinedMembers = ref.watch(combinedMembersProvider(widget.familyId));
 
-    // Watch memberships provider to get role info
+    // Watch memberships provider to get collaborator info with user profiles
     final membershipsAsync = ref.watch(familyMembershipsProvider(widget.familyId));
     final memberships = membershipsAsync.valueOrNull ?? [];
+    final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+    final family = widget.detail.family;
+    final isCreator = family.createdBy != null && family.createdBy == currentUserId;
+
+    // Determine if current user is admin
+    final currentUserMembership = memberships
+        .where((m) => m.userId == currentUserId)
+        .firstOrNull;
+    final isAdmin = isCreator || (currentUserMembership?.isAdmin ?? false);
 
     final activeMembers = combinedMembers
         .where((p) => p.deletedAt == null)
@@ -1349,53 +1358,81 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                     : 'links',
                 color: KinrelColors.gold,
               ),
+              const SizedBox(width: 10),
+              DKStatChip(
+                icon: Icons.group_outlined,
+                value: '${memberships.length}',
+                label: memberships.length == 1 ? 'collaborator' : 'collaborators',
+                color: KinrelColors.blue,
+              ),
             ],
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
 
-        // Collaborators section with role chips
+        // ── Collaborators Section ────────────────────────────────────
         if (memberships.isNotEmpty) ...[
+          _CollaboratorsHeader(
+            count: memberships.length,
+            isAdmin: isAdmin,
+            onInviteTap: () => context.push('/family-invite/${widget.familyId}'),
+          ),
+          const SizedBox(height: 8),
+          ...memberships.map((membership) => _CollaboratorCard(
+            membership: membership,
+            isCurrentUser: membership.userId == currentUserId,
+            canManage: isAdmin && membership.userId != currentUserId,
+            familyId: widget.familyId,
+            isCreator: isCreator,
+            onRoleChanged: () {
+              ref.invalidate(familyMembershipsProvider(widget.familyId));
+            },
+            onRemoved: () {
+              ref.invalidate(familyMembershipsProvider(widget.familyId));
+              ref.invalidate(familyDetailProvider(widget.familyId));
+            },
+          )),
+          Divider(
+            color: KinrelColors.border,
+            height: 24,
+            indent: KinrelSpacing.base,
+            endIndent: KinrelSpacing.base,
+          ),
+        ] else ...[
+          // No collaborators yet — show invite CTA
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.group_outlined,
-                      size: 14,
-                      color: KinrelColors.textSilver,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Team Members',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: KinrelColors.textSilver,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: memberships.map((membership) {
-                    return _RoleChip(
-                      label: membership.displayRole,
-                      role: membership.role,
-                    );
-                  }).toList(),
-                ),
-              ],
+            child: _InviteCollaboratorCTA(
+              onTap: () => context.push('/family-invite/${widget.familyId}'),
             ),
           ),
           const SizedBox(height: 12),
         ],
+
+        // Tree members section label
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+          child: Row(
+            children: [
+              Icon(
+                Icons.account_tree_outlined,
+                size: 14,
+                color: KinrelColors.textSilver,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Family Tree Members',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textSilver,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
 
         // Member list
         Expanded(
@@ -1440,6 +1477,607 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
                 ),
         ),
       ],
+    );
+  }
+}
+
+// ── Collaborators Header ──────────────────────────────────────────
+
+class _CollaboratorsHeader extends StatelessWidget {
+  const _CollaboratorsHeader({
+    required this.count,
+    required this.isAdmin,
+    required this.onInviteTap,
+  });
+
+  final int count;
+  final bool isAdmin;
+  final VoidCallback onInviteTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+      child: Row(
+        children: [
+          Icon(
+            Icons.group_outlined,
+            size: 14,
+            color: KinrelColors.textSilver,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'Collaborators',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: KinrelColors.textSilver,
+            ),
+          ),
+          const Spacer(),
+          if (isAdmin)
+            GestureDetector(
+              onTap: onInviteTap,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.person_add_outlined,
+                    size: 14,
+                    color: KinrelColors.purple,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Invite',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: KinrelColors.purple,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Collaborator Card ────────────────────────────────────────────
+
+class _CollaboratorCard extends ConsumerWidget {
+  const _CollaboratorCard({
+    required this.membership,
+    required this.isCurrentUser,
+    required this.canManage,
+    required this.familyId,
+    required this.isCreator,
+    required this.onRoleChanged,
+    required this.onRemoved,
+  });
+
+  final FamilyMembership membership;
+  final bool isCurrentUser;
+  final bool canManage;
+  final String familyId;
+  final bool isCreator;
+  final VoidCallback onRoleChanged;
+  final VoidCallback onRemoved;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = membership.user;
+    final displayName = user?.displayName ?? 'User';
+    final initials = user?.initials ?? '?';
+    final avatarUrl = user?.avatarUrl;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: KinrelSpacing.base,
+        vertical: 2,
+      ),
+      child: InkWell(
+        onTap: canManage ? () => _showMemberActions(context, ref) : null,
+        borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 10,
+          ),
+          decoration: BoxDecoration(
+            color: DKColors.cardColor(context),
+            borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+            border: Border.all(
+              color: isCurrentUser
+                  ? KinrelColors.purple.withValues(alpha: 0.3)
+                  : KinrelColors.border,
+            ),
+          ),
+          child: Row(
+            children: [
+              // Avatar
+              DKAvatar(
+                initials: initials,
+                size: DKAvatarSize.md,
+                backgroundColor: _roleColor(membership.role),
+                imageUrl: avatarUrl,
+              ),
+              const SizedBox(width: 12),
+
+              // Name + role
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            displayName,
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.displayFont,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: DKColors.textPrimary(context),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isCurrentUser) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: KinrelColors.purple.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'You',
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: KinrelColors.purple,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        _RoleBadge(role: membership.role),
+                        if (user?.username != null) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            '@${user!.username}',
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 11,
+                              color: KinrelColors.textDim,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Manage button (admin only, not for self)
+              if (canManage)
+                Icon(
+                  Icons.more_horiz,
+                  size: 20,
+                  color: KinrelColors.textSilver,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _roleColor(String role) {
+    switch (role.toLowerCase()) {
+      case 'admin':
+      case 'owner':
+        return KinrelColors.purple;
+      case 'editor':
+        return const Color(0xFF2196F3); // Blue
+      case 'viewer':
+        return KinrelColors.textSilver;
+      case 'member':
+      default:
+        return KinrelColors.blue;
+    }
+  }
+
+  void _showMemberActions(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: DKColors.cardColor(context),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
+        ),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(KinrelSpacing.base),
+              child: Row(
+                children: [
+                  DKAvatar(
+                    initials: membership.user?.initials ?? '?',
+                    size: DKAvatarSize.md,
+                    backgroundColor: _roleColor(membership.role),
+                    imageUrl: membership.user?.avatarUrl,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          membership.user?.displayName ?? 'User',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.displayFont,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: DKColors.textPrimary(context),
+                          ),
+                        ),
+                        Text(
+                          membership.displayRole,
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 13,
+                            color: KinrelColors.textSilver,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(color: KinrelColors.border, height: 1),
+
+            // Change Role section
+            Padding(
+              padding: const EdgeInsets.all(KinrelSpacing.base),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Change Role',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: KinrelColors.textSilver,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: ['admin', 'editor', 'member', 'viewer'].map((role) {
+                      final isSelected = membership.role.toLowerCase() == role;
+                      return GestureDetector(
+                        onTap: isSelected
+                            ? null
+                            : () async {
+                                Navigator.pop(ctx);
+                                await _changeRole(context, ref, role);
+                              },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? KinrelColors.purple.withValues(alpha: 0.15)
+                                : KinrelColors.darkElevated,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isSelected
+                                  ? KinrelColors.purple
+                                  : KinrelColors.border,
+                            ),
+                          ),
+                          child: Text(
+                            role[0].toUpperCase() + role.substring(1),
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 12,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                              color: isSelected
+                                  ? KinrelColors.purple
+                                  : KinrelColors.textSilver,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+            Divider(color: KinrelColors.border, height: 1),
+
+            // Remove member option (only for admins, not for other admins unless creator)
+            if (membership.role.toLowerCase() != 'admin' || isCreator) ...[
+              _QuickActionTile(
+                icon: Icons.person_remove_outlined,
+                label: 'Remove from Family',
+                isDestructive: true,
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _removeMember(context, ref);
+                },
+              ),
+            ],
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _changeRole(BuildContext context, WidgetRef ref, String newRole) async {
+    try {
+      final dio = ref.read(dioProvider);
+      await dio.patch(
+        '/api/families/$familyId/members/${membership.id}/role',
+        data: {'role': newRole},
+      );
+      onRoleChanged();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Role updated to ${newRole[0].toUpperCase()}${newRole.substring(1)}'),
+            backgroundColor: KinrelColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update role: ${e.toString().split('\n').first}'),
+            backgroundColor: KinrelColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _removeMember(BuildContext context, WidgetRef ref) async {
+    // Confirm before removing
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: DKColors.cardColor(context),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(KinrelRadius.lg),
+        ),
+        title: Text(
+          'Remove ${membership.user?.displayName ?? 'Member'}?',
+          style: TextStyle(
+            fontFamily: KinrelTypography.displayFont,
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: DKColors.textPrimary(context),
+          ),
+        ),
+        content: Text(
+          'They will lose access to this family tree. They can rejoin with a new invite.',
+          style: TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 14,
+            color: DKColors.textSecondary(context),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                color: DKColors.textSecondary(context),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Remove',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.warning,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final dio = ref.read(dioProvider);
+      await dio.delete('/api/families/$familyId/members/${membership.id}');
+      onRemoved();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${membership.user?.displayName ?? 'Member'} removed'),
+            backgroundColor: KinrelColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to remove: ${e.toString().split('\n').first}'),
+            backgroundColor: KinrelColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+}
+
+// ── Role Badge ──────────────────────────────────────────────────
+
+class _RoleBadge extends StatelessWidget {
+  const _RoleBadge({required this.role});
+
+  final String role;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _color;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        _label,
+        style: TextStyle(
+          fontFamily: KinrelTypography.bodyFont,
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  String get _label {
+    switch (role.toLowerCase()) {
+      case 'admin':
+      case 'owner':
+        return 'Admin';
+      case 'editor':
+        return 'Editor';
+      case 'viewer':
+        return 'Viewer';
+      case 'member':
+      default:
+        return 'Member';
+    }
+  }
+
+  Color get _color {
+    switch (role.toLowerCase()) {
+      case 'admin':
+      case 'owner':
+        return KinrelColors.purple;
+      case 'editor':
+        return const Color(0xFF2196F3);
+      case 'viewer':
+        return KinrelColors.textSilver;
+      case 'member':
+      default:
+        return KinrelColors.blue;
+    }
+  }
+}
+
+// ── Invite Collaborator CTA ──────────────────────────────────────
+
+class _InviteCollaboratorCTA extends StatelessWidget {
+  const _InviteCollaboratorCTA({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(KinrelSpacing.base),
+        decoration: BoxDecoration(
+          color: KinrelColors.purple.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+          border: Border.all(
+            color: KinrelColors.purple.withValues(alpha: 0.2),
+            style: BoxStyle.solid,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: KinrelColors.purple.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.person_add_outlined,
+                size: 18,
+                color: KinrelColors.purple,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Invite Collaborators',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: KinrelColors.purple,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Share access with family members to build the tree together',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 12,
+                      color: KinrelColors.textSilver,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              size: 20,
+              color: KinrelColors.purple.withValues(alpha: 0.5),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -748,6 +748,145 @@ export class FamiliesService {
     return { familyId, isPublic: updated.isPublic };
   }
 
+  // ── Member Management ────────────────────────────────────────────────
+
+  /** List all members of a family with user profile data. */
+  async getMembers(userId: string, familyId: string) {
+    await this.requireFamilyMember(userId, familyId);
+
+    const members = await this.prisma.familyMember.findMany({
+      where: { familyId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            avatarUrl: true,
+            username: true,
+          },
+        },
+      },
+      orderBy: [
+        { role: 'desc' }, // admins first
+        { joinedAt: 'asc' },
+      ],
+    });
+
+    return members.map((m) => ({
+      id: m.id,
+      familyId: m.familyId,
+      userId: m.userId,
+      role: m.role,
+      joinedAt: m.joinedAt?.toISOString(),
+      user: m.user ? {
+        id: m.user.id,
+        name: m.user.name,
+        email: m.user.email,
+        avatarUrl: m.user.avatarUrl,
+        username: m.user.username,
+      } : null,
+    }));
+  }
+
+  /** Update a member's role in the family — admin only. */
+  async updateMemberRole(userId: string, familyId: string, memberId: string, newRole: string) {
+    await this.requireFamilyRole(userId, familyId, 'admin');
+
+    const validRoles = ['viewer', 'member', 'editor', 'admin'];
+    if (!validRoles.includes(newRole)) {
+      throw new BadRequestException(`Invalid role. Must be one of: ${validRoles.join(', ')}`);
+    }
+
+    const targetMember = await this.prisma.familyMember.findUnique({
+      where: { id: memberId },
+    });
+
+    if (!targetMember || targetMember.familyId !== familyId) {
+      throw new NotFoundException('Member not found in this family');
+    }
+
+    // Prevent self-demotion for sole admin
+    if (targetMember.userId === userId && targetMember.role === 'admin' && newRole !== 'admin') {
+      const adminCount = await this.prisma.familyMember.count({
+        where: { familyId, role: 'admin' },
+      });
+      if (adminCount <= 1) {
+        throw new BadRequestException('Cannot demote yourself as the only admin. Transfer admin to another member first.');
+      }
+    }
+
+    const updated = await this.prisma.familyMember.update({
+      where: { id: memberId },
+      data: { role: newRole },
+    });
+
+    this.gateway.emitToFamily(familyId, 'member:role_updated', {
+      id: memberId,
+      updatedAt: new Date().toISOString(),
+      type: 'member:role_updated',
+      familyId,
+      userId: targetMember.userId,
+      oldRole: targetMember.role,
+      newRole,
+    });
+
+    return {
+      id: updated.id,
+      familyId: updated.familyId,
+      userId: updated.userId,
+      role: updated.role,
+      joinedAt: updated.joinedAt?.toISOString(),
+    };
+  }
+
+  /** Remove a member from the family — admin only. */
+  async removeMember(userId: string, familyId: string, memberId: string) {
+    await this.requireFamilyRole(userId, familyId, 'admin');
+
+    const targetMember = await this.prisma.familyMember.findUnique({
+      where: { id: memberId },
+    });
+
+    if (!targetMember || targetMember.familyId !== familyId) {
+      throw new NotFoundException('Member not found in this family');
+    }
+
+    // Cannot remove yourself — use leave family endpoint
+    if (targetMember.userId === userId) {
+      throw new BadRequestException('Cannot remove yourself. Use the leave family option instead.');
+    }
+
+    // Cannot remove another admin unless you're the family creator
+    if (targetMember.role === 'admin') {
+      const family = await this.prisma.family.findUnique({ where: { id: familyId } });
+      if (!family || family.createdBy !== userId) {
+        throw new ForbiddenException('Only the family creator can remove other admins');
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.familyMember.delete({ where: { id: memberId } });
+      await tx.family.update({
+        where: { id: familyId },
+        data: {
+          memberCount: { decrement: 1 },
+          lastActivityAt: new Date(),
+        },
+      });
+    });
+
+    this.gateway.emitToFamily(familyId, 'member:removed', {
+      id: memberId,
+      updatedAt: new Date().toISOString(),
+      type: 'member:removed',
+      familyId,
+      userId: targetMember.userId,
+    });
+
+    return { removed: true, familyId, userId: targetMember.userId };
+  }
+
   // ── Helper Methods ───────────────────────────────────────────────────
 
   /** Verifies the user is a member of the family, throws if not. */

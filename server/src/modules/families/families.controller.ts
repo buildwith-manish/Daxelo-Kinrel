@@ -60,6 +60,16 @@ export class FamiliesController {
     return this.familiesService.create(userId, dto);
   }
 
+  @Get(':familyId/members')
+  @ApiOperation({ summary: 'Get all members of a family with user profiles' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Returns list of family members' })
+  async getMembers(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+  ) {
+    return this.familiesService.getMembers(userId, familyId);
+  }
+
   @Get(':familyId')
   @ApiOperation({ summary: 'Get a family by ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Returns the family details' })
@@ -173,6 +183,30 @@ export class FamiliesController {
     @Body() dto: JoinByTokenDto,
   ) {
     return this.familiesService.joinFamily(userId, dto.token);
+  }
+
+  // ── Member Management Endpoints ──────────────────────────────────────
+
+  @Patch(':familyId/members/:memberId/role')
+  @ApiOperation({ summary: 'Update a member role in the family (admin only)' })
+  async updateMemberRole(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+    @Param('memberId') memberId: string,
+    @Body() body: { role: string },
+  ) {
+    return this.familiesService.updateMemberRole(userId, familyId, memberId, body.role);
+  }
+
+  @Delete(':familyId/members/:memberId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove a member from the family (admin only)' })
+  async removeMember(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+    @Param('memberId') memberId: string,
+  ) {
+    return this.familiesService.removeMember(userId, familyId, memberId);
   }
 
   @Patch(':familyId/visibility')

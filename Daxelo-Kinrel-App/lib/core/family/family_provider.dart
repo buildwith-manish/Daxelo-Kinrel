@@ -331,7 +331,51 @@ class FamilyDetail {
   final List<FamilyRelationship> relationships;
 }
 
-/// Represents a family membership (FamilyMember row) with user ID and role.
+/// Lightweight user profile embedded in FamilyMembership from the API.
+class MemberUserProfile {
+  const MemberUserProfile({
+    required this.id,
+    this.name,
+    this.email,
+    this.avatarUrl,
+    this.username,
+  });
+
+  factory MemberUserProfile.fromJson(Map<String, dynamic> json) {
+    return MemberUserProfile(
+      id: json['id']?.toString() ?? '',
+      name: json['name'] as String?,
+      email: json['email'] as String?,
+      avatarUrl: json['avatarUrl'] as String?,
+      username: json['username'] as String?,
+    );
+  }
+
+  final String id;
+  final String? name;
+  final String? email;
+  final String? avatarUrl;
+  final String? username;
+
+  /// Display name: prefers name, then username, then email prefix, then 'Unknown'.
+  String get displayName {
+    if (name != null && name!.isNotEmpty) return name!;
+    if (username != null && username!.isNotEmpty) return '@$username';
+    if (email != null && email!.isNotEmpty) return email!.split('@').first;
+    return 'Unknown';
+  }
+
+  /// Initials for avatar (up to 2 characters).
+  String get initials {
+    final dn = displayName;
+    if (dn == 'Unknown') return '?';
+    final parts = dn.split(' ').where((p) => p.isNotEmpty).toList();
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    return dn[0].toUpperCase();
+  }
+}
+
+/// Represents a family membership (FamilyMember row) with user ID, role, and optional user profile.
 class FamilyMembership {
   const FamilyMembership({
     required this.id,
@@ -339,6 +383,7 @@ class FamilyMembership {
     required this.userId,
     this.role = 'member',
     this.joinedAt,
+    this.user,
   });
 
   factory FamilyMembership.fromJson(Map<String, dynamic> json) {
@@ -350,6 +395,9 @@ class FamilyMembership {
       joinedAt: json['joinedAt'] != null
           ? DateTime.tryParse(json['joinedAt'].toString())
           : null,
+      user: json['user'] != null
+          ? MemberUserProfile.fromJson(json['user'] as Map<String, dynamic>)
+          : null,
     );
   }
 
@@ -358,6 +406,9 @@ class FamilyMembership {
   final String userId;
   final String role;
   final DateTime? joinedAt;
+
+  /// User profile from the API (may be null if fetched from Supabase fallback).
+  final MemberUserProfile? user;
 
   /// Display-friendly role label (capitalized).
   String get displayRole {
