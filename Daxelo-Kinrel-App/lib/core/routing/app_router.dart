@@ -1151,7 +1151,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           key: state.pageKey,
           child: FollowersScreen(
             userId: state.pathParameters['userId']!,
-            initialTab: state.uri.queryParameters['tab'] ?? 'followers',
+            initialTab: state.uri.queryParameters['tab'] == 'following' ? 1 : 0,
           ),
         ),
       ),
@@ -1168,7 +1168,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           key: state.pageKey,
           child: FamilyInviteScreen(
             familyId: state.pathParameters['familyId']!,
-            familyName: state.uri.queryParameters['familyName'],
+            familyName: state.uri.queryParameters['familyName'] ?? 'Family',
           ),
         ),
       ),
