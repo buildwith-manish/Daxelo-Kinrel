@@ -460,8 +460,23 @@ export class GraphService {
 
   /** Returns the relationship path between two persons after verifying family membership. */
   async getPathWithAuth(userId: string, familyId: string, fromPersonId: string, toPersonId: string) {
-    await this.requireFamilyMember(userId, familyId);
-    return this.getPath(familyId, fromPersonId, toPersonId);
+    const membership = await this.requireFamilyMember(userId, familyId);
+    const result = await this.getPath(familyId, fromPersonId, toPersonId);
+
+    // Strip contact details for non-members (read-only access)
+    if (membership === null) {
+      result.path = result.path.map((p: any) => {
+        const stripped = { ...p };
+        const contactFields = ['email', 'phone', 'address', 'bloodGroup', 'anniversaryDate'];
+        for (const field of contactFields) {
+          if (field in stripped) stripped[field] = null;
+        }
+        return stripped;
+      });
+      (result as any).readOnly = true;
+    }
+
+    return result;
   }
 
   /** Returns all persons and relationships for a family as flat lists, with Redis caching. */
