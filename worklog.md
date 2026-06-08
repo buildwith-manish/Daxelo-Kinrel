@@ -531,3 +531,29 @@ Stage Summary:
 - Socket events emitted for follow and family join actions
 - Sparq expiry cleanup cron job added
 - TypeScript compiles cleanly
+
+---
+Task ID: 2
+Agent: main
+Task: Phase 2 — Backend NestJS Modules & Services
+
+Work Log:
+- Reviewed entire codebase to assess existing implementations vs spec requirements
+- Found Follow module already fully implemented (controller, service, DTOs, module) with all endpoints
+- Found Sparq module already fully implemented (controller, service, DTOs, module, @Cron expiry job)
+- Found Family invite endpoints already added to families module (generate, revoke, preview, join, toggle visibility, leave)
+- Found Privacy endpoints already added to users module (get settings, update isPrivate, update isFamilyGraphPublic)
+- Found Graph privacy enforcement already implemented (requireFamilyMember checks isPublic, strips contact details)
+- Found Socket events already in place (follow:request, follow:accepted, follow:rejected, follow:new, family:member_joined, sparq:new)
+- Identified missing piece: home feed endpoint that combines posts from followed users and joined families
+- Added getHomeFeed method to TimelineService combining family posts from user's memberships + followed users' public families
+- Updated TimelineController: added GET /feed endpoint with @CurrentUser, added Swagger decorators, preserved family timeline routes
+- Enhanced graph.service.ts: getPathWithAuth now strips contact details for non-members on public families (was missing)
+- Verified TypeScript compilation passes with zero errors
+- Committed and pushed to main
+
+Stage Summary:
+- All Phase 2 spec items now complete (items 4-11)
+- New GET /feed endpoint returns combined posts from joined families + followed users' public families
+- Graph path endpoint now properly enforces read-only mode for non-members
+- Key files modified: timeline.service.ts, timeline.controller.ts, graph.service.ts

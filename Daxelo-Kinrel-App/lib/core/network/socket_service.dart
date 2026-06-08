@@ -24,6 +24,8 @@ import '../database/sync/cache_invalidation.dart';
 import '../services/supabase_service.dart';
 import '../networking/dio_client.dart';
 import '../family/family_provider.dart';
+import '../../features/social/data/providers/follow_provider.dart';
+import '../../features/social/data/providers/sparq_provider.dart';
 
 // ── Socket Status Enum ──────────────────────────────────────────────
 
@@ -325,6 +327,62 @@ class SocketService {
     });
     socket.on('error', (data) {
       debugPrint('[SocketService] Error: $data');
+    });
+
+    // ── Social System Listeners ─────────────────────────────────────
+    socket.on('follow:request', (data) {
+      debugPrint('[SocketService] Follow request received: $data');
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        _ref.read(followProvider.notifier).onFollowRequestReceived(json);
+      } catch (e) {
+        debugPrint('[SocketService] Error handling follow:request: $e');
+      }
+    });
+    socket.on('follow:accepted', (data) {
+      debugPrint('[SocketService] Follow accepted: $data');
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        final userId = json['followerId'] as String? ?? '';
+        if (userId.isNotEmpty) {
+          _ref.read(followProvider.notifier).onFollowAccepted(userId);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] Error handling follow:accepted: $e');
+      }
+    });
+    socket.on('follow:new', (data) {
+      debugPrint('[SocketService] New follower: $data');
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        final userId = json['followerId'] as String? ?? '';
+        if (userId.isNotEmpty) {
+          _ref.read(followProvider.notifier).onNewFollower(userId);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] Error handling follow:new: $e');
+      }
+    });
+    socket.on('follow:rejected', (data) {
+      debugPrint('[SocketService] Follow rejected: $data');
+    });
+    socket.on('family:member_joined', (data) {
+      debugPrint('[SocketService] Family member joined: $data');
+      try {
+        // Invalidate family list to reflect updated member count
+        _ref.invalidate(familyListProvider);
+      } catch (e) {
+        debugPrint('[SocketService] Error handling family:member_joined: $e');
+      }
+    });
+    socket.on('sparq:new', (data) {
+      debugPrint('[SocketService] New Sparq: $data');
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        _ref.read(sparqProvider.notifier).onNewSparq(json);
+      } catch (e) {
+        debugPrint('[SocketService] Error handling sparq:new: $e');
+      }
     });
   }
 

@@ -80,6 +80,14 @@ import '../../features/profile/presentation/my_families_screen.dart';
 import '../../features/profile/presentation/invitations_screen.dart';
 import '../../features/profile/presentation/blocked_users_screen.dart';
 import '../../features/profile/presentation/relations_screen.dart';
+import '../../features/social/presentation/screens/sparq_viewer_screen.dart';
+import '../../features/social/presentation/screens/sparq_create_screen.dart';
+import '../../features/social/presentation/screens/sparq_viewers_screen.dart';
+import '../../features/social/presentation/screens/followers_screen.dart';
+import '../../features/social/presentation/screens/follow_requests_screen.dart';
+import '../../features/social/presentation/screens/family_invite_screen.dart';
+import '../../features/social/presentation/screens/join_family_preview_screen.dart';
+import '../../features/social/presentation/screens/privacy_settings_screen.dart';
 import '../../features/ai_chat/presentation/ai_chat_screen.dart';
 import '../../features/voice_search/presentation/voice_search_screen.dart';
 import '../../features/festival_cards/presentation/festival_cards_screen.dart';
@@ -368,6 +376,20 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
   final isPublicLegal =
       currentLocation == '/privacy' ||
       currentLocation == '/terms';
+
+  // ── Deep link: save join token for post-login redirect ────────────
+  // If an unauthenticated user hits /join/:token, save the token
+  // and redirect to sign-in. After login, they'll be redirected to
+  // the join preview screen automatically.
+  if (currentLocation.startsWith('/join/') && !currentLocation.contains('kinFamilyId')) {
+    final token = currentLocation.replaceFirst('/join/', '');
+    if (token.isNotEmpty) {
+      try {
+        final deepLinkService = ref.read(deepLinkServiceProvider);
+        deepLinkService.setPendingDeepLink(currentLocation);
+      } catch (_) {}
+    }
+  }
 
   // ── Determine auth state with multiple fallback checks ────────────
   bool isAuthenticated = false;
@@ -980,6 +1002,61 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/profile/premium',
         pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: const PaywallScreen()),
+      ),
+
+      // ── Social System Routes ─────────────────────────────────────────
+      GoRoute(
+        path: '/sparq/viewer/:userId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: SparqViewerScreen(userId: state.pathParameters['userId']!),
+        ),
+      ),
+      GoRoute(
+        path: '/sparq/create',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const SparqCreateScreen()),
+      ),
+      GoRoute(
+        path: '/sparq/:sparqId/viewers',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: SparqViewersScreen(sparqId: state.pathParameters['sparqId']!),
+        ),
+      ),
+      GoRoute(
+        path: '/followers',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FollowersScreen(initialTab: state.uri.queryParameters['tab'] == 'following' ? 1 : 0),
+        ),
+      ),
+      GoRoute(
+        path: '/follow-requests',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const FollowRequestsScreen()),
+      ),
+      GoRoute(
+        path: '/family/:id/invite',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilyInviteScreen(
+            familyId: state.pathParameters['id']!,
+            familyName: state.uri.queryParameters['name'] ?? 'Family',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/join/:token',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: JoinFamilyPreviewScreen(token: state.pathParameters['token']!),
+        ),
+      ),
+      GoRoute(
+        path: '/privacy-settings',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const PrivacySettingsScreen()),
       ),
     ],
   );

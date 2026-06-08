@@ -262,9 +262,9 @@ class DeepLinkRoute {
         if (isValidKinFamilyId(kinId)) {
           return '/join-family?kinFamilyId=$kinId';
         }
-        // Invalid KIN ID format — still navigate but without pre-fill
-        debugPrint('⚠️ Deep link KIN ID invalid format: $id');
-        return '/join-family';
+        // Non-KIN ID format: treat as invite token → join preview screen
+        debugPrint('🔗 Deep link /join/ token (non-KIN): $id → /join/$id');
+        return '/join/$id';
       default:
         return '$path/$id';
     }

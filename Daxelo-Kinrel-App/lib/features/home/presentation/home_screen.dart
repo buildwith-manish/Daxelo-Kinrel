@@ -30,6 +30,7 @@ import '../../feed/providers/feed_provider.dart';
 import '../../stories/providers/stories_provider.dart';
 import '../../stories/presentation/stories_viewer_screen.dart';
 import '../../stories/presentation/add_story_sheet.dart';
+import '../../social/presentation/widgets/sparq_feed_row.dart';
 import '../../../core/utils/accessibility_utils.dart';
 
 // ── Color shortcuts for the Command Center ──────────────────────
@@ -217,7 +218,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     .fadeIn(duration: 350.ms, delay: 50.ms)
                     .slideX(begin: -0.05, end: 0),
 
-                SizedBox(height: 20),
+                SizedBox(height: 16),
+
+                // Sparq Feed Row (24-hour ephemeral content)
+                SparqFeedRow()
+                    .animate()
+                    .fadeIn(duration: 350.ms, delay: 60.ms)
+                    .slideY(begin: -0.05, end: 0),
+
+                SizedBox(height: 16),
 
                 // Stories Row (Instagram-style circles)
                 _StoriesRow(familyId: primaryFamily.id)
