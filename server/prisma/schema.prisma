@@ -16,6 +16,26 @@ datasource db {
 
 // ── Enums ──────────────────────────────────────────────────────────────
 
+enum Gender {
+  male
+  female
+  other
+  prefer_not_to_say
+}
+
+enum UserRole {
+  user
+  admin
+  agent
+}
+
+enum SupportTier {
+  basic
+  standard
+  premium
+  vip
+}
+
 enum SubscriptionPlan {
   free
   pro_monthly
@@ -65,6 +85,25 @@ enum SubscriptionStatus {
   past_due
 }
 
+enum FollowStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum SparqType {
+  IMAGE
+  VIDEO
+  TEXT
+  VOICE
+}
+
+enum SparqAudience {
+  PUBLIC
+  FAMILY_ONLY
+}
+
+
 // ── Core Models ──────────────────────────────────────────────────────
 
 model User {
@@ -79,15 +118,18 @@ model User {
   photoFull         String? // Avatar full: w_400,h_400,c_fill,q_auto,f_webp
   bio               String? // Short biography
   dateOfBirth       DateTime? // User's date of birth
-  gender            String? // male, female, other, prefer_not_to_say
+  gender            Gender?
   profileVisibility String    @default("public") // public, private, connections_only
   invitePermission  String    @default("anyone") // anyone, connections, nobody
   authProvider      String    @default("email") // email, google, apple, phone
   twoFactorEnabled  Boolean   @default(false) // Whether 2FA is enabled
   twoFactorSecret   String? // TOTP base32 secret for 2FA
+  backupCodes       String[]  @default([]) // Hashed backup codes for 2FA recovery
   preferredLanguage String    @default("en")
-  role              String    @default("user") // user, admin, agent
+  role              UserRole  @default(user)
   phone             String?
+  isPrivate         Boolean   @default(false)
+  isFamilyGraphPublic Boolean @default(true)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -125,6 +167,13 @@ model User {
   blockedUsers         BlockedUser[]            @relation("Blocker")
   blockedBy            BlockedUser[]            @relation("Blocked")
   stories              Story[]
+  followers            Follow[]  @relation("UserFollowers")
+  following            Follow[]  @relation("UserFollowing")
+  sparqs               Sparq[]
+  sparqViews           SparqView[]
+  createdInvites       FamilyInvite[]
+
+  @@index([phone])
 }
 
 // ── Blocked Users (replaces JSON blockedUserIds anti-pattern) ────────
@@ -150,7 +199,7 @@ model Subscription {
   user        User               @relation(fields: [userId], references: [id])
   plan        SubscriptionPlan   @default(free)
   status      SubscriptionStatus @default(active)
-  supportTier String             @default("basic") // basic, standard, premium, vip
+  supportTier SupportTier        @default(basic)
   startDate   DateTime           @default(now())
   endDate     DateTime?
   createdAt   DateTime           @default(now())
@@ -290,7 +339,7 @@ model SupportMessage {
 model SupportEscalation {
   id       String        @id @default(cuid())
   ticketId String
-  ticket   SupportTicket @relation(fields: [ticketId], references: [id])
+  ticket   SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   fromAgentId String?
   toAgentId   String?
@@ -305,11 +354,12 @@ model SupportEscalation {
 model SupportCSAT {
   id       String        @id @default(cuid())
   ticketId String        @unique
-  ticket   SupportTicket @relation(fields: [ticketId], references: [id])
+  ticket   SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 
   rating    Int // 1-5
   comment   String?
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ── Pack 02: SLA Tracking ────────────────────────────────────────────
@@ -317,7 +367,7 @@ model SupportCSAT {
 model SLATracking {
   id       String         @id @default(cuid())
   ticketId String?
-  ticket   SupportTicket? @relation(fields: [ticketId], references: [id])
+  ticket   SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
 
   // SLA type
   type String // first_response, update, resolution, uptime
@@ -358,6 +408,7 @@ model OnCallSchedule {
   compensationPaid Boolean @default(false)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, weekStart, role])
   @@index([weekStart, role])
@@ -390,7 +441,7 @@ model Incident {
 
   // Author
   authorId String
-  author   User   @relation("IncidentAuthor", fields: [authorId], references: [id])
+  author   User   @relation("IncidentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
 
   // Post-mortem
   postMortem PostMortem?
@@ -535,17 +586,18 @@ model Family {
   updatedAt       DateTime @updatedAt
 
   // ── Graph-First Redesign Fields ──
-  familyCode      String   @unique @default(cuid()) // Shareable family ID like Instagram handle
-  kinFamilyId     String?  @unique // Human-readable Family ID: KIN-AB12CD34 (Feature 1: Family ID System)
-  username        String?  @unique // Unique @username for display (e.g. @sharmw)
+  familyCode      String    @unique @default(cuid()) // Shareable family ID like Instagram handle
+  kinFamilyId     String?   @unique // Human-readable Family ID: KIN-AB12CD34 (Feature 1: Family ID System)
+  username        String?   @unique // Unique @username for display (e.g. @sharmw) — safe on PostgreSQL: multiple NULLs allowed in UNIQUE constraint
   avatarUrl       String?
   region          String?
-  privacyMode     String   @default("private") // private/invite/link
-  isOnboarded     Boolean  @default(false)
+  privacyMode     String    @default("private") // private/invite/link
+  isPublic        Boolean   @default(false)
+  isOnboarded     Boolean   @default(false)
   anchorPersonId  String? // The primary household anchor person
-  memberCount     Int      @default(0)
-  generationCount Int      @default(1)
-  lastActivityAt  DateTime @default(now())
+  memberCount     Int       @default(0)
+  generationCount Int       @default(1)
+  lastActivityAt  DateTime  @default(now())
   createdBy       String? // User ID who created this family
   deletedAt       DateTime? // Soft-delete: archived for 30 days before permanent deletion
 
@@ -563,6 +615,7 @@ model Family {
   @@index([username])
   @@index([kinFamilyId])
   @@index([deletedAt])
+  @@index([createdBy])
 }
 
 model FamilyMember {
@@ -572,7 +625,7 @@ model FamilyMember {
   role     String @default("member") // owner, admin, member, viewer
 
   family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   joinedAt DateTime @default(now())
 
@@ -581,6 +634,7 @@ model FamilyMember {
   @@unique([familyId, userId])
   @@index([familyId])
   @@index([userId])
+  @@index([familyId, role])
 }
 
 model Person {
@@ -605,8 +659,8 @@ model Person {
   photoThumb      String? // Photo thumb: w_80,h_80,c_fill,q_auto,f_auto
   photoCard       String? // Photo card: w_150,h_150,c_fill,q_auto,f_auto
   photoFull       String? // Photo full: w_400,h_400,c_fill,q_auto,f_webp
-  gender          String? // male, female, other
-  username        String? // Unique @username for display
+  gender          Gender?
+  username        String? // Unique @username for display — enforced at application level for non-null values; see @@index below
 
   // ── Full Member Profile Fields ──
   bloodGroup      String? // A+, A-, B+, B-, AB+, AB-, O+, O-
@@ -636,6 +690,7 @@ model Person {
   @@index([username])
   @@index([familyId])
   @@index([familyId, deletedAt])
+  @@index([phone])
   @@index([updatedAt])
 }
 
@@ -763,6 +818,7 @@ model Notification {
 
   @@index([userId, read, createdAt])
   @@index([userId, createdAt])
+  @@index([familyId])
 }
 
 // Notification Delivery Tracking (per channel)
@@ -787,8 +843,8 @@ model Invitation {
   token     String @unique
   familyId  String
   inviterId String
-  inviter   User   @relation("InvitationInviter", fields: [inviterId], references: [id])
-  family    Family @relation(fields: [familyId], references: [id])
+  inviter   User   @relation("InvitationInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  family    Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
   // Recipient
   recipientEmail String?
@@ -816,8 +872,10 @@ model Invitation {
   updatedAt  DateTime  @updatedAt
 
   @@index([familyId, status])
+  @@index([recipientEmail])
   @@index([recipientPhone])
   @@index([token])
+  @@index([status])
   @@index([status, createdAt])
 }
 
@@ -1004,7 +1062,7 @@ model FamilyPost {
   authorId  String // Person ID who authored/is the subject of this post
   postType  String // "relationship_discovered" | "member_joined" | "milestone" | "connection_added" | "invite_shared"
   content   String   @default("{}") // JSON string for each post type's flexible data
-  reactions String   @default("{}") // JSON: { heart: 0, comment: 0, isHearted: false, isSaved: false }
+  reactions Json     @default("{}") @db.JsonB // JSON: { heart: 0, comment: 0, isHearted: false, isSaved: false }
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1038,6 +1096,7 @@ model Story {
   @@index([familyId, createdAt])
   @@index([userId, createdAt])
   @@index([expiresAt])
+  @@index([userId, expiresAt])
 }
 
 model StoryView {
@@ -1198,7 +1257,7 @@ model ModerationAction {
 model UserModerationStatus {
   id             String    @id @default(cuid())
   userId         String    @unique
-  user           User      @relation(fields: [userId], references: [id])
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   status         String    @default("active") // active, warned, suspended, banned
   warningCount   Int       @default(0)
   suspendedUntil DateTime?
@@ -1299,7 +1358,7 @@ model CommunityPost {
   community    Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
   familyId     String?
   authorId     String
-  author       User       @relation(fields: [authorId], references: [id])
+  author       User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   type         String     @default("text") // text, photo, event, announcement, milestone, memorial
   title        String?
   body         String
@@ -1340,7 +1399,7 @@ model Comment {
   postId       String
   post         CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
   authorId     String
-  author       User          @relation(fields: [authorId], references: [id])
+  author       User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
   parentId     String? // For threaded replies
   body         String
   isHidden     Boolean       @default(false)
@@ -1582,12 +1641,18 @@ model FamilyInvite {
   maxUses     Int       @default(1)
   currentUses Int       @default(0)
   useCount    Int       @default(0)
+  isActive    Boolean   @default(true)
   expiresAt   DateTime?
   createdAt   DateTime  @default(now())
 
+  createdByUserId String? // User ID who created this invite (for follow system)
+
   family        Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
   inviterMember FamilyMember @relation(fields: [invitedBy], references: [id], onDelete: Cascade)
+  creator       User?        @relation(fields: [createdByUserId], references: [id])
 
+  @@index([familyId])
+  @@index([status])
   @@index([inviteCode])
 }
 
@@ -1772,6 +1837,64 @@ model UsernameChangeLog {
   newUsername String
   changedAt   DateTime @default(now())
 
+  @@index([userId])
   @@index([userId, changedAt])
   @@index([newUsername])
+}
+
+
+// ── Follow System ───────────────────────────────────────────────
+
+model Follow {
+  id          String       @id @default(cuid())
+  followerId  String
+  followingId String
+  status      FollowStatus @default(ACCEPTED)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  follower    User         @relation("UserFollowers", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User         @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+// ── Sparq System ────────────────────────────────────────────────
+
+model Sparq {
+  id           String        @id @default(cuid())
+  userId       String
+  type         SparqType
+  mediaUrl     String?
+  thumbnailUrl String?
+  text         String?
+  bgColor      String?
+  duration     Int?
+  audience     SparqAudience @default(PUBLIC)
+  expiresAt    DateTime
+  createdAt    DateTime      @default(now())
+  viewCount    Int           @default(0)
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  views        SparqView[]
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+  @@index([audience])
+}
+
+model SparqView {
+  id        String   @id @default(cuid())
+  sparqId   String
+  viewerId  String
+  viewedAt  DateTime @default(now())
+
+  sparq     Sparq    @relation(fields: [sparqId], references: [id], onDelete: Cascade)
+  viewer    User     @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@unique([sparqId, viewerId])
+  @@index([sparqId])
+  @@index([viewerId])
 }

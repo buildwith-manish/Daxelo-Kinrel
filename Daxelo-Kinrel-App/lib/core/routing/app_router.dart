@@ -98,6 +98,17 @@ import '../../features/chat/presentation/chat_screen.dart';
 import '../../features/share/presentation/share_screen.dart';
 import '../../features/gamification/presentation/achievements_screen.dart';
 import '../../features/documents/presentation/documents_screen.dart';
+
+// ── Social Feature Imports ──────────────────────────────────────────
+import '../../presentation/screens/sparq/sparq_create_screen.dart';
+import '../../presentation/screens/sparq/sparq_viewer_screen.dart';
+import '../../presentation/screens/sparq/sparq_viewers_screen.dart';
+import '../../presentation/screens/follow/followers_screen.dart';
+import '../../presentation/screens/follow/follow_requests_screen.dart';
+import '../../presentation/screens/family/family_invite_screen.dart';
+import '../../presentation/screens/family/join_family_preview_screen.dart';
+import '../../presentation/screens/settings/privacy_settings_screen.dart';
+import '../../data/models/sparq_model.dart';
 import '../../presentation/screens/invite/invite_screen.dart';
 import '../../presentation/screens/family_tree/family_tree_screen.dart';
 import '../../presentation/screens/premium/paywall_screen.dart';
@@ -980,6 +991,79 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/profile/premium',
         pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: const PaywallScreen()),
+      ),
+
+      // ── Social Feature Routes ────────────────────────────────────────
+
+      // Follow System
+      GoRoute(
+        path: '/users/:userId/followers',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FollowersScreen(
+            userId: state.pathParameters['userId']!,
+            initialTab: state.uri.queryParameters['tab'] ?? 'followers',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/follow-requests',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: FollowRequestsScreen()),
+      ),
+
+      // Family Invite System
+      GoRoute(
+        path: '/families/:familyId/invite',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilyInviteScreen(
+            familyId: state.pathParameters['familyId']!,
+            familyName: state.uri.queryParameters['familyName'],
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/join/:token',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: JoinFamilyPreviewScreen(
+            token: state.pathParameters['token']!,
+          ),
+        ),
+      ),
+
+      // Sparq System (Stories)
+      GoRoute(
+        path: '/sparq/create',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: SparqCreateScreen()),
+      ),
+      GoRoute(
+        path: '/sparq/view',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: SparqViewerScreen(
+            groups: state.extra as List<UserSparqGroup>? ?? [],
+            initialGroupIndex: int.tryParse(state.uri.queryParameters['index'] ?? '0') ?? 0,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/sparq/:sparqId/viewers',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: SparqViewersScreen(
+            sparqId: state.pathParameters['sparqId']!,
+          ),
+        ),
+      ),
+
+      // Privacy Settings
+      GoRoute(
+        path: '/settings/privacy',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: PrivacySettingsScreen()),
       ),
     ],
   );

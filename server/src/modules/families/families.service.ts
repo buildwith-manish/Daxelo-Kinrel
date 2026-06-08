@@ -3,6 +3,8 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  ConflictException,
+  GoneException,
   Inject,
   forwardRef,
   Logger,
@@ -563,6 +565,488 @@ export class FamiliesService {
     });
 
     return { left: true, familyId };
+  }
+
+  // ── Generate Invite ──────────────────────────────────────────────────
+
+  /** Generates an invite link/token for a family. Requires admin role. */
+  async generateInvite(
+    userId: string,
+    familyId: string,
+    body: { expiresInDays?: number; maxUses?: number },
+  ) {
+    await this.requireFamilyRole(userId, familyId, 'admin');
+
+    const family = await this.prisma.family.findUnique({
+      where: { id: familyId },
+    });
+
+    if (!family) {
+      throw new NotFoundException('Family not found');
+    }
+
+    if (family.deletedAt) {
+      throw new BadRequestException('Cannot generate invite for an archived family');
+    }
+
+    // Get the user's FamilyMember record to use as inviter
+    const membership = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId, userId } },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException('You are not a member of this family');
+    }
+
+    const expiresInDays = body.expiresInDays || 7;
+    const maxUses = body.maxUses || 1;
+    const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
+
+    const invite = await this.prisma.familyInvite.create({
+      data: {
+        familyId,
+        invitedBy: membership.id,
+        role: 'member',
+        inviteType: 'link',
+        maxUses,
+        useCount: 0,
+        isActive: true,
+        expiresAt,
+        createdByUserId: userId,
+      },
+    });
+
+    return {
+      id: invite.id,
+      inviteCode: invite.inviteCode,
+      familyId: invite.familyId,
+      role: invite.role,
+      maxUses: invite.maxUses,
+      useCount: invite.useCount,
+      isActive: invite.isActive,
+      expiresAt: invite.expiresAt,
+      createdAt: invite.createdAt,
+      inviteUrl: `/families/join/${invite.inviteCode}`,
+    };
+  }
+
+  // ── Revoke Invites ──────────────────────────────────────────────────
+
+  /** Revokes all active invite links for a family. Requires admin role. */
+  async revokeInvites(userId: string, familyId: string) {
+    await this.requireFamilyRole(userId, familyId, 'admin');
+
+    const result = await this.prisma.familyInvite.updateMany({
+      where: { familyId, isActive: true },
+      data: { isActive: false },
+    });
+
+    return { revoked: true, count: result.count };
+  }
+
+  // ── Preview Join by Token ────────────────────────────────────────────
+
+  /** Returns family preview info for a given invite token (no auth required). */
+  async previewJoinByToken(token: string) {
+    const invite = await this.prisma.familyInvite.findUnique({
+      where: { inviteCode: token },
+      include: {
+        family: {
+          select: {
+            id: true,
+            name: true,
+            avatarUrl: true,
+            description: true,
+            memberCount: true,
+            kinFamilyId: true,
+            username: true,
+          },
+        },
+      },
+    });
+
+    if (!invite) {
+      throw new NotFoundException('Invite not found');
+    }
+
+    if (!invite.isActive) {
+      throw new GoneException({ error: 'INVITE_EXPIRED' });
+    }
+
+    if (invite.expiresAt && invite.expiresAt < new Date()) {
+      throw new GoneException({ error: 'INVITE_EXPIRED' });
+    }
+
+    if (invite.maxUses && invite.useCount >= invite.maxUses) {
+      throw new GoneException({ error: 'INVITE_MAX_USES_REACHED' });
+    }
+
+    return {
+      family: {
+        id: invite.family.id,
+        name: invite.family.name,
+        avatarUrl: invite.family.avatarUrl,
+        description: invite.family.description,
+        memberCount: invite.family.memberCount,
+        kinFamilyId: invite.family.kinFamilyId,
+        username: invite.family.username,
+      },
+      invite: {
+        role: invite.role,
+        expiresAt: invite.expiresAt,
+      },
+    };
+  }
+
+  // ── Join by Token ────────────────────────────────────────────────────
+
+  /** Joins a family using an invite token. */
+  async joinByToken(userId: string, token: string) {
+    const invite = await this.prisma.familyInvite.findUnique({
+      where: { inviteCode: token },
+      include: {
+        family: {
+          select: {
+            id: true,
+            name: true,
+            avatarUrl: true,
+            description: true,
+            memberCount: true,
+            deletedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!invite) {
+      throw new NotFoundException('Invite not found');
+    }
+
+    if (!invite.isActive) {
+      throw new GoneException({ error: 'INVITE_EXPIRED' });
+    }
+
+    if (invite.expiresAt && invite.expiresAt < new Date()) {
+      throw new GoneException({ error: 'INVITE_EXPIRED' });
+    }
+
+    if (invite.maxUses && invite.useCount >= invite.maxUses) {
+      throw new GoneException({ error: 'INVITE_MAX_USES_REACHED' });
+    }
+
+    if (invite.family.deletedAt) {
+      throw new GoneException({ error: 'INVITE_EXPIRED' });
+    }
+
+    // Check if already a member
+    const existingMember = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId: invite.familyId, userId } },
+    });
+
+    if (existingMember) {
+      throw new ConflictException('Already a member of this family');
+    }
+
+    // Join the family
+    const member = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.familyMember.create({
+        data: {
+          familyId: invite.familyId,
+          userId,
+          role: 'member',
+        },
+      });
+
+      // Increment member count
+      await tx.family.update({
+        where: { id: invite.familyId },
+        data: {
+          memberCount: { increment: 1 },
+          lastActivityAt: new Date(),
+        },
+      });
+
+      // Increment invite use count
+      await tx.familyInvite.update({
+        where: { id: invite.id },
+        data: { useCount: { increment: 1 } },
+      });
+
+      return created;
+    });
+
+    // Emit socket event to all existing family members
+    this.gateway.emitToFamily(invite.familyId, 'family:member:joined', {
+      id: member.id,
+      updatedAt: new Date().toISOString(),
+      type: 'family:member:joined',
+      familyId: invite.familyId,
+      userId,
+      memberId: member.id,
+      role: member.role,
+    });
+
+    return {
+      joined: true,
+      familyId: invite.familyId,
+      familyName: invite.family.name,
+      role: member.role,
+    };
+  }
+
+  // ── Update Privacy ──────────────────────────────────────────────────
+
+  /** Toggles family public/private. Requires admin role. */
+  async updatePrivacy(userId: string, familyId: string, isPublic: boolean) {
+    await this.requireFamilyRole(userId, familyId, 'admin');
+
+    const family = await this.prisma.family.findUnique({
+      where: { id: familyId },
+    });
+
+    if (!family) {
+      throw new NotFoundException('Family not found');
+    }
+
+    const updated = await this.prisma.family.update({
+      where: { id: familyId },
+      data: { isPublic, lastActivityAt: new Date() },
+    });
+
+    return {
+      familyId: updated.id,
+      isPublic: updated.isPublic,
+    };
+  }
+
+  // ── Leave Family V2 (non-owner only) ────────────────────────────────
+
+  /** Allows a non-owner member to leave a family. Owners must transfer ownership first. */
+  async leaveFamilyV2(userId: string, familyId: string) {
+    const membership = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId, userId } },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException('You are not a member of this family');
+    }
+
+    // Determine if this user is the "owner" (original creator with admin role)
+    const family = await this.prisma.family.findUnique({
+      where: { id: familyId },
+    });
+
+    if (family && family.createdBy === userId && membership.role === 'admin') {
+      // Check if there are other admins
+      const adminCount = await this.prisma.familyMember.count({
+        where: { familyId, role: 'admin' },
+      });
+
+      if (adminCount <= 1) {
+        throw new BadRequestException(
+          'You are the owner of this family. Please transfer ownership before leaving.',
+        );
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.familyMember.delete({
+        where: { familyId_userId: { familyId, userId } },
+      });
+
+      await tx.family.update({
+        where: { id: familyId },
+        data: {
+          memberCount: { decrement: 1 },
+          lastActivityAt: new Date(),
+        },
+      });
+    });
+
+    this.gateway.emitToFamily(familyId, 'member:left', {
+      id: membership.id,
+      updatedAt: new Date().toISOString(),
+      type: 'member:left',
+      familyId,
+      userId,
+    });
+
+    this.gateway.emitToFamily(familyId, 'graph:updated', {
+      id: familyId,
+      updatedAt: new Date().toISOString(),
+      type: 'graph:updated',
+      familyId,
+    });
+
+    return { left: true, familyId };
+  }
+
+  // ── Remove Member ──────────────────────────────────────────────────
+
+  /** Removes a family member. Requires admin/owner role. Cannot remove another admin unless you are the owner. */
+  async removeMember(userId: string, familyId: string, memberUserId: string) {
+    const callerMembership = await this.requireFamilyMember(userId, familyId);
+
+    // Must be admin or above
+    const callerLevel = ROLE_HIERARCHY[callerMembership.role] || 0;
+    if (callerLevel < ROLE_HIERARCHY['admin']) {
+      throw new ForbiddenException('Insufficient permissions. Admin role required to remove members.');
+    }
+
+    const targetMembership = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId, userId: memberUserId } },
+    });
+
+    if (!targetMembership) {
+      throw new NotFoundException('Member not found in this family');
+    }
+
+    // Cannot remove another admin unless you're the owner (creator)
+    const family = await this.prisma.family.findUnique({ where: { id: familyId } });
+    if (targetMembership.role === 'admin' && family?.createdBy !== userId) {
+      throw new ForbiddenException('Cannot remove another admin. Only the owner can do this.');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.familyMember.delete({
+        where: { familyId_userId: { familyId, userId: memberUserId } },
+      });
+
+      await tx.family.update({
+        where: { id: familyId },
+        data: {
+          memberCount: { decrement: 1 },
+          lastActivityAt: new Date(),
+        },
+      });
+    });
+
+    this.gateway.emitToFamily(familyId, 'member:removed', {
+      id: familyId,
+      updatedAt: new Date().toISOString(),
+      type: 'member:removed',
+      familyId,
+      removedUserId: memberUserId,
+      removedBy: userId,
+    });
+
+    this.gateway.emitToFamily(familyId, 'graph:updated', {
+      id: familyId,
+      updatedAt: new Date().toISOString(),
+      type: 'graph:updated',
+      familyId,
+    });
+
+    return { removed: true, familyId, memberUserId };
+  }
+
+  // ── Change Member Role ──────────────────────────────────────────────
+
+  /** Changes a member's role. Only the family owner (creator) can do this. */
+  async changeMemberRole(userId: string, familyId: string, memberUserId: string, newRole: string) {
+    // Verify the caller is the owner (creator of the family)
+    const family = await this.prisma.family.findUnique({
+      where: { id: familyId },
+    });
+
+    if (!family) {
+      throw new NotFoundException('Family not found');
+    }
+
+    if (family.createdBy !== userId) {
+      throw new ForbiddenException('Only the family owner can change member roles');
+    }
+
+    const validRoles = ['ADMIN', 'MEMBER', 'VIEWER', 'admin', 'member', 'viewer'];
+    if (!validRoles.includes(newRole)) {
+      throw new BadRequestException('Invalid role. Must be one of: ADMIN, MEMBER, VIEWER');
+    }
+
+    const targetMembership = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId, userId: memberUserId } },
+    });
+
+    if (!targetMembership) {
+      throw new NotFoundException('Member not found in this family');
+    }
+
+    // Cannot change own role (owner should maintain admin)
+    if (memberUserId === userId) {
+      throw new BadRequestException('Cannot change your own role');
+    }
+
+    const normalizedRole = newRole.toLowerCase();
+
+    const updated = await this.prisma.familyMember.update({
+      where: { familyId_userId: { familyId, userId: memberUserId } },
+      data: { role: normalizedRole },
+    });
+
+    return {
+      familyId,
+      memberUserId,
+      newRole: updated.role,
+    };
+  }
+
+  // ── Transfer Ownership ──────────────────────────────────────────────
+
+  /** Transfers family ownership to another member. Only the current owner can do this. */
+  async transferOwnership(userId: string, familyId: string, newOwnerId: string) {
+    const family = await this.prisma.family.findUnique({
+      where: { id: familyId },
+    });
+
+    if (!family) {
+      throw new NotFoundException('Family not found');
+    }
+
+    if (family.createdBy !== userId) {
+      throw new ForbiddenException('Only the family owner can transfer ownership');
+    }
+
+    if (userId === newOwnerId) {
+      throw new BadRequestException('Cannot transfer ownership to yourself');
+    }
+
+    const targetMembership = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId, userId: newOwnerId } },
+    });
+
+    if (!targetMembership) {
+      throw new NotFoundException('Target user is not a member of this family');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Update the family's createdBy to the new owner
+      await tx.family.update({
+        where: { id: familyId },
+        data: { createdBy: newOwnerId },
+      });
+
+      // Ensure new owner has admin role
+      await tx.familyMember.update({
+        where: { familyId_userId: { familyId, userId: newOwnerId } },
+        data: { role: 'admin' },
+      });
+    });
+
+    // Emit socket event
+    this.gateway.emitToFamily(familyId, 'family:ownership:transferred', {
+      id: familyId,
+      updatedAt: new Date().toISOString(),
+      type: 'family:ownership:transferred',
+      familyId,
+      previousOwnerId: userId,
+      newOwnerId,
+    });
+
+    return {
+      transferred: true,
+      familyId,
+      previousOwnerId: userId,
+      newOwnerId,
+    };
   }
 
   // ── Helper Methods ───────────────────────────────────────────────────

@@ -42,3 +42,11 @@ export const PASSWORD_CHANGE_REVOKE_TTL_SECONDS = 900; // 15 minutes
 
 // ── Challenge Token (2FA) ─────────────────────────────────────────────
 export const CHALLENGE_TOKEN_EXPIRY = '5m';
+
+// ── Family Roles ──────────────────────────────────────────────────────
+export const ROLE_HIERARCHY: Record<string, number> = {
+  viewer: 1,
+  member: 2,
+  editor: 3,
+  admin: 4,
+};

@@ -221,6 +221,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           const SizedBox(height: 8),
           _buildSectionCard([
             _SettingsRow(
+              icon: Icons.lock_outline,
+              label: 'Privacy',
+              subtitle: 'Profile privacy & family tree visibility',
+              onTap: () => context.push('/settings/privacy'),
+            ),
+            _divider(),
+            _SettingsRow(
               icon: Icons.visibility_outlined,
               label: 'Profile visibility',
               subtitle: _visibilityLabel(ref.watch(_profileVisibilityProvider)),

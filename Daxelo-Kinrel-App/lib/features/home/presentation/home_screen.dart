@@ -31,6 +31,7 @@ import '../../stories/providers/stories_provider.dart';
 import '../../stories/presentation/stories_viewer_screen.dart';
 import '../../stories/presentation/add_story_sheet.dart';
 import '../../../core/utils/accessibility_utils.dart';
+import '../../../presentation/widgets/sparq_feed_row.dart';
 
 // ── Color shortcuts for the Command Center ──────────────────────
 const _cOrange = KinrelColors.orange; // #E8612A
@@ -215,6 +216,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 _FamilySwitcherRow(families: families)
                     .animate()
                     .fadeIn(duration: 350.ms, delay: 50.ms)
+                    .slideX(begin: -0.05, end: 0),
+
+                SizedBox(height: 20),
+
+                // Sparq Feed Row (social stories at top)
+                SparqFeedRow()
+                    .animate()
+                    .fadeIn(duration: 350.ms, delay: 60.ms)
                     .slideX(begin: -0.05, end: 0),
 
                 SizedBox(height: 20),

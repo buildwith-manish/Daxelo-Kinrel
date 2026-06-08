@@ -18,6 +18,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { CreateFamilyDto } from './dto/create-family.dto';
 import { UpdateFamilyDto } from './dto/update-family.dto';
+import { Public } from '../../common/decorators/public.decorator';
 
 @ApiTags('families')
 @Controller('families')
@@ -44,6 +45,31 @@ export class FamiliesController {
     @Query() pagination: PaginationDto,
   ) {
     return this.familiesService.findArchived(userId, pagination);
+  }
+
+  // Join Family via Invite Token (preview)
+  // These MUST come before the dynamic :familyId routes to avoid
+  // 'join' being captured by :familyId.
+
+  @Get('join/:token')
+  @Public()
+  @ApiOperation({ summary: 'Preview family info via invite token' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Returns family preview info' })
+  async previewJoinByToken(@Param('token') token: string) {
+    return this.familiesService.previewJoinByToken(token);
+  }
+
+  @Post('join/:token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Join family via invite token' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Joined family successfully' })
+  @ApiResponse({ status: HttpStatus.GONE, description: 'Invite expired or max uses reached' })
+  @ApiResponse({ status: HttpStatus.CONFLICT, description: 'Already a member' })
+  async joinByToken(
+    @CurrentUser('id') userId: string,
+    @Param('token') token: string,
+  ) {
+    return this.familiesService.joinByToken(userId, token);
   }
 
   @Post()
@@ -131,5 +157,97 @@ export class FamiliesController {
     @Param('familyId') familyId: string,
   ) {
     return this.familiesService.leaveFamily(userId, familyId);
+  }
+
+  ﻿// ── Family Invite Endpoints ─────────────────────────────────────
+
+  @Post(':familyId/invite/generate')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Generate an invite link/token (owner/admin only)' })
+  @ApiResponse({ status: HttpStatus.CREATED, description: 'Invite generated successfully' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Insufficient permissions' })
+  async generateInvite(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+    @Body() body: { expiresInDays?: number; maxUses?: number },
+  ) {
+    return this.familiesService.generateInvite(userId, familyId, body);
+  }
+
+  @Post(':familyId/invite/revoke')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Revoke all active invite links (owner only)' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Invites revoked successfully' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Insufficient permissions' })
+  async revokeInvites(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+  ) {
+    return this.familiesService.revokeInvites(userId, familyId);
+  }
+
+  ﻿// ── Family Privacy ──────────────────────────────────────────────
+
+  @Patch(':familyId/privacy')
+  @ApiOperation({ summary: 'Toggle family public/private (owner only)' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Privacy updated successfully' })
+  async updatePrivacy(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+    @Body() body: { isPublic: boolean },
+  ) {
+    return this.familiesService.updatePrivacy(userId, familyId, body.isPublic);
+  }
+
+  ﻿// ── Member Management ───────────────────────────────────────────
+
+  @Delete(':familyId/members/leave')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Leave family (non-owner only)' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Left family successfully' })
+  async leaveFamilyV2(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+  ) {
+    return this.familiesService.leaveFamilyV2(userId, familyId);
+  }
+
+  @Delete(':familyId/members/:memberUserId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove a family member (admin/owner only)' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Member removed successfully' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Insufficient permissions' })
+  async removeMember(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+    @Param('memberUserId') memberUserId: string,
+  ) {
+    return this.familiesService.removeMember(userId, familyId, memberUserId);
+  }
+
+  @Patch(':familyId/members/:memberUserId/role')
+  @ApiOperation({ summary: 'Change member role (owner only)' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Role updated successfully' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Only owner can change roles' })
+  async changeMemberRole(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+    @Param('memberUserId') memberUserId: string,
+    @Body() body: { role: string },
+  ) {
+    return this.familiesService.changeMemberRole(userId, familyId, memberUserId, body.role);
+  }
+
+  @Post(':familyId/members/transfer-ownership')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Transfer family ownership to another member' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Ownership transferred successfully' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Only owner can transfer ownership' })
+  async transferOwnership(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+    @Body() body: { newOwnerId: string },
+  ) {
+    return this.familiesService.transferOwnership(userId, familyId, body.newOwnerId);
   }
 }

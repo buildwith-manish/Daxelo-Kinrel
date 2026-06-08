@@ -34,6 +34,20 @@ export class UsernameSuggestionsDto {
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  // Get Privacy Settings
+  @Get('me/privacy')
+  async getPrivacy(@CurrentUser('id') userId: string) {
+    return this.usersService.getPrivacy(userId);
+  }
+
+  // Get Follow Counts for a User
+  @Get(':userId/follow-counts')
+  async getFollowCounts(@Param('userId') userId: string) {
+    return this.usersService.getFollowCounts(userId);
+  }
+
+
+
   // ══════════════════════════════════════════════════════════════════════
   // CRITICAL: Route declaration order matters in NestJS!
   //
@@ -142,6 +156,16 @@ export class UsersController {
   ) {
     return this.usersService.updateUsername(userId, body.username);
   }
+
+  // Update Privacy Settings
+  @Patch('me/privacy')
+  async updatePrivacy(
+    @CurrentUser('id') userId: string,
+    @Body() body: { isPrivate?: boolean; isFamilyGraphPublic?: boolean },
+  ) {
+    return this.usersService.updatePrivacy(userId, body);
+  }
+
 
   // ── Upload Avatar (POST — existing endpoint) ─────────────────────
   @Post('me/avatar')

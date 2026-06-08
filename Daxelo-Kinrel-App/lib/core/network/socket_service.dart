@@ -326,6 +326,62 @@ class SocketService {
     socket.on('error', (data) {
       debugPrint('[SocketService] Error: $data');
     });
+
+    // ── Social Feature Event Listeners ──────────────────────────────
+
+    // Follow events
+    socket.on('follow:request', (data) {
+      debugPrint('[SocketService] follow:request received: $data');
+      try {
+        // Invalidate follow requests so UI refreshes
+        // Uses debounce + cooldown to prevent ANR from rapid events
+        _invalidateSocialProviders();
+      } catch (e) {
+        debugPrint('[SocketService] Error handling follow:request: $e');
+      }
+    });
+
+    socket.on('follow:accepted', (data) {
+      debugPrint('[SocketService] follow:accepted received: $data');
+      try {
+        _invalidateSocialProviders();
+      } catch (e) {
+        debugPrint('[SocketService] Error handling follow:accepted: $e');
+      }
+    });
+
+    socket.on('follow:new', (data) {
+      debugPrint('[SocketService] follow:new received: $data');
+      try {
+        _invalidateSocialProviders();
+      } catch (e) {
+        debugPrint('[SocketService] Error handling follow:new: $e');
+      }
+    });
+
+    // Family member events
+    socket.on('family:member:joined', (data) {
+      debugPrint('[SocketService] family:member:joined received: $data');
+      try {
+        final familyId = data is Map<String, dynamic> ? data['familyId'] as String? : null;
+        if (familyId != null && familyId.isNotEmpty) {
+          _invalidateProvidersForFamily(familyId);
+        }
+        _invalidateSocialProviders();
+      } catch (e) {
+        debugPrint('[SocketService] Error handling family:member:joined: $e');
+      }
+    });
+
+    // Sparq events
+    socket.on('sparq:new', (data) {
+      debugPrint('[SocketService] sparq:new received: $data');
+      try {
+        _invalidateSocialProviders();
+      } catch (e) {
+        debugPrint('[SocketService] Error handling sparq:new: $e');
+      }
+    });
   }
 
   // ── Person Event Handler ────────────────────────────────────────
@@ -465,6 +521,38 @@ class SocketService {
           _pendingInvalidations.clear();
         } catch (e) {
           debugPrint('[SocketService] Provider invalidation error: $e');
+        }
+      },
+    );
+  }
+
+  // ── Social Provider Invalidation ──────────────────────────────────
+
+  /// Invalidate social feature providers (follow, sparq, privacy).
+  /// Uses the same debounce + cooldown mechanism as family provider
+  /// invalidation to prevent ANR from rapid socket events causing
+  /// cascading provider rebuilds.
+  void _invalidateSocialProviders() {
+    _invalidationDebounce?.cancel();
+
+    final canInvalidateNow = _lastInvalidationAt == null ||
+        DateTime.now().difference(_lastInvalidationAt!) >= _invalidationCooldown;
+
+    final delay = canInvalidateNow
+        ? const Duration(milliseconds: 500)
+        : _lastInvalidationAt!
+            .add(_invalidationCooldown)
+            .difference(DateTime.now());
+
+    _invalidationDebounce = Timer(
+      delay.isNegative ? Duration.zero : delay,
+      () {
+        try {
+          // Invalidate family list for any pending family changes
+          _ref.invalidate(familyListProvider);
+          _lastInvalidationAt = DateTime.now();
+        } catch (e) {
+          debugPrint('[SocketService] Social provider invalidation error: $e');
         }
       },
     );

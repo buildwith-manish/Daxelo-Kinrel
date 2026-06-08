@@ -35,6 +35,9 @@ import { GamificationModule } from './modules/gamification/gamification.module';
 import { AiCardsModule } from './modules/ai-cards/ai-cards.module';
 import { ReferralModule } from './modules/referral/referral.module';
 import { AiVoiceModule } from './modules/ai-voice/ai-voice.module';
+import { FollowModule } from './modules/follow/follow.module';
+import { SparqModule } from './modules/sparq/sparq.module';
+import { RolesGuard } from './common/guards/roles.guard';
 import { SyncModule } from './modules/sync/sync.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { SearchModule } from './modules/search/search.module';
@@ -136,6 +139,10 @@ import { TwoFactorVerificationModule } from './common/services/two-factor-verifi
 
     // ── Stories module (ephemeral stories) ─────────────────────
     StoriesModule,
+
+    // Social feature modules
+    FollowModule,
+    SparqModule,
   ],
   providers: [
     // ── Global guards (executed in order) ────────────────────
@@ -145,6 +152,8 @@ import { TwoFactorVerificationModule } from './common/services/two-factor-verifi
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     // 3. Two-factor authentication enforcement
     { provide: APP_GUARD, useClass: TwoFactorGuard },
+    // 4. Role-based access control
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule {}
