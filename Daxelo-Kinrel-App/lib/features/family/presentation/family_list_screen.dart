@@ -669,21 +669,21 @@ class _FamilyCard extends ConsumerWidget {
             if (isCreator)
               ListTile(
                 leading: Icon(
-                  Icons.archive_outlined,
-                  color: KinrelColors.warning,
+                  Icons.delete_outline_rounded,
+                  color: KinrelColors.error,
                   size: 20,
                 ),
                 title: Text(
-                  'Archive Family',
+                  'Delete Family',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 14,
-                    color: KinrelColors.warning,
+                    color: KinrelColors.error,
                   ),
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
-                  _confirmDeleteFromList(context, ref);
+                  _confirmDeleteFamily(context, ref);
                 },
               )
             else
@@ -845,7 +845,7 @@ class _FamilyCard extends ConsumerWidget {
     }
   }
 
-  void _confirmDeleteFromList(BuildContext context, WidgetRef ref) {
+  void _confirmDeleteFamily(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -856,14 +856,14 @@ class _FamilyCard extends ConsumerWidget {
         title: Row(
           children: [
             Icon(
-              Icons.archive_outlined,
-              color: KinrelColors.warning,
+              Icons.delete_outline_rounded,
+              color: KinrelColors.error,
               size: 24,
             ),
             const SizedBox(width: 10),
             Flexible(
               child: Text(
-                'Archive "${family.name}"?',
+                'Delete "${family.name}"?',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 17,
@@ -879,7 +879,7 @@ class _FamilyCard extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'This family will be archived and hidden from your active list.',
+              'This family will be moved to archive and hidden from your active list.',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 14,
@@ -890,24 +890,24 @@ class _FamilyCard extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: KinrelColors.warning.withValues(alpha: 0.1),
+                color: KinrelColors.error.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
                 border: Border.all(
-                  color: KinrelColors.warning.withValues(alpha: 0.3),
+                  color: KinrelColors.error.withValues(alpha: 0.3),
                 ),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, size: 18, color: KinrelColors.warning),
+                  Icon(Icons.info_outline, size: 18, color: KinrelColors.error),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'This family will be archived for 30 days. You can restore it anytime before it\'s permanently deleted.',
+                      'You can restore it from archive within 30 days. After that, it will be permanently deleted.',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: KinrelColors.warning,
+                        color: KinrelColors.error,
                       ),
                     ),
                   ),
@@ -930,14 +930,14 @@ class _FamilyCard extends ConsumerWidget {
           TextButton(
             onPressed: () async {
               Navigator.of(ctx).pop();
-              await _performDeleteFromList(context, ref);
+              await _performDeleteFamily(context, ref);
             },
             child: Text(
-              'Archive Family',
+              'Delete',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontWeight: FontWeight.w600,
-                color: KinrelColors.warning,
+                color: KinrelColors.error,
               ),
             ),
           ),
@@ -946,7 +946,7 @@ class _FamilyCard extends ConsumerWidget {
     );
   }
 
-  Future<void> _performDeleteFromList(
+  Future<void> _performDeleteFamily(
     BuildContext context,
     WidgetRef ref,
   ) async {
@@ -967,7 +967,7 @@ class _FamilyCard extends ConsumerWidget {
         Navigator.of(context).pop(); // Close loading
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${family.name} archived'),
+            content: Text('${family.name} moved to archive'),
             backgroundColor: KinrelColors.success,
             behavior: SnackBarBehavior.floating,
           ),
@@ -979,7 +979,7 @@ class _FamilyCard extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Failed to archive: ${e.toString().split('\n').first}',
+              'Failed to delete: ${e.toString().split('\n').first}',
             ),
             backgroundColor: KinrelColors.error,
             behavior: SnackBarBehavior.floating,

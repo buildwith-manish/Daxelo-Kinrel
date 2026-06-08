@@ -1046,6 +1046,15 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
           ),
         ),
 
+        // ── Add Member FAB ────────────────────────────────────
+        Positioned(
+          top: 16,
+          right: 16,
+          child: _AddMemberFab(
+            familyId: widget.familyId,
+          ),
+        ),
+
         // ── Bottom control pill ──────────────────────────────────
         Positioned(
           bottom: 24,
@@ -1615,6 +1624,65 @@ class _GenerationLegend extends StatelessWidget {
     )
     .animate(onPlay: (c) => c.forward())
     .fadeIn(duration: 500.ms, delay: 300.ms);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ADD MEMBER FAB — Floating button to add family members to the graph
+// ═══════════════════════════════════════════════════════════════════════
+
+class _AddMemberFab extends StatelessWidget {
+  const _AddMemberFab({required this.familyId});
+
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => AddPersonSheet.show(context, familyId: familyId),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [KinrelColors.orange, KinrelColors.orange.withValues(alpha: 0.85)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: KinrelColors.orange.withValues(alpha: 0.35),
+              blurRadius: 12,
+              spreadRadius: 2,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.person_add_rounded,
+              size: 18,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Add Member',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    )
+    .animate(onPlay: (c) => c.forward())
+    .fadeIn(duration: 400.ms, delay: 600.ms)
+    .slideY(begin: -0.2, end: 0, duration: 400.ms);
   }
 }
 
