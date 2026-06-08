@@ -2027,7 +2027,6 @@ class _InviteCollaboratorCTA extends StatelessWidget {
           borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
           border: Border.all(
             color: KinrelColors.purple.withValues(alpha: 0.2),
-            style: BoxStyle.solid,
           ),
         ),
         child: Row(
