@@ -454,3 +454,40 @@ Stage Summary:
 - Deleted: deploy/Dockerfile, deploy/Dockerfile.koyeb, deploy/Dockerfile.production, render-build.sh
 - Commit: e28f485 pushed to main
 - No build triggered (following "no build until Part 6" rule)
+---
+Task ID: 1
+Agent: Super Z (main)
+Task: Refactor family delete/archive flow + add members in graph
+
+Work Log:
+- Explored codebase: family_list_screen.dart, family_detail_screen.dart, relationship_graph_screen.dart, family_provider.dart
+- Identified that "Archive Family" and "Delete Family" both called the same deleteFamily() function (soft-delete), causing user confusion
+- Identified that non-creator "Leave Family" incorrectly archived the entire family instead of just removing membership
+- Identified that FamilyDetailScreen._performDeleteFamily() called deleteFamily() (archive) instead of permanentDeleteFamily()
+- Modified family_list_screen.dart:
+  - Renamed "Archived" button → "Deleted" in header (icon changed to delete_outline)
+  - Renamed "Archived Families" sheet → "Deleted Families"
+  - Replaced _confirmArchiveFamily/_performArchiveFamily with proper _confirmLeaveFamily/_performLeaveFamily for non-creators
+  - Non-creator Leave Family now removes FamilyMember record (NestJS API + Supabase fallback), not archive whole family
+  - Added dio/dio.dart and dio_client.dart imports
+- Modified family_detail_screen.dart:
+  - Replaced "Archive Family" + "Permanently Delete Family" options with single "Delete Family" (soft-deletes to archive)
+  - Updated _confirmDeleteFamily dialog to clearly explain "moves to deleted, restore within 30 days"
+  - Removed _confirmArchiveFamily and _performArchiveFamily methods
+  - Fixed _performDeleteFamily to correctly use deleteFamily() (soft-delete) with proper messaging
+  - Implemented actual Leave Family API call (NestJS + Supabase fallback) replacing "coming soon" stub
+  - Added dio/dio.dart and dio_client.dart imports
+- Modified relationship_graph_screen.dart:
+  - Enhanced _handleTap to show node options (bottom sheet) instead of directly opening PersonDetailSheet
+  - Added _showNodeOptions method with: View Details, Add Relative, Link to Another Member
+  - "Add Relative" opens AddPersonSheet with the tapped person as anchorPerson, so relationships are correctly created
+  - Added _GraphActionTile widget class for consistent action UI
+- Committed and force-pushed to GitHub
+- All 5 GitHub Actions workflows passed: Flutter Web CI, Build APK, Build Signed APK, Gitleaks, Path-filtered APK
+- Render backend healthy: API returns 200 on /api/health
+
+Stage Summary:
+- All changes committed in f2b0ed2 and pushed to main
+- GitHub Actions: 5/5 green
+- Render: healthy
+- Key behavioral changes: Delete → soft-delete (archive), Leave → remove membership, Graph tap → Add Relative with anchor
