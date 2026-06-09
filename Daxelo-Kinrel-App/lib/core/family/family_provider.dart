@@ -1577,74 +1577,16 @@ Future<void> permanentDeleteFamily({
   required WidgetRef ref,
   required String familyId,
 }) async {
-  // Try NestJS API first
-  bool deleted = false;
-  try {
-    final dio = ref.read(dioProvider);
-    final response = await dio.delete('/api/families/$familyId/permanent');
-    if (response.statusCode == 200) {
-      deleted = true;
-    }
-  } on DioException catch (e) {
-    // ✅ FIX (BUG-DELETE): Fall back to Supabase for ALL DioException types,
-    // not just 401/403. Timeouts and connection errors should also fall back.
-    final status = e.response?.statusCode;
-    if (status != null && status >= 400 && status < 500 && status != 401 && status != 403) {
-      final message = e.response?.data?['message'] ?? e.message ?? 'Unknown error';
-      throw Exception('Failed to permanently delete family: $message');
-    }
-    debugPrint('⚠️ API call failed (status=$status, type=${e.type}), falling back to Supabase for permanent delete');
-  } catch (e) {
-    debugPrint('⚠️ API call failed, falling back to Supabase for permanent delete: $e');
+  final client = ref.read(supabaseProvider);
+  if (client == null) {
+    throw Exception('Database is not connected. Please restart the app.');
   }
 
-  // Fallback: Hard-delete via Supabase RPC (single round trip, atomically
-  // deletes all related rows: relationships → persons → family members → family)
-  if (!deleted) {
-    final client = ref.read(supabaseProvider);
-    if (client == null) {
-      throw Exception('Database is not connected. Please restart the app and try again.');
-    }
-    try {
-      await withRetry(
-        () => client.rpc('delete_family_forever', params: {'p_family_id': familyId}),
-        operationName: 'Delete family forever (RPC fallback)',
-      );
-    } catch (e) {
-      // If RPC doesn't exist yet, fall back to sequential deletes
-      debugPrint('⚠️ RPC delete_family_forever failed, falling back to sequential deletes: $e');
-      try {
-        await withRetry(
-          () => client.from(_kRelationshipTable).delete().eq('familyId', familyId),
-          operationName: 'Delete family relationships (fallback)',
-        );
-      } catch (e2) {
-        debugPrint('⚠️ Could not delete relationships: $e2');
-      }
-      try {
-        await withRetry(
-          () => client.from(_kPersonTable).delete().eq('familyId', familyId),
-          operationName: 'Delete family persons (fallback)',
-        );
-      } catch (e2) {
-        debugPrint('⚠️ Could not delete persons: $e2');
-      }
-      try {
-        await withRetry(
-          () => client.from(_kFamilyMemberTable).delete().eq('familyId', familyId),
-          operationName: 'Delete family members (fallback)',
-        );
-      } catch (e2) {
-        debugPrint('⚠️ Could not delete family member entries: $e2');
-      }
-      await withRetry(
-        () => client.from(_kFamilyTable).delete().eq('id', familyId),
-        operationName: 'Delete family (fallback)',
-      );
-    }
-  }
+  // Direct Supabase RPC — single atomic delete, < 200ms
+  // (Skips NestJS which sits on Render free tier = cold start = 30s timeout)
+  await client.rpc('delete_family_forever', params: {'p_family_id': familyId});
 
-  // Invalidate providers to refresh UI
+  // Refresh UI
   ref.invalidate(familyListProvider);
   ref.invalidate(familyMembersProvider(familyId));
   ref.invalidate(familyRelationshipsProvider(familyId));
