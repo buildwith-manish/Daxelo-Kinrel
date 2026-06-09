@@ -1064,7 +1064,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
         preferredLanguage: user.userMetadata?['preferred_language'] as String? ?? 'en',
         profileVisibility: user.userMetadata?['profileVisibility'] as String? ?? 'public',
         invitePermission: user.userMetadata?['invitePermission'] as String? ?? 'anyone',
-        twoFactorEnabled: user.appMetadata?['twoFactorEnabled'] as bool? ?? false,
+        twoFactorEnabled: user.appMetadata['twoFactorEnabled'] as bool? ?? false,
         createdAt: DateTime.tryParse(user.createdAt) ?? DateTime.now(),
         updatedAt: DateTime.now(),
       );

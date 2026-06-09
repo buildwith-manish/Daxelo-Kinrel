@@ -21,7 +21,7 @@ import 'family_tree_canvas.dart';
 import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
 import 'relationship_builder_screen.dart';
-import 'relationship_graph_picker.dart';
+
 import '../../../core/utils/error_boundary.dart';
 import '../../../core/utils/smart_preloader.dart';
 import '../../../core/utils/share_helper.dart';
@@ -2723,60 +2723,5 @@ class _ActivityTile extends StatelessWidget {
     if (diff.inDays < 7) return '${diff.inDays}d ago';
     if (diff.inDays < 30) return '${(diff.inDays / 7).round()}w ago';
     return '${(diff.inDays / 30).round()}mo ago';
-  }
-}
-
-// ── Role Chip Widget ─────────────────────────────────────────────────
-
-class _RoleChip extends StatelessWidget {
-  const _RoleChip({
-    required this.label,
-    required this.role,
-  });
-
-  final String label;
-  final String role;
-
-  /// Returns the color for a given role.
-  /// Admin (orange), Editor (blue), Member (grey), Viewer (grey)
-  Color get _chipColor {
-    switch (role.toLowerCase()) {
-      case 'admin':
-      case 'owner':
-        return KinrelColors.orange;
-      case 'editor':
-        return KinrelColors.blue;
-      case 'viewer':
-        return KinrelColors.textSilver;
-      case 'member':
-      default:
-        return KinrelColors.textDim;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _chipColor;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: color.withValues(alpha: 0.3),
-          width: 1,
-        ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: KinrelTypography.bodyFont,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: color,
-          letterSpacing: 0.2,
-        ),
-      ),
-    );
   }
 }

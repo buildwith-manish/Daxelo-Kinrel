@@ -20,7 +20,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
-import '../../../core/constants/brand_spacing.dart';
 import '../../../core/config/auth_config.dart';
 import '../../../core/services/supabase_service.dart';
 import '../providers/stories_provider.dart';
@@ -31,10 +30,8 @@ import '../../../core/widgets/global_error_widget.dart';
 const _cOrange = KinrelColors.orange;
 const _cBg = KinrelColors.darkBackground;
 const _cCard = KinrelColors.darkCard;
-const _cElevated = KinrelColors.darkElevated;
 const _cTextPrimary = KinrelColors.textWhite;
 const _cTextSecondary = KinrelColors.textSilver;
-const _cTextDim = KinrelColors.textDim;
 
 /// Full-screen stories viewer.
 ///
@@ -65,7 +62,6 @@ class _StoriesViewerScreenState extends ConsumerState<StoriesViewerScreen>
   late AnimationController _progressController;
   Timer? _autoAdvanceTimer;
   bool _isPaused = false;
-  bool _isReplying = false;
   final _replyController = TextEditingController();
 
   static const _storyDuration = Duration(seconds: 5);

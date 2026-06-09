@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../data/providers/sparq_provider.dart';
-import '../../data/models/sparq_model.dart';
+
 
 /// SparqRingAvatar — avatar with colored ring indicating Sparq status.
 ///

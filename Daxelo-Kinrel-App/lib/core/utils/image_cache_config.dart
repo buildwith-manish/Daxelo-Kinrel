@@ -40,7 +40,7 @@ class KinrelImageCacheManager extends CacheManager {
             'kinrel_image_cache',
             stalePeriod: const Duration(days: 7),
             maxNrOfCacheObjects: 200,
-            repo: JsonCacheInfoRepository.new,
+            repo: JsonCacheInfoRepository(databaseName: 'kinrel_image_cache'),
             fileService: HttpFileService(),
           ),
         );

@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../data/models/family_invite_model.dart';
 import '../../data/repositories/family_invite_repository.dart';
-import '../../data/providers/follow_provider.dart' hide Family;
 import '../../../../core/family/family_provider.dart';
 
 class JoinFamilyPreviewScreen extends ConsumerStatefulWidget {
@@ -20,7 +19,6 @@ class _JoinFamilyPreviewScreenState extends ConsumerState<JoinFamilyPreviewScree
   bool _isLoading = true;
   bool _isJoining = false;
   String? _error;
-  bool _alreadyMember = false;
 
   @override
   void initState() {

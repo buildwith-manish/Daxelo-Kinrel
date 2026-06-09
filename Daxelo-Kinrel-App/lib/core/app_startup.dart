@@ -18,7 +18,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 
 import 'database/isar_database.dart';
-import 'database/app_database.dart';
 import 'database/sync/connectivity_service.dart';
 import 'database/sync/background_sync_manager.dart';
 import 'database/sync/offline_queue.dart';
@@ -45,12 +44,14 @@ import 'network/realtime_subscription.dart';
 /// In the app's `initState()`:
 /// ```dart
 /// AppStartupService.instance.initialize(ref);
+/// // or from main.dart with a ProviderContainer:
+/// AppStartupService.instance.initializeFromContainer(container);
 /// ```
 class AppStartupService {
   AppStartupService._();
   static final AppStartupService instance = AppStartupService._();
 
-  Ref? _ref;
+  ProviderContainer? _container;
   StreamSubscription<bool>? _connectivitySubscription;
   Timer? _backgroundSyncTimer;
   bool _isInitialized = false;
@@ -85,11 +86,15 @@ class AppStartupService {
 
   /// Initialize the startup service after the widget tree is built.
   ///
-  /// This can be called with either a [Ref] or [WidgetRef].
-  /// The service stores it as [Ref] internally.
+  /// Accepts a [Ref] (from a widget's `ref` or a provider's `ref`).
   void initialize(Ref ref) {
+    initializeFromContainer(ref.container);
+  }
+
+  /// Initialize from a [ProviderContainer] directly (e.g. from main.dart).
+  void initializeFromContainer(ProviderContainer container) {
     if (_isInitialized) return;
-    _ref = ref;
+    _container = container;
     _isInitialized = true;
 
     debugPrint('🚀 AppStartup: Service initialized');
@@ -107,10 +112,10 @@ class AppStartupService {
   /// Listen to connectivity changes. When connectivity is restored,
   /// trigger a full sync of the PendingOperations queue.
   void _listenToConnectivity() {
-    if (_ref == null) return;
+    if (_container == null) return;
 
     try {
-      final connectivityService = _ref!.read(connectivityServiceProvider);
+      final connectivityService = _container!.read(connectivityServiceProvider);
       _connectivitySubscription = connectivityService.onConnectivityChanged.listen(
         (isOnline) {
           if (isOnline) {
@@ -127,13 +132,14 @@ class AppStartupService {
   /// Called when connectivity is restored.
   /// Triggers full sync of PendingOperations queue + provider refresh.
   void _onConnectivityRestored() {
-    if (_ref == null) return;
+    if (_container == null) return;
 
     // 1. Process pending offline operations
     try {
-      final queue = _ref!.read(offlineQueueProvider);
+      final queue = _container!.read(offlineQueueProvider);
       queue.processPendingOperations().catchError((e) {
         debugPrint('⚠️ AppStartup: Pending ops sync failed: $e');
+        return 0;
       });
     } catch (e) {
       debugPrint('⚠️ AppStartup: Could not process pending ops: $e');
@@ -141,7 +147,7 @@ class AppStartupService {
 
     // 2. Trigger full sync via BackgroundSyncManager
     try {
-      final syncManager = _ref!.read(backgroundSyncManagerProvider);
+      final syncManager = _container!.read(backgroundSyncManagerProvider);
       syncManager.onConnectivityRestored();
     } catch (e) {
       debugPrint('⚠️ AppStartup: Could not trigger background sync: $e');
@@ -155,10 +161,10 @@ class AppStartupService {
   void _scheduleBackgroundSync(Duration delay) {
     _backgroundSyncTimer?.cancel();
     _backgroundSyncTimer = Timer(delay, () {
-      if (_ref == null) return;
+      if (_container == null) return;
 
       try {
-        final syncManager = _ref!.read(backgroundSyncManagerProvider);
+        final syncManager = _container!.read(backgroundSyncManagerProvider);
         syncManager.start();
         debugPrint('🚀 AppStartup: Background sync started');
       } catch (e) {
@@ -167,9 +173,10 @@ class AppStartupService {
 
       // Also process any pending offline operations
       try {
-        final queue = _ref!.read(offlineQueueProvider);
+        final queue = _container!.read(offlineQueueProvider);
         queue.processPendingOperations().catchError((e) {
           debugPrint('⚠️ AppStartup: Pending ops processing failed: $e');
+          return 0;
         });
       } catch (e) {
         debugPrint('⚠️ AppStartup: Could not process pending ops: $e');
@@ -192,13 +199,13 @@ class AppStartupService {
 
   /// Wait for Supabase to become ready, then invalidate providers.
   void _waitForSupabaseAndRefresh() async {
-    if (_ref == null) return;
+    if (_container == null) return;
 
     // Poll Supabase readiness (max 10 seconds)
     for (int i = 0; i < 20; i++) {
       await Future.delayed(const Duration(milliseconds: 500));
       try {
-        final isReady = _ref!.read(isSupabaseReadyProvider);
+        final isReady = _container!.read(isSupabaseReadyProvider);
         if (isReady) break;
       } catch (_) {}
     }
@@ -214,9 +221,9 @@ class AppStartupService {
   /// Subscribe to Supabase Realtime channels for all families.
   /// This provides real-time updates when other users modify family data.
   void _subscribeRealtime() {
-    if (_ref == null) return;
+    if (_container == null) return;
     try {
-      final realtimeService = _ref!.read(realtimeSubscriptionProvider);
+      final realtimeService = _container!.read(realtimeSubscriptionProvider);
       realtimeService.subscribeAllFamilies();
       debugPrint('🚀 AppStartup: Supabase Realtime subscriptions activated');
     } catch (e) {
@@ -231,11 +238,11 @@ class AppStartupService {
   /// 2. We call this method after Supabase is ready → providers re-fetch
   /// 3. Providers return fresh server data → UI updates seamlessly
   void _invalidateAllProviders() {
-    if (_ref == null) return;
+    if (_container == null) return;
 
     try {
-      _ref!.invalidate(familyListProvider);
-      _ref!.invalidate(archivedFamiliesProvider);
+      _container!.invalidate(familyListProvider);
+      _container!.invalidate(archivedFamiliesProvider);
       debugPrint('🚀 AppStartup: Providers invalidated for server refresh');
     } catch (e) {
       debugPrint('⚠️ AppStartup: Could not invalidate providers: $e');
@@ -246,7 +253,7 @@ class AppStartupService {
   void dispose() {
     _connectivitySubscription?.cancel();
     _backgroundSyncTimer?.cancel();
-    _ref = null;
+    _container = null;
     _isInitialized = false;
     _syncScheduled = false;
     debugPrint('🚀 AppStartup: Service disposed');

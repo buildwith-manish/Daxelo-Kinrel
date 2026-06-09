@@ -589,8 +589,6 @@ class _FamilyCard extends ConsumerWidget {
   }
 
   void _showFamilyQuickActions(BuildContext context, WidgetRef ref) {
-    final isCreator = _isCreator(ref);
-
     showModalBottomSheet(
       context: context,
       backgroundColor: DKColors.cardColor(context),

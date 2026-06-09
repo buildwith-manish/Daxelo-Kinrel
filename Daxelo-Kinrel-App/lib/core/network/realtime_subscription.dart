@@ -204,14 +204,14 @@ class RealtimeSubscriptionService {
       );
 
       // Subscribe to the channel with status callback
-      channel.subscribe((String event, dynamic? error) {
-        if (event == 'SUBSCRIBED') {
+      channel.subscribe((RealtimeSubscribeStatus status, Object? error) {
+        if (status == RealtimeSubscribeStatus.subscribed) {
           debugPrint('[RealtimeSub] ✅ Subscribed to family:$familyId');
-        } else if (event == 'CHANNEL_ERROR') {
+        } else if (status == RealtimeSubscribeStatus.channelError) {
           debugPrint(
             '[RealtimeSub] ❌ Channel error for family:$familyId: $error',
           );
-        } else if (event == 'TIMED_OUT') {
+        } else if (status == RealtimeSubscribeStatus.timedOut) {
           debugPrint('[RealtimeSub] ⏰ Channel timed out for family:$familyId');
         }
       });
@@ -372,7 +372,6 @@ class RealtimeSubscriptionService {
         final colonIndex = key.indexOf(':');
         if (colonIndex == -1) continue;
 
-        final table = key.substring(0, colonIndex);
         final familyId = key.substring(colonIndex + 1);
         invalidatedFamilyIds.add(familyId);
       }

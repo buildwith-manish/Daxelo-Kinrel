@@ -102,9 +102,6 @@ class _FollowersScreenState extends ConsumerState<FollowersScreen>
           final otherUserId = _tabController.index == 0
               ? follow.followerId
               : follow.followingId;
-          final name = _tabController.index == 0
-              ? (follow.followerId)
-              : (follow.followingId);
           return Padding(
             padding: EdgeInsets.only(bottom: 12),
             child: Row(

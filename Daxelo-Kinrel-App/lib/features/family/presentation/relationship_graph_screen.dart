@@ -25,11 +25,9 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
-import '../../../core/graph/graph_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
-import '../../social/data/providers/privacy_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // GENERATION COLORS (Figma reference)
@@ -379,20 +377,6 @@ _LayoutResult _computeLayout({
       } else {
         units.add([id]);
         usedInPair.add(id);
-      }
-    }
-
-    // Compute total width
-    double totalWidth = 0;
-    for (int i = 0; i < units.length; i++) {
-      final unit = units[i];
-      if (unit.length == 2) {
-        totalWidth += nodeRadius * 2 * 2 + spouseGap;
-      } else {
-        totalWidth += nodeRadius * 2;
-      }
-      if (i < units.length - 1) {
-        totalWidth += horizontalGap;
       }
     }
 

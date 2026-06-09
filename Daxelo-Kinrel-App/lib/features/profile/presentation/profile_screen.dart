@@ -41,7 +41,7 @@ import '../../../core/family/family_id_provider.dart';
 import '../../../presentation/widgets/skeletons/profile_skeleton.dart';
 import '../../family/providers/family_invite_provider.dart';
 import '../../social/data/providers/follow_provider.dart';
-import '../../social/presentation/widgets/follow_button.dart';
+
 import '../../social/presentation/widgets/sparq_ring_avatar.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
