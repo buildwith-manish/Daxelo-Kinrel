@@ -203,6 +203,23 @@ class CachedFamilyIds extends Table {
   Set<Column> get primaryKey => {kinFamilyId};
 }
 
+class CachedMemories extends Table {
+  TextColumn get id => text()();
+  TextColumn get familyId => text()();
+  TextColumn get uploaderId => text()();
+  TextColumn get uploaderName => text().withDefault(const Constant(''))();
+  TextColumn get caption => text().nullable()();
+  TextColumn get photoUrl => text()();
+  TextColumn get mediaType => text().withDefault(const Constant('photo'))();
+  DateTimeColumn get takenAt => dateTime().nullable()();
+  TextColumn get taggedPersonIds => text().withDefault(const Constant('[]'))(); // JSON array
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // DATABASE CLASS
 // ═══════════════════════════════════════════════════════════════════════
@@ -224,12 +241,13 @@ class CachedFamilyIds extends Table {
   ConflictLog,
   CachedUsernames,
   CachedFamilyIds,
+  CachedMemories,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'daxelo_kinrel_db');
@@ -293,6 +311,10 @@ class AppDatabase extends _$AppDatabase {
               cachedRelationships,
               cachedRelationships.familyId,
             );
+          }
+          if (from < 5) {
+            // v4 → v5: Add CachedMemories table for Memory Vault offline support
+            await migrator.createTable(cachedMemories);
           }
         },
       );
@@ -651,6 +673,7 @@ class AppDatabase extends _$AppDatabase {
     await delete(conflictLog).go();
     await delete(cachedUsernames).go();
     await delete(cachedFamilyIds).go();
+    await delete(cachedMemories).go();
   });
 
   Future<void> clearAll() async {
@@ -679,6 +702,7 @@ class AppDatabase extends _$AppDatabase {
       'conflictLog': await conflictLog.count().getSingle(),
       'cachedUsernames': await cachedUsernames.count().getSingle(),
       'cachedFamilyIds': await cachedFamilyIds.count().getSingle(),
+      'cachedMemories': await cachedMemories.count().getSingle(),
     };
   }
 

@@ -172,6 +172,7 @@ class Person {
     this.isAnchor = false,
     this.photoUrl,
     this.username,
+    this.anniversaryDate,
   });
 
   factory Person.fromJson(Map<String, dynamic> json) {
@@ -197,6 +198,7 @@ class Person {
       isAnchor: json['isAnchor'] as bool? ?? false,
       photoUrl: json['photoUrl'] as String?,
       username: json['username'] as String?,
+      anniversaryDate: json['anniversaryDate']?.toString(),
     );
   }
 
@@ -224,6 +226,9 @@ class Person {
   // Username system
   final String? username;
 
+  /// Anniversary date for couples (stored as ISO date string).
+  final String? anniversaryDate;
+
   /// Display-friendly username with @ prefix
   String get displayUsername => username != null ? '@$username' : '';
 
@@ -248,6 +253,7 @@ class Person {
         'isAnchor': isAnchor,
         'photoUrl': photoUrl,
         'username': username,
+        'anniversaryDate': anniversaryDate,
       };
 
   /// Convert to GraphPerson for graph visualization.

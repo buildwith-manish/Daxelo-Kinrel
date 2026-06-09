@@ -387,6 +387,14 @@ class LocalNotificationScheduler {
     } catch (_) {}
   }
 
+  /// Cancel a single scheduled notification by its ID.
+  ///
+  /// Used by occasion reminders to cancel individual notifications
+  /// when a user disables a reminder toggle.
+  static Future<void> cancelNotification(int id) async {
+    await _cancel(id);
+  }
+
   /// Get the next occurrence of a specific hour:minute today or tomorrow.
   static DateTime _nextOccurrence(int hour, int minute) {
     final now = DateTime.now();

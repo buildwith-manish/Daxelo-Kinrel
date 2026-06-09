@@ -21,12 +21,15 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/notifications_provider.dart';
+import '../../occasions/providers/occasion_reminders_provider.dart';
+import '../../occasions/widgets/upcoming_occasions_row.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Screen
@@ -92,6 +95,51 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
 
           // ── Segmented Control ───────────────────────────────────
           _buildSegmentedControl(notifState.selectedCategory),
+
+          // ── Upcoming Occasions Preview ────────────────────────────
+          Builder(builder: (context) {
+            final occasionsAsync = ref.watch(occasionRemindersProvider);
+            return occasionsAsync.when(
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+              data: (occasionsState) {
+                final upcomingOccasions = occasionsState.withinSevenDays;
+                if (upcomingOccasions.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: KinrelSpacing.base,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      UpcomingOccasionsRow(
+                        occasions: upcomingOccasions,
+                        showTitle: true,
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: GestureDetector(
+                          onTap: () => context.push('/occasions'),
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 4, bottom: 8),
+                            child: Text(
+                              'See all',
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: KinrelColors.orange,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          }),
 
           // ── Mark all read ───────────────────────────────────────
           if (unreadCount > 0) _buildMarkAllRead(unreadCount),

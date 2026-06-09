@@ -104,6 +104,10 @@ import '../../features/kinship/presentation/country_kinship_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/events/presentation/events_screen.dart';
 import '../../features/memories/presentation/memories_screen.dart';
+import '../../features/family_map/presentation/family_map_screen.dart';
+import '../../features/memory_vault/presentation/memory_vault_screen.dart';
+import '../../features/memory_vault/presentation/memory_detail_screen.dart';
+import '../../features/occasions/presentation/occasions_screen.dart';
 import '../../features/chat/presentation/chat_screen.dart';
 import '../../features/share/presentation/share_screen.dart';
 import '../../features/gamification/presentation/achievements_screen.dart';
@@ -1022,6 +1026,38 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/profile/premium',
         pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: const PaywallScreen()),
+      ),
+
+      // ── Social System Routes ─────────────────────────────────────────
+
+      // ── Phase B: Family Map ────────────────────────────────────────
+      GoRoute(
+        path: '/family-map',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const FamilyMapScreen()),
+      ),
+
+      // ── Phase B: Memory Vault ──────────────────────────────────────
+      GoRoute(
+        path: '/memory-vault',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const MemoryVaultScreen()),
+      ),
+      GoRoute(
+        path: '/memory-vault/detail/:memoryId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: MemoryDetailScreen(
+            memoryId: state.pathParameters['memoryId']!,
+          ),
+        ),
+      ),
+
+      // ── Phase B: Occasion Reminders ───────────────────────────────
+      GoRoute(
+        path: '/occasions',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const OccasionsScreen()),
       ),
 
       // ── Social System Routes ─────────────────────────────────────────

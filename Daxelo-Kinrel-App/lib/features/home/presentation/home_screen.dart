@@ -31,6 +31,8 @@ import '../../stories/providers/stories_provider.dart';
 import '../../stories/presentation/stories_viewer_screen.dart';
 import '../../stories/presentation/add_story_sheet.dart';
 import '../../social/presentation/widgets/sparq_feed_row.dart';
+import '../../occasions/providers/occasion_reminders_provider.dart';
+import '../../occasions/widgets/upcoming_occasions_row.dart';
 import '../../../core/utils/accessibility_utils.dart';
 
 // ── Color shortcuts for the Command Center ──────────────────────
@@ -269,6 +271,72 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
                 SizedBox(height: 20),
 
+                // Memory Vault tile — gold accent entry point
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: KinrelSpacing.base,
+                  ),
+                  child: DKCard(
+                    backgroundColor: _cCard,
+                    padding: KinrelSpacing.md,
+                    onTap: () => context.push('/memory-vault'),
+                    semanticLabel: 'Memory Vault, Family photos and moments',
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: KinrelColors.gold.withValues(alpha: 0.12),
+                          ),
+                          child: Icon(
+                            Icons.photo_library_outlined,
+                            color: KinrelColors.gold,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Memory Vault',
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.displayFont,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: _cTextPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Family photos & moments',
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.bodyFont,
+                                  fontSize: 13,
+                                  color: _cTextDim,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          size: 16,
+                          color: _cTextDim,
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                    .animate()
+                    .fadeIn(duration: 350.ms, delay: 90.ms)
+                    .slideX(begin: 0.05, end: 0),
+
+                SizedBox(height: 20),
+
                 // Hero Family Card (avatar is tappable → opens stories)
                 _HeroFamilyCard(
                   family: primaryFamily,
@@ -278,6 +346,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     .animate()
                     .fadeIn(duration: 400.ms, delay: 100.ms)
                     .slideY(begin: 0.08, end: 0),
+
+                SizedBox(height: 20),
+
+                // Upcoming Occasions row (only when there are occasions within 7 days)
+                Builder(builder: (context) {
+                  final occasionsAsync = ref.watch(occasionRemindersProvider);
+                  return occasionsAsync.when(
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, __) => const SizedBox.shrink(),
+                    data: (occasionsState) {
+                      final upcomingOccasions = occasionsState.withinSevenDays;
+                      if (upcomingOccasions.isEmpty) return const SizedBox.shrink();
+                      return UpcomingOccasionsRow(
+                        occasions: upcomingOccasions,
+                      )
+                          .animate()
+                          .fadeIn(duration: 350.ms, delay: 120.ms)
+                          .slideY(begin: -0.05, end: 0);
+                    },
+                  );
+                }),
 
                 SizedBox(height: 20),
 

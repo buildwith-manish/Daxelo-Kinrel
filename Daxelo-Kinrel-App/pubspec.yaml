@@ -74,6 +74,10 @@ dependencies:
   local_auth: ^2.2.0
   webview_flutter: ^4.7.0
   
+  # Maps
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.1
+
   # Math/Graph
   collection: ^1.19.1
   flutter_dotenv: ^6.0.1

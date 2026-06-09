@@ -23,6 +23,7 @@ import 'database/sync/background_sync_manager.dart';
 import 'database/sync/offline_queue.dart';
 import 'family/family_provider.dart';
 import 'services/supabase_service.dart';
+import 'services/local_notification_scheduler.dart';
 import 'utils/image_cache_config.dart';
 import 'network/realtime_subscription.dart';
 
@@ -216,6 +217,9 @@ class AppStartupService {
 
     // Subscribe to Supabase Realtime for all families
     _subscribeRealtime();
+
+    // Schedule birthday & anniversary reminders after providers are loaded
+    _scheduleOccasionReminders();
   }
 
   /// Subscribe to Supabase Realtime channels for all families.
@@ -246,6 +250,63 @@ class AppStartupService {
       debugPrint('🚀 AppStartup: Providers invalidated for server refresh');
     } catch (e) {
       debugPrint('⚠️ AppStartup: Could not invalidate providers: $e');
+    }
+  }
+
+  /// Schedule birthday and anniversary reminders for all family members.
+  /// Called after Supabase is ready and family data is loaded.
+  void _scheduleOccasionReminders() async {
+    if (_container == null) return;
+
+    try {
+      // Wait a bit for family data to be available
+      await Future.delayed(const Duration(seconds: 2));
+
+      final familiesAsync = _container!.read(familyListProvider);
+      final families = familiesAsync.valueOrNull ?? [];
+      if (families.isEmpty) return;
+
+      final allMembers = <Map<String, dynamic>>[];
+      final allAnniversaries = <Map<String, dynamic>>[];
+
+      for (final family in families) {
+        try {
+          final membersAsync = _container!.read(familyMembersProvider(family.id));
+          final members = membersAsync.valueOrNull ?? [];
+
+          for (final person in members) {
+            if (person.isDeceased) continue;
+
+            if (person.dateOfBirth != null && person.dateOfBirth!.isNotEmpty) {
+              allMembers.add({
+                'id': person.id,
+                'name': person.name,
+                'dateOfBirth': person.dateOfBirth,
+              });
+            }
+
+            // Check for anniversary date from the person's data
+            // Person model may have anniversaryDate in the JSON
+            final personJson = person.toJson();
+            final annDate = personJson['anniversaryDate'] as String?;
+            if (annDate != null && annDate.isNotEmpty) {
+              allAnniversaries.add({
+                'names': person.name,
+                'date': annDate,
+                'familyName': family.name,
+              });
+            }
+          }
+        } catch (_) {}
+      }
+
+      await LocalNotificationScheduler.scheduleAllWithReminders(
+        members: allMembers,
+        anniversaries: allAnniversaries,
+      );
+      debugPrint('📬 AppStartup: Occasion reminders scheduled (${allMembers.length} birthdays, ${allAnniversaries.length} anniversaries)');
+    } catch (e) {
+      debugPrint('⚠️ AppStartup: Occasion reminder scheduling failed: $e');
     }
   }
 

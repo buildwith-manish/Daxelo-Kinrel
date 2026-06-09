@@ -324,6 +324,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 label: 'Quiet hours',
                 onTap: () => context.push('/profile/quiet-hours'),
               ),
+              _divider(),
+              ListTile(
+                leading: Icon(Icons.celebration_outlined, color: KinrelColors.orange),
+                title: Text(
+                  'Occasion Reminders',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                subtitle: Text(
+                  'Birthdays & anniversaries',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    color: KinrelColors.textDim,
+                    fontSize: 12,
+                  ),
+                ),
+                trailing: Icon(Icons.chevron_right, color: KinrelColors.textDim),
+                onTap: () => context.push('/occasions'),
+              ),
             ]),
             const SizedBox(height: 24),
 

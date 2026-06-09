@@ -377,6 +377,24 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
               ),
             ],
 
+            // Family Map option
+            _QuickActionTile(
+              icon: Icons.public,
+              label: 'Family Map',
+              iconColor: KinrelColors.orange,
+              onTap: () { Navigator.pop(ctx); context.push('/family-map'); },
+            ),
+            Divider(color: KinrelColors.border, height: 1),
+
+            // Memory Vault option
+            _QuickActionTile(
+              icon: Icons.photo_library_outlined,
+              label: 'Memory Vault',
+              iconColor: KinrelColors.gold,
+              onTap: () { Navigator.pop(ctx); context.push('/memory-vault'); },
+            ),
+            Divider(color: KinrelColors.border, height: 1),
+
             // Delete option — moves family to archive (available to all members)
             Divider(color: KinrelColors.border, height: 1),
             _QuickActionTile(
