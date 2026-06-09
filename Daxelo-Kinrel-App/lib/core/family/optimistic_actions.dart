@@ -290,6 +290,11 @@ Future<void> restoreFamilyOptimistic({
   required WidgetRef ref,
   required String familyId,
 }) async {
+  // Mark this family as "restoring" for per-card loading spinner
+  ref.read(restoringFamilyIdsProvider.notifier).update(
+        (ids) => {...ids, familyId},
+      );
+
   final db = ref.read(isarProvider);
 
   // 1. Snapshot current Drift row for rollback
@@ -333,6 +338,11 @@ Future<void> restoreFamilyOptimistic({
     ref.invalidate(familyListProvider);
     ref.invalidate(archivedFamiliesProvider);
     rethrow;
+  } finally {
+    // Always remove from restoring set
+    ref.read(restoringFamilyIdsProvider.notifier).update(
+          (ids) => ids.difference({familyId}),
+        );
   }
 }
 

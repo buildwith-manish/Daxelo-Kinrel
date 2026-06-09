@@ -1090,27 +1090,22 @@ class _ArchivedFamiliesSheetState
 
 // ── Archived Family Card ─────────────────────────────────────────
 
-class _ArchivedFamilyCard extends ConsumerStatefulWidget {
+class _ArchivedFamilyCard extends ConsumerWidget {
   const _ArchivedFamilyCard({required this.archivedFamily});
 
   final ArchivedFamily archivedFamily;
 
   @override
-  ConsumerState<_ArchivedFamilyCard> createState() =>
-      _ArchivedFamilyCardState();
-}
-
-class _ArchivedFamilyCardState extends ConsumerState<_ArchivedFamilyCard> {
-  bool _isRestoring = false;
-  bool _isDeleting = false;
-
-  ArchivedFamily get archived => widget.archivedFamily;
-  Family get family => archived.family;
-
-  @override
-  Widget build(BuildContext context) {
-    final daysLeft = archived.daysRemaining;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final daysLeft = archivedFamily.daysRemaining;
     final isUrgent = daysLeft <= 7;
+    final family = archivedFamily.family;
+
+    // Per-family loading state from Riverpod — survives widget rebuilds
+    final deletingIds = ref.watch(deletingFamilyIdsProvider);
+    final restoringIds = ref.watch(restoringFamilyIdsProvider);
+    final isDeleting = deletingIds.contains(family.id);
+    final isRestoring = restoringIds.contains(family.id);
 
     return DKCard(
       borderColor: isUrgent
@@ -1145,9 +1140,9 @@ class _ArchivedFamilyCardState extends ConsumerState<_ArchivedFamilyCard> {
                     ),
                     const SizedBox(height: 2),
                     // Archived date
-                    if (archived.archivedAt != null)
+                    if (archivedFamily.archivedAt != null)
                       Text(
-                        'Archived ${_formatDate(archived.archivedAt!)}',
+                        'Archived ${_formatDate(archivedFamily.archivedAt!)}',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 11,
@@ -1198,8 +1193,8 @@ class _ArchivedFamilyCardState extends ConsumerState<_ArchivedFamilyCard> {
                   variant: DKButtonVariant.primary,
                   size: DKButtonSize.sm,
                   icon: Icons.restore,
-                  isLoading: _isRestoring,
-                  onPressed: _isRestoring ? null : _handleRestore,
+                  isLoading: isRestoring,
+                  onPressed: isRestoring ? null : () => _handleRestore(context, ref),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1210,8 +1205,8 @@ class _ArchivedFamilyCardState extends ConsumerState<_ArchivedFamilyCard> {
                   variant: DKButtonVariant.secondary,
                   size: DKButtonSize.sm,
                   icon: Icons.delete_forever,
-                  isLoading: _isDeleting,
-                  onPressed: _isDeleting ? null : _handlePermanentDelete,
+                  isLoading: isDeleting,
+                  onPressed: isDeleting ? null : () => _handlePermanentDelete(context, ref),
                 ),
               ),
             ],
@@ -1221,21 +1216,20 @@ class _ArchivedFamilyCardState extends ConsumerState<_ArchivedFamilyCard> {
     );
   }
 
-  Future<void> _handleRestore() async {
-    setState(() => _isRestoring = true);
+  Future<void> _handleRestore(BuildContext context, WidgetRef ref) async {
     try {
-      await restoreFamilyOptimistic(ref: ref, familyId: family.id);
-      if (mounted) {
+      await restoreFamilyOptimistic(ref: ref, familyId: archivedFamily.family.id);
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${family.name} restored'),
+            content: Text('${archivedFamily.family.name} restored'),
             backgroundColor: KinrelColors.success,
             behavior: SnackBarBehavior.floating,
           ),
         );
       }
     } catch (e) {
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -1246,12 +1240,10 @@ class _ArchivedFamilyCardState extends ConsumerState<_ArchivedFamilyCard> {
           ),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isRestoring = false);
     }
   }
 
-  Future<void> _handlePermanentDelete() async {
+  Future<void> _handlePermanentDelete(BuildContext context, WidgetRef ref) async {
     // Show confirmation dialog
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1270,7 +1262,7 @@ class _ArchivedFamilyCardState extends ConsumerState<_ArchivedFamilyCard> {
             const SizedBox(width: 10),
             Flexible(
               child: Text(
-                'Delete "${family.name}" permanently?',
+                'Delete "${archivedFamily.family.name}" permanently?',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 17,
@@ -1351,20 +1343,19 @@ class _ArchivedFamilyCardState extends ConsumerState<_ArchivedFamilyCard> {
 
     if (confirmed != true) return;
 
-    setState(() => _isDeleting = true);
     try {
-      await permanentDeleteFamily(ref: ref, familyId: family.id);
-      if (mounted) {
+      await permanentDeleteFamily(ref: ref, familyId: archivedFamily.family.id);
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${family.name} permanently deleted'),
+            content: Text('${archivedFamily.family.name} permanently deleted'),
             backgroundColor: KinrelColors.success,
             behavior: SnackBarBehavior.floating,
           ),
         );
       }
     } catch (e) {
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -1375,8 +1366,6 @@ class _ArchivedFamilyCardState extends ConsumerState<_ArchivedFamilyCard> {
           ),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isDeleting = false);
     }
   }
 

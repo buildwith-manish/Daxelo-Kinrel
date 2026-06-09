@@ -458,6 +458,15 @@ class ArchivedFamily {
 
 /// Fetches archived (soft-deleted) families for the current user.
 ///
+/// Tracks family IDs that are currently being permanently deleted.
+/// Used by the UI to show per-card loading spinners instead of a
+/// global loading state that affects all archived family cards.
+final deletingFamilyIdsProvider = StateProvider<Set<String>>((ref) => {});
+
+/// Tracks family IDs that are currently being restored from archive.
+/// Same per-card loading pattern as deletingFamilyIdsProvider.
+final restoringFamilyIdsProvider = StateProvider<Set<String>>((ref) => {});
+
 /// With offline-first: Returns cached data from Drift immediately if
 /// available, then refreshes from Supabase/NestJS in the background.
 /// This ensures the archived families list appears within 100ms on
@@ -1582,28 +1591,40 @@ Future<void> permanentDeleteFamily({
     throw Exception('Database is not connected. Please restart the app.');
   }
 
-  // Direct Supabase RPC — single atomic delete, < 200ms
-  // (Skips NestJS which sits on Render free tier = cold start = 30s timeout)
-  await client.rpc('delete_family_forever', params: {'p_family_id': familyId});
+  // Mark this family as "deleting" for per-card loading spinner
+  ref.read(deletingFamilyIdsProvider.notifier).update(
+        (ids) => {...ids, familyId},
+      );
 
-  // Refresh UI
-  ref.invalidate(familyListProvider);
-  ref.invalidate(familyMembersProvider(familyId));
-  ref.invalidate(familyRelationshipsProvider(familyId));
-  ref.invalidate(archivedFamiliesProvider);
-
-  // Invalidate the Isar cache
-  if (IsarDatabase.isInitialized) {
-    try {
-      await CacheInvalidation.invalidateFamily(familyId);
-      await CacheInvalidation.invalidateFamilyList();
-    } catch (_) {}
-  }
-
-  // Refresh profile stats
   try {
-    await ref.read(profileProvider.notifier).loadStats();
-  } catch (_) {}
+    // Direct Supabase RPC — single atomic delete, < 200ms
+    // (Skips NestJS which sits on Render free tier = cold start = 30s timeout)
+    await client.rpc('delete_family_forever', params: {'p_family_id': familyId});
+
+    // Refresh UI
+    ref.invalidate(familyListProvider);
+    ref.invalidate(familyMembersProvider(familyId));
+    ref.invalidate(familyRelationshipsProvider(familyId));
+    ref.invalidate(archivedFamiliesProvider);
+
+    // Invalidate the Isar cache
+    if (IsarDatabase.isInitialized) {
+      try {
+        await CacheInvalidation.invalidateFamily(familyId);
+        await CacheInvalidation.invalidateFamilyList();
+      } catch (_) {}
+    }
+
+    // Refresh profile stats
+    try {
+      await ref.read(profileProvider.notifier).loadStats();
+    } catch (_) {}
+  } finally {
+    // Always remove from deleting set, even on error
+    ref.read(deletingFamilyIdsProvider.notifier).update(
+          (ids) => ids.difference({familyId}),
+        );
+  }
 }
 
 /// Delete person (soft delete) in Supabase with retry for cold starts
