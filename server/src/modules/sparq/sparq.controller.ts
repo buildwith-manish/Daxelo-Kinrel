@@ -11,8 +11,10 @@ import {
   UploadedFile,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SparqService } from './sparq.service';
@@ -33,13 +35,58 @@ export class SparqController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(
+    FileInterceptor('media', {
+      limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB — covers videos
+      fileFilter: (_req, file, cb) => {
+        const allowed = [
+          'image/jpeg',
+          'image/png',
+          'image/webp',
+          'image/gif',
+          'video/mp4',
+          'video/quicktime',
+          'video/webm',
+          'audio/mpeg',
+          'audio/mp4',
+          'audio/webm',
+          'audio/ogg',
+        ];
+        if (allowed.includes(file.mimetype)) {
+          cb(null, true);
+        } else {
+          cb(
+            new BadRequestException(
+              'Only JPEG, PNG, WebP, GIF images, MP4/MOV/WebM videos, and MP3/M4A/WebM/OGG audio are allowed',
+            ),
+            false,
+          );
+        }
+      },
+    }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create a new Sparq' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['type'],
+      properties: {
+        type: { type: 'string', enum: ['IMAGE', 'VIDEO', 'TEXT', 'VOICE'] },
+        text: { type: 'string' },
+        backgroundColor: { type: 'string' },
+        duration: { type: 'integer' },
+        audience: { type: 'string', enum: ['PUBLIC', 'FAMILY_ONLY'] },
+        media: { type: 'string', format: 'binary' },
+      },
+    },
+  })
   create(
     @CurrentUser('id') userId: string,
     @Body() dto: CreateSparqDto,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.sparqService.createSparq(userId, dto);
+    return this.sparqService.createSparq(userId, dto, file);
   }
 
   @Get('user/:userId')

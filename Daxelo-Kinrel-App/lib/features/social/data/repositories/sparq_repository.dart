@@ -9,9 +9,9 @@ class SparqRepository {
   final Ref _ref;
 
   /// Get the Sparq feed (grouped by user)
-  Future<List<UserSparqGroup>> getFeed({int limit = 20}) async {
+  Future<List<UserSparqGroup>> getFeed({int page = 1, int limit = 20}) async {
     final dio = _ref.read(dioProvider);
-    final response = await dio.get('/sparq/feed', queryParameters: {'limit': limit});
+    final response = await dio.get('/sparq/feed', queryParameters: {'page': page, 'limit': limit});
     final list = response.data as List? ?? [];
     return list.map((e) => UserSparqGroup.fromJson(e as Map<String, dynamic>)).toList();
   }

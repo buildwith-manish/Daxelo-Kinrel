@@ -2,8 +2,10 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { KinrelGateway } from '../gateway/kinrel.gateway';
@@ -16,11 +18,14 @@ export class SparqService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly gateway: KinrelGateway,
+    private readonly config: ConfigService,
   ) {}
 
   /** Get the Sparq feed — grouped by user, unseen users first */
   async getFeed(userId: string, dto: SparqFeedDto) {
+    const page = dto.page ?? 1;
     const limit = dto.limit ?? 20;
+    const skip = (page - 1) * limit;
 
     // Get IDs of users the current user follows (ACCEPTED)
     const following = await this.prisma.follow.findMany({
@@ -50,7 +55,7 @@ export class SparqService {
     const relevantUserIds = [...new Set([...followedIds, ...familyMemberIds])];
 
     if (relevantUserIds.length === 0) {
-      return { items: [], total: 0 };
+      return { items: [], total: 0, page, limit };
     }
 
     // Fetch active Sparqs from relevant users
@@ -106,20 +111,36 @@ export class SparqService {
       return new Date(b.sparqs[0].createdAt).getTime() - new Date(a.sparqs[0].createdAt).getTime();
     });
 
-    return { items: items.slice(0, limit), total: items.length };
+    // Apply pagination using both page and limit
+    const total = items.length;
+    const paginatedItems = items.slice(skip, skip + limit);
+
+    return { items: paginatedItems, total, page, limit };
   }
 
   /** Create a new Sparq */
-  async createSparq(userId: string, dto: CreateSparqDto, mediaUrl?: string, thumbnailUrl?: string) {
+  async createSparq(userId: string, dto: CreateSparqDto, file?: Express.Multer.File) {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+
+    let mediaUrl: string | null = null;
+    let thumbnailUrl: string | null = null;
+
+    // Upload media file to Cloudinary if provided
+    if (file) {
+      const result = await this.uploadMediaToCloudinary(userId, file);
+      mediaUrl = result.mediaUrl;
+      thumbnailUrl = result.thumbnailUrl;
+    } else if (dto.type === 'IMAGE' || dto.type === 'VIDEO' || dto.type === 'VOICE') {
+      throw new BadRequestException(`Media file is required for type ${dto.type}`);
+    }
 
     const sparq = await this.prisma.sparq.create({
       data: {
         userId,
         type: dto.type as any,
-        mediaUrl: mediaUrl ?? null,
-        thumbnailUrl: thumbnailUrl ?? null,
+        mediaUrl,
+        thumbnailUrl,
         text: dto.text ?? null,
         backgroundColor: dto.backgroundColor ?? null,
         duration: dto.duration ?? null,
@@ -132,6 +153,75 @@ export class SparqService {
     this.gateway.emitToUser(userId, 'sparq:new', { sparqId: sparq.id, userId });
 
     return sparq;
+  }
+
+  /** Upload a Sparq media file to Cloudinary, returning mediaUrl and thumbnailUrl */
+  private async uploadMediaToCloudinary(
+    userId: string,
+    file: Express.Multer.File,
+  ): Promise<{ mediaUrl: string; thumbnailUrl: string | null }> {
+    const cloudName = this.config.get<string>('CLOUDINARY_CLOUD_NAME');
+    const apiKey = this.config.get<string>('CLOUDINARY_API_KEY');
+    const apiSecret = this.config.get<string>('CLOUDINARY_API_SECRET');
+
+    // Fallback for dev: store as base64 data URL
+    if (!cloudName || !apiKey || !apiSecret) {
+      const base64 = file.buffer.toString('base64');
+      const dataUrl = `data:${file.mimetype};base64,${base64}`;
+      return { mediaUrl: dataUrl, thumbnailUrl: null };
+    }
+
+    const cloudinary = require('cloudinary').v2;
+    cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret });
+
+    const isVideo = file.mimetype.startsWith('video/');
+    const isAudio = file.mimetype.startsWith('audio/');
+
+    const uploadResult = await new Promise<any>((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'kinrel/sparqs',
+          public_id: `sparq_${userId}_${Date.now()}`,
+          resource_type: isVideo ? 'video' : isAudio ? 'video' : 'image',
+          ...(isVideo && {
+            transformation: [{ width: 1080, crop: 'limit', quality: 'auto' }],
+          }),
+          ...(isAudio && {
+            transformation: [{ quality: 'auto' }],
+          }),
+          overwrite: true,
+        },
+        (error: any, result: any) => {
+          if (error) reject(error);
+          else resolve(result);
+        },
+      );
+      uploadStream.end(file.buffer);
+    });
+
+    const mediaUrl: string = uploadResult.secure_url;
+    const publicId = uploadResult.public_id;
+
+    // Generate thumbnail: for videos Cloudinary can auto-generate one;
+    // for images, apply a smaller transformation; for audio, no thumbnail.
+    let thumbnailUrl: string | null = null;
+
+    if (isVideo) {
+      thumbnailUrl = cloudinary.url(publicId, {
+        resource_type: 'video',
+        transformation: [
+          { width: 400, height: 400, crop: 'fill', quality: 'auto', fetch_format: 'auto', start_offset: '1' },
+        ],
+      });
+    } else if (!isAudio) {
+      thumbnailUrl = cloudinary.url(publicId, {
+        transformation: [
+          { width: 400, height: 400, crop: 'fill', quality: 'auto', fetch_format: 'auto' },
+        ],
+      });
+    }
+
+    return { mediaUrl, thumbnailUrl };
   }
 
   /** Get all active Sparqs for a specific user */
@@ -165,25 +255,34 @@ export class SparqService {
     return sparqs;
   }
 
-  /** Mark a Sparq as viewed */
+  /** Mark a Sparq as viewed — increments viewCount only on first view */
   async markViewed(sparqId: string, viewerId: string) {
     const sparq = await this.prisma.sparq.findUnique({ where: { id: sparqId } });
     if (!sparq) {
       throw new NotFoundException('Sparq not found');
     }
 
-    // Upsert view record
-    await this.prisma.sparqView.upsert({
+    // Check if this viewer has already viewed this Sparq
+    const existingView = await this.prisma.sparqView.findUnique({
       where: { sparqId_viewerId: { sparqId, viewerId } },
-      create: { sparqId, viewerId },
-      update: { viewedAt: new Date() },
     });
 
-    // Increment view count
-    await this.prisma.sparq.update({
-      where: { id: sparqId },
-      data: { viewCount: { increment: 1 } },
-    });
+    if (existingView) {
+      // Already viewed — just update the timestamp, do NOT increment viewCount
+      await this.prisma.sparqView.update({
+        where: { id: existingView.id },
+        data: { viewedAt: new Date() },
+      });
+    } else {
+      // First view — create the record AND increment viewCount
+      await this.prisma.sparqView.create({
+        data: { sparqId, viewerId },
+      });
+      await this.prisma.sparq.update({
+        where: { id: sparqId },
+        data: { viewCount: { increment: 1 } },
+      });
+    }
 
     return { success: true };
   }
