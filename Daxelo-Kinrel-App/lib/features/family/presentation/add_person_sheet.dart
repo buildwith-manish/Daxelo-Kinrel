@@ -327,10 +327,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     }
 
     try {
-      Person result;
+      Person? result;
 
       if (_isEditMode) {
-        result = await updatePersonOptimistic(
+        await updatePersonOptimistic(
           ref: ref,
           personId: widget.existingPerson!.id,
           familyId: widget.familyId,
@@ -404,7 +404,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       context.showSnackBar(
         _isEditMode
             ? 'Person updated successfully'
-            : 'Welcome to the family, ${result.name}!',
+            : 'Welcome to the family, ${result?.name ?? 'New member'}!',
       );
       Navigator.of(context).pop();
     } catch (e) {

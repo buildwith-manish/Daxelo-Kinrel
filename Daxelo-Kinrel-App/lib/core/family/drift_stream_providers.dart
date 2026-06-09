@@ -24,8 +24,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 
 import 'family_provider.dart';
 import '../database/isar_database.dart';
-import '../database/app_database.dart';
-import '../services/supabase_service.dart';
 
 // ════════════════════════════════════════════════════════════════════
 // DRIFT STREAM PROVIDERS

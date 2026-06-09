@@ -150,10 +150,10 @@ class SupabaseRealtimeService {
     );
 
     channel.subscribe((status, error) {
-      if (status == RealtimeSubscribeState.subscribed) {
+      if (status == RealtimeSubscribeStatus.subscribed) {
         debugPrint(
             '[SupabaseRealtime] Subscribed to family: $familyId');
-      } else if (status == RealtimeSubscribeState.channelError) {
+      } else if (status == RealtimeSubscribeStatus.channelError) {
         debugPrint(
             '[SupabaseRealtime] Channel error for family $familyId: $error');
         // Auto-reconnect: remove the old channel entry so
@@ -242,7 +242,7 @@ class SupabaseRealtimeService {
     );
 
     channel.subscribe((status, error) {
-      if (status == RealtimeSubscribeState.subscribed) {
+      if (status == RealtimeSubscribeStatus.subscribed) {
         debugPrint(
             '[SupabaseRealtime] Subscribed to family list changes');
       }
@@ -268,7 +268,7 @@ class SupabaseRealtimeService {
     final updatedBy = record['updatedBy']?.toString();
     if (updatedBy != null && updatedBy == _currentUserId) return;
 
-    final eventType = payload.event;
+    final eventType = payload.eventType;
     final personId =
         record['id']?.toString() ?? oldRecord['id']?.toString();
 
@@ -296,7 +296,7 @@ class SupabaseRealtimeService {
     final updatedBy = record['updatedBy']?.toString();
     if (updatedBy != null && updatedBy == _currentUserId) return;
 
-    final eventType = payload.event;
+    final eventType = payload.eventType;
     final relId =
         record['id']?.toString() ?? oldRecord['id']?.toString();
 
@@ -344,6 +344,7 @@ class SupabaseRealtimeService {
         break;
       case PostgresChangeEvent.insert:
       case PostgresChangeEvent.update:
+      case PostgresChangeEvent.all:
         try {
           // Filter out soft-deleted persons from the stream
           if (record['deletedAt'] != null) {
@@ -379,6 +380,7 @@ class SupabaseRealtimeService {
         break;
       case PostgresChangeEvent.insert:
       case PostgresChangeEvent.update:
+      case PostgresChangeEvent.all:
         try {
           // If isActive is false, remove from cache
           if (record['isActive'] == false) {

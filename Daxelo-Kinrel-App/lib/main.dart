@@ -27,7 +27,7 @@ import 'core/theme/theme_provider.dart';
 import 'core/database/sync/background_sync_manager.dart';
 import 'core/network/socket_service.dart';
 import 'core/network/supabase_realtime_service.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'core/utils/device_tier.dart';
 import 'core/utils/a11y_checker.dart';
 import 'core/utils/memory_monitor.dart';

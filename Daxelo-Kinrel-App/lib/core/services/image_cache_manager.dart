@@ -37,17 +37,7 @@ class KinrelImageCacheManager extends CacheManager {
   /// Get current cache size in bytes.
   Future<int> getCacheSize() async {
     try {
-      final files = await store.retrieveAllData();
-      int totalSize = 0;
-      for (final info in files) {
-        try {
-          final file = await getFileFromCache(info.key);
-          if (file != null) {
-            totalSize += await file.length();
-          }
-        } catch (_) {}
-      }
-      return totalSize;
+      return await store.getCacheSize();
     } catch (_) {
       return 0;
     }

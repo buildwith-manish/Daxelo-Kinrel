@@ -71,7 +71,7 @@ jobs:
         run: cd Daxelo-Kinrel-App && flutter pub get
 
       - name: Generate Drift code
-        run: cd Daxelo-Kinrel-App && dart run build_runner build --delete-conflicting-outputs
+        run: cd Daxelo-Kinrel-App && dart run build_runner build
 
       - name: Analyze Dart code
         run: cd Daxelo-Kinrel-App && flutter analyze --no-fatal-warnings --no-fatal-infos

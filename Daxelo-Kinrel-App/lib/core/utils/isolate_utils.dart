@@ -20,8 +20,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:isolate';
 
-import 'package:flutter/foundation.dart';
-
 // ════════════════════════════════════════════════════════════════════
 // THRESHOLD CONSTANTS
 // ════════════════════════════════════════════════════════════════════
@@ -255,7 +253,7 @@ class IsolateNameServer {
 
     // Wait for the isolate to send back its SendPort
     final completer = Completer<SendPort>();
-    final subscription = receivePort.listen((message) {
+    receivePort.listen((message) {
       if (message is SendPort && !completer.isCompleted) {
         completer.complete(message);
       }

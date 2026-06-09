@@ -19,7 +19,6 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:drift/drift.dart';
 
 import 'family_provider.dart';
@@ -280,20 +279,26 @@ class PaginatedFamilyNotifier
     if (familyIds.isEmpty) return [];
 
     // Build cursor-based query
-    var query = client
+    // NOTE: .lt() is a filter method (PostgrestFilterBuilder) and must be
+    // called before .order()/.limit() which return PostgrestTransformBuilder.
+    // We build the filter part first, then apply ordering and limiting.
+    final filterBuilder = client
         .from('Families')
         .select()
         .inFilter('id', familyIds.toList())
-        .filter('deletedAt', 'is', null)
-        .order('createdAt', ascending: false)
-        .limit(kFamilyPageSize);
+        .filter('deletedAt', 'is', null);
 
-    // Apply cursor filter if we have one
-    if (cursor != null) {
-      query = query.lt('createdAt', cursor.toIso8601String());
-    }
+    // Apply cursor filter if we have one, then order + limit
+    final transformBuilder = cursor != null
+        ? filterBuilder
+            .lt('createdAt', cursor.toIso8601String())
+            .order('createdAt', ascending: false)
+            .limit(kFamilyPageSize)
+        : filterBuilder
+            .order('createdAt', ascending: false)
+            .limit(kFamilyPageSize);
 
-    final response = await query;
+    final response = await transformBuilder;
 
     return (response as List)
         .map((json) => Family.fromJson(json as Map<String, dynamic>))
