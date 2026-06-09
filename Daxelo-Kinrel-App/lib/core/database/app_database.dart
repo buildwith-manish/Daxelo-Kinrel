@@ -313,6 +313,12 @@ class AppDatabase extends _$AppDatabase {
   Future<List<CachedFamily>> getAllFamilies() =>
       select(cachedFamilies).get();
 
+  /// Watch all cached families as a reactive stream.
+  /// Emits a new list whenever any row in cachedFamilies changes.
+  /// Used by StreamProviders for instant UI updates when Drift changes.
+  Stream<List<CachedFamily>> watchAllFamilies() =>
+      select(cachedFamilies).watch();
+
   Future<CachedFamily?> getFamily(String id) =>
       (select(cachedFamilies)..where((t) => t.id.equals(id)))
           .getSingleOrNull();
@@ -335,6 +341,12 @@ class AppDatabase extends _$AppDatabase {
   Future<List<CachedPerson>> getPersonsByFamily(String familyId) =>
       (select(cachedPersons)..where((t) => t.familyId.equals(familyId)))
           .get();
+
+  /// Watch cached persons for a specific family as a reactive stream.
+  /// Emits a new list whenever any row in cachedPersons for this family changes.
+  Stream<List<CachedPerson>> watchPersonsByFamily(String familyId) =>
+      (select(cachedPersons)..where((t) => t.familyId.equals(familyId)))
+          .watch();
 
   Future<CachedPerson?> getPerson(String id) =>
       (select(cachedPersons)..where((t) => t.id.equals(id)))

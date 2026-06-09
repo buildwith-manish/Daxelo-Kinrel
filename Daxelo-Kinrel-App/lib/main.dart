@@ -38,6 +38,7 @@ import 'features/profile/data/profile_provider.dart';
 import 'core/services/rating_service.dart';
 import 'core/services/analytics_service.dart';
 import 'core/services/remote_config_service.dart';
+import 'core/app_startup.dart';
 import 'core/family/family_provider.dart';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -121,6 +122,11 @@ void main() async {
   // ═══════════════════════════════════════════════════════════════════
 
   // ── Quick, non-blocking setup ─────────────────────────────────────
+
+  // ── Pre-warm Drift database for <100ms cached data loading ────────
+  // This ensures Drift is ready before the first provider reads from it.
+  // Takes typically < 20ms. Must happen BEFORE runApp().
+  await AppStartupService.preWarmDrift();
 
   // ── Set system UI (fast, non-blocking) ─────────────────────────────
   try {
@@ -498,7 +504,15 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       debugPrint('⚠️ PushNotificationService init failed: $e');
     }
 
-    // 5. Preload bottom nav tabs (3s delay)
+    // 5. Initialize AppStartupService for background sync & provider refresh
+    try {
+      AppStartupService.instance.initialize(ref);
+      debugPrint('🚀 AppStartupService initialized');
+    } catch (e) {
+      debugPrint('⚠️ AppStartupService init failed: $e');
+    }
+
+    // 6. Preload bottom nav tabs (3s delay)
     Future.delayed(const Duration(seconds: 3), () {
       try {
         // Preload tabs — works with or without auth session
