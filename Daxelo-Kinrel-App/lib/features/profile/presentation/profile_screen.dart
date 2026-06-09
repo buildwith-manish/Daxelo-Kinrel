@@ -43,6 +43,7 @@ import '../../family/providers/family_invite_provider.dart';
 import '../../social/data/providers/follow_provider.dart';
 
 import '../../social/presentation/widgets/sparq_ring_avatar.dart';
+import '../../../core/services/image_cache_manager.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
 const Color _orange = Color(0xFFE8612A);
@@ -599,6 +600,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                             )
                           : (avatarUrl != null && avatarUrl.isNotEmpty)
                           ? CachedNetworkImage(
+                              cacheManager: KinrelImageCacheManager.instance,
                               imageUrl: avatarUrl,
                               fit: BoxFit.cover,
                               imageBuilder: (ctx, img) => Image(

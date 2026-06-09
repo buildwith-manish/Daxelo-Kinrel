@@ -9,6 +9,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/member_detail_provider.dart';
+import '../../../core/services/image_cache_manager.dart';
 
 // ─────────────────────────────────────────────────────────────────────
 // Person Detail Screen — Full-Screen Member Profile
@@ -360,6 +361,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
             child: detail.photoUrl != null && detail.photoUrl!.isNotEmpty
                 ? ClipOval(
                     child: CachedNetworkImage(
+                      cacheManager: KinrelImageCacheManager.instance,
                       imageUrl: detail.photoUrl!,
                       fit: BoxFit.cover,
                       memCacheWidth: 300,

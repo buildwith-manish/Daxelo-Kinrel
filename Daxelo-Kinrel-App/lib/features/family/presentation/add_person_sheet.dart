@@ -330,7 +330,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       Person result;
 
       if (_isEditMode) {
-        result = await updatePerson(
+        result = await updatePersonOptimistic(
           ref: ref,
           personId: widget.existingPerson!.id,
           familyId: widget.familyId,
@@ -348,7 +348,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           isDeceased: _isDeceased,
         );
       } else {
-        result = await addMemberOptimistic(
+        result = await createPersonOptimistic(
           ref: ref,
           familyId: widget.familyId,
           name: _nameController.text.trim(),
@@ -370,7 +370,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         final anchor = _effectiveAnchorPerson;
         if (relKey != null && anchor != null) {
           try {
-            await createRelationshipBetween(
+            await addRelationshipOptimistic(
               ref: ref,
               familyId: widget.familyId,
               fromPersonId: anchor.id,

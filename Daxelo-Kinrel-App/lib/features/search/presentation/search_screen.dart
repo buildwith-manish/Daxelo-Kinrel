@@ -23,6 +23,7 @@ import '../../../data/repositories/search_repository.dart';
 import '../../../presentation/providers/search_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/search_skeleton.dart';
+import '../../../core/services/image_cache_manager.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // SEARCH SCREEN
@@ -494,6 +495,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
                   child: person.photoUrl != null
                       ? ClipOval(
                           child: CachedNetworkImage(
+                            cacheManager: KinrelImageCacheManager.instance,
                             imageUrl: person.photoUrl!,
                             fit: BoxFit.cover,
                             memCacheWidth: 150,
@@ -677,6 +679,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: CachedNetworkImage(
+          cacheManager: KinrelImageCacheManager.instance,
           imageUrl: family.avatarUrl!,
           fit: BoxFit.cover,
           width: 44,

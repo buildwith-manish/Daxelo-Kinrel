@@ -21,7 +21,7 @@ class CachedProfiles extends Table {
 
 class CachedRelationships extends Table {
   TextColumn get id => text()();
-  TextColumn get familyId => text()();
+  TextColumn get familyId => text().nullable()();
   TextColumn get fromId => text()();
   TextColumn get toId => text()();
   TextColumn get relationshipType => text()();
@@ -287,12 +287,12 @@ class AppDatabase extends _$AppDatabase {
             await migrator.createTable(cachedFamilyIds);
           }
           if (from < 4) {
-            // v3 → v4: Add familyId column to CachedRelationships
-            // This fixes the bug where getRelationshipsByFamily() and
-            // deleteRelationshipsByFamily() filtered by person IDs instead
-            // of familyId. We must recreate the table since Drift doesn't
-            // support adding a non-nullable column without a default.
-            await migrator.createTable(cachedRelationships);
+            // v3 → v4: Add familyId to CachedRelationships for correct
+            // family-scoped queries and watch streams
+            await migrator.addColumn(
+              cachedRelationships,
+              cachedRelationships.familyId,
+            );
           }
         },
       );
@@ -380,7 +380,10 @@ class AppDatabase extends _$AppDatabase {
   Future<List<CachedRelationship>> getRelationshipsByFamily(
           String familyId) =>
       (select(cachedRelationships)
-            ..where((t) => t.familyId.equals(familyId)))
+            ..where((t) =>
+                t.familyId.equals(familyId) |
+                (t.familyId.isNull() &
+                    (t.fromId.equals(familyId) | t.toId.equals(familyId)))))
           .get();
 
   Future<void> upsertRelationship(
@@ -389,25 +392,28 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> deleteRelationshipsByFamily(String familyId) =>
       (delete(cachedRelationships)
-            ..where((t) => t.familyId.equals(familyId)))
+            ..where((t) =>
+                t.familyId.equals(familyId) |
+                (t.familyId.isNull() &
+                    (t.fromId.equals(familyId) | t.toId.equals(familyId)))))
           .go();
+
+  /// Watch cached relationships for a specific family as a reactive stream.
+  /// Emits a new list whenever any row in cachedRelationships for this family
+  /// changes. Uses familyId column (v4+) with fallback to fromId/toId for
+  /// rows written before the migration.
+  Stream<List<CachedRelationship>> watchRelationshipsByFamily(String familyId) =>
+      (select(cachedRelationships)
+            ..where((t) =>
+                t.familyId.equals(familyId) |
+                (t.familyId.isNull() &
+                    (t.fromId.equals(familyId) | t.toId.equals(familyId)))))
+          .watch();
 
   Future<void> deleteRelationship(String id) =>
       (delete(cachedRelationships)..where((t) => t.id.equals(id))).go();
 
   Future<void> clearRelationships() => delete(cachedRelationships).go();
-
-  /// Watch all cached relationships as a reactive stream.
-  /// Emits a new list whenever any row in cachedRelationships changes.
-  Stream<List<CachedRelationship>> watchAllRelationships() =>
-      select(cachedRelationships).watch();
-
-  /// Watch cached relationships for a specific family as a reactive stream.
-  /// Uses the familyId column for efficient filtering.
-  Stream<List<CachedRelationship>> watchRelationshipsByFamily(String familyId) =>
-      (select(cachedRelationships)
-            ..where((t) => t.familyId.equals(familyId)))
-          .watch();
 
   // ── Auth Tokens ───────────────────────────────────────────────────
 

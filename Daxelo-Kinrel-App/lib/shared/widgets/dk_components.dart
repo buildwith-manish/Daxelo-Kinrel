@@ -35,6 +35,8 @@ import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/constants/brand_spacing.dart';
 import '../../core/utils/accessibility_utils.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../../core/services/image_cache_manager.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // DK DESIGN TOKENS — stitch.zip Color System
@@ -680,32 +682,100 @@ class DKAvatar extends StatelessWidget {
         borderColor ?? (isLight ? Colors.transparent : Color(0xFF3A3A4A));
     final fg = isLight ? DKColors.brandPurple : Colors.white;
 
-    Widget avatar = Container(
-      width: _diameter,
-      height: _diameter,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: imageUrl != null ? null : bg,
-        border: Border.all(color: border, width: borderColor != null ? 2.5 : 1),
-        image: imageUrl != null
-            ? DecorationImage(image: NetworkImage(imageUrl!), fit: BoxFit.cover)
-            : null,
-      ),
-      child: imageUrl != null
-          ? null
-          : Center(
-              child: Text(
-                initials ?? '',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: _fontSize,
-                  fontWeight: FontWeight.w700,
-                  color: fg,
-                  height: 1,
+    Widget avatar;
+    if (imageUrl != null) {
+      // Use CachedNetworkImage for disk-cached avatar loading
+      avatar = ClipOval(
+        child: SizedBox(
+          width: _diameter,
+          height: _diameter,
+          child: CachedNetworkImage(
+            imageUrl: imageUrl!,
+            cacheManager: KinrelImageCacheManager.instance,
+            fit: BoxFit.cover,
+            memCacheWidth: (_diameter * MediaQuery.of(context).devicePixelRatio).toInt(),
+            memCacheHeight: (_diameter * MediaQuery.of(context).devicePixelRatio).toInt(),
+            placeholder: (context, url) => Container(
+              width: _diameter,
+              height: _diameter,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: bg,
+                border: Border.all(color: border, width: borderColor != null ? 2.5 : 1),
+              ),
+              child: Center(
+                child: Text(
+                  initials ?? '',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: _fontSize,
+                    fontWeight: FontWeight.w700,
+                    color: fg,
+                    height: 1,
+                  ),
                 ),
               ),
             ),
-    );
+            errorWidget: (context, url, error) => Container(
+              width: _diameter,
+              height: _diameter,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: bg,
+                border: Border.all(color: border, width: borderColor != null ? 2.5 : 1),
+              ),
+              child: Center(
+                child: Text(
+                  initials ?? '',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: _fontSize,
+                    fontWeight: FontWeight.w700,
+                    color: fg,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      // Wrap with border if needed
+      if (borderColor != null || !isLight) {
+        avatar = Container(
+          width: _diameter,
+          height: _diameter,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: border, width: borderColor != null ? 2.5 : 1),
+          ),
+          child: avatar,
+        );
+      }
+    } else {
+      // No image — show initials
+      avatar = Container(
+        width: _diameter,
+        height: _diameter,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: bg,
+          border: Border.all(color: border, width: borderColor != null ? 2.5 : 1),
+        ),
+        child: Center(
+          child: Text(
+            initials ?? '',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: _fontSize,
+              fontWeight: FontWeight.w700,
+              color: fg,
+              height: 1,
+            ),
+          ),
+        ),
+      );
+    }
 
     if (showGlow) {
       avatar = Container(

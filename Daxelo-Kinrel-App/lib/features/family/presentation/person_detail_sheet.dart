@@ -9,8 +9,10 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/family/optimistic_actions.dart';
 import '../../../core/kinship/kinship_service.dart';
 import 'add_person_sheet.dart';
+import '../../../core/services/image_cache_manager.dart';
 
 // ─────────────────────────────────────────────────────────────────────
 // Person Detail Sheet — Hero + Stats + Tabs
@@ -343,6 +345,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
             child: person.photoUrl != null && person.photoUrl!.isNotEmpty
                 ? ClipOval(
                     child: CachedNetworkImage(
+                      cacheManager: KinrelImageCacheManager.instance,
                       imageUrl: person.photoUrl!,
                       fit: BoxFit.cover,
                       memCacheWidth: 300,
@@ -990,7 +993,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
               Navigator.of(context).pop(); // Close sheet
 
               try {
-                await deletePerson(
+                await deletePersonOptimistic(
                   ref: ref,
                   personId: person.id,
                   familyId: widget.familyId,
@@ -1068,7 +1071,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
     if (confirmed != true) return;
 
     try {
-      await updatePerson(
+      await updatePersonOptimistic(
         ref: ref,
         personId: person.id,
         familyId: widget.familyId,

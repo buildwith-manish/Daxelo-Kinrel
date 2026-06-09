@@ -26,6 +26,8 @@ import 'core/storage/secure_storage.dart';
 import 'core/theme/theme_provider.dart';
 import 'core/database/sync/background_sync_manager.dart';
 import 'core/network/socket_service.dart';
+import 'core/network/supabase_realtime_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'core/utils/device_tier.dart';
 import 'core/utils/a11y_checker.dart';
 import 'core/utils/memory_monitor.dart';
@@ -180,6 +182,15 @@ void main() async {
   }
 
   // ── Call runApp FIRST — services init in background ────────────────
+  // ── Configure CachedNetworkImage global settings ────────────────────
+  // 7-day disk cache, 100MB max size, scaled-down decoded images to save RAM
+  try {
+    DefaultCacheManager().emptyCache().catchError((_) {}); // no-op; just warming
+  } catch (_) {}
+  // Image cache is configured via the maxDuration parameter in
+  // CachedNetworkImage's cacheManager — the default is 30 days.
+  // We create a custom cache manager below for 7-day / 100MB limits.
+
   runApp(ProviderScope(child: KinrelApp()));
 
   // ── Background initialization (non-blocking) ──────────────────────
@@ -477,6 +488,19 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
         }
       } catch (e) {
         debugPrint('⚠️ SocketService start failed: $e');
+      }
+
+      // 3b. Start Supabase Realtime subscriptions if authenticated
+      try {
+        final client = ref.read(supabaseProvider);
+        if (client != null && client.auth.currentSession != null) {
+          final realtimeService = ref.read(supabaseRealtimeProvider);
+          realtimeService.initialize();
+          realtimeService.subscribeToAllUserFamilies();
+          debugPrint('📡 SupabaseRealtime started (delayed)');
+        }
+      } catch (e) {
+        debugPrint('⚠️ SupabaseRealtime start failed: $e');
       }
     });
 

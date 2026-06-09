@@ -628,6 +628,8 @@ class SocketService {
           id: Value(cached.id),
           name: Value(cached.name),
           data: Value(_jsonEncode(cached.toJson())),
+          kinFamilyId: Value(familyJson['kinFamilyId']?.toString()),
+          username: Value(familyJson['username']?.toString()),
           cachedAt: Value(DateTime.now()),
         ));
         affectedFamilyIds.add(familyId);
@@ -682,7 +684,7 @@ class SocketService {
         final cached = CachedRelationship.fromJson(relJson);
         await db.upsertRelationship(CachedRelationshipsCompanion(
           id: Value(cached.id),
-          familyId: Value(cached.familyId),
+          familyId: Value(familyId),
           fromId: Value(cached.fromPersonId),
           toId: Value(cached.toPersonId),
           relationshipType: Value(cached.relationshipKey),

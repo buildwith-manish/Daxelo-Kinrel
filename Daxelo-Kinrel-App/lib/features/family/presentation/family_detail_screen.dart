@@ -11,7 +11,9 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/family/optimistic_actions.dart';
 import '../../../core/family/optimistic_provider.dart';
+import '../../../core/family/drift_stream_providers.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/networking/dio_client.dart';
 import '../../../core/services/supabase_service.dart';
@@ -586,7 +588,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
     );
 
     try {
-      await deleteFamily(ref: ref, familyId: widget.familyId);
+      await deleteFamilyOptimistic(ref: ref, familyId: widget.familyId);
 
       // Use captured references — the original context may be unmounted now
       navigator.pop(); // Close loading dialog
@@ -792,7 +794,12 @@ class _GraphTabState extends ConsumerState<_GraphTab> {
 
   @override
   Widget build(BuildContext context) {
-    final detail = widget.detail;
+    // ✅ FIX: Re-watch familyDetailProvider to get LIVE member data.
+    // Previously we used widget.detail (stale snapshot from parent),
+    // which meant newly added members wouldn't appear until the
+    // user navigated away and came back.
+    final liveDetailAsync = ref.watch(familyDetailProvider(widget.familyId));
+    final detail = liveDetailAsync.valueOrNull ?? widget.detail;
     final familyId = widget.familyId;
 
     if (detail.members.isEmpty) {
@@ -973,7 +980,7 @@ class _GraphTabState extends ConsumerState<_GraphTab> {
               onTap: () async {
                 Navigator.pop(ctx);
                 try {
-                  await deletePerson(
+                  await deletePersonOptimistic(
                     ref: ref,
                     personId: person.id,
                     familyId: widget.familyId,

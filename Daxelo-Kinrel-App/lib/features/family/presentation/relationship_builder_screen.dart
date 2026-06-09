@@ -9,6 +9,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/family/optimistic_actions.dart';
 import 'add_person_sheet.dart';
 import 'relationship_picker_sheet.dart';
 
@@ -308,7 +309,7 @@ class _RelationshipBuilderScreenState
     setState(() => _isCreating = true);
 
     try {
-      await createRelationshipBetween(
+      await addRelationshipOptimistic(
         ref: ref,
         familyId: widget.familyId,
         fromPersonId: person1.id,

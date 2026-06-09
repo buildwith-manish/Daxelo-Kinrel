@@ -19,6 +19,7 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/device_tier.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/profile_provider.dart';
+import '../../../core/services/image_cache_manager.dart';
 
 // ── Design Tokens (theme-agnostic) ────────────────────────────────
 const Color _orange = Color(0xFFE8612A);
@@ -298,6 +299,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
             child: ClipOval(
               child: (avatarUrl != null && avatarUrl.isNotEmpty)
                   ? CachedNetworkImage(
+                      cacheManager: KinrelImageCacheManager.instance,
                       imageUrl: avatarUrl,
                       fit: BoxFit.cover,
                       errorWidget: (_, __, ___) => Center(

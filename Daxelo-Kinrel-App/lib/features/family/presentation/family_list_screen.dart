@@ -11,6 +11,9 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/supported_languages.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/family/optimistic_actions.dart';
+import '../../../core/family/drift_stream_providers.dart';
+import '../../../core/family/pagination_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/family_list_skeleton.dart';
@@ -27,10 +30,41 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
   @override
   bool get wantKeepAlive => true;
 
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// Scroll listener for cursor-based pagination loadMore.
+  /// Triggers when the user scrolls within 500px of the bottom.
+  void _onScroll() {
+    if (_scrollController.hasClients) {
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      final currentScroll = _scrollController.position.pixels;
+      if (maxScroll - currentScroll <= 500) {
+        final state = ref.read(paginatedFamilyProvider);
+        if (state.hasMore && !state.isLoadingMore) {
+          ref.read(paginatedFamilyProvider.notifier).loadMore();
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required by AutomaticKeepAliveClientMixin
-    final familiesAsync = ref.watch(familyListProvider);
+    final familiesAsync = ref.watch(hybridFamilyListProvider);
 
     return DKScaffold(
       body: familiesAsync.when(
@@ -41,6 +75,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
         ),
         data: (families) {
           return CustomScrollView(
+            controller: _scrollController,
             scrollCacheExtent: ScrollCacheExtent.pixels(500),
             physics: const BouncingScrollPhysics(),
             slivers: [
@@ -80,6 +115,25 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
                   ),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate((context, index) {
+                      // Last item: loading indicator for pagination
+                      if (index == families.length) {
+                        final pagState = ref.watch(paginatedFamilyProvider);
+                        if (pagState.isLoadingMore) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Center(
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      }
                       final family = families[index];
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
@@ -89,7 +143,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
                           onTap: () => context.push('/family/${family.id}/graph'),
                         ),
                       );
-                    }, childCount: families.length),
+                    }, childCount: families.length + 1),
                   ),
                 ),
 
@@ -823,7 +877,7 @@ class _FamilyCard extends ConsumerWidget {
     );
 
     try {
-      await deleteFamily(ref: ref, familyId: family.id);
+      await deleteFamilyOptimistic(ref: ref, familyId: family.id);
 
       // Use captured navigator — the original context may be unmounted now
       navigator.pop(); // Close loading dialog
@@ -1170,7 +1224,7 @@ class _ArchivedFamilyCardState extends ConsumerState<_ArchivedFamilyCard> {
   Future<void> _handleRestore() async {
     setState(() => _isRestoring = true);
     try {
-      await restoreFamily(ref: ref, familyId: family.id);
+      await restoreFamilyOptimistic(ref: ref, familyId: family.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

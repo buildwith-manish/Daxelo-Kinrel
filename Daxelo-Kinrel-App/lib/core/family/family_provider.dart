@@ -1150,8 +1150,8 @@ Future<Family> createFamily({
   // NOTE: This insert may fail due to RLS chicken-and-egg problem
   // (FamilyMember INSERT requires user to already be a member of the family).
   // We try via the NestJS API first (which uses service_role key to bypass RLS),
-  // and if that fails, we insert directly (which works if the RLS policy
-  // allows INSERT with WITH CHECK (true) or the policy has been relaxed).
+  // then via Supabase RPC (atomic insert + memberCount bump), and if that
+  // fails, we fall back to a direct insert.
   try {
     // Try NestJS API first (bypasses RLS via service_role key)
     final dio = ref.read(dioProvider);
@@ -1160,23 +1160,36 @@ Future<Family> createFamily({
       'role': 'admin',
     });
   } catch (e) {
-    // Fallback: direct Supabase insert (may fail due to RLS)
-    debugPrint('⚠️ API member insert failed, trying direct Supabase: $e');
+    // Fallback: Supabase RPC (atomic insert + memberCount bump in one call)
+    debugPrint('⚠️ API member insert failed, trying RPC: $e');
     try {
       await withRetry(
-        () => client.from(_kFamilyMemberTable).insert({
-          'id': _generateId(),
-          'familyId': family.id,
-          'userId': userId,
-          'role': 'admin',
-          'joinedAt': DateTime.now().toIso8601String(),
+        () => client.rpc('add_family_member', params: {
+          'p_family_id': family.id,
+          'p_user_id': userId,
+          'p_role': 'admin',
         }),
-        operationName: 'Add creator as family member (direct)',
+        operationName: 'Add creator as family member (RPC)',
       );
     } catch (e2) {
-      // Best-effort — the family is still created.
-      // The creator can still access it via createdBy.
-      debugPrint('⚠️ Could not add creator as FamilyMember (RLS may block): $e2');
+      // Final fallback: direct Supabase insert (may fail due to RLS)
+      debugPrint('⚠️ RPC add_family_member failed, trying direct insert: $e2');
+      try {
+        await withRetry(
+          () => client.from(_kFamilyMemberTable).insert({
+            'id': _generateId(),
+            'familyId': family.id,
+            'userId': userId,
+            'role': 'admin',
+            'joinedAt': DateTime.now().toIso8601String(),
+          }),
+          operationName: 'Add creator as family member (direct)',
+        );
+      } catch (e3) {
+        // Best-effort — the family is still created.
+        // The creator can still access it via createdBy.
+        debugPrint('⚠️ Could not add creator as FamilyMember (RLS may block): $e3');
+      }
     }
   }
 
@@ -1494,34 +1507,43 @@ Future<void> restoreFamily({
     debugPrint('⚠️ API call failed, falling back to Supabase for restore: $e');
   }
 
-  // Fallback: Restore via Supabase
+  // Fallback: Restore via Supabase RPC (single round trip)
   if (!restored) {
     final client = ref.read(supabaseProvider);
     if (client == null) {
       throw Exception('Database is not connected. Please restart the app and try again.');
     }
-    // Clear deletedAt on persons
     try {
       await withRetry(
-        () => client
-            .from(_kPersonTable)
-            .update({'deletedAt': null, 'updatedAt': DateTime.now().toIso8601String()})
-            .eq('familyId', familyId)
-            .not('deletedAt', 'is', null),
-        operationName: 'Restore family persons (fallback)',
+        () => client.rpc('restore_family', params: {'p_family_id': familyId}),
+        operationName: 'Restore family (RPC fallback)',
       );
     } catch (e) {
-      debugPrint('⚠️ Could not restore persons: $e');
-    }
+      // If RPC doesn't exist yet, fall back to sequential updates
+      debugPrint('⚠️ RPC restore_family failed, falling back to sequential updates: $e');
+      // Clear deletedAt on persons
+      try {
+        await withRetry(
+          () => client
+              .from(_kPersonTable)
+              .update({'deletedAt': null, 'updatedAt': DateTime.now().toIso8601String()})
+              .eq('familyId', familyId)
+              .not('deletedAt', 'is', null),
+          operationName: 'Restore family persons (fallback)',
+        );
+      } catch (e2) {
+        debugPrint('⚠️ Could not restore persons: $e2');
+      }
 
-    // Clear deletedAt on the family itself
-    await withRetry(
-      () => client
-          .from(_kFamilyTable)
-          .update({'deletedAt': null, 'lastActivityAt': DateTime.now().toIso8601String(), 'updatedAt': DateTime.now().toIso8601String()})
-          .eq('id', familyId),
-      operationName: 'Restore family (fallback)',
-    );
+      // Clear deletedAt on the family itself
+      await withRetry(
+        () => client
+            .from(_kFamilyTable)
+            .update({'deletedAt': null, 'lastActivityAt': DateTime.now().toIso8601String(), 'updatedAt': DateTime.now().toIso8601String()})
+            .eq('id', familyId),
+        operationName: 'Restore family (fallback)',
+      );
+    }
   }
 
   // Invalidate providers to refresh UI
@@ -1576,44 +1598,50 @@ Future<void> permanentDeleteFamily({
     debugPrint('⚠️ API call failed, falling back to Supabase for permanent delete: $e');
   }
 
-  // Fallback: Hard-delete via Supabase
+  // Fallback: Hard-delete via Supabase RPC (single round trip, atomically
+  // deletes all related rows: relationships → persons → family members → family)
   if (!deleted) {
     final client = ref.read(supabaseProvider);
     if (client == null) {
       throw Exception('Database is not connected. Please restart the app and try again.');
     }
-    // Delete relationships
     try {
       await withRetry(
-        () => client.from(_kRelationshipTable).delete().eq('familyId', familyId),
-        operationName: 'Delete family relationships (fallback)',
+        () => client.rpc('delete_family_forever', params: {'p_family_id': familyId}),
+        operationName: 'Delete family forever (RPC fallback)',
       );
     } catch (e) {
-      debugPrint('⚠️ Could not delete relationships: $e');
-    }
-    // Delete persons
-    try {
+      // If RPC doesn't exist yet, fall back to sequential deletes
+      debugPrint('⚠️ RPC delete_family_forever failed, falling back to sequential deletes: $e');
+      try {
+        await withRetry(
+          () => client.from(_kRelationshipTable).delete().eq('familyId', familyId),
+          operationName: 'Delete family relationships (fallback)',
+        );
+      } catch (e2) {
+        debugPrint('⚠️ Could not delete relationships: $e2');
+      }
+      try {
+        await withRetry(
+          () => client.from(_kPersonTable).delete().eq('familyId', familyId),
+          operationName: 'Delete family persons (fallback)',
+        );
+      } catch (e2) {
+        debugPrint('⚠️ Could not delete persons: $e2');
+      }
+      try {
+        await withRetry(
+          () => client.from(_kFamilyMemberTable).delete().eq('familyId', familyId),
+          operationName: 'Delete family members (fallback)',
+        );
+      } catch (e2) {
+        debugPrint('⚠️ Could not delete family member entries: $e2');
+      }
       await withRetry(
-        () => client.from(_kPersonTable).delete().eq('familyId', familyId),
-        operationName: 'Delete family persons (fallback)',
+        () => client.from(_kFamilyTable).delete().eq('id', familyId),
+        operationName: 'Delete family (fallback)',
       );
-    } catch (e) {
-      debugPrint('⚠️ Could not delete persons: $e');
     }
-    // Delete family members
-    try {
-      await withRetry(
-        () => client.from(_kFamilyMemberTable).delete().eq('familyId', familyId),
-        operationName: 'Delete family members (fallback)',
-      );
-    } catch (e) {
-      debugPrint('⚠️ Could not delete family member entries: $e');
-    }
-    // Delete the family record
-    await withRetry(
-      () => client.from(_kFamilyTable).delete().eq('id', familyId),
-      operationName: 'Delete family (fallback)',
-    );
   }
 
   // Invalidate providers to refresh UI
@@ -2042,19 +2070,35 @@ Future<Family> joinFamilyByCode(WidgetRef ref, String familyCode) async {
   // 3. Add user as a family member
   try {
     await withRetry(
-      () => client.from(_kFamilyMemberTable).insert({
-        'id': _generateId(),
-        'familyId': family.id,
-        'userId': userId,
-        'role': 'member',
-        'joinedAt': DateTime.now().toIso8601String(),
+      () => client.rpc('add_family_member', params: {
+        'p_family_id': family.id,
+        'p_user_id': userId,
+        'p_role': 'member',
       }),
-      operationName: 'Join family',
+      operationName: 'Join family (RPC)',
     );
   } catch (e) {
+    // If RPC fails, fall back to direct insert
     final errStr = e.toString();
     if (!errStr.contains('duplicate') && !errStr.contains('already exists')) {
-      rethrow;
+      debugPrint('⚠️ RPC add_family_member failed, trying direct insert: $e');
+      try {
+        await withRetry(
+          () => client.from(_kFamilyMemberTable).insert({
+            'id': _generateId(),
+            'familyId': family.id,
+            'userId': userId,
+            'role': 'member',
+            'joinedAt': DateTime.now().toIso8601String(),
+          }),
+          operationName: 'Join family (direct)',
+        );
+      } catch (e2) {
+        final errStr2 = e2.toString();
+        if (!errStr2.contains('duplicate') && !errStr2.contains('already exists')) {
+          rethrow;
+        }
+      }
     }
   }
 

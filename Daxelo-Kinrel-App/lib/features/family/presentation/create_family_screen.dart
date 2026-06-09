@@ -11,6 +11,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/family/optimistic_actions.dart';
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
 import '../../../shared/widgets/dk_components.dart';
@@ -220,7 +221,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
     try {
       await _uploadAvatarIfNeeded();
 
-      final family = await createFamily(
+      final family = await createFamilyOptimistic(
         ref: ref,
         name: _nameController.text.trim(),
         description: null,
@@ -236,7 +237,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
       );
 
       final birthYear = int.tryParse(_birthYearController.text.trim());
-      await createPerson(
+      await createPersonOptimistic(
         ref: ref,
         familyId: family.id,
         name: _personNameController.text.trim(),

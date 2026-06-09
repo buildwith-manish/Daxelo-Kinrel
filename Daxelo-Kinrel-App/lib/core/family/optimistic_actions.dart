@@ -845,10 +845,10 @@ Future<FamilyRelationship> addRelationshipOptimistic({
 /// immediately (both forward and inverse), then confirms with the
 /// server API. On failure, invalidates providers to re-fetch from server.
 ///
-/// Note: The `CachedRelationships` Drift table does not have a `familyId`
-/// column, so `getRelationshipsByFamily()` cannot correctly filter by family.
-/// Instead, we use the Riverpod provider data to find the target and inverse
-/// relationships, then delete them from Drift by ID.
+/// Note: The `CachedRelationships` Drift table now has a `familyId` column
+/// (v4 migration). The `watchRelationshipsByFamily()` stream uses this
+/// column for correct family-scoped queries, with a fallback to fromId/toId
+/// for rows written before the migration.
 ///
 /// Flow:
 /// 1. Find target + inverse relationship from provider data

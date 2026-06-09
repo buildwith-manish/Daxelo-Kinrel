@@ -139,6 +139,8 @@ class OfflineFamilyRepository {
         id: Value(family.id),
         name: Value(family.name),
         data: Value(_jsonEncode(json)),
+        kinFamilyId: Value(family.kinFamilyId),
+        username: Value(family.username),
         cachedAt: Value(DateTime.now()),
       ));
     }
@@ -313,7 +315,7 @@ class OfflineFamilyRepository {
       final json = rel.toJson();
       await _db.upsertRelationship(CachedRelationshipsCompanion(
         id: Value(rel.id),
-        familyId: Value(rel.familyId),
+        familyId: Value(familyId),
         fromId: Value(rel.fromPersonId),
         toId: Value(rel.toPersonId),
         relationshipType: Value(rel.relationshipKey),

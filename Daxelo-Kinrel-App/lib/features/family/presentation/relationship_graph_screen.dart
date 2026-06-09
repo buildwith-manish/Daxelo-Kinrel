@@ -80,7 +80,7 @@ class _GenColors {
       case 2:
         return 'Parents';
       case 3:
-        return 'You';
+        return 'Self';
       case 4:
         return 'Children';
       case 5:
@@ -1293,8 +1293,37 @@ class _RelationshipGraphPainter extends CustomPainter {
       ),
     );
 
-    // ── Relationship label ──────────────────────────────────────
-    if (node.relationshipLabel != null) {
+    // ── "You" badge under anchor node ───────────────────────
+    // The anchor person gets a distinctive "You" label directly
+    // below their name, so the user can always identify themselves
+    // in the graph regardless of zoom or scroll position.
+    if (isAnchor) {
+      final youPainter = TextPainter(
+        text: TextSpan(
+          text: 'You',
+          style: TextStyle(
+            fontFamily: KinrelTypography.monoFont,
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            color: _GenColors.self.withValues(alpha: 0.9 * opacity),
+            letterSpacing: 1.0,
+            height: 1.2,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        textAlign: TextAlign.center,
+      )..layout(maxWidth: 100);
+      youPainter.paint(
+        canvas,
+        Offset(
+          pos.dx - youPainter.width / 2,
+          pos.dy + nodeRadius + 22,
+        ),
+      );
+    }
+
+    // ── Relationship label (non-anchor nodes) ──────────────────
+    if (node.relationshipLabel != null && !isAnchor) {
       final relPainter = TextPainter(
         text: TextSpan(
           text: node.relationshipLabel,
