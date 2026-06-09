@@ -51,6 +51,9 @@ export class SparqService {
       : [];
     const familyMemberIds = familyMemberRecords.map((m) => m.userId);
 
+    // Get IDs of mutual followers (users who follow each other) for VIP_CIRCLE
+    const mutualFollowerIds = await this.getMutualFollowerIds(userId);
+
     // Combine: followed users + family members, deduplicated
     const relevantUserIds = [...new Set([...followedIds, ...familyMemberIds])];
 
@@ -67,6 +70,7 @@ export class SparqService {
         OR: [
           { audience: 'PUBLIC' },
           { audience: 'FAMILY_ONLY', userId: { in: familyMemberIds } },
+          { audience: 'VIP_CIRCLE', userId: { in: mutualFollowerIds } },
         ],
       },
       include: {
@@ -81,14 +85,17 @@ export class SparqService {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Strip unrevealed time capsule content
+    const sanitizedSparqs = sparqs.map((s) => this.stripUnrevealedContent(s));
+
     // Group by user
     const grouped = new Map<string, {
-      user: typeof sparqs[0]['user'];
-      sparqs: typeof sparqs;
+      user: typeof sanitizedSparqs[0]['user'];
+      sparqs: typeof sanitizedSparqs;
       allSeen: boolean;
     }>();
 
-    for (const sparq of sparqs) {
+    for (const sparq of sanitizedSparqs) {
       const existing = grouped.get(sparq.userId);
       if (existing) {
         existing.sparqs.push(sparq);
@@ -120,6 +127,24 @@ export class SparqService {
 
   /** Create a new Sparq */
   async createSparq(userId: string, dto: CreateSparqDto, file?: Express.Multer.File) {
+    // Validate time capsule fields
+    if (dto.isTimeCapsule && !dto.revealAt) {
+      throw new BadRequestException('revealAt is required for Time Capsule Sparqs');
+    }
+    if (dto.revealAt && new Date(dto.revealAt) <= new Date()) {
+      throw new BadRequestException('revealAt must be a future timestamp');
+    }
+
+    // Validate file size (10MB limit)
+    if (file && file.size > 10 * 1024 * 1024) {
+      throw new BadRequestException({
+        statusCode: 400,
+        errorCode: 'FILE_TOO_LARGE',
+        message: 'File exceeds 10MB limit',
+        details: { maxAllowedMB: 10, receivedMB: Math.round(file.size / (1024 * 1024) * 10) / 10 },
+      });
+    }
+
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
 
@@ -145,12 +170,150 @@ export class SparqService {
         backgroundColor: dto.backgroundColor ?? null,
         duration: dto.duration ?? null,
         audience: (dto.audience ?? 'PUBLIC') as any,
+        mood: (dto.mood ?? 'happy') as any,
+        intensity: (dto.intensity ?? 'warm') as any,
+        allowChain: dto.allowChain ?? false,
+        allowReplies: dto.allowReplies ?? true,
+        isTimeCapsule: dto.isTimeCapsule ?? false,
+        revealAt: dto.revealAt ? new Date(dto.revealAt) : null,
+        isRevealed: dto.isTimeCapsule ? false : true,
+        parentSparqId: dto.parentSparqId ?? null,
         expiresAt,
       },
     });
 
     // Emit to relevant users
     this.gateway.emitToUser(userId, 'sparq:new', { sparqId: sparq.id, userId });
+
+    return sparq;
+  }
+
+  /** Toggle echo on a Sparq — adds or removes the echo */
+  async toggleEcho(sparqId: string, userId: string) {
+    const sparq = await this.prisma.sparq.findUnique({ where: { id: sparqId } });
+    if (!sparq) throw new NotFoundException('Sparq not found');
+
+    const existing = await this.prisma.sparqEcho.findUnique({
+      where: { sparqId_userId: { sparqId, userId } },
+    });
+
+    if (existing) {
+      // Remove echo
+      await this.prisma.sparqEcho.delete({ where: { id: existing.id } });
+      await this.prisma.sparq.update({
+        where: { id: sparqId },
+        data: { echoCount: { decrement: 1 } },
+      });
+      return { echoCount: sparq.echoCount - 1, isEchoed: false };
+    } else {
+      // Add echo
+      await this.prisma.sparqEcho.create({ data: { sparqId, userId } });
+      await this.prisma.sparq.update({
+        where: { id: sparqId },
+        data: { echoCount: { increment: 1 } },
+      });
+      return { echoCount: sparq.echoCount + 1, isEchoed: true };
+    }
+  }
+
+  /** Get all Sparqs in a chain */
+  async getChain(sparqId: string) {
+    // Find the root of the chain (the original sparq)
+    const sparq = await this.prisma.sparq.findUnique({ where: { id: sparqId } });
+    if (!sparq) throw new NotFoundException('Sparq not found');
+
+    const rootId = sparq.parentSparqId ?? sparqId;
+
+    const chain = await this.prisma.sparq.findMany({
+      where: {
+        OR: [
+          { id: rootId },
+          { parentSparqId: rootId },
+        ],
+      },
+      include: {
+        user: { select: { id: true, name: true, username: true, avatarUrl: true, photoThumb: true } },
+      },
+      orderBy: { chainOrder: 'asc' },
+    });
+
+    return chain;
+  }
+
+  /** Add a Sparq to an existing chain */
+  async addToChain(parentSparqId: string, userId: string, dto: CreateSparqDto, file?: Express.Multer.File) {
+    const parent = await this.prisma.sparq.findUnique({ where: { id: parentSparqId } });
+    if (!parent) throw new NotFoundException('Parent Sparq not found');
+    if (!parent.allowChain) throw new BadRequestException('This Sparq does not allow chaining');
+
+    // Find root
+    const rootId = parent.parentSparqId ?? parentSparqId;
+
+    // Count existing chain items
+    const chainCount = await this.prisma.sparq.count({
+      where: {
+        OR: [
+          { id: rootId },
+          { parentSparqId: rootId },
+        ],
+      },
+    });
+
+    if (chainCount >= 10) throw new BadRequestException('Chain limit of 10 reached');
+
+    // Verify requester follows the original poster
+    const follow = await this.prisma.follow.findFirst({
+      where: { followerId: userId, followingId: parent.userId, status: 'ACCEPTED' },
+    });
+
+    // Allow if same user or following
+    if (parent.userId !== userId && !follow) {
+      throw new ForbiddenException('You must follow the creator to chain their Sparq');
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+    let mediaUrl: string | null = null;
+    let thumbnailUrl: string | null = null;
+
+    if (file) {
+      const result = await this.uploadMediaToCloudinary(userId, file);
+      mediaUrl = result.mediaUrl;
+      thumbnailUrl = result.thumbnailUrl;
+    }
+
+    const sparq = await this.prisma.sparq.create({
+      data: {
+        userId,
+        type: dto.type as any,
+        mediaUrl,
+        thumbnailUrl,
+        text: dto.text ?? null,
+        backgroundColor: dto.backgroundColor ?? null,
+        duration: dto.duration ?? null,
+        audience: (dto.audience ?? 'PUBLIC') as any,
+        mood: (dto.mood ?? 'happy') as any,
+        intensity: (dto.intensity ?? 'warm') as any,
+        allowChain: dto.allowChain ?? false,
+        allowReplies: dto.allowReplies ?? true,
+        isTimeCapsule: dto.isTimeCapsule ?? false,
+        revealAt: dto.revealAt ? new Date(dto.revealAt) : null,
+        isRevealed: false,
+        parentSparqId: rootId,
+        chainOrder: chainCount + 1,
+        expiresAt,
+      },
+    });
+
+    // Notify original poster
+    if (parent.userId !== userId) {
+      this.gateway.emitToUser(parent.userId, 'sparq:chained', {
+        sparqId: sparq.id,
+        parentSparqId,
+        userId,
+      });
+    }
 
     return sparq;
   }
@@ -231,6 +394,9 @@ export class SparqService {
     // Check if viewer should see FAMILY_ONLY sparqs
     const isFamilyMember = await this.isFamilyMember(viewerId, userId);
 
+    // Check if viewer is a mutual follower for VIP_CIRCLE
+    const isMutualFollower = await this.isMutualFollower(viewerId, userId);
+
     const whereClause: any = {
       userId,
       expiresAt: { gt: now },
@@ -239,6 +405,10 @@ export class SparqService {
 
     if (isFamilyMember) {
       whereClause.OR.push({ audience: 'FAMILY_ONLY' });
+    }
+
+    if (isMutualFollower) {
+      whereClause.OR.push({ audience: 'VIP_CIRCLE' });
     }
 
     const sparqs = await this.prisma.sparq.findMany({
@@ -252,7 +422,8 @@ export class SparqService {
       },
     });
 
-    return sparqs;
+    // Strip unrevealed time capsule content
+    return sparqs.map((s) => this.stripUnrevealedContent(s));
   }
 
   /** Mark a Sparq as viewed — increments viewCount only on first view */
@@ -343,6 +514,47 @@ export class SparqService {
     }
   }
 
+  /** Scheduled job: reveal time capsule Sparqs every minute */
+  @Cron('* * * * *')
+  async revealTimeCapsuleSparqs() {
+    const now = new Date();
+    try {
+      const toReveal = await this.prisma.sparq.findMany({
+        where: {
+          isTimeCapsule: true,
+          isRevealed: false,
+          revealAt: { lte: now },
+        },
+      });
+
+      for (const sparq of toReveal) {
+        await this.prisma.sparq.update({
+          where: { id: sparq.id },
+          data: { isRevealed: true },
+        });
+
+        // Emit real-time event
+        this.gateway.emitToUser(sparq.userId, 'sparq:timecapsule-revealed', {
+          sparqId: sparq.id,
+        });
+      }
+
+      if (toReveal.length > 0) {
+        this.logger.log(`Revealed ${toReveal.length} Time Capsule Sparqs`);
+      }
+    } catch (error) {
+      this.logger.error('Failed to reveal Time Capsule Sparqs', error);
+    }
+  }
+
+  /** Strip content from unrevealed time capsule Sparqs */
+  private stripUnrevealedContent(sparq: any) {
+    if (sparq.isTimeCapsule && !sparq.isRevealed) {
+      return { ...sparq, mediaUrl: null, thumbnailUrl: null, text: null };
+    }
+    return sparq;
+  }
+
   /** Check if two users are in the same family */
   private async isFamilyMember(userId1: string, userId2: string): Promise<boolean> {
     const user1Families = await this.prisma.familyMember.findMany({
@@ -358,5 +570,42 @@ export class SparqService {
       },
     });
     return !!user2InSameFamily;
+  }
+
+  /** Check if two users are mutual followers (both follow each other) */
+  private async isMutualFollower(userId1: string, userId2: string): Promise<boolean> {
+    const forward = await this.prisma.follow.findFirst({
+      where: { followerId: userId1, followingId: userId2, status: 'ACCEPTED' },
+    });
+    if (!forward) return false;
+
+    const reverse = await this.prisma.follow.findFirst({
+      where: { followerId: userId2, followingId: userId1, status: 'ACCEPTED' },
+    });
+    return !!reverse;
+  }
+
+  /** Get IDs of mutual followers for a user (users who follow each other) */
+  private async getMutualFollowerIds(userId: string): Promise<string[]> {
+    // Users that the current user follows
+    const following = await this.prisma.follow.findMany({
+      where: { followerId: userId, status: 'ACCEPTED' },
+      select: { followingId: true },
+    });
+    const followingIds = following.map((f) => f.followingId);
+
+    if (followingIds.length === 0) return [];
+
+    // Of those, find users who also follow the current user back (mutual)
+    const mutualFollows = await this.prisma.follow.findMany({
+      where: {
+        followerId: { in: followingIds },
+        followingId: userId,
+        status: 'ACCEPTED',
+      },
+      select: { followerId: true },
+    });
+
+    return mutualFollows.map((f) => f.followerId);
   }
 }

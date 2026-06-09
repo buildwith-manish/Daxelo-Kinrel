@@ -11,6 +11,7 @@ import 'sparq_ring_avatar.dart';
 ///
 /// First item is the current user's avatar with a "+" icon for creating Sparqs.
 /// Users with unseen Sparqs appear before users with all-seen Sparqs.
+/// Mood emoji badges shown on avatars.
 class SparqFeedRow extends ConsumerStatefulWidget {
   const SparqFeedRow({super.key});
 
@@ -34,7 +35,7 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
     final sparqState = ref.watch(sparqProvider);
 
     if (sparqState.isLoading && sparqState.feed.isEmpty) {
-      return _buildLoadingSkeleton();
+      return _buildShimmerSkeleton();
     }
 
     // Sort: unseen first, then seen
@@ -68,15 +69,46 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
           }
 
           final group = sortedGroups[index - 1];
+          // Get the most recent sparq for mood/intensity info
+          final latestSparq = group.sparqs.isNotEmpty ? group.sparqs.first : null;
+
           return Column(
             children: [
-              SparqRingAvatar(
-                userId: group.userId,
-                avatarUrl: group.userAvatarUrl,
-                radius: 26,
-                onTap: () {
-                  context.push('/sparq/viewer/${group.userId}');
-                },
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  SparqRingAvatar(
+                    userId: group.userId,
+                    avatarUrl: group.userAvatarUrl,
+                    radius: 26,
+                    intensity: latestSparq?.intensity,
+                    isTimeCapsule: latestSparq?.isTimeCapsule ?? false,
+                    isSeen: group.allSeen,
+                    mood: latestSparq?.mood,
+                    onTap: () {
+                      context.push('/sparq/viewer/${group.userId}');
+                    },
+                  ),
+                  // Mood emoji badge (bottom-right)
+                  if (latestSparq != null)
+                    Positioned(
+                      right: -2,
+                      bottom: -2,
+                      child: Container(
+                        width: 16,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: KinrelColors.darkBackground,
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          latestSparq.moodEmoji,
+                          style: TextStyle(fontSize: 9),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 4),
               SizedBox(
@@ -136,7 +168,8 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
     );
   }
 
-  Widget _buildLoadingSkeleton() {
+  /// Shimmer skeleton loading state
+  Widget _buildShimmerSkeleton() {
     return SizedBox(
       height: 88,
       child: ListView.separated(
@@ -147,27 +180,108 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
         itemBuilder: (context, index) {
           return Column(
             children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: KinrelColors.elevation1,
-                ),
-              ),
+              _ShimmerCircle(size: 56),
               const SizedBox(height: 4),
-              Container(
-                width: 40,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: KinrelColors.elevation1,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
+              _ShimmerRect(width: 40, height: 8),
             ],
           );
         },
       ),
+    );
+  }
+}
+
+/// Simple shimmer animation circle
+class _ShimmerCircle extends StatefulWidget {
+  final double size;
+  const _ShimmerCircle({required this.size});
+
+  @override
+  State<_ShimmerCircle> createState() => _ShimmerCircleState();
+}
+
+class _ShimmerCircleState extends State<_ShimmerCircle>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final opacity = 0.15 + (_controller.value * 0.1);
+        return Container(
+          width: widget.size,
+          height: widget.size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: KinrelColors.textSilver.withValues(alpha: opacity),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Simple shimmer animation rectangle
+class _ShimmerRect extends StatefulWidget {
+  final double width;
+  final double height;
+  const _ShimmerRect({required this.width, required this.height});
+
+  @override
+  State<_ShimmerRect> createState() => _ShimmerRectState();
+}
+
+class _ShimmerRectState extends State<_ShimmerRect>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final opacity = 0.15 + (_controller.value * 0.1);
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          decoration: BoxDecoration(
+            color: KinrelColors.textSilver.withValues(alpha: opacity),
+            borderRadius: BorderRadius.circular(4),
+          ),
+        );
+      },
     );
   }
 }

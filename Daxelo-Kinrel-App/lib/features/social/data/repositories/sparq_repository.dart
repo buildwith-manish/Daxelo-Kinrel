@@ -32,14 +32,28 @@ class SparqRepository {
     String audience = 'PUBLIC',
     File? mediaFile,
     int? duration,
+    String mood = 'happy',
+    String intensity = 'warm',
+    bool allowChain = false,
+    bool allowReplies = true,
+    bool isTimeCapsule = false,
+    DateTime? revealAt,
+    String? parentSparqId,
   }) async {
     final dio = _ref.read(dioProvider);
     final formData = FormData.fromMap({
       'type': type,
       'audience': audience,
+      'mood': mood,
+      'intensity': intensity,
+      'allowChain': allowChain,
+      'allowReplies': allowReplies,
+      'isTimeCapsule': isTimeCapsule,
       if (text != null) 'text': text,
       if (backgroundColor != null) 'backgroundColor': backgroundColor,
       if (duration != null) 'duration': duration,
+      if (revealAt != null) 'revealAt': revealAt.toIso8601String(),
+      if (parentSparqId != null) 'parentSparqId': parentSparqId,
       if (mediaFile != null)
         'media': await MultipartFile.fromFile(
           mediaFile.path,
@@ -68,6 +82,51 @@ class SparqRepository {
   Future<void> deleteSparq(String sparqId) async {
     final dio = _ref.read(dioProvider);
     await dio.delete('/sparq/$sparqId');
+  }
+
+  /// Toggle echo on a Sparq — POST /sparq/$sparqId/echo
+  /// Returns { echoCount, isEchoed }
+  Future<Map<String, dynamic>> toggleEcho(String sparqId) async {
+    final dio = _ref.read(dioProvider);
+    final response = await dio.post('/sparq/$sparqId/echo');
+    return response.data as Map<String, dynamic>;
+  }
+
+  /// Get the chain of Sparqs for a parent Sparq — GET /sparq/$sparqId/chain
+  Future<List<SparqModel>> getChain(String sparqId) async {
+    final dio = _ref.read(dioProvider);
+    final response = await dio.get('/sparq/$sparqId/chain');
+    final list = response.data as List? ?? [];
+    return list.map((e) => SparqModel.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Add to chain — POST /sparq/$parentSparqId/chain
+  Future<SparqModel> addToChain({
+    required String parentSparqId,
+    required String type,
+    String? text,
+    String? backgroundColor,
+    File? mediaFile,
+    int? duration,
+    String mood = 'happy',
+    String intensity = 'warm',
+  }) async {
+    final dio = _ref.read(dioProvider);
+    final formData = FormData.fromMap({
+      'type': type,
+      'mood': mood,
+      'intensity': intensity,
+      if (text != null) 'text': text,
+      if (backgroundColor != null) 'backgroundColor': backgroundColor,
+      if (duration != null) 'duration': duration,
+      if (mediaFile != null)
+        'media': await MultipartFile.fromFile(
+          mediaFile.path,
+          filename: mediaFile.path.split('/').last,
+        ),
+    });
+    final response = await dio.post('/sparq/$parentSparqId/chain', data: formData);
+    return SparqModel.fromJson(response.data);
   }
 }
 

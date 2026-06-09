@@ -81,6 +81,22 @@ enum SparqType {
 enum SparqAudience {
   PUBLIC
   FAMILY_ONLY
+  VIP_CIRCLE
+}
+
+enum SparqMood {
+  happy
+  hype
+  love
+  sad
+  celebrate
+  angry
+}
+
+enum SparqIntensity {
+  calm
+  warm
+  fire
 }
 
 // ── Core Models ──────────────────────────────────────────────────────
@@ -153,6 +169,7 @@ model User {
   following           Follow[]                  @relation("UserFollowing")
   sparqs              Sparq[]
   sparqViews          SparqView[]
+  sparqEchoes         SparqEcho[]
   createdInvites      FamilyInvite[]           @relation("UserCreatedInvites")
 }
 
@@ -1839,25 +1856,40 @@ model Follow {
 // ── Sparq (24-hour expiring story) ──────────────────────────────────
 
 model Sparq {
-  id             String        @id @default(cuid())
-  userId         String
-  type           SparqType
-  mediaUrl       String?
-  thumbnailUrl   String?
-  text           String?
+  id              String        @id @default(cuid())
+  userId          String
+  type            SparqType
+  mediaUrl        String?
+  thumbnailUrl    String?
+  text            String?
   backgroundColor String?
-  duration       Int?
-  audience       SparqAudience @default(PUBLIC)
-  expiresAt      DateTime
-  createdAt      DateTime      @default(now())
-  viewCount      Int           @default(0)
+  duration        Int?
+  audience        SparqAudience @default(PUBLIC)
+  mood            SparqMood     @default(happy)
+  intensity       SparqIntensity @default(warm)
+  allowChain      Boolean       @default(false)
+  allowReplies    Boolean       @default(true)
+  isTimeCapsule   Boolean       @default(false)
+  revealAt        DateTime?
+  isRevealed      Boolean       @default(false)
+  parentSparqId   String?
+  chainOrder      Int?
+  echoCount       Int           @default(0)
+  expiresAt       DateTime
+  createdAt       DateTime      @default(now())
+  viewCount       Int           @default(0)
 
-  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  views  SparqView[]
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  views       SparqView[]
+  echoes      SparqEcho[]
+  parentSparq Sparq?        @relation("SparqChain", fields: [parentSparqId], references: [id], onDelete: Cascade)
+  chainItems  Sparq[]       @relation("SparqChain")
 
   @@index([userId, createdAt])
   @@index([expiresAt])
   @@index([audience])
+  @@index([parentSparqId])
+  @@index([isTimeCapsule, isRevealed])
 }
 
 // ── Sparq View (unique view tracking per Sparq per user) ────────────
@@ -1874,4 +1906,20 @@ model SparqView {
   @@unique([sparqId, viewerId])
   @@index([sparqId])
   @@index([viewerId])
+}
+
+// ── Sparq Echo (unique echo toggle per Sparq per user) ──────────────
+
+model SparqEcho {
+  id       String   @id @default(cuid())
+  sparqId  String
+  userId   String
+  createdAt DateTime @default(now())
+
+  sparq Sparq @relation(fields: [sparqId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sparqId, userId])
+  @@index([sparqId])
+  @@index([userId])
 }

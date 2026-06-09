@@ -12,13 +12,42 @@ class SparqState {
   final bool isCreating;
   final double createProgress; // 0.0 to 1.0
 
+  // ── New Sparq Enhancement State ──────────────────────────────────
+  final String selectedMood; // happy/hype/love/sad/celebrate/angry
+  final double selectedIntensity; // 0.0 to 1.0, maps to calm/warm/fire
+  final bool isTimeCapsule;
+  final DateTime? revealAt;
+  final bool allowChain;
+  final bool allowReplies;
+
+  // ── Echo state: sparqId → isEchoed ──────────────────────────────
+  final Map<String, bool> echoedSparqs;
+
+  // ── Echo counts: sparqId → echoCount ────────────────────────────
+  final Map<String, int> echoCounts;
+
   const SparqState({
     this.feed = const [],
     this.isLoading = false,
     this.error,
     this.isCreating = false,
     this.createProgress = 0.0,
+    this.selectedMood = 'happy',
+    this.selectedIntensity = 0.5,
+    this.isTimeCapsule = false,
+    this.revealAt,
+    this.allowChain = false,
+    this.allowReplies = true,
+    this.echoedSparqs = const {},
+    this.echoCounts = const {},
   });
+
+  /// Maps intensity slider value (0.0-1.0) to string label
+  String get intensityLabel {
+    if (selectedIntensity <= 0.33) return 'calm';
+    if (selectedIntensity <= 0.66) return 'warm';
+    return 'fire';
+  }
 
   SparqState copyWith({
     List<UserSparqGroup>? feed,
@@ -26,6 +55,15 @@ class SparqState {
     String? error,
     bool? isCreating,
     double? createProgress,
+    String? selectedMood,
+    double? selectedIntensity,
+    bool? isTimeCapsule,
+    DateTime? revealAt,
+    bool clearRevealAt = false,
+    bool? allowChain,
+    bool? allowReplies,
+    Map<String, bool>? echoedSparqs,
+    Map<String, int>? echoCounts,
   }) {
     return SparqState(
       feed: feed ?? this.feed,
@@ -33,6 +71,14 @@ class SparqState {
       error: error,
       isCreating: isCreating ?? this.isCreating,
       createProgress: createProgress ?? this.createProgress,
+      selectedMood: selectedMood ?? this.selectedMood,
+      selectedIntensity: selectedIntensity ?? this.selectedIntensity,
+      isTimeCapsule: isTimeCapsule ?? this.isTimeCapsule,
+      revealAt: clearRevealAt ? null : (revealAt ?? this.revealAt),
+      allowChain: allowChain ?? this.allowChain,
+      allowReplies: allowReplies ?? this.allowReplies,
+      echoedSparqs: echoedSparqs ?? this.echoedSparqs,
+      echoCounts: echoCounts ?? this.echoCounts,
     );
   }
 }
@@ -55,7 +101,7 @@ class SparqNotifier extends StateNotifier<SparqState> {
     }
   }
 
-  /// Create a new Sparq
+  /// Create a new Sparq with all enhancement fields
   Future<bool> createSparq({
     required String type,
     String? text,
@@ -63,6 +109,13 @@ class SparqNotifier extends StateNotifier<SparqState> {
     String audience = 'PUBLIC',
     File? mediaFile,
     int? duration,
+    String? mood,
+    String? intensity,
+    bool? allowChain,
+    bool? allowReplies,
+    bool? isTimeCapsule,
+    DateTime? revealAt,
+    String? parentSparqId,
   }) async {
     state = state.copyWith(isCreating: true, createProgress: 0.1);
     try {
@@ -73,6 +126,13 @@ class SparqNotifier extends StateNotifier<SparqState> {
         audience: audience,
         mediaFile: mediaFile,
         duration: duration,
+        mood: mood ?? state.selectedMood,
+        intensity: intensity ?? state.intensityLabel,
+        allowChain: allowChain ?? state.allowChain,
+        allowReplies: allowReplies ?? state.allowReplies,
+        isTimeCapsule: isTimeCapsule ?? state.isTimeCapsule,
+        revealAt: revealAt ?? state.revealAt,
+        parentSparqId: parentSparqId,
       );
       state = state.copyWith(isCreating: false, createProgress: 1.0);
       // Refresh feed to show new Sparq
@@ -81,6 +141,33 @@ class SparqNotifier extends StateNotifier<SparqState> {
     } catch (e) {
       state = state.copyWith(isCreating: false, createProgress: 0.0, error: 'Failed to create Sparq');
       return false;
+    }
+  }
+
+  /// Toggle echo on a Sparq — calls API and updates local state
+  Future<void> toggleEcho(String sparqId) async {
+    // Optimistic update
+    final wasEchoed = state.echoedSparqs[sparqId] ?? false;
+    final currentCount = state.echoCounts[sparqId] ?? 0;
+
+    state = state.copyWith(
+      echoedSparqs: Map.from(state.echoedSparqs)..[sparqId] = !wasEchoed,
+      echoCounts: Map.from(state.echoCounts)..[sparqId] = wasEchoed ? (currentCount - 1).clamp(0, 999999) : currentCount + 1,
+    );
+
+    try {
+      final result = await _ref.read(sparqRepositoryProvider).toggleEcho(sparqId);
+      // Update with server truth
+      state = state.copyWith(
+        echoedSparqs: Map.from(state.echoedSparqs)..[sparqId] = result['isEchoed'] as bool? ?? !wasEchoed,
+        echoCounts: Map.from(state.echoCounts)..[sparqId] = result['echoCount'] as int? ?? currentCount,
+      );
+    } catch (e) {
+      // Revert optimistic update
+      state = state.copyWith(
+        echoedSparqs: Map.from(state.echoedSparqs)..[sparqId] = wasEchoed,
+        echoCounts: Map.from(state.echoCounts)..[sparqId] = currentCount,
+      );
     }
   }
 
@@ -146,6 +233,40 @@ class SparqNotifier extends StateNotifier<SparqState> {
   void markLocalViewed(String sparqId) {
     _viewedSparqIds.add(sparqId);
   }
+
+  // ── State setters for create screen ──────────────────────────────
+
+  void setSelectedMood(String mood) {
+    state = state.copyWith(selectedMood: mood);
+  }
+
+  void setSelectedIntensity(double value) {
+    state = state.copyWith(selectedIntensity: value);
+  }
+
+  void setTimeCapsule(bool value) {
+    state = state.copyWith(isTimeCapsule: value);
+  }
+
+  void setRevealAt(DateTime? dt) {
+    if (dt == null) {
+      state = state.copyWith(clearRevealAt: true);
+    } else {
+      state = state.copyWith(revealAt: dt);
+    }
+  }
+
+  void setAllowChain(bool value) {
+    state = state.copyWith(allowChain: value);
+  }
+
+  void setAllowReplies(bool value) {
+    state = state.copyWith(allowReplies: value);
+  }
+
+  void clearError() {
+    state = state.copyWith(error: null);
+  }
 }
 
 // ── Providers ────────────────────────────────────────────────────────
@@ -164,4 +285,10 @@ final userSparqsProvider = FutureProvider.family<List<SparqModel>, String>((ref,
 final sparqViewersProvider = FutureProvider.family<List<Map<String, dynamic>>, String>((ref, sparqId) async {
   final repo = ref.read(sparqRepositoryProvider);
   return repo.getViewers(sparqId);
+});
+
+/// Get chain for a specific Sparq
+final sparqChainProvider = FutureProvider.family<List<SparqModel>, String>((ref, sparqId) async {
+  final repo = ref.read(sparqRepositoryProvider);
+  return repo.getChain(sparqId);
 });

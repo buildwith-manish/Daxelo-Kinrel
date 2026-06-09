@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/brand_colors.dart';
@@ -20,6 +21,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
   late AnimationController _progressController;
   bool _isPaused = false;
   List<SparqModel> _sparqs = [];
+  String? _replyText;
 
   @override
   void initState() {
@@ -121,6 +123,13 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
     }
   }
 
+  Future<void> _toggleEcho() async {
+    if (_sparqs.isEmpty) return;
+    final sparq = _sparqs[_currentIndex];
+    HapticFeedback.mediumImpact();
+    await ref.read(sparqProvider.notifier).toggleEcho(sparq.id);
+  }
+
   @override
   void dispose() {
     _progressController.dispose();
@@ -137,6 +146,14 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
     }
 
     final sparq = _sparqs[_currentIndex];
+    final sparqState = ref.watch(sparqProvider);
+    final isEchoed = sparqState.echoedSparqs[sparq.id] ?? false;
+    final echoCount = sparqState.echoCounts[sparq.id] ?? sparq.echoCount;
+
+    // Time capsule locked state
+    if (sparq.isLockedTimeCapsule) {
+      return _buildTimeCapsuleLocked(sparq);
+    }
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -149,12 +166,48 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Content
+            // ── Full-screen content ─────────────────────────────
             _buildSparqContent(sparq),
 
-            // Progress bars at top
+            // ── Mood particles overlay ──────────────────────────
+            if (sparq.mood.isNotEmpty)
+              _buildMoodParticles(sparq),
+
+            // ── Gradient overlays (top/bottom) ──────────────────
             Positioned(
-              top: MediaQuery.of(context).padding.top + 8,
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 120,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.black.withValues(alpha: 0.6), Colors.transparent],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 180,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Colors.black.withValues(alpha: 0.7)],
+                  ),
+                ),
+              ),
+            ),
+
+            // ── Progress bars at top ────────────────────────────
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 4,
               left: 8,
               right: 8,
               child: Row(
@@ -187,44 +240,91 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
               ),
             ),
 
-            // Top bar: close + viewer count
+            // ── User info row ───────────────────────────────────
             Positioned(
-              top: MediaQuery.of(context).padding.top + 16,
+              top: MediaQuery.of(context).padding.top + 14,
               left: 8,
               right: 8,
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  // Avatar with intensity ring
+                  _buildIntensityRingAvatar(sparq),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          sparq.userId,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Outfit',
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              _timeAgo(sparq.createdAt),
+                              style: TextStyle(color: Colors.white54, fontSize: 11, fontFamily: 'DM Sans'),
+                            ),
+                            // Mood badge
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: sparq.moodColor.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                sparq.moodEmoji,
+                                style: TextStyle(fontSize: 10),
+                              ),
+                            ),
+                            // Intensity badge
+                            const SizedBox(width: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: sparq.intensityColor.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                sparq.intensity == 'fire' ? '🔥' : sparq.intensity == 'calm' ? '🌊' : '🌤️',
+                                style: TextStyle(fontSize: 10),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Close button
                   IconButton(
                     icon: Icon(Icons.close, color: Colors.white, size: 24),
                     onPressed: () => context.pop(),
-                  ),
-                  Row(
-                    children: [
-                      Icon(Icons.visibility, color: Colors.white54, size: 16),
-                      SizedBox(width: 4),
-                      Text(
-                        '${sparq.viewCount}',
-                        style: TextStyle(color: Colors.white54, fontSize: 12),
-                      ),
-                    ],
                   ),
                 ],
               ),
             ),
 
-            // Tap areas
+            // ── Tap areas (left 30% → prev, right 70% → next) ──
             Positioned.fill(
               child: Row(
                 children: [
                   Expanded(
-                    flex: 1,
-                    child: GestureDetector(onTap: _goToPrevious),
+                    flex: 3,
+                    child: GestureDetector(
+                      onTap: _goToPrevious,
+                      onLongPress: _togglePause,
+                    ),
                   ),
                   Expanded(
-                    flex: 2,
+                    flex: 7,
                     child: GestureDetector(
-                      onTap: _togglePause,
+                      onTap: _goToNext,
                       onLongPress: _togglePause,
                     ),
                   ),
@@ -232,38 +332,111 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
               ),
             ),
 
-            // Family badge
-            if (sparq.audience == 'FAMILY_ONLY')
-              Positioned(
-                bottom: MediaQuery.of(context).padding.bottom + 80,
-                left: 16,
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: KinrelColors.orange.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: KinrelColors.orange, width: 1),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+            // ── Bottom section: actions + reply ──────────────────
+            Positioned(
+              bottom: MediaQuery.of(context).padding.bottom + 16,
+              left: 16,
+              right: 16,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Action buttons row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.family_restroom, size: 14, color: KinrelColors.orange),
-                      SizedBox(width: 4),
-                      Text('Family',
-                        style: TextStyle(color: KinrelColors.orange, fontSize: 11, fontWeight: FontWeight.w600),
+                      // Echo button
+                      _buildActionButton(
+                        emoji: '🔥',
+                        label: 'Echo',
+                        count: echoCount,
+                        isActive: isEchoed,
+                        onTap: _toggleEcho,
+                      ),
+                      const SizedBox(width: 20),
+                      // Chain button (if allowChain)
+                      if (sparq.allowChain)
+                        _buildActionButton(
+                          emoji: '🔗',
+                          label: 'Chain',
+                          count: null,
+                          isActive: false,
+                          onTap: () {
+                            // Navigate to create screen for chaining
+                            context.push('/sparq/create');
+                          },
+                        ),
+                      if (sparq.allowChain)
+                        const SizedBox(width: 20),
+                      // Reply button (if allowReplies)
+                      if (sparq.allowReplies)
+                        _buildActionButton(
+                          emoji: '💬',
+                          label: 'Reply',
+                          count: null,
+                          isActive: false,
+                          onTap: () {
+                            // Focus reply field
+                            setState(() {});
+                          },
+                        ),
+                      const Spacer(),
+                      // Delete button (creator only — shown for own sparqs)
+                      IconButton(
+                        icon: Icon(Icons.delete_outline, color: Colors.white54, size: 22),
+                        onPressed: _deleteSparq,
                       ),
                     ],
                   ),
-                ),
-              ),
-
-            // Delete button (creator only)
-            Positioned(
-              bottom: MediaQuery.of(context).padding.bottom + 80,
-              right: 16,
-              child: IconButton(
-                icon: Icon(Icons.delete_outline, color: Colors.white54),
-                onPressed: _deleteSparq,
+                  const SizedBox(height: 12),
+                  // Reply field
+                  if (sparq.allowReplies)
+                    Container(
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: TextField(
+                        onChanged: (v) => _replyText = v,
+                        style: TextStyle(color: Colors.white, fontSize: 14, fontFamily: 'DM Sans'),
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                          hintText: 'Reply to Sparq...',
+                          hintStyle: TextStyle(color: Colors.white38, fontSize: 14),
+                          suffixIcon: IconButton(
+                            icon: Icon(Icons.send, color: KinrelColors.orange, size: 20),
+                            onPressed: () {
+                              // TODO: implement reply submission
+                              _replyText = null;
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Family badge
+                  if (sparq.audience == 'FAMILY_ONLY') ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: KinrelColors.orange.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: KinrelColors.orange, width: 1),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.family_restroom, size: 14, color: KinrelColors.orange),
+                          SizedBox(width: 4),
+                          Text('Family',
+                            style: TextStyle(color: KinrelColors.orange, fontSize: 11, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
@@ -272,12 +445,195 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
     );
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  // INTENSITY RING AVATAR
+  // ══════════════════════════════════════════════════════════════════
+
+  Widget _buildIntensityRingAvatar(SparqModel sparq) {
+    Color ringColor;
+    double ringWidth = 2.5;
+
+    switch (sparq.intensity) {
+      case 'calm':
+        ringColor = const Color(0xFF2196F3);
+        break;
+      case 'fire':
+        ringColor = const Color(0xFFFF1744);
+        break;
+      default:
+        ringColor = const Color(0xFFFF9800);
+    }
+
+    // Time capsule: gold dashed ring
+    if (sparq.isTimeCapsule) {
+      ringColor = const Color(0xFFFFD700);
+    }
+
+    return CustomPaint(
+      painter: _IntensityRingPainter(
+        ringColor: ringColor,
+        ringWidth: ringWidth,
+        intensity: sparq.intensity,
+        isTimeCapsule: sparq.isTimeCapsule,
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(ringWidth + 1.5),
+        child: CircleAvatar(
+          radius: 18,
+          backgroundColor: KinrelColors.elevation2,
+          child: Icon(Icons.person, size: 18, color: KinrelColors.textSilver),
+        ),
+      ),
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // ACTION BUTTON
+  // ══════════════════════════════════════════════════════════════════
+
+  Widget _buildActionButton({
+    required String emoji,
+    required String label,
+    required int? count,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isActive ? KinrelColors.orange.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(emoji, style: TextStyle(fontSize: 16)),
+            if (count != null) ...[
+              const SizedBox(width: 4),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Text(
+                  '$count',
+                  key: ValueKey(count),
+                  style: TextStyle(
+                    color: isActive ? KinrelColors.orange : Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'DM Sans',
+                  ),
+                ),
+              ),
+            ] else ...[
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isActive ? KinrelColors.orange : Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  fontFamily: 'DM Sans',
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // MOOD PARTICLES
+  // ══════════════════════════════════════════════════════════════════
+
+  Widget _buildMoodParticles(SparqModel sparq) {
+    return CustomPaint(
+      painter: _MoodParticlePainter(
+        moodColor: sparq.moodColor,
+        time: DateTime.now().millisecondsSinceEpoch % 60000 / 60000,
+      ),
+      size: Size.infinite,
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // TIME CAPSULE LOCKED STATE
+  // ══════════════════════════════════════════════════════════════════
+
+  Widget _buildTimeCapsuleLocked(SparqModel sparq) {
+    final remaining = sparq.timeUntilReveal ?? Duration.zero;
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Blurred background
+          Container(
+            decoration: BoxDecoration(
+              color: sparq.moodColor.withValues(alpha: 0.1),
+            ),
+            child: BackdropFilter(
+              filter: ColorFilter.mode(Colors.black.withValues(alpha: 0.7), BlendMode.srcOver),
+              child: Container(),
+            ),
+          ),
+          // Lock content
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.lock_clock, size: 64, color: Color(0xFFFFD700)),
+                const SizedBox(height: 20),
+                Text(
+                  '🕰️ Time Capsule',
+                  style: TextStyle(
+                    color: KinrelColors.textWhite,
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 22,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'This Sparq is locked until',
+                  style: TextStyle(color: KinrelColors.textSilver, fontFamily: 'DM Sans', fontSize: 14),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _formatDuration(remaining),
+                  style: TextStyle(
+                    color: Color(0xFFFFD700),
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 28,
+                  ),
+                ),
+                const SizedBox(height: 40),
+                IconButton(
+                  icon: Icon(Icons.close, color: KinrelColors.textSilver, size: 28),
+                  onPressed: () => context.pop(),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // CONTENT BUILDERS
+  // ══════════════════════════════════════════════════════════════════
+
   Widget _buildSparqContent(SparqModel sparq) {
     switch (sparq.type) {
       case 'IMAGE':
         if (sparq.mediaUrl != null && sparq.mediaUrl!.isNotEmpty) {
           return Center(
-            child: Image.network(sparq.mediaUrl!, fit: BoxFit.contain,
+            child: Image.network(sparq.mediaUrl!, fit: BoxFit.cover, width: double.infinity, height: double.infinity,
               errorBuilder: (_, __, ___) => _buildErrorContent(),
             ),
           );
@@ -285,12 +641,40 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
         return _buildErrorContent();
       case 'VIDEO':
         return Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              Icon(Icons.play_circle_outline, size: 64, color: Colors.white54),
-              SizedBox(height: 12),
-              Text('Video Sparq', style: TextStyle(color: Colors.white54, fontSize: 14)),
+              if (sparq.thumbnailUrl != null && sparq.thumbnailUrl!.isNotEmpty)
+                Image.network(sparq.thumbnailUrl!, fit: BoxFit.cover, width: double.infinity, height: double.infinity,
+                  errorBuilder: (_, __, ___) => Container(color: KinrelColors.elevation1),
+                )
+              else
+                Container(color: KinrelColors.elevation1),
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.play_arrow, color: Colors.white, size: 36),
+              ),
+              // Duration badge
+              Positioned(
+                bottom: 16,
+                right: 16,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${sparq.duration ?? 0}s',
+                    style: TextStyle(color: Colors.white, fontSize: 12, fontFamily: 'DM Sans'),
+                  ),
+                ),
+              ),
             ],
           ),
         );
@@ -352,5 +736,117 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
         ],
       ),
     );
+  }
+
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
+
+  String _formatDuration(Duration d) {
+    if (d.inDays > 0) return '${d.inDays}d ${d.inHours % 24}h remaining';
+    if (d.inHours > 0) return '${d.inHours}h ${d.inMinutes % 60}m remaining';
+    if (d.inMinutes > 0) return '${d.inMinutes}m remaining';
+    return 'Revealing soon...';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// INTENSITY RING PAINTER
+// ══════════════════════════════════════════════════════════════════════
+
+class _IntensityRingPainter extends CustomPainter {
+  final Color ringColor;
+  final double ringWidth;
+  final String intensity;
+  final bool isTimeCapsule;
+
+  _IntensityRingPainter({
+    required this.ringColor,
+    required this.ringWidth,
+    required this.intensity,
+    required this.isTimeCapsule,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - ringWidth) / 2;
+
+    final paint = Paint()
+      ..color = ringColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = ringWidth
+      ..strokeCap = StrokeCap.round;
+
+    if (isTimeCapsule) {
+      // Dashed ring for time capsule
+      _drawDashedCircle(canvas, center, radius, paint);
+    } else {
+      canvas.drawCircle(center, radius, paint);
+    }
+  }
+
+  void _drawDashedCircle(Canvas canvas, Offset center, double radius, Paint paint) {
+    const dashCount = 12;
+    const dashAngle = 3.14159 * 2 / dashCount;
+    const sweepAngle = dashAngle * 0.6;
+    for (int i = 0; i < dashCount; i++) {
+      final startAngle = i * dashAngle;
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle,
+        sweepAngle,
+        false,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _IntensityRingPainter oldDelegate) {
+    return ringColor != oldDelegate.ringColor ||
+        ringWidth != oldDelegate.ringWidth ||
+        intensity != oldDelegate.intensity ||
+        isTimeCapsule != oldDelegate.isTimeCapsule;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// MOOD PARTICLE PAINTER
+// ══════════════════════════════════════════════════════════════════════
+
+class _MoodParticlePainter extends CustomPainter {
+  final Color moodColor;
+  final double time;
+
+  _MoodParticlePainter({required this.moodColor, required this.time});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final particleCount = 8;
+    for (int i = 0; i < particleCount; i++) {
+      final seed = i * 137.508; // Golden angle
+      final t = (time + seed * 0.01) % 1.0;
+
+      final x = (seed * 7.3 + t * size.width * 0.3) % size.width;
+      final y = size.height - (t * size.height);
+      final opacity = (1.0 - t).clamp(0.0, 0.3);
+      final radius = 2.0 + (1.0 - t) * 3.0;
+
+      final paint = Paint()
+        ..color = moodColor.withValues(alpha: opacity)
+        ..style = PaintingStyle.fill;
+
+      canvas.drawCircle(Offset(x, y), radius, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MoodParticlePainter oldDelegate) {
+    return time != oldDelegate.time || moodColor != oldDelegate.moodColor;
   }
 }

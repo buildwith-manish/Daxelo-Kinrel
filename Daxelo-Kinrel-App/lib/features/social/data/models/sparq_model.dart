@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 // SparqModel — ephemeral 24-hour content (IMAGE, VIDEO, TEXT, VOICE)
 class SparqModel {
   final String id;
@@ -13,6 +15,18 @@ class SparqModel {
   final DateTime createdAt;
   final int viewCount;
 
+  // ── New Sparq Enhancement Fields ──────────────────────────────────
+  final String mood; // happy/hype/love/sad/celebrate/angry
+  final String intensity; // calm/warm/fire
+  final bool allowChain;
+  final bool allowReplies;
+  final bool isTimeCapsule;
+  final DateTime? revealAt;
+  final bool isRevealed;
+  final String? parentSparqId;
+  final int? chainOrder;
+  final int echoCount;
+
   const SparqModel({
     required this.id,
     required this.userId,
@@ -26,6 +40,16 @@ class SparqModel {
     required this.expiresAt,
     required this.createdAt,
     this.viewCount = 0,
+    this.mood = 'happy',
+    this.intensity = 'warm',
+    this.allowChain = false,
+    this.allowReplies = true,
+    this.isTimeCapsule = false,
+    this.revealAt,
+    this.isRevealed = false,
+    this.parentSparqId,
+    this.chainOrder,
+    this.echoCount = 0,
   });
 
   factory SparqModel.fromJson(Map<String, dynamic> json) {
@@ -46,6 +70,18 @@ class SparqModel {
           ? DateTime.parse(json['createdAt'] as String)
           : DateTime.now(),
       viewCount: json['viewCount'] as int? ?? 0,
+      mood: json['mood'] as String? ?? 'happy',
+      intensity: json['intensity'] as String? ?? 'warm',
+      allowChain: json['allowChain'] as bool? ?? false,
+      allowReplies: json['allowReplies'] as bool? ?? true,
+      isTimeCapsule: json['isTimeCapsule'] as bool? ?? false,
+      revealAt: json['revealAt'] != null
+          ? DateTime.parse(json['revealAt'] as String)
+          : null,
+      isRevealed: json['isRevealed'] as bool? ?? false,
+      parentSparqId: json['parentSparqId'] as String?,
+      chainOrder: json['chainOrder'] as int?,
+      echoCount: json['echoCount'] as int? ?? 0,
     );
   }
 
@@ -62,6 +98,16 @@ class SparqModel {
     'expiresAt': expiresAt.toIso8601String(),
     'createdAt': createdAt.toIso8601String(),
     'viewCount': viewCount,
+    'mood': mood,
+    'intensity': intensity,
+    'allowChain': allowChain,
+    'allowReplies': allowReplies,
+    'isTimeCapsule': isTimeCapsule,
+    'revealAt': revealAt?.toIso8601String(),
+    'isRevealed': isRevealed,
+    'parentSparqId': parentSparqId,
+    'chainOrder': chainOrder,
+    'echoCount': echoCount,
   };
 
   bool get isExpired => DateTime.now().isAfter(expiresAt);
@@ -78,6 +124,54 @@ class SparqModel {
       default:
         return 5;
     }
+  }
+
+  // ── Mood Helper Getters ───────────────────────────────────────────
+
+  String get moodEmoji {
+    switch (mood) {
+      case 'happy': return '😊';
+      case 'hype': return '🔥';
+      case 'love': return '💝';
+      case 'sad': return '😢';
+      case 'celebrate': return '🎉';
+      case 'angry': return '😤';
+      default: return '😊';
+    }
+  }
+
+  Color get moodColor {
+    switch (mood) {
+      case 'happy': return const Color(0xFFFFB300);
+      case 'hype': return const Color(0xFFFF5722);
+      case 'love': return const Color(0xFFE91E63);
+      case 'sad': return const Color(0xFF2196F3);
+      case 'celebrate': return const Color(0xFF9C27B0);
+      case 'angry': return const Color(0xFFFF1744);
+      default: return const Color(0xFFFFB300);
+    }
+  }
+
+  Color get intensityColor {
+    switch (intensity) {
+      case 'calm': return const Color(0xFF2196F3);
+      case 'warm': return const Color(0xFFFF9800);
+      case 'fire': return const Color(0xFFFF1744);
+      default: return const Color(0xFFFF9800);
+    }
+  }
+
+  /// Whether this Sparq is part of a chain
+  bool get isChained => parentSparqId != null;
+
+  /// Whether this Sparq is a time capsule that hasn't been revealed yet
+  bool get isLockedTimeCapsule => isTimeCapsule && !isRevealed;
+
+  /// Time remaining until reveal (for time capsules)
+  Duration? get timeUntilReveal {
+    if (revealAt == null) return null;
+    final remaining = revealAt!.difference(DateTime.now());
+    return remaining.isNegative ? Duration.zero : remaining;
   }
 }
 
@@ -98,10 +192,31 @@ class UserSparqGroup {
   });
 
   factory UserSparqGroup.fromJson(Map<String, dynamic> json) {
+    // Handle both flat and nested user object from backend
+    // Backend returns: { user: { id, name, username, avatarUrl, photoThumb }, sparqs: [...], allSeen: bool }
+    // Legacy format: { userId, userName, userAvatarUrl, sparqs: [...], allSeen: bool }
+    final userObj = json['user'];
+
+    String userId;
+    String userName;
+    String? userAvatarUrl;
+
+    if (userObj is Map<String, dynamic>) {
+      // Nested user object from backend
+      userId = userObj['id'] as String? ?? '';
+      userName = userObj['name'] as String? ?? userObj['username'] as String? ?? '';
+      userAvatarUrl = userObj['avatarUrl'] as String? ?? userObj['photoThumb'] as String?;
+    } else {
+      // Flat format (legacy)
+      userId = json['userId'] as String? ?? '';
+      userName = json['userName'] as String? ?? '';
+      userAvatarUrl = json['userAvatarUrl'] as String?;
+    }
+
     return UserSparqGroup(
-      userId: json['userId'] as String? ?? '',
-      userName: json['userName'] as String? ?? '',
-      userAvatarUrl: json['userAvatarUrl'] as String?,
+      userId: userId,
+      userName: userName,
+      userAvatarUrl: userAvatarUrl,
       sparqs: (json['sparqs'] as List?)
               ?.map((s) => SparqModel.fromJson(s as Map<String, dynamic>))
               .toList() ??
