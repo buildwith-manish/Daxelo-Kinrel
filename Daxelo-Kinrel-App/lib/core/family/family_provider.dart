@@ -1987,6 +1987,166 @@ Future<Family> joinFamilyByCode(WidgetRef ref, String familyCode) async {
   return family;
 }
 
+/// Update family fields in Supabase with retry for cold starts.
+///
+/// Only non-null fields are sent to the server; null parameters are
+/// left unchanged on the server side. This matches the NestJS backend's
+/// PATCH behaviour.
+Future<Family> updateFamily({
+  required WidgetRef ref,
+  required String familyId,
+  String? name,
+  String? description,
+  String? primaryLanguage,
+  String? gotra,
+  String? originVillage,
+  String? region,
+  String? privacyMode,
+  String? username,
+  String? avatarUrl,
+}) async {
+  final client = ref.read(supabaseProvider);
+  if (client == null) {
+    throw Exception(
+      'Database is not connected. Please restart the app and try again.',
+    );
+  }
+
+  // Build the update map — only include fields that are explicitly provided
+  final updates = <String, dynamic>{
+    'updatedAt': DateTime.now().toIso8601String(),
+  };
+  if (name != null) updates['name'] = name;
+  if (description != null) updates['description'] = description;
+  if (primaryLanguage != null) updates['primaryLanguage'] = primaryLanguage;
+  if (gotra != null) updates['gotra'] = gotra;
+  if (originVillage != null) updates['originVillage'] = originVillage;
+  if (region != null) updates['region'] = region;
+  if (privacyMode != null) updates['privacyMode'] = privacyMode;
+  if (username != null) updates['username'] = username;
+  if (avatarUrl != null) updates['avatarUrl'] = avatarUrl;
+
+  final response = await withRetry(
+    () => client
+        .from(_kFamilyTable)
+        .update(updates)
+        .eq('id', familyId)
+        .select()
+        .maybeSingle(),
+    operationName: 'Update family',
+  );
+
+  if (response == null) {
+    throw Exception('Failed to update family — no data returned from server.');
+  }
+
+  ref.invalidate(familyListProvider);
+  ref.invalidate(familyDetailProvider(familyId));
+
+  // Invalidate the Isar cache for this family
+  if (IsarDatabase.isInitialized) {
+    try {
+      await CacheInvalidation.invalidateFamily(familyId);
+    } catch (_) {}
+  }
+
+  return Family.fromJson(response);
+}
+
+/// Delete (deactivate) a relationship in Supabase.
+///
+/// Sets `isActive = false` on both the forward and inverse relationships.
+/// This matches the NestJS backend's soft-delete behaviour for relationships.
+Future<void> deleteRelationship({
+  required WidgetRef ref,
+  required String relationshipId,
+  required String familyId,
+}) async {
+  final client = ref.read(supabaseProvider);
+  if (client == null) {
+    throw Exception(
+      'Database is not connected. Please restart the app and try again.',
+    );
+  }
+
+  final now = DateTime.now().toIso8601String();
+
+  // 1. Look up the relationship to find the inverse
+  final relData = await withRetry(
+    () => client
+        .from(_kRelationshipTable)
+        .select()
+        .eq('id', relationshipId)
+        .maybeSingle(),
+    operationName: 'Lookup relationship for delete',
+  );
+
+  // 2. Deactivate the forward relationship
+  await withRetry(
+    () => client.from(_kRelationshipTable).update({
+      'isActive': false,
+      'updatedAt': now,
+    }).eq('id', relationshipId),
+    operationName: 'Deactivate relationship',
+  );
+
+  // 3. Deactivate the inverse relationship (best-effort)
+  if (relData != null) {
+    final fromPersonId = relData['fromPersonId'] as String?;
+    final toPersonId = relData['toPersonId'] as String?;
+    if (fromPersonId != null && toPersonId != null) {
+      try {
+        await withRetry(
+          () => client
+              .from(_kRelationshipTable)
+              .update({
+                'isActive': false,
+                'updatedAt': now,
+              })
+              .eq('familyId', familyId)
+              .eq('fromPersonId', toPersonId)
+              .eq('toPersonId', fromPersonId)
+              .neq('id', relationshipId),
+          operationName: 'Deactivate inverse relationship',
+        );
+      } catch (e) {
+        debugPrint('⚠️ Could not deactivate inverse relationship: $e');
+      }
+    }
+  }
+
+  // 4. Update Family.lastActivityAt
+  try {
+    await withRetry(
+      () => client
+          .from(_kFamilyTable)
+          .update({
+            'lastActivityAt': now,
+            'updatedAt': now,
+          })
+          .eq('id', familyId),
+      operationName: 'Update family activity timestamp',
+    );
+  } catch (e) {
+    debugPrint('⚠️ Could not update family activity: $e');
+  }
+
+  ref.invalidate(familyRelationshipsProvider(familyId));
+  ref.invalidate(familyDetailProvider(familyId));
+
+  // Invalidate the Isar cache for this family
+  if (IsarDatabase.isInitialized) {
+    try {
+      await CacheInvalidation.invalidateFamily(familyId);
+    } catch (_) {}
+  }
+
+  // Refresh profile stats
+  try {
+    await ref.read(profileProvider.notifier).loadStats();
+  } catch (_) {}
+}
+
 // ── Top-level parsing functions for compute() ──────────────────────
 // These must be top-level functions (not closures or class methods)
 // because Dart's compute() requires them for spawning isolates.
