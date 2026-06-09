@@ -123,6 +123,14 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
       ),
       actions: [
         _ActionIconButton(
+          icon: Icons.timeline,
+          tooltip: 'View Timeline',
+          onTap: () {
+            HapticFeedback.lightImpact();
+            context.push('/member/${widget.memberId}/timeline');
+          },
+        ),
+        _ActionIconButton(
           icon: Icons.edit_outlined,
           tooltip: 'Edit Profile',
           onTap: () {

@@ -88,6 +88,8 @@ import '../../features/social/presentation/screens/follow_requests_screen.dart';
 import '../../features/social/presentation/screens/family_invite_screen.dart';
 import '../../features/social/presentation/screens/join_family_preview_screen.dart';
 import '../../features/social/presentation/screens/privacy_settings_screen.dart';
+import '../../features/feed/presentation/post_create_screen.dart';
+import '../../features/profile/presentation/member_timeline_screen.dart';
 import '../../features/ai_chat/presentation/ai_chat_screen.dart';
 import '../../features/voice_search/presentation/voice_search_screen.dart';
 import '../../features/festival_cards/presentation/festival_cards_screen.dart';
@@ -710,6 +712,24 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: PersonDetailScreen(memberId: state.pathParameters['id']!),
+        ),
+      ),
+
+      // ── Post Creation Screen ──────────────────────────────────
+      GoRoute(
+        path: '/post/create',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const PostCreateScreen()),
+      ),
+
+      // ── Member Timeline Screen ───────────────────────────────
+      GoRoute(
+        path: '/member/:id/timeline',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: MemberTimelineScreen(
+            memberId: state.pathParameters['id']!,
+          ),
         ),
       ),
 

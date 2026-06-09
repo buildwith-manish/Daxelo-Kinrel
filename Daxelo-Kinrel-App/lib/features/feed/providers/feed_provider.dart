@@ -235,6 +235,161 @@ class FeedNotifier extends StateNotifier<FeedState> {
     }
   }
 
+  /// Load unified home feed (posts from ALL families the user belongs to)
+  Future<void> loadHomeFeed() async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      final client = _ref.read(supabaseProvider);
+      if (client == null) {
+        state = state.copyWith(isLoading: false, error: 'Not connected');
+        return;
+      }
+
+      final session = client.auth.currentSession;
+      if (session == null) {
+        state = state.copyWith(isLoading: false, posts: []);
+        return;
+      }
+
+      // Get all families the user belongs to
+      final families = _ref.read(familyListProvider).valueOrNull ?? [];
+      if (families.isEmpty) {
+        state = state.copyWith(isLoading: false, posts: []);
+        return;
+      }
+
+      final familyIds = families.map((f) => f.id).toList();
+
+      // Fetch posts from all families using `in` filter
+      final response = await withRetry(
+        () => client
+            .from(_kFamilyPostTable)
+            .select('*, Family(name, username), Person(name, username)')
+            .in('familyId', familyIds)
+            .order('createdAt', ascending: false)
+            .range(0, _pageSize - 1),
+        operationName: 'Load home feed',
+      );
+
+      final posts = (response as List)
+          .map(
+            (json) => FamilyPost.fromJson(
+              _flattenJoins(json as Map<String, dynamic>),
+            ),
+          )
+          .toList();
+
+      state = state.copyWith(
+        posts: posts,
+        isLoading: false,
+        hasMore: posts.length >= _pageSize,
+        page: 1,
+      );
+    } catch (e) {
+      debugPrint('⚠️ Home feed load error: $e');
+      final errMsg = e.toString();
+      final isTableMissing = errMsg.contains('does not exist') ||
+          errMsg.contains('not found') ||
+          errMsg.contains('relation');
+      state = state.copyWith(
+        isLoading: false,
+        error: isTableMissing ? null : errMsg,
+        posts: [],
+      );
+    }
+  }
+
+  /// Load more posts for home feed (all families)
+  Future<void> loadMoreHome() async {
+    if (state.isLoadingMore || !state.hasMore) return;
+
+    state = state.copyWith(isLoadingMore: true);
+
+    try {
+      final client = _ref.read(supabaseProvider);
+      if (client == null) return;
+
+      final families = _ref.read(familyListProvider).valueOrNull ?? [];
+      if (families.isEmpty) {
+        state = state.copyWith(isLoadingMore: false);
+        return;
+      }
+
+      final familyIds = families.map((f) => f.id).toList();
+      final nextPage = state.page + 1;
+      final offset = state.page * _pageSize;
+
+      final response = await withRetry(
+        () => client
+            .from(_kFamilyPostTable)
+            .select('*, Family(name, username), Person(name, username)')
+            .in('familyId', familyIds)
+            .order('createdAt', ascending: false)
+            .range(offset, offset + _pageSize - 1),
+        operationName: 'Load more home feed',
+      );
+
+      final newPosts = (response as List)
+          .map(
+            (json) => FamilyPost.fromJson(
+              _flattenJoins(json as Map<String, dynamic>),
+            ),
+          )
+          .toList();
+
+      state = state.copyWith(
+        posts: [...state.posts, ...newPosts],
+        isLoadingMore: false,
+        hasMore: newPosts.length >= _pageSize,
+        page: nextPage,
+      );
+    } catch (e) {
+      debugPrint('⚠️ Home feed load more error: $e');
+      state = state.copyWith(isLoadingMore: false);
+    }
+  }
+
+  /// Add a reaction to a post (emoji-based)
+  Future<void> addReaction(String postId, String emoji) async {
+    final postIndex = state.posts.indexWhere((p) => p.id == postId);
+    if (postIndex == -1) return;
+
+    final post = state.posts[postIndex];
+    final currentCounts = Map<String, dynamic>.from(
+      (post.reactions['reactionCounts'] as Map<String, dynamic>?) ?? {},
+    );
+    final currentCount = (currentCounts[emoji] as int?) ?? 0;
+    currentCounts[emoji] = currentCount + 1;
+
+    final newReactions = Map<String, dynamic>.from(post.reactions)
+      ..['reactionCounts'] = currentCounts;
+
+    // Optimistic update
+    final updatedPosts = List<FamilyPost>.from(state.posts);
+    updatedPosts[postIndex] = post.copyWith(reactions: newReactions);
+    state = state.copyWith(posts: updatedPosts);
+
+    try {
+      final client = _ref.read(supabaseProvider);
+      if (client == null) return;
+
+      await withRetry(
+        () => client
+            .from(_kFamilyPostTable)
+            .update({'reactions': newReactions})
+            .eq('id', postId),
+        operationName: 'Add reaction',
+      );
+    } catch (e) {
+      debugPrint('⚠️ Add reaction error: $e');
+      // Revert on error
+      final revertedPosts = List<FamilyPost>.from(state.posts);
+      revertedPosts[postIndex] = post;
+      state = state.copyWith(posts: revertedPosts);
+    }
+  }
+
   /// Load more posts (pagination)
   Future<void> loadMore(String familyId) async {
     if (state.isLoadingMore || !state.hasMore) return;
@@ -573,4 +728,9 @@ final feedProvider = StateNotifierProvider<FeedNotifier, FeedState>((ref) {
 /// Convenience provider that returns feed for a specific family
 final familyFeedProvider = Provider.family<FeedState, String>((ref, familyId) {
   return ref.watch(feedProvider);
+});
+
+/// Home feed provider — loads posts from ALL families the user belongs to
+final homeFeedProvider = StateNotifierProvider<FeedNotifier, FeedState>((ref) {
+  return FeedNotifier(ref);
 });

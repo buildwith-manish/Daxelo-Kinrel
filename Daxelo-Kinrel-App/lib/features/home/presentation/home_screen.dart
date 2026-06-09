@@ -25,7 +25,7 @@ import '../../../core/config/auth_config.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../../feed/presentation/family_feed.dart';
+import '../../feed/presentation/widgets/feed_post_card.dart';
 import '../../feed/providers/feed_provider.dart';
 import '../../stories/providers/stories_provider.dart';
 import '../../stories/presentation/stories_viewer_screen.dart';
@@ -52,7 +52,35 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with AutomaticKeepAliveClientMixin {
   @override
-  bool get wantKeepAlive => true;
+  bool get wantKeepAlive = true;
+
+  final _feedScrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _feedScrollController.addListener(_onFeedScroll);
+    // Load home feed on init
+    Future.microtask(() {
+      if (mounted) {
+        ref.read(homeFeedProvider.notifier).loadHomeFeed().catchError((_) {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _feedScrollController.removeListener(_onFeedScroll);
+    _feedScrollController.dispose();
+    super.dispose();
+  }
+
+  void _onFeedScroll() {
+    if (_feedScrollController.position.pixels >=
+        _feedScrollController.position.maxScrollExtent - 200) {
+      ref.read(homeFeedProvider.notifier).loadMoreHome();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,8 +100,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           if (families.isEmpty) {
             return _buildNoFamiliesView(user);
           }
-          return _buildFamiliesView(user, families);
+          return _buildUnifiedHomeView(user, families);
         },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push('/post/create'),
+        backgroundColor: _cOrange,
+        elevation: 4,
+        shape: const CircleBorder(),
+        child: Icon(Icons.add, size: 28, color: Colors.white),
       ),
     );
   }
@@ -182,23 +217,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  // ── Has families — show Command Center with Feed ──────────────
-  Widget _buildFamiliesView(dynamic user, List<Family> families) {
+  // ── Has families — show Unified Home Feed ────────────────────────
+  Widget _buildUnifiedHomeView(dynamic user, List<Family> families) {
     final primaryFamily = families.first;
-    final detailAsync = ref.watch(familyDetailProvider(primaryFamily.id));
+    final feedState = ref.watch(homeFeedProvider);
 
     return RefreshIndicator(
       color: _cOrange,
       backgroundColor: _cCard,
       onRefresh: () async {
         ref.invalidate(familyListProvider);
-        ref.invalidate(familyMembersProvider(primaryFamily.id));
-        ref.invalidate(familyRelationshipsProvider(primaryFamily.id));
-        // familyDetailProvider auto-rebuilds via ref.watch on above providers
-        ref.invalidate(feedProvider);
+        ref.invalidate(homeFeedProvider);
         ref.invalidate(storiesProvider(primaryFamily.id));
       },
       child: CustomScrollView(
+        controller: _feedScrollController,
         physics: BouncingScrollPhysics(),
         slivers: [
           // Sticky Header
@@ -239,7 +272,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 // Hero Family Card (avatar is tappable → opens stories)
                 _HeroFamilyCard(
                   family: primaryFamily,
-                  detailAsync: detailAsync,
+                  detailAsync: ref.watch(familyDetailProvider(primaryFamily.id)),
                   familyId: primaryFamily.id,
                 )
                     .animate()
@@ -248,17 +281,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
                 SizedBox(height: 20),
 
-                // ✅ REMOVED (BUG-10): _QuickActionsRow removed from home screen
-                // — Add Member / Share / Find Path actions remain available
-                // inside the family detail screen's floating bottom action bar
-
                 // Feed section header
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: KinrelSpacing.base,
                   ),
                   child: semanticHeader(
-                    label: 'Family Feed',
+                    label: 'Home Feed',
                     child: Row(
                       children: [
                         Icon(
@@ -268,7 +297,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          'Family Feed',
+                          'Home Feed',
                           style: TextStyle(
                             fontFamily: KinrelTypography.displayFont,
                             fontSize: 18,
@@ -286,13 +315,119 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ),
 
-          // Family Feed (sliver that takes remaining space)
-          SliverFillRemaining(
-            hasScrollBody: true,
-            child: FamilyFeed(
-              familyId: primaryFamily.id,
-            ).animate().fadeIn(duration: 350.ms, delay: 250.ms),
-          ),
+          // Unified Home Feed (using homeFeedProvider)
+          if (feedState.isLoading)
+            const SliverFillRemaining(
+              child: Center(
+                child: SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: _cOrange,
+                  ),
+                ),
+              ),
+            )
+          else if (feedState.error != null && feedState.posts.isEmpty)
+            SliverFillRemaining(
+              child: DKErrorState(
+                message: feedState.error ?? 'Failed to load feed',
+                onRetry: () => ref.read(homeFeedProvider.notifier).loadHomeFeed(),
+              ),
+            )
+          else if (feedState.posts.isEmpty)
+            SliverFillRemaining(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: KinrelGradients.igniteGradient.colors
+                                .map((c) => c.withValues(alpha: 0.12))
+                                .toList(),
+                            begin: KinrelGradients.igniteGradient.begin,
+                            end: KinrelGradients.igniteGradient.end,
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.auto_awesome_rounded,
+                          size: 36,
+                          color: _cOrange,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'No family moments yet',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: _cTextPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Share your first post to start the conversation!',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 14,
+                          color: _cTextSecondary,
+                          height: 1.5,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  if (index == feedState.posts.length) {
+                    // Loading more indicator
+                    if (feedState.isLoadingMore) {
+                      return Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: _cOrange,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  }
+
+                  final post = feedState.posts[index];
+                  return FeedPostCard(
+                    post: post,
+                    onHeart: () => ref
+                        .read(homeFeedProvider.notifier)
+                        .toggleHeart(post.id),
+                    onReact: (emoji) => ref
+                        .read(homeFeedProvider.notifier)
+                        .addReaction(post.id, emoji),
+                  );
+                },
+                childCount: feedState.posts.length +
+                    (feedState.isLoadingMore ? 1 : 0),
+              ),
+            ),
         ],
       ),
     );
