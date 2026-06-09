@@ -344,6 +344,8 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
                   selectedGender: _selectedGender,
                   onGenderChanged: (g) => setState(() => _selectedGender = g),
                   canProceed: _canProceedStep3,
+                  familyName: _nameController.text.trim(),
+                  avatarImageFile: _avatarImageFile,
                 ),
               ],
             ),
@@ -842,6 +844,8 @@ class _Step3AddYourself extends StatelessWidget {
     required this.selectedGender,
     required this.onGenderChanged,
     required this.canProceed,
+    required this.familyName,
+    required this.avatarImageFile,
   });
 
   final TextEditingController nameController;
@@ -849,6 +853,8 @@ class _Step3AddYourself extends StatelessWidget {
   final String? selectedGender;
   final ValueChanged<String?> onGenderChanged;
   final bool canProceed;
+  final String familyName;
+  final File? avatarImageFile;
 
   @override
   Widget build(BuildContext context) {
@@ -880,16 +886,72 @@ class _Step3AddYourself extends StatelessWidget {
           ),
           const SizedBox(height: 32),
 
-          // Person icon with purple glow
+          // Family avatar preview (persisted from Step 2)
           Center(
-            child: DKAvatar(
-              initials: nameController.text.isNotEmpty
-                  ? nameController.text[0].toUpperCase()
-                  : '',
-              size: DKAvatarSize.xl,
-              backgroundColor: DKColors.brandPurple,
-              showGlow: true,
-              borderColor: DKColors.brandGold,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Family avatar as background circle
+                Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [
+                        DKColors.brandPurple.withValues(alpha: 0.15),
+                        DKColors.brandViolet.withValues(alpha: 0.08),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                      color: DKColors.brandPurple.withValues(alpha: 0.3),
+                      width: 2,
+                    ),
+                  ),
+                  child: avatarImageFile != null
+                      ? CircleAvatar(
+                          radius: 42,
+                          backgroundImage: FileImage(avatarImageFile!),
+                        )
+                      : DKAvatar(
+                          initials: familyName.isNotEmpty
+                              ? familyName[0].toUpperCase()
+                              : 'F',
+                          size: DKAvatarSize.xl,
+                          backgroundColor: DKColors.brandPurple,
+                          borderColor: DKColors.brandGold.withValues(alpha: 0.4),
+                        ),
+                ),
+                // Person initial overlay (bottom-right)
+                Positioned(
+                  bottom: -2,
+                  right: -2,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: DKColors.brandPurple,
+                      border: Border.all(color: DKColors.cardColor(context), width: 2),
+                    ),
+                    child: Center(
+                      child: Text(
+                        nameController.text.isNotEmpty
+                            ? nameController.text[0].toUpperCase()
+                            : '?',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 8),

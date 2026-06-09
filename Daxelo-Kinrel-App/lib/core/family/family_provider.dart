@@ -489,21 +489,42 @@ final archivedFamiliesProvider =
         (kAuthDisabled ? MockUser.id : null);
     if (userId == null) return [];
 
-    // Get family IDs where user is a member
-    final memberships = await client
-        .from(_kFamilyMemberTable)
-        .select('familyId')
-        .eq('userId', userId);
+    // Approach 1: Get family IDs where user is a member
+    final familyIds = <String>{};
+    try {
+      final memberships = await client
+          .from(_kFamilyMemberTable)
+          .select('familyId')
+          .eq('userId', userId);
+      for (final row in (memberships as List)) {
+        familyIds.add(row['familyId'] as String);
+      }
+    } catch (e) {
+      debugPrint('⚠️ archivedFamiliesProvider: FamilyMember lookup failed: $e');
+    }
 
-    final familyIds = memberships.map((m) => m['familyId'] as String).toList();
+    // Approach 2: Also find families where user is the creator (fallback)
+    try {
+      final createdFamilies = await client
+          .from(_kFamilyTable)
+          .select('id')
+          .eq('createdBy', userId);
+      for (final row in (createdFamilies as List)) {
+        familyIds.add(row['id'] as String);
+      }
+    } catch (e) {
+      debugPrint('⚠️ archivedFamiliesProvider: createdBy lookup failed: $e');
+    }
+
     if (familyIds.isEmpty) return [];
 
     // Get archived families (deletedAt is not null)
+    // Use .filter() with 'not.is' instead of .not() for better PostgREST compatibility
     final families = await client
         .from(_kFamilyTable)
         .select('*')
-        .inFilter('id', familyIds)
-        .not('deletedAt', 'is', null);
+        .inFilter('id', familyIds.toList())
+        .filter('deletedAt', 'not.is', 'null');
 
     final now = DateTime.now();
     return families.map((json) {
@@ -1007,7 +1028,7 @@ Future<Family> createFamily({
               if (originVillage != null) 'originVillage': originVillage,
               if (region != null) 'region': region,
               'privacyMode': privacyMode ?? 'private',
-              if (photoUrl != null) 'photoUrl': photoUrl,
+              if (photoUrl != null) 'avatarUrl': photoUrl,
               if (usernameWithSuffix != null) 'username': usernameWithSuffix,
               if (usernameWithSuffix != null) 'familyCode': usernameWithSuffix,
               'isOnboarded': false,
@@ -1040,21 +1061,37 @@ Future<Family> createFamily({
   final family = Family.fromJson(response);
 
   // 2. Add the creator as an admin FamilyMember
+  // NOTE: This insert may fail due to RLS chicken-and-egg problem
+  // (FamilyMember INSERT requires user to already be a member of the family).
+  // We try via the NestJS API first (which uses service_role key to bypass RLS),
+  // and if that fails, we insert directly (which works if the RLS policy
+  // allows INSERT with WITH CHECK (true) or the policy has been relaxed).
   try {
-    await withRetry(
-      () => client.from(_kFamilyMemberTable).insert({
-        'id': _generateId(),
-        'familyId': family.id,
-        'userId': userId,
-        'role': 'admin',
-        'joinedAt': DateTime.now().toIso8601String(),
-      }),
-      operationName: 'Add creator as family member',
-    );
+    // Try NestJS API first (bypasses RLS via service_role key)
+    final dio = ref.read(dioProvider);
+    await dio.post('/api/families/${family.id}/members', data: {
+      'userId': userId,
+      'role': 'admin',
+    });
   } catch (e) {
-    // Best-effort — if FamilyMember table doesn't support this yet,
-    // the family is still created. The creator can still access it via createdBy.
-    debugPrint('⚠️ Could not add creator as FamilyMember: $e');
+    // Fallback: direct Supabase insert (may fail due to RLS)
+    debugPrint('⚠️ API member insert failed, trying direct Supabase: $e');
+    try {
+      await withRetry(
+        () => client.from(_kFamilyMemberTable).insert({
+          'id': _generateId(),
+          'familyId': family.id,
+          'userId': userId,
+          'role': 'admin',
+          'joinedAt': DateTime.now().toIso8601String(),
+        }),
+        operationName: 'Add creator as family member (direct)',
+      );
+    } catch (e2) {
+      // Best-effort — the family is still created.
+      // The creator can still access it via createdBy.
+      debugPrint('⚠️ Could not add creator as FamilyMember (RLS may block): $e2');
+    }
   }
 
   ref.invalidate(familyListProvider);
