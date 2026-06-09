@@ -75,13 +75,8 @@ class AppStartupService {
 
   /// Initialize the startup service after the widget tree is built.
   ///
-  /// This must be called from a widget that has access to a [Ref],
-  /// typically the root `ConsumerState`'s `initState()`.
-  ///
-  /// Steps:
-  /// 1. Listen to connectivity changes (for sync-on-reconnect)
-  /// 2. Schedule background sync after 500ms delay
-  /// 3. Schedule provider refresh (invalidate cached providers)
+  /// This can be called with either a [Ref] or [WidgetRef].
+  /// The service stores it as [Ref] internally.
   void initialize(Ref ref) {
     if (_isInitialized) return;
     _ref = ref;

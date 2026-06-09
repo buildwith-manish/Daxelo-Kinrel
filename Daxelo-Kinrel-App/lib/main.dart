@@ -506,7 +506,9 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
 
     // 5. Initialize AppStartupService for background sync & provider refresh
     try {
-      AppStartupService.instance.initialize(ref);
+      // ProviderContainer implements Ref, so we can pass it directly
+      final container = ProviderScope.containerOf(context);
+      AppStartupService.instance.initialize(container);
       debugPrint('🚀 AppStartupService initialized');
     } catch (e) {
       debugPrint('⚠️ AppStartupService init failed: $e');
