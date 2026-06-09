@@ -777,6 +777,7 @@ Future<FamilyRelationship> addRelationshipOptimistic({
   try {
     await db.upsertRelationship(CachedRelationshipsCompanion(
       id: Value(tempForwardId),
+      familyId: Value(familyId),
       fromId: Value(fromPersonId),
       toId: Value(toPersonId),
       relationshipType: Value(relationshipKey),
@@ -785,6 +786,7 @@ Future<FamilyRelationship> addRelationshipOptimistic({
     ));
     await db.upsertRelationship(CachedRelationshipsCompanion(
       id: Value(tempInverseId),
+      familyId: Value(familyId),
       fromId: Value(toPersonId),
       toId: Value(fromPersonId),
       relationshipType: Value(inverseKey),

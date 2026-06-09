@@ -24,6 +24,8 @@ import 'database/sync/background_sync_manager.dart';
 import 'database/sync/offline_queue.dart';
 import 'family/family_provider.dart';
 import 'services/supabase_service.dart';
+import 'utils/image_cache_config.dart';
+import 'network/realtime_subscription.dart';
 
 // ════════════════════════════════════════════════════════════════════
 // APP STARTUP SERVICE
@@ -57,10 +59,11 @@ class AppStartupService {
   /// Whether the service has been initialized.
   bool get isInitialized => _isInitialized;
 
-  /// Pre-warm the Drift database connection before the first frame.
+  /// Pre-warm the Drift database connection and image cache before the first frame.
   ///
   /// Call this in `main()` BEFORE `runApp()` so that Drift is ready
   /// when the first provider reads from it. This takes typically < 20ms.
+  /// Also initializes the image cache with 7-day disk cache and 100MB memory limit.
   static Future<void> preWarmDrift() async {
     try {
       if (!IsarDatabase.isInitialized) {
@@ -70,6 +73,13 @@ class AppStartupService {
     } catch (e) {
       // Don't block app launch if Drift fails — providers will fallback
       debugPrint('⚠️ AppStartup: Drift pre-warm failed: $e');
+    }
+
+    // Initialize image cache (7-day disk cache, 100MB memory limit)
+    try {
+      await ImageCacheConfig.initialize();
+    } catch (e) {
+      debugPrint('⚠️ AppStartup: Image cache init failed: $e');
     }
   }
 
@@ -196,6 +206,22 @@ class AppStartupService {
     // Now invalidate providers to trigger server-side refresh
     _invalidateAllProviders();
     _syncScheduled = false;
+
+    // Subscribe to Supabase Realtime for all families
+    _subscribeRealtime();
+  }
+
+  /// Subscribe to Supabase Realtime channels for all families.
+  /// This provides real-time updates when other users modify family data.
+  void _subscribeRealtime() {
+    if (_ref == null) return;
+    try {
+      final realtimeService = _ref!.read(realtimeSubscriptionProvider);
+      realtimeService.subscribeAllFamilies();
+      debugPrint('🚀 AppStartup: Supabase Realtime subscriptions activated');
+    } catch (e) {
+      debugPrint('⚠️ AppStartup: Realtime subscription failed: $e');
+    }
   }
 
   /// Invalidate all key providers to trigger a re-fetch from Supabase.

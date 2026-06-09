@@ -682,6 +682,7 @@ class SocketService {
         final cached = CachedRelationship.fromJson(relJson);
         await db.upsertRelationship(CachedRelationshipsCompanion(
           id: Value(cached.id),
+          familyId: Value(cached.familyId),
           fromId: Value(cached.fromPersonId),
           toId: Value(cached.toPersonId),
           relationshipType: Value(cached.relationshipKey),

@@ -313,6 +313,7 @@ class OfflineFamilyRepository {
       final json = rel.toJson();
       await _db.upsertRelationship(CachedRelationshipsCompanion(
         id: Value(rel.id),
+        familyId: Value(rel.familyId),
         fromId: Value(rel.fromPersonId),
         toId: Value(rel.toPersonId),
         relationshipType: Value(rel.relationshipKey),

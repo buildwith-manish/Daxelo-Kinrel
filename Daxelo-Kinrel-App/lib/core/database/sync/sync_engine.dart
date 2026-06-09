@@ -1793,9 +1793,13 @@ class SyncEngine {
         '';
     final kinshipName = data['kinshipName']?.toString() ??
         data['kinship_name']?.toString();
+    final familyId = data['familyId']?.toString() ??
+        data['family_id']?.toString() ??
+        '';
 
     await _db.upsertRelationship(CachedRelationshipsCompanion(
       id: Value(relationshipId),
+      familyId: Value(familyId),
       fromId: Value(fromId),
       toId: Value(toId),
       relationshipType: Value(relType),
