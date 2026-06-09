@@ -129,6 +129,7 @@ class SparqModel {
   // ── Mood Helper Getters ───────────────────────────────────────────
 
   String get moodEmoji {
+    // Retained for backward compat — UI no longer uses emojis in chrome
     switch (mood) {
       case 'happy': return '😊';
       case 'hype': return '🔥';
@@ -142,21 +143,21 @@ class SparqModel {
 
   Color get moodColor {
     switch (mood) {
-      case 'happy': return const Color(0xFFFFB300);
-      case 'hype': return const Color(0xFFFF5722);
-      case 'love': return const Color(0xFFE91E63);
-      case 'sad': return const Color(0xFF2196F3);
-      case 'celebrate': return const Color(0xFF9C27B0);
-      case 'angry': return const Color(0xFFFF1744);
+      case 'happy': return const Color(0xFFFFB300);     // Amber
+      case 'hype': return const Color(0xFFFF5722);      // Electric coral
+      case 'love': return const Color(0xFFE91E63);      // Deep rose
+      case 'sad': return const Color(0xFF5C7AEA);       // Muted slate-blue
+      case 'celebrate': return const Color(0xFFD4AF37);  // Champagne gold
+      case 'angry': return const Color(0xFFFF1744);      // Red
       default: return const Color(0xFFFFB300);
     }
   }
 
   Color get intensityColor {
     switch (intensity) {
-      case 'calm': return const Color(0xFF2196F3);
-      case 'warm': return const Color(0xFFFF9800);
-      case 'fire': return const Color(0xFFFF1744);
+      case 'calm': return const Color(0xFF5C7AEA);    // Slate-blue
+      case 'warm': return const Color(0xFFFF9800);    // Amber
+      case 'fire': return const Color(0xFFFF1744);    // Red
       default: return const Color(0xFFFF9800);
     }
   }

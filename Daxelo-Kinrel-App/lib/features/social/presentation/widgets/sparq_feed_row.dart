@@ -11,7 +11,7 @@ import 'sparq_ring_avatar.dart';
 ///
 /// First item is the current user's avatar with a "+" icon for creating Sparqs.
 /// Users with unseen Sparqs appear before users with all-seen Sparqs.
-/// Mood emoji badges shown on avatars.
+/// Clean, premium design — no emojis in UI chrome.
 class SparqFeedRow extends ConsumerStatefulWidget {
   const SparqFeedRow({super.key});
 
@@ -28,6 +28,20 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
         ref.read(sparqProvider.notifier).refreshFeed();
       }
     });
+  }
+
+  // ── Mood accent color helper ──────────────────────────────────────
+
+  Color _getMoodAccent(String? mood) {
+    switch (mood) {
+      case 'happy': return const Color(0xFFFFB300);
+      case 'hype': return const Color(0xFFFF5722);
+      case 'love': return const Color(0xFFE91E63);
+      case 'sad': return const Color(0xFF5C7AEA);
+      case 'celebrate': return const Color(0xFFD4AF37);
+      case 'angry': return const Color(0xFFFF1744);
+      default: return KinrelColors.orange;
+    }
   }
 
   @override
@@ -56,12 +70,12 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
     } catch (_) {}
 
     return SizedBox(
-      height: 88,
+      height: 92,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         itemCount: sortedGroups.length + 1, // +1 for "Add" button
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        separatorBuilder: (_, __) => const SizedBox(width: 14),
         itemBuilder: (context, index) {
           // First item: current user's create Sparq button
           if (index == 0) {
@@ -69,8 +83,8 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
           }
 
           final group = sortedGroups[index - 1];
-          // Get the most recent sparq for mood/intensity info
           final latestSparq = group.sparqs.isNotEmpty ? group.sparqs.first : null;
+          final moodAccent = _getMoodAccent(latestSparq?.mood);
 
           return Column(
             children: [
@@ -89,22 +103,21 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
                       context.push('/sparq/viewer/${group.userId}');
                     },
                   ),
-                  // Mood emoji badge (bottom-right)
-                  if (latestSparq != null)
+                  // Mood indicator dot (bottom-right) — subtle, no emoji
+                  if (latestSparq != null && latestSparq.mood.isNotEmpty)
                     Positioned(
-                      right: -2,
-                      bottom: -2,
+                      right: -1,
+                      bottom: -1,
                       child: Container(
-                        width: 16,
-                        height: 16,
+                        width: 12,
+                        height: 12,
                         decoration: BoxDecoration(
-                          color: KinrelColors.darkBackground,
+                          color: moodAccent,
                           shape: BoxShape.circle,
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          latestSparq.moodEmoji,
-                          style: TextStyle(fontSize: 9),
+                          border: Border.all(
+                            color: const Color(0xFF080808),
+                            width: 2,
+                          ),
                         ),
                       ),
                     ),
@@ -120,8 +133,9 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 11,
-                    color: KinrelColors.textSilver,
+                    color: group.allSeen ? KinrelColors.textDim : KinrelColors.textSilver,
                     fontFamily: 'DM Sans',
+                    fontWeight: group.allSeen ? FontWeight.w400 : FontWeight.w500,
                   ),
                 ),
               ),
@@ -142,16 +156,16 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
             height: 56,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: KinrelColors.elevation1,
+              color: const Color(0xFF1A1A1A),
               border: Border.all(
                 color: KinrelColors.orange.withValues(alpha: 0.3),
-                width: 2,
+                width: 1.5,
               ),
             ),
             child: Icon(
               Icons.add,
               color: KinrelColors.orange,
-              size: 28,
+              size: 24,
             ),
           ),
         ),
@@ -162,6 +176,7 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
             fontSize: 11,
             color: KinrelColors.textSilver,
             fontFamily: 'DM Sans',
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],
@@ -171,12 +186,12 @@ class _SparqFeedRowState extends ConsumerState<SparqFeedRow> {
   /// Shimmer skeleton loading state
   Widget _buildShimmerSkeleton() {
     return SizedBox(
-      height: 88,
+      height: 92,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         itemCount: 6,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        separatorBuilder: (_, __) => const SizedBox(width: 14),
         itemBuilder: (context, index) {
           return Column(
             children: [
@@ -224,13 +239,13 @@ class _ShimmerCircleState extends State<_ShimmerCircle>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        final opacity = 0.15 + (_controller.value * 0.1);
+        final opacity = 0.08 + (_controller.value * 0.06);
         return Container(
           width: widget.size,
           height: widget.size,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: KinrelColors.textSilver.withValues(alpha: opacity),
+            color: Colors.white.withValues(alpha: opacity),
           ),
         );
       },
@@ -272,12 +287,12 @@ class _ShimmerRectState extends State<_ShimmerRect>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        final opacity = 0.15 + (_controller.value * 0.1);
+        final opacity = 0.08 + (_controller.value * 0.06);
         return Container(
           width: widget.width,
           height: widget.height,
           decoration: BoxDecoration(
-            color: KinrelColors.textSilver.withValues(alpha: opacity),
+            color: Colors.white.withValues(alpha: opacity),
             borderRadius: BorderRadius.circular(4),
           ),
         );
