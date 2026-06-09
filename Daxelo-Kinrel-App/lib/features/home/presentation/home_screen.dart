@@ -52,7 +52,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with AutomaticKeepAliveClientMixin {
   @override
-  bool get wantKeepAlive = true;
+  bool get wantKeepAlive => true;
 
   final _feedScrollController = ScrollController();
 

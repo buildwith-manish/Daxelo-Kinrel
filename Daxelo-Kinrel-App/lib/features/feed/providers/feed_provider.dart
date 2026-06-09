@@ -266,7 +266,7 @@ class FeedNotifier extends StateNotifier<FeedState> {
         () => client
             .from(_kFamilyPostTable)
             .select('*, Family(name, username), Person(name, username)')
-            .in('familyId', familyIds)
+            .inFilter('familyId', familyIds)
             .order('createdAt', ascending: false)
             .range(0, _pageSize - 1),
         operationName: 'Load home feed',
@@ -324,7 +324,7 @@ class FeedNotifier extends StateNotifier<FeedState> {
         () => client
             .from(_kFamilyPostTable)
             .select('*, Family(name, username), Person(name, username)')
-            .in('familyId', familyIds)
+            .inFilter('familyId', familyIds)
             .order('createdAt', ascending: false)
             .range(offset, offset + _pageSize - 1),
         operationName: 'Load more home feed',
