@@ -23,12 +23,14 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/premium_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/services/image_cache_manager.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/widgets/cached_avatar.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/memory_vault_provider.dart';
 import '../data/memory_model.dart';
+import 'memory_detail_screen.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Memory Vault Screen
@@ -776,7 +778,7 @@ class _OnThisDayCard extends StatelessWidget {
                 placeholder: (context, url) => Container(
                   color: KinrelColors.darkElevated,
                   child: Center(
-                    child: DKLoadingShimmer(),
+                    child: DKLoadingShimmer(width: 40, height: 40),
                   ),
                 ),
                 errorWidget: (context, url, error) => Container(

@@ -23,11 +23,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/database/isar_database.dart';
 import '../../../core/database/sync/connectivity_service.dart';
 import '../data/memory_model.dart';
 
@@ -177,14 +179,14 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
 
   Future<void> _loadFromCache() async {
     try {
-      final db = _ref.read(appDatabaseProvider);
+      final db = _ref.read(isarProvider);
       final familyId = _getCurrentFamilyId();
       if (familyId == null) {
         state = state.copyWith(isLoading: false);
         return;
       }
 
-      final cachedEntries = await db.getApiCacheEntry('memories_$familyId');
+      final cachedEntries = await db.getCachedApiEntry('memories_$familyId');
       if (cachedEntries != null) {
         try {
           final decoded = _decodeJsonList(cachedEntries);
@@ -394,7 +396,7 @@ class MemoryVaultNotifier extends StateNotifier<MemoryVaultState> {
   /// Write memories to Drift API cache.
   Future<void> _writeToCache(List<MemoryModel> memories) async {
     try {
-      final db = _ref.read(appDatabaseProvider);
+      final db = _ref.read(isarProvider);
       final familyId = _getCurrentFamilyId();
       if (familyId == null) return;
 
@@ -512,11 +514,6 @@ Future<Uint8List> _compressImageIsolate(_CompressParams params) async {
 // ═══════════════════════════════════════════════════════════════════════
 // Providers
 // ═══════════════════════════════════════════════════════════════════════
-
-/// Drift database provider (reuses the existing AppDatabase singleton).
-final appDatabaseProvider = Provider<AppDatabase>((ref) {
-  return AppDatabase();
-});
 
 /// Main Memory Vault provider.
 final memoryVaultProvider =

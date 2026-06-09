@@ -81,6 +81,21 @@ class MemoryModel {
     );
   }
 
+  /// Create a placeholder MemoryModel from just an ID.
+  /// Used for route navigation where the full object will be resolved.
+  factory MemoryModel.placeholder(String memoryId) {
+    final now = DateTime.now();
+    return MemoryModel(
+      id: memoryId,
+      familyId: '',
+      uploaderId: '',
+      uploaderName: '',
+      photoUrl: '',
+      createdAt: now,
+      updatedAt: now,
+    );
+  }
+
   // ── Computed Getters ─────────────────────────────────────────────
 
   /// Whether this memory's takenAt month+day matches today's date.

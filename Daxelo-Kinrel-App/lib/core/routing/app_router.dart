@@ -107,6 +107,7 @@ import '../../features/memories/presentation/memories_screen.dart';
 import '../../features/family_map/presentation/family_map_screen.dart';
 import '../../features/memory_vault/presentation/memory_vault_screen.dart';
 import '../../features/memory_vault/presentation/memory_detail_screen.dart';
+import '../../features/memory_vault/data/memory_model.dart';
 import '../../features/occasions/presentation/occasions_screen.dart';
 import '../../features/chat/presentation/chat_screen.dart';
 import '../../features/share/presentation/share_screen.dart';
@@ -1048,7 +1049,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: MemoryDetailScreen(
-            memoryId: state.pathParameters['memoryId']!,
+            memory: MemoryModel.placeholder(state.pathParameters['memoryId']!),
           ),
         ),
       ),
