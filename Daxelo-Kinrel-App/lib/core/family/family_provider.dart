@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart' hide Family;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,6 +12,7 @@ import '../config/auth_config.dart';
 import '../services/analytics_service.dart';
 import '../graph/graph_service.dart';
 import '../database/isar_database.dart';
+import '../database/app_database.dart';
 import '../database/repositories/offline_family_repository.dart';
 import '../database/sync/cache_invalidation.dart';
 import '../../features/profile/data/profile_provider.dart';

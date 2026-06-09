@@ -322,6 +322,59 @@ Future<void> _handleSignOut(WidgetRef ref) async {
   } catch (_) {}
 }
 
+/// Adapter class that wraps a [ProviderContainer] as a [Ref].
+/// This is needed because ProviderContainer doesn't directly implement
+/// Ref in all Riverpod versions, but it provides the same capabilities
+/// (read, invalidate, listen, watch, onDispose).
+class _ContainerRef implements Ref {
+  final ProviderContainer _container;
+  _ContainerRef(this._container);
+
+  @override
+  T read<T>(ProviderListenable<T> provider) => _container.read(provider);
+
+  @override
+  void invalidate(ProviderOrFamily provider) =>
+      _container.invalidate(provider);
+
+  @override
+  T watch<T>(ProviderListenable<T> provider) => _container.watch(provider);
+
+  @override
+  void onDispose(void Function() cb) => _container.onDispose(cb);
+
+  @override
+  void onAddListener(void Function() cb) => _container.onAddListener(cb);
+
+  @override
+  void onCancel(void Function() cb) => _container.onCancel(cb);
+
+  @override
+  void onResume(void Function() cb) => _container.onResume(cb);
+
+  @override
+  void refresh<T>(Refreshable<T> provider) => _container.refresh(provider);
+
+  @override
+  void listen<T>(
+    ProviderListenable<T> provider,
+    void Function(T? previous, T next) listener, {
+    bool fireImmediately = false,
+    void Function(Object error, StackTrace stackTrace)? onError,
+  }) =>
+      _container.listen(provider, listener,
+          fireImmediately: fireImmediately, onError: onError);
+
+  @override
+  bool get mounted => _container.mounted;
+
+  @override
+  StateNotifierProviderElement<T> get notifierProviderElement => throw UnimplementedError();
+
+  @override
+  void notifyListeners() => throw UnimplementedError();
+}
+
 class KinrelApp extends ConsumerStatefulWidget {
   KinrelApp({super.key});
 
@@ -506,10 +559,16 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
 
     // 5. Initialize AppStartupService for background sync & provider refresh
     try {
-      // ProviderContainer implements Ref, so we can pass it directly
-      final container = ProviderScope.containerOf(context);
-      AppStartupService.instance.initialize(container);
-      debugPrint('🚀 AppStartupService initialized');
+      // Pass the global ProviderContainer — it provides ref.read() capability
+      // The container is captured via ProviderScope.containerOf in initState
+      final container = _globalContainer;
+      if (container != null) {
+        // Create a lightweight Ref adapter from the container
+        AppStartupService.instance.initialize(_ContainerRef(container));
+        debugPrint('🚀 AppStartupService initialized');
+      } else {
+        debugPrint('⚠️ AppStartupService skipped — no global container');
+      }
     } catch (e) {
       debugPrint('⚠️ AppStartupService init failed: $e');
     }

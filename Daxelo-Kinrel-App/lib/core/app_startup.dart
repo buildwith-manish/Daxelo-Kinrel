@@ -101,7 +101,7 @@ class AppStartupService {
 
     try {
       final connectivityService = _ref!.read(connectivityServiceProvider);
-      _connectivitySubscription = connectivityService.isOnlineStream.listen(
+      _connectivitySubscription = connectivityService.onConnectivityChanged.listen(
         (isOnline) {
           if (isOnline) {
             debugPrint('🚀 AppStartup: Connectivity restored, triggering full sync');
