@@ -525,6 +525,7 @@ Future<Person> createPersonOptimistic({
 
   // 3. Invalidate providers so UI updates immediately
   ref.invalidate(familyMembersProvider(familyId));
+  ref.invalidate(familyDetailProvider(familyId));
 
   // 4. Fire real API call in background
   try {
@@ -561,6 +562,7 @@ Future<Person> createPersonOptimistic({
           '⚠️ Optimistic create person: could not remove temp on failure: $dbError');
     }
     ref.invalidate(familyMembersProvider(familyId));
+    ref.invalidate(familyDetailProvider(familyId));
     rethrow;
   }
 }

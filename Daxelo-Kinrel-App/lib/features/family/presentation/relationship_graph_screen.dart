@@ -25,6 +25,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
+import '../../../core/graph/graph_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
 import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
@@ -537,6 +538,9 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
   // ── Layout cache ────────────────────────────────────────────────
   _LayoutResult? _cachedLayout;
 
+  // ── Painter reference for midpoint hit detection ──────────────
+  _RelationshipGraphPainter? _graphPainter;
+
   // ── Constants ───────────────────────────────────────────────────
   static const double nodeRadius = 36.0;
 
@@ -648,6 +652,16 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
     final inverse = Matrix4.identity()..copyInverse(transform);
     final graphPos = MatrixUtils.transformPoint(inverse, localPos);
 
+    // ── Check midpoint dot hits first (priority over node taps) ──
+    for (final target in _graphPainter?.midpointTargets ?? <_EdgeMidpointTarget>[]) {
+      final dist = (target.midpointPos - graphPos).distance;
+      if (dist < 18) {
+        _showEdgeKinshipSheet(target);
+        return;
+      }
+    }
+
+    // ── Check node taps ──────────────────────────────────────────
     String? tappedId;
     for (final entry in layout.positions.entries) {
       final center = entry.value;
@@ -673,6 +687,252 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
     } else {
       setState(() => _selectedNodeId = null);
     }
+  }
+
+  void _showEdgeKinshipSheet(_EdgeMidpointTarget target) async {
+    // 4a — Resolve kinship term
+    String kinshipLabel = 'Family Member';
+    try {
+      final graphService = ref.read(graphServiceProvider);
+      final detail = await ref.read(familyDetailProvider(widget.familyId).future);
+
+      if (detail != null) {
+        final persons = detail.members
+            .where((m) => m.deletedAt == null)
+            .map((m) => m.toGraphPerson())
+            .toList();
+        final relationships = detail.relationships
+            .where((r) => r.isActive)
+            .map((r) => r.toGraphEdge())
+            .toList();
+
+        final result = await graphService.findPathAsync(
+          persons: persons,
+          relationships: relationships,
+          fromPersonId: target.nodeA.person.id,
+          toPersonId: target.nodeB.person.id,
+          familyId: widget.familyId,
+        );
+
+        kinshipLabel = result?.composedKinshipTerm ??
+            result?.localizedDescription ??
+            result?.relationshipDescription ??
+            'Family Member';
+        if (kinshipLabel.isEmpty) kinshipLabel = 'Family Member';
+      }
+    } catch (_) {
+      kinshipLabel = 'Family Member';
+    }
+
+    if (!mounted) return;
+
+    // 4b — Show bottom sheet with loading state for kinship
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: KinrelColors.darkBackground,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
+        ),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.all(KinrelSpacing.lg),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Handle bar
+                    Container(
+                      width: 40,
+                      height: 4,
+                      margin: EdgeInsets.only(bottom: KinrelSpacing.sm),
+                      decoration: BoxDecoration(
+                        color: KinrelColors.darkElevated,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+
+                    // Avatars row with connection line and heart
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Left avatar — nodeA (52px)
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: KinrelColors.orange.withValues(alpha: 0.5),
+                              width: 2,
+                            ),
+                            color: KinrelColors.orange.withValues(alpha: 0.15),
+                          ),
+                          child: Center(
+                            child: Text(
+                              target.nodeA.initials,
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.displayFont,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: KinrelColors.textWhite,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Connection line with heart overlay
+                        SizedBox(
+                          width: 40,
+                          height: 24,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Positioned(
+                                left: 0,
+                                right: 0,
+                                top: 11.25,
+                                child: Container(
+                                  height: 1.5,
+                                  width: 40,
+                                  color: KinrelColors.amber.withValues(alpha: 0.6),
+                                ),
+                              ),
+                              Icon(
+                                Icons.favorite_rounded,
+                                size: 12,
+                                color: KinrelColors.amber,
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Right avatar — nodeB (52px)
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: KinrelColors.orange.withValues(alpha: 0.5),
+                              width: 2,
+                            ),
+                            color: KinrelColors.orange.withValues(alpha: 0.15),
+                          ),
+                          child: Center(
+                            child: Text(
+                              target.nodeB.initials,
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.displayFont,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: KinrelColors.textWhite,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    SizedBox(height: KinrelSpacing.md),
+
+                    // Names row
+                    Text(
+                      '${target.nodeA.person.name}  ·  ${target.nodeB.person.name}',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.textWhite,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+
+                    SizedBox(height: KinrelSpacing.sm),
+
+                    // Kinship label pill (with loading indicator)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: KinrelColors.orange.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: KinrelColors.orange.withValues(alpha: 0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: kinshipLabel == 'Family Member' && kinshipLabel.isEmpty
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: KinrelColors.orange,
+                              ),
+                            )
+                          : Text(
+                              kinshipLabel,
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: KinrelColors.orange,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                    ),
+
+                    SizedBox(height: KinrelSpacing.lg),
+
+                    // View profile buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DKButton(
+                            label: 'View ${target.nodeA.person.name.split(' ').first}',
+                            variant: DKButtonVariant.secondary,
+                            size: DKButtonSize.md,
+                            fullWidth: true,
+                            onPressed: () {
+                              context.pop();
+                              context.push('/member/${target.nodeA.person.id}');
+                            },
+                          ),
+                        ),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: DKButton(
+                            label: 'View ${target.nodeB.person.name.split(' ').first}',
+                            variant: DKButtonVariant.primary,
+                            size: DKButtonSize.md,
+                            fullWidth: true,
+                            onPressed: () {
+                              context.pop();
+                              context.push('/member/${target.nodeB.person.id}');
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    SizedBox(height: KinrelSpacing.sm),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -923,16 +1183,18 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
                 child: KinrelAnimatedBuilder(
                   listenable: Listenable.merge([_pulseController, _entryController]),
                   builder: (context, _) {
+                    final painter = _RelationshipGraphPainter(
+                      layout: layout,
+                      pulseValue: _pulseController.value,
+                      entryValue: _entryController.value,
+                      selectedNodeId: _selectedNodeId,
+                      anchorId: layout.anchorId,
+                    );
+                    _graphPainter = painter;
                     return RepaintBoundary(
                       child: CustomPaint(
                         size: layout.canvasSize,
-                        painter: _RelationshipGraphPainter(
-                          layout: layout,
-                          pulseValue: _pulseController.value,
-                          entryValue: _entryController.value,
-                          selectedNodeId: _selectedNodeId,
-                          anchorId: layout.anchorId,
-                        ),
+                        painter: painter,
                       ),
                     );
                   },
@@ -976,7 +1238,7 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
 // ═══════════════════════════════════════════════════════════════════════
 
 class _RelationshipGraphPainter extends CustomPainter {
-  const _RelationshipGraphPainter({
+  _RelationshipGraphPainter({
     required this.layout,
     required this.pulseValue,
     required this.entryValue,
@@ -992,9 +1254,14 @@ class _RelationshipGraphPainter extends CustomPainter {
 
   static const double nodeRadius = 36.0;
 
+  /// Hit targets for midpoint dots — populated fresh each paint call
+  final List<_EdgeMidpointTarget> midpointTargets = [];
+
   @override
   void paint(Canvas canvas, Size size) {
     if (layout.nodes.isEmpty) return;
+
+    midpointTargets.clear();
 
     // ── Draw generation label bands ──────────────────────────────
     _drawGenerationLabels(canvas, size);
@@ -1097,14 +1364,63 @@ class _RelationshipGraphPainter extends CustomPainter {
     final toPos = layout.positions[edge.toId];
     if (fromPos == null || toPos == null) return;
 
+    // Draw the edge line and get midpoint
+    final Offset midpoint;
     if (edge.type == _EdgeType.spouse) {
-      _drawSpouseEdge(canvas, fromPos, toPos);
+      midpoint = _drawSpouseEdge(canvas, fromPos, toPos);
     } else {
-      _drawParentChildEdge(canvas, fromPos, toPos);
+      midpoint = _drawParentChildEdge(canvas, fromPos, toPos);
     }
+
+    // ── Entry animation check for midpoint dot ────────────────────
+    final nodeA = layout.nodes[edge.fromId];
+    final nodeB = layout.nodes[edge.toId];
+    if (nodeA == null || nodeB == null) return;
+
+    final genIndex = layout.generations.toList()..sort();
+    final totalGens = genIndex.length;
+
+    final genEntryIndexA = genIndex.indexOf(nodeA.generation);
+    final genDelayA = genEntryIndexA / math.max(totalGens, 1);
+    final progressA = ((entryValue - genDelayA * 0.6) / 0.4).clamp(0.0, 1.0);
+
+    final genEntryIndexB = genIndex.indexOf(nodeB.generation);
+    final genDelayB = genEntryIndexB / math.max(totalGens, 1);
+    final progressB = ((entryValue - genDelayB * 0.6) / 0.4).clamp(0.0, 1.0);
+
+    // Only draw dot if both nodes have progress above 0.3
+    if (progressA <= 0.3 || progressB <= 0.3) return;
+
+    // ── Draw the amber midpoint dot ───────────────────────────────
+    // Glow layer
+    final glowPaint = Paint()
+      ..color = KinrelColors.amber.withValues(alpha: 0.35)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+    canvas.drawCircle(midpoint, 7, glowPaint);
+
+    // Filled dot
+    final dotPaint = Paint()
+      ..color = KinrelColors.amber
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(midpoint, 4, dotPaint);
+
+    // Border ring
+    final borderPaint = Paint()
+      ..color = KinrelColors.darkBackground.withValues(alpha: 0.6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    canvas.drawCircle(midpoint, 4, borderPaint);
+
+    // ── Populate hit target ───────────────────────────────────────
+    midpointTargets.add(_EdgeMidpointTarget(
+      midpointPos: midpoint,
+      edge: edge,
+      nodeA: nodeA,
+      nodeB: nodeB,
+    ));
   }
 
-  void _drawParentChildEdge(Canvas canvas, Offset parentPos, Offset childPos) {
+  Offset _drawParentChildEdge(Canvas canvas, Offset parentPos, Offset childPos) {
     final paint = Paint()
       ..color = KinrelColors.orange.withValues(alpha: 0.35)
       ..style = PaintingStyle.stroke
@@ -1127,9 +1443,13 @@ class _RelationshipGraphPainter extends CustomPainter {
       ..color = KinrelColors.orange.withValues(alpha: 0.5)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(Offset(childPos.dx, childPos.dy - nodeRadius - 3), 3, dotPaint);
+
+    // Midpoint position: center of horizontal segment at midY
+    final midX = (parentPos.dx + childPos.dx) / 2;
+    return Offset(midX, midY);
   }
 
-  void _drawSpouseEdge(Canvas canvas, Offset pos1, Offset pos2) {
+  Offset _drawSpouseEdge(Canvas canvas, Offset pos1, Offset pos2) {
     final paint = Paint()
       ..color = KinrelColors.amber.withValues(alpha: 0.45)
       ..style = PaintingStyle.stroke
@@ -1147,6 +1467,9 @@ class _RelationshipGraphPainter extends CustomPainter {
     final midX = (pos1.dx + pos2.dx) / 2;
     final midY = (pos1.dy + pos2.dy) / 2;
     _drawHeart(canvas, Offset(midX, midY), 6);
+
+    // Return midpoint 10px above heart to avoid overlap
+    return Offset(midX, midY - 10);
   }
 
   void _drawHeart(Canvas canvas, Offset center, double size) {
@@ -1559,4 +1882,31 @@ class KinrelAnimatedBuilder extends AnimatedWidget {
   Widget build(BuildContext context) {
     return builder(context, null);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MIDPOINT DOT HIT TARGET
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Bridges between the painter (which draws midpoint dots) and the
+/// gesture detector (which handles taps on those dots).
+class _EdgeMidpointTarget {
+  const _EdgeMidpointTarget({
+    required this.midpointPos,
+    required this.edge,
+    required this.nodeA,
+    required this.nodeB,
+  });
+
+  /// Screen-space position of the midpoint dot
+  final Offset midpointPos;
+
+  /// The graph edge this dot belongs to
+  final _GraphEdge edge;
+
+  /// The node at one end of the edge
+  final _GraphNode nodeA;
+
+  /// The node at the other end of the edge
+  final _GraphNode nodeB;
 }
