@@ -7,6 +7,8 @@ export const SOCIAL_NOTIFICATION_TYPES = {
   FOLLOW_NEW: 'follow:new',
   FOLLOW_REQUEST: 'follow:request',
   FOLLOW_ACCEPTED: 'follow:accepted',
+  FAMILY_CREATED: 'family:created',
+  FAMILY_INVITE_LINK_READY: 'family:invite_link_ready',
   FAMILY_JOINED: 'family:joined',
   FAMILY_MEMBER_JOINED: 'family:member_joined',
   SPARQ_VIEWS_BATCH: 'sparq:views_batch',
@@ -163,8 +165,9 @@ export class NotificationsService {
       const notification = await this.create({
         userId,
         eventType: SOCIAL_NOTIFICATION_TYPES.FAMILY_JOINED,
-        title: 'Family Joined',
-        body: `You joined ${familyName}`,
+        title: 'You joined a family!',
+        body: `Welcome to "${familyName}". You're now part of the family graph.`,
+        familyId,
         actionUrl: `/family/${familyId}`,
         priority: 'normal',
       });
@@ -175,14 +178,27 @@ export class NotificationsService {
   }
 
   /** Notify family owners that someone joined their family. */
-  async notifyFamilyMemberJoined(ownerId: string, memberName: string, familyName: string, familyId: string) {
+  async notifyFamilyMemberJoined(
+    ownerId: string,
+    memberName: string,
+    familyName: string,
+    familyId: string,
+    isDirectInviteAccept: boolean = false,
+  ) {
     try {
+      const title = isDirectInviteAccept
+        ? `${memberName} accepted your invite`
+        : 'New family member joined';
+      const body = isDirectInviteAccept
+        ? `${memberName} accepted your invitation and joined "${familyName}".`
+        : `${memberName} has joined "${familyName}". Your family graph just got bigger!`;
+
       const notification = await this.create({
         userId: ownerId,
         eventType: SOCIAL_NOTIFICATION_TYPES.FAMILY_MEMBER_JOINED,
-        title: 'New Family Member',
-        body: `${memberName} joined your ${familyName} family`,
-        actionUrl: `/family/${familyId}`,
+        title,
+        body,
+        actionUrl: `/family/${familyId}/members`,
         familyId,
         priority: 'normal',
       });
@@ -207,6 +223,44 @@ export class NotificationsService {
       this.gateway.emitToUser(creatorId, 'notification:new', notification);
     } catch (e) {
       this.logger.error('Failed to send sparq:views_batch notification', e);
+    }
+  }
+
+  // ── Family Creation Notification Helpers ──────────────────────────
+
+  /** Notify the creator that their family was created successfully. */
+  async notifyFamilyCreated(userId: string, familyName: string, familyId: string) {
+    try {
+      const notification = await this.create({
+        userId,
+        eventType: SOCIAL_NOTIFICATION_TYPES.FAMILY_CREATED,
+        title: 'Family created successfully 🎉',
+        body: `Your family "${familyName}" is live. Invite members to start building your family graph.`,
+        familyId,
+        actionUrl: `/family/${familyId}`,
+        priority: 'normal',
+      });
+      this.gateway.emitToUser(userId, 'notification:new', notification);
+    } catch (e) {
+      this.logger.error('Failed to send family:created notification', e);
+    }
+  }
+
+  /** Notify the creator that the invite link is ready. */
+  async notifyFamilyInviteLinkReady(userId: string, familyName: string, familyId: string) {
+    try {
+      const notification = await this.create({
+        userId,
+        eventType: SOCIAL_NOTIFICATION_TYPES.FAMILY_INVITE_LINK_READY,
+        title: 'Invite link ready',
+        body: `Share your invite link to add members to "${familyName}". Link expires in 7 days.`,
+        familyId,
+        actionUrl: `/family/${familyId}/invite`,
+        priority: 'low',
+      });
+      this.gateway.emitToUser(userId, 'notification:new', notification);
+    } catch (e) {
+      this.logger.error('Failed to send family:invite_link_ready notification', e);
     }
   }
 

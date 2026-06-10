@@ -12,6 +12,7 @@ import { CreateFamilyDto } from './dto/create-family.dto';
 import { UpdateFamilyDto } from './dto/update-family.dto';
 import { FamilyIdService } from './family-id.service';
 import { KinrelGateway } from '../gateway/kinrel.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
 const ROLE_HIERARCHY: Record<string, number> = {
@@ -33,6 +34,8 @@ export class FamiliesService {
     @Inject(forwardRef(() => FamilyIdService))
     private familyIdService: FamilyIdService,
     private gateway: KinrelGateway,
+    @Inject(forwardRef(() => NotificationsService))
+    private notificationsService: NotificationsService,
   ) {}
 
   /** Creates a new family and assigns the creator as admin member. */
@@ -72,7 +75,13 @@ export class FamiliesService {
       return created;
     });
 
-    return this.formatFamily(family);
+    const formattedFamily = this.formatFamily(family);
+
+    // Fire-and-forget — wrapped in try/catch inside each notify method
+    this.notificationsService.notifyFamilyCreated(userId, family.name, family.id);
+    this.notificationsService.notifyFamilyInviteLinkReady(userId, family.name, family.id);
+
+    return formattedFamily;
   }
 
   /** Returns all active (non-archived) families the user is a member of, with pagination. */
@@ -729,6 +738,44 @@ export class FamiliesService {
       familyId: invite.familyId,
       userId,
     });
+
+    // ── Send notifications (fire-and-forget) ─────────────────────────
+    try {
+      // Get family name and joining user name for notifications
+      const [family, joiningUser] = await Promise.all([
+        this.prisma.family.findUnique({
+          where: { id: invite.familyId },
+          select: { name: true },
+        }),
+        this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { name: true },
+        }),
+      ]);
+
+      const familyName = family?.name ?? 'the family';
+      const joiningUserName = joiningUser?.name ?? 'A family member';
+
+      // Notification A — to the joining user
+      this.notificationsService.notifyFamilyJoined(userId, familyName, invite.familyId);
+
+      // Notification B — to all admins (excluding the joining user)
+      const admins = await this.prisma.familyMember.findMany({
+        where: { familyId: invite.familyId, role: 'admin' },
+        select: { userId: true },
+      });
+
+      for (const admin of admins.filter((a) => a.userId !== userId)) {
+        this.notificationsService.notifyFamilyMemberJoined(
+          admin.userId,
+          joiningUserName,
+          familyName,
+          invite.familyId,
+        );
+      }
+    } catch (e) {
+      this.logger.error('Failed to send join-family notifications', e);
+    }
 
     return { joined: true, familyId: invite.familyId };
   }

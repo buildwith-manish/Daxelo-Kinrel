@@ -33,6 +33,9 @@ enum NotificationType {
   usernameChange,
   familyIdGenerated,
   memberJoined,
+  familyCreated,
+  inviteLinkReady,
+  memberJoinedViaInvite,
 }
 
 /// Map from NotificationType to display-friendly label.
@@ -47,6 +50,9 @@ const Map<NotificationType, String> notificationTypeLabels = {
   NotificationType.usernameChange: 'Username Change',
   NotificationType.familyIdGenerated: 'Family ID Generated',
   NotificationType.memberJoined: 'Member Joined',
+  NotificationType.familyCreated: 'Family',
+  NotificationType.inviteLinkReady: 'Family',
+  NotificationType.memberJoinedViaInvite: 'Family',
 };
 
 /// Map from NotificationType to NotificationCategory.
@@ -61,6 +67,9 @@ const Map<NotificationType, NotificationCategory> notificationTypeCategory = {
   NotificationType.usernameChange: NotificationCategory.system,
   NotificationType.familyIdGenerated: NotificationCategory.system,
   NotificationType.memberJoined: NotificationCategory.family,
+  NotificationType.familyCreated: NotificationCategory.family,
+  NotificationType.inviteLinkReady: NotificationCategory.family,
+  NotificationType.memberJoinedViaInvite: NotificationCategory.family,
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -408,6 +417,14 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         return NotificationType.anniversary;
       case 'profile_update':
         return NotificationType.relationshipUpdate;
+      case 'family:created':
+        return NotificationType.familyCreated;
+      case 'family:invite_link_ready':
+        return NotificationType.inviteLinkReady;
+      case 'family:joined':
+        return NotificationType.acceptedInvite;
+      case 'family:member_joined':
+        return NotificationType.memberJoinedViaInvite;
       case 'member_joined':
         return NotificationType.memberJoined;
       case 'family_id_generated':
@@ -458,6 +475,12 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         return 0xFF8B5CF6; // purple
       case NotificationType.familyIdGenerated:
         return 0xFF06B6D4; // cyan
+      case NotificationType.familyCreated:
+        return 0xFFE8612A; // Kinrel orange
+      case NotificationType.inviteLinkReady:
+        return 0xFF06B6D4; // cyan
+      case NotificationType.memberJoinedViaInvite:
+        return 0xFF4CAF7A; // green
       case NotificationType.memberJoined:
         return 0xFF4CAF7A; // green
     }
@@ -636,6 +659,12 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         return 'username_change';
       case NotificationType.familyIdGenerated:
         return 'family_id_generated';
+      case NotificationType.familyCreated:
+        return 'family:created';
+      case NotificationType.inviteLinkReady:
+        return 'family:invite_link_ready';
+      case NotificationType.memberJoinedViaInvite:
+        return 'family:member_joined';
       case NotificationType.memberJoined:
         return 'member_joined';
     }

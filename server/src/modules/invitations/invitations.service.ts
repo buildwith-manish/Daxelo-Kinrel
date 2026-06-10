@@ -3,13 +3,20 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { createHash, randomBytes } from 'crypto';
 
 @Injectable()
 export class InvitationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(forwardRef(() => NotificationsService))
+    private notificationsService: NotificationsService,
+  ) {}
 
   // ── Allowed values for invite permission ────────────────────────────
   private static readonly INVITE_PERMISSION_ANYONE = 'anyone';
@@ -351,9 +358,10 @@ export class InvitationsService {
 
   /**
    * Internal: Accept an invitation — add user as FamilyMember and update status.
+   * Also sends notifications to the accepting user, the inviter, and other admins.
    */
   private async acceptInvitation(
-    invitation: { id: string; familyId: string; role: string; token: string },
+    invitation: { id: string; familyId: string; role: string; token: string; inviterId?: string },
     userId: string,
   ) {
     // Check if user is already a member
@@ -399,6 +407,61 @@ export class InvitationsService {
 
       return updated;
     });
+
+    // ── Send notifications (fire-and-forget) ─────────────────────────
+    try {
+      // Fetch family name, accepting user name, and inviter ID
+      const [family, acceptingUser, fullInvitation] = await Promise.all([
+        this.prisma.family.findUnique({
+          where: { id: invitation.familyId },
+          select: { name: true },
+        }),
+        this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { name: true },
+        }),
+        this.prisma.invitation.findUnique({
+          where: { id: invitation.id },
+          select: { inviterId: true },
+        }),
+      ]);
+
+      const familyName = family?.name ?? 'the family';
+      const acceptingUserName = acceptingUser?.name ?? 'A family member';
+      const inviterId = fullInvitation?.inviterId;
+
+      // Notification A — to the user who accepted
+      this.notificationsService.notifyFamilyJoined(userId, familyName, invitation.familyId);
+
+      if (inviterId) {
+        // Notification B — to the inviter (personalised "accepted your invite")
+        this.notificationsService.notifyFamilyMemberJoined(
+          inviterId,
+          acceptingUserName,
+          familyName,
+          invitation.familyId,
+          true, // isDirectInviteAccept
+        );
+      }
+
+      // Notification C — to all other admins (excluding inviter)
+      const admins = await this.prisma.familyMember.findMany({
+        where: { familyId: invitation.familyId, role: 'admin' },
+        select: { userId: true },
+      });
+
+      for (const admin of admins.filter((a) => a.userId !== userId && a.userId !== inviterId)) {
+        this.notificationsService.notifyFamilyMemberJoined(
+          admin.userId,
+          acceptingUserName,
+          familyName,
+          invitation.familyId,
+        );
+      }
+    } catch (e) {
+      // Swallow errors — never fail the accept flow after successful transaction
+      console.error('Failed to send invitation-accept notifications', e);
+    }
 
     return {
       accepted: true,

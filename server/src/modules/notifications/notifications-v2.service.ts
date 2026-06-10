@@ -84,6 +84,10 @@ const EVENT_TYPE_DEFAULTS: Record<string, { push: boolean; inApp: boolean; email
   profile_update:          { push: true, inApp: true, email: false, whatsapp: false },
   security_alert:          { push: true, inApp: true, email: true,  whatsapp: false },
   account_recovery:        { push: true, inApp: true, email: true,  whatsapp: false },
+  'family:created':              { push: true, inApp: true, email: false, whatsapp: false },
+  'family:invite_link_ready':    { push: false, inApp: true, email: false, whatsapp: false },
+  'family:joined':               { push: true, inApp: true, email: false, whatsapp: false },
+  'family:member_joined':        { push: true, inApp: true, email: false, whatsapp: false },
 };
 
 // ── Service ────────────────────────────────────────────────────────────
