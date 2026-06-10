@@ -1514,7 +1514,7 @@ class _RelationshipGraphPainter extends CustomPainter {
 
     final path = Path()
       ..moveTo(parentPos.dx, startY)
-      ..cubicBezierTo(
+      ..cubicTo(
         cp1.dx, cp1.dy,
         cp2.dx, cp2.dy,
         childPos.dx, endY,
@@ -1557,7 +1557,7 @@ class _RelationshipGraphPainter extends CustomPainter {
 
     final path = Path()
       ..moveTo(startX, pos1.dy)
-      ..cubicBezierTo(
+      ..cubicTo(
         cp1.dx, cp1.dy,
         cp2.dx, cp2.dy,
         endX, pos2.dy,
@@ -1594,7 +1594,7 @@ class _RelationshipGraphPainter extends CustomPainter {
 
     final path = Path()
       ..moveTo(fromPos.dx, fromPos.dy)
-      ..cubicBezierTo(
+      ..cubicTo(
         cp1.dx, cp1.dy,
         cp2.dx, cp2.dy,
         toPos.dx, toPos.dy,
