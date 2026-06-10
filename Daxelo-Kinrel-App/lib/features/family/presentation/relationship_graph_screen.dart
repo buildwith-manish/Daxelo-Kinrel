@@ -80,7 +80,7 @@ class _GenColors {
       case 2:
         return 'Parents';
       case 3:
-        return 'Self';
+        return 'You';
       case 4:
         return 'Children';
       case 5:

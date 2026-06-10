@@ -10,6 +10,7 @@
 // midpoint dots that show the kinship term between two people.
 
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -1349,7 +1350,7 @@ class _MapGraphEdgePainter extends CustomPainter {
       }
 
       // 4. Draw the curved line
-      final path = Path()
+      final path = ui.Path()
         ..moveTo(posA.dx, posA.dy)
         ..quadraticBezierTo(
           controlPoint.dx, controlPoint.dy,
