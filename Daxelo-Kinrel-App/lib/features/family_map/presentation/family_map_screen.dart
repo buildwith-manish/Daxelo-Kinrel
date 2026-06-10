@@ -6,7 +6,10 @@
 // Uses flutter_map with OpenStreetMap tiles (no API key needed).
 // Each pin is a 44×44 circular avatar with orange border.
 // Tapping a pin opens a bottom sheet with member details.
+// Curved connecting lines between related members with tappable
+// midpoint dots that show the kinship term between two people.
 
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -16,6 +19,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/family/family_provider.dart';
+import '../../../core/graph/graph_provider.dart';
+import '../../../core/graph/graph_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/widgets/cached_avatar.dart';
 import '../providers/family_map_provider.dart';
@@ -148,6 +154,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.daxelo.kinrel',
               tileBuilder: _darkenTile,
+            ),
+            _MapGraphOverlayLayer(
+              edges: result.edges,
+              familyId: result.familyId,
+              onDotTapped: _showRelationshipBottomSheet,
             ),
             MarkerLayer(
               markers: result.pins.map((pin) {
@@ -312,6 +323,287 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
                     context.push('/member/${pin.personId}');
                   },
                 ),
+              ),
+
+              SizedBox(height: KinrelSpacing.sm),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Relationship Bottom Sheet ──────────────────────────────────────
+
+  void _showRelationshipBottomSheet(MapRelationshipEdge edge) async {
+    // Resolve kinship term asynchronously before showing the sheet
+    String kinshipLabel = 'Family Member';
+    try {
+      final graphService = ref.read(graphServiceProvider);
+      final mapResult = ref.read(familyMapProvider).valueOrNull;
+      final familyId = mapResult?.familyId ?? '';
+
+      if (familyId.isNotEmpty) {
+        final detail = await ref.read(familyDetailProvider(familyId).future);
+
+        if (detail != null) {
+          final pathResult = await graphService.findPathAsync(
+            persons: detail.members.map((m) => m.toGraphPerson()).toList(),
+            relationships: detail.relationships.map((r) => r.toGraphEdge()).toList(),
+            fromPersonId: edge.pinA.personId,
+            toPersonId: edge.pinB.personId,
+            familyId: familyId,
+          );
+          kinshipLabel = pathResult?.composedKinshipTerm ??
+              pathResult?.relationshipDescription ??
+              'Family Member';
+        }
+      }
+    } catch (e) {
+      // Never block the UI with an error — use fallback label
+      kinshipLabel = 'Family Member';
+    }
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
+        ),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.all(KinrelSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Container(
+                width: 40,
+                height: 4,
+                margin: EdgeInsets.only(bottom: KinrelSpacing.lg),
+                decoration: BoxDecoration(
+                  color: KinrelColors.darkElevated,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+
+              // Avatars row with connection line and heart
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Left avatar — pinA (48×48)
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: KinrelColors.orange,
+                        width: 2,
+                      ),
+                    ),
+                    child: ClipOval(
+                      child: edge.pinA.photoUrl != null &&
+                              edge.pinA.photoUrl!.isNotEmpty
+                          ? CachedAvatar(
+                              imageUrl: edge.pinA.photoUrl,
+                              radius: 22,
+                              backgroundColor: KinrelColors.darkCard,
+                            )
+                          : Container(
+                              color: KinrelColors.darkCard,
+                              child: Center(
+                                child: Text(
+                                  _initials(edge.pinA.name),
+                                  style: TextStyle(
+                                    fontFamily: KinrelTypography.displayFont,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
+                                    color: KinrelColors.orange,
+                                    height: 1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+
+                  // Connection line with heart overlay
+                  SizedBox(
+                    width: 48,
+                    height: 24,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Horizontal line
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          top: 11.25,
+                          child: Container(
+                            height: 1.5,
+                            color: KinrelColors.amber,
+                          ),
+                        ),
+                        // Heart icon at center
+                        Icon(
+                          Icons.favorite_rounded,
+                          size: 14,
+                          color: KinrelColors.amber,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Right avatar — pinB (48×48)
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: KinrelColors.orange,
+                        width: 2,
+                      ),
+                    ),
+                    child: ClipOval(
+                      child: edge.pinB.photoUrl != null &&
+                              edge.pinB.photoUrl!.isNotEmpty
+                          ? CachedAvatar(
+                              imageUrl: edge.pinB.photoUrl,
+                              radius: 22,
+                              backgroundColor: KinrelColors.darkCard,
+                            )
+                          : Container(
+                              color: KinrelColors.darkCard,
+                              child: Center(
+                                child: Text(
+                                  _initials(edge.pinB.name),
+                                  style: TextStyle(
+                                    fontFamily: KinrelTypography.displayFont,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
+                                    color: KinrelColors.orange,
+                                    height: 1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+
+              SizedBox(height: KinrelSpacing.md),
+
+              // Names row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Flexible(
+                    child: Text(
+                      edge.pinA.name,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.textWhite,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.sm),
+                    child: Text(
+                      '&',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.textSilver,
+                      ),
+                    ),
+                  ),
+                  Flexible(
+                    child: Text(
+                      edge.pinB.name,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.textWhite,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.start,
+                    ),
+                  ),
+                ],
+              ),
+
+              SizedBox(height: KinrelSpacing.sm),
+
+              // Kinship label pill
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: KinrelSpacing.base,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: KinrelColors.orange.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: KinrelColors.orange.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Text(
+                  kinshipLabel,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: KinrelColors.orange,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+
+              SizedBox(height: KinrelSpacing.xl),
+
+              // View Profile buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: DKButton(
+                      label: 'View ${edge.pinA.name.split(' ').first}',
+                      variant: DKButtonVariant.secondary,
+                      size: DKButtonSize.md,
+                      fullWidth: true,
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        context.push('/member/${edge.pinA.personId}');
+                      },
+                    ),
+                  ),
+                  SizedBox(width: KinrelSpacing.sm),
+                  Expanded(
+                    child: DKButton(
+                      label: 'View ${edge.pinB.name.split(' ').first}',
+                      variant: DKButtonVariant.primary,
+                      size: DKButtonSize.md,
+                      fullWidth: true,
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        context.push('/member/${edge.pinB.personId}');
+                      },
+                    ),
+                  ),
+                ],
               ),
 
               SizedBox(height: KinrelSpacing.sm),
@@ -967,5 +1259,216 @@ class _MapLegend extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// GRAPH EDGE DOT HIT TARGET
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Stores the screen position of a midpoint dot and its associated edge
+/// for tap detection in the GestureDetector wrapper.
+class _EdgeDotHitTarget {
+  const _EdgeDotHitTarget({required this.dotPos, required this.edge});
+
+  final Offset dotPos;
+  final MapRelationshipEdge edge;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// GRAPH EDGE PAINTER
+// ═══════════════════════════════════════════════════════════════════════
+
+/// CustomPainter that draws curved bezier connection lines between
+/// related pinned members on the map, with a glow and amber midpoint
+/// dot per line that is tappable to show kinship info.
+class _MapGraphEdgePainter extends CustomPainter {
+  _MapGraphEdgePainter({
+    required this.edges,
+    required this.camera,
+    this.hoveredEdgeKey,
+  });
+
+  final List<MapRelationshipEdge> edges;
+  final MapCamera camera;
+  final String? hoveredEdgeKey;
+
+  /// Populated during paint() for tap detection in the GestureDetector.
+  final List<_EdgeDotHitTarget> dotHitTargets = [];
+
+  /// Direct relationship keys for large-family edge filtering.
+  static const _directRelationshipKeys = {
+    'father', 'mother', 'parent',
+    'child', 'son', 'daughter',
+    'spouse', 'husband', 'wife',
+    'brother', 'sister', 'sibling',
+  };
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    dotHitTargets.clear();
+
+    // For families with more than 30 pinned members, limit to direct
+    // relationships only to prevent O(n²) line explosion.
+    final filteredEdges = edges.length > 30
+        ? edges.where((e) => _directRelationshipKeys.contains(e.relationshipKey)).toList()
+        : edges;
+
+    for (int i = 0; i < filteredEdges.length; i++) {
+      final edge = filteredEdges[i];
+
+      // 1. Convert coordinates to screen pixels
+      final Offset posA = camera.latLngToScreenPoint(
+        LatLng(edge.pinA.lat, edge.pinA.lng),
+      ).toOffset();
+      final Offset posB = camera.latLngToScreenPoint(
+        LatLng(edge.pinB.lat, edge.pinB.lng),
+      ).toOffset();
+
+      // 2. Viewport culling — skip if both points are off-screen by >200px
+      if (_isBothOffscreen(posA, posB, size)) continue;
+
+      // 3. Compute bezier control point
+      final mid = (posA + posB) / 2;
+      final dx = posB.dx - posA.dx;
+      final dy = posB.dy - posA.dy;
+      final lineLength = math.sqrt(dx * dx + dy * dy);
+      final Offset controlPoint;
+      if (lineLength < 1.0) {
+        controlPoint = mid;
+      } else {
+        // Perpendicular direction normalized
+        final perpX = -dy / lineLength;
+        final perpY = dx / lineLength;
+        // Alternate offset direction based on edge index
+        final sign = (i % 2 == 0) ? -1.0 : 1.0;
+        controlPoint = Offset(
+          mid.dx + perpX * 40 * sign,
+          mid.dy + perpY * 40 * sign,
+        );
+      }
+
+      // 4. Draw the curved line
+      final path = Path()
+        ..moveTo(posA.dx, posA.dy)
+        ..quadraticBezierTo(
+          controlPoint.dx, controlPoint.dy,
+          posB.dx, posB.dy,
+        );
+      final linePaint = Paint()
+        ..color = KinrelColors.orange.withValues(alpha: 0.35)
+        ..strokeWidth = 1.5
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+      canvas.drawPath(path, linePaint);
+
+      // 5. Compute midpoint dot position at t=0.5 on quadratic bezier
+      final dotPos = Offset(
+        0.25 * posA.dx + 0.5 * controlPoint.dx + 0.25 * posB.dx,
+        0.25 * posA.dy + 0.5 * controlPoint.dy + 0.25 * posB.dy,
+      );
+
+      // 6. Draw the glow behind the dot
+      final glowPaint = Paint()
+        ..color = KinrelColors.orangeGlow.withValues(alpha: 0.4)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+      canvas.drawCircle(dotPos, 7, glowPaint);
+
+      // 7. Draw the filled dot
+      final dotPaint = Paint()
+        ..color = KinrelColors.amber
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(dotPos, 4, dotPaint);
+
+      // Draw border ring
+      final dotBorderPaint = Paint()
+        ..color = KinrelColors.darkBackground.withValues(alpha: 0.6)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0;
+      canvas.drawCircle(dotPos, 4, dotBorderPaint);
+
+      // Store for tap detection
+      dotHitTargets.add(_EdgeDotHitTarget(dotPos: dotPos, edge: edge));
+    }
+  }
+
+  /// Returns true if both points are off-screen on the same side by
+  /// more than 200 pixels.
+  bool _isBothOffscreen(Offset a, Offset b, Size size) {
+    const margin = 200.0;
+    // Both left of screen
+    if (a.dx < -margin && b.dx < -margin) return true;
+    // Both right of screen
+    if (a.dx > size.width + margin && b.dx > size.width + margin) return true;
+    // Both above screen
+    if (a.dy < -margin && b.dy < -margin) return true;
+    // Both below screen
+    if (a.dy > size.height + margin && b.dy > size.height + margin) return true;
+    return false;
+  }
+
+  @override
+  bool shouldRepaint(_MapGraphEdgePainter oldDelegate) {
+    return oldDelegate.edges != edges ||
+        oldDelegate.camera != camera ||
+        oldDelegate.hoveredEdgeKey != hoveredEdgeKey;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// GRAPH OVERLAY LAYER
+// ═══════════════════════════════════════════════════════════════════════
+
+/// StatefulWidget that hosts the graph edge painter and handles tap
+/// detection on midpoint dots. Used as a FlutterMap child widget
+/// positioned between TileLayer and MarkerLayer.
+class _MapGraphOverlayLayer extends StatefulWidget {
+  const _MapGraphOverlayLayer({
+    required this.edges,
+    required this.familyId,
+    required this.onDotTapped,
+  });
+
+  final List<MapRelationshipEdge> edges;
+  final String familyId;
+  final void Function(MapRelationshipEdge edge) onDotTapped;
+
+  @override
+  State<_MapGraphOverlayLayer> createState() => _MapGraphOverlayLayerState();
+}
+
+class _MapGraphOverlayLayerState extends State<_MapGraphOverlayLayer> {
+  _MapGraphEdgePainter? _lastPainter;
+
+  @override
+  Widget build(BuildContext context) {
+    final camera = MapCamera.of(context);
+
+    final painter = _MapGraphEdgePainter(
+      edges: widget.edges,
+      camera: camera,
+    );
+    _lastPainter = painter;
+
+    return RepaintBoundary(
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTapUp: (details) {
+          if (_lastPainter == null) return;
+          final tapPos = details.localPosition;
+          for (final target in _lastPainter!.dotHitTargets) {
+            if ((tapPos - target.dotPos).distance < 18) {
+              widget.onDotTapped(target.edge);
+              return;
+            }
+          }
+        },
+        child: SizedBox.expand(
+          child: CustomPaint(painter: painter),
+        ),
+      ),
+    )
+        .animate()
+        .fadeIn(duration: 600.ms);
   }
 }

@@ -6,7 +6,10 @@
 // coordinates using the bundled kCityCoordinates lookup table.
 // Produces a list of MapPin objects for map display, plus a count
 // of members whose cities could not be resolved (unpinned).
+// Also resolves relationship edges between pinned members for
+// the graph overlay that draws curved connecting lines.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/family/family_provider.dart';
 import '../data/city_coordinates.dart';
@@ -56,6 +59,29 @@ class MapPin {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// MAP RELATIONSHIP EDGE MODEL
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Represents a real relationship edge between two pinned map members.
+class MapRelationshipEdge {
+  const MapRelationshipEdge({
+    required this.pinA,
+    required this.pinB,
+    required this.relationshipKey,
+  });
+
+  /// The first member in this relationship.
+  final MapPin pinA;
+
+  /// The second member in this relationship.
+  final MapPin pinB;
+
+  /// The raw relationship key (e.g. 'father', 'sister', 'spouse').
+  /// Used to resolve the full kinship term via GraphService at tap time.
+  final String relationshipKey;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // MAP RESULT
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -65,6 +91,8 @@ class FamilyMapResult {
     required this.pins,
     required this.unpinnedMembers,
     required this.unpinnedCount,
+    this.edges = const [],
+    this.familyId = '',
   });
 
   /// Members that were resolved to coordinates.
@@ -75,6 +103,12 @@ class FamilyMapResult {
 
   /// Convenience: count of unpinned members.
   final int unpinnedCount;
+
+  /// Relationship edges between pinned members only.
+  final List<MapRelationshipEdge> edges;
+
+  /// Family ID needed by GraphService at tap time for path resolution.
+  final String familyId;
 
   /// Number of distinct cities among pinned members.
   int get distinctCityCount =>
@@ -107,6 +141,8 @@ class UnpinnedMember {
 /// - [pins]: Members with resolved coordinates
 /// - [unpinnedMembers]: Members without resolvable cities
 /// - [unpinnedCount]: Count of unresolved members
+/// - [edges]: Relationship edges between pinned members
+/// - [familyId]: Family ID for graph resolution at tap time
 final familyMapProvider =
     FutureProvider<FamilyMapResult>((ref) async {
   // Get the first family from the user's family list
@@ -118,6 +154,8 @@ final familyMapProvider =
       pins: [],
       unpinnedMembers: [],
       unpinnedCount: 0,
+      edges: [],
+      familyId: '',
     );
   }
 
@@ -133,6 +171,8 @@ final familyMapProvider =
       pins: [],
       unpinnedMembers: [],
       unpinnedCount: 0,
+      edges: [],
+      familyId: '',
     );
   }
 
@@ -174,9 +214,46 @@ final familyMapProvider =
     }
   }
 
+  // ── Resolve relationship edges between pinned members ─────────────
+  List<MapRelationshipEdge> edges = [];
+  try {
+    final detail = await ref.read(familyDetailProvider(familyId).future);
+    if (detail != null) {
+      final pinnedIds = pins.map((p) => p.personId).toSet();
+      final pinById = {for (final p in pins) p.personId: p};
+      final seenKeys = <String>{};
+
+      for (final rel in detail.relationships) {
+        if (!rel.isActive) continue;
+        if (!pinnedIds.contains(rel.fromPersonId) ||
+            !pinnedIds.contains(rel.toPersonId)) {
+          continue;
+        }
+
+        // Deduplicate: canonical key is the sorted pair of person IDs
+        final pair = [rel.fromPersonId, rel.toPersonId]..sort();
+        final canonicalKey = '${pair[0]}-${pair[1]}';
+        if (seenKeys.contains(canonicalKey)) continue;
+        seenKeys.add(canonicalKey);
+
+        edges.add(MapRelationshipEdge(
+          pinA: pinById[rel.fromPersonId]!,
+          pinB: pinById[rel.toPersonId]!,
+          relationshipKey: rel.relationshipKey,
+        ));
+      }
+    }
+  } catch (e) {
+    // Never let relationship loading failure break the map pins
+    debugPrint('⚠️ familyMapProvider: relationship edge resolution failed: $e');
+    edges = [];
+  }
+
   return FamilyMapResult(
     pins: pins,
     unpinnedMembers: unpinned,
     unpinnedCount: unpinned.length,
+    edges: edges,
+    familyId: familyId,
   );
 });
