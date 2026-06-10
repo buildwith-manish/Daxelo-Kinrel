@@ -206,7 +206,7 @@ class _LayoutResult {
   final Size canvasSize;
 }
 
-/// Build the hierarchical layout from family data
+/// Build the radial/spoke layout from family data
 _LayoutResult _computeLayout({
   required List<Person> members,
   required List<FamilyRelationship> relationships,
@@ -224,46 +224,40 @@ _LayoutResult _computeLayout({
     );
   }
 
-  // Find anchor person
   final anchor = activeMembers.firstWhere(
     (p) => p.isAnchor || p.id == anchorPersonId,
     orElse: () => activeMembers.first,
   );
 
-  // Build adjacency from relationships
-  final parentOf = <String, List<String>>{}; // personId → list of parent IDs
-  final childOf = <String, List<String>>{}; // personId → list of child IDs
-  final spouseOf = <String, String?>{}; // personId → spouse ID
-  final siblingOf = <String, List<String>>{}; // personId → list of sibling IDs
-  final relLabelOf = <String, String>{}; // personId → relationship label to anchor
+  // Build adjacency maps
+  final parentOf = <String, List<String>>{};
+  final childOf = <String, List<String>>{};
+  final spouseOf = <String, String?>{};
+  final siblingOf = <String, List<String>>{};
+  final relLabelOf = <String, String>{};
 
   for (final rel in relationships) {
     if (!rel.isActive) continue;
     final type = rel.relationshipKey.toLowerCase();
     final fromId = rel.fromPersonId;
     final toId = rel.toPersonId;
-
-    // Skip if either person is deleted
-    if (!activeMembers.any((m) => m.id == fromId || m.id == toId)) continue;
+    if (!activeMembers.any((m) => m.id == fromId) ||
+        !activeMembers.any((m) => m.id == toId)) continue;
 
     if (['father', 'mother', 'parent'].contains(type)) {
-      // fromId is the parent of toId
       parentOf.putIfAbsent(toId, () => []).add(fromId);
       childOf.putIfAbsent(fromId, () => []).add(toId);
     } else if (['child', 'son', 'daughter'].contains(type)) {
-      // fromId is the child of toId
       parentOf.putIfAbsent(fromId, () => []).add(toId);
       childOf.putIfAbsent(toId, () => []).add(fromId);
     } else if (['spouse', 'husband', 'wife'].contains(type)) {
       spouseOf[fromId] = toId;
       spouseOf[toId] = fromId;
     } else if (['brother', 'sister', 'sibling'].contains(type)) {
-      // Sibling relationships — bidirectional
       siblingOf.putIfAbsent(fromId, () => []).add(toId);
       siblingOf.putIfAbsent(toId, () => []).add(fromId);
     }
 
-    // Track relationship labels
     if (toId == anchor.id && fromId != anchor.id) {
       relLabelOf[fromId] = _formatRelLabel(type);
     } else if (fromId == anchor.id && toId != anchor.id) {
@@ -271,22 +265,18 @@ _LayoutResult _computeLayout({
     }
   }
 
-  // Assign generations via BFS from anchor
+  // BFS generation assignment
   final generationMap = <String, int>{};
   final visited = <String>{};
   final queue = <_QueueItem>[];
-
-  // Anchor is generation 3 (center)
   generationMap[anchor.id] = 3;
   visited.add(anchor.id);
   queue.add(_QueueItem(anchor.id, 3));
 
-  // BFS to assign generations
   while (queue.isNotEmpty) {
     final item = queue.removeAt(0);
     final currentGen = item.generation;
 
-    // Parents are one generation above
     for (final parentId in parentOf[item.id] ?? []) {
       if (!visited.contains(parentId)) {
         visited.add(parentId);
@@ -294,8 +284,6 @@ _LayoutResult _computeLayout({
         queue.add(_QueueItem(parentId, currentGen - 1));
       }
     }
-
-    // Children are one generation below
     for (final childId in childOf[item.id] ?? []) {
       if (!visited.contains(childId)) {
         visited.add(childId);
@@ -303,36 +291,28 @@ _LayoutResult _computeLayout({
         queue.add(_QueueItem(childId, currentGen + 1));
       }
     }
-
-    // Spouse is same generation
     final spouseId = spouseOf[item.id];
     if (spouseId != null && !visited.contains(spouseId)) {
       visited.add(spouseId);
       generationMap[spouseId] = currentGen;
       queue.add(_QueueItem(spouseId, currentGen));
     }
-
-    // Siblings are same generation
-    for (final siblingId in siblingOf[item.id] ?? []) {
-      if (!visited.contains(siblingId)) {
-        visited.add(siblingId);
-        generationMap[siblingId] = currentGen;
-        queue.add(_QueueItem(siblingId, currentGen));
+    for (final sibId in siblingOf[item.id] ?? []) {
+      if (!visited.contains(sibId)) {
+        visited.add(sibId);
+        generationMap[sibId] = currentGen;
+        queue.add(_QueueItem(sibId, currentGen));
       }
     }
   }
 
-  // Assign remaining unvisited members
   for (final m in activeMembers) {
     if (!visited.contains(m.id)) {
-      // Use generationIndex from Person if available, otherwise default to 3
-      final gen = m.generationIndex > 0 ? m.generationIndex : 3;
-      generationMap[m.id] = gen;
+      generationMap[m.id] = m.generationIndex > 0 ? m.generationIndex : 3;
       visited.add(m.id);
     }
   }
 
-  // Infer relationship labels for unlabeled nodes
   _inferRelationshipLabels(
     activeMembers: activeMembers,
     relationships: relationships,
@@ -357,14 +337,12 @@ _LayoutResult _computeLayout({
   // Build edges (deduplicated)
   final edges = <_GraphEdge>[];
   final edgeSet = <String>{};
-
   for (final rel in relationships) {
     if (!rel.isActive) continue;
     final type = rel.relationshipKey.toLowerCase();
     final fromId = rel.fromPersonId;
     final toId = rel.toPersonId;
     if (!nodes.containsKey(fromId) || !nodes.containsKey(toId)) continue;
-
     final key1 = '$fromId-$toId';
     final key2 = '$toId-$fromId';
     if (edgeSet.contains(key1) || edgeSet.contains(key2)) continue;
@@ -375,112 +353,162 @@ _LayoutResult _computeLayout({
     } else if (['father', 'mother', 'parent', 'child', 'son', 'daughter'].contains(type)) {
       edgeType = _EdgeType.parentChild;
     } else {
-      // All other relationship types (brother, sister, sibling, uncle, aunt,
-      // nephew, niece, cousin, grandfather, grandmother, grandchild, etc.)
-      // become sibling edges drawn as upward-curving bezier arcs.
       edgeType = _EdgeType.sibling;
     }
-
     edges.add(_GraphEdge(fromId: fromId, toId: toId, type: edgeType));
     edgeSet.add(key1);
     edgeSet.add(key2);
   }
 
-  // Compute positions
-  const double nodeRadius = 36.0;
-  const double horizontalGap = 120.0;  // was 110
-  const double verticalGap = 170.0;    // was 160
-  const double spouseGap = 100.0;      // was 90
-  const double leftPadding = 160.0;    // Space for generation labels
-  const double topPadding = 90.0;      // was 80
+  // ── RADIAL LAYOUT ──────────────────────────────────────────────
+  // Canvas center = anchor node position
+  const double canvasW = 900.0;
+  const double canvasH = 900.0;
+  const Offset center = Offset(canvasW / 2, canvasH / 2);
 
-  // Group by generation
-  final genGroups = <int, List<String>>{};
-  for (final entry in nodes.entries) {
-    final gen = entry.value.generation;
-    genGroups.putIfAbsent(gen, () => []).add(entry.key);
-  }
+  // Orbit radii per generation offset from anchor (gen=3)
+  const double orbit1 = 200.0; // parents / siblings / spouse
+  const double orbit2 = 380.0; // grandparents / children
+  const double orbit3 = 540.0; // great-grandparents / grandchildren
 
-  // Sort generations
-  final sortedGens = genGroups.keys.toList()..sort();
-
-  // Position each generation row
   final positions = <String, Offset>{};
+  positions[anchor.id] = center;
 
-  for (final gen in sortedGens) {
-    final membersInGen = genGroups[gen]!;
-    final genIndex = sortedGens.indexOf(gen);
-    final y = topPadding + genIndex * verticalGap;
+  // Bucket non-anchor nodes by genDiff from anchor
+  final above1 = <String>[]; // genDiff == -1 (parents)
+  final above2 = <String>[]; // genDiff == -2 (grandparents)
+  final above3 = <String>[]; // genDiff <= -3
+  final sameLevel = <String>[]; // genDiff == 0, not anchor (siblings + spouse)
+  final below1 = <String>[]; // genDiff == +1 (children)
+  final below2 = <String>[]; // genDiff == +2
+  final below3 = <String>[]; // genDiff >= +3
 
-    // Sort: anchor first, then by name
-    membersInGen.sort((a, b) {
-      if (a == anchor.id) return -1;
-      if (b == anchor.id) return 1;
+  for (final entry in nodes.entries) {
+    if (entry.key == anchor.id) continue;
+    final genDiff = entry.value.generation - 3;
+    if (genDiff == -1) above1.add(entry.key);
+    else if (genDiff == -2) above2.add(entry.key);
+    else if (genDiff <= -3) above3.add(entry.key);
+    else if (genDiff == 0) sameLevel.add(entry.key);
+    else if (genDiff == 1) below1.add(entry.key);
+    else if (genDiff == 2) below2.add(entry.key);
+    else below3.add(entry.key);
+  }
 
-      // Group spouses together
-      final aSpouse = spouseOf[a];
-      final bSpouse = spouseOf[b];
-      if (aSpouse == b) return -1;
-      if (bSpouse == a) return 1;
-
-      return nodes[a]!.person.name.compareTo(nodes[b]!.person.name);
-    });
-
-    // Compute widths: spouse pairs count as one unit with smaller gap
-    final units = <List<String>>[];
-    final usedInPair = <String>{};
-
-    for (final id in membersInGen) {
-      if (usedInPair.contains(id)) continue;
-      final spouse = spouseOf[id];
-      if (spouse != null && membersInGen.contains(spouse) && !usedInPair.contains(spouse)) {
-        units.add([id, spouse]);
-        usedInPair.add(id);
-        usedInPair.add(spouse);
-      } else {
-        units.add([id]);
-        usedInPair.add(id);
-      }
+  // Helper: place nodes in a semi-circular arc for wider families.
+  void placeArc(List<String> ids, double radius,
+      {double startAngle = -math.pi, double endAngle = 0}) {
+    if (ids.isEmpty) return;
+    if (ids.length == 1) {
+      final angle = (startAngle + endAngle) / 2;
+      positions[ids[0]] =
+          Offset(center.dx + radius * math.cos(angle), center.dy + radius * math.sin(angle));
+      return;
     }
-
-    // Position each unit
-    double x = leftPadding;
-    for (int i = 0; i < units.length; i++) {
-      final unit = units[i];
-      if (unit.length == 2) {
-        // Left person
-        positions[unit[0]] = Offset(x + nodeRadius, y + nodeRadius);
-        // Right person
-        positions[unit[1]] = Offset(x + nodeRadius * 2 + spouseGap + nodeRadius, y + nodeRadius);
-        x += nodeRadius * 2 * 2 + spouseGap;
-      } else {
-        positions[unit[0]] = Offset(x + nodeRadius, y + nodeRadius);
-        x += nodeRadius * 2;
-      }
-      if (i < units.length - 1) {
-        x += horizontalGap;
-      }
+    final step = (endAngle - startAngle) / (ids.length - 1);
+    for (int i = 0; i < ids.length; i++) {
+      final angle = startAngle + i * step;
+      positions[ids[i]] =
+          Offset(center.dx + radius * math.cos(angle), center.dy + radius * math.sin(angle));
     }
   }
 
-  // Compute canvas size
-  double maxX = 0;
-  double maxY = 0;
+  // Place spouse adjacent to anchor (right side, orbit1 distance)
+  final spouseId = spouseOf[anchor.id];
+  if (spouseId != null && sameLevel.contains(spouseId)) {
+    positions[spouseId] = Offset(center.dx + orbit1, center.dy);
+    sameLevel.remove(spouseId);
+  }
+
+  // Siblings: left side arc (orbit1, upper-left to lower-left semicircle)
+  if (sameLevel.isNotEmpty) {
+    if (sameLevel.length == 1) {
+      positions[sameLevel[0]] = Offset(center.dx - orbit1, center.dy);
+    } else {
+      // Arc on the left side (angles from 120° to 240° = upper-left to lower-left)
+      placeArc(sameLevel, orbit1,
+          startAngle: math.pi * 0.65, endAngle: math.pi * 1.35);
+    }
+  }
+
+  // Parents: upper arc (orbit1, spanning ~180° above)
+  if (above1.isNotEmpty) {
+    if (above1.length <= 2) {
+      // Symmetric: father left-above, mother right-above
+      placeArc(above1, orbit1,
+          startAngle: -math.pi * 0.75, endAngle: -math.pi * 0.25);
+    } else {
+      placeArc(above1, orbit1,
+          startAngle: -math.pi * 0.9, endAngle: -math.pi * 0.1);
+    }
+  }
+
+  // Grandparents: orbit2 upper arc
+  if (above2.isNotEmpty) {
+    placeArc(above2, orbit2,
+        startAngle: -math.pi * 0.85, endAngle: -math.pi * 0.15);
+  }
+
+  // Great-grandparents: orbit3 upper arc
+  if (above3.isNotEmpty) {
+    placeArc(above3, orbit3,
+        startAngle: -math.pi * 0.85, endAngle: -math.pi * 0.15);
+  }
+
+  // Children: lower arc (orbit1, below center)
+  if (below1.isNotEmpty) {
+    if (below1.length == 1) {
+      positions[below1[0]] = Offset(center.dx, center.dy + orbit1);
+    } else {
+      placeArc(below1, orbit1,
+          startAngle: math.pi * 0.15, endAngle: math.pi * 0.85);
+    }
+  }
+
+  // Grandchildren: orbit2 lower arc
+  if (below2.isNotEmpty) {
+    placeArc(below2, orbit2,
+        startAngle: math.pi * 0.15, endAngle: math.pi * 0.85);
+  }
+
+  // Great-grandchildren: orbit3 lower arc
+  if (below3.isNotEmpty) {
+    placeArc(below3, orbit3,
+        startAngle: math.pi * 0.15, endAngle: math.pi * 0.85);
+  }
+
+  // Compute final canvas bounds to ensure all nodes fit with padding
+  double minX = double.infinity, minY = double.infinity;
+  double maxX = -double.infinity, maxY = -double.infinity;
   for (final pos in positions.values) {
-    if (pos.dx + nodeRadius > maxX) maxX = pos.dx + nodeRadius;
-    if (pos.dy + nodeRadius + 60 > maxY) maxY = pos.dy + nodeRadius + 60; // Extra for labels
+    if (pos.dx < minX) minX = pos.dx;
+    if (pos.dy < minY) minY = pos.dy;
+    if (pos.dx > maxX) maxX = pos.dx;
+    if (pos.dy > maxY) maxY = pos.dy;
   }
 
-  final canvasW = math.max(maxX + 80, 800);
-  final canvasH = math.max(maxY + 160, 600);
+  const double padding = 100.0;
+  final finalW = math.max(maxX - minX + padding * 2, canvasW);
+  final finalH = math.max(maxY - minY + padding * 2, canvasH);
+
+  // Shift all positions so the anchor is truly centered in the final canvas
+  final shiftX = finalW / 2 - center.dx;
+  final shiftY = finalH / 2 - center.dy;
+  final shiftedPositions = <String, Offset>{};
+  for (final entry in positions.entries) {
+    shiftedPositions[entry.key] =
+        Offset(entry.value.dx + shiftX, entry.value.dy + shiftY);
+  }
+
+  final sortedGens = nodes.values.map((n) => n.generation).toSet().toList()..sort();
 
   return _LayoutResult(
     nodes: nodes,
     edges: edges,
-    positions: positions,
+    positions: shiftedPositions,
     anchorId: anchor.id,
     generations: sortedGens.toSet(),
-    canvasSize: Size(canvasW.toDouble(), canvasH.toDouble()),
+    canvasSize: Size(finalW, finalH),
   );
 }
 
@@ -645,7 +673,7 @@ class _RelationshipGraphScreenState extends ConsumerState<RelationshipGraphScree
     if (anchorPos == null) return;
 
     final screenSize = MediaQuery.of(context).size;
-    final scale = 1.2;
+    final scale = 0.85;
     setState(() {
       final m = Matrix4.identity();
       m.setEntry(0, 3, screenSize.width / 2 - anchorPos.dx * scale);
@@ -1409,7 +1437,7 @@ class _RelationshipGraphPainter extends CustomPainter {
         ..color = color.withValues(alpha: 0.05)
         ..strokeWidth = 1.0
         ..style = PaintingStyle.stroke;
-      canvas.drawLine(Offset(140, avgY), Offset(size.width, avgY), guidePaint);
+      canvas.drawLine(Offset(0, avgY), Offset(size.width, avgY), guidePaint);
 
       // Pill dimensions
       final pillX = 8.0;
