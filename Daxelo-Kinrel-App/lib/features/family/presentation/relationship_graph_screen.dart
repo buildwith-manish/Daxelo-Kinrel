@@ -37,11 +37,13 @@ import 'person_detail_sheet.dart';
 class _GenColors {
   _GenColors._();
 
+  // ── Relationship-based colors (matches Figma design spec) ──────────
+
   /// Great-grandparents+ (generation 0 and below)
   static const Color greatGrandparent = Color(0xFF9B8EC4);
 
   /// Grandparents (generation 1)
-  static const Color grandparent = Color(0xFFB8A9D4);
+  static const Color grandparent = Color(0xFF7EB8D8);
 
   /// Parents / Uncles / Aunts (generation 2)
   static const Color parent = Color(0xFF7EB8D8);
@@ -54,6 +56,12 @@ class _GenColors {
 
   /// Grandchildren (generation 5+)
   static const Color grandchild = Color(0xFFFFD1DC);
+
+  /// Siblings (same generation, not spouse)
+  static const Color sibling = Color(0xFF6B7280);
+
+  /// Spouse (same generation, married to anchor or a node)
+  static const Color spouse = Color(0xFF4ECDC4);
 
   static Color forGeneration(int gen) {
     switch (gen) {
@@ -70,6 +78,43 @@ class _GenColors {
       default:
         return grandchild;
     }
+  }
+
+  /// Returns color based on relationship to the anchor person.
+  /// This matches the visual design spec from Figma:
+  ///   - Parents: blue-teal
+  ///   - Self: bright teal (with glow)
+  ///   - Siblings: dark gray
+  ///   - Children/Spouse: mauve/pink
+  static Color forRelationship({
+    required int generation,
+    required String? relationshipLabel,
+    required bool isAnchor,
+    required int anchorGeneration,
+  }) {
+    if (isAnchor) return self;
+
+    final genDiff = generation - anchorGeneration;
+    final label = relationshipLabel?.toLowerCase() ?? '';
+
+    // Spouse → same color as self (teal)
+    if (label.contains('spouse') || label.contains('husband') || label.contains('wife')) {
+      return spouse;
+    }
+
+    // Sibling → dark gray
+    if (label.contains('brother') || label.contains('sister') || label.contains('sibling')) {
+      return sibling;
+    }
+
+    // Parents (gen above) → blue-teal
+    if (genDiff < 0) return parent;
+
+    // Children (gen below) → mauve/pink
+    if (genDiff > 0) return child;
+
+    // Same generation but no specific label → gray (sibling default)
+    return sibling;
   }
 
   static String labelForGeneration(int gen) {
@@ -1328,7 +1373,17 @@ class _RelationshipGraphPainter extends CustomPainter {
       final avgY = sumY / ids.length;
 
       final label = _GenColors.labelForGeneration(gen);
-      final color = _GenColors.forGeneration(gen);
+      // Use the anchor's generation as reference for relationship-based coloring
+      final anchorGen = layout.nodes[anchorId]?.generation ?? 3;
+      final genDiff = gen - anchorGen;
+      final Color color;
+      if (genDiff < 0) {
+        color = _GenColors.parent;
+      } else if (genDiff == 0) {
+        color = _GenColors.self;
+      } else {
+        color = _GenColors.child;
+      }
 
       // Label background pill
       final textPainter = TextPainter(
@@ -1569,9 +1624,19 @@ class _RelationshipGraphPainter extends CustomPainter {
   }
 
   void _drawNode(Canvas canvas, _GraphNode node, Offset pos, double entryProgress) {
-    final color = _GenColors.forGeneration(node.generation);
+    // Use relationship-based color matching the design spec
+    final anchorGen = layout.nodes[anchorId]?.generation ?? 3;
+    final color = _GenColors.forRelationship(
+      generation: node.generation,
+      relationshipLabel: node.relationshipLabel,
+      isAnchor: node.isAnchor,
+      anchorGeneration: anchorGen,
+    );
     final isAnchor = node.isAnchor;
     final isSelected = node.person.id == selectedNodeId;
+
+    // Anchor node is larger (44px vs 36px radius)
+    final effectiveRadius = isAnchor ? nodeRadius + 8 : nodeRadius;
 
     // Apply entry animation: scale + opacity
     final scale = Curves.easeOutBack.transform(entryProgress);
@@ -1584,12 +1649,12 @@ class _RelationshipGraphPainter extends CustomPainter {
 
     // ── Anchor glow effect ──────────────────────────────────────
     if (isAnchor) {
-      final glowRadius = nodeRadius + 12 + pulseValue * 8;
+      final glowRadius = effectiveRadius + 14 + pulseValue * 10;
       final glowPaint = Paint()
         ..shader = RadialGradient(
           colors: [
-            _GenColors.self.withValues(alpha: 0.4 * opacity),
-            _GenColors.self.withValues(alpha: 0.1 * opacity),
+            _GenColors.self.withValues(alpha: 0.5 * opacity),
+            _GenColors.self.withValues(alpha: 0.15 * opacity),
             Colors.transparent,
           ],
           stops: [0.0, 0.5, 1.0],
@@ -1598,39 +1663,40 @@ class _RelationshipGraphPainter extends CustomPainter {
 
       // Pulsing ring
       final ringPaint = Paint()
-        ..color = _GenColors.self.withValues(alpha: (0.3 + pulseValue * 0.2) * opacity)
+        ..color = _GenColors.self.withValues(alpha: (0.3 + pulseValue * 0.25) * opacity)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2;
-      canvas.drawCircle(pos, nodeRadius + 6 + pulseValue * 4, ringPaint);
+        ..strokeWidth = 2.5;
+      canvas.drawCircle(pos, effectiveRadius + 8 + pulseValue * 5, ringPaint);
     }
 
     // ── Node circle ─────────────────────────────────────────────
     final bgPaint = Paint()
-      ..color = color.withValues(alpha: 0.2 * opacity)
+      ..color = color.withValues(alpha: 0.25 * opacity)
       ..style = PaintingStyle.fill;
     final borderPaint = Paint()
-      ..color = color.withValues(alpha: (isSelected ? 1.0 : 0.6) * opacity)
+      ..color = color.withValues(alpha: (isSelected ? 1.0 : 0.8) * opacity)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = isSelected ? 3.0 : 2.0;
+      ..strokeWidth = isSelected ? 3.0 : 1.5;
 
-    canvas.drawCircle(pos, nodeRadius, bgPaint);
-    canvas.drawCircle(pos, nodeRadius, borderPaint);
+    canvas.drawCircle(pos, effectiveRadius, bgPaint);
+    canvas.drawCircle(pos, effectiveRadius, borderPaint);
 
     // ── Deceased indicator ──────────────────────────────────────
     if (node.person.isDeceased) {
       final deceasedPaint = Paint()
         ..color = Colors.white.withValues(alpha: 0.15 * opacity)
         ..style = PaintingStyle.fill;
-      canvas.drawCircle(pos, nodeRadius, deceasedPaint);
+      canvas.drawCircle(pos, effectiveRadius, deceasedPaint);
     }
 
     // ── Initials ────────────────────────────────────────────────
+    final initialsSize = isAnchor ? 18.0 : 15.0;
     final initialsPainter = TextPainter(
       text: TextSpan(
         text: node.initials,
         style: TextStyle(
           fontFamily: KinrelTypography.displayFont,
-          fontSize: 16,
+          fontSize: initialsSize,
           fontWeight: FontWeight.w700,
           color: Colors.white.withValues(alpha: opacity),
           height: 1.0,
@@ -1667,7 +1733,7 @@ class _RelationshipGraphPainter extends CustomPainter {
       canvas,
       Offset(
         pos.dx - namePainter.width / 2,
-        pos.dy + nodeRadius + 6,
+        pos.dy + effectiveRadius + 6,
       ),
     );
 
@@ -1695,7 +1761,7 @@ class _RelationshipGraphPainter extends CustomPainter {
         canvas,
         Offset(
           pos.dx - youPainter.width / 2,
-          pos.dy + nodeRadius + 22,
+          pos.dy + effectiveRadius + 22,
         ),
       );
     }
@@ -1721,7 +1787,7 @@ class _RelationshipGraphPainter extends CustomPainter {
         canvas,
         Offset(
           pos.dx - relPainter.width / 2,
-          pos.dy + nodeRadius + 22,
+          pos.dy + effectiveRadius + 22,
         ),
       );
     }
