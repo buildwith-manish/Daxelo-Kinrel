@@ -7,7 +7,7 @@
 // - Circular nodes with initials, names, and relationship labels
 // - Color-coded by generation (lavender → purple → blue → teal → pink)
 // - Glowing "You" anchor node with pulsing animation
-// - Dashed connection lines (parent-child, spouse & sibling)
+// - Smooth curved Bezier connection lines (parent-child, spouse & sibling)
 // - Smooth entry animations (generation by generation)
 // - InteractiveViewer for zoom/pan
 // - Generation labels on the left side
@@ -1496,50 +1496,76 @@ class _RelationshipGraphPainter extends CustomPainter {
 
   Offset _drawParentChildEdge(Canvas canvas, Offset parentPos, Offset childPos) {
     final paint = Paint()
-      ..color = KinrelColors.orange.withValues(alpha: 0.35)
+      ..color = KinrelColors.orange.withValues(alpha: 0.45)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
+      ..strokeWidth = 1.8
       ..strokeCap = StrokeCap.round;
 
-    // Step-down line: down from parent, horizontal, down to child
-    final midY = (parentPos.dy + childPos.dy) / 2;
+    // Smooth S-curve bezier from parent bottom to child top
+    final startY = parentPos.dy + nodeRadius;
+    final endY = childPos.dy - nodeRadius;
+    final dy = endY - startY;
+
+    // Control points create a graceful S-curve:
+    //   CP1 is directly below parent at 40% of vertical distance
+    //   CP2 is directly above child at 60% of vertical distance
+    final cp1 = Offset(parentPos.dx, startY + dy * 0.4);
+    final cp2 = Offset(childPos.dx, startY + dy * 0.6);
 
     final path = Path()
-      ..moveTo(parentPos.dx, parentPos.dy + nodeRadius)
-      ..lineTo(parentPos.dx, midY)
-      ..lineTo(childPos.dx, midY)
-      ..lineTo(childPos.dx, childPos.dy - nodeRadius);
+      ..moveTo(parentPos.dx, startY)
+      ..cubicBezierTo(
+        cp1.dx, cp1.dy,
+        cp2.dx, cp2.dy,
+        childPos.dx, endY,
+      );
 
-    _drawDashedPath(canvas, path, paint);
+    canvas.drawPath(path, paint);
 
     // Small arrow dot at child end
     final dotPaint = Paint()
       ..color = KinrelColors.orange.withValues(alpha: 0.5)
       ..style = PaintingStyle.fill;
-    canvas.drawCircle(Offset(childPos.dx, childPos.dy - nodeRadius - 3), 3, dotPaint);
+    canvas.drawCircle(Offset(childPos.dx, endY - 3), 3, dotPaint);
 
-    // Midpoint position: center of horizontal segment at midY
-    final midX = (parentPos.dx + childPos.dx) / 2;
+    // Midpoint is at the center of the cubic bezier at t=0.5
+    // For a cubic bezier B(t) = (1-t)^3*P0 + 3(1-t)^2*t*P1 + 3(1-t)*t^2*P2 + t^3*P3
+    final t = 0.5;
+    final mt = 1 - t;
+    final midX = mt*mt*mt*parentPos.dx + 3*mt*mt*t*cp1.dx + 3*mt*t*t*cp2.dx + t*t*t*childPos.dx;
+    final midY = mt*mt*mt*startY + 3*mt*mt*t*cp1.dy + 3*mt*t*t*cp2.dy + t*t*t*endY;
     return Offset(midX, midY);
   }
 
   Offset _drawSpouseEdge(Canvas canvas, Offset pos1, Offset pos2) {
     final paint = Paint()
-      ..color = KinrelColors.amber.withValues(alpha: 0.45)
+      ..color = KinrelColors.amber.withValues(alpha: 0.55)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
+      ..strokeWidth = 1.8
       ..strokeCap = StrokeCap.round;
 
-    // Horizontal dashed line between spouses
-    final path = Path()
-      ..moveTo(pos1.dx + nodeRadius + 2, pos1.dy)
-      ..lineTo(pos2.dx - nodeRadius - 2, pos2.dy);
+    // Smooth horizontal bezier with a gentle arc between spouses
+    final startX = pos1.dx + nodeRadius + 2;
+    final endX = pos2.dx - nodeRadius - 2;
+    final midX = (startX + endX) / 2;
+    final midY = (pos1.dy + pos2.dy) / 2;
 
-    _drawDashedPath(canvas, path, paint);
+    // Control points create a gentle downward/upward arc
+    final arcHeight = 12.0; // Subtle arc for visual softness
+    final cp1 = Offset(startX + (endX - startX) * 0.3, midY + arcHeight);
+    final cp2 = Offset(startX + (endX - startX) * 0.7, midY - arcHeight);
+
+    final path = Path()
+      ..moveTo(startX, pos1.dy)
+      ..cubicBezierTo(
+        cp1.dx, cp1.dy,
+        cp2.dx, cp2.dy,
+        endX, pos2.dy,
+      );
+
+    canvas.drawPath(path, paint);
 
     // Heart icon at midpoint
-    final midX = (pos1.dx + pos2.dx) / 2;
-    final midY = (pos1.dy + pos2.dy) / 2;
     _drawHeart(canvas, Offset(midX, midY), 6);
 
     // Return midpoint 10px above heart to avoid overlap
@@ -1548,31 +1574,39 @@ class _RelationshipGraphPainter extends CustomPainter {
 
   Offset _drawSiblingEdge(Canvas canvas, Offset fromPos, Offset toPos) {
     final paint = Paint()
-      ..color = KinrelColors.orange.withValues(alpha: 0.35)
+      ..color = KinrelColors.orange.withValues(alpha: 0.45)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
+      ..strokeWidth = 1.8
       ..strokeCap = StrokeCap.round;
 
     // Compute midpoint between the two positions
     final midX = (fromPos.dx + toPos.dx) / 2;
     final midY = (fromPos.dy + toPos.dy) / 2;
 
-    // Control point 60px above the midpoint for a soft upward-curving arc
-    final controlPoint = Offset(midX, midY - 60);
+    // Control point above the midpoint for a smooth upward-curving arc
+    // Scale the arc height based on horizontal distance for natural curves
+    final dx = (toPos.dx - fromPos.dx).abs();
+    final arcHeight = math.max(50.0, dx * 0.3);
 
-    // Quadratic bezier arc from fromPos to toPos curving upward
+    // Use cubic bezier with two control points for a smoother, more natural arc
+    final cp1 = Offset(fromPos.dx + (toPos.dx - fromPos.dx) * 0.25, midY - arcHeight);
+    final cp2 = Offset(fromPos.dx + (toPos.dx - fromPos.dx) * 0.75, midY - arcHeight);
+
     final path = Path()
       ..moveTo(fromPos.dx, fromPos.dy)
-      ..quadraticBezierTo(
-        controlPoint.dx, controlPoint.dy,
+      ..cubicBezierTo(
+        cp1.dx, cp1.dy,
+        cp2.dx, cp2.dy,
         toPos.dx, toPos.dy,
       );
 
-    _drawDashedPath(canvas, path, paint);
+    canvas.drawPath(path, paint);
 
-    // Small dot at the apex of the arc (on the bezier at t=0.5)
-    final apexX = 0.25 * fromPos.dx + 0.5 * controlPoint.dx + 0.25 * toPos.dx;
-    final apexY = 0.25 * fromPos.dy + 0.5 * controlPoint.dy + 0.25 * toPos.dy;
+    // Small dot at the apex of the arc (cubic bezier at t=0.5)
+    final t = 0.5;
+    final mt = 1 - t;
+    final apexX = mt*mt*mt*fromPos.dx + 3*mt*mt*t*cp1.dx + 3*mt*t*t*cp2.dx + t*t*t*toPos.dx;
+    final apexY = mt*mt*mt*fromPos.dy + 3*mt*mt*t*cp1.dy + 3*mt*t*t*cp2.dy + t*t*t*toPos.dy;
     final dotPaint = Paint()
       ..color = KinrelColors.orange.withValues(alpha: 0.5)
       ..style = PaintingStyle.fill;
