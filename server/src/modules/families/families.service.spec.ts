@@ -3,6 +3,7 @@ import { FamiliesService } from './families.service';
 import { FamilyIdService } from './family-id.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { KinrelGateway } from '../gateway/kinrel.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   BadRequestException,
   NotFoundException,
@@ -52,6 +53,15 @@ const mockKinrelGateway = {
   emitToFamily: jest.fn(),
 };
 
+// ── Mock NotificationsService ─────────────────────────────────────────────
+
+const mockNotificationsService = {
+  notifyFamilyCreated: jest.fn(),
+  notifyFamilyInviteLinkReady: jest.fn(),
+  notifyFamilyJoined: jest.fn(),
+  notifyFamilyMemberJoined: jest.fn(),
+};
+
 describe('FamiliesService', () => {
   let service: FamiliesService;
 
@@ -64,6 +74,7 @@ describe('FamiliesService', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: FamilyIdService, useValue: mockFamilyIdService },
         { provide: KinrelGateway, useValue: mockKinrelGateway },
+        { provide: NotificationsService, useValue: mockNotificationsService },
       ],
     }).compile();
 
