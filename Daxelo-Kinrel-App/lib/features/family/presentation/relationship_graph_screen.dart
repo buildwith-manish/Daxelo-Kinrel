@@ -7,7 +7,7 @@
 // - Circular nodes with initials, names, and relationship labels
 // - Color-coded by generation (lavender → purple → blue → teal → pink)
 // - Glowing "You" anchor node with pulsing animation
-// - Dashed connection lines (parent-child & spouse)
+// - Dashed connection lines (parent-child, spouse & sibling)
 // - Smooth entry animations (generation by generation)
 // - InteractiveViewer for zoom/pan
 // - Generation labels on the left side
@@ -137,7 +137,7 @@ class _GraphEdge {
   final _EdgeType type;
 }
 
-enum _EdgeType { parentChild, spouse }
+enum _EdgeType { parentChild, spouse, sibling }
 
 // ═══════════════════════════════════════════════════════════════════════
 // LAYOUT COMPUTATION
@@ -189,6 +189,7 @@ _LayoutResult _computeLayout({
   final parentOf = <String, List<String>>{}; // personId → list of parent IDs
   final childOf = <String, List<String>>{}; // personId → list of child IDs
   final spouseOf = <String, String?>{}; // personId → spouse ID
+  final siblingOf = <String, List<String>>{}; // personId → list of sibling IDs
   final relLabelOf = <String, String>{}; // personId → relationship label to anchor
 
   for (final rel in relationships) {
@@ -211,6 +212,10 @@ _LayoutResult _computeLayout({
     } else if (['spouse', 'husband', 'wife'].contains(type)) {
       spouseOf[fromId] = toId;
       spouseOf[toId] = fromId;
+    } else if (['brother', 'sister', 'sibling'].contains(type)) {
+      // Sibling relationships — bidirectional
+      siblingOf.putIfAbsent(fromId, () => []).add(toId);
+      siblingOf.putIfAbsent(toId, () => []).add(fromId);
     }
 
     // Track relationship labels
@@ -261,6 +266,15 @@ _LayoutResult _computeLayout({
       generationMap[spouseId] = currentGen;
       queue.add(_QueueItem(spouseId, currentGen));
     }
+
+    // Siblings are same generation
+    for (final siblingId in siblingOf[item.id] ?? []) {
+      if (!visited.contains(siblingId)) {
+        visited.add(siblingId);
+        generationMap[siblingId] = currentGen;
+        queue.add(_QueueItem(siblingId, currentGen));
+      }
+    }
   }
 
   // Assign remaining unvisited members
@@ -310,18 +324,21 @@ _LayoutResult _computeLayout({
     final key2 = '$toId-$fromId';
     if (edgeSet.contains(key1) || edgeSet.contains(key2)) continue;
 
-    _EdgeType? edgeType;
+    final _EdgeType edgeType;
     if (['spouse', 'husband', 'wife'].contains(type)) {
       edgeType = _EdgeType.spouse;
     } else if (['father', 'mother', 'parent', 'child', 'son', 'daughter'].contains(type)) {
       edgeType = _EdgeType.parentChild;
+    } else {
+      // All other relationship types (brother, sister, sibling, uncle, aunt,
+      // nephew, niece, cousin, grandfather, grandmother, grandchild, etc.)
+      // become sibling edges drawn as upward-curving bezier arcs.
+      edgeType = _EdgeType.sibling;
     }
 
-    if (edgeType != null) {
-      edges.add(_GraphEdge(fromId: fromId, toId: toId, type: edgeType));
-      edgeSet.add(key1);
-      edgeSet.add(key2);
-    }
+    edges.add(_GraphEdge(fromId: fromId, toId: toId, type: edgeType));
+    edgeSet.add(key1);
+    edgeSet.add(key2);
   }
 
   // Compute positions
@@ -1368,6 +1385,8 @@ class _RelationshipGraphPainter extends CustomPainter {
     final Offset midpoint;
     if (edge.type == _EdgeType.spouse) {
       midpoint = _drawSpouseEdge(canvas, fromPos, toPos);
+    } else if (edge.type == _EdgeType.sibling) {
+      midpoint = _drawSiblingEdge(canvas, fromPos, toPos);
     } else {
       midpoint = _drawParentChildEdge(canvas, fromPos, toPos);
     }
@@ -1470,6 +1489,42 @@ class _RelationshipGraphPainter extends CustomPainter {
 
     // Return midpoint 10px above heart to avoid overlap
     return Offset(midX, midY - 10);
+  }
+
+  Offset _drawSiblingEdge(Canvas canvas, Offset fromPos, Offset toPos) {
+    final paint = Paint()
+      ..color = KinrelColors.orange.withValues(alpha: 0.35)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
+    // Compute midpoint between the two positions
+    final midX = (fromPos.dx + toPos.dx) / 2;
+    final midY = (fromPos.dy + toPos.dy) / 2;
+
+    // Control point 60px above the midpoint for a soft upward-curving arc
+    final controlPoint = Offset(midX, midY - 60);
+
+    // Quadratic bezier arc from fromPos to toPos curving upward
+    final path = Path()
+      ..moveTo(fromPos.dx, fromPos.dy)
+      ..quadraticBezierTo(
+        controlPoint.dx, controlPoint.dy,
+        toPos.dx, toPos.dy,
+      );
+
+    _drawDashedPath(canvas, path, paint);
+
+    // Small dot at the apex of the arc (on the bezier at t=0.5)
+    final apexX = 0.25 * fromPos.dx + 0.5 * controlPoint.dx + 0.25 * toPos.dx;
+    final apexY = 0.25 * fromPos.dy + 0.5 * controlPoint.dy + 0.25 * toPos.dy;
+    final dotPaint = Paint()
+      ..color = KinrelColors.orange.withValues(alpha: 0.5)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(apexX, apexY), 3, dotPaint);
+
+    // Return the bezier midpoint (at t=0.5) as the midpoint target
+    return Offset(apexX, apexY);
   }
 
   void _drawHeart(Canvas canvas, Offset center, double size) {

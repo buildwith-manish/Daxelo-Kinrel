@@ -282,24 +282,30 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
 
   /// Resolve the effective relationship key from type + gender + sub-type.
+  /// The key describes what the ANCHOR person will be to the new person,
+  /// so we use the anchor's gender for parent/child/sibling terms.
+  /// For spouse, we also use the anchor's gender since the sentence says
+  /// "Anchor will be the husband/wife of NewPerson".
   String? get _effectiveRelationshipKey {
     if (_selectedRelationshipKey != null) return _selectedRelationshipKey;
 
-    final gender = _selectedGender;
+    // The preview sentence is "Anchor will be the [label] of NewPerson",
+    // so the label must match the anchor's gender.
+    final anchorGender = _effectiveAnchorPerson?.gender ?? 'male';
     switch (_selectedRelType) {
       case 'parent':
-        return gender == 'female' ? 'mother' : 'father';
+        return anchorGender == 'female' ? 'mother' : 'father';
       case 'child':
-        return gender == 'female' ? 'daughter' : 'son';
+        return anchorGender == 'female' ? 'daughter' : 'son';
       case 'spouse':
-        return gender == 'female' ? 'wife' : 'husband';
+        return anchorGender == 'female' ? 'wife' : 'husband';
       case 'sibling':
         if (_selectedSubType == 'elder') {
-          return gender == 'female' ? 'elder_sister' : 'elder_brother';
+          return anchorGender == 'female' ? 'elder_sister' : 'elder_brother';
         } else if (_selectedSubType == 'younger') {
-          return gender == 'female' ? 'younger_sister' : 'younger_brother';
+          return anchorGender == 'female' ? 'younger_sister' : 'younger_brother';
         }
-        return gender == 'female' ? 'sister' : 'brother';
+        return anchorGender == 'female' ? 'sister' : 'brother';
       default:
         return null;
     }

@@ -121,14 +121,12 @@ class _RelationshipPickerSheetState
       suggestions.addAll(['husband', 'wife']);
     }
 
-    // If has parents but no siblings, suggest brother/sister
-    if (hasParent) {
-      final hasSibling = existing.any(
-        (t) => ['brother', 'sister', 'sibling'].contains(t),
-      );
-      if (!hasSibling) {
-        suggestions.addAll(['brother', 'sister']);
-      }
+    // Always suggest brother/sister if not already present
+    final hasSibling = existing.any(
+      (t) => ['brother', 'sister', 'sibling'].contains(t),
+    );
+    if (!hasSibling) {
+      suggestions.addAll(['brother', 'sister']);
     }
 
     // If has parents, suggest uncle/aunt
