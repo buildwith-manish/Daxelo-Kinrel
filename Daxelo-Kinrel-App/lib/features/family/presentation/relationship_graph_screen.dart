@@ -7,7 +7,7 @@
 // - Circular nodes with initials, names, and relationship labels
 // - Color-coded by generation (lavender → purple → blue → teal → pink)
 // - Glowing "You" anchor node with pulsing animation
-// - Smooth curved Bezier connection lines (parent-child, spouse & sibling)
+// - Dashed curved Bezier connection lines (parent-child, spouse & sibling)
 // - Smooth entry animations (generation by generation)
 // - InteractiveViewer for zoom/pan
 // - Generation labels on the left side
@@ -40,28 +40,28 @@ class _GenColors {
   // ── Relationship-based colors (matches Figma design spec) ──────────
 
   /// Great-grandparents+ (generation 0 and below)
-  static const Color greatGrandparent = Color(0xFF9B8EC4);
+  static const Color greatGrandparent = Color(0xFF9B8EC4); // lavender-purple
 
   /// Grandparents (generation 1)
-  static const Color grandparent = Color(0xFF7EB8D8);
+  static const Color grandparent = Color(0xFF6B9FD4); // blue
 
   /// Parents / Uncles / Aunts (generation 2)
-  static const Color parent = Color(0xFF7EB8D8);
+  static const Color parent = Color(0xFF5B9BD5); // steel blue (matches Figma "SR/SU" nodes)
 
   /// Self / Spouse (generation 3 — anchor)
-  static const Color self = Color(0xFF4ECDC4);
+  static const Color self = Color(0xFF4ECDC4); // bright teal (matches Figma "RA" node)
 
   /// Children (generation 4)
-  static const Color child = Color(0xFFFFB6C1);
+  static const Color child = Color(0xFFB87FA8); // mauve/dusty pink (matches Figma "AN" node)
 
   /// Grandchildren (generation 5+)
-  static const Color grandchild = Color(0xFFFFD1DC);
+  static const Color grandchild = Color(0xFFFFB6C1); // light pink
 
   /// Siblings (same generation, not spouse)
-  static const Color sibling = Color(0xFF6B7280);
+  static const Color sibling = Color(0xFF7B8FA6); // slate blue-gray (matches Figma "MA/YA" nodes)
 
-  /// Spouse (same generation, married to anchor or a node)
-  static const Color spouse = Color(0xFF4ECDC4);
+  /// Spouse (same generation, married to anchor)
+  static const Color spouse = Color(0xFF4ECDC4); // same as self
 
   static Color forGeneration(int gen) {
     switch (gen) {
@@ -388,11 +388,11 @@ _LayoutResult _computeLayout({
 
   // Compute positions
   const double nodeRadius = 36.0;
-  const double horizontalGap = 110.0;
-  const double verticalGap = 160.0;
-  const double spouseGap = 90.0;
-  const double leftPadding = 160.0; // Space for generation labels
-  const double topPadding = 80.0;
+  const double horizontalGap = 120.0;  // was 110
+  const double verticalGap = 170.0;    // was 160
+  const double spouseGap = 100.0;      // was 90
+  const double leftPadding = 160.0;    // Space for generation labels
+  const double topPadding = 90.0;      // was 80
 
   // Group by generation
   final genGroups = <int, List<String>>{};
@@ -1319,11 +1319,27 @@ class _RelationshipGraphPainter extends CustomPainter {
   /// Hit targets for midpoint dots — populated fresh each paint call
   final List<_EdgeMidpointTarget> midpointTargets = [];
 
+  void _drawCanvasBackground(Canvas canvas, Size size) {
+    const double spacing = 40.0;
+    final dotPaint = Paint()
+      ..color = const Color(0xFF2A2A3D).withValues(alpha: 0.5)
+      ..style = PaintingStyle.fill;
+
+    for (double x = 0; x < size.width; x += spacing) {
+      for (double y = 0; y < size.height; y += spacing) {
+        canvas.drawCircle(Offset(x, y), 1.0, dotPaint);
+      }
+    }
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     if (layout.nodes.isEmpty) return;
 
     midpointTargets.clear();
+
+    // ── Draw subtle dot grid background ───────────────────────
+    _drawCanvasBackground(canvas, size);
 
     // ── Draw generation label bands ──────────────────────────────
     _drawGenerationLabels(canvas, size);
@@ -1361,10 +1377,10 @@ class _RelationshipGraphPainter extends CustomPainter {
     }
 
     final sortedGens = genGroups.keys.toList()..sort();
+    final anchorGen = layout.nodes[anchorId]?.generation ?? 3;
 
     for (final gen in sortedGens) {
       final ids = genGroups[gen]!;
-      // Compute average Y for this generation
       double sumY = 0;
       for (final id in ids) {
         final pos = layout.positions[id];
@@ -1372,44 +1388,60 @@ class _RelationshipGraphPainter extends CustomPainter {
       }
       final avgY = sumY / ids.length;
 
-      final label = _GenColors.labelForGeneration(gen);
-      // Use the anchor's generation as reference for relationship-based coloring
-      final anchorGen = layout.nodes[anchorId]?.generation ?? 3;
       final genDiff = gen - anchorGen;
       final Color color;
-      if (genDiff < 0) {
-        color = _GenColors.parent;
-      } else if (genDiff == 0) {
+      final String label;
+
+      if (gen == anchorGen) {
         color = _GenColors.self;
+        label = 'SELF';
+      } else if (genDiff < 0) {
+        // Color by how far above
+        color = genDiff == -1 ? _GenColors.parent : _GenColors.grandparent;
+        label = genDiff == -1 ? 'PARENTS' : genDiff == -2 ? 'GRANDPARENTS' : 'ANCESTORS';
       } else {
-        color = _GenColors.child;
+        color = genDiff == 1 ? _GenColors.child : _GenColors.grandchild;
+        label = genDiff == 1 ? 'CHILDREN' : 'GRANDCHILDREN';
       }
 
-      // Label background pill
+      // Subtle horizontal guide line across canvas
+      final guidePaint = Paint()
+        ..color = color.withValues(alpha: 0.05)
+        ..strokeWidth = 1.0
+        ..style = PaintingStyle.stroke;
+      canvas.drawLine(Offset(140, avgY), Offset(size.width, avgY), guidePaint);
+
+      // Pill dimensions
+      final pillX = 8.0;
+      final pillH = 22.0;
+      final dotRadius = 4.0;
+      final dotX = pillX + 12;
+      final textX = dotX + dotRadius + 6;
+
+      // Measure text first
       final textPainter = TextPainter(
         text: TextSpan(
           text: label,
           style: TextStyle(
             fontFamily: KinrelTypography.monoFont,
             fontSize: 9,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
             color: color,
-            letterSpacing: 1.2,
+            letterSpacing: 1.4,
           ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
 
-      final pillW = textPainter.width + 20;
-      final pillH = 22.0;
-      final pillX = 12.0;
+      final pillW = textX + textPainter.width + 10 - pillX;
       final pillY = avgY - pillH / 2;
 
+      // Pill background
       final pillPaint = Paint()
-        ..color = color.withValues(alpha: 0.12)
+        ..color = color.withValues(alpha: 0.10)
         ..style = PaintingStyle.fill;
       final pillBorderPaint = Paint()
-        ..color = color.withValues(alpha: 0.25)
+        ..color = color.withValues(alpha: 0.30)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1;
 
@@ -1424,10 +1456,15 @@ class _RelationshipGraphPainter extends CustomPainter {
       final dotPaint = Paint()
         ..color = color
         ..style = PaintingStyle.fill;
-      canvas.drawCircle(Offset(pillX + 10, avgY), 3, dotPaint);
+      // Tiny glow on dot
+      final dotGlowPaint = Paint()
+        ..color = color.withValues(alpha: 0.4)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      canvas.drawCircle(Offset(dotX, avgY), dotRadius + 1, dotGlowPaint);
+      canvas.drawCircle(Offset(dotX, avgY), dotRadius, dotPaint);
 
       // Label text
-      textPainter.paint(canvas, Offset(pillX + 18, pillY + (pillH - textPainter.height) / 2));
+      textPainter.paint(canvas, Offset(textX, pillY + (pillH - textPainter.height) / 2));
     }
   }
 
@@ -1466,24 +1503,36 @@ class _RelationshipGraphPainter extends CustomPainter {
     if (progressA <= 0.3 || progressB <= 0.3) return;
 
     // ── Draw the amber midpoint dot ───────────────────────────────
-    // Glow layer
+    // Outer glow (larger)
+    final outerGlowPaint = Paint()
+      ..color = KinrelColors.amber.withValues(alpha: 0.20)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    canvas.drawCircle(midpoint, 10, outerGlowPaint);
+
+    // Inner glow
     final glowPaint = Paint()
-      ..color = KinrelColors.amber.withValues(alpha: 0.35)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
-    canvas.drawCircle(midpoint, 7, glowPaint);
+      ..color = KinrelColors.amber.withValues(alpha: 0.45)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+    canvas.drawCircle(midpoint, 6, glowPaint);
 
     // Filled dot
     final dotPaint = Paint()
       ..color = KinrelColors.amber
       ..style = PaintingStyle.fill;
-    canvas.drawCircle(midpoint, 4, dotPaint);
+    canvas.drawCircle(midpoint, 4.5, dotPaint);
 
-    // Border ring
+    // White center highlight
+    final centerPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.6)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(midpoint, 1.5, centerPaint);
+
+    // Dark border ring
     final borderPaint = Paint()
-      ..color = KinrelColors.darkBackground.withValues(alpha: 0.6)
+      ..color = KinrelColors.darkBackground.withValues(alpha: 0.7)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-    canvas.drawCircle(midpoint, 4, borderPaint);
+      ..strokeWidth = 1.2;
+    canvas.drawCircle(midpoint, 4.5, borderPaint);
 
     // ── Populate hit target ───────────────────────────────────────
     midpointTargets.add(_EdgeMidpointTarget(
@@ -1496,7 +1545,7 @@ class _RelationshipGraphPainter extends CustomPainter {
 
   Offset _drawParentChildEdge(Canvas canvas, Offset parentPos, Offset childPos) {
     final paint = Paint()
-      ..color = KinrelColors.orange.withValues(alpha: 0.45)
+      ..color = KinrelColors.orange.withValues(alpha: 0.55)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.8
       ..strokeCap = StrokeCap.round;
@@ -1520,7 +1569,7 @@ class _RelationshipGraphPainter extends CustomPainter {
         childPos.dx, endY,
       );
 
-    canvas.drawPath(path, paint);
+    _drawDashedPath(canvas, path, paint);
 
     // Small arrow dot at child end
     final dotPaint = Paint()
@@ -1539,7 +1588,7 @@ class _RelationshipGraphPainter extends CustomPainter {
 
   Offset _drawSpouseEdge(Canvas canvas, Offset pos1, Offset pos2) {
     final paint = Paint()
-      ..color = KinrelColors.amber.withValues(alpha: 0.55)
+      ..color = KinrelColors.amber.withValues(alpha: 0.65)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.8
       ..strokeCap = StrokeCap.round;
@@ -1563,7 +1612,7 @@ class _RelationshipGraphPainter extends CustomPainter {
         endX, pos2.dy,
       );
 
-    canvas.drawPath(path, paint);
+    _drawDashedPath(canvas, path, paint);
 
     // Heart icon at midpoint
     _drawHeart(canvas, Offset(midX, midY), 6);
@@ -1600,7 +1649,7 @@ class _RelationshipGraphPainter extends CustomPainter {
         toPos.dx, toPos.dy,
       );
 
-    canvas.drawPath(path, paint);
+    _drawDashedPath(canvas, path, paint);
 
     // Small dot at the apex of the arc (cubic bezier at t=0.5)
     final t = 0.5;
@@ -1617,11 +1666,20 @@ class _RelationshipGraphPainter extends CustomPainter {
   }
 
   void _drawHeart(Canvas canvas, Offset center, double size) {
-    final paint = Paint()
-      ..color = KinrelColors.amber.withValues(alpha: 0.6)
-      ..style = PaintingStyle.fill;
+    // Glow behind heart
+    final glowPaint = Paint()
+      ..color = KinrelColors.amber.withValues(alpha: 0.4)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+    _drawHeartPath(canvas, center, size * 1.3, glowPaint);
 
-    // Simple heart shape using two arcs
+    // Filled heart
+    final fillPaint = Paint()
+      ..color = KinrelColors.amber
+      ..style = PaintingStyle.fill;
+    _drawHeartPath(canvas, center, size, fillPaint);
+  }
+
+  void _drawHeartPath(Canvas canvas, Offset center, double size, Paint paint) {
     final path = Path();
     path.moveTo(center.dx, center.dy + size * 0.3);
     path.cubicTo(
@@ -1683,24 +1741,32 @@ class _RelationshipGraphPainter extends CustomPainter {
 
     // ── Anchor glow effect ──────────────────────────────────────
     if (isAnchor) {
-      final glowRadius = effectiveRadius + 14 + pulseValue * 10;
-      final glowPaint = Paint()
+      // Outer radial halo
+      final haloRadius = effectiveRadius + 20 + pulseValue * 12;
+      final haloPaint = Paint()
         ..shader = RadialGradient(
           colors: [
-            _GenColors.self.withValues(alpha: 0.5 * opacity),
-            _GenColors.self.withValues(alpha: 0.15 * opacity),
+            _GenColors.self.withValues(alpha: 0.45 * opacity),
+            _GenColors.self.withValues(alpha: 0.12 * opacity),
             Colors.transparent,
           ],
-          stops: [0.0, 0.5, 1.0],
-        ).createShader(Rect.fromCircle(center: pos, radius: glowRadius));
-      canvas.drawCircle(pos, glowRadius, glowPaint);
+          stops: const [0.0, 0.5, 1.0],
+        ).createShader(Rect.fromCircle(center: pos, radius: haloRadius));
+      canvas.drawCircle(pos, haloRadius, haloPaint);
 
-      // Pulsing ring
-      final ringPaint = Paint()
-        ..color = _GenColors.self.withValues(alpha: (0.3 + pulseValue * 0.25) * opacity)
+      // Pulsing outer ring (thick)
+      final outerRingPaint = Paint()
+        ..color = _GenColors.self.withValues(alpha: (0.20 + pulseValue * 0.15) * opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5;
+      canvas.drawCircle(pos, effectiveRadius + 12 + pulseValue * 6, outerRingPaint);
+
+      // Pulsing inner ring (medium)
+      final innerRingPaint = Paint()
+        ..color = _GenColors.self.withValues(alpha: (0.40 + pulseValue * 0.25) * opacity)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5;
-      canvas.drawCircle(pos, effectiveRadius + 8 + pulseValue * 5, ringPaint);
+      canvas.drawCircle(pos, effectiveRadius + 5 + pulseValue * 3, innerRingPaint);
     }
 
     // ── Node circle ─────────────────────────────────────────────
@@ -1713,6 +1779,19 @@ class _RelationshipGraphPainter extends CustomPainter {
       ..strokeWidth = isSelected ? 3.0 : 1.5;
 
     canvas.drawCircle(pos, effectiveRadius, bgPaint);
+
+    // Inner highlight gradient for depth
+    final innerGlowPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          color.withValues(alpha: 0.35 * opacity),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 1.0],
+        center: const Alignment(-0.3, -0.3),
+      ).createShader(Rect.fromCircle(center: pos, radius: effectiveRadius));
+    canvas.drawCircle(pos, effectiveRadius, innerGlowPaint);
+
     canvas.drawCircle(pos, effectiveRadius, borderPaint);
 
     // ── Deceased indicator ──────────────────────────────────────
