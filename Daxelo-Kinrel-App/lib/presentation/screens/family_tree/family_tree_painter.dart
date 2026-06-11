@@ -63,7 +63,7 @@ class FamilyTreePainter extends CustomPainter {
     }
   }
 
-  // ── Animated dashed arrow line ─────────────────────────────────
+  // ── Animated dashed line with glowing orange midpoint dot ─────
   void _drawAnimatedLine(Canvas canvas, Offset from, Offset to) {
     final dir = (to - from);
     final dist = dir.distance;
@@ -75,7 +75,7 @@ class FamilyTreePainter extends CustomPainter {
     final start = from + unit * r;
     final end   = to   - unit * r;
 
-    // Glow underline
+    // Glow underlay
     final glowPaint = Paint()
       ..color = _lineColor.withOpacity(0.15)
       ..strokeWidth = 4
@@ -83,7 +83,7 @@ class FamilyTreePainter extends CustomPainter {
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
     canvas.drawLine(start, end, glowPaint);
 
-    // Dashed animated line
+    // Animated dashed line
     final dashPaint = Paint()
       ..color = _lineColor.withOpacity(0.7)
       ..strokeWidth = 1.5
@@ -91,8 +91,35 @@ class FamilyTreePainter extends CustomPainter {
 
     _drawDashedLine(canvas, start, end, dashPaint, lineProgress);
 
-    // Arrowhead
-    _drawArrow(canvas, end, unit);
+    // Midpoint glowing orange dot
+    final mid = Offset(
+      (start.dx + end.dx) / 2,
+      (start.dy + end.dy) / 2,
+    );
+    const dotColor = Color(0xFFFF6D00);
+
+    // Outer glow
+    canvas.drawCircle(
+      mid,
+      9.0,
+      Paint()
+        ..color = dotColor.withOpacity(0.25)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0),
+    );
+
+    // Solid dot
+    canvas.drawCircle(
+      mid,
+      5.0,
+      Paint()..color = dotColor,
+    );
+
+    // Bright center highlight
+    canvas.drawCircle(
+      mid,
+      2.5,
+      Paint()..color = Colors.white.withOpacity(0.7),
+    );
   }
 
   void _drawDashedLine(
@@ -121,36 +148,6 @@ class FamilyTreePainter extends CustomPainter {
       }
       drawn += period;
     }
-  }
-
-  void _drawArrow(Canvas canvas, Offset tip, Offset dir) {
-    const arrowLen   = 8.0;
-    const arrowAngle = 0.45; // radians
-
-    final left  = _rotateOffset(dir, arrowAngle)  * arrowLen;
-    final right = _rotateOffset(dir, -arrowAngle) * arrowLen;
-
-    final path = Path()
-      ..moveTo(tip.dx, tip.dy)
-      ..lineTo((tip - left).dx,  (tip - left).dy)
-      ..moveTo(tip.dx, tip.dy)
-      ..lineTo((tip - right).dx, (tip - right).dy);
-
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = _lineColor.withOpacity(0.8)
-        ..strokeWidth = 1.5
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round,
-    );
-  }
-
-  Offset _rotateOffset(Offset o, double angle) {
-    return Offset(
-      o.dx * math.cos(angle) - o.dy * math.sin(angle),
-      o.dx * math.sin(angle) + o.dy * math.cos(angle),
-    );
   }
 
   // ── Node drawing ───────────────────────────────────────────────

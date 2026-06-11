@@ -60,8 +60,10 @@ class _FamilyTreeScreenState extends ConsumerState<FamilyTreeScreen>
 
   // ── Layout algorithm ─────────────────────────────────────────
 
-  /// Compute positions for a hierarchical tree layout.
-  /// Groups members by generation, centers each row.
+  /// Compute positions for a radial/spoke layout with the anchor
+  /// person at the exact center and all other members orbiting in
+  /// concentric rings — parents above, siblings left/right, children
+  /// below, spouse directly to the right.
   ({List<FamilyMember> members, List<FamilyConnection> connections, Size size})
       _buildLayout(FamilyDetail detail) {
     final kinshipService = ref.read(kinshipServiceProvider);
@@ -72,118 +74,254 @@ class _FamilyTreeScreenState extends ConsumerState<FamilyTreeScreen>
       return (members: [], connections: [], size: Size.zero);
     }
 
-    // Build generation map
-    final generationMap = <String, int>{};
-    final childOf = <String, String>{};
-    final spouseOf = <String, String>{};
+    // ── 1. Find anchor person ────────────────────────────────────
+    final anchorId = detail.family.anchorPersonId;
+    final anchor = members.firstWhere(
+      (p) => p.isAnchor || p.id == anchorId,
+      orElse: () => members.first,
+    );
+
+    // ── 2. Build adjacency maps ──────────────────────────────────
+    final parentOf = <String, List<String>>{};
+    final childOf = <String, List<String>>{};
+    final spouseOf = <String, String?>{};
+    final siblingOf = <String, List<String>>{};
 
     for (final rel in relationships) {
       final type = rel.relationshipKey.toLowerCase();
-      if (['child', 'son', 'daughter'].contains(type)) {
-        childOf[rel.fromPersonId] = rel.toPersonId;
-      } else if (['father', 'mother', 'parent'].contains(type)) {
-        childOf[rel.toPersonId] = rel.fromPersonId;
+      final fromId = rel.fromPersonId;
+      final toId = rel.toPersonId;
+      if (!members.any((m) => m.id == fromId) ||
+          !members.any((m) => m.id == toId)) continue;
+
+      if (['father', 'mother', 'parent'].contains(type)) {
+        parentOf.putIfAbsent(toId, () => []).add(fromId);
+        childOf.putIfAbsent(fromId, () => []).add(toId);
+      } else if (['child', 'son', 'daughter'].contains(type)) {
+        parentOf.putIfAbsent(fromId, () => []).add(toId);
+        childOf.putIfAbsent(toId, () => []).add(fromId);
       } else if (['spouse', 'husband', 'wife'].contains(type)) {
-        spouseOf[rel.fromPersonId] = rel.toPersonId;
-        spouseOf[rel.toPersonId] = rel.fromPersonId;
+        spouseOf[fromId] = toId;
+        spouseOf[toId] = fromId;
+      } else if (['brother', 'sister', 'sibling'].contains(type)) {
+        siblingOf.putIfAbsent(fromId, () => []).add(toId);
+        siblingOf.putIfAbsent(toId, () => []).add(fromId);
       }
     }
 
-    // Assign generations starting from roots
-    for (final p in members) {
-      if (p.generationIndex > 0) {
-        generationMap[p.id] = p.generationIndex;
-      }
-    }
+    // ── 3. BFS generation assignment ─────────────────────────────
+    final generationMap = <String, int>{};
+    final visited = <String>{};
+    final queue = <({String id, int gen})>[];
+    generationMap[anchor.id] = 3;
+    visited.add(anchor.id);
+    queue.add((id: anchor.id, gen: 3));
 
-    // For members without generation, compute from tree structure
-    void assignGeneration(String id, int gen) {
-      if (generationMap.containsKey(id)) return;
-      generationMap[id] = gen;
-      // Find children
-      for (final entry in childOf.entries) {
-        if (entry.value == id) {
-          assignGeneration(entry.key, gen + 1);
+    while (queue.isNotEmpty) {
+      final item = queue.removeAt(0);
+      for (final pid in parentOf[item.id] ?? []) {
+        if (!visited.contains(pid)) {
+          visited.add(pid);
+          generationMap[pid] = item.gen - 1;
+          queue.add((id: pid, gen: item.gen - 1));
+        }
+      }
+      for (final cid in childOf[item.id] ?? []) {
+        if (!visited.contains(cid)) {
+          visited.add(cid);
+          generationMap[cid] = item.gen + 1;
+          queue.add((id: cid, gen: item.gen + 1));
+        }
+      }
+      final sid = spouseOf[item.id];
+      if (sid != null && !visited.contains(sid)) {
+        visited.add(sid);
+        generationMap[sid] = item.gen;
+        queue.add((id: sid, gen: item.gen));
+      }
+      for (final sib in siblingOf[item.id] ?? []) {
+        if (!visited.contains(sib)) {
+          visited.add(sib);
+          generationMap[sib] = item.gen;
+          queue.add((id: sib, gen: item.gen));
         }
       }
     }
-
-    // Find roots (no parent)
-    final roots = members
-        .where((p) => !childOf.containsKey(p.id))
-        .toList();
-    for (final root in roots) {
-      assignGeneration(root.id, generationMap[root.id] ?? 1);
-    }
-    // Assign remaining
-    for (final p in members) {
-      generationMap.putIfAbsent(p.id, () => 1);
-    }
-
-    // Group by generation
-    final byGen = <int, List<Person>>{};
-    for (final p in members) {
-      final gen = generationMap[p.id] ?? 1;
-      byGen.putIfAbsent(gen, () => []).add(p);
-    }
-
-    // Sort generations
-    final sortedGens = byGen.keys.toList()..sort();
-
-    // Compute positions
-    const double nodeSpacingX = 140.0;
-    const double rowHeight = 180.0;
-    const double startY = 120.0;
-    const double canvasWidth = 600.0;
-
-    final positions = <String, Offset>{};
-
-    for (final gen in sortedGens) {
-      final genMembers = byGen[gen]!;
-      final totalWidth = (genMembers.length - 1) * nodeSpacingX;
-      final startX = (canvasWidth - totalWidth) / 2;
-
-      for (int i = 0; i < genMembers.length; i++) {
-        positions[genMembers[i].id] = Offset(
-          startX + i * nodeSpacingX,
-          startY + (gen - 1) * rowHeight,
-        );
+    for (final m in members) {
+      if (!visited.contains(m.id)) {
+        generationMap[m.id] = m.generationIndex > 0 ? m.generationIndex : 3;
+        visited.add(m.id);
       }
     }
 
-    // Build connections from relationships
-    final connections = <FamilyConnection>[];
-    for (final rel in relationships) {
-      if (!positions.containsKey(rel.fromPersonId) ||
-          !positions.containsKey(rel.toPersonId)) continue;
-      connections.add(FamilyConnection(
-        fromId: rel.fromPersonId,
-        toId: rel.toPersonId,
-      ));
+    // ── 4. Place anchor at exact center ──────────────────────────
+    const double canvasW = 900.0;
+    const double canvasH = 900.0;
+    const Offset center = Offset(canvasW / 2, canvasH / 2);
+    const double orbit1 = 200.0; // parents / siblings / spouse
+    const double orbit2 = 380.0; // grandparents / children
+    const double orbit3 = 540.0; // great-grandparents / grandchildren
+
+    final positions = <String, Offset>{};
+    positions[anchor.id] = center;
+
+    // ── 5. Bucket non-anchor nodes by genDiff ────────────────────
+    final above1 = <String>[]; // genDiff == -1 (parents)
+    final above2 = <String>[]; // genDiff == -2 (grandparents)
+    final above3 = <String>[]; // genDiff <= -3
+    final sameLevel = <String>[]; // genDiff == 0, not anchor (siblings + spouse)
+    final below1 = <String>[]; // genDiff == +1 (children)
+    final below2 = <String>[]; // genDiff == +2
+    final below3 = <String>[]; // genDiff >= +3
+
+    for (final m in members) {
+      if (m.id == anchor.id) continue;
+      final genDiff = (generationMap[m.id] ?? 3) - 3;
+      if (genDiff == -1) above1.add(m.id);
+      else if (genDiff == -2) above2.add(m.id);
+      else if (genDiff <= -3) above3.add(m.id);
+      else if (genDiff == 0) sameLevel.add(m.id);
+      else if (genDiff == 1) below1.add(m.id);
+      else if (genDiff == 2) below2.add(m.id);
+      else below3.add(m.id);
     }
 
-    // Find anchor person ID
-    final anchorId = detail.family.anchorPersonId;
+    // ── Helper: place nodes in a semi-circular arc ───────────────
+    void placeArc(List<String> ids, double radius,
+        {double startAngle = -math.pi, double endAngle = 0}) {
+      if (ids.isEmpty) return;
+      if (ids.length == 1) {
+        final angle = (startAngle + endAngle) / 2;
+        positions[ids[0]] = Offset(
+            center.dx + radius * math.cos(angle),
+            center.dy + radius * math.sin(angle));
+        return;
+      }
+      final step = (endAngle - startAngle) / (ids.length - 1);
+      for (int i = 0; i < ids.length; i++) {
+        final angle = startAngle + i * step;
+        positions[ids[i]] = Offset(
+            center.dx + radius * math.cos(angle),
+            center.dy + radius * math.sin(angle));
+      }
+    }
 
-    // Build FamilyMember list with kinship labels
+    // ── 6. Place spouse adjacent to anchor (right side) ──────────
+    final anchorSpouseId = spouseOf[anchor.id];
+    if (anchorSpouseId != null && sameLevel.contains(anchorSpouseId)) {
+      positions[anchorSpouseId] = Offset(center.dx + orbit1, center.dy);
+      sameLevel.remove(anchorSpouseId);
+    }
+
+    // ── 7. Siblings: left side arc ───────────────────────────────
+    if (sameLevel.isNotEmpty) {
+      if (sameLevel.length == 1) {
+        positions[sameLevel[0]] = Offset(center.dx - orbit1, center.dy);
+      } else {
+        placeArc(sameLevel, orbit1,
+            startAngle: math.pi * 0.65, endAngle: math.pi * 1.35);
+      }
+    }
+
+    // ── 8. Parents: upper arc ────────────────────────────────────
+    if (above1.isNotEmpty) {
+      if (above1.length <= 2) {
+        placeArc(above1, orbit1,
+            startAngle: -math.pi * 0.75, endAngle: -math.pi * 0.25);
+      } else {
+        placeArc(above1, orbit1,
+            startAngle: -math.pi * 0.9, endAngle: -math.pi * 0.1);
+      }
+    }
+
+    // ── 9. Grandparents: orbit2 upper arc ────────────────────────
+    if (above2.isNotEmpty) {
+      placeArc(above2, orbit2,
+          startAngle: -math.pi * 0.85, endAngle: -math.pi * 0.15);
+    }
+
+    // ── 10. Great-grandparents: orbit3 upper arc ─────────────────
+    if (above3.isNotEmpty) {
+      placeArc(above3, orbit3,
+          startAngle: -math.pi * 0.85, endAngle: -math.pi * 0.15);
+    }
+
+    // ── 11. Children: lower arc ──────────────────────────────────
+    if (below1.isNotEmpty) {
+      if (below1.length == 1) {
+        positions[below1[0]] = Offset(center.dx, center.dy + orbit1);
+      } else {
+        placeArc(below1, orbit1,
+            startAngle: math.pi * 0.15, endAngle: math.pi * 0.85);
+      }
+    }
+
+    // ── 12. Grandchildren: orbit2 lower arc ──────────────────────
+    if (below2.isNotEmpty) {
+      placeArc(below2, orbit2,
+          startAngle: math.pi * 0.15, endAngle: math.pi * 0.85);
+    }
+
+    // ── 13. Great-grandchildren: orbit3 lower arc ────────────────
+    if (below3.isNotEmpty) {
+      placeArc(below3, orbit3,
+          startAngle: math.pi * 0.15, endAngle: math.pi * 0.85);
+    }
+
+    // ── 14. Compute final canvas bounds with padding ─────────────
+    double minX = double.infinity, minY = double.infinity;
+    double maxX = -double.infinity, maxY = -double.infinity;
+    for (final pos in positions.values) {
+      if (pos.dx < minX) minX = pos.dx;
+      if (pos.dy < minY) minY = pos.dy;
+      if (pos.dx > maxX) maxX = pos.dx;
+      if (pos.dy > maxY) maxY = pos.dy;
+    }
+
+    const double padding = 120.0;
+    final finalW = math.max(maxX - minX + padding * 2, canvasW);
+    final finalH = math.max(maxY - minY + padding * 2, canvasH);
+
+    // Shift all positions so no negative coords and anchor is centered
+    final shiftX = finalW / 2 - center.dx;
+    final shiftY = finalH / 2 - center.dy;
+    final shiftedPositions = <String, Offset>{};
+    for (final entry in positions.entries) {
+      shiftedPositions[entry.key] =
+          Offset(entry.value.dx + shiftX, entry.value.dy + shiftY);
+    }
+
+    // ── 15. Build connections (deduplicated) ─────────────────────
+    final connections = <FamilyConnection>[];
+    final edgeSet = <String>{};
+    for (final rel in relationships) {
+      final fromId = rel.fromPersonId;
+      final toId = rel.toPersonId;
+      if (!shiftedPositions.containsKey(fromId) ||
+          !shiftedPositions.containsKey(toId)) continue;
+      final key1 = '$fromId-$toId';
+      final key2 = '$toId-$fromId';
+      if (edgeSet.contains(key1) || edgeSet.contains(key2)) continue;
+      connections.add(FamilyConnection(fromId: fromId, toId: toId));
+      edgeSet.add(key1);
+      edgeSet.add(key2);
+    }
+
+    // ── 16. Build FamilyMember list with kinship labels ──────────
     final familyMembers = <FamilyMember>[];
     for (final p in members) {
-      final pos = positions[p.id] ?? const Offset(300, 300);
-      final isSelf = p.id == anchorId || p.isAnchor;
+      final pos = shiftedPositions[p.id] ?? center;
+      final isSelf = p.id == anchor.id;
 
-      // Find the relationship key from the anchor to this person
       String role = 'Member';
       String nickname = '';
 
-      // Look for a relationship involving this person
       for (final rel in relationships) {
         if (rel.fromPersonId == p.id || rel.toPersonId == p.id) {
           final key = rel.relationshipKey;
-          // Get English term
           final kinshipRel = kinshipService.getRelationship(key);
           if (kinshipRel != null) {
             role = kinshipRel.englishTerm;
-            // Get Hindi translation for nickname
             final hindiTranslation =
                 kinshipService.getKinshipTerm(key, 'hindi');
             if (hindiTranslation != null) {
@@ -211,21 +349,11 @@ class _FamilyTreeScreenState extends ConsumerState<FamilyTreeScreen>
         position: pos,
         photoUrl: p.photoUrl,
         isSelf: isSelf,
+        nodeScale: isSelf ? 1.15 : 1.0,
       ));
     }
 
-    // Compute canvas size
-    double maxX = 0, maxY = 0;
-    for (final pos in positions.values) {
-      if (pos.dx > maxX) maxX = pos.dx;
-      if (pos.dy > maxY) maxY = pos.dy;
-    }
-    final canvasSize = Size(
-      math.max(canvasWidth, maxX + 100),
-      math.max(720, maxY + 200),
-    );
-
-    return (members: familyMembers, connections: connections, size: canvasSize);
+    return (members: familyMembers, connections: connections, size: Size(finalW, finalH));
   }
 
   @override
