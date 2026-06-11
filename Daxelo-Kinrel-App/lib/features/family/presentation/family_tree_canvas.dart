@@ -95,6 +95,7 @@ class LayoutResult {
     required this.nodeGenerations,
     this.kinshipLabels = const {},
     this.relativeLevels = const {},
+    this.edgeMidpoints = const {},
   });
 
   final Map<String, Offset> positions;
@@ -108,6 +109,9 @@ class LayoutResult {
 
   /// Relative generation level from anchor (-2=grandparent, -1=parent, 0=self, +1=child, +2=grandchild)
   final Map<String, int> relativeLevels;
+
+  /// Maps edge key "fromId|toId" → midpoint Offset (canvas coords, no ambient)
+  final Map<String, Offset> edgeMidpoints;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -572,46 +576,173 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
   // ══════════════════════════════════════════════════════════════════
 
   void _handleTap(Offset localPos, LayoutResult layout) {
-    // Convert screen position to graph position
     final transform = _transformationController.value;
     final inverse = Matrix4.identity()..copyInverse(transform);
     final graphPos = MatrixUtils.transformPoint(inverse, localPos);
 
-    String? tappedId;
+    // ── 1. Check node hit ──────────────────────────────────────────
+    String? tappedNodeId;
     for (final entry in layout.positions.entries) {
-      final ambientOffset = _ambientOffsetFor(entry.key);
-      final center = entry.value + ambientOffset;
-      final dist = (center - graphPos).distance;
-      if (dist < nodeRadius * 1.4) {
-        // Change 7C: was 1.3
-        tappedId = entry.key;
+      final center = entry.value + _ambientOffsetFor(entry.key);
+      if ((center - graphPos).distance < nodeRadius * 1.4) {
+        tappedNodeId = entry.key;
         break;
       }
     }
 
-    if (tappedId != null) {
+    if (tappedNodeId != null) {
       final person = widget.members.firstWhere(
-        (p) => p.id == tappedId,
-        orElse: () => Person(id: tappedId!, familyId: '', name: 'Unknown'),
+        (p) => p.id == tappedNodeId,
+        orElse: () => Person(id: tappedNodeId!, familyId: '', name: 'Unknown'),
       );
-
-      // P8: Smart preloading — precache full-size photo on tap
       try {
-        SmartPreloader.precacheSingleImage(
-          context: context,
-          imageUrl: person.photoUrl,
-        );
-      } catch (_) {
-        // Silently ignore — preloading is best-effort
-      }
-
-      setState(() => _selectedNodeId = tappedId);
-      // P5-F1: Track graph node tap
+        SmartPreloader.precacheSingleImage(context: context, imageUrl: person.photoUrl);
+      } catch (_) {}
+      setState(() => _selectedNodeId = tappedNodeId);
       AnalyticsService.instance.logGraphNodeTapped();
       widget.onNodeTap?.call(person);
-    } else {
-      setState(() => _selectedNodeId = null);
+      return;
     }
+
+    // ── 2. Check edge midpoint hit ─────────────────────────────────
+    for (final edge in layout.edges) {
+      final fromPos = layout.positions[edge.fromId];
+      final toPos = layout.positions[edge.toId];
+      if (fromPos == null || toPos == null) continue;
+
+      // Use same ambient offsets as painter
+      final from = fromPos + _ambientOffsetFor(edge.fromId);
+      final to = toPos + _ambientOffsetFor(edge.toId);
+
+      // Midpoint is at center of trimmed line (same trim as painter)
+      final dir = (to - from);
+      final dist = dir.distance;
+      if (dist < 1) continue;
+      final unit = dir / dist;
+      const nodeR = nodeRadius;
+      final trimStart = from + unit * (nodeR + 4);
+      final trimEnd = to - unit * (nodeR + 4);
+      final mid = (trimStart + trimEnd) / 2;
+
+      if ((mid - graphPos).distance < 22) {
+        // Tapped a midpoint dot — show relationship popup
+        _showEdgeRelationshipSheet(edge.fromId, edge.toId);
+        return;
+      }
+    }
+
+    // ── 3. Tap on empty space — deselect ──────────────────────────
+    setState(() => _selectedNodeId = null);
+  }
+
+  /// Resolves a kinship label from [fromId]'s perspective looking at [toId].
+  /// Checks direct edges in both directions and returns the correct label.
+  String? _getKinshipFrom(String fromId, String toId) {
+    // Try direct edge: fromId → toId
+    final fwd = widget.relationships.where((r) => r.isActive).firstWhereOrNull(
+      (r) => r.fromPersonId == fromId && r.toPersonId == toId,
+    );
+    if (fwd != null) {
+      return fwd.relationshipKey.replaceAll('_', ' ');
+    }
+    // Try reverse edge: toId → fromId, then invert
+    final rev = widget.relationships.where((r) => r.isActive).firstWhereOrNull(
+      (r) => r.fromPersonId == toId && r.toPersonId == fromId,
+    );
+    if (rev != null) {
+      return getInverseRelationshipType(rev.relationshipKey).replaceAll('_', ' ');
+    }
+    return null;
+  }
+
+  void _showEdgeRelationshipSheet(String fromId, String toId) {
+    final memberMap = {for (final m in widget.members) m.id: m};
+    final personA = memberMap[fromId];
+    final personB = memberMap[toId];
+    if (personA == null || personB == null) return;
+
+    final aCallsB = _getKinshipFrom(fromId, toId);
+    final bCallsA = _getKinshipFrom(toId, fromId);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF13141A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle
+                Container(
+                  width: 36, height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F0EE).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+
+                // Header: two avatar circles connected
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _RelationAvatar(name: personA.name, color: const Color(0xFF4A9FBF)),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.swap_horiz_rounded,
+                        color: Color(0xFFE8612A), size: 20),
+                    const SizedBox(width: 8),
+                    _RelationAvatar(name: personB.name, color: const Color(0xFF8A8AAA)),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // Card A → B
+                if (aCallsB != null)
+                  _RelationCard(
+                    fromName: personA.name,
+                    toName: personB.name,
+                    label: _capitalize(aCallsB),
+                    color: const Color(0xFF4A9FBF),
+                  ),
+
+                if (aCallsB != null) const SizedBox(height: 12),
+
+                // Card B → A
+                if (bCallsA != null)
+                  _RelationCard(
+                    fromName: personB.name,
+                    toName: personA.name,
+                    label: _capitalize(bCallsA),
+                    color: const Color(0xFF8A8AAA),
+                  ),
+
+                if (aCallsB == null && bCallsA == null)
+                  Text(
+                    'No relationship label found',
+                    style: TextStyle(
+                      color: const Color(0xFFF5F0EE).withValues(alpha: 0.4),
+                      fontSize: 14,
+                    ),
+                  ),
+
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _capitalize(String s) {
+    if (s.isEmpty) return s;
+    return s[0].toUpperCase() + s.substring(1);
   }
 
   void _handleLongPress(Offset localPos, LayoutResult layout) {
@@ -651,7 +782,6 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
       final center = entry.value + ambientOffset;
       final dist = (center - graphPos).distance;
       if (dist < nodeRadius * 1.4) {
-        // Change 7C: was 1.3
         tappedId = entry.key;
         break;
       }
@@ -663,10 +793,9 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
       if (pos != null) {
         final screenSize = MediaQuery.of(context).size;
         setState(() {
-          final m = Matrix4.identity();
-          m.setEntry(0, 3, screenSize.width / 2 - pos.dx * 1.5);
-          m.setEntry(1, 3, screenSize.height / 2 - pos.dy * 1.5);
-          m.scaleByDouble(1.5, 1.5, 1.0, 1.0);
+          final m = Matrix4.identity()
+            ..translate(screenSize.width / 2 - pos.dx * 1.5, screenSize.height / 2 - pos.dy * 1.5)
+            ..scale(1.5);
           _transformationController.value = m;
           _currentScale = 1.5;
         });
@@ -683,26 +812,48 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
   }
 
   void _fitToScreen() {
-    setState(() {
-      _transformationController.value = Matrix4.identity();
-      _currentScale = 1.0;
-    });
+    _centerOnAnchor(); // reuse same fit logic
   }
 
   void _centerOnAnchor() {
     if (_cachedPositions.isEmpty) return;
     final anchorPos = _cachedPositions[widget.anchorPersonId];
-    if (anchorPos != null) {
-      final screenSize = MediaQuery.of(context).size;
-      setState(() {
-        final m = Matrix4.identity();
-        m.setEntry(0, 3, screenSize.width / 2 - anchorPos.dx * 1.5);
-        m.setEntry(1, 3, screenSize.height / 2 - anchorPos.dy * 1.5);
-        m.scaleByDouble(1.5, 1.5, 1.0, 1.0);
-        _transformationController.value = m;
-        _currentScale = 1.5;
-      });
+    if (anchorPos == null) return;
+    final screenSize = MediaQuery.of(context).size;
+
+    // Calculate bounding box of all nodes
+    double minX = double.infinity, maxX = double.negativeInfinity;
+    double minY = double.infinity, maxY = double.negativeInfinity;
+    for (final pos in _cachedPositions.values) {
+      minX = math.min(minX, pos.dx);
+      maxX = math.max(maxX, pos.dx);
+      minY = math.min(minY, pos.dy);
+      maxY = math.max(maxY, pos.dy);
     }
+
+    // Add padding around the bounding box (80px per side + nodeRadius)
+    const padding = 120.0;
+    final contentW = (maxX - minX) + padding * 2;
+    final contentH = (maxY - minY) + padding * 2;
+
+    // Fit scale: smallest of width-fit and height-fit, capped at 1.5
+    final scaleX = screenSize.width / contentW;
+    final scaleY = screenSize.height / contentH;
+    final fitScale = math.min(math.min(scaleX, scaleY), 1.5);
+
+    // Center the bounding box on screen
+    final contentCenterX = (minX + maxX) / 2;
+    final contentCenterY = (minY + maxY) / 2;
+    final tx = screenSize.width / 2 - contentCenterX * fitScale;
+    final ty = screenSize.height / 2 - contentCenterY * fitScale;
+
+    setState(() {
+      final m = Matrix4.identity()
+        ..translate(tx, ty)
+        ..scale(fitScale);
+      _transformationController.value = m;
+      _currentScale = fitScale;
+    });
   }
 
   void _zoomIn() {
@@ -1286,6 +1437,17 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
           id, () => Offset(canvasSize / 2, canvasSize / 2));
     }
 
+    // Compute edge midpoints for tap detection
+    final edgeMidpoints = <String, Offset>{};
+    for (final edge in edges) {
+      final fromPos = positions[edge.fromId];
+      final toPos = positions[edge.toId];
+      if (fromPos != null && toPos != null) {
+        final mid = Offset((fromPos.dx + toPos.dx) / 2, (fromPos.dy + toPos.dy) / 2);
+        edgeMidpoints['${edge.fromId}|${edge.toId}'] = mid;
+      }
+    }
+
     return LayoutResult(
       positions: positions,
       nodes: nodes,
@@ -1294,6 +1456,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
       nodeGenerations: generations,
       kinshipLabels: kinshipLabels,
       relativeLevels: relativeLevels,
+      edgeMidpoints: edgeMidpoints,
     );
   }
 
@@ -1416,7 +1579,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
     const double centerX = canvasSize / 2;
     const double centerY = canvasSize / 2;
     const double levelHeight = 180.0; // vertical gap between generations
-    const double nodeSpacing = 130.0; // horizontal gap between siblings
+    const double nodeSpacing = 150.0; // horizontal gap between siblings
 
     if (widget.anchorPersonId == null) {
       // Fallback to radial if no anchor
@@ -2104,70 +2267,122 @@ class _ConstellationPainter extends CustomPainter {
 
   // ── Edge drawing ─────────────────────────────────────────────────
 
-  // Change 10: Updated _drawEdge to accept pre-computed start/end positions
   void _drawEdge(Canvas canvas, VisEdge edge, Offset start, Offset end) {
+    if ((end - start).distance < 1) return;
+
     final isConnectedToSelected =
         edge.fromId == selectedNodeId || edge.toId == selectedNodeId;
 
-    Color color;
-    double width;
-
+    // ── Color by edge type ────────────────────────────────────────
+    Color lineColor;
     switch (edge.type) {
       case EdgeType.spouse:
-        color = spouseEdgeColor;
-        width = 2.0;
+        lineColor = const Color(0xFFE8612A);
       case EdgeType.parentChild:
-        color = parentChildEdgeColor;
-        width = 2.0; // Change 10C: was 1.5
+        lineColor = const Color(0xFF4A9FBF);   // blue for parent→child
       case EdgeType.sibling:
-        color = siblingEdgeColor;
-        width = 1.0;
+        lineColor = const Color(0xFF8A8AAA);   // muted slate for siblings
       case EdgeType.inLaw:
-        color = inLawEdgeColor;
-        width = 1.0;
+        lineColor = const Color(0xFF8A6A4A);   // warm brown for in-laws
       case EdgeType.unknown:
-        color = parentChildEdgeColor.withValues(alpha: 0.3);
-        width = 1.0;
+        lineColor = const Color(0xFF555566);
     }
 
-    // Glow when connected to selected
-    if (isConnectedToSelected) {
-      color = const Color(0xFFE8612A);
-      width = width * 1.5;
+    if (isConnectedToSelected) lineColor = const Color(0xFFE8612A);
 
-      final glowPaint = Paint()
-        ..color = const Color(0xFFE8612A).withValues(alpha: 0.15)
-        ..strokeWidth = width + 6
-        ..style = PaintingStyle.stroke
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
-      _drawEdgePath(canvas, start, end, edge.type, glowPaint);
-    }
+    // ── Shorten line to node edges (so it doesn't go under nodes) ──
+    final dir = (end - start);
+    final dist = dir.distance;
+    final unit = dir / dist;
+    const double nodeR = _ConstellationPainter.nodeRadius;
+    final trimmedStart = start + unit * (nodeR + 4);
+    final trimmedEnd = end - unit * (nodeR + 4);
 
-    final paint = Paint()
-      ..color = color.withValues(
-          alpha: isConnectedToSelected ? 0.95 : 0.75) // Change 10A: was 0.4
-      ..strokeWidth = width
+    if ((trimmedEnd - trimmedStart).distance < 10) return; // nodes too close
+
+    // ── Glow layer (blur behind the line) ─────────────────────────
+    final glowPaint = Paint()
+      ..color = lineColor.withValues(alpha: isConnectedToSelected ? 0.35 : 0.18)
+      ..strokeWidth = 6.0
+      ..style = PaintingStyle.stroke
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+    _drawDashedSegment(canvas, trimmedStart, trimmedEnd, glowPaint, 10, 6);
+
+    // ── Main dashed line ──────────────────────────────────────────
+    final linePaint = Paint()
+      ..color = lineColor.withValues(alpha: isConnectedToSelected ? 1.0 : 0.85)
+      ..strokeWidth = isConnectedToSelected ? 2.5 : 1.8
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
+    _drawDashedSegment(canvas, trimmedStart, trimmedEnd, linePaint, 10, 6);
 
-    // Change 10B: Spouse edge animated gradient
-    if (edge.type == EdgeType.spouse) {
-      final shader = LinearGradient(
-        colors: [const Color(0xFFE8612A), const Color(0xFFF59240)],
-      ).createShader(Rect.fromPoints(start, end));
-      paint.shader = shader;
-    }
+    // ── Midpoint dot (the tappable "——•——" dot) ─────────────────
+    final mid = Offset(
+      (trimmedStart.dx + trimmedEnd.dx) / 2,
+      (trimmedStart.dy + trimmedEnd.dy) / 2,
+    );
 
-    _drawEdgePath(canvas, start, end, edge.type, paint);
+    // Glow behind dot
+    canvas.drawCircle(
+      mid,
+      10.0,
+      Paint()
+        ..color = lineColor.withValues(alpha: 0.25)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+    );
 
-    // Change 10D: Arrowhead on parent→child
-    if (edge.type == EdgeType.parentChild) {
-      _drawArrowhead(canvas, start, end, paint);
-    }
+    // Outer ring
+    canvas.drawCircle(
+      mid,
+      6.5,
+      Paint()
+        ..color = lineColor.withValues(alpha: 0.5)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0,
+    );
 
-    // Heart at midpoint for spouse
+    // Inner fill
+    canvas.drawCircle(
+      mid,
+      4.5,
+      Paint()..color = lineColor.withValues(alpha: isConnectedToSelected ? 1.0 : 0.9),
+    );
+
+    // White center highlight
+    canvas.drawCircle(
+      mid,
+      1.5,
+      Paint()..color = Colors.white.withValues(alpha: 0.7),
+    );
+
+    // ── Spouse heart above midpoint (not inside dot) ───────────────
     if (edge.type == EdgeType.spouse) {
       _drawHeartAtMidpoint(canvas, start, end);
+    }
+  }
+
+  // Unified dashed segment drawer (replaces old _drawDashedLine)
+  void _drawDashedSegment(
+    Canvas canvas,
+    Offset start,
+    Offset end,
+    Paint paint,
+    double dashLen,
+    double gapLen,
+  ) {
+    final dx = end.dx - start.dx;
+    final dy = end.dy - start.dy;
+    final distance = math.sqrt(dx * dx + dy * dy);
+    if (distance == 0) return;
+    final steps = (distance / (dashLen + gapLen)).floor();
+    for (int i = 0; i < steps; i++) {
+      final s = i * (dashLen + gapLen) / distance;
+      final e = math.min((i * (dashLen + gapLen) + dashLen) / distance, 1.0);
+      canvas.drawLine(
+        Offset(start.dx + dx * s, start.dy + dy * s),
+        Offset(start.dx + dx * e, start.dy + dy * e),
+        paint,
+      );
     }
   }
 
@@ -2201,29 +2416,6 @@ class _ConstellationPainter extends CustomPainter {
     canvas.drawPath(path, paint..style = PaintingStyle.fill);
   }
 
-  void _drawEdgePath(
-    Canvas canvas,
-    Offset start,
-    Offset end,
-    EdgeType type,
-    Paint paint,
-  ) {
-    switch (type) {
-      case EdgeType.parentChild:
-        final midY = (start.dy + end.dy) / 2;
-        final path = Path()
-          ..moveTo(start.dx, start.dy)
-          ..cubicTo(start.dx, midY, end.dx, midY, end.dx, end.dy);
-        canvas.drawPath(path, paint);
-      case EdgeType.sibling:
-        _drawDashedLine(canvas, start, end, paint, 6, 4);
-      case EdgeType.inLaw:
-        _drawDottedLine(canvas, start, end, paint, 2, 5);
-      default:
-        canvas.drawLine(start, end, paint);
-    }
-  }
-
   void _drawHeartAtMidpoint(Canvas canvas, Offset start, Offset end) {
     final mid = Offset((start.dx + end.dx) / 2, (start.dy + end.dy) / 2);
     final heartPainter = TextPainter(
@@ -2239,55 +2431,6 @@ class _ConstellationPainter extends CustomPainter {
       Offset(mid.dx - heartPainter.width / 2,
           mid.dy - heartPainter.height / 2),
     );
-  }
-
-  void _drawDashedLine(
-    Canvas canvas,
-    Offset start,
-    Offset end,
-    Paint paint,
-    double dashLen,
-    double gapLen,
-  ) {
-    final dx = end.dx - start.dx;
-    final dy = end.dy - start.dy;
-    final distance = math.sqrt(dx * dx + dy * dy);
-    if (distance == 0) return;
-
-    final steps = (distance / (dashLen + gapLen)).floor();
-    for (int i = 0; i < steps; i++) {
-      final s = i * (dashLen + gapLen) / distance;
-      final e = (i * (dashLen + gapLen) + dashLen) / distance;
-      canvas.drawLine(
-        Offset(start.dx + dx * s, start.dy + dy * s),
-        Offset(start.dx + dx * e, start.dy + dy * e),
-        paint,
-      );
-    }
-  }
-
-  void _drawDottedLine(
-    Canvas canvas,
-    Offset start,
-    Offset end,
-    Paint paint,
-    double dotRadius,
-    double spacing,
-  ) {
-    final dx = end.dx - start.dx;
-    final dy = end.dy - start.dy;
-    final distance = math.sqrt(dx * dx + dy * dy);
-    if (distance == 0) return;
-
-    final steps = (distance / spacing).floor();
-    for (int i = 0; i <= steps; i++) {
-      final t = i / steps;
-      canvas.drawCircle(
-        Offset(start.dx + dx * t, start.dy + dy * t),
-        dotRadius,
-        paint,
-      );
-    }
   }
 
   // ── Node drawing with Level-of-Detail (F4-4) ────────────────────
@@ -3252,6 +3395,126 @@ class _ConstellationIllustrationPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ── Relation avatar for edge popup ─────────────────────────────────
+class _RelationAvatar extends StatelessWidget {
+  const _RelationAvatar({required this.name, required this.color});
+  final String name;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 48, height: 48,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color.withValues(alpha: 0.25),
+            border: Border.all(color: color, width: 2),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            name.isNotEmpty ? name[0].toUpperCase() : '?',
+            style: TextStyle(
+              fontSize: 18, fontWeight: FontWeight.w700, color: color,
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          name,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xFFF5F0EE),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Relation card row for edge popup ───────────────────────────────
+class _RelationCard extends StatelessWidget {
+  const _RelationCard({
+    required this.fromName,
+    required this.toName,
+    required this.label,
+    required this.color,
+  });
+  final String fromName;
+  final String toName;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 8, height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(fontSize: 14, height: 1.4),
+                children: [
+                  TextSpan(
+                    text: fromName,
+                    style: TextStyle(
+                      color: const Color(0xFFF5F0EE),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  TextSpan(
+                    text: '  calls  ',
+                    style: TextStyle(
+                      color: const Color(0xFFF5F0EE).withValues(alpha: 0.45),
+                      fontSize: 12,
+                    ),
+                  ),
+                  TextSpan(
+                    text: toName,
+                    style: TextStyle(
+                      color: const Color(0xFFF5F0EE),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  TextSpan(
+                    text: ':  ',
+                    style: TextStyle(
+                      color: const Color(0xFFF5F0EE).withValues(alpha: 0.45),
+                      fontSize: 12,
+                    ),
+                  ),
+                  TextSpan(
+                    text: label,
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
