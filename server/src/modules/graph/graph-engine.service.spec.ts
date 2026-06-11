@@ -285,10 +285,21 @@ describe('GraphEngineService', () => {
       const result = service.resolveKinship([
         makeStep('brother', 'sideways'),
         makeStep('son', 'down'),
-      ]);
+      ], 'male');
 
       expect(result.term).toBe('nephew');
       expect(result.termHindi).toBe('भतीजा');
+      expect(result.confidence).toBe(1.0);
+    });
+
+    it('should resolve brother→son = niece when target is female', () => {
+      const result = service.resolveKinship([
+        makeStep('brother', 'sideways'),
+        makeStep('son', 'down'),
+      ], 'female');
+
+      expect(result.term).toBe('niece');
+      expect(result.termHindi).toBe('भतीजी');
       expect(result.confidence).toBe(1.0);
     });
 
@@ -296,10 +307,21 @@ describe('GraphEngineService', () => {
       const result = service.resolveKinship([
         makeStep('sister', 'sideways'),
         makeStep('daughter', 'down'),
-      ]);
+      ], 'female');
 
       expect(result.term).toBe('niece');
       expect(result.termHindi).toBe('भांजी');
+      expect(result.confidence).toBe(1.0);
+    });
+
+    it('should resolve sister→daughter = nephew when target is male', () => {
+      const result = service.resolveKinship([
+        makeStep('sister', 'sideways'),
+        makeStep('daughter', 'down'),
+      ], 'male');
+
+      expect(result.term).toBe('nephew');
+      expect(result.termHindi).toBe('भांजा');
       expect(result.confidence).toBe(1.0);
     });
 
@@ -369,7 +391,7 @@ describe('GraphEngineService', () => {
       const result = service.resolveKinship([
         makeStep('brother', 'sideways'),
         makeStep('daughter', 'down'),
-      ]);
+      ], 'female');
 
       expect(result.term).toBe('niece');
       expect(result.termHindi).toBe('भतीजी');
@@ -379,7 +401,7 @@ describe('GraphEngineService', () => {
       const result = service.resolveKinship([
         makeStep('sister', 'sideways'),
         makeStep('son', 'down'),
-      ]);
+      ], 'male');
 
       expect(result.term).toBe('nephew');
       expect(result.termHindi).toBe('भांजा');
