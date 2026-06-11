@@ -101,10 +101,14 @@ class OfflineFamilyRepository {
 
       if (familyIds.isEmpty) return [];
 
+      // FIXED: Filter out soft-deleted families (deletedAt IS NULL).
+      // Previously this query returned ALL families including archived ones,
+      // causing "old files" to reappear in the active list after a delete.
       final response = await client
           .from('Family')
           .select()
           .inFilter('id', familyIds.toList())
+          .filter('deletedAt', 'is', null)
           .order('createdAt', ascending: false);
 
       final families = (response as List)

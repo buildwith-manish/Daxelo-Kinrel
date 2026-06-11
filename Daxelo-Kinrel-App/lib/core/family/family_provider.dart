@@ -1535,13 +1535,22 @@ Future<void> deleteFamily({
   ref.invalidate(archivedFamiliesProvider);
   // familyDetailProvider auto-rebuilds via ref.watch on above providers
 
-  // Invalidate the Isar cache
+  // FIXED: Do NOT call CacheInvalidation.invalidateFamily() or
+  // invalidateFamilyList() here — these delete Drift rows or clear the
+  // entire cache, which destroys the "mark as archived" data that
+  // deleteFamilyOptimistic() carefully set. They also force a full
+  // Supabase re-fetch that can bring back old archived families.
+  //
+  // Instead, the Drift cache already has the family marked with deletedAt
+  // (set by deleteFamilyOptimistic before this function is called), so
+  // the providers will correctly filter it out on the next read.
+  //
+  // We only invalidate API cache entries to prevent stale server responses.
   if (IsarDatabase.isInitialized) {
     try {
-      await CacheInvalidation.invalidateFamily(familyId);
-      await CacheInvalidation.invalidateFamilyList();
-      // Force a fresh fetch — do NOT use cached data after archive
-      await ref.read(familyListProvider.future);
+      await CacheInvalidation.invalidateApiCache('/families/$familyId');
+      await CacheInvalidation.invalidateApiCache('/families/archived');
+      await CacheInvalidation.invalidateApiCache('family_list');
     } catch (_) {}
   }
 
@@ -1627,11 +1636,15 @@ Future<void> restoreFamily({
   ref.invalidate(familyRelationshipsProvider(familyId));
   ref.invalidate(archivedFamiliesProvider);
 
-  // Invalidate the Isar cache
+  // FIXED: Do NOT call CacheInvalidation.invalidateFamily() or
+  // invalidateFamilyList() — these delete Drift rows or clear the entire
+  // cache. restoreFamilyOptimistic() already clears deletedAt in Drift,
+  // so the providers will correctly show the family as active.
   if (IsarDatabase.isInitialized) {
     try {
-      await CacheInvalidation.invalidateFamily(familyId);
-      await CacheInvalidation.invalidateFamilyList();
+      await CacheInvalidation.invalidateApiCache('/families/$familyId');
+      await CacheInvalidation.invalidateApiCache('/families/archived');
+      await CacheInvalidation.invalidateApiCache('family_list');
     } catch (_) {}
   }
 
@@ -1676,8 +1689,14 @@ Future<void> permanentDeleteFamily({
     // Invalidate the Isar cache
     if (IsarDatabase.isInitialized) {
       try {
+        // For permanent delete, we DO want to remove the Drift row
+        // since the family no longer exists on the server.
         await CacheInvalidation.invalidateFamily(familyId);
-        await CacheInvalidation.invalidateFamilyList();
+        // FIXED: Don't clear ALL families from Drift — only the deleted one
+        // was removed above. Clearing everything causes old families to
+        // reappear from the Supabase re-fetch.
+        await CacheInvalidation.invalidateApiCache('/families/archived');
+        await CacheInvalidation.invalidateApiCache('family_list');
       } catch (_) {}
     }
 
