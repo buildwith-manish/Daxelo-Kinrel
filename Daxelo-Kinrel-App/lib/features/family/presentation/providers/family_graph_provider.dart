@@ -212,7 +212,7 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
 
   /// Refreshes the graph data by invalidating and re-fetching.
   Future<void> refreshGraph() async {
-    invalidateSelf();
+    ref.invalidateSelf();
   }
 
   // ── Socket Room Management ─────────────────────────────────────────

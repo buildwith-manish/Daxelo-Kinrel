@@ -167,6 +167,7 @@ class GraphLayoutService {
   };
 
   /// Keys where toPerson is a sibling of fromPerson (same generation).
+  // ignore: unused_field
   static const Set<String> _siblingKeys = {
     'sibling',
     'brother',

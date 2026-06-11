@@ -17,7 +17,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/brand_colors.dart';
-import '../../../core/constants/brand_typography.dart';
 import 'providers/family_graph_provider.dart';
 import 'widgets/graph_canvas_widget.dart';
 
@@ -56,16 +55,16 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
   void _zoomIn() {
     final current = _transformCtrl.value;
-    final zoom = (current.getMaxScaleOnAxis() ?? 1.0);
-    final newScale = (zoom * 1.2).clamp(0.1, 4.0);
+    final scale = current.storage[0]; // Scale X value from matrix
+    final newScale = (scale * 1.2).clamp(0.1, 4.0);
     _transformCtrl.value = Matrix4.diagonal3Values(newScale, newScale, 1.0);
     ref.read(graphZoomProvider.notifier).state = newScale;
   }
 
   void _zoomOut() {
     final current = _transformCtrl.value;
-    final zoom = (current.getMaxScaleOnAxis() ?? 1.0);
-    final newScale = (zoom / 1.2).clamp(0.1, 4.0);
+    final scale = current.storage[0]; // Scale X value from matrix
+    final newScale = (scale / 1.2).clamp(0.1, 4.0);
     _transformCtrl.value = Matrix4.diagonal3Values(newScale, newScale, 1.0);
     ref.read(graphZoomProvider.notifier).state = newScale;
   }
