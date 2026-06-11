@@ -1,5 +1,6 @@
 import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:math' as math;
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -35,7 +36,7 @@ class VisTreeNode {
 enum NodeLineage { paternal, maternal, marital, self, none }
 
 /// Layout mode for the family graph
-enum GraphLayoutMode { force, hierarchical, radial }
+enum GraphLayoutMode { force, hierarchical, radial, generational }
 
 /// Edge type classification for styling
 enum EdgeType { spouse, parentChild, sibling, inLaw, unknown }
@@ -92,6 +93,8 @@ class LayoutResult {
     required this.nodeLineages,
     required this.edges,
     required this.nodeGenerations,
+    this.kinshipLabels = const {},
+    this.relativeLevels = const {},
   });
 
   final Map<String, Offset> positions;
@@ -99,6 +102,12 @@ class LayoutResult {
   final Map<String, String> nodeLineages;
   final List<VisEdge> edges;
   final Map<String, int> nodeGenerations;
+
+  /// Kinship label for each node (e.g. "Father", "Sister")
+  final Map<String, String?> kinshipLabels;
+
+  /// Relative generation level from anchor (-2=grandparent, -1=parent, 0=self, +1=child, +2=grandchild)
+  final Map<String, int> relativeLevels;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -238,7 +247,7 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
   // ── View state ──────────────────────────────────────────────────
   String? _selectedNodeId;
   GraphFilters _filters = GraphFilters();
-  GraphLayoutMode _layoutMode = GraphLayoutMode.radial; // Change 1: default to radial
+  GraphLayoutMode _layoutMode = GraphLayoutMode.generational; // Default to generational
   bool _showLabels = true;
   bool _showGenBands = false;
   double _currentScale = 1.0;
@@ -448,6 +457,53 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
 
           // Change 2: Removed _LanguageSelectorButton and _FilterBar from top
           // Change 5: Replaced _GraphControls, _AddNodeFab, _Minimap with single pill
+
+          // ── Color legend bar (Fix Root Cause #5) ──────────────────
+          if (activeMembers.isNotEmpty)
+            Positioned(
+              bottom: 90,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1B2E).withValues(alpha: 0.88),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: const Color(0xFFE8622A).withValues(alpha: 0.15),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _LegendDot(
+                        color: const Color(0xFF4A9FBF),
+                        label: 'Parents',
+                      ),
+                      const SizedBox(width: 14),
+                      _LegendDot(
+                        color: const Color(0xFF00B4A6),
+                        label: 'Self',
+                      ),
+                      const SizedBox(width: 14),
+                      _LegendDot(
+                        color: const Color(0xFF4A4A6A),
+                        label: 'Siblings',
+                      ),
+                      const SizedBox(width: 14),
+                      _LegendDot(
+                        color: const Color(0xFFBF4A4A),
+                        label: 'Children',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
           // ── Graph pill (bottom center) ──────────────────────────
           if (activeMembers.isNotEmpty)
@@ -875,6 +931,95 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
   }
 
   // ══════════════════════════════════════════════════════════════════
+  // KINSHIP LABEL RESOLUTION (Fix Root Cause #1)
+  // ══════════════════════════════════════════════════════════════════
+
+  /// Resolves the kinship label for a node relative to the anchor person.
+  /// Finds the direct FamilyRelationship edge from anchor → this node,
+  /// then uses the relationshipKey to produce a human-readable label.
+  String? _resolveKinshipLabel(String nodeId) {
+    if (widget.anchorPersonId == null || nodeId == widget.anchorPersonId) {
+      return null;
+    }
+    final anchorId = widget.anchorPersonId!;
+
+    // Find the direct relationship edge between anchor and this node
+    final rel = widget.relationships.where((r) => r.isActive).firstWhereOrNull(
+      (r) =>
+          (r.fromPersonId == anchorId && r.toPersonId == nodeId) ||
+          (r.toPersonId == anchorId && r.fromPersonId == nodeId),
+    );
+    if (rel == null) return null;
+
+    // Determine the correct key direction: from anchor's perspective
+    String key;
+    if (rel.fromPersonId == anchorId) {
+      // Anchor → other, use the relationshipKey directly
+      key = rel.relationshipKey;
+    } else {
+      // Other → anchor, use the inverse
+      key = getInverseRelationshipType(rel.relationshipKey);
+    }
+
+    // Format the key as a readable label
+    return key.replaceAll('_', ' ').toLowerCase();
+  }
+
+  /// Compute relative generation level from anchor for each node.
+  /// anchor = 0, parents = -1, grandparents = -2,
+  /// children = +1, grandchildren = +2, siblings/spouse = 0
+  Map<String, int> _computeRelativeLevels(Set<String> nodeIds) {
+    final relLevel = <String, int>{};
+    if (widget.anchorPersonId == null) return relLevel;
+    final anchorId = widget.anchorPersonId!;
+
+    relLevel[anchorId] = 0;
+
+    for (final rel in widget.relationships) {
+      if (!rel.isActive) continue;
+      final key = rel.relationshipKey.toLowerCase();
+      final isFromAnchor = rel.fromPersonId == anchorId;
+      final otherId = isFromAnchor ? rel.toPersonId : rel.fromPersonId;
+
+      if (['father', 'mother', 'parent'].contains(key)) {
+        relLevel[otherId] = isFromAnchor ? -1 : 1;
+      } else if (['son', 'daughter', 'child'].contains(key)) {
+        relLevel[otherId] = isFromAnchor ? 1 : -1;
+      } else if ([
+        'paternal_grandfather',
+        'paternal_grandmother',
+        'maternal_grandfather',
+        'maternal_grandmother',
+        'grandfather',
+        'grandmother',
+        'grandparent',
+      ].contains(key)) {
+        relLevel[otherId] = isFromAnchor ? -2 : 2;
+      } else if (['grandson', 'granddaughter', 'grandchild'].contains(key)) {
+        relLevel[otherId] = isFromAnchor ? 2 : -2;
+      } else if ([
+        'brother',
+        'sister',
+        'sibling',
+        'spouse',
+        'husband',
+        'wife',
+      ].contains(key)) {
+        relLevel[otherId] = 0;
+      }
+      // Default: same level as anchor if unknown
+      relLevel.putIfAbsent(otherId, () => 0);
+    }
+
+    // Ensure all node IDs have a level
+    for (final id in nodeIds) {
+      relLevel.putIfAbsent(id, () => 0);
+    }
+
+    return relLevel;
+  }
+
+  // ══════════════════════════════════════════════════════════════════
   // TREE BUILDING (preserved logic)
   // ══════════════════════════════════════════════════════════════════
 
@@ -1092,6 +1237,15 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
       }
     }
 
+    // ── Resolve kinship labels for each node (Fix Root Cause #1) ──
+    final kinshipLabels = <String, String?>{};
+    for (final id in nodes.keys) {
+      kinshipLabels[id] = _resolveKinshipLabel(id);
+    }
+
+    // ── Compute relative generation levels (Fix Root Cause #2) ──
+    final relativeLevels = _computeRelativeLevels(nodes.keys.toSet());
+
     // Compute positions based on layout mode
     // F4-6: For > 300 nodes in force mode, skip simulation (async will handle it)
     switch (_layoutMode) {
@@ -1105,6 +1259,15 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
         );
       case GraphLayoutMode.radial:
         _computeRadialLayout(roots, positions, nodes, lineages, generations);
+      case GraphLayoutMode.generational:
+        _computeGenerationalLayout(
+          roots,
+          positions,
+          nodes,
+          lineages,
+          generations,
+          relativeLevels,
+        );
       case GraphLayoutMode.force:
         _computeForceLayout(
           roots,
@@ -1129,6 +1292,8 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
       nodeLineages: lineages,
       edges: edges,
       nodeGenerations: generations,
+      kinshipLabels: kinshipLabels,
+      relativeLevels: relativeLevels,
     );
   }
 
@@ -1233,6 +1398,71 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
       if (!positions.containsKey(id)) {
         positions[id] = Offset(fallbackX, canvasSize / 2);
         fallbackX += horizontalGap;
+      }
+    }
+  }
+
+  // ── Generational layout (Y-axis hierarchy: Parents above, Self center, Children below)
+  //    Fix Root Cause #2 & #6: Replaces radial scatter with strict vertical hierarchy
+
+  void _computeGenerationalLayout(
+    List<VisTreeNode> roots,
+    Map<String, Offset> positions,
+    Map<String, VisTreeNode> nodes,
+    Map<String, String> lineages,
+    Map<String, int> generations,
+    Map<String, int> relativeLevels,
+  ) {
+    const double centerX = canvasSize / 2;
+    const double centerY = canvasSize / 2;
+    const double levelHeight = 180.0; // vertical gap between generations
+    const double nodeSpacing = 130.0; // horizontal gap between siblings
+
+    if (widget.anchorPersonId == null) {
+      // Fallback to radial if no anchor
+      _computeRadialLayout(roots, positions, nodes, lineages, generations);
+      return;
+    }
+
+    // Group nodes by relative level
+    final byLevel = <int, List<String>>{};
+    for (final entry in relativeLevels.entries) {
+      if (nodes.containsKey(entry.key)) {
+        byLevel.putIfAbsent(entry.value, () => []).add(entry.key);
+      }
+    }
+
+    // Assign positions — Y from level, X evenly spaced
+    for (final entry in byLevel.entries) {
+      final level = entry.key;
+      final ids = entry.value;
+      final y = centerY + level * levelHeight;
+      final totalWidth = (ids.length - 1) * nodeSpacing;
+      double startX = centerX - totalWidth / 2;
+
+      // Keep anchor in the center of its row
+      if (ids.contains(widget.anchorPersonId!)) {
+        final anchorIdx = ids.indexOf(widget.anchorPersonId!);
+        // Reorder so anchor is at center
+        final reordered = <String>[...ids];
+        reordered.removeAt(anchorIdx);
+        reordered.insert(reordered.length ~/ 2, widget.anchorPersonId!);
+        for (int i = 0; i < reordered.length; i++) {
+          positions[reordered[i]] = Offset(startX + i * nodeSpacing, y);
+        }
+      } else {
+        for (int i = 0; i < ids.length; i++) {
+          positions[ids[i]] = Offset(startX + i * nodeSpacing, y);
+        }
+      }
+    }
+
+    // Fallback: ensure all nodes have positions
+    double fallbackX = 100;
+    for (final id in nodes.keys) {
+      if (!positions.containsKey(id)) {
+        positions[id] = Offset(fallbackX, centerY);
+        fallbackX += nodeSpacing;
       }
     }
   }
@@ -1403,6 +1633,8 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
             nodeLineages: currentLayout.nodeLineages,
             edges: currentLayout.edges,
             nodeGenerations: currentLayout.nodeGenerations,
+            kinshipLabels: currentLayout.kinshipLabels,
+            relativeLevels: currentLayout.relativeLevels,
           );
           _cachedPositions = Map<String, Offset>.from(newPositions);
           _layoutVersion++;
@@ -1598,15 +1830,91 @@ class _ConstellationPainter extends CustomPainter {
     return genChild;
   }
 
-  LinearGradient _avatarGradient(bool isDeceased) {
+  /// Category-aware node fill color based on relationship to anchor.
+  /// Fix Root Cause #3: Parents=blue, Self=teal, Siblings=slate, Children=rose
+  Color _nodeFillColor(String id, bool isDeceased) {
+    if (isDeceased) return const Color(0xFF3A3A4E);
+    if (id == anchorPersonId) return const Color(0xFF00B4A6); // teal for You
+    final label = layout.kinshipLabels[id]?.toLowerCase() ?? '';
+    if (label.contains('father') ||
+        label.contains('mother') ||
+        label.contains('grandfather') ||
+        label.contains('grandmother') ||
+        label.contains('parent')) {
+      return const Color(0xFF2E6B8A); // blue for parents/grandparents
+    }
+    if (label.contains('son') ||
+        label.contains('daughter') ||
+        label.contains('child')) {
+      return const Color(0xFF8A3A3A); // rose for children
+    }
+    if (label.contains('brother') ||
+        label.contains('sister') ||
+        label.contains('sibling')) {
+      return const Color(0xFF4A4A6A); // slate for siblings
+    }
+    if (label.contains('spouse') ||
+        label.contains('husband') ||
+        label.contains('wife')) {
+      return const Color(0xFF6B4A8A); // purple for spouse
+    }
+    // Fallback: use relative level if no label
+    final level = layout.relativeLevels[id] ?? 0;
+    if (level < 0) return const Color(0xFF2E6B8A); // blue for ancestors
+    if (level > 0) return const Color(0xFF8A3A3A); // rose for descendants
+    return const Color(0xFF3D3E55); // default muted
+  }
+
+  /// Create a gradient from a fill color for node body rendering
+  LinearGradient _categoryGradient(String id, bool isDeceased) {
     if (isDeceased) {
       return const LinearGradient(
         colors: [Color(0xFF4A4A5E), Color(0xFF2A2A3E)],
       );
     }
-    return const LinearGradient(
-      colors: [KinrelColors.orange, KinrelColors.amber],
+    final fillColor = _nodeFillColor(id, isDeceased);
+    return LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        fillColor.withValues(alpha: 0.9),
+        fillColor.withValues(alpha: 0.6),
+      ],
     );
+  }
+
+  /// Category-aware ring color matching the fill category
+  Color _nodeRingColor(String id, bool isDeceased, int generation) {
+    if (isDeceased) return const Color(0xFF4A4A5E);
+    if (id == anchorPersonId) return const Color(0xFF00B4A6);
+    final label = layout.kinshipLabels[id]?.toLowerCase() ?? '';
+    if (label.contains('father') ||
+        label.contains('mother') ||
+        label.contains('grandfather') ||
+        label.contains('grandmother') ||
+        label.contains('parent')) {
+      return const Color(0xFF4A9FBF); // lighter blue ring for parents
+    }
+    if (label.contains('son') ||
+        label.contains('daughter') ||
+        label.contains('child')) {
+      return const Color(0xFFBF4A4A); // lighter rose ring for children
+    }
+    if (label.contains('brother') ||
+        label.contains('sister') ||
+        label.contains('sibling')) {
+      return const Color(0xFF6A6A8A); // lighter slate ring for siblings
+    }
+    if (label.contains('spouse') ||
+        label.contains('husband') ||
+        label.contains('wife')) {
+      return const Color(0xFF9A6ABF); // lighter purple ring for spouse
+    }
+    // Fallback to generation ring color
+    final level = layout.relativeLevels[id] ?? 0;
+    if (level < 0) return const Color(0xFF4A9FBF);
+    if (level > 0) return const Color(0xFFBF4A4A);
+    return _generationRingColor(generation);
   }
 
   Offset _ambientOffset(String id) {
@@ -1633,6 +1941,9 @@ class _ConstellationPainter extends CustomPainter {
     if (showGenBands) {
       _drawGenerationBands(canvas, size);
     }
+
+    // ── Zone labels (Fix Root Cause #4: PARENTS/SELF/CHILDREN) ────
+    _drawZoneLabels(canvas);
 
     // ── F4-2: Viewport culling ────────────────────────────────────
     // Expand viewport rect by node radius + margin for culling
@@ -1738,6 +2049,56 @@ class _ConstellationPainter extends CustomPainter {
               center.dy - radius - 14),
         );
       }
+    }
+  }
+
+  // ── Zone labels (Fix Root Cause #4: PARENTS/SELF/CHILDREN pills) ──
+
+  void _drawZoneLabels(Canvas canvas) {
+    if (anchorPersonId == null) return;
+    final anchorPos = layout.positions[anchorPersonId];
+    if (anchorPos == null) return;
+
+    const double levelHeight = 180.0;
+    final zones = [
+      (-2, 'GRANDPARENTS', const Color(0xFF4A9FBF)),
+      (-1, 'PARENTS', const Color(0xFF4A9FBF)),
+      (0, 'SELF & SIBLINGS', const Color(0xFF00B4A6)),
+      (1, 'CHILDREN', const Color(0xFFBF4A4A)),
+      (2, 'GRANDCHILDREN', const Color(0xFFBF4A4A)),
+    ];
+
+    for (final (level, label, color) in zones) {
+      // Only draw label if any node is at this level
+      final y = anchorPos.dy + level * levelHeight;
+      final hasNodes = layout.positions.values.any(
+        (p) => (p.dy - y).abs() < 40,
+      );
+      if (!hasNodes) continue;
+
+      final pill = RRect.fromRectAndRadius(
+        Rect.fromLTWH(anchorPos.dx - 340, y - 12, 110, 24),
+        const Radius.circular(12),
+      );
+      canvas.drawRRect(pill, Paint()..color = color.withValues(alpha: 0.15));
+
+      final dotOffset = Offset(anchorPos.dx - 325, y);
+      canvas.drawCircle(dotOffset, 4, Paint()..color = color);
+
+      final labelPainter = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.w600,
+            color: color,
+            letterSpacing: 0.8,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      labelPainter.layout();
+      labelPainter.paint(canvas, Offset(anchorPos.dx - 315, y - 6));
     }
   }
 
@@ -1940,7 +2301,13 @@ class _ConstellationPainter extends CustomPainter {
     bool isDeceased,
     bool isSelected,
     bool isAnchor,
+    String id, // Added for category-aware coloring
   ) {
+    // Use category-aware ring color
+    final categoryRingColor = isAnchor
+        ? const Color(0xFF00B4A6)
+        : _nodeRingColor(id, isDeceased, 1);
+
     // Minimal selection indicator
     if (isSelected) {
       final glowPaint = Paint()
@@ -1952,14 +2319,14 @@ class _ConstellationPainter extends CustomPainter {
     // Change 3: Anchor double ring at LOD0
     if (isAnchor) {
       final anchorGlow = Paint()
-        ..color = KinrelColors.orange.withValues(alpha: 0.2 + pulseValue * 0.15)
+        ..color = const Color(0xFF00B4A6).withValues(alpha: 0.2 + pulseValue * 0.15)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
       canvas.drawCircle(center, radius + 6, anchorGlow);
       canvas.drawCircle(
         center,
         radius + 6,
         Paint()
-          ..color = KinrelColors.orange.withValues(alpha: 0.3)
+          ..color = const Color(0xFF00B4A6).withValues(alpha: 0.3)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.0,
       );
@@ -1967,24 +2334,25 @@ class _ConstellationPainter extends CustomPainter {
         center,
         radius + ringWidth,
         Paint()
-          ..color = KinrelColors.orange
+          ..color = const Color(0xFF00B4A6)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.0,
       );
     } else {
-      // Generation ring
+      // Category-aware ring
       final ringPaint = Paint()
-        ..color = ringColor
+        ..color = categoryRingColor
         ..style = PaintingStyle.stroke
         ..strokeWidth = ringWidth;
       canvas.drawCircle(center, radius + ringWidth, ringPaint);
     }
 
-    // Simplified body — flat color instead of gradient
+    // Simplified body — category-aware color
+    final fillColor = _nodeFillColor(id, isDeceased);
     final bodyPaint = Paint()
       ..color = isDeceased
           ? const Color(0xFF3A3A4E)
-          : ringColor.withValues(alpha: 0.7);
+          : fillColor.withValues(alpha: 0.7);
     canvas.drawCircle(center, radius, bodyPaint);
   }
 
@@ -1999,7 +2367,13 @@ class _ConstellationPainter extends CustomPainter {
     String? relationship,
     bool isSelected,
     bool isAnchor,
+    String id, // Added for category-aware coloring
   ) {
+    // Use category-aware ring color
+    final categoryRingColor = isAnchor
+        ? const Color(0xFF00B4A6)
+        : _nodeRingColor(id, isDeceased, 1);
+
     // Selection glow (simplified)
     if (isSelected) {
       final glowAlpha = 0.2 + pulseValue * 0.15;
@@ -2012,7 +2386,7 @@ class _ConstellationPainter extends CustomPainter {
     // Change 3: Anchor glow at LOD1
     if (isAnchor && !isSelected) {
       final anchorGlow = Paint()
-        ..color = KinrelColors.orange.withValues(alpha: 0.2 + pulseValue * 0.15)
+        ..color = const Color(0xFF00B4A6).withValues(alpha: 0.2 + pulseValue * 0.15)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
       canvas.drawCircle(center, radius + 6, anchorGlow);
       // Double ring
@@ -2020,7 +2394,7 @@ class _ConstellationPainter extends CustomPainter {
         center,
         radius + 6,
         Paint()
-          ..color = KinrelColors.orange.withValues(alpha: 0.3)
+          ..color = const Color(0xFF00B4A6).withValues(alpha: 0.3)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.0,
       );
@@ -2028,21 +2402,21 @@ class _ConstellationPainter extends CustomPainter {
         center,
         radius + ringWidth,
         Paint()
-          ..color = KinrelColors.orange
+          ..color = const Color(0xFF00B4A6)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.0,
       );
     } else {
-      // Generation ring
+      // Category-aware ring
       final ringPaint = Paint()
-        ..color = ringColor
+        ..color = categoryRingColor
         ..style = PaintingStyle.stroke
         ..strokeWidth = ringWidth;
       canvas.drawCircle(center, radius + ringWidth, ringPaint);
     }
 
-    // Node body (gradient)
-    final gradient = _avatarGradient(isDeceased);
+    // Node body (category-aware gradient)
+    final gradient = _categoryGradient(id, isDeceased);
     final bodyRect = Rect.fromCircle(center: center, radius: radius);
     final bodyPaint = Paint()..shader = gradient.createShader(bodyRect);
     canvas.drawCircle(center, radius, bodyPaint);
@@ -2105,7 +2479,7 @@ class _ConstellationPainter extends CustomPainter {
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 12,
             fontWeight: FontWeight.w700,
-            color: KinrelColors.orange,
+            color: Color(0xFF00B4A6), // teal for You
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -2120,9 +2494,10 @@ class _ConstellationPainter extends CustomPainter {
       );
     }
 
-    // Kinship label ABOVE the node (prominent, orange)
+    // Kinship label ABOVE the node (category-aware color)
     if (relationship != null && relationship.isNotEmpty && showLabels) {
       final kinshipText = relationship.replaceAll('_', ' ');
+      final kinshipColor = _nodeFillColor(id, isDeceased);
       final kinshipPainter = TextPainter(
         text: TextSpan(
           text: kinshipText,
@@ -2130,7 +2505,7 @@ class _ConstellationPainter extends CustomPainter {
             fontFamily: KinrelTypography.bodyFont,
             fontSize: kinshipFontSize,
             fontWeight: FontWeight.w600,
-            color: const Color(0xFFE8612A),
+            color: kinshipColor,
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -2155,7 +2530,8 @@ class _ConstellationPainter extends CustomPainter {
     final generation = layout.nodeGenerations[id] ?? 1;
     final isDeceased = node?.person.isDeceased ?? false;
     final name = node?.person.name ?? 'Unknown';
-    final relationship = node?.person.relationship;
+    // Use resolved kinship label from LayoutResult (Fix Root Cause #1)
+    final relationship = layout.kinshipLabels[id] ?? node?.person.relationship;
 
     // Change 3: Anchor node is always dominant
     final effectiveRadius = isAnchor
@@ -2178,6 +2554,7 @@ class _ConstellationPainter extends CustomPainter {
         isDeceased,
         isSelected,
         isAnchor,
+        id,
       );
       return;
     }
@@ -2194,6 +2571,7 @@ class _ConstellationPainter extends CustomPainter {
         relationship,
         isSelected,
         isAnchor,
+        id,
       );
       return;
     }
@@ -2220,9 +2598,9 @@ class _ConstellationPainter extends CustomPainter {
 
     // ── Change 3: Anchor double ring with permanent pulse glow ──
     if (isAnchor) {
-      // Permanent pulse glow
+      // Permanent pulse glow (teal for You)
       final anchorGlow = Paint()
-        ..color = KinrelColors.orange
+        ..color = const Color(0xFF00B4A6)
             .withValues(alpha: 0.2 + pulseValue * 0.15)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
       canvas.drawCircle(center, effectiveRadius + 6, anchorGlow);
@@ -2232,35 +2610,36 @@ class _ConstellationPainter extends CustomPainter {
         center,
         effectiveRadius + 6,
         Paint()
-          ..color = KinrelColors.orange.withValues(alpha: 0.3)
+          ..color = const Color(0xFF00B4A6).withValues(alpha: 0.3)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.0,
       );
     } else if (!isSelected) {
-      // ── Anchor glow (non-anchor, non-selected uses generation ring) ──
+      // ── Non-anchor uses category-aware ring ──
     }
 
-    // ── Generation ring ─────────────────────────────────────────
+    // ── Ring (category-aware) ────────────────────────────────────
     if (isAnchor) {
-      // Inner ring for anchor
+      // Inner ring for anchor (teal)
       canvas.drawCircle(
         center,
         effectiveRadius + ringWidth,
         Paint()
-          ..color = KinrelColors.orange
+          ..color = const Color(0xFF00B4A6)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.0,
       );
     } else {
+      final categoryRingColor = _nodeRingColor(id, isDeceased, generation);
       final ringPaint = Paint()
-        ..color = ringColor
+        ..color = categoryRingColor
         ..style = PaintingStyle.stroke
         ..strokeWidth = ringWidth;
       canvas.drawCircle(center, effectiveRadius + ringWidth, ringPaint);
     }
 
-    // ── Node body (gradient circle) ─────────────────────────────
-    final gradient = _avatarGradient(isDeceased);
+    // ── Node body (category-aware gradient) ────────────────────────
+    final gradient = _categoryGradient(id, isDeceased);
     final bodyRect =
         Rect.fromCircle(center: center, radius: effectiveRadius);
     final bodyPaint = Paint()..shader = gradient.createShader(bodyRect);
@@ -2360,7 +2739,7 @@ class _ConstellationPainter extends CustomPainter {
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 12,
             fontWeight: FontWeight.w700,
-            color: KinrelColors.orange,
+            color: Color(0xFF00B4A6), // teal for You
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -2375,9 +2754,10 @@ class _ConstellationPainter extends CustomPainter {
       );
     }
 
-    // Kinship label ABOVE the node (prominent, orange)
+    // Kinship label ABOVE the node (category-aware color)
     if (relationship != null && relationship.isNotEmpty && showLabels) {
       final kinshipText = relationship.replaceAll('_', ' ');
+      final kinshipColor = _nodeFillColor(id, isDeceased);
       final kinshipPainter = TextPainter(
         text: TextSpan(
           text: kinshipText,
@@ -2385,7 +2765,7 @@ class _ConstellationPainter extends CustomPainter {
             fontFamily: KinrelTypography.bodyFont,
             fontSize: kinshipFontSize,
             fontWeight: FontWeight.w600,
-            color: const Color(0xFFE8612A),
+            color: kinshipColor,
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -2491,6 +2871,12 @@ class _GraphPill extends StatelessWidget {
           _PillIcon(icon: Icons.remove_rounded, onTap: onZoomOut),
           _PillIcon(icon: Icons.add_rounded, onTap: onZoomIn),
           const _PillDivider(),
+          _PillToggle(
+            icon: Icons.family_restroom_rounded,
+            label: 'Gen',
+            active: layoutMode == GraphLayoutMode.generational,
+            onTap: () => onToggleLayout(GraphLayoutMode.generational),
+          ),
           _PillToggle(
             icon: Icons.hub_rounded,
             label: 'Radial',
@@ -2618,6 +3004,40 @@ class _PillDivider extends StatelessWidget {
       height: 24,
       margin: const EdgeInsets.symmetric(horizontal: 4),
       color: const Color(0xFFE8612A).withValues(alpha: 0.2),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// LEGEND DOT (Fix Root Cause #5: color legend bar)
+// ═══════════════════════════════════════════════════════════════════════
+
+class _LegendDot extends StatelessWidget {
+  const _LegendDot({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: color,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 }
