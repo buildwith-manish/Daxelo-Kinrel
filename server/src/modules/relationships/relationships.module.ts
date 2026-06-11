@@ -1,10 +1,11 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { RelationshipsController } from './relationships.controller';
 import { RelationshipsService } from './relationships.service';
 import { GatewayModule } from '../gateway/gateway.module';
+import { GraphModule } from '../graph/graph.module';
 
 @Module({
-  imports: [GatewayModule],
+  imports: [GatewayModule, forwardRef(() => GraphModule)],
   controllers: [RelationshipsController],
   providers: [RelationshipsService],
   exports: [RelationshipsService],

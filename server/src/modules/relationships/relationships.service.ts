@@ -4,10 +4,13 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { KinrelGateway } from '../gateway/kinrel.gateway';
 import { CreateRelationshipDto } from './dto/create-relationship.dto';
+import { GraphService } from '../graph/graph.service';
 
 const ROLE_HIERARCHY: Record<string, number> = {
   viewer: 1,
@@ -15,6 +18,13 @@ const ROLE_HIERARCHY: Record<string, number> = {
   editor: 3,
   admin: 4,
 };
+
+// Core relationship types — only these should be stored in the database
+// Extended types are computed dynamically by GraphEngineService
+const ALLOWED_CORE_KEYS = new Set([
+  'father', 'mother', 'son', 'daughter',
+  'brother', 'sister', 'husband', 'wife',
+]);
 
 const INVERSE_RELATIONSHIP_MAP: Record<string, (toGender?: string | null) => string> = {
   father: (toGender) => toGender === 'female' ? 'daughter' : 'son',
@@ -67,6 +77,8 @@ export class RelationshipsService {
   constructor(
     private prisma: PrismaService,
     private gateway: KinrelGateway,
+    @Inject(forwardRef(() => GraphService))
+    private graphService: GraphService,
   ) {}
 
   /** Creates a bidirectional relationship between two persons in the family. */
@@ -75,6 +87,15 @@ export class RelationshipsService {
 
     if (dto.fromPersonId === dto.toPersonId) {
       throw new BadRequestException('Cannot create a self-relationship');
+    }
+
+    // Validate: only core relationship types are allowed for new relationships
+    // Extended types (grandfather, uncle, etc.) are computed dynamically by GraphEngineService
+    if (!ALLOWED_CORE_KEYS.has(dto.relationshipKey)) {
+      throw new BadRequestException(
+        `Only core relationship types are allowed. Use: ${[...ALLOWED_CORE_KEYS].join(', ')}. ` +
+        `Extended types like "${dto.relationshipKey}" are computed automatically from core relationships.`,
+      );
     }
 
     const [fromPerson, toPerson] = await Promise.all([
@@ -153,6 +174,9 @@ export class RelationshipsService {
       type: 'graph:updated',
       familyId,
     });
+
+    // Invalidate Redis flat graph cache so next fetch reflects new relationship
+    await this.graphService.invalidateFlatGraphCache(familyId);
 
     return this.formatRelationship(result);
   }
@@ -260,6 +284,9 @@ export class RelationshipsService {
       type: 'graph:updated',
       familyId,
     });
+
+    // Invalidate Redis flat graph cache so next fetch reflects deleted relationship
+    await this.graphService.invalidateFlatGraphCache(familyId);
 
     return { deleted: true, relationshipId };
   }

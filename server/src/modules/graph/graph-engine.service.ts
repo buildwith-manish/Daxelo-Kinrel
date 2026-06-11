@@ -130,6 +130,7 @@ export class GraphEngineService {
   // "sideways" = same generation or lateral (sibling, spouse)
 
   private static readonly DIRECTION_MAP: Record<string, 'up' | 'down' | 'sideways'> = {
+    // Core types
     father: 'up',
     mother: 'up',
     son: 'down',
@@ -138,6 +139,48 @@ export class GraphEngineService {
     sister: 'sideways',
     husband: 'sideways',
     wife: 'sideways',
+    // Extended types (stored in DB despite core-only design)
+    grandfather: 'up',
+    grandmother: 'up',
+    paternal_grandfather: 'up',
+    paternal_grandmother: 'up',
+    maternal_grandfather: 'up',
+    maternal_grandmother: 'up',
+    grandson: 'down',
+    granddaughter: 'down',
+    uncle: 'up',
+    aunt: 'up',
+    nephew: 'down',
+    niece: 'down',
+    cousin: 'sideways',
+    husbands_father: 'up',
+    husbands_mother: 'up',
+    wives_father: 'up',
+    wives_mother: 'up',
+    sons_wife: 'down',
+    daughters_husband: 'down',
+    father_in_law: 'up',
+    mother_in_law: 'up',
+    son_in_law: 'down',
+    daughter_in_law: 'down',
+    brother_in_law: 'sideways',
+    sister_in_law: 'sideways',
+    elder_brother: 'sideways',
+    younger_brother: 'sideways',
+    elder_sister: 'sideways',
+    younger_sister: 'sideways',
+    great_grandfather: 'up',
+    great_grandmother: 'up',
+    great_grandson: 'down',
+    great_granddaughter: 'down',
+    stepfather: 'up',
+    stepmother: 'up',
+    stepson: 'down',
+    stepdaughter: 'down',
+    fathers_brother: 'up',
+    fathers_sister: 'up',
+    mothers_brother: 'up',
+    mothers_sister: 'up',
   };
 
   // ── Kinship Composition Rules ────────────────────────────────────────
@@ -241,23 +284,23 @@ export class GraphEngineService {
     // ── Nephew / Niece (sibling → child) ─────────────────────────────
     'brother→son': {
       male: { term: 'nephew', termHindi: 'भतीजा', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'nephew', termHindi: 'भतीजा', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'nephew', termHindi: 'भतीजा', genderSpecific: true, confidence: 1.0 },
+      female: { term: 'niece', termHindi: 'भतीजी', genderSpecific: true, confidence: 1.0 },
+      neutral: { term: 'nibling', termHindi: 'भतीजा/भतीजी', genderSpecific: false, confidence: 0.9 },
     },
     'brother→daughter': {
-      male: { term: 'niece', termHindi: 'भतीजी', genderSpecific: true, confidence: 1.0 },
+      male: { term: 'nephew', termHindi: 'भतीजा', genderSpecific: true, confidence: 1.0 },
       female: { term: 'niece', termHindi: 'भतीजी', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'niece', termHindi: 'भतीजी', genderSpecific: true, confidence: 1.0 },
+      neutral: { term: 'nibling', termHindi: 'भतीजा/भतीजी', genderSpecific: false, confidence: 0.9 },
     },
     'sister→son': {
       male: { term: 'nephew', termHindi: 'भांजा', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'nephew', termHindi: 'भांजा', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'nephew', termHindi: 'भांजा', genderSpecific: true, confidence: 1.0 },
+      female: { term: 'niece', termHindi: 'भांजी', genderSpecific: true, confidence: 1.0 },
+      neutral: { term: 'nibling', termHindi: 'भांजा/भांजी', genderSpecific: false, confidence: 0.9 },
     },
     'sister→daughter': {
-      male: { term: 'niece', termHindi: 'भांजी', genderSpecific: true, confidence: 1.0 },
+      male: { term: 'nephew', termHindi: 'भांजा', genderSpecific: true, confidence: 1.0 },
       female: { term: 'niece', termHindi: 'भांजी', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'niece', termHindi: 'भांजी', genderSpecific: true, confidence: 1.0 },
+      neutral: { term: 'nibling', termHindi: 'भांजा/भांजी', genderSpecific: false, confidence: 0.9 },
     },
 
     // ── Great Grandparents (3 steps up) ──────────────────────────────
@@ -399,23 +442,23 @@ export class GraphEngineService {
     // ── Grandchild (2 steps down) ────────────────────────────────────
     'son→son': {
       male: { term: 'grandson', termHindi: 'पोता', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'grandson', termHindi: 'पोता', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'grandson', termHindi: 'पोता', genderSpecific: true, confidence: 1.0 },
+      female: { term: 'granddaughter', termHindi: 'पोती', genderSpecific: true, confidence: 1.0 },
+      neutral: { term: 'grandchild', termHindi: 'पोता/पोती', genderSpecific: false, confidence: 0.9 },
     },
     'son→daughter': {
-      male: { term: 'granddaughter', termHindi: 'पोती', genderSpecific: true, confidence: 1.0 },
+      male: { term: 'grandson', termHindi: 'पोता', genderSpecific: true, confidence: 1.0 },
       female: { term: 'granddaughter', termHindi: 'पोती', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'granddaughter', termHindi: 'पोती', genderSpecific: true, confidence: 1.0 },
+      neutral: { term: 'grandchild', termHindi: 'पोता/पोती', genderSpecific: false, confidence: 0.9 },
     },
     'daughter→son': {
       male: { term: 'grandson', termHindi: 'नाती', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'grandson', termHindi: 'नाती', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'grandson', termHindi: 'नाती', genderSpecific: true, confidence: 1.0 },
+      female: { term: 'granddaughter', termHindi: 'नातिन', genderSpecific: true, confidence: 1.0 },
+      neutral: { term: 'grandchild', termHindi: 'नाती/नातिन', genderSpecific: false, confidence: 0.9 },
     },
     'daughter→daughter': {
-      male: { term: 'granddaughter', termHindi: 'नातिनी', genderSpecific: true, confidence: 1.0 },
+      male: { term: 'grandson', termHindi: 'नाती', genderSpecific: true, confidence: 1.0 },
       female: { term: 'granddaughter', termHindi: 'नातिनी', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'granddaughter', termHindi: 'नातिनी', genderSpecific: true, confidence: 1.0 },
+      neutral: { term: 'grandchild', termHindi: 'नाती/नातिनी', genderSpecific: false, confidence: 0.9 },
     },
 
     // ── Great Grandchild (3 steps down) ──────────────────────────────
@@ -671,6 +714,7 @@ export class GraphEngineService {
   >();
 
   private static readonly DEFAULT_CACHE_TTL_MS = 60_000; // 1 minute
+  private readonly MAX_CACHE_ENTRIES = 50; // LRU eviction limit
 
   constructor(private prisma: PrismaService) {}
 
@@ -758,9 +802,22 @@ export class GraphEngineService {
       addEdge(fromId, toId, key, forwardDir);
 
       // Inverse edge: toPerson --[inverseKey]--> fromPerson
-      const inverseKey = this.computeInverseKey(key, personMap.get(fromId)?.gender ?? null);
+      // Bug #10 fix: Use toId gender (not fromId) for inverse key computation
+      // The inverse of "Ravi (male) --father--> Arjun" is "Arjun is Ravi's son/daughter"
+      // which depends on Arjun's gender (toId), not Ravi's gender (fromId)
+      const inverseKey = this.computeInverseKey(key, personMap.get(toId)?.gender ?? null);
       const inverseDir = this.invertDirection(forwardDir);
       addEdge(toId, fromId, inverseKey, inverseDir);
+    }
+
+    // LRU eviction: prevent memory leak by evicting oldest entries when cache exceeds limit
+    if (this.graphCache.size > this.MAX_CACHE_ENTRIES) {
+      const oldest = [...this.graphCache.entries()]
+        .sort((a, b) => a[1].builtAt - b[1].builtAt)[0];
+      if (oldest) {
+        this.graphCache.delete(oldest[0]);
+        this.logger.debug(`Evicted oldest graph cache entry for family ${oldest[0]}`);
+      }
     }
 
     // Cache the result

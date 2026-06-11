@@ -10,10 +10,11 @@ export const BCRYPT_ROUNDS = 12;
 export const TOTP_WINDOW = 2;
 
 // ── Graph Engine ──────────────────────────────────────────────────────
-export const GRAPH_CACHE_TTL_SECONDS = 60;
+export const GRAPH_CACHE_TTL_SECONDS = 300; // 5 minutes for large families
 export const MAX_GRAPH_DEPTH = 50;
-export const MAX_GRAPH_NODES = 500;
+export const MAX_GRAPH_NODES = 5000; // Increased from 500 to support 5,300+ relationships
 export const DEFAULT_GRAPH_DEPTH = 10;
+export const DEFAULT_TREE_DEPTH = 20; // Higher default for tree format (large families)
 
 // ── Token Cleanup ─────────────────────────────────────────────────────
 export const TOKEN_CLEANUP_DAYS = 30;

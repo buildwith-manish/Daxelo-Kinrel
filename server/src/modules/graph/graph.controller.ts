@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { GraphService } from './graph.service';
+import { GraphEngineService } from './graph-engine.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -16,7 +17,10 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class GraphController {
-  constructor(private graphService: GraphService) {}
+  constructor(
+    private graphService: GraphService,
+    private graphEngineService: GraphEngineService,
+  ) {}
 
   @Get(':familyId')
   @ApiOperation({ summary: 'Get family graph data' })
@@ -35,7 +39,7 @@ export class GraphController {
     return this.graphService.getGraph(userId, familyId, {
       root,
       depth: depth ? Math.min(parseInt(depth, 10), 50) : undefined,
-      format: format || 'flat',
+      format: format ?? 'flat',
       from,
       to,
       locale,
@@ -62,13 +66,13 @@ export class GraphController {
     return this.graphService.getTree(
       familyId,
       rootPersonId,
-      depth ? Math.min(parseInt(depth, 10), 50) : 10,
+      depth ? Math.min(parseInt(depth, 10), 50) : 20,
     );
   }
 
   @Get(':familyId/path')
-  @ApiOperation({ summary: 'Find path between two persons in the family graph' })
-  @ApiResponse({ status: 200, description: 'Returns the path between two persons' })
+  @ApiOperation({ summary: 'Find path between two persons in the family graph with resolved kinship terms' })
+  @ApiResponse({ status: 200, description: 'Returns the path between two persons with kinship resolution' })
   @ApiResponse({ status: 400, description: 'Missing from/to query parameters' })
   @ApiResponse({ status: 404, description: 'Family or person not found' })
   async getPath(
@@ -81,6 +85,18 @@ export class GraphController {
       throw new BadRequestException('Both "from" and "to" query parameters are required for path finding');
     }
 
-    return this.graphService.getPathWithAuth(userId, familyId, from, to);
+    // Auth check via graphService
+    await this.graphService.resolveRootPersonId(userId, familyId);
+
+    // Use GraphEngineService for resolved kinship terms (both forward and inverse)
+    const [forward, inverse] = await Promise.all([
+      this.graphEngineService.findPath(familyId, from, to),
+      this.graphEngineService.findPath(familyId, to, from),
+    ]);
+
+    return {
+      forward,
+      inverse,
+    };
   }
 }

@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nest
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { getInverseKey } from '../relationships/relationships.service';
-import { MAX_GRAPH_NODES, DEFAULT_GRAPH_DEPTH, MAX_GRAPH_DEPTH } from '../../common/constants';
+import { MAX_GRAPH_NODES, DEFAULT_GRAPH_DEPTH, MAX_GRAPH_DEPTH, DEFAULT_TREE_DEPTH } from '../../common/constants';
 import Redis from 'ioredis';
 
 export interface TreeNode {
@@ -58,7 +58,7 @@ const SPOUSE_KEYS = new Set(['husband', 'wife']);
 export class GraphService {
   private redis: Redis | null = null;
   private readonly logger = new Logger(GraphService.name);
-  private readonly CACHE_TTL = 60; // 60 seconds
+  private readonly CACHE_TTL = 300; // 5 minutes for large families
 
   constructor(
     private prisma: PrismaService,
@@ -181,7 +181,7 @@ export class GraphService {
   }
 
   /** Builds a hierarchical tree rooted at the given person up to the specified depth. */
-  async getTree(familyId: string, rootPersonId: string, depth: number = DEFAULT_GRAPH_DEPTH): Promise<{ root: TreeNode | null; totalNodes: number }> {
+  async getTree(familyId: string, rootPersonId: string, depth: number = DEFAULT_TREE_DEPTH): Promise<{ root: TreeNode | null; totalNodes: number; isTruncated: boolean }> {
     // Select only fields used by TreeNode — skips large photo fields (photoCard, photoFull),
     // notes, occupation, city, gotra, privacyLevel, etc. reducing DB row size
     const persons = await this.prisma.person.findMany({
@@ -236,7 +236,7 @@ export class GraphService {
         if (!parentToChildren.has(rel.toPersonId)) {
           parentToChildren.set(rel.toPersonId, []);
         }
-        parentToChildren.get(rel.toPersonId)!.push({ childId: rel.fromPersonId, key: getInverseKey(rel.relationshipKey) });
+        parentToChildren.get(rel.toPersonId)!.push({ childId: rel.fromPersonId, key: getInverseKey(rel.relationshipKey, personMap.get(rel.fromPersonId)?.gender ?? null) });
       } else if (SPOUSE_KEYS.has(rel.relationshipKey)) {
         spouseMap.set(rel.fromPersonId, rel.toPersonId);
       }
@@ -310,7 +310,7 @@ export class GraphService {
 
     const root = buildNode(rootPersonId, 0);
 
-    return { root, totalNodes: visited.size };
+    return { root, totalNodes: visited.size, isTruncated: visited.size >= MAX_GRAPH_NODES };
   }
 
   /** Finds the shortest relationship path between two persons using BFS. */
@@ -389,13 +389,19 @@ export class GraphService {
         relationship: rel,
       });
 
-      // Reverse direction: toPerson → fromPerson
+      // Reverse direction: toPerson → fromPerson (flip relationship key for correct inverse)
       if (!adjacency.has(rel.toPersonId)) {
         adjacency.set(rel.toPersonId, []);
       }
+      const toPersonForInverse = personMap.get(rel.toPersonId);
       adjacency.get(rel.toPersonId)!.push({
         neighborId: rel.fromPersonId,
-        relationship: rel,
+        relationship: {
+          ...rel,
+          fromPersonId: rel.toPersonId,
+          toPersonId: rel.fromPersonId,
+          relationshipKey: getInverseKey(rel.relationshipKey, toPersonForInverse?.gender ?? null),
+        },
       });
     }
 
@@ -456,6 +462,19 @@ export class GraphService {
     }));
 
     return { path: pathPersons, relationships: pathRelationships };
+  }
+
+  /** Invalidate the Redis cache for a family's flat graph. */
+  async invalidateFlatGraphCache(familyId: string): Promise<void> {
+    const cacheKey = `graph:flat:${familyId}`;
+    try {
+      if (this.redis) {
+        await this.redis.del(cacheKey);
+        this.logger.debug(`Invalidated Redis cache for ${cacheKey}`);
+      }
+    } catch (err) {
+      this.logger.warn(`Redis cache invalidation failed for ${cacheKey}`, err);
+    }
   }
 
   /** Returns the relationship path between two persons after verifying family membership. */
