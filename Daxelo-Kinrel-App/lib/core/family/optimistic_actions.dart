@@ -245,17 +245,45 @@ Future<void> deleteFamilyOptimistic({
 }) async {
   final db = ref.read(isarProvider);
 
+  // 0. Add to pending deletes FIRST — client-side guard against race condition
+  //    where Supabase returns stale data before the soft-delete transaction commits.
+  ref.read(pendingDeleteFamilyIdsProvider.notifier).update(
+        (ids) => {...ids, familyId},
+      );
+
   // 1. Snapshot the current Drift row for rollback
   final snapshot = await _snapshotFamily(db, familyId);
 
-  // 2. Immediately delete from local Drift cache
-  try {
-    await db.deleteFamily(familyId);
-  } catch (e) {
-    debugPrint('⚠️ Optimistic delete family: could not remove from Drift: $e');
+  // 2. FIXED: Instead of deleting the row from Drift, mark the family as
+  //    archived (set deletedAt in the JSON data). This way
+  //    archivedFamiliesProvider can find it immediately in the Drift cache.
+  //    Previously, db.deleteFamily() removed the row entirely, causing only
+  //    the first archived family to appear (the rest were missing from Drift).
+  if (snapshot != null) {
+    try {
+      final dataMap = snapshot.data.isNotEmpty
+          ? Map<String, dynamic>.from(
+              json.decode(snapshot.data) as Map<String, dynamic>)
+          : <String, dynamic>{};
+      dataMap['deletedAt'] = DateTime.now().toIso8601String();
+      await db.upsertFamily(CachedFamiliesCompanion(
+        id: Value(familyId),
+        name: Value(snapshot.name),
+        data: Value(json.encode(dataMap)),
+        kinFamilyId: Value(snapshot.kinFamilyId),
+        username: Value(snapshot.username),
+        cachedAt: Value(DateTime.now()),
+      ));
+    } catch (e) {
+      debugPrint(
+          '⚠️ Optimistic delete family: could not mark archived in Drift: $e');
+    }
   }
 
   // 3. Invalidate providers so UI updates immediately
+  //    familyListProvider filters out deletedAt != null families, so the
+  //    family disappears from the active list immediately.
+  //    archivedFamiliesProvider will now find the family in Drift.
   ref.invalidate(familyListProvider);
   ref.invalidate(archivedFamiliesProvider);
 
@@ -263,9 +291,23 @@ Future<void> deleteFamilyOptimistic({
   try {
     await deleteFamily(ref: ref, familyId: familyId);
 
-    // 5. On success: providers already invalidated by deleteFamily()
+    // FIXED: Wait for NestJS transaction to propagate to Supabase
+    // before invalidating familyListProvider. Without this delay,
+    // the Supabase query may return stale data (family not yet soft-deleted),
+    // causing deleted families to briefly reappear.
+    await Future.delayed(const Duration(milliseconds: 800));
+
+    // On success: remove from pending deletes
+    ref.read(pendingDeleteFamilyIdsProvider.notifier).update(
+          (ids) => ids.difference({familyId}),
+        );
   } catch (e) {
-    // 6. On failure: restore snapshot
+    // On failure: remove from pending deletes and restore snapshot
+    ref.read(pendingDeleteFamilyIdsProvider.notifier).update(
+          (ids) => ids.difference({familyId}),
+        );
+
+    // Restore the family in Drift (clear deletedAt)
     await _restoreFamilySnapshot(db, snapshot);
     ref.invalidate(familyListProvider);
     ref.invalidate(archivedFamiliesProvider);

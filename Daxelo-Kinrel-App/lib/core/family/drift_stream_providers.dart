@@ -45,7 +45,18 @@ final driftFamilyListProvider =
   }
 
   final db = ref.read(isarProvider);
-  var _hasTriggeredRefresh = false;
+
+  // REMOVED: The _hasTriggeredRefresh guard and Future.microtask that called
+  // ref.invalidate(familyListProvider). That auto-invalidation caused a race
+  // condition (Bug 3): every time the Drift stream emitted (e.g., after an
+  // optimistic write), it would re-invalidate familyListProvider, which would
+  // query Supabase BEFORE the NestJS soft-delete transaction committed,
+  // causing deleted families to briefly reappear.
+  //
+  // Server refresh is now controlled explicitly by:
+  //   - deleteFamilyOptimistic() calling ref.invalidate(familyListProvider)
+  //   - Pull-to-refresh gestures
+  //   - App foreground/background lifecycle events
 
   yield* db.watchAllFamilies().map((rows) {
     // Parse Drift rows → Family domain objects
@@ -69,17 +80,6 @@ final driftFamilyListProvider =
         (b.createdAt ?? DateTime(1970))
             .compareTo(a.createdAt ?? DateTime(1970)));
 
-    // Trigger background Supabase refresh once on first emission
-    // (only if we have data or Supabase is ready)
-    if (!_hasTriggeredRefresh) {
-      _hasTriggeredRefresh = true;
-      Future.microtask(() {
-        try {
-          ref.invalidate(familyListProvider);
-        } catch (_) {}
-      });
-    }
-
     return families;
   });
 });
@@ -95,7 +95,10 @@ final driftFamilyMembersProvider =
   }
 
   final db = ref.read(isarProvider);
-  var _hasTriggeredRefresh = false;
+
+  // REMOVED: The _hasTriggeredRefresh guard and Future.microtask that called
+  // ref.invalidate(familyMembersProvider). Same race condition fix as
+  // driftFamilyListProvider (Bug 3).
 
   yield* db.watchPersonsByFamily(familyId).map((rows) {
     final persons = <Person>[];
@@ -117,16 +120,6 @@ final driftFamilyMembersProvider =
         (a.createdAt ?? DateTime(1970))
             .compareTo(b.createdAt ?? DateTime(1970)));
 
-    // Trigger background Supabase refresh once
-    if (!_hasTriggeredRefresh) {
-      _hasTriggeredRefresh = true;
-      Future.microtask(() {
-        try {
-          ref.invalidate(familyMembersProvider(familyId));
-        } catch (_) {}
-      });
-    }
-
     return persons;
   });
 });
@@ -143,7 +136,10 @@ final driftFamilyRelationshipsProvider =
   }
 
   final db = ref.read(isarProvider);
-  var _hasTriggeredRefresh = false;
+
+  // REMOVED: The _hasTriggeredRefresh guard and Future.microtask that called
+  // ref.invalidate(familyRelationshipsProvider). Same race condition fix as
+  // driftFamilyListProvider (Bug 3).
 
   yield* db.watchRelationshipsByFamily(familyId).map((rows) {
     final relationships = <FamilyRelationship>[];
@@ -165,16 +161,6 @@ final driftFamilyRelationshipsProvider =
     relationships.sort((a, b) =>
         (a.createdAt ?? DateTime(1970))
             .compareTo(b.createdAt ?? DateTime(1970)));
-
-    // Trigger background Supabase refresh once
-    if (!_hasTriggeredRefresh) {
-      _hasTriggeredRefresh = true;
-      Future.microtask(() {
-        try {
-          ref.invalidate(familyRelationshipsProvider(familyId));
-        } catch (_) {}
-      });
-    }
 
     return relationships;
   });

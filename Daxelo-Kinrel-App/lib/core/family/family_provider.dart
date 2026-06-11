@@ -447,9 +447,40 @@ class ArchivedFamily {
   });
 
   factory ArchivedFamily.fromJson(Map<String, dynamic> json) {
+    // The NestJS API wraps the family in a 'family' key:
+    //   { family: { id, name, ... }, daysRemaining: 25, archivedAt: "..." }
+    // The Drift cache and Supabase fallback return flat family maps:
+    //   { id, name, deletedAt: "...", ... }
+    // Detect which shape we have by checking for the 'family' key.
+    final bool isApiShape = json.containsKey('family') && json['family'] is Map;
+
+    final familyData = isApiShape
+        ? json['family'] as Map<String, dynamic>
+        : json;
+
+    final int daysRemaining;
+    if (isApiShape) {
+      daysRemaining = json['daysRemaining'] as int? ?? 30;
+    } else {
+      // Calculate from deletedAt field (Supabase / Drift flat shape)
+      final deletedAtStr = json['deletedAt'] as String?;
+      if (deletedAtStr != null) {
+        final deletedAt = DateTime.tryParse(deletedAtStr);
+        if (deletedAt != null) {
+          final permanentDeleteAt = deletedAt.add(const Duration(days: 30));
+          final diff = permanentDeleteAt.difference(DateTime.now()).inDays;
+          daysRemaining = diff > 0 ? diff : 0;
+        } else {
+          daysRemaining = 30;
+        }
+      } else {
+        daysRemaining = 30;
+      }
+    }
+
     return ArchivedFamily(
-      family: Family.fromJson(json['family'] as Map<String, dynamic>? ?? json),
-      daysRemaining: json['daysRemaining'] as int? ?? 30,
+      family: Family.fromJson(familyData),
+      daysRemaining: daysRemaining,
     );
   }
 
@@ -472,6 +503,12 @@ final deletingFamilyIdsProvider = StateProvider<Set<String>>((ref) => {});
 /// Tracks family IDs that are currently being restored from archive.
 /// Same per-card loading pattern as deletingFamilyIdsProvider.
 final restoringFamilyIdsProvider = StateProvider<Set<String>>((ref) => {});
+
+/// Tracks family IDs that are pending soft-delete (optimistic delete in-flight).
+/// This acts as a client-side guard: even if Supabase returns a family that
+/// hasn't been soft-deleted yet (race condition before NestJS transaction
+/// commits), familyListProvider will filter it out so it doesn't reappear.
+final pendingDeleteFamilyIdsProvider = StateProvider<Set<String>>((ref) => {});
 
 /// With offline-first: Returns cached data from Drift immediately if
 /// available, then refreshes from Supabase/NestJS in the background.
@@ -652,6 +689,11 @@ void _cacheArchivedFamilies(List<ArchivedFamily> archivedFamilies) {
 /// With offline-first: Returns cached data immediately if available,
 /// then refreshes from Supabase in the background.
 final familyListProvider = FutureProvider<List<Family>>((ref) async {
+  // FIXED: Watch pending deletes so families being optimistically deleted
+  // are filtered out even if Supabase returns stale data before the
+  // NestJS soft-delete transaction commits (Bug 3 race condition).
+  final pendingDeletes = ref.watch(pendingDeleteFamilyIdsProvider);
+
   final isReady = ref.watch(isSupabaseReadyProvider);
   if (!isReady) {
     // Even when Supabase isn't ready, try Isar cache for offline access
@@ -660,7 +702,10 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilies();
         // ✅ FIX (BUG-01): Filter out soft-deleted families from Isar cache
-        final filtered = cached.where((f) => f.deletedAt == null).toList();
+        // ✅ FIX (BUG-03): Filter out pending-delete families (race condition guard)
+        final filtered = cached
+            .where((f) => f.deletedAt == null && !pendingDeletes.contains(f.id))
+            .toList();
         if (filtered.isNotEmpty) return filtered;
       } catch (_) {}
     }
@@ -674,7 +719,10 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilies();
         // ✅ FIX (BUG-01): Filter out soft-deleted families from Isar cache
-        final filtered = cached.where((f) => f.deletedAt == null).toList();
+        // ✅ FIX (BUG-03): Filter out pending-delete families (race condition guard)
+        final filtered = cached
+            .where((f) => f.deletedAt == null && !pendingDeletes.contains(f.id))
+            .toList();
         if (filtered.isNotEmpty) return filtered;
       } catch (e) {
         debugPrint('⚠️ Offline repo getFamilies failed, falling back: $e');
@@ -735,12 +783,21 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
         .order('createdAt', ascending: false);
 
     final list = response as List;
+    List<Family> result;
     if (list.length > 20) {
-      return compute(_parseFamilyList, list);
+      result = await compute(_parseFamilyList, list);
+    } else {
+      result = list
+          .map((json) => Family.fromJson(json as Map<String, dynamic>))
+          .toList();
     }
-    return list
-        .map((json) => Family.fromJson(json as Map<String, dynamic>))
-        .toList();
+
+    // ✅ FIX (BUG-03): Client-side guard — filter out pending-delete families
+    // even if Supabase returns them (race condition before NestJS commits)
+    if (pendingDeletes.isNotEmpty) {
+      result = result.where((f) => !pendingDeletes.contains(f.id)).toList();
+    }
+    return result;
   } catch (e) {
     debugPrint('⚠️ familyListProvider error: $e');
 
@@ -750,7 +807,10 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilies();
         // ✅ FIX (BUG-01): Filter out soft-deleted families from Isar cache
-        final filtered = cached.where((f) => f.deletedAt == null).toList();
+        // ✅ FIX (BUG-03): Filter out pending-delete families (race condition guard)
+        final filtered = cached
+            .where((f) => f.deletedAt == null && !pendingDeletes.contains(f.id))
+            .toList();
         if (filtered.isNotEmpty) return filtered;
       } catch (_) {}
     }

@@ -120,15 +120,17 @@ export class FamiliesController {
 
   @Delete(':familyId/permanent')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Permanently delete a family (only archived families)' })
+  @ApiOperation({ summary: 'Permanently delete a family (only archived families, admin only)' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Family permanently deleted' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Family not found' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Insufficient permissions — admin role required' })
   async permanentDelete(
     @CurrentUser('id') userId: string,
     @Param('familyId') familyId: string,
   ) {
-    // Verify the user is a member before allowing permanent delete
-    await this.familiesService.requireFamilyMember(userId, familyId);
+    // FIXED: Require admin role — any member could previously permanently
+    // delete all family data. Now only admins can perform this destructive action.
+    await this.familiesService.requireFamilyRole(userId, familyId, 'admin');
     return this.familiesService.permanentDelete(familyId);
   }
 

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -860,36 +858,30 @@ class _FamilyCard extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    // Capture navigator and messenger BEFORE async gap — the widget may be
+    // Capture messenger BEFORE async gap — the widget may be
     // disposed after deleteFamily invalidates providers and the list rebuilds.
-    final navigator = Navigator.of(context, rootNavigator: true);
     final messenger = ScaffoldMessenger.of(context);
 
-    unawaited(
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        useRootNavigator: true,
-        builder: (_) => Center(
-          child: CircularProgressIndicator(color: KinrelColors.purple),
-        ),
-      ),
-    );
-
     try {
+      // The optimistic action removes the family from Drift immediately,
+      // so the card disappears from the list before the API call finishes.
+      // No loading dialog is needed — this matches the "WhatsApp-style
+      // show first, confirm later" design of optimistic_actions.dart.
       await deleteFamilyOptimistic(ref: ref, familyId: family.id);
-
-      // Use captured navigator — the original context may be unmounted now
-      navigator.pop(); // Close loading dialog
       messenger.showSnackBar(
         SnackBar(
           content: Text('${family.name} moved to archive'),
           backgroundColor: KinrelColors.success,
           behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: 'Undo',
+            textColor: Colors.white,
+            onPressed: () =>
+                restoreFamilyOptimistic(ref: ref, familyId: family.id),
+          ),
         ),
       );
     } catch (e) {
-      navigator.pop(); // Close loading dialog
       messenger.showSnackBar(
         SnackBar(
           content: Text(
@@ -920,8 +912,16 @@ class _ArchivedFamiliesSheetState
   @override
   void initState() {
     super.initState();
-    // Refresh archived families when the sheet opens
-    Future.microtask(() => ref.invalidate(archivedFamiliesProvider));
+    // FIXED: Use addPostFrameCallback to ensure the provider is invalidated
+    // AFTER the widget tree is built. This forces a fresh API fetch every
+    // time the sheet opens, so deleted families always appear immediately.
+    // Previously, Future.microtask could fire before the sheet was mounted,
+    // and the Drift cache path would return early with stale data.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.invalidate(archivedFamiliesProvider);
+      }
+    });
   }
 
   @override
