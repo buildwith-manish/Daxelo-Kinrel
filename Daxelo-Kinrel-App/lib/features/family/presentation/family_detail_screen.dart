@@ -587,11 +587,13 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
   }
 
   Future<void> _performDeleteFamily(BuildContext context) async {
-    // Capture navigator and messenger BEFORE async gap — the widget may be
-    // disposed after deleteFamily invalidates providers and the list rebuilds.
+    // Capture navigator, messenger, and container BEFORE async gap — the
+    // widget may be disposed after deleteFamily invalidates providers and
+    // the list rebuilds. ProviderContainer survives widget disposal.
     final navigator = Navigator.of(context, rootNavigator: true);
     final messenger = ScaffoldMessenger.of(context);
     final router = GoRouter.of(context);
+    final container = ProviderScope.containerOf(context);
 
     unawaited(
       showDialog(
@@ -605,7 +607,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
     );
 
     try {
-      await deleteFamilyOptimistic(ref: ref, familyId: widget.familyId);
+      await deleteFamilyOptimistic(container: container, familyId: widget.familyId);
 
       // Use captured references — the original context may be unmounted now
       navigator.pop(); // Close loading dialog

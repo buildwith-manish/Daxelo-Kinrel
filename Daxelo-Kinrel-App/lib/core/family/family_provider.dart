@@ -1404,13 +1404,13 @@ Future<Person> updatePerson({
 ///
 /// Throws an exception if the API call fails.
 Future<void> deleteFamily({
-  required WidgetRef ref,
+  required ProviderContainer container,
   required String familyId,
 }) async {
   // Try NestJS API first (requires auth token)
   bool archived = false;
   try {
-    final dio = ref.read(dioProvider);
+    final dio = container.read(dioProvider);
     final response = await dio.delete('/api/families/$familyId');
     if (response.statusCode == 200) {
       archived = true;
@@ -1434,7 +1434,7 @@ Future<void> deleteFamily({
 
   // Fallback: Soft-delete via Supabase if API didn't work
   if (!archived) {
-    final client = ref.read(supabaseProvider);
+    final client = container.read(supabaseProvider);
     if (client == null) {
       throw Exception('Database is not connected. Please restart the app and try again.');
     }
@@ -1464,10 +1464,10 @@ Future<void> deleteFamily({
   }
 
   // Invalidate providers to refresh UI
-  ref.invalidate(familyListProvider);
-  ref.invalidate(familyMembersProvider(familyId));
-  ref.invalidate(familyRelationshipsProvider(familyId));
-  ref.invalidate(archivedFamiliesProvider);
+  container.invalidate(familyListProvider);
+  container.invalidate(familyMembersProvider(familyId));
+  container.invalidate(familyRelationshipsProvider(familyId));
+  container.invalidate(archivedFamiliesProvider);
   // familyDetailProvider auto-rebuilds via ref.watch on above providers
 
   // FIXED: Do NOT call CacheInvalidation.invalidateFamily() or
@@ -1491,7 +1491,7 @@ Future<void> deleteFamily({
 
   // Refresh profile stats after family archival
   try {
-    await ref.read(profileProvider.notifier).loadStats();
+    await container.read(profileProvider.notifier).loadStats();
   } catch (_) {}
 }
 
@@ -1502,13 +1502,13 @@ Future<void> deleteFamily({
 ///
 /// Throws an exception if the API call fails.
 Future<void> restoreFamily({
-  required WidgetRef ref,
+  required ProviderContainer container,
   required String familyId,
 }) async {
   // Try NestJS API first
   bool restored = false;
   try {
-    final dio = ref.read(dioProvider);
+    final dio = container.read(dioProvider);
     final response = await dio.post('/api/families/$familyId/restore');
     if (response.statusCode == 200) {
       restored = true;
@@ -1528,7 +1528,7 @@ Future<void> restoreFamily({
 
   // Fallback: Restore via Supabase RPC (single round trip)
   if (!restored) {
-    final client = ref.read(supabaseProvider);
+    final client = container.read(supabaseProvider);
     if (client == null) {
       throw Exception('Database is not connected. Please restart the app and try again.');
     }
@@ -1566,10 +1566,10 @@ Future<void> restoreFamily({
   }
 
   // Invalidate providers to refresh UI
-  ref.invalidate(familyListProvider);
-  ref.invalidate(familyMembersProvider(familyId));
-  ref.invalidate(familyRelationshipsProvider(familyId));
-  ref.invalidate(archivedFamiliesProvider);
+  container.invalidate(familyListProvider);
+  container.invalidate(familyMembersProvider(familyId));
+  container.invalidate(familyRelationshipsProvider(familyId));
+  container.invalidate(archivedFamiliesProvider);
 
   // FIXED: Do NOT call CacheInvalidation.invalidateFamily() or
   // invalidateFamilyList() — these delete Drift rows or clear the entire
@@ -1585,7 +1585,7 @@ Future<void> restoreFamily({
 
   // Refresh profile stats
   try {
-    await ref.read(profileProvider.notifier).loadStats();
+    await container.read(profileProvider.notifier).loadStats();
   } catch (_) {}
 }
 
@@ -1597,16 +1597,16 @@ Future<void> restoreFamily({
 ///
 /// Throws an exception if the API call fails.
 Future<void> permanentDeleteFamily({
-  required WidgetRef ref,
+  required ProviderContainer container,
   required String familyId,
 }) async {
-  final client = ref.read(supabaseProvider);
+  final client = container.read(supabaseProvider);
   if (client == null) {
     throw Exception('Database is not connected. Please restart the app.');
   }
 
   // Mark this family as "deleting" for per-card loading spinner
-  ref.read(deletingFamilyIdsProvider.notifier).update(
+  container.read(deletingFamilyIdsProvider.notifier).update(
         (ids) => {...ids, familyId},
       );
 
@@ -1616,10 +1616,10 @@ Future<void> permanentDeleteFamily({
     await client.rpc('delete_family_forever', params: {'p_family_id': familyId});
 
     // Refresh UI
-    ref.invalidate(familyListProvider);
-    ref.invalidate(familyMembersProvider(familyId));
-    ref.invalidate(familyRelationshipsProvider(familyId));
-    ref.invalidate(archivedFamiliesProvider);
+    container.invalidate(familyListProvider);
+    container.invalidate(familyMembersProvider(familyId));
+    container.invalidate(familyRelationshipsProvider(familyId));
+    container.invalidate(archivedFamiliesProvider);
 
     // Invalidate the Isar cache
     if (IsarDatabase.isInitialized) {
@@ -1637,11 +1637,11 @@ Future<void> permanentDeleteFamily({
 
     // Refresh profile stats
     try {
-      await ref.read(profileProvider.notifier).loadStats();
+      await container.read(profileProvider.notifier).loadStats();
     } catch (_) {}
   } finally {
     // Always remove from deleting set, even on error
-    ref.read(deletingFamilyIdsProvider.notifier).update(
+    container.read(deletingFamilyIdsProvider.notifier).update(
           (ids) => ids.difference({familyId}),
         );
   }

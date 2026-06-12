@@ -240,14 +240,14 @@ Future<Family> createFamilyOptimistic({
 /// 5. On success: invalidate archivedFamiliesProvider
 /// 6. On failure: restore snapshot, invalidate providers
 Future<void> deleteFamilyOptimistic({
-  required WidgetRef ref,
+  required ProviderContainer container,
   required String familyId,
 }) async {
-  final db = ref.read(isarProvider);
+  final db = container.read(isarProvider);
 
   // 0. Add to pending deletes FIRST — client-side guard against race condition
   //    where Supabase returns stale data before the soft-delete transaction commits.
-  ref.read(pendingDeleteFamilyIdsProvider.notifier).update(
+  container.read(pendingDeleteFamilyIdsProvider.notifier).update(
         (ids) => {...ids, familyId},
       );
 
@@ -284,12 +284,12 @@ Future<void> deleteFamilyOptimistic({
   //    familyListProvider filters out deletedAt != null families, so the
   //    family disappears from the active list immediately.
   //    archivedFamiliesProvider will now find the family in Drift.
-  ref.invalidate(familyListProvider);
-  ref.invalidate(archivedFamiliesProvider);
+  container.invalidate(familyListProvider);
+  container.invalidate(archivedFamiliesProvider);
 
   // 4. Fire real API call in background
   try {
-    await deleteFamily(ref: ref, familyId: familyId);
+    await deleteFamily(container: container, familyId: familyId);
 
     // FIXED: Wait for NestJS transaction to propagate to Supabase
     // before invalidating familyListProvider. Without this delay,
@@ -298,19 +298,19 @@ Future<void> deleteFamilyOptimistic({
     await Future.delayed(const Duration(milliseconds: 800));
 
     // On success: remove from pending deletes
-    ref.read(pendingDeleteFamilyIdsProvider.notifier).update(
+    container.read(pendingDeleteFamilyIdsProvider.notifier).update(
           (ids) => ids.difference({familyId}),
         );
   } catch (e) {
     // On failure: remove from pending deletes and restore snapshot
-    ref.read(pendingDeleteFamilyIdsProvider.notifier).update(
+    container.read(pendingDeleteFamilyIdsProvider.notifier).update(
           (ids) => ids.difference({familyId}),
         );
 
     // Restore the family in Drift (clear deletedAt)
     await _restoreFamilySnapshot(db, snapshot);
-    ref.invalidate(familyListProvider);
-    ref.invalidate(archivedFamiliesProvider);
+    container.invalidate(familyListProvider);
+    container.invalidate(archivedFamiliesProvider);
     rethrow;
   }
 }
@@ -329,15 +329,15 @@ Future<void> deleteFamilyOptimistic({
 /// 4. Fire real API `restoreFamily(...)` in background
 /// 5. On failure: restore snapshot, invalidate providers
 Future<void> restoreFamilyOptimistic({
-  required WidgetRef ref,
+  required ProviderContainer container,
   required String familyId,
 }) async {
   // Mark this family as "restoring" for per-card loading spinner
-  ref.read(restoringFamilyIdsProvider.notifier).update(
+  container.read(restoringFamilyIdsProvider.notifier).update(
         (ids) => {...ids, familyId},
       );
 
-  final db = ref.read(isarProvider);
+  final db = container.read(isarProvider);
 
   // 1. Snapshot current Drift row for rollback
   final snapshot = await _snapshotFamily(db, familyId);
@@ -368,21 +368,21 @@ Future<void> restoreFamilyOptimistic({
   }
 
   // 3. Invalidate providers
-  ref.invalidate(familyListProvider);
-  ref.invalidate(archivedFamiliesProvider);
+  container.invalidate(familyListProvider);
+  container.invalidate(archivedFamiliesProvider);
 
   // 4. Fire real API call in background
   try {
-    await restoreFamily(ref: ref, familyId: familyId);
+    await restoreFamily(container: container, familyId: familyId);
   } catch (e) {
     // 5. On failure: restore snapshot
     await _restoreFamilySnapshot(db, snapshot);
-    ref.invalidate(familyListProvider);
-    ref.invalidate(archivedFamiliesProvider);
+    container.invalidate(familyListProvider);
+    container.invalidate(archivedFamiliesProvider);
     rethrow;
   } finally {
     // Always remove from restoring set
-    ref.read(restoringFamilyIdsProvider.notifier).update(
+    container.read(restoringFamilyIdsProvider.notifier).update(
           (ids) => ids.difference({familyId}),
         );
   }

@@ -858,16 +858,19 @@ class _FamilyCard extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    // Capture messenger BEFORE async gap — the widget may be
+    // Capture messenger AND container BEFORE async gap — the widget may be
     // disposed after deleteFamily invalidates providers and the list rebuilds.
+    // ProviderContainer survives widget disposal, so the API call and
+    // provider invalidation can safely continue in the background.
     final messenger = ScaffoldMessenger.of(context);
+    final container = ProviderScope.containerOf(context);
 
     try {
       // The optimistic action removes the family from Drift immediately,
       // so the card disappears from the list before the API call finishes.
       // No loading dialog is needed — this matches the "WhatsApp-style
       // show first, confirm later" design of optimistic_actions.dart.
-      await deleteFamilyOptimistic(ref: ref, familyId: family.id);
+      await deleteFamilyOptimistic(container: container, familyId: family.id);
       messenger.showSnackBar(
         SnackBar(
           content: Text('${family.name} moved to archive'),
@@ -877,7 +880,7 @@ class _FamilyCard extends ConsumerWidget {
             label: 'Undo',
             textColor: Colors.white,
             onPressed: () =>
-                restoreFamilyOptimistic(ref: ref, familyId: family.id),
+                restoreFamilyOptimistic(container: container, familyId: family.id),
           ),
         ),
       );
@@ -1217,8 +1220,12 @@ class _ArchivedFamilyCard extends ConsumerWidget {
   }
 
   Future<void> _handleRestore(BuildContext context, WidgetRef ref) async {
+    // Capture container BEFORE async gap — the widget may be disposed
+    // after restoreFamilyOptimistic invalidates providers.
+    final container = ProviderScope.containerOf(context);
+
     try {
-      await restoreFamilyOptimistic(ref: ref, familyId: archivedFamily.family.id);
+      await restoreFamilyOptimistic(container: container, familyId: archivedFamily.family.id);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1343,8 +1350,12 @@ class _ArchivedFamilyCard extends ConsumerWidget {
 
     if (confirmed != true) return;
 
+    // Capture container BEFORE async gap — the widget may be disposed
+    // after permanentDeleteFamily invalidates providers.
+    final container = ProviderScope.containerOf(context);
+
     try {
-      await permanentDeleteFamily(ref: ref, familyId: archivedFamily.family.id);
+      await permanentDeleteFamily(container: container, familyId: archivedFamily.family.id);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
