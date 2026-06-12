@@ -27,8 +27,8 @@ import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/services/graph_layout_service.dart';
 import '../../features/family/presentation/providers/family_graph_provider.dart';
-import '../../features/family/presentation/widgets/graph_canvas_widget.dart';
 import '../analytics/analytics_tracker.dart';
+import '../data/family_graph_repository.dart';
 import '../data/position_memory.dart';
 import '../interaction/camera_controller.dart';
 import '../rendering/viewport_culler.dart';
@@ -101,7 +101,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   final Map<String, _GraphPersonData> _personMap = {};
 
   /// List of relationship edge data.
-  final List<_GraphEdgeData> _edges = [];
+  final List<GraphEdgeData> _edges = [];
 
   /// Currently selected node ID.
   String? _selectedNodeId;
@@ -389,7 +389,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
 
         final relationships = graphData.toRelationshipDataList();
         for (final r in relationships) {
-          _edges.add(_GraphEdgeData(
+          _edges.add(GraphEdgeData(
             id: r.id,
             sourceId: r.fromPersonId,
             targetId: r.toPersonId,
@@ -876,20 +876,6 @@ class _GraphPersonData {
         id: '',
         name: '',
       );
-}
-
-class _GraphEdgeData {
-  final String id;
-  final String sourceId;
-  final String targetId;
-  final String relationshipKey;
-
-  const _GraphEdgeData({
-    required this.id,
-    required this.sourceId,
-    required this.targetId,
-    required this.relationshipKey,
-  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════

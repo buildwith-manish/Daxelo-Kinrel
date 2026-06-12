@@ -12,10 +12,7 @@
 // Position quantization rounds to the nearest 2 px for cache-key
 // stability (prevents cache thrashing from sub-pixel jitter).
 
-import 'dart:math' as math;
 import 'dart:ui';
-
-import '../../core/services/graph_layout_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // EDGE PATH CACHE

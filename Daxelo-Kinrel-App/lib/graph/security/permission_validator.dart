@@ -188,7 +188,7 @@ class PermissionValidator {
       StreamController<GraphRealtimeEvent>.broadcast();
 
   /// Stream of realtime permission change events.
-  Stream<GraphRealtimeEvent> get onPermissionChanged =>
+  Stream<GraphRealtimeEvent> get permissionChangedStream =>
       _realtimeController.stream;
 
   /// Active Supabase Realtime subscription, if any.
@@ -541,7 +541,7 @@ class PermissionValidator {
 
   /// Stores a permission result in the cache.
   void _setCache(String viewerId, String cacheKey, bool allowed) {
-    _cache.putIfAbsent(viewerId, {});
+    _cache.putIfAbsent(viewerId, () => <String, _CacheEntry>{});
     _cache[viewerId]![cacheKey] = _CacheEntry(
       allowed: allowed,
       cachedAt: DateTime.now(),
@@ -571,8 +571,9 @@ class PermissionValidator {
   /// Invalidates relevant cache entries and notifies listeners so
   /// the UI can fade nodes/edges in/out over 300ms.
   void onPermissionChanged(GraphRealtimeEvent event) {
-    // Invalidate cache for the affected target
-    invalidateCache(targetId: event.targetId);
+    // Extract targetId from event payload if available
+    final targetId = event.payload['target_id'] as String?;
+    invalidateCache(targetId: targetId);
 
     // Notify listeners (UI will animate fade in/out over 300ms)
     if (!_realtimeController.isClosed) {
@@ -590,22 +591,26 @@ class PermissionValidator {
     _realtimeChannel!.onPostgresChanges(
       event: PostgresChangeEvent.all,
       schema: 'public',
-      table: 'family_permissions',
+      table: 'permissions',
       filter: PostgresChangeFilter(
         type: PostgresChangeFilterType.eq,
-        column: 'family_id',
+        column: 'grantor_id',
         value: familyId,
       ),
       callback: (PostgresChangePayload payload) {
         final newRecord = payload.newRecord;
         final eventType = payload.eventType.name;
-        final targetId = newRecord['target_id'] as String? ?? '';
-        final eventFamilyId = newRecord['family_id'] as String? ?? familyId;
+        final grantorId = newRecord['grantor_id'] as String? ?? '';
+        final granteeId = newRecord['grantee_id'] as String? ?? '';
 
         onPermissionChanged(GraphRealtimeEvent(
-          eventType: eventType,
-          targetId: targetId,
-          familyId: eventFamilyId,
+          type: eventType,
+          payload: {
+            'grantor_id': grantorId,
+            'grantee_id': granteeId,
+            'family_id': familyId,
+            'target_id': grantorId,
+          },
           timestamp: DateTime.now(),
         ));
       },

@@ -16,7 +16,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../core/services/graph_layout_service.dart';
-import '../../core/constants/brand_colors.dart';
 import '../../core/services/analytics_service.dart';
 import 'viewport_culler.dart';
 
