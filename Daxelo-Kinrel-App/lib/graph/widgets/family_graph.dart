@@ -30,9 +30,13 @@ import '../../features/family/presentation/providers/family_graph_provider.dart'
 import '../analytics/analytics_tracker.dart';
 import '../data/family_graph_repository.dart' show GraphData, GraphEdgeData;
 import '../data/position_memory.dart';
+import '../engine/fallback_manager.dart';
 import '../interaction/camera_controller.dart';
 import '../rendering/viewport_culler.dart';
+import 'control_bar.dart';
 import 'empty_state.dart';
+import 'filter_panel.dart';
+import 'graph_legend.dart';
 import 'graph_node.dart';
 import 'onboarding_flow.dart';
 import 'relationship_edge.dart';
@@ -126,6 +130,15 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
 
   /// Whether the search bar is visible.
   bool _searchBarVisible = false;
+
+  /// Whether the filter panel is visible.
+  bool _filterVisible = false;
+
+  /// Whether the legend panel is visible.
+  bool _legendVisible = false;
+
+  /// Current filter state.
+  FilterState _currentFilter = const FilterState();
 
   /// Debounce timer for camera position saving.
   Timer? _cameraSaveDebounce;
@@ -350,8 +363,17 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
 
   @override
   Widget build(BuildContext context) {
+    // Accessibility: reduced motion
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+
     // Watch graph data provider
     final graphAsync = ref.watch(familyGraphProvider(widget.familyId));
+
+    // Watch engine tier for control bar
+    final currentTier = ref.watch(currentEngineTierProvider);
+
+    // Watch connectivity for offline badge
+    final isOnline = ref.watch(isOnlineProvider);
 
     return graphAsync.when(
       loading: () => const Center(
@@ -428,14 +450,14 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
               );
         }
 
-        return _buildGraphStack(_layoutResult!);
+        return _buildGraphStack(_layoutResult!, reduceMotion: reduceMotion, currentTier: currentTier);
       },
     );
   }
 
   // ── Graph Stack Builder ────────────────────────────────────────────
 
-  Widget _buildGraphStack(GraphLayoutResult layout) {
+  Widget _buildGraphStack(GraphLayoutResult layout, {bool reduceMotion = false, EngineTier currentTier = EngineTier.force}) {
     final positions = layout.positions;
     final canvasWidth = layout.canvasWidth;
     final canvasHeight = layout.canvasHeight;
@@ -544,46 +566,27 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
                 ),
               ),
 
+            // ── Filter Panel ─────────────────────────────────────────
+            GraphFilterPanel(
+              isVisible: _filterVisible,
+              onClose: () => setState(() => _filterVisible = false),
+              onFilterChanged: (filter) => setState(() => _currentFilter = filter),
+              currentFilter: _currentFilter,
+            ),
+
+            // ── Legend Panel ───────────────────────────────────────────
+            GraphLegend(
+              isVisible: _legendVisible,
+              onToggle: () => setState(() => _legendVisible = !_legendVisible),
+            ),
+
             // ── Control Bar ──────────────────────────────────────────
-            Positioned(
-              bottom: 24.0,
-              right: 16.0,
-              child: RepaintBoundary(
-                child: _ControlBar(
-                  zoomLevel: zoomLevel,
-                  onZoomIn: () {
-                    final current = _currentZoom;
-                    final newZoom = (current * 1.3).clamp(0.1, 4.0);
-                    final center = _viewportSize.center(Offset.zero);
-                    _transformationController.value = Matrix4.identity()
-                      ..translate(
-                        center.dx - center.dx * newZoom,
-                        center.dy - center.dy * newZoom,
-                      )
-                      ..scale(newZoom);
-                  },
-                  onZoomOut: () {
-                    final current = _currentZoom;
-                    final newZoom = (current / 1.3).clamp(0.1, 4.0);
-                    final center = _viewportSize.center(Offset.zero);
-                    _transformationController.value = Matrix4.identity()
-                      ..translate(
-                        center.dx - center.dx * newZoom,
-                        center.dy - center.dy * newZoom,
-                      )
-                      ..scale(newZoom);
-                  },
-                  onReset: () {
-                    _transformationController.value = Matrix4.identity();
-                  },
-                  onSearchToggle: () {
-                    setState(() {
-                      _searchBarVisible = !_searchBarVisible;
-                    });
-                  },
-                  searchBarVisible: _searchBarVisible,
-                ),
-              ),
+            GraphControlBar(
+              cameraController: _cameraController,
+              onFilterTap: () => setState(() => _filterVisible = !_filterVisible),
+              onLegendTap: () => setState(() => _legendVisible = !_legendVisible),
+              isFilterActive: _currentFilter.isActive,
+              currentTier: currentTier,
             ),
 
             // ── Onboarding Flow (conditional) ────────────────────────
@@ -685,12 +688,27 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     return NodeState.normal;
   }
 
-  /// Resolves responsive node size based on zoom level.
+  /// Resolves responsive node size based on screen width breakpoints
+  /// per V2.1 Blueprint §20, combined with zoom level.
   double _resolveNodeSize(double zoomLevel) {
-    if (zoomLevel < 0.5) return 48.0; // compact
-    if (zoomLevel < 0.8) return 56.0; // standard
-    if (zoomLevel < 1.5) return 60.0; // expanded
-    return 64.0; // large
+    // Screen-width breakpoints take priority
+    final screenWidth = _viewportSize.width;
+    double baseSize;
+    if (screenWidth < 400) {
+      baseSize = 48.0; // Compact: iPhone SE
+    } else if (screenWidth < 720) {
+      baseSize = 56.0; // Standard: iPhone 15, Pixel 8
+    } else if (screenWidth < 1024) {
+      baseSize = 60.0; // Expanded: large phones, small tablets
+    } else {
+      baseSize = 64.0; // Large: iPad Air and above
+    }
+
+    // Zoom-level scaling on top of base
+    if (zoomLevel < 0.5) return baseSize * 0.85; // compact at zoom
+    if (zoomLevel < 0.8) return baseSize * 0.95; // standard at zoom
+    if (zoomLevel < 1.5) return baseSize; // expanded at zoom
+    return baseSize * 1.05; // large at zoom
   }
 
   // ── Relationship Label ─────────────────────────────────────────────
@@ -876,88 +894,4 @@ class _GraphPersonData {
         id: '',
         name: '',
       );
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// CONTROL BAR
-// ═══════════════════════════════════════════════════════════════════════
-
-/// Floating control bar with zoom and search controls.
-class _ControlBar extends StatelessWidget {
-  const _ControlBar({
-    required this.zoomLevel,
-    required this.onZoomIn,
-    required this.onZoomOut,
-    required this.onReset,
-    required this.onSearchToggle,
-    required this.searchBarVisible,
-  });
-
-  final double zoomLevel;
-  final VoidCallback onZoomIn;
-  final VoidCallback onZoomOut;
-  final VoidCallback onReset;
-  final VoidCallback onSearchToggle;
-  final bool searchBarVisible;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(16.0),
-        border: Border.all(color: KinrelColors.border),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _controlButton(
-            icon: searchBarVisible ? Icons.close : Icons.search,
-            onTap: onSearchToggle,
-          ),
-          const Divider(height: 1, color: KinrelColors.border),
-          _controlButton(
-            icon: Icons.add,
-            onTap: onZoomIn,
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4.0),
-            child: Text(
-              '${(zoomLevel * 100).round()}%',
-              style: const TextStyle(
-                fontFamily: KinrelTypography.monoFont,
-                fontSize: 10.0,
-                color: KinrelColors.textDim,
-              ),
-            ),
-          ),
-          _controlButton(
-            icon: Icons.remove,
-            onTap: onZoomOut,
-          ),
-          const Divider(height: 1, color: KinrelColors.border),
-          _controlButton(
-            icon: Icons.center_focus_strong,
-            onTap: onReset,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _controlButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return SizedBox(
-      width: 44.0,
-      height: 44.0,
-      child: IconButton(
-        icon: Icon(icon, size: 20.0, color: KinrelColors.textSilver),
-        onPressed: onTap,
-        padding: EdgeInsets.zero,
-        splashRadius: 20.0,
-      ),
-    );
-  }
 }

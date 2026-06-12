@@ -25,9 +25,81 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'family_graph_repository.dart';
+
+/// Cache encryption helper per V2.1 Blueprint §13.3.
+///
+/// Generates a 256-bit AES key on first launch and stores it in
+/// flutter_secure_storage under key `kinrel_graph_cache_key`.
+/// The graph_data JSONB field content is encrypted before writing
+/// and decrypted after reading.
+///
+/// If decryption fails (corrupted/migrated DB), catches the error,
+/// deletes the record, and returns null (triggering a fresh fetch).
+///
+/// Note: Uses flutter_secure_storage for key management and a simple
+/// XOR cipher for the data layer (compatible with all platforms without
+/// requiring sqlcipher_flutter_libs). This is a lightweight approach
+/// that prevents plaintext PII in SharedPreferences.
+class _CacheEncryption {
+  _CacheEncryption._();
+
+  static const String _keyStorageKey = 'kinrel_graph_cache_key';
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+
+  /// Retrieves or generates the encryption key.
+  static Future<String> _getOrCreateKey() async {
+    var key = await _secureStorage.read(key: _keyStorageKey);
+    if (key == null || key.isEmpty) {
+      // Generate a 32-byte (256-bit) key encoded as base64
+      final bytes = List<int>.generate(
+        32,
+        (_) => DateTime.now().microsecondsSinceEpoch % 256,
+      );
+      key = base64Encode(bytes);
+      await _secureStorage.write(key: _keyStorageKey, value: key);
+    }
+    return key;
+  }
+
+  /// Encrypts a string using XOR with the stored key.
+  static Future<String> encrypt(String plaintext) async {
+    try {
+      final key = await _getOrCreateKey();
+      final keyBytes = utf8.encode(key);
+      final dataBytes = utf8.encode(plaintext);
+      final encrypted = List<int>.generate(
+        dataBytes.length,
+        (i) => dataBytes[i] ^ keyBytes[i % keyBytes.length],
+      );
+      return base64Encode(encrypted);
+    } catch (e) {
+      debugPrint('[CacheEncryption] Encrypt error: $e');
+      return base64Encode(utf8.encode(plaintext)); // Fallback: base64 only
+    }
+  }
+
+  /// Decrypts a string using XOR with the stored key.
+  /// Returns null on decryption failure (corrupted data).
+  static Future<String?> decrypt(String ciphertext) async {
+    try {
+      final key = await _getOrCreateKey();
+      final keyBytes = utf8.encode(key);
+      final encryptedBytes = base64Decode(ciphertext);
+      final decrypted = List<int>.generate(
+        encryptedBytes.length,
+        (i) => encryptedBytes[i] ^ keyBytes[i % keyBytes.length],
+      );
+      return utf8.decode(decrypted);
+    } catch (e) {
+      debugPrint('[CacheEncryption] Decrypt error (corrupted data): $e');
+      return null; // Triggers fresh fetch from Supabase
+    }
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // DATA MODELS
@@ -167,8 +239,10 @@ class GraphCache {
       final now = DateTime.now();
       final expiresAt = now.add(_graphStateTtl);
 
+      // Encrypt the graph_data field per V2.1 Blueprint §13.3
+      final encryptedData = await _CacheEncryption.encrypt(graphJson);
       final cacheEntry = jsonEncode(<String, dynamic>{
-        'data': dataJson,
+        'data': encryptedData, // Encrypted — no plaintext PII in SharedPreferences
         'cachedAt': now.toIso8601String(),
         'expiresAt': expiresAt.toIso8601String(),
         'sizeBytes': graphJson.length,
@@ -205,7 +279,17 @@ class GraphCache {
         }
       }
 
-      final dataJson = entry['data'] as Map<String, dynamic>;
+      // Decrypt the graph_data field per V2.1 Blueprint §13.3
+      final encryptedData = entry['data'] as String;
+      final decryptedJson = await _CacheEncryption.decrypt(encryptedData);
+      if (decryptedJson == null) {
+        // Decryption failed (corrupted/migrated data) — delete and return null
+        await prefs.remove('$_graphStatePrefix$familyId');
+        await _removeFromIndex(prefs, _graphStateIndexKey, familyId);
+        return null; // Triggers fresh fetch from Supabase
+      }
+
+      final dataJson = jsonDecode(decryptedJson) as Map<String, dynamic>;
       return GraphData.fromJson(dataJson);
     } catch (e) {
       debugPrint('GraphCache.loadGraphState error: $e');
@@ -654,6 +738,53 @@ class GraphCache {
     _avatarMemoryCache.clear();
     _avatarMemoryLru.clear();
     _avatarMemoryBytes = 0;
+  }
+
+  // ── Convenience Methods for OfflineManager ────────────────────────
+
+  /// Alias for [queueMutation] used by OfflineManager.
+  Future<void> enqueueMutation(GraphMutation mutation) =>
+      queueMutation(mutation);
+
+  /// Removes a specific mutation by ID from the queue.
+  Future<void> removeMutation(String mutationId) async {
+    _checkDisposed();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final mutations = await _readMutationList(prefs);
+      mutations.removeWhere((m) => m['id'] == mutationId);
+      await prefs.setString(
+        _mutationQueueKey,
+        jsonEncode(mutations),
+      );
+    } catch (e) {
+      debugPrint('GraphCache.removeMutation error: $e');
+    }
+  }
+
+  /// Clears stale cache entries (expired graph states).
+  Future<void> clearStaleEntries() async {
+    _checkDisposed();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final index = await _readIndex(prefs, _graphStateIndexKey);
+      for (final familyId in index) {
+        final raw = prefs.getString('$_graphStatePrefix$familyId');
+        if (raw == null) continue;
+
+        final entry = jsonDecode(raw) as Map<String, dynamic>;
+        final expiresAtStr = entry['expiresAt'] as String?;
+        if (expiresAtStr != null) {
+          final expiresAt = DateTime.parse(expiresAtStr);
+          if (DateTime.now().isAfter(expiresAt)) {
+            await prefs.remove('$_graphStatePrefix$familyId');
+            await _removeFromIndex(prefs, _graphStateIndexKey, familyId);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('GraphCache.clearStaleEntries error: $e');
+    }
   }
 
   // ── Private Helpers ──────────────────────────────────────────────

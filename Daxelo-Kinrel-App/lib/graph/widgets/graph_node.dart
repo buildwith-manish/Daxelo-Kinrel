@@ -407,6 +407,9 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   late final Animation<double> _shimmerAnimation;
   late final Animation<double> _errorPulseAnimation;
 
+  /// Whether high contrast mode is active (updated on build).
+  bool _highContrast = false;
+
   // ── Lifecycle ──────────────────────────────────────────────────────
 
   @override
@@ -507,9 +510,11 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   // ── Relationship Color ─────────────────────────────────────────────
 
   Color get _borderColor {
-    if (widget.isAnonymous) return KinrelColors.textDim;
+    if (widget.isAnonymous) return _highContrast ? Colors.grey : KinrelColors.textDim;
     if (widget.isAnchor) return RelationshipColors.self;
-    return RelationshipColors.borderColorFor(widget.relationshipKey);
+    final color = RelationshipColors.borderColorFor(widget.relationshipKey);
+    // High contrast: full opacity colors for WCAG AA 4.5:1 contrast
+    return _highContrast ? Color.fromRGBO(color.red, color.green, color.blue, 1.0) : color;
   }
 
   Color get _tintColor {
@@ -522,6 +527,18 @@ class _GraphNodeState extends ConsumerState<GraphNode>
 
   @override
   Widget build(BuildContext context) {
+    // Accessibility: reduced motion & high contrast
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    _highContrast = MediaQuery.of(context).highContrast;
+
+    // Update animation durations for reduced motion
+    if (reduceMotion) {
+      _pulseController.stop();
+      _shimmerController.stop();
+      _errorPulseController.stop();
+      _expandRotateController.stop();
+    }
+
     final effectiveOpacity =
         widget.isDeceased ? 0.4 * widget.opacity : widget.opacity;
 
@@ -534,7 +551,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
           onTap: widget.onTap,
           onLongPress: widget.onLongPress,
           onDoubleTap: widget.onDoubleTap,
-          child: _buildAnimatedNode(),
+          child: _buildAnimatedNode(reduceMotion: reduceMotion),
         ),
       ),
     );
@@ -562,7 +579,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
 
   // ── Animated Node Builder ──────────────────────────────────────────
 
-  Widget _buildAnimatedNode() {
+  Widget _buildAnimatedNode({bool reduceMotion = false}) {
     // Focused state: pulsing glow
     if (widget.nodeState == NodeState.focused) {
       return AnimatedBuilder(
@@ -848,20 +865,17 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     );
   }
 
-  /// Border width varies by state.
+  /// Border width varies by state. Doubled in high contrast mode
+  /// per V2.1 Blueprint §19 (WCAG AA minimum contrast 4.5:1).
   double get _borderWidth {
-    switch (widget.nodeState) {
-      case NodeState.selected:
-        return 3.5;
-      case NodeState.focused:
-        return 3.0;
-      case NodeState.hover:
-        return 2.5;
-      case NodeState.error:
-        return 3.0;
-      default:
-        return 2.5;
-    }
+    final base = switch (widget.nodeState) {
+      NodeState.selected => 3.5,
+      NodeState.focused => 3.0,
+      NodeState.hover => 2.5,
+      NodeState.error => 3.0,
+      _ => 2.5,
+    };
+    return _highContrast ? base * 2.0 : base;
   }
 
   // ── Circle Content (initials or photo) ─────────────────────────────

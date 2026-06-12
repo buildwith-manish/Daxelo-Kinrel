@@ -30,6 +30,9 @@ export 'data/family_graph_repository.dart';
 export 'data/supabase_data_source.dart';
 export 'data/graph_cache.dart';
 export 'data/position_memory.dart';
+export 'data/offline_manager.dart';
+export 'data/realtime_sync.dart';
+export 'data/data_validator.dart';
 
 // ── Interaction Layer ─────────────────────────────────────────────────────────
 export 'interaction/camera_controller.dart';
@@ -48,3 +51,6 @@ export 'widgets/relationship_edge.dart' hide GraphEdgeData;
 export 'widgets/empty_state.dart';
 export 'widgets/onboarding_flow.dart';
 export 'widgets/search_bar.dart';
+export 'widgets/filter_panel.dart';
+export 'widgets/graph_legend.dart';
+export 'widgets/control_bar.dart';
