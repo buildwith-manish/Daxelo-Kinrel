@@ -295,11 +295,10 @@ class PermissionValidator {
             anonymous.add(GraphNodeData(
               id: node.id,
               name: '',
-              photoUrl: null,
+              avatarUrl: null,
               generationIndex: node.generationIndex,
               isAnchor: false,
               isDeceased: false,
-              relationshipKey: null,
               gender: null,
             ));
           }
@@ -309,11 +308,10 @@ class PermissionValidator {
           anonymous.add(GraphNodeData(
             id: node.id,
             name: '',
-            photoUrl: null,
+            avatarUrl: null,
             generationIndex: node.generationIndex,
             isAnchor: false,
             isDeceased: false,
-            relationshipKey: null,
             gender: null,
           ));
         }
