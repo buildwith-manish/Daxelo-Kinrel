@@ -28,7 +28,7 @@ import '../../core/constants/brand_typography.dart';
 import '../../core/services/graph_layout_service.dart';
 import '../../features/family/presentation/providers/family_graph_provider.dart';
 import '../analytics/analytics_tracker.dart';
-import '../data/family_graph_repository.dart';
+import '../data/family_graph_repository.dart' show GraphData, GraphEdgeData;
 import '../data/position_memory.dart';
 import '../interaction/camera_controller.dart';
 import '../rendering/viewport_culler.dart';

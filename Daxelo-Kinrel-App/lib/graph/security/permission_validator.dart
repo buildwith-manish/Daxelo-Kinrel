@@ -30,73 +30,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../data/family_graph_repository.dart' show GraphNodeData, GraphEdgeData, GraphRealtimeEvent;
+
 // ═══════════════════════════════════════════════════════════════════════
 // DATA MODELS
 // ═══════════════════════════════════════════════════════════════════════
-
-/// Lightweight node data used by the permission filter.
-class GraphNodeData {
-  /// Unique member identifier.
-  final String id;
-
-  /// Display name (empty for anonymous/hidden nodes).
-  final String name;
-
-  /// Optional avatar/photo URL.
-  final String? photoUrl;
-
-  /// Generation index for ring placement.
-  final int generationIndex;
-
-  /// Whether this person is the anchor (center) node.
-  final bool isAnchor;
-
-  /// Whether this person is deceased.
-  final bool isDeceased;
-
-  /// The relationship type key from the anchor to this person.
-  final String? relationshipKey;
-
-  /// Optional gender string.
-  final String? gender;
-
-  const GraphNodeData({
-    required this.id,
-    required this.name,
-    this.photoUrl,
-    this.generationIndex = 0,
-    this.isAnchor = false,
-    this.isDeceased = false,
-    this.relationshipKey,
-    this.gender,
-  });
-}
-
-/// Lightweight edge data used by the permission filter.
-class GraphEdgeData {
-  /// Unique edge identifier.
-  final String id;
-
-  /// Source person ID.
-  final String sourceId;
-
-  /// Target person ID.
-  final String targetId;
-
-  /// Relationship type key (e.g., 'father', 'spouse').
-  final String relationshipKey;
-
-  /// Whether this relationship is marked private by participants.
-  final bool isPrivate;
-
-  const GraphEdgeData({
-    required this.id,
-    required this.sourceId,
-    required this.targetId,
-    required this.relationshipKey,
-    this.isPrivate = false,
-  });
-}
 
 /// Result of filtering graph nodes by permission.
 ///
@@ -123,27 +61,7 @@ class VisibilityResult {
   });
 }
 
-/// A realtime event from Supabase indicating a permission change.
-class GraphRealtimeEvent {
-  /// The type of permission change.
-  final String eventType;
-
-  /// The target member ID affected by the change.
-  final String targetId;
-
-  /// The family ID this event belongs to.
-  final String familyId;
-
-  /// Timestamp of the event.
-  final DateTime timestamp;
-
-  const GraphRealtimeEvent({
-    required this.eventType,
-    required this.targetId,
-    required this.familyId,
-    required this.timestamp,
-  });
-}
+// GraphRealtimeEvent imported from family_graph_repository.dart
 
 // ═══════════════════════════════════════════════════════════════════════
 // CACHE ENTRY
@@ -572,7 +490,8 @@ class PermissionValidator {
   /// the UI can fade nodes/edges in/out over 300ms.
   void onPermissionChanged(GraphRealtimeEvent event) {
     // Extract targetId from event payload if available
-    final targetId = event.payload['target_id'] as String?;
+    final targetId = event.payload['target_id'] as String? ??
+        event.payload['grantor_id'] as String?;
     invalidateCache(targetId: targetId);
 
     // Notify listeners (UI will animate fade in/out over 300ms)
@@ -599,12 +518,11 @@ class PermissionValidator {
       ),
       callback: (PostgresChangePayload payload) {
         final newRecord = payload.newRecord;
-        final eventType = payload.eventType.name;
         final grantorId = newRecord['grantor_id'] as String? ?? '';
         final granteeId = newRecord['grantee_id'] as String? ?? '';
 
         onPermissionChanged(GraphRealtimeEvent(
-          type: eventType,
+          type: payload.eventType.name,
           payload: {
             'grantor_id': grantorId,
             'grantee_id': granteeId,

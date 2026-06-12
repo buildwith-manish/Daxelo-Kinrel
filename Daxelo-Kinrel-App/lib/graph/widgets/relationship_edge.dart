@@ -38,40 +38,18 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../core/constants/brand_colors.dart';
+import '../data/family_graph_repository.dart' show GraphEdgeData;
 import 'graph_node.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
-// EDGE DATA MODEL
+// EDGE EXTENSION
 // ═══════════════════════════════════════════════════════════════════════
 
-/// A lightweight edge descriptor for the relationship edge painter.
-class GraphEdgeData {
-  /// Unique edge identifier.
-  final String id;
-
-  /// Source person ID.
-  final String sourceId;
-
-  /// Target person ID.
-  final String targetId;
-
-  /// Relationship type key (e.g., 'father', 'spouse').
-  final String relationshipKey;
-
-  /// Whether this relationship is private.
-  final bool isPrivate;
-
+/// Extension on GraphEdgeData to add indirect connection tracking.
+extension GraphEdgeDataExt on GraphEdgeData {
   /// Whether this is an indirect connection (through a blocked member).
-  final bool isIndirectConnection;
-
-  const GraphEdgeData({
-    required this.id,
-    required this.sourceId,
-    required this.targetId,
-    required this.relationshipKey,
-    this.isPrivate = false,
-    this.isIndirectConnection = false,
-  });
+  /// Stored in the relationshipKey as a prefix convention.
+  bool get isIndirectConnection => relationshipKey.startsWith('indirect_');
 }
 
 // ═══════════════════════════════════════════════════════════════════════
