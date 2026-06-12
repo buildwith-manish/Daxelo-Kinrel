@@ -2,7 +2,7 @@
 //
 // DAXELO KINREL — Graph Cache (V2.1 Data Layer)
 //
-// Offline cache with SQLite (Drift). Serializes graph state to local
+// Offline cache with SharedPreferences. Serializes graph state to local
 // storage with size limits, TTL-based invalidation, and a 3-phase
 // sync protocol for offline-first operation.
 //
@@ -20,140 +20,14 @@
 //   Conflict resolution: "server wins"
 
 import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:ui';
 
-import 'package:drift/drift.dart';
-import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'family_graph_repository.dart';
-
-part 'graph_cache.g.dart';
-
-// ═══════════════════════════════════════════════════════════════════════
-// DRIFT TABLE DEFINITIONS
-// ═══════════════════════════════════════════════════════════════════════
-
-/// Drift table for cached graph states.
-class CachedGraphStates extends Table {
-  /// Family ID (primary key).
-  TextColumn get familyId => text()();
-
-  /// JSON-serialized [GraphData].
-  TextColumn get graphJson => text()();
-
-  /// When this cache entry was created.
-  DateTimeColumn get cachedAt => dateTime()();
-
-  /// When this cache entry expires.
-  DateTimeColumn get expiresAt => dateTime()();
-
-  /// Size in bytes of the cached data.
-  IntColumn get sizeBytes => integer()();
-
-  @override
-  Set<Column> get primaryKey => {familyId};
-}
-
-/// Drift table for cached node positions.
-class CachedNodePositions extends Table {
-  /// Family ID (part of composite key).
-  TextColumn get familyId => text()();
-
-  /// Disclosure level when positions were saved.
-  IntColumn get disclosureLevel => integer()();
-
-  /// JSON-serialized position map.
-  TextColumn get positionsJson => text()();
-
-  /// When positions were cached.
-  DateTimeColumn get cachedAt => dateTime()();
-
-  @override
-  Set<Column> get primaryKey => {familyId, disclosureLevel};
-}
-
-/// Drift table for the offline mutation queue.
-class MutationQueue extends Table {
-  /// Unique mutation ID (primary key).
-  TextColumn get id => text()();
-
-  /// Mutation type (e.g. "add_relationship", "update_member").
-  TextColumn get type => text()();
-
-  /// JSON-serialized mutation payload.
-  TextColumn get payloadJson => text()();
-
-  /// When this mutation was created.
-  DateTimeColumn get createdAt => dateTime()();
-
-  /// Whether this mutation has been synced.
-  BoolColumn get isSynced => boolean().withDefault(const Constant(false))();
-
-  @override
-  Set<Column> get primaryKey => {id};
-}
-
-/// Drift table for cached search results.
-class CachedSearchResults extends Table {
-  /// Search query (part of composite key).
-  TextColumn get query => text()();
-
-  /// Family ID (part of composite key).
-  TextColumn get familyId => text()();
-
-  /// JSON-serialized search results.
-  TextColumn get resultsJson => text()();
-
-  /// When results were cached.
-  DateTimeColumn get cachedAt => dateTime()();
-
-  /// When this cache entry expires.
-  DateTimeColumn get expiresAt => dateTime()();
-
-  @override
-  Set<Column> get primaryKey => {query, familyId};
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// DRIFT DATABASE
-// ═══════════════════════════════════════════════════════════════════════
-
-/// Drift database for graph cache tables.
-@DriftDatabase(
-  tables: [
-    CachedGraphStates,
-    CachedNodePositions,
-    MutationQueue,
-    CachedSearchResults,
-  ],
-)
-class GraphCacheDatabase extends _$GraphCacheDatabase {
-  /// Creates a graph cache database.
-  GraphCacheDatabase() : super(_openConnection());
-
-  /// Creates a graph cache database with an explicit executor.
-  GraphCacheDatabase.withExecutor(QueryExecutor executor)
-      : super(executor);
-
-  @override
-  int get schemaVersion => 1;
-
-  @override
-  MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (Migrator m) async {
-          await m.createAll();
-        },
-        onUpgrade: (Migrator m, int from, int to) async {
-          // Future migration logic goes here.
-        },
-      );
-
-  /// Returns a drift query executor for the current platform.
-  static QueryExecutor _openConnection() {
-    return driftDatabase(name: 'kinrel_graph_cache');
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════════════
 // DATA MODELS
@@ -207,14 +81,14 @@ class GraphMutation {
 // GRAPH CACHE
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Offline cache for graph data with SQLite persistence via Drift.
+/// Offline cache for graph data with SharedPreferences persistence.
 ///
 /// Provides:
-/// - Graph state caching (50 MB max, TTL 30 min)
-/// - Node position caching (5 MB max, session duration)
-/// - Search index caching (10 MB max, TTL 60 min)
+/// - Graph state caching (TTL 30 min)
+/// - Node position caching (session duration)
+/// - Search index caching (TTL 60 min)
 /// - Mutation queue (100 mutations max, persistent until synced)
-/// - Avatar 3-tier caching (in-memory → disk → network)
+/// - Avatar 3-tier caching (in-memory -> disk -> network)
 ///
 /// 3-Phase Sync Protocol:
 /// 1. Replay queued mutations in order
@@ -223,16 +97,8 @@ class GraphMutation {
 ///
 /// Conflict resolution: "server wins"
 class GraphCache {
-  /// Creates a graph cache with the given [database].
+  /// Creates a graph cache using SharedPreferences for storage.
   ///
-  /// [maxGraphStorageBytes] is the maximum bytes for graph state
-  ///   caching (default: 50 MB).
-  /// [maxPositionStorageBytes] is the maximum bytes for position
-  ///   caching (default: 5 MB).
-  /// [maxSearchStorageBytes] is the maximum bytes for search index
-  ///   caching (default: 10 MB).
-  /// [maxAvatarDiskBytes] is the maximum bytes for avatar disk cache
-  ///   (default: 100 MB).
   /// [maxMutationQueueSize] is the maximum number of pending mutations
   ///   (default: 100).
   /// [graphStateTtl] is the time-to-live for graph state cache
@@ -240,35 +106,19 @@ class GraphCache {
   /// [searchCacheTtl] is the time-to-live for search cache
   ///   (default: 60 minutes).
   GraphCache({
-    GraphCacheDatabase? database,
-    int maxGraphStorageBytes = 50 * 1024 * 1024,
-    int maxPositionStorageBytes = 5 * 1024 * 1024,
-    int maxSearchStorageBytes = 10 * 1024 * 1024,
-    int maxAvatarDiskBytes = 100 * 1024 * 1024,
     int maxMutationQueueSize = 100,
     Duration graphStateTtl = const Duration(minutes: 30),
     Duration searchCacheTtl = const Duration(minutes: 60),
-  })  : _db = database ?? GraphCacheDatabase(),
-        _maxGraphStorageBytes = maxGraphStorageBytes,
-        _maxPositionStorageBytes = maxPositionStorageBytes,
-        _maxSearchStorageBytes = maxSearchStorageBytes,
-        _maxAvatarDiskBytes = maxAvatarDiskBytes,
-        _maxMutationQueueSize = maxMutationQueueSize,
+  })  : _maxMutationQueueSize = maxMutationQueueSize,
         _graphStateTtl = graphStateTtl,
         _searchCacheTtl = searchCacheTtl;
 
-  final GraphCacheDatabase _db;
-
-  final int _maxGraphStorageBytes;
-  final int _maxPositionStorageBytes;
-  final int _maxSearchStorageBytes;
-  final int _maxAvatarDiskBytes;
   final int _maxMutationQueueSize;
   final Duration _graphStateTtl;
   final Duration _searchCacheTtl;
 
   /// In-memory texture cache for avatars (Tier 1).
-  /// Maps avatar URL → raw image bytes.
+  /// Maps avatar URL -> raw image bytes.
   final Map<String, _AvatarCacheEntry> _avatarMemoryCache =
       <String, _AvatarCacheEntry>{};
 
@@ -282,6 +132,27 @@ class GraphCache {
 
   bool _isDisposed = false;
 
+  /// SharedPreferences key prefix for graph state cache.
+  static const String _graphStatePrefix = 'kinrel_graph_state_';
+
+  /// SharedPreferences key prefix for position cache.
+  static const String _positionPrefix = 'kinrel_graph_pos_';
+
+  /// SharedPreferences key prefix for search cache.
+  static const String _searchPrefix = 'kinrel_graph_search_';
+
+  /// SharedPreferences key for mutation queue.
+  static const String _mutationQueueKey = 'kinrel_graph_mutations';
+
+  /// SharedPreferences key for tracking all graph state family IDs.
+  static const String _graphStateIndexKey = 'kinrel_graph_state_index';
+
+  /// SharedPreferences key for tracking all position keys.
+  static const String _positionIndexKey = 'kinrel_graph_pos_index';
+
+  /// SharedPreferences key for tracking all search cache keys.
+  static const String _searchIndexKey = 'kinrel_graph_search_index';
+
   // ── Graph State Cache ────────────────────────────────────────────
 
   /// Saves a graph state to the local cache.
@@ -291,25 +162,25 @@ class GraphCache {
   Future<void> saveGraphState(String familyId, GraphData data) async {
     _checkDisposed();
     try {
-      final graphJson = jsonEncode(data.toJson());
+      final dataJson = data.toJson();
+      final graphJson = jsonEncode(dataJson);
       final now = DateTime.now();
       final expiresAt = now.add(_graphStateTtl);
-      final sizeBytes = graphJson.length;
 
-      // Evict if exceeding storage limit.
-      await _enforceGraphStorageLimit(sizeBytes);
+      final cacheEntry = jsonEncode(<String, dynamic>{
+        'data': dataJson,
+        'cachedAt': now.toIso8601String(),
+        'expiresAt': expiresAt.toIso8601String(),
+        'sizeBytes': graphJson.length,
+      });
 
-      await _db.into(_db.cachedGraphStates).insertOnConflictUpdate(
-            CachedGraphStatesCompanion.insert(
-              familyId: familyId,
-              graphJson: graphJson,
-              cachedAt: now,
-              expiresAt: expiresAt,
-              sizeBytes: sizeBytes,
-            ),
-          );
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('$_graphStatePrefix$familyId', cacheEntry);
+
+      // Track the family ID in the index for cache management.
+      await _addToIndex(prefs, _graphStateIndexKey, familyId);
     } catch (e) {
-      debugPrint('⚠️ GraphCache.saveGraphState error: $e');
+      debugPrint('GraphCache.saveGraphState error: $e');
     }
   }
 
@@ -319,26 +190,25 @@ class GraphCache {
   Future<GraphData?> loadGraphState(String familyId) async {
     _checkDisposed();
     try {
-      final query = _db.select(_db.cachedGraphStates)
-        ..where(($CachedGraphStatesTable t) =>
-            t.familyId.equals(familyId));
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('$_graphStatePrefix$familyId');
+      if (raw == null) return null;
 
-      final row = await query.getSingleOrNull();
-      if (row == null) return null;
-
-      // Check expiration.
-      if (DateTime.now().isAfter(row.expiresAt)) {
-        await (_db.delete(_db.cachedGraphStates)
-              ..where(($CachedGraphStatesTable t) =>
-                  t.familyId.equals(familyId)))
-            .go();
-        return null;
+      final entry = jsonDecode(raw) as Map<String, dynamic>;
+      final expiresAtStr = entry['expiresAt'] as String?;
+      if (expiresAtStr != null) {
+        final expiresAt = DateTime.parse(expiresAtStr);
+        if (DateTime.now().isAfter(expiresAt)) {
+          await prefs.remove('$_graphStatePrefix$familyId');
+          await _removeFromIndex(prefs, _graphStateIndexKey, familyId);
+          return null;
+        }
       }
 
-      final json = jsonDecode(row.graphJson) as Map<String, dynamic>;
-      return GraphData.fromJson(json);
+      final dataJson = entry['data'] as Map<String, dynamic>;
+      return GraphData.fromJson(dataJson);
     } catch (e) {
-      debugPrint('⚠️ GraphCache.loadGraphState error: $e');
+      debugPrint('GraphCache.loadGraphState error: $e');
       return null;
     }
   }
@@ -357,7 +227,7 @@ class GraphCache {
   ) async {
     _checkDisposed();
     try {
-      // Serialize positions as a flat list of objects.
+      // Serialize positions as a flat list of {id, x, y} objects.
       final positionsList = positions.entries
           .map((MapEntry<String, Offset> e) => <String, dynamic>{
                 'id': e.key,
@@ -365,19 +235,21 @@ class GraphCache {
                 'y': e.value.dy,
               })
           .toList();
-      final positionsJson = jsonEncode(positionsList);
-      final now = DateTime.now();
 
-      await _db.into(_db.cachedNodePositions).insertOnConflictUpdate(
-            CachedNodePositionsCompanion.insert(
-              familyId: familyId,
-              disclosureLevel: disclosureLevel,
-              positionsJson: positionsJson,
-              cachedAt: now,
-            ),
-          );
+      final cacheKey = '${familyId}_$disclosureLevel';
+      final cacheEntry = jsonEncode(<String, dynamic>{
+        'positions': positionsList,
+        'disclosureLevel': disclosureLevel,
+        'cachedAt': DateTime.now().toIso8601String(),
+      });
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('$_positionPrefix$cacheKey', cacheEntry);
+
+      // Track the position key in the index for cache management.
+      await _addToIndex(prefs, _positionIndexKey, cacheKey);
     } catch (e) {
-      debugPrint('⚠️ GraphCache.savePositions error: $e');
+      debugPrint('GraphCache.savePositions error: $e');
     }
   }
 
@@ -391,19 +263,17 @@ class GraphCache {
   ) async {
     _checkDisposed();
     try {
-      final query = _db.select(_db.cachedNodePositions)
-        ..where(($CachedNodePositionsTable t) =>
-            t.familyId.equals(familyId) &
-            t.disclosureLevel.equals(disclosureLevel));
+      final cacheKey = '${familyId}_$disclosureLevel';
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('$_positionPrefix$cacheKey');
+      if (raw == null) return null;
 
-      final row = await query.getSingleOrNull();
-      if (row == null) return null;
+      final entry = jsonDecode(raw) as Map<String, dynamic>;
+      final positionsList = entry['positions'] as List<dynamic>;
 
-      final positionsList =
-          jsonDecode(row.positionsJson) as List<dynamic>;
       final positions = <String, Offset>{};
-      for (final entry in positionsList) {
-        final map = entry as Map<String, dynamic>;
+      for (final item in positionsList) {
+        final map = item as Map<String, dynamic>;
         final id = map['id'] as String;
         final x = (map['x'] as num).toDouble();
         final y = (map['y'] as num).toDouble();
@@ -411,7 +281,7 @@ class GraphCache {
       }
       return positions;
     } catch (e) {
-      debugPrint('⚠️ GraphCache.loadPositions error: $e');
+      debugPrint('GraphCache.loadPositions error: $e');
       return null;
     }
   }
@@ -424,26 +294,18 @@ class GraphCache {
   Future<void> queueMutation(GraphMutation mutation) async {
     _checkDisposed();
     try {
-      // Enforce queue size limit.
-      final pending = await getPendingMutations();
-      if (pending.length >= _maxMutationQueueSize) {
-        // Remove the oldest mutation to make room.
-        await (_db.delete(_db.mutationQueue)
-              ..where(($MutationQueueTable t) =>
-                  t.id.equals(pending.first.id)))
-            .go();
+      final prefs = await SharedPreferences.getInstance();
+      final mutations = await _readMutationList(prefs);
+
+      // Enforce queue size limit — remove the oldest mutation.
+      if (mutations.length >= _maxMutationQueueSize) {
+        mutations.removeAt(0);
       }
 
-      await _db.into(_db.mutationQueue).insertOnConflictUpdate(
-            MutationQueueCompanion.insert(
-              id: mutation.id,
-              type: mutation.type,
-              payloadJson: jsonEncode(mutation.payload),
-              createdAt: mutation.createdAt,
-            ),
-          );
+      mutations.add(mutation.toJson());
+      await prefs.setString(_mutationQueueKey, jsonEncode(mutations));
     } catch (e) {
-      debugPrint('⚠️ GraphCache.queueMutation error: $e');
+      debugPrint('GraphCache.queueMutation error: $e');
     }
   }
 
@@ -451,22 +313,14 @@ class GraphCache {
   Future<List<GraphMutation>> getPendingMutations() async {
     _checkDisposed();
     try {
-      final query = _db.select(_db.mutationQueue)
-        ..orderBy([
-          ($MutationQueueTable t) => OrderingTerm.asc(t.createdAt),
-        ]);
-      final rows = await query.get();
+      final prefs = await SharedPreferences.getInstance();
+      final rawList = await _readMutationList(prefs);
 
-      return rows.map((MutationQueueData row) {
-        return GraphMutation(
-          id: row.id,
-          type: row.type,
-          payload: jsonDecode(row.payloadJson) as Map<String, dynamic>,
-          createdAt: row.createdAt,
-        );
+      return rawList.map((Map<String, dynamic> json) {
+        return GraphMutation.fromJson(json);
       }).toList();
     } catch (e) {
-      debugPrint('⚠️ GraphCache.getPendingMutations error: $e');
+      debugPrint('GraphCache.getPendingMutations error: $e');
       return <GraphMutation>[];
     }
   }
@@ -477,13 +331,16 @@ class GraphCache {
   Future<void> clearProcessedMutations(List<String> mutationIds) async {
     _checkDisposed();
     try {
-      for (final id in mutationIds) {
-        await (_db.delete(_db.mutationQueue)
-              ..where(($MutationQueueTable t) => t.id.equals(id)))
-            .go();
-      }
+      final prefs = await SharedPreferences.getInstance();
+      final mutations = await _readMutationList(prefs);
+
+      final idSet = mutationIds.toSet();
+      mutations.removeWhere(
+          (Map<String, dynamic> m) => idSet.contains(m['id']));
+
+      await prefs.setString(_mutationQueueKey, jsonEncode(mutations));
     } catch (e) {
-      debugPrint('⚠️ GraphCache.clearProcessedMutations error: $e');
+      debugPrint('GraphCache.clearProcessedMutations error: $e');
     }
   }
 
@@ -496,20 +353,33 @@ class GraphCache {
   Future<void> invalidateCache(String familyId) async {
     _checkDisposed();
     try {
-      await (_db.delete(_db.cachedGraphStates)
-            ..where(($CachedGraphStatesTable t) =>
-                t.familyId.equals(familyId)))
-          .go();
-      await (_db.delete(_db.cachedNodePositions)
-            ..where(($CachedNodePositionsTable t) =>
-                t.familyId.equals(familyId)))
-          .go();
-      await (_db.delete(_db.cachedSearchResults)
-            ..where(($CachedSearchResultsTable t) =>
-                t.familyId.equals(familyId)))
-          .go();
+      final prefs = await SharedPreferences.getInstance();
+
+      // Remove graph state.
+      await prefs.remove('$_graphStatePrefix$familyId');
+      await _removeFromIndex(prefs, _graphStateIndexKey, familyId);
+
+      // Remove all position entries for this family.
+      final posIndex = await _readIndex(prefs, _positionIndexKey);
+      for (final key in posIndex) {
+        if (key.startsWith('$familyId\_')) {
+          await prefs.remove('$_positionPrefix$key');
+        }
+      }
+      posIndex.removeWhere((k) => k.startsWith('$familyId\_'));
+      await _writeIndex(prefs, _positionIndexKey, posIndex);
+
+      // Remove all search entries for this family.
+      final searchIndex = await _readIndex(prefs, _searchIndexKey);
+      for (final key in searchIndex) {
+        if (key.startsWith('${familyId}_')) {
+          await prefs.remove('$_searchPrefix$key');
+        }
+      }
+      searchIndex.removeWhere((k) => k.startsWith('${familyId}_'));
+      await _writeIndex(prefs, _searchIndexKey, searchIndex);
     } catch (e) {
-      debugPrint('⚠️ GraphCache.invalidateCache error: $e');
+      debugPrint('GraphCache.invalidateCache error: $e');
     }
   }
 
@@ -517,31 +387,47 @@ class GraphCache {
   Future<int> getCacheSize() async {
     _checkDisposed();
     try {
-      // Sum sizes of all graph state entries.
-      final graphRows = await _db.select(_db.cachedGraphStates).get();
-      final graphSize =
-          graphRows.fold<int>(0, (int sum, CachedGraphStatesData row) {
-        return sum + row.sizeBytes;
-      });
+      final prefs = SharedPreferences.getInstance();
+      final prefsInstance = await prefs;
+      var totalSize = 0;
 
-      // Estimate position and search cache sizes.
-      final positionRows =
-          await _db.select(_db.cachedNodePositions).get();
-      final positionSize = positionRows.fold<int>(
-          0, (int sum, CachedNodePositionsData row) {
-        return sum + row.positionsJson.length;
-      });
+      // Graph state entries.
+      final graphIndex = await _readIndex(prefsInstance, _graphStateIndexKey);
+      for (final familyId in graphIndex) {
+        final raw = prefsInstance.getString('$_graphStatePrefix$familyId');
+        if (raw != null) {
+          final entry = jsonDecode(raw) as Map<String, dynamic>;
+          totalSize += (entry['sizeBytes'] as int?) ?? raw.length;
+        }
+      }
 
-      final searchRows =
-          await _db.select(_db.cachedSearchResults).get();
-      final searchSize = searchRows.fold<int>(
-          0, (int sum, CachedSearchResultsData row) {
-        return sum + row.resultsJson.length;
-      });
+      // Position entries.
+      final posIndex = await _readIndex(prefsInstance, _positionIndexKey);
+      for (final key in posIndex) {
+        final raw = prefsInstance.getString('$_positionPrefix$key');
+        if (raw != null) {
+          totalSize += raw.length;
+        }
+      }
 
-      return graphSize + positionSize + searchSize;
+      // Search entries.
+      final searchIndex = await _readIndex(prefsInstance, _searchIndexKey);
+      for (final key in searchIndex) {
+        final raw = prefsInstance.getString('$_searchPrefix$key');
+        if (raw != null) {
+          totalSize += raw.length;
+        }
+      }
+
+      // Mutation queue.
+      final mutationsRaw = prefsInstance.getString(_mutationQueueKey);
+      if (mutationsRaw != null) {
+        totalSize += mutationsRaw.length;
+      }
+
+      return totalSize;
     } catch (e) {
-      debugPrint('⚠️ GraphCache.getCacheSize error: $e');
+      debugPrint('GraphCache.getCacheSize error: $e');
       return 0;
     }
   }
@@ -550,14 +436,38 @@ class GraphCache {
   Future<void> clearAllCache() async {
     _checkDisposed();
     try {
-      await _db.delete(_db.cachedGraphStates).go();
-      await _db.delete(_db.cachedNodePositions).go();
-      await _db.delete(_db.cachedSearchResults).go();
+      final prefs = await SharedPreferences.getInstance();
+
+      // Graph state entries.
+      final graphIndex = await _readIndex(prefs, _graphStateIndexKey);
+      for (final familyId in graphIndex) {
+        await prefs.remove('$_graphStatePrefix$familyId');
+      }
+      await prefs.remove(_graphStateIndexKey);
+
+      // Position entries.
+      final posIndex = await _readIndex(prefs, _positionIndexKey);
+      for (final key in posIndex) {
+        await prefs.remove('$_positionPrefix$key');
+      }
+      await prefs.remove(_positionIndexKey);
+
+      // Search entries.
+      final searchIndex = await _readIndex(prefs, _searchIndexKey);
+      for (final key in searchIndex) {
+        await prefs.remove('$_searchPrefix$key');
+      }
+      await prefs.remove(_searchIndexKey);
+
+      // Mutation queue.
+      await prefs.remove(_mutationQueueKey);
+
+      // Clear in-memory avatar cache.
       _avatarMemoryCache.clear();
       _avatarMemoryLru.clear();
       _avatarMemoryBytes = 0;
     } catch (e) {
-      debugPrint('⚠️ GraphCache.clearAllCache error: $e');
+      debugPrint('GraphCache.clearAllCache error: $e');
     }
   }
 
@@ -643,17 +553,22 @@ class GraphCache {
       final now = DateTime.now();
       final expiresAt = now.add(_searchCacheTtl);
 
-      await _db.into(_db.cachedSearchResults).insertOnConflictUpdate(
-            CachedSearchResultsCompanion.insert(
-              query: query,
-              familyId: familyId,
-              resultsJson: resultsJson,
-              cachedAt: now,
-              expiresAt: expiresAt,
-            ),
-          );
+      final cacheEntry = jsonEncode(<String, dynamic>{
+        'results': results.toJson(),
+        'cachedAt': now.toIso8601String(),
+        'expiresAt': expiresAt.toIso8601String(),
+        'sizeBytes': resultsJson.length,
+      });
+
+      // Composite key: familyId_query to support per-family queries.
+      final cacheKey = '${familyId}_$query';
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('$_searchPrefix$cacheKey', cacheEntry);
+
+      // Track the search key in the index for cache management.
+      await _addToIndex(prefs, _searchIndexKey, cacheKey);
     } catch (e) {
-      debugPrint('⚠️ GraphCache.saveSearchResults error: $e');
+      debugPrint('GraphCache.saveSearchResults error: $e');
     }
   }
 
@@ -664,25 +579,26 @@ class GraphCache {
   ) async {
     _checkDisposed();
     try {
-      final q = _db.select(_db.cachedSearchResults)
-        ..where(($CachedSearchResultsTable t) =>
-            t.query.equals(query) & t.familyId.equals(familyId));
+      final cacheKey = '${familyId}_$query';
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('$_searchPrefix$cacheKey');
+      if (raw == null) return null;
 
-      final row = await q.getSingleOrNull();
-      if (row == null) return null;
-
-      if (DateTime.now().isAfter(row.expiresAt)) {
-        await (_db.delete(_db.cachedSearchResults)
-              ..where(($CachedSearchResultsTable t) =>
-                  t.query.equals(query) & t.familyId.equals(familyId)))
-            .go();
-        return null;
+      final entry = jsonDecode(raw) as Map<String, dynamic>;
+      final expiresAtStr = entry['expiresAt'] as String?;
+      if (expiresAtStr != null) {
+        final expiresAt = DateTime.parse(expiresAtStr);
+        if (DateTime.now().isAfter(expiresAt)) {
+          await prefs.remove('$_searchPrefix$cacheKey');
+          await _removeFromIndex(prefs, _searchIndexKey, cacheKey);
+          return null;
+        }
       }
 
-      final json = jsonDecode(row.resultsJson) as Map<String, dynamic>;
-      return SearchResult.fromJson(json);
+      final resultsJson = entry['results'] as Map<String, dynamic>;
+      return SearchResult.fromJson(resultsJson);
     } catch (e) {
-      debugPrint('⚠️ GraphCache.loadSearchResults error: $e');
+      debugPrint('GraphCache.loadSearchResults error: $e');
       return null;
     }
   }
@@ -707,7 +623,7 @@ class GraphCache {
           syncedIds.add(mutation.id);
         }
       } catch (e) {
-        debugPrint('⚠️ Mutation replay failed for ${mutation.id}: $e');
+        debugPrint('Mutation replay failed for ${mutation.id}: $e');
         break; // Stop replaying on first failure.
       }
     }
@@ -732,12 +648,12 @@ class GraphCache {
 
   // ── Lifecycle ────────────────────────────────────────────────────
 
-  /// Disposes the cache and closes the database connection.
+  /// Disposes the cache and releases resources.
   Future<void> dispose() async {
     _isDisposed = true;
     _avatarMemoryCache.clear();
     _avatarMemoryLru.clear();
-    await _db.close();
+    _avatarMemoryBytes = 0;
   }
 
   // ── Private Helpers ──────────────────────────────────────────────
@@ -749,37 +665,63 @@ class GraphCache {
     }
   }
 
-  /// Enforces the graph storage limit by evicting the oldest entries.
-  Future<void> _enforceGraphStorageLimit(int additionalBytes) async {
-    final currentSize = await getCacheSize();
-    if (currentSize + additionalBytes <= _maxGraphStorageBytes) return;
-
-    // Delete oldest entries until we have room.
-    final rows = await (_db.select(_db.cachedGraphStates)
-          ..orderBy([
-            ($CachedGraphStatesTable t) =>
-                OrderingTerm.asc(t.cachedAt),
-          ]))
-        .get();
-
-    var freedBytes = 0;
-    for (final row in rows) {
-      if (currentSize - freedBytes + additionalBytes <=
-          _maxGraphStorageBytes) {
-        break;
-      }
-      await (_db.delete(_db.cachedGraphStates)
-            ..where(($CachedGraphStatesTable t) =>
-                t.familyId.equals(row.familyId)))
-          .go();
-      freedBytes += row.sizeBytes;
-    }
-  }
-
   /// Updates the LRU position for an avatar cache key.
   void _touchAvatarLru(String cacheKey) {
     _avatarMemoryLru.remove(cacheKey);
     _avatarMemoryLru.add(cacheKey);
+  }
+
+  /// Reads the mutation list from SharedPreferences.
+  Future<List<Map<String, dynamic>>> _readMutationList(
+    SharedPreferences prefs,
+  ) async {
+    final raw = prefs.getString(_mutationQueueKey);
+    if (raw == null) return <Map<String, dynamic>>[];
+
+    final decoded = jsonDecode(raw) as List<dynamic>;
+    return decoded
+        .cast<Map<String, dynamic>>()
+        .toList();
+  }
+
+  /// Reads an index set from SharedPreferences.
+  Future<Set<String>> _readIndex(
+    SharedPreferences prefs,
+    String indexKey,
+  ) async {
+    final raw = prefs.getStringList(indexKey);
+    return raw?.toSet() ?? <String>{};
+  }
+
+  /// Writes an index set to SharedPreferences.
+  Future<void> _writeIndex(
+    SharedPreferences prefs,
+    String indexKey,
+    Set<String> index,
+  ) async {
+    await prefs.setStringList(indexKey, index.toList());
+  }
+
+  /// Adds an entry to an index.
+  Future<void> _addToIndex(
+    SharedPreferences prefs,
+    String indexKey,
+    String entry,
+  ) async {
+    final index = await _readIndex(prefs, indexKey);
+    index.add(entry);
+    await _writeIndex(prefs, indexKey, index);
+  }
+
+  /// Removes an entry from an index.
+  Future<void> _removeFromIndex(
+    SharedPreferences prefs,
+    String indexKey,
+    String entry,
+  ) async {
+    final index = await _readIndex(prefs, indexKey);
+    index.remove(entry);
+    await _writeIndex(prefs, indexKey, index);
   }
 }
 
@@ -789,10 +731,10 @@ class GraphCache {
 
 /// Avatar size categories for the 3-tier caching strategy.
 enum AvatarSize {
-  /// 128×128 — for visible, on-screen nodes.
+  /// 128x128 — for visible, on-screen nodes.
   visible,
 
-  /// 32×32 — for off-screen / thumbnail nodes.
+  /// 32x32 — for off-screen / thumbnail nodes.
   thumbnail,
 
   /// Original resolution — for detail views.
@@ -806,3 +748,14 @@ class _AvatarCacheEntry {
   /// Raw image bytes.
   final Uint8List bytes;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// RIVERPOD PROVIDER
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Riverpod provider for the [GraphCache] singleton.
+final graphCacheProvider = Provider<GraphCache>((Ref ref) {
+  final cache = GraphCache();
+  ref.onDispose(() => cache.dispose());
+  return cache;
+});

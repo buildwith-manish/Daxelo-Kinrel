@@ -297,11 +297,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           EmptyState(
             memberCount: memberCount,
             familyId: widget.familyId,
-            onAddYourself: () {},
-            onAddParent: () {},
-            onAddSpouse: () {},
-            onImportContacts: () {},
-            onInviteFamily: () {},
+            onAddMember: () {},
           ),
           // Still show the legacy graph canvas for 2-3 members
           if (memberCount >= 2)
@@ -361,20 +357,8 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     return EmptyState(
       memberCount: 0,
       familyId: widget.familyId,
-      onAddYourself: () {
-        // Navigate to profile creation / add person flow
-      },
-      onAddParent: () {
-        // Navigate to add parent flow
-      },
-      onAddSpouse: () {
-        // Navigate to add spouse flow
-      },
-      onImportContacts: () {
-        // Navigate to import contacts flow
-      },
-      onInviteFamily: () {
-        // Navigate to invite family flow
+      onAddMember: () {
+        // Navigate to add person flow
       },
     );
   }
