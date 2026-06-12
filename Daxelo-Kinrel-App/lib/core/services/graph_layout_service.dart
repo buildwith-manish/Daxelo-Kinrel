@@ -1,23 +1,20 @@
 // lib/core/services/graph_layout_service.dart
 //
-// DAXELO KINREL — Generational Graph Layout Service
+// DAXELO KINREL — Radial / Orbital Graph Layout Service
 //
 // A production-ready family tree layout engine that:
-// - Uses BFS from an anchor person to assign generation indices
-// - Groups persons by generation level
-// - Sorts within generations (spouses side-by-side, siblings grouped)
-// - Assigns (x, y) positions with proper spacing from brand tokens
-// - Supports curved Bezier edges for parent-child connections
-// - Handles disconnected subgraphs gracefully
-// - Scales to large families (200+ persons, 800+ relationships)
-// - Uses the generationIndex field from the API response when available
+// - Places the anchor person at the exact center of the canvas
+// - Maps each generationIndex to a concentric ring radius
+// - Ancestors (gen < 0) arc above center (trunk angle 270°)
+// - Descendants (gen > 0) arc below center (trunk angle 90°)
+// - Siblings / spouse of anchor sit on the anchor ring (gen 0)
+// - Spouses are always placed adjacent to their partner on the same ring
+// - Optional force-relaxation pass for medium-sized families (> 60 nodes)
+// - Pure radial with angle jitter for very large families (> 1000 nodes)
+// - Computes canvas dimensions from outermost ring + padding
 //
-// Design tokens sourced from brand_colors.dart / brand_spacing.dart:
-//   Node width:  80 dp compact / 100 dp normal
-//   Node height: 100 dp compact / 120 dp normal
-//   Horizontal spacing: 60 dp between nodes
-//   Vertical spacing:   120 dp between generations
-//   Spouse offset:      20 dp (side by side at same level)
+// Angle convention (screen coordinates, Y-down):
+//   0° = right, 90° = down, 180° = left, 270° = up
 
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -65,16 +62,24 @@ class GraphRelationship {
   });
 }
 
-/// The computed layout result: positions and canvas dimensions.
+/// The computed layout result: positions, canvas dimensions, and ring metadata.
 class GraphLayoutResult {
   final Map<String, Offset> positions;
   final double canvasWidth;
   final double canvasHeight;
 
+  /// Maps generationIndex → computed ring radius (dp).
+  final Map<int, double> ringRadii;
+
+  /// Maps generationIndex → base angle offset (radians) for that ring.
+  final Map<int, double> ringAngleOffsets;
+
   const GraphLayoutResult({
     required this.positions,
     required this.canvasWidth,
     required this.canvasHeight,
+    this.ringRadii = const {},
+    this.ringAngleOffsets = const {},
   });
 }
 
@@ -104,18 +109,32 @@ class BezierEdge {
 // GRAPH LAYOUT SERVICE
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Generational graph layout service for family tree visualization.
+/// Radial / orbital family graph layout service.
 ///
-/// Computes a layered (Sugiyama-inspired) layout where:
-/// - Y position = generation level × row step
-/// - X position = sequential placement with alignment passes
-/// - Spouses are placed side-by-side with reduced gap
-/// - Parents are centered above their children
-/// - Disconnected subgraphs are laid out without overlap
+/// Computes a concentric-ring layout where:
+/// - The anchor person sits at the center (ring 0)
+/// - Ancestors occupy rings above (generationIndex < 0)
+/// - Descendants occupy rings below (generationIndex > 0)
+/// - Spouses are clamped to their partner's ring
+/// - Direct-lineage nodes remain roughly vertically aligned
 class GraphLayoutService {
   GraphLayoutService();
 
-  // ── Design Tokens (from brand_colors.dart) ───────────────────────
+  // ── Radial Layout Constants ────────────────────────────────────────
+
+  /// Base ring radius for the first ring around the anchor (dp).
+  static const double baseRadius = 160.0;
+
+  /// Spacing between consecutive rings (dp).
+  static const double ringSpacing = 160.0;
+
+  /// Horizontal offset for a spouse placed beside their partner (dp).
+  static const double spouseOffset = 90.0;
+
+  /// Padding around the outermost ring for canvas sizing (dp).
+  static const double canvasPadding = 120.0;
+
+  // ── Design Tokens (kept for backward-compat utility methods) ───────
 
   /// Node width in compact mode (dp).
   static const double nodeWidthCompact = 80.0;
@@ -129,16 +148,13 @@ class GraphLayoutService {
   /// Node height in normal mode (dp).
   static const double nodeHeightNormal = 120.0;
 
-  /// Horizontal spacing between nodes in the same generation (dp).
+  /// Horizontal spacing between nodes (dp) — used by utility methods.
   static const double horizontalSpacing = 60.0;
 
-  /// Vertical spacing between generations (dp).
+  /// Vertical spacing between generations (dp) — used by utility methods.
   static const double verticalSpacing = 120.0;
 
-  /// Reduced gap between spouse nodes (dp).
-  static const double spouseOffset = 20.0;
-
-  // ── Relationship Key Categories ──────────────────────────────────
+  // ── Relationship Key Categories ────────────────────────────────────
 
   /// Keys where toPerson is a parent of fromPerson (one generation above).
   static const Set<String> _parentKeys = {
@@ -186,7 +202,7 @@ class GraphLayoutService {
     'grandchild',
   };
 
-  // ── Mutable State (per compute call) ─────────────────────────────
+  // ── Mutable State (per compute call) ──────────────────────────────
 
   bool _compactMode = false;
 
@@ -194,12 +210,21 @@ class GraphLayoutService {
       _compactMode ? nodeWidthCompact : nodeWidthNormal;
   double get _nodeHeight =>
       _compactMode ? nodeHeightCompact : nodeHeightNormal;
-  double get _colStep => _nodeWidth + horizontalSpacing;
-  double get _rowStep => _nodeHeight + verticalSpacing;
 
-  // ── Public API ───────────────────────────────────────────────────
+  // ── Radians helpers ───────────────────────────────────────────────
 
-  /// Compute the full generational layout for a family graph.
+  /// Convert degrees to radians.
+  static double _degToRad(double deg) => deg * pi / 180.0;
+
+  /// Trunk angle for ancestor rings (pointing up in screen coords).
+  static final double _ancestorTrunk = _degToRad(270.0);
+
+  /// Trunk angle for descendant rings (pointing down in screen coords).
+  static final double _descendantTrunk = _degToRad(90.0);
+
+  // ── Public API ────────────────────────────────────────────────────
+
+  /// Compute the full radial/orbital layout for a family graph.
   ///
   /// [persons] — all person nodes to lay out.
   /// [relationships] — all directed relationship edges.
@@ -207,8 +232,8 @@ class GraphLayoutService {
   ///   Falls back to `isAnchor` flag, then the first person.
   /// [compactMode] — use compact node dimensions for dense graphs.
   ///
-  /// Returns a [GraphLayoutResult] with personId → Offset positions
-  /// and the total canvas dimensions.
+  /// Returns a [GraphLayoutResult] with personId → Offset positions,
+  /// canvas dimensions, and ring metadata.
   GraphLayoutResult computeLayout({
     required List<GraphPerson> persons,
     required List<GraphRelationship> relationships,
@@ -223,6 +248,8 @@ class GraphLayoutService {
         positions: {},
         canvasWidth: 0,
         canvasHeight: 0,
+        ringRadii: {},
+        ringAngleOffsets: {},
       );
     }
 
@@ -245,7 +272,7 @@ class GraphLayoutService {
       anchor = flagged?.id ?? persons.first.id;
     }
 
-    // Step 1: Assign generation levels via BFS from anchor
+    // ── Step 1: Assign generation levels via BFS ──────────────────────
     final generations = _assignGenerations(
       persons,
       relationships,
@@ -253,90 +280,131 @@ class GraphLayoutService {
       personMap,
     );
 
-    // Step 2: Group persons by generation level
-    final generationGroups = _groupByGeneration(persons, generations);
+    // ── Step 2: Build spouse map & clamp spouse generations ───────────
+    final spouseOf = <String, String>{};
+    for (final rel in relationships) {
+      if (!_spouseKeys.contains(rel.relationshipKey)) continue;
+      if (!personMap.containsKey(rel.fromPersonId) ||
+          !personMap.containsKey(rel.toPersonId)) {
+        continue;
+      }
+      // Only record the first spouse pairing per person
+      if (!spouseOf.containsKey(rel.fromPersonId) &&
+          !spouseOf.containsKey(rel.toPersonId)) {
+        spouseOf[rel.fromPersonId] = rel.toPersonId;
+        spouseOf[rel.toPersonId] = rel.fromPersonId;
+      }
+    }
 
-    // Step 3: Sort within each generation (spouses, siblings)
-    final sortedGroups = <int, List<String>>{};
-    for (final level in generationGroups.keys) {
-      sortedGroups[level] = _sortWithinGeneration(
-        generationGroups[level]!,
-        relationships,
-        personMap,
+    // Clamp each spouse to their partner's generation so they sit on
+    // the same ring.
+    for (final entry in spouseOf.entries) {
+      final personId = entry.key;
+      final partnerId = entry.value;
+      if (generations.containsKey(personId) &&
+          generations.containsKey(partnerId)) {
+        // Keep the generation that is closer to the anchor (smaller abs)
+        final pGen = generations[personId]!;
+        final qGen = generations[partnerId]!;
+        // Anchor's spouse uses anchor's generation (0)
+        if (partnerId == anchor) {
+          generations[personId] = 0;
+        } else if (personId == anchor) {
+          generations[partnerId] = 0;
+        } else {
+          // Use the average or the partner's gen; prefer the partner's
+          // generation so they appear on the same ring.  We pick the
+          // one whose absolute value is smaller (closer to anchor).
+          final target = pGen.abs() <= qGen.abs() ? pGen : qGen;
+          generations[personId] = target;
+          generations[partnerId] = target;
+        }
+      }
+    }
+
+    // ── Step 3: Group persons by generation ───────────────────────────
+    final genGroups = <int, List<String>>{};
+    for (final person in persons) {
+      final gen = generations[person.id] ?? person.generationIndex;
+      genGroups.putIfAbsent(gen, () => []).add(person.id);
+    }
+
+    // ── Step 4: Compute ring radii and angle offsets ──────────────────
+    final ringRadii = <int, double>{};
+    final ringAngleOffsets = <int, double>{};
+
+    for (final gen in genGroups.keys) {
+      ringRadii[gen] = baseRadius + (gen.abs() * ringSpacing);
+      if (gen < 0) {
+        ringAngleOffsets[gen] = _ancestorTrunk;
+      } else if (gen > 0) {
+        ringAngleOffsets[gen] = _descendantTrunk;
+      } else {
+        ringAngleOffsets[gen] = 0.0; // anchor ring — 0° (right)
+      }
+    }
+
+    // ── Step 5: Assign initial radial positions ──────────────────────
+    final positions = <String, Offset>{};
+    final center = Offset(0.0, 0.0); // will translate later
+
+    // Place anchor at center
+    positions[anchor] = center;
+
+    // Determine family size bucket
+    final n = persons.length;
+    final useForceRelaxation = n > 60 && n <= 1000;
+    final useJitter = n > 1000;
+
+    // Place anchor-ring non-anchor persons (siblings, spouse on gen 0)
+    _placeAnchorRing(
+      anchor: anchor,
+      genGroups: genGroups,
+      spouseOf: spouseOf,
+      positions: positions,
+      ringRadii: ringRadii,
+      ringAngleOffsets: ringAngleOffsets,
+    );
+
+    // Place each non-zero generation ring
+    for (final gen in genGroups.keys) {
+      if (gen == 0) continue; // already handled
+      _placeRing(
+        gen: gen,
+        genGroups: genGroups,
+        spouseOf: spouseOf,
+        positions: positions,
+        ringRadii: ringRadii,
+        ringAngleOffsets: ringAngleOffsets,
+        useJitter: useJitter,
       );
     }
 
-    // Step 4: Assign (x, y) positions
-    final positions = <String, Offset>{};
-    _assignPositions(
-      sortedGroups,
-      generations,
-      positions,
-      relationships,
-      personMap,
-      anchor,
-    );
-
-    // Step 5: Resolve overlaps
-    _resolveOverlaps(positions, sortedGroups);
-
-    // Step 6: Center layout around anchor
-    _centerLayout(positions, anchor);
-
-    // Compute canvas dimensions
-    double maxX = 0;
-    double maxY = 0;
-    for (final offset in positions.values) {
-      if (offset.dx + _nodeWidth > maxX) maxX = offset.dx + _nodeWidth;
-      if (offset.dy + _nodeHeight > maxY) maxY = offset.dy + _nodeHeight;
+    // ── Step 6: Force-relaxation for medium families ──────────────────
+    if (useForceRelaxation) {
+      _forceRelax(
+        positions: positions,
+        generations: generations,
+        spouseOf: spouseOf,
+        anchor: anchor,
+        ringRadii: ringRadii,
+        maxIterations: 60,
+      );
     }
+
+    // ── Step 7: Translate positions so everything is in positive space ─
+    _normalizePositions(positions, ringRadii);
+
+    // ── Step 8: Compute canvas dimensions ─────────────────────────────
+    final (cw, ch) = _computeCanvasSize(positions, ringRadii);
 
     return GraphLayoutResult(
       positions: positions,
-      canvasWidth: maxX + horizontalSpacing,
-      canvasHeight: maxY + verticalSpacing,
+      canvasWidth: cw,
+      canvasHeight: ch,
+      ringRadii: ringRadii,
+      ringAngleOffsets: ringAngleOffsets,
     );
-  }
-
-  /// Compute cubic Bezier control points for a curved parent-child edge.
-  ///
-  /// [parentPos] — top-left Offset of the parent node.
-  /// [childPos] — top-left Offset of the child node.
-  ///
-  /// Returns a [BezierEdge] with start/end at node centers and
-  /// two control points that create a smooth S-curve.
-  BezierEdge computeBezierEdge(Offset parentPos, Offset childPos) {
-    final start = Offset(
-      parentPos.dx + _nodeWidth / 2,
-      parentPos.dy + _nodeHeight,
-    );
-    final end = Offset(
-      childPos.dx + _nodeWidth / 2,
-      childPos.dy,
-    );
-    final midY = (start.dy + end.dy) / 2;
-
-    return BezierEdge(
-      start: start,
-      controlPoint1: Offset(start.dx, midY),
-      controlPoint2: Offset(end.dx, midY),
-      end: end,
-    );
-  }
-
-  /// Compute the two endpoints for a horizontal spouse connection.
-  ///
-  /// Returns (leftNodeRightCenter, rightNodeLeftCenter) as a tuple.
-  (Offset, Offset) computeSpouseEdge(Offset leftPos, Offset rightPos) {
-    final leftCenter = Offset(
-      leftPos.dx + _nodeWidth,
-      leftPos.dy + _nodeHeight / 2,
-    );
-    final rightCenter = Offset(
-      rightPos.dx,
-      rightPos.dy + _nodeHeight / 2,
-    );
-    return (leftCenter, rightCenter);
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -397,10 +465,10 @@ class GraphLayoutService {
       adjacency[toId]!.add((fromId, -fromToTo));
     }
 
-    // ── Primary BFS from anchor ──────────────────────────────────
+    // ── Primary BFS from anchor ────────────────────────────────────
     _bfsGeneration(anchorId, 0, adjacency, generations, visited);
 
-    // ── Handle disconnected subgraphs ────────────────────────────
+    // ── Handle disconnected subgraphs ──────────────────────────────
     for (final person in persons) {
       if (visited.contains(person.id)) continue;
 
@@ -410,24 +478,12 @@ class GraphLayoutService {
       _bfsGeneration(person.id, baseGen, adjacency, generations, visited);
     }
 
-    // ── Normalize: shift so minimum generation is 0 ──────────────
-    if (generations.isNotEmpty) {
-      int minGen = generations.values.first;
-      for (final g in generations.values) {
-        if (g < minGen) minGen = g;
-      }
-      if (minGen != 0) {
-        for (final key in generations.keys) {
-          generations[key] = generations[key]! - minGen;
-        }
-      }
-    }
-
-    // ── Validate with API generationIndex for connected component ─
-    // If a person has a non-zero API generationIndex and it conflicts
-    // with BFS, we trust BFS for the anchor's component but use API
-    // values to refine positioning (applied during sort).
-    // For disconnected components, API values are already used as base.
+    // ── Normalize: shift so anchor's generation is 0 ───────────────
+    // Unlike the old code that shifted min to 0, we want the anchor at
+    // gen 0 so that negative = ancestors, positive = descendants.
+    // BFS already starts anchor at 0, but disconnected components may
+    // shift the range.  We keep the BFS result as-is since anchor
+    // starts at 0 and that's the reference.
 
     return generations;
   }
@@ -464,467 +520,399 @@ class GraphLayoutService {
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // STEP 2: GROUP BY GENERATION
+  // STEP 5a: PLACE ANCHOR RING (generation 0, non-anchor persons)
   // ═══════════════════════════════════════════════════════════════════
 
-  /// Group person IDs by their assigned generation level.
-  Map<int, List<String>> _groupByGeneration(
-    List<GraphPerson> persons,
-    Map<String, int> generations,
-  ) {
-    final groups = <int, List<String>>{};
-    for (final person in persons) {
-      final gen = generations[person.id] ?? person.generationIndex;
-      groups.putIfAbsent(gen, () => []).add(person.id);
-    }
-    return groups;
-  }
+  /// Place non-anchor persons on the anchor's ring (generation 0).
+  ///
+  /// These are spouses and siblings of the anchor. They fan out around
+  /// the anchor at radius 0 (same center) using the spouse offset for
+  /// spouses, or at baseRadius for siblings.
+  void _placeAnchorRing({
+    required String anchor,
+    required Map<int, List<String>> genGroups,
+    required Map<String, String> spouseOf,
+    required Map<String, Offset> positions,
+    required Map<int, double> ringRadii,
+    required Map<int, double> ringAngleOffsets,
+  }) {
+    final gen0 = genGroups[0];
+    if (gen0 == null) return;
 
-  // ═══════════════════════════════════════════════════════════════════
-  // STEP 3: SORT WITHIN GENERATIONS
-  // ═══════════════════════════════════════════════════════════════════
+    // Anchor spouse sits adjacent (spouseOffset to the right)
+    final anchorSpouse = spouseOf[anchor];
 
-  /// Sort persons within a generation so that:
-  /// - Spouses are placed side-by-side (left spouse first)
-  /// - Siblings are grouped together
-  /// - Remaining persons are sorted alphabetically
-  List<String> _sortWithinGeneration(
-    List<String> personIds,
-    List<GraphRelationship> relationships,
-    Map<String, GraphPerson> personMap,
-  ) {
-    final personSet = personIds.toSet();
+    // Separate into: anchor spouse, other spouses of gen-0 people, siblings
+    final siblings = <String>[];
+    String? anchorSpouseId;
 
-    // ── Identify spouse pairs within this generation ──────────────
-    final spouseOf = <String, String>{};
-    final spouseIsRight = <String, bool>{};
-
-    for (final rel in relationships) {
-      if (!_spouseKeys.contains(rel.relationshipKey)) continue;
-      if (!personSet.contains(rel.fromPersonId) ||
-          !personSet.contains(rel.toPersonId)) {
-        continue;
-      }
-      // Only record the first spouse pairing per person
-      if (!spouseOf.containsKey(rel.fromPersonId) &&
-          !spouseOf.containsKey(rel.toPersonId)) {
-        spouseOf[rel.fromPersonId] = rel.toPersonId;
-        spouseOf[rel.toPersonId] = rel.fromPersonId;
-        // Convention: fromPerson is "left", toPerson is "right"
-        spouseIsRight[rel.fromPersonId] = false;
-        spouseIsRight[rel.toPersonId] = true;
-      }
-    }
-
-    // ── Identify sibling groups (share at least one parent) ───────
-    final parentToChildren = <String, Set<String>>{};
-    for (final rel in relationships) {
-      String? parentId;
-      String? childId;
-      if (_childKeys.contains(rel.relationshipKey)) {
-        parentId = rel.fromPersonId;
-        childId = rel.toPersonId;
-      } else if (_parentKeys.contains(rel.relationshipKey)) {
-        parentId = rel.toPersonId;
-        childId = rel.fromPersonId;
-      }
-      if (parentId != null && childId != null) {
-        parentToChildren.putIfAbsent(parentId, () => {}).add(childId);
-      }
-    }
-
-    // Build person → sibling group ID
-    final personToSiblingGroup = <String, int>{};
-    final siblingGroups = <int, Set<String>>{};
-    int nextGroupId = 0;
-
-    for (final children in parentToChildren.values) {
-      // Only consider children in this generation
-      final relevantChildren = <String>{};
-      for (final c in children) {
-        if (personSet.contains(c)) relevantChildren.add(c);
-      }
-      if (relevantChildren.length < 2) continue;
-
-      // Check if any child is already in an existing group
-      int? existingGroupId;
-      for (final child in relevantChildren) {
-        if (personToSiblingGroup.containsKey(child)) {
-          existingGroupId = personToSiblingGroup[child];
-          break;
-        }
-      }
-
-      if (existingGroupId != null) {
-        for (final child in relevantChildren) {
-          personToSiblingGroup[child] = existingGroupId;
-          siblingGroups[existingGroupId]!.add(child);
-        }
+    for (final id in gen0) {
+      if (id == anchor) continue;
+      if (id == anchorSpouse) {
+        anchorSpouseId = id;
       } else {
-        final gid = nextGroupId++;
-        siblingGroups[gid] = relevantChildren;
-        for (final child in relevantChildren) {
-          personToSiblingGroup[child] = gid;
-        }
+        siblings.add(id);
       }
     }
 
-    // ── Build sorted result ───────────────────────────────────────
-    final visited = <String>{};
-    final result = <String>[];
-
-    void addPersonWithSpouse(String id) {
-      if (visited.contains(id)) return;
-
-      // If this person is the "right" spouse, skip — the left spouse
-      // will add both.
-      if (spouseIsRight[id] == true &&
-          spouseOf.containsKey(id) &&
-          !visited.contains(spouseOf[id]!)) {
-        return;
-      }
-
-      visited.add(id);
-      result.add(id);
-
-      // Add spouse immediately after (if in this generation)
-      if (spouseOf.containsKey(id)) {
-        final spouseId = spouseOf[id]!;
-        if (!visited.contains(spouseId) && personSet.contains(spouseId)) {
-          visited.add(spouseId);
-          result.add(spouseId);
-        }
-      }
+    // Place anchor spouse at horizontal offset from anchor
+    if (anchorSpouseId != null) {
+      positions[anchorSpouseId] = Offset(spouseOffset, 0.0);
     }
 
-    // First pass: process persons with sibling groups
-    final sortedGroupIds = siblingGroups.keys.toList()..sort();
-    for (final gid in sortedGroupIds) {
-      final group = siblingGroups[gid]!.toList();
-      // Sort within group by name for deterministic order
-      group.sort((a, b) =>
-          (personMap[a]?.name ?? '').compareTo(personMap[b]?.name ?? ''));
-      for (final personId in group) {
-        addPersonWithSpouse(personId);
+    // Place siblings on the anchor ring at baseRadius, fanned around
+    // 0° and 180° (left/right of anchor)
+    if (siblings.isNotEmpty) {
+      final radius = ringRadii[0] ?? baseRadius;
+      final totalAngle = _degToRad(360.0);
+      // We place siblings evenly around the anchor ring but avoid
+      // the angle where the spouse sits (0°).
+      // For small families (≤8), fan around 0° and 180°.
+      final angleStep = totalAngle / (siblings.length + 1);
+      // Start offset so they're centered around 180° (left of anchor)
+      final startAngle = _degToRad(180.0) -
+          (angleStep * (siblings.length - 1) / 2);
+
+      for (int i = 0; i < siblings.length; i++) {
+        final angle = startAngle + angleStep * i;
+        final x = radius * cos(angle);
+        final y = radius * sin(angle);
+        positions[siblings[i]] = Offset(x, y);
       }
     }
-
-    // Second pass: add remaining persons (sorted by name)
-    final remaining = personIds
-        .where((id) => !visited.contains(id))
-        .toList()
-      ..sort((a, b) =>
-          (personMap[a]?.name ?? '').compareTo(personMap[b]?.name ?? ''));
-    for (final personId in remaining) {
-      addPersonWithSpouse(personId);
-    }
-
-    return result;
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // STEP 4: ASSIGN POSITIONS
+  // STEP 5b: PLACE A NON-ZERO GENERATION RING
   // ═══════════════════════════════════════════════════════════════════
 
-  /// Assign (x, y) positions for all persons across all generations.
+  /// Place all persons on a given generation ring.
   ///
-  /// Y is determined by generation level. X is assigned sequentially
-  /// with spouse-offset gaps for spouse pairs, then refined through
-  /// multiple alignment passes to center parents above children.
-  void _assignPositions(
-    Map<int, List<String>> sortedGroups,
-    Map<String, int> generations,
-    Map<String, Offset> positions,
-    List<GraphRelationship> relationships,
-    Map<String, GraphPerson> personMap,
-    String anchorId,
-  ) {
-    if (sortedGroups.isEmpty) return;
+  /// Ancestor rings (gen < 0) fan around 270° (up).
+  /// Descendant rings (gen > 0) fan around 90° (down).
+  /// Within the ring, nodes are distributed evenly.
+  /// Spouses are placed adjacent to their partner.
+  void _placeRing({
+    required int gen,
+    required Map<int, List<String>> genGroups,
+    required Map<String, String> spouseOf,
+    required Map<String, Offset> positions,
+    required Map<int, double> ringRadii,
+    required Map<int, double> ringAngleOffsets,
+    required bool useJitter,
+  }) {
+    final ids = genGroups[gen];
+    if (ids == null || ids.isEmpty) return;
 
-    // ── Identify spouse pairs globally ────────────────────────────
-    final spouseOf = <String, String>{};
-    for (final rel in relationships) {
-      if (!_spouseKeys.contains(rel.relationshipKey)) continue;
-      if (!spouseOf.containsKey(rel.fromPersonId) &&
-          !spouseOf.containsKey(rel.toPersonId)) {
-        spouseOf[rel.fromPersonId] = rel.toPersonId;
-        spouseOf[rel.toPersonId] = rel.fromPersonId;
+    final radius = ringRadii[gen]!;
+    final baseAngle = ringAngleOffsets[gen]!;
+
+    // Separate persons into: those with a spouse on this ring,
+    // and independent persons.
+    final placed = <String>{};
+    final independent = <String>[];
+    final coupleSlots = <(String, String)>[]; // (person, spouse) pairs
+
+    for (final id in ids) {
+      if (placed.contains(id)) continue;
+      final spouse = spouseOf[id];
+      if (spouse != null && ids.contains(spouse) && !placed.contains(spouse)) {
+        coupleSlots.add((id, spouse));
+        placed.add(id);
+        placed.add(spouse);
+      } else {
+        independent.add(id);
+        placed.add(id);
       }
     }
 
-    // ── Identify parent → children mapping ────────────────────────
-    final parentToChildren = <String, Set<String>>{};
-    for (final rel in relationships) {
-      String? parentId;
-      String? childId;
-      if (_childKeys.contains(rel.relationshipKey)) {
-        parentId = rel.fromPersonId;
-        childId = rel.toPersonId;
-      } else if (_parentKeys.contains(rel.relationshipKey)) {
-        parentId = rel.toPersonId;
-        childId = rel.fromPersonId;
-      } else if (_grandchildKeys.contains(rel.relationshipKey)) {
-        parentId = rel.fromPersonId;
-        childId = rel.toPersonId;
-      } else if (_grandparentKeys.contains(rel.relationshipKey)) {
-        parentId = rel.toPersonId;
-        childId = rel.fromPersonId;
-      }
-      if (parentId != null && childId != null) {
-        parentToChildren.putIfAbsent(parentId, () => {}).add(childId);
-      }
+    // Total visual slots: each couple occupies 1 primary slot (spouse is
+    // offset from it), each independent person occupies 1 slot.
+    final totalSlots = coupleSlots.length + independent.length;
+
+    // Determine the angular spread for this ring.
+    // For small families (≤8 people total), use a semicircle.
+    // For larger families, use a wider arc.
+    double totalArcAngle;
+    if (gen < 0) {
+      // Ancestors: semicircle from 225° to 315° (centered on 270°)
+      totalArcAngle = _degToRad(90.0); // 90° arc
+    } else {
+      // Descendants: semicircle from 45° to 135° (centered on 90°)
+      totalArcAngle = _degToRad(90.0); // 90° arc
     }
 
-    // ── Sort generation levels ────────────────────────────────────
-    final levels = sortedGroups.keys.toList()..sort();
+    // For larger families, widen the arc to avoid cramping
+    if (totalSlots > 4) {
+      totalArcAngle = _degToRad(180.0); // 180° arc
+    }
+    if (totalSlots > 8) {
+      totalArcAngle = _degToRad(270.0); // 270° arc
+    }
+    if (totalSlots > 16) {
+      totalArcAngle = _degToRad(360.0); // full circle
+    }
 
-    // ── Phase 1: Sequential X assignment ──────────────────────────
-    for (final level in levels) {
-      final y = level * _rowStep;
-      final persons = sortedGroups[level]!;
+    final angleStep = totalArcAngle / (totalSlots + 1);
+    final startAngle = baseAngle - totalArcAngle / 2;
 
-      double x = 0;
-      for (int i = 0; i < persons.length; i++) {
-        final id = persons[i];
-        positions[id] = Offset(x, y.toDouble());
+    int slotIndex = 0;
 
-        // Determine spacing to the next person
-        if (i + 1 < persons.length) {
-          final nextId = persons[i + 1];
-          if (spouseOf[id] == nextId) {
-            // Spouses: tight gap
-            x += _nodeWidth + spouseOffset;
-          } else {
-            // Standard gap
-            x += _colStep;
-          }
+    // Place couples first — they get primary slot positions
+    for (final (personId, spouseId) in coupleSlots) {
+      final angle = startAngle + angleStep * (slotIndex + 1);
+      final jitter = useJitter ? (Random().nextDouble() - 0.5) * _degToRad(2.0) : 0.0;
+      final a = angle + jitter;
+      final x = radius * cos(a);
+      final y = radius * sin(a);
+      positions[personId] = Offset(x, y);
+
+      // Spouse: adjacent on same ring, offset perpendicular (to the right)
+      final spouseAngle = a + _spouseAngularOffset(radius);
+      final sx = radius * cos(spouseAngle);
+      final sy = radius * sin(spouseAngle);
+      positions[spouseId] = Offset(sx, sy);
+
+      slotIndex++;
+    }
+
+    // Place independent persons
+    for (final id in independent) {
+      final angle = startAngle + angleStep * (slotIndex + 1);
+      final jitter = useJitter ? (Random().nextDouble() - 0.5) * _degToRad(2.0) : 0.0;
+      final a = angle + jitter;
+      final x = radius * cos(a);
+      final y = radius * sin(a);
+      positions[id] = Offset(x, y);
+      slotIndex++;
+    }
+  }
+
+  /// Compute the angular offset for a spouse given the ring radius,
+  /// such that the chord distance ≈ [spouseOffset] dp.
+  double _spouseAngularOffset(double radius) {
+    if (radius <= 0) return _degToRad(30.0); // fallback
+    // chord = 2 * r * sin(θ/2) = spouseOffset
+    // θ = 2 * arcsin(spouseOffset / (2 * r))
+    final arg = spouseOffset / (2 * radius);
+    if (arg > 1.0) return _degToRad(60.0); // clamp for tiny radii
+    return 2 * asin(arg);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // STEP 6: FORCE-RELAXATION (medium families: 61–1000 nodes)
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// Simple force-directed relaxation that:
+  /// - Applies repulsion between all node pairs
+  /// - Constrains nodes to their assigned ring radius
+  /// - Keeps the anchor pinned at center
+  /// - Keeps spouses tethered together
+  void _forceRelax({
+    required Map<String, Offset> positions,
+    required Map<String, int> generations,
+    required Map<String, String> spouseOf,
+    required String anchor,
+    required Map<int, double> ringRadii,
+    required int maxIterations,
+  }) {
+    const double repulsionStrength = 5000.0;
+    const double ringSpringStrength = 0.3;
+    const double spouseSpringStrength = 0.5;
+    const double damping = 0.8;
+    const double minDist = 40.0;
+
+    final ids = positions.keys.toList();
+    final velocities = <String, Offset>{};
+    for (final id in ids) {
+      velocities[id] = Offset.zero;
+    }
+
+    for (int iter = 0; iter < maxIterations; iter++) {
+      final forces = <String, Offset>{};
+      for (final id in ids) {
+        forces[id] = Offset.zero;
+      }
+
+      // ── Repulsion between all pairs ────────────────────────────────
+      for (int i = 0; i < ids.length; i++) {
+        for (int j = i + 1; j < ids.length; j++) {
+          final a = ids[i];
+          final b = ids[j];
+          final pa = positions[a]!;
+          final pb = positions[b]!;
+          final dx = pa.dx - pb.dx;
+          final dy = pa.dy - pb.dy;
+          final dist2 = dx * dx + dy * dy;
+          final dist = sqrt(max(dist2, minDist * minDist));
+          final force = repulsionStrength / (dist * dist);
+          final fx = (dx / dist) * force;
+          final fy = (dy / dist) * force;
+          forces[a] = Offset(forces[a]!.dx + fx, forces[a]!.dy + fy);
+          forces[b] = Offset(forces[b]!.dx - fx, forces[b]!.dy - fy);
         }
       }
-    }
 
-    // ── Phase 2: Alignment passes (center parents above children) ─
-    const int maxAlignmentPasses = 10;
-    const double dampening = 0.4;
+      // ── Ring constraint spring ─────────────────────────────────────
+      for (final id in ids) {
+        if (id == anchor) continue;
+        final gen = generations[id] ?? 0;
+        final targetR = ringRadii[gen] ?? baseRadius;
+        final pos = positions[id]!;
+        final currentR = sqrt(pos.dx * pos.dx + pos.dy * pos.dy);
+        if (currentR <= 0) continue;
+        final dr = targetR - currentR;
+        // Pull radially toward the target radius
+        final ux = pos.dx / currentR;
+        final uy = pos.dy / currentR;
+        forces[id] = Offset(
+          forces[id]!.dx + ux * dr * ringSpringStrength,
+          forces[id]!.dy + uy * dr * ringSpringStrength,
+        );
+      }
 
-    for (int pass = 0; pass < maxAlignmentPasses; pass++) {
-      double totalShift = 0;
+      // ── Spouse tether spring ───────────────────────────────────────
+      final processed = <String>{};
+      for (final entry in spouseOf.entries) {
+        final a = entry.key;
+        final b = entry.value;
+        if (processed.contains(a) || processed.contains(b)) continue;
+        if (!positions.containsKey(a) || !positions.containsKey(b)) continue;
+        processed.add(a);
+        processed.add(b);
 
-      // Process generations bottom-up (align parents to children)
-      for (int li = levels.length - 1; li >= 0; li--) {
-        final level = levels[li];
-        final persons = sortedGroups[level]!;
-
-        for (int i = 0; i < persons.length; i++) {
-          final id = persons[i];
-          final spouse = spouseOf[id];
-
-          // Collect children of this person and their spouse
-          final children = <String>{};
-          if (parentToChildren.containsKey(id)) {
-            children.addAll(parentToChildren[id]!);
-          }
-          if (spouse != null && parentToChildren.containsKey(spouse)) {
-            children.addAll(parentToChildren[spouse]!);
-          }
-
-          if (children.isEmpty) continue;
-
-          // Calculate center X of children
-          double childCenterX = 0;
-          int childCount = 0;
-          for (final childId in children) {
-            if (positions.containsKey(childId)) {
-              childCenterX += positions[childId]!.dx + _nodeWidth / 2;
-              childCount++;
-            }
-          }
-          if (childCount == 0) continue;
-          childCenterX /= childCount;
-
-          // Calculate current center of parent (or couple)
-          double parentCenterX = positions[id]!.dx + _nodeWidth / 2;
-          if (spouse != null && positions.containsKey(spouse)) {
-            // Only count spouse if they appear adjacent (right of this person)
-            final spouseIdx = persons.indexOf(spouse);
-            if (spouseIdx == i + 1) {
-              parentCenterX =
-                  (positions[id]!.dx + positions[spouse]!.dx + _nodeWidth) / 2;
-            }
-          }
-
-          // Compute desired shift with dampening
-          final shift = (childCenterX - parentCenterX) * dampening;
-          if (shift.abs() < 0.5) continue;
-
-          // Apply shift to this person
-          final current = positions[id]!;
-          positions[id] = Offset(current.dx + shift, current.dy);
-          totalShift += shift.abs();
-
-          // Also shift the spouse if they're adjacent
-          if (spouse != null && positions.containsKey(spouse)) {
-            final spouseIdx = persons.indexOf(spouse);
-            if (spouseIdx == i + 1) {
-              final spouseCurrent = positions[spouse]!;
-              positions[spouse] =
-                  Offset(spouseCurrent.dx + shift, spouseCurrent.dy);
-            }
-          }
+        final pa = positions[a]!;
+        final pb = positions[b]!;
+        final dx = pb.dx - pa.dx;
+        final dy = pb.dy - pa.dy;
+        final dist = sqrt(dx * dx + dy * dy);
+        final targetDist = spouseOffset;
+        if (dist <= 0) continue;
+        final dr = targetDist - dist;
+        final ux = dx / dist;
+        final uy = dy / dist;
+        final fx = ux * dr * spouseSpringStrength;
+        final fy = uy * dr * spouseSpringStrength;
+        if (a != anchor) {
+          forces[a] = Offset(forces[a]!.dx - fx, forces[a]!.dy - fy);
         }
-
-        // After processing each generation, resolve overlaps
-        _resolveOverlapsForGeneration(positions, sortedGroups[level]!, spouseOf);
+        if (b != anchor) {
+          forces[b] = Offset(forces[b]!.dx + fx, forces[b]!.dy + fy);
+        }
       }
 
-      // Convergence check
-      if (totalShift < 1.0) break;
+      // ── Apply forces with damping ──────────────────────────────────
+      for (final id in ids) {
+        if (id == anchor) continue; // pin anchor
+        final v = velocities[id]!;
+        final f = forces[id]!;
+        velocities[id] = Offset(
+          (v.dx + f.dx) * damping,
+          (v.dy + f.dy) * damping,
+        );
+        positions[id] = Offset(
+          positions[id]!.dx + velocities[id]!.dx,
+          positions[id]!.dy + velocities[id]!.dy,
+        );
+      }
     }
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // STEP 5: RESOLVE OVERLAPS
+  // STEP 7: NORMALIZE POSITIONS (translate to positive coordinates)
   // ═══════════════════════════════════════════════════════════════════
 
-  /// Resolve horizontal overlaps across all generations.
-  ///
-  /// Ensures every node has at least [_colStep] of horizontal space
-  /// from the previous node (or [_nodeWidth + spouseOffset] for
-  /// spouse pairs).
-  void _resolveOverlaps(
+  /// Shift all positions so that minimum X and Y are at [canvasPadding].
+  void _normalizePositions(
     Map<String, Offset> positions,
-    Map<int, List<String>> sortedGroups,
+    Map<int, double> ringRadii,
   ) {
-    // Identify spouse pairs for reduced gap
-    // (We don't have relationships here, so use a simplified approach:
-    //  check if consecutive nodes are within spouseOffset + nodeWidth)
-    for (final level in sortedGroups.keys) {
-      final persons = sortedGroups[level]!;
-      _resolveOverlapsForGenerationSimple(positions, persons);
-    }
-  }
-
-  /// Resolve overlaps for a single generation using only position data.
-  void _resolveOverlapsForGenerationSimple(
-    Map<String, Offset> positions,
-    List<String> persons,
-  ) {
-    if (persons.isEmpty) return;
-
-    // Sort by current X position
-    final sorted = List<String>.from(persons)
-      ..sort((a, b) => positions[a]!.dx.compareTo(positions[b]!.dx));
-
-    // Forward pass: push right if overlapping
-    for (int i = 1; i < sorted.length; i++) {
-      final prevX = positions[sorted[i - 1]]!.dx;
-      final curr = positions[sorted[i]]!;
-
-      // Determine if these two are spouses (very close together)
-      final gap = curr.dx - prevX;
-      final isLikelySpouse = gap > 0 && gap <= _nodeWidth + spouseOffset + 1;
-      final minGap = isLikelySpouse
-          ? _nodeWidth + spouseOffset
-          : _colStep;
-
-      final requiredX = prevX + minGap;
-      if (curr.dx < requiredX) {
-        positions[sorted[i]] = Offset(requiredX, curr.dy);
-      }
-    }
-  }
-
-  /// Resolve overlaps for a single generation using known spouse pairs.
-  void _resolveOverlapsForGeneration(
-    Map<String, Offset> positions,
-    List<String> persons,
-    Map<String, String> spouseOf,
-  ) {
-    if (persons.isEmpty) return;
-
-    // Sort by current X position
-    final sorted = List<String>.from(persons)
-      ..sort((a, b) => positions[a]!.dx.compareTo(positions[b]!.dx));
-
-    // Forward pass: push right if overlapping
-    for (int i = 1; i < sorted.length; i++) {
-      final prevId = sorted[i - 1];
-      final currId = sorted[i];
-      final prev = positions[prevId]!;
-      final curr = positions[currId]!;
-
-      // Determine minimum gap
-      final areSpouses = spouseOf[prevId] == currId || spouseOf[currId] == prevId;
-      final minGap = areSpouses
-          ? _nodeWidth + spouseOffset
-          : _colStep;
-
-      final requiredX = prev.dx + minGap;
-      if (curr.dx < requiredX) {
-        positions[currId] = Offset(requiredX, curr.dy);
-      }
-    }
-
-    // Backward pass: push left if overlapping (for centering stability)
-    for (int i = sorted.length - 2; i >= 0; i--) {
-      final nextId = sorted[i + 1];
-      final currId = sorted[i];
-      final next = positions[nextId]!;
-      final curr = positions[currId]!;
-
-      final areSpouses = spouseOf[currId] == nextId || spouseOf[nextId] == currId;
-      final minGap = areSpouses
-          ? _nodeWidth + spouseOffset
-          : _colStep;
-
-      final maxAllowedX = next.dx - minGap;
-      if (curr.dx > maxAllowedX) {
-        positions[currId] = Offset(maxAllowedX, curr.dy);
-      }
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // STEP 6: CENTER LAYOUT
-  // ═══════════════════════════════════════════════════════════════════
-
-  /// Center the layout so that:
-  /// - Minimum X starts at [horizontalSpacing] padding
-  /// - The anchor person is visually prominent
-  void _centerLayout(Map<String, Offset> positions, String anchorId) {
     if (positions.isEmpty) return;
 
-    // Find the minimum X across all positions
     double minX = double.infinity;
-    for (final offset in positions.values) {
-      if (offset.dx < minX) minX = offset.dx;
-    }
-
-    // Shift everything so the leftmost node starts at horizontalSpacing
-    if (minX != horizontalSpacing) {
-      final shift = horizontalSpacing - minX;
-      for (final key in positions.keys) {
-        final current = positions[key]!;
-        positions[key] = Offset(current.dx + shift, current.dy);
-      }
-    }
-
-    // Also ensure minimum Y padding
     double minY = double.infinity;
-    for (final offset in positions.values) {
-      if (offset.dy < minY) minY = offset.dy;
+    for (final pos in positions.values) {
+      if (pos.dx < minX) minX = pos.dx;
+      if (pos.dy < minY) minY = pos.dy;
     }
-    if (minY != verticalSpacing) {
-      final shift = verticalSpacing - minY;
-      for (final key in positions.keys) {
-        final current = positions[key]!;
-        positions[key] = Offset(current.dx, current.dy + shift);
-      }
+
+    final shiftX = canvasPadding - minX;
+    final shiftY = canvasPadding - minY;
+
+    for (final key in positions.keys.toList()) {
+      final p = positions[key]!;
+      positions[key] = Offset(p.dx + shiftX, p.dy + shiftY);
     }
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // UTILITY METHODS
+  // STEP 8: COMPUTE CANVAS SIZE
   // ═══════════════════════════════════════════════════════════════════
+
+  /// Compute canvas width and height from positions + outermost ring.
+  (double, double) _computeCanvasSize(
+    Map<String, Offset> positions,
+    Map<int, double> ringRadii,
+  ) {
+    if (positions.isEmpty) return (0.0, 0.0);
+
+    double maxX = 0;
+    double maxY = 0;
+    for (final pos in positions.values) {
+      if (pos.dx + _nodeWidth > maxX) maxX = pos.dx + _nodeWidth;
+      if (pos.dy + _nodeHeight > maxY) maxY = pos.dy + _nodeHeight;
+    }
+
+    return (
+      maxX + canvasPadding,
+      maxY + canvasPadding,
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // PUBLIC UTILITY METHODS (backward-compatible)
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// Compute cubic Bezier control points for a curved parent-child edge.
+  ///
+  /// [parentPos] — top-left Offset of the parent node.
+  /// [childPos] — top-left Offset of the child node.
+  ///
+  /// Returns a [BezierEdge] with start/end at node centers and
+  /// two control points that create a smooth S-curve.
+  BezierEdge computeBezierEdge(Offset parentPos, Offset childPos) {
+    final start = Offset(
+      parentPos.dx + _nodeWidth / 2,
+      parentPos.dy + _nodeHeight,
+    );
+    final end = Offset(
+      childPos.dx + _nodeWidth / 2,
+      childPos.dy,
+    );
+    final midY = (start.dy + end.dy) / 2;
+
+    return BezierEdge(
+      start: start,
+      controlPoint1: Offset(start.dx, midY),
+      controlPoint2: Offset(end.dx, midY),
+      end: end,
+    );
+  }
+
+  /// Compute the two endpoints for a horizontal spouse connection.
+  ///
+  /// Returns (leftNodeRightCenter, rightNodeLeftCenter) as a tuple.
+  (Offset, Offset) computeSpouseEdge(Offset leftPos, Offset rightPos) {
+    final leftCenter = Offset(
+      leftPos.dx + _nodeWidth,
+      leftPos.dy + _nodeHeight / 2,
+    );
+    final rightCenter = Offset(
+      rightPos.dx,
+      rightPos.dy + _nodeHeight / 2,
+    );
+    return (leftCenter, rightCenter);
+  }
 
   /// Get all parent IDs for a given person from the relationships.
   List<String> getParentsOf(

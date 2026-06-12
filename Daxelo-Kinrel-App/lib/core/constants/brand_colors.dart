@@ -43,6 +43,16 @@ class KinrelColors {
   static const Color blue = Color(0xFF3B82F6); // Tree nodes, dashboard accent
   static const Color red = Color(0xFFEF4444); // Destructive actions (legacy)
 
+  // ── Graph Generation Colors ──────────────────────────────────────
+  /// Teal accent — Self/siblings generation ring
+  static const Color tealAccent = Color(0xFF2DD4BF);
+
+  /// Extended purple — Uncles/aunts/cousins generation ring
+  static const Color extendedPurple = Color(0xFF8B5CF6);
+
+  /// In-law gold — In-law relationships ring
+  static const Color inLawGold = Color(0xFFD4AF37);
+
   // ── Dark Theme ─────────────────────────────────────────────────
   /// App Background — #131416 (cool blue-dark)
   static const Color darkBackground = Color(0xFF131416);

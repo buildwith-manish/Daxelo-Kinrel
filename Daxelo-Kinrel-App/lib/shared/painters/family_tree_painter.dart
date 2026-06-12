@@ -6,19 +6,18 @@
 // in the family tree graph canvas.
 //
 // Features:
-//   - Cubic Bezier curves for parent-child connections (smooth S-curves)
-//   - Dashed lines for spouse connections (husband/wife)
+//   - ALL edges are dashed by default (dash [4,4], orange 45% alpha, width 1.5)
+//   - Spouse edges: small filled heart shape at midpoint (~14dp)
+//   - Parent-child & sibling edges: filled orange circle (r5) with glow halo (r9)
+//   - Selected edge: solid line, width 2.5, full-opacity KinrelColors.orange
+//   - Default straight lines for radial layout (Bezier method retained but unused)
 //   - Level-of-Detail (LOD) rendering based on zoomLevel:
-//       zoom < 0.3  : minimal mode  (straight lines only, no labels)
-//       zoom 0.3-0.8: simplified mode (curves, no relationship labels)
-//       zoom > 0.8  : full mode (curves with relationship key labels)
-//   - Highlights the selected edge in orange
-//   - Edge colors:
-//       Default : rgba(255, 255, 255, 0.12) with strokeWidth 1.5
-//       Selected: KinrelColors.orange with strokeWidth 2.0
-//       Spouse  : KinrelColors.gold at 40% alpha, strokeWidth 2.0, dashed
+//       zoom < 0.4 : minimal mode (straight lines only, no dots/hearts)
+//       zoom >= 0.4: full mode (lines with midpoint indicators)
+//   - highlightedGeneration: when set, edges where BOTH endpoints are NOT
+//     in that generation are drawn at 0.15 alpha
 
-import 'dart:ui';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../core/constants/brand_colors.dart';
 
@@ -68,8 +67,8 @@ const Set<String> _spouseKeys = <String>{
 ///     relationships: edgeDataList,
 ///     selectedEdgeId: selectedEdgeId,
 ///     zoomLevel: currentZoom,
-///     nodeWidth: 90,
-///     nodeHeight: 110,
+///     generationMap: personIdToGenerationIndex,
+///     highlightedGeneration: 1,
 ///   ),
 /// )
 /// ```
@@ -79,8 +78,10 @@ class FamilyTreePainter extends CustomPainter {
     required this.relationships,
     this.selectedEdgeId,
     this.zoomLevel = 1.0,
-    this.nodeWidth = 90.0,
-    this.nodeHeight = 110.0,
+    this.nodeWidth = 72.0,
+    this.nodeHeight = 72.0,
+    this.generationMap,
+    this.highlightedGeneration,
   });
 
   /// Map of personId → center Offset (from layout computation).
@@ -101,45 +102,54 @@ class FamilyTreePainter extends CustomPainter {
   /// Height of each person node card (dp).
   final double nodeHeight;
 
+  /// Map of personId → generation index (for highlighted generation filtering).
+  final Map<String, int>? generationMap;
+
+  /// When set, edges where BOTH endpoints are NOT in this generation
+  /// are drawn at 0.15 alpha. Null = no filtering.
+  final int? highlightedGeneration;
+
   // ── Paint Constants ────────────────────────────────────────────────
 
-  /// Default edge color: rgba(255, 255, 255, 0.12)
-  static const Color _defaultEdgeColor = Color(0x1FFFFFFF);
+  /// Default edge color: KinrelColors.orange at 45% alpha, dashed
+  static final Color _defaultEdgeColor =
+      KinrelColors.orange.withValues(alpha: 0.45);
 
   /// Default edge stroke width.
   static const double _defaultStrokeWidth = 1.5;
 
-  /// Selected edge color: KinrelColors.orange
+  /// Selected edge color: full-opacity KinrelColors.orange, solid
   static const Color _selectedEdgeColor = KinrelColors.orange;
 
   /// Selected edge stroke width.
-  static const double _selectedStrokeWidth = 2.0;
+  static const double _selectedStrokeWidth = 2.5;
 
-  /// Spouse edge color: KinrelColors.gold at 40% alpha
-  static final Color _spouseEdgeColor =
-      KinrelColors.gold.withValues(alpha: 0.4);
+  /// Dash pattern for default edges: [dash, gap].
+  static const List<double> _dashArray = [4.0, 4.0];
 
-  /// Spouse edge stroke width.
-  static const double _spouseStrokeWidth = 2.0;
+  /// Dimmed alpha for edges outside highlighted generation.
+  static const double _dimmedAlpha = 0.15;
 
-  /// Dash pattern for spouse edges.
-  static const double _dashWidth = 8.0;
-  static const double _dashGap = 6.0;
+  // ── Midpoint Indicator Constants ──────────────────────────────────
 
-  /// Label text style for full LOD mode.
-  static const TextStyle _labelStyle = TextStyle(
-    fontFamily: 'DMSans',
-    fontSize: 10.0,
-    fontWeight: FontWeight.w500,
-    color: KinrelColors.textSecondaryDark,
-    backgroundColor: KinrelColors.darkBackground,
-  );
+  /// Radius of the filled dot at parent-child / sibling midpoints.
+  static const double _dotRadius = 5.0;
+
+  /// Radius of the glow halo around the dot.
+  static const double _dotGlowRadius = 9.0;
+
+  /// Color for the glow halo (0x33E8612A = KinrelColors.orangeGlow).
+  static const Color _dotGlowColor = Color(0x33E8612A);
+
+  /// Total size of the heart shape for spouse midpoints.
+  static const double _heartSize = 14.0;
 
   // ── LOD Thresholds ─────────────────────────────────────────────────
 
-  bool get _isMinimal => zoomLevel < 0.3;
-  bool get _isSimplified => zoomLevel >= 0.3 && zoomLevel <= 0.8;
-  bool get _isFull => zoomLevel > 0.8;
+  /// Below this zoom level, skip dots/hearts and draw simplified lines only.
+  static const double _lodMinimalZoom = 0.4;
+
+  bool get _isMinimal => zoomLevel < _lodMinimalZoom;
 
   // ── Paint ──────────────────────────────────────────────────────────
 
@@ -153,15 +163,33 @@ class FamilyTreePainter extends CustomPainter {
       final isSelected = edge.id == selectedEdgeId;
       final isSpouse = _spouseKeys.contains(edge.relationshipKey);
 
+      // Determine if this edge should be dimmed (generation filter)
+      final isDimmed = _shouldDimEdge(edge);
+
       _drawEdge(
         canvas: canvas,
         fromPos: fromPos,
         toPos: toPos,
         isSelected: isSelected,
         isSpouse: isSpouse,
-        label: edge.relationshipKey,
+        isDimmed: isDimmed,
       );
     }
+  }
+
+  /// Returns true if this edge should be drawn dimmed based on
+  /// the highlightedGeneration filter.
+  bool _shouldDimEdge(EdgeData edge) {
+    if (highlightedGeneration == null || generationMap == null) return false;
+
+    final fromGen = generationMap![edge.fromPersonId];
+    final toGen = generationMap![edge.toPersonId];
+
+    // If we can't determine the generation, don't dim
+    if (fromGen == null || toGen == null) return false;
+
+    // Dim if NEITHER endpoint is in the highlighted generation
+    return fromGen != highlightedGeneration && toGen != highlightedGeneration;
   }
 
   /// Draws a single edge between two person positions.
@@ -171,7 +199,7 @@ class FamilyTreePainter extends CustomPainter {
     required Offset toPos,
     required bool isSelected,
     required bool isSpouse,
-    required String label,
+    required bool isDimmed,
   }) {
     // Determine edge endpoints from node centers
     final Offset start;
@@ -187,13 +215,11 @@ class FamilyTreePainter extends CustomPainter {
         end = Offset(toPos.dx + nodeWidth / 2, toPos.dy);
       }
     } else {
-      // Parent-child connections: bottom of parent → top of child
+      // Parent-child / sibling connections: bottom of upper → top of lower
       if (fromPos.dy <= toPos.dy) {
-        // from is above (parent)
         start = Offset(fromPos.dx, fromPos.dy + nodeHeight / 2);
         end = Offset(toPos.dx, toPos.dy - nodeHeight / 2);
       } else {
-        // to is above (parent)
         start = Offset(fromPos.dx, fromPos.dy - nodeHeight / 2);
         end = Offset(toPos.dx, toPos.dy + nodeHeight / 2);
       }
@@ -204,52 +230,141 @@ class FamilyTreePainter extends CustomPainter {
     final double strokeWidth;
 
     if (isSelected) {
+      // Selected: solid, full-opacity, wider
       edgeColor = _selectedEdgeColor;
       strokeWidth = _selectedStrokeWidth;
-    } else if (isSpouse) {
-      edgeColor = _spouseEdgeColor;
-      strokeWidth = _spouseStrokeWidth;
     } else {
+      // Default: dashed, 45% alpha orange
       edgeColor = _defaultEdgeColor;
       strokeWidth = _defaultStrokeWidth;
     }
 
+    // Apply dimmed alpha override
+    final Color finalColor =
+        isDimmed ? edgeColor.withValues(alpha: _dimmedAlpha) : edgeColor;
+
     final paint = Paint()
-      ..color = edgeColor
+      ..color = finalColor
       ..strokeWidth = strokeWidth
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
-    // ── Draw based on LOD level ─────────────────────────────────────
+    // ── Draw line ──────────────────────────────────────────────────
 
-    if (_isMinimal) {
-      // Minimal: straight lines only, no labels
-      if (isSpouse) {
-        _drawDashedLine(canvas, start, end, paint);
-      } else {
-        canvas.drawLine(start, end, paint);
-      }
-    } else if (_isSimplified) {
-      // Simplified: curves, no relationship labels
-      if (isSpouse) {
-        _drawDashedLine(canvas, start, end, paint);
-      } else {
-        _drawBezierCurve(canvas, start, end, paint);
-      }
+    if (isSelected) {
+      // Selected edge is SOLID (not dashed)
+      canvas.drawLine(start, end, paint);
     } else {
-      // Full: curves with relationship key labels
+      // Default: dashed line with [4, 4] pattern
+      _drawDashedLine(canvas, start, end, paint);
+    }
+
+    // ── Draw midpoint indicator (skip in minimal LOD) ────────────
+
+    if (!_isMinimal && !isDimmed) {
+      final midpoint = Offset(
+        (start.dx + end.dx) / 2,
+        (start.dy + end.dy) / 2,
+      );
+
       if (isSpouse) {
-        _drawDashedLine(canvas, start, end, paint);
-        _drawLabel(canvas, start, end, label);
+        _drawHeart(canvas, midpoint);
       } else {
-        _drawBezierCurve(canvas, start, end, paint);
-        _drawLabelAtMidpoint(canvas, start, end, label);
+        // Parent-child or sibling: filled dot with glow halo
+        _drawDot(canvas, midpoint);
       }
+    }
+  }
+
+  // ── Midpoint Drawing ───────────────────────────────────────────────
+
+  /// Draws a small filled orange circle with a glow halo at the midpoint.
+  /// Used for parent-child and sibling edges.
+  void _drawDot(Canvas canvas, Offset center) {
+    // Glow halo
+    final glowPaint = Paint()
+      ..color = _dotGlowColor
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, _dotGlowRadius, glowPaint);
+
+    // Solid dot
+    final dotPaint = Paint()
+      ..color = KinrelColors.orange
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, _dotRadius, dotPaint);
+  }
+
+  /// Draws a small filled heart shape at the midpoint for spouse edges.
+  /// Heart = two overlapping circles + a downward-pointing triangle.
+  /// Total size ~14dp.
+  void _drawHeart(Canvas canvas, Offset center) {
+    final heartPaint = Paint()
+      ..color = KinrelColors.orange
+      ..style = PaintingStyle.fill;
+
+    final s = _heartSize;
+    final halfS = s / 2;
+    final circleRadius = s / 4; // radius of the two top circles
+
+    // Two overlapping circles at the top of the heart
+    final leftCircleCenter = Offset(center.dx - circleRadius * 0.7, center.dy - circleRadius * 0.4);
+    final rightCircleCenter = Offset(center.dx + circleRadius * 0.7, center.dy - circleRadius * 0.4);
+
+    canvas.drawCircle(leftCircleCenter, circleRadius, heartPaint);
+    canvas.drawCircle(rightCircleCenter, circleRadius, heartPaint);
+
+    // Downward-pointing triangle to complete the heart
+    final path = Path()
+      ..moveTo(leftCircleCenter.dx - circleRadius * 0.7, leftCircleCenter.dy + circleRadius * 0.2)
+      ..lineTo(rightCircleCenter.dx + circleRadius * 0.7, rightCircleCenter.dy + circleRadius * 0.2)
+      ..lineTo(center.dx, center.dy + halfS * 0.75)
+      ..close();
+
+    canvas.drawPath(path, heartPaint);
+  }
+
+  // ── Line Drawing ───────────────────────────────────────────────────
+
+  /// Draws a dashed line between two points using [_dashArray] pattern.
+  void _drawDashedLine(
+    Canvas canvas,
+    Offset start,
+    Offset end,
+    Paint paint,
+  ) {
+    final dx = end.dx - start.dx;
+    final dy = end.dy - start.dy;
+    final length = math.sqrt(dx * dx + dy * dy);
+    if (length == 0) return;
+
+    final unitDx = dx / length;
+    final unitDy = dy / length;
+
+    final dashWidth = _dashArray[0];
+    final dashGap = _dashArray[1];
+
+    double covered = 0;
+    bool draw = true;
+    while (covered < length) {
+      final segmentLength = draw ? dashWidth : dashGap;
+      final endCovered = (covered + segmentLength).clamp(0.0, length);
+
+      if (draw) {
+        canvas.drawLine(
+          Offset(start.dx + unitDx * covered, start.dy + unitDy * covered),
+          Offset(start.dx + unitDx * endCovered, start.dy + unitDy * endCovered),
+          paint,
+        );
+      }
+
+      covered = endCovered;
+      draw = !draw;
     }
   }
 
   /// Draws a cubic Bezier curve (smooth S-curve) between two points.
   ///
+  /// Retained for optional use but NOT used by default in the radial layout.
   /// The control points create a smooth vertical S-curve:
   /// - CP1 pulls downward from start
   /// - CP2 pulls upward toward end
@@ -272,139 +387,7 @@ class FamilyTreePainter extends CustomPainter {
     canvas.drawPath(path, paint);
   }
 
-  /// Draws a dashed line between two points.
-  void _drawDashedLine(
-    Canvas canvas,
-    Offset start,
-    Offset end,
-    Paint paint,
-  ) {
-    final dx = end.dx - start.dx;
-    final dy = end.dy - start.dy;
-    final length = Offset(dx, dy).distance;
-    if (length == 0) return;
-
-    final unitDx = dx / length;
-    final unitDy = dy / length;
-
-    double covered = 0;
-    bool draw = true;
-    while (covered < length) {
-      final segmentLength = draw ? _dashWidth : _dashGap;
-      final endCovered = (covered + segmentLength).clamp(0.0, length);
-
-      if (draw) {
-        canvas.drawLine(
-          Offset(start.dx + unitDx * covered, start.dy + unitDy * covered),
-          Offset(start.dx + unitDx * endCovered, start.dy + unitDy * endCovered),
-          paint,
-        );
-      }
-
-      covered = endCovered;
-      draw = !draw;
-    }
-  }
-
-  /// Draws a label at the midpoint of a straight line (spouse edge).
-  void _drawLabel(Canvas canvas, Offset start, Offset end, String label) {
-    final midX = (start.dx + end.dx) / 2;
-    final midY = (start.dy + end.dy) / 2;
-    final formattedLabel = _formatKey(label);
-
-    final textSpan = TextSpan(
-      text: formattedLabel,
-      style: _labelStyle,
-    );
-    final textPainter = TextPainter(
-      text: textSpan,
-      textDirection: TextDirection.ltr,
-    )..layout();
-
-    final offset = Offset(
-      midX - textPainter.width / 2,
-      midY - textPainter.height / 2,
-    );
-
-    // Draw background rect behind label for readability
-    final bgPaint = Paint()..color = KinrelColors.darkBackground;
-    final bgRect = RRect.fromRectAndRadius(
-      Rect.fromCenter(
-        center: Offset(midX, midY),
-        width: textPainter.width + 8,
-        height: textPainter.height + 4,
-      ),
-      const Radius.circular(4),
-    );
-    canvas.drawRRect(bgRect, bgPaint);
-
-    textPainter.paint(canvas, offset);
-  }
-
-  /// Draws a label at the midpoint along the Bezier curve (parent-child edge).
-  void _drawLabelAtMidpoint(
-    Canvas canvas,
-    Offset start,
-    Offset end,
-    String label,
-  ) {
-    final midY = (start.dy + end.dy) / 2;
-    // Approximate the Bezier midpoint using t=0.5 on the cubic curve
-    final cp1 = Offset(start.dx, midY);
-    final cp2 = Offset(end.dx, midY);
-
-    // Cubic Bezier at t=0.5:
-    // B(0.5) = (1-t)^3*P0 + 3*(1-t)^2*t*P1 + 3*(1-t)*t^2*P2 + t^3*P3
-    final t = 0.5;
-    final oneMinusT = 1.0 - t;
-    final bezierMidX = oneMinusT * oneMinusT * oneMinusT * start.dx +
-        3 * oneMinusT * oneMinusT * t * cp1.dx +
-        3 * oneMinusT * t * t * cp2.dx +
-        t * t * t * end.dx;
-    final bezierMidY = oneMinusT * oneMinusT * oneMinusT * start.dy +
-        3 * oneMinusT * oneMinusT * t * cp1.dy +
-        3 * oneMinusT * t * t * cp2.dy +
-        t * t * t * end.dy;
-
-    final formattedLabel = _formatKey(label);
-
-    final textSpan = TextSpan(
-      text: formattedLabel,
-      style: _labelStyle,
-    );
-    final textPainter = TextPainter(
-      text: textSpan,
-      textDirection: TextDirection.ltr,
-    )..layout();
-
-    final offset = Offset(
-      bezierMidX - textPainter.width / 2,
-      bezierMidY - textPainter.height / 2,
-    );
-
-    // Draw background rect behind label for readability
-    final bgPaint = Paint()..color = KinrelColors.darkBackground;
-    final bgRect = RRect.fromRectAndRadius(
-      Rect.fromCenter(
-        center: Offset(bezierMidX, bezierMidY),
-        width: textPainter.width + 8,
-        height: textPainter.height + 4,
-      ),
-      const Radius.circular(4),
-    );
-    canvas.drawRRect(bgRect, bgPaint);
-
-    textPainter.paint(canvas, offset);
-  }
-
-  /// Formats a relationship key like 'father_in_law' → 'Father In Law'.
-  static String _formatKey(String key) {
-    return key
-        .replaceAll('_', ' ')
-        .split(' ')
-        .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
-        .join(' ');
-  }
+  // ── Repaint ────────────────────────────────────────────────────────
 
   @override
   bool shouldRepaint(covariant FamilyTreePainter oldDelegate) {
@@ -413,6 +396,8 @@ class FamilyTreePainter extends CustomPainter {
         oldDelegate.selectedEdgeId != selectedEdgeId ||
         oldDelegate.zoomLevel != zoomLevel ||
         oldDelegate.nodeWidth != nodeWidth ||
-        oldDelegate.nodeHeight != nodeHeight;
+        oldDelegate.nodeHeight != nodeHeight ||
+        oldDelegate.generationMap != generationMap ||
+        oldDelegate.highlightedGeneration != highlightedGeneration;
   }
 }

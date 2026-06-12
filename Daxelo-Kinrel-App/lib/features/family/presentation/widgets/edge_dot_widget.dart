@@ -6,10 +6,14 @@
 // Tapping the dot reveals the relationship popup.
 //
 // States:
-//   Default  : 10px diameter, KinrelColors.textDim, border 2px KinrelColors.darkCard
-//   Selected : 14px diameter, KinrelColors.orange, border 2px KinrelColors.darkCard,
-//              orange glow shadow, pulse animation
-//   Hover    : 12px diameter, KinrelColors.amber (tap area on mobile)
+//   Default  : Outer glow circle (alpha 0.2, r9) + inner solid circle (r5),
+//              border 2px KinrelColors.darkCard
+//   Selected : Same but radius scales to 7 with pulsing glow animation
+//              (1.2s repeat, scale 1.0↔1.3)
+//   Spouse   : Heart icon (two overlapping circles + triangle, size 14,
+//              KinrelColors.orange) instead of circle dot
+//
+// The outer 32×32 tap target remains for touch accessibility.
 
 import 'package:flutter/material.dart';
 import '../../../../core/constants/brand_colors.dart';
@@ -20,6 +24,8 @@ import '../../../../core/constants/brand_colors.dart';
 
 /// An animated edge dot widget that appears at the midpoint of a graph edge.
 ///
+/// When [isSpouse] is true, shows a heart icon instead of a circle dot.
+///
 /// Usage:
 /// ```dart
 /// Positioned(
@@ -28,6 +34,7 @@ import '../../../../core/constants/brand_colors.dart';
 ///   child: EdgeDotWidget(
 ///     dotPosition: dotPosition,
 ///     isSelected: selectedEdgeId == edge.id,
+///     isSpouse: _spouseKeys.contains(edge.relationshipKey),
 ///     onTap: () => onEdgeTapped(edge.id),
 ///   ),
 /// )
@@ -38,6 +45,7 @@ class EdgeDotWidget extends StatefulWidget {
     required this.dotPosition,
     required this.isSelected,
     required this.onTap,
+    this.isSpouse = false,
   });
 
   /// The midpoint position of the edge.
@@ -48,6 +56,9 @@ class EdgeDotWidget extends StatefulWidget {
 
   /// Callback when the dot is tapped.
   final VoidCallback onTap;
+
+  /// When true, shows a heart icon instead of a circle dot.
+  final bool isSpouse;
 
   @override
   State<EdgeDotWidget> createState() => _EdgeDotWidgetState();
@@ -60,16 +71,12 @@ class _EdgeDotWidgetState extends State<EdgeDotWidget>
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnimation;
 
-  // ── Hover State ────────────────────────────────────────────────────
-
-  bool _isHovered = false;
-
   @override
   void initState() {
     super.initState();
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 1200),
     );
 
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.3).animate(
@@ -105,71 +112,169 @@ class _EdgeDotWidgetState extends State<EdgeDotWidget>
 
   @override
   Widget build(BuildContext context) {
-    // Determine dot size and color based on state
-    final double dotSize;
-    final Color dotColor;
-    final List<BoxShadow>? boxShadow;
+    final Widget dotChild = widget.isSpouse
+        ? _buildHeartDot()
+        : _buildCircleDot();
 
-    if (widget.isSelected) {
-      dotSize = 14.0;
-      dotColor = KinrelColors.orange;
-      boxShadow = [
-        BoxShadow(
-          color: KinrelColors.orange.withValues(alpha: 0.5),
-          blurRadius: 8.0,
-          spreadRadius: 2.0,
-        ),
-      ];
-    } else if (_isHovered) {
-      dotSize = 12.0;
-      dotColor = KinrelColors.amber;
-      boxShadow = null;
-    } else {
-      dotSize = 10.0;
-      dotColor = KinrelColors.textDim;
-      boxShadow = null;
-    }
-
-    final Widget dotChild = Container(
-      width: dotSize,
-      height: dotSize,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: dotColor,
-        border: Border.all(
-          color: KinrelColors.darkCard,
-          width: 2.0,
-        ),
-        boxShadow: boxShadow,
-      ),
-    );
-
-    // The outer 32x32 tap target centered on the dot
+    // The outer 32×32 tap target centered on the dot
     return GestureDetector(
       onTap: widget.onTap,
       behavior: HitTestBehavior.opaque,
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: Container(
-          width: 32.0,
-          height: 32.0,
-          alignment: Alignment.center,
-          color: Colors.transparent,
-          child: widget.isSelected
-              ? AnimatedBuilder(
-                  animation: _pulseAnimation,
-                  builder: (context, child) {
-                    return Transform.scale(
-                      scale: _pulseAnimation.value,
-                      child: child,
-                    );
-                  },
-                  child: dotChild,
-                )
-              : dotChild,
-        ),
+      child: Container(
+        width: 32.0,
+        height: 32.0,
+        alignment: Alignment.center,
+        color: Colors.transparent,
+        child: widget.isSelected
+            ? AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _pulseAnimation.value,
+                    child: child,
+                  );
+                },
+                child: dotChild,
+              )
+            : dotChild,
       ),
     );
+  }
+
+  // ── Circle Dot (parent-child / sibling) ────────────────────────────
+
+  /// Builds the default circle dot with outer glow and inner solid fill.
+  ///
+  /// Default: outer glow (alpha 0.2, radius 9) + inner solid (radius 5),
+  ///          border 2px KinrelColors.darkCard
+  /// Selected: same but radius scales to 7 (animated by parent)
+  Widget _buildCircleDot() {
+    final double innerRadius = widget.isSelected ? 7.0 : 5.0;
+    final double outerRadius = widget.isSelected ? 11.0 : 9.0;
+    final double glowAlpha = widget.isSelected ? 0.4 : 0.2;
+
+    return CustomPaint(
+      size: Size(outerRadius * 2, outerRadius * 2),
+      painter: _CircleDotPainter(
+        innerRadius: innerRadius,
+        outerRadius: outerRadius,
+        glowAlpha: glowAlpha,
+      ),
+    );
+  }
+
+  // ── Heart Dot (spouse) ─────────────────────────────────────────────
+
+  /// Builds a small heart icon using two overlapping circles + a triangle.
+  /// Size 14dp, KinrelColors.orange fill.
+  Widget _buildHeartDot() {
+    const double size = 14.0;
+
+    return CustomPaint(
+      size: const Size(size, size),
+      painter: _HeartDotPainter(
+        color: KinrelColors.orange,
+        size: size,
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CIRCLE DOT PAINTER
+// ═══════════════════════════════════════════════════════════════════════
+
+/// CustomPainter for the circle dot: outer glow + inner solid + border.
+class _CircleDotPainter extends CustomPainter {
+  _CircleDotPainter({
+    required this.innerRadius,
+    required this.outerRadius,
+    required this.glowAlpha,
+  });
+
+  final double innerRadius;
+  final double outerRadius;
+  final double glowAlpha;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+
+    // Outer glow halo
+    final glowPaint = Paint()
+      ..color = KinrelColors.orange.withValues(alpha: glowAlpha)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, outerRadius, glowPaint);
+
+    // Inner solid circle
+    final fillPaint = Paint()
+      ..color = KinrelColors.orange
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, innerRadius, fillPaint);
+
+    // Border ring
+    final borderPaint = Paint()
+      ..color = KinrelColors.darkCard
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+    canvas.drawCircle(center, innerRadius, borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CircleDotPainter oldDelegate) {
+    return oldDelegate.innerRadius != innerRadius ||
+        oldDelegate.outerRadius != outerRadius ||
+        oldDelegate.glowAlpha != glowAlpha;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// HEART DOT PAINTER
+// ═══════════════════════════════════════════════════════════════════════
+
+/// CustomPainter for a small heart shape: two overlapping circles + triangle.
+class _HeartDotPainter extends CustomPainter {
+  _HeartDotPainter({
+    required this.color,
+    required this.size,
+  });
+
+  final Color color;
+  final double size;
+
+  @override
+  void paint(Canvas canvas, Size canvasSize) {
+    final center = Offset(canvasSize.width / 2, canvasSize.height / 2);
+    final heartPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final circleRadius = size / 4;
+
+    // Two overlapping circles at the top of the heart
+    final leftCircleCenter =
+        Offset(center.dx - circleRadius * 0.7, center.dy - circleRadius * 0.4);
+    final rightCircleCenter =
+        Offset(center.dx + circleRadius * 0.7, center.dy - circleRadius * 0.4);
+
+    canvas.drawCircle(leftCircleCenter, circleRadius, heartPaint);
+    canvas.drawCircle(rightCircleCenter, circleRadius, heartPaint);
+
+    // Downward-pointing triangle to complete the heart
+    final halfS = size / 2;
+    final path = Path()
+      ..moveTo(leftCircleCenter.dx - circleRadius * 0.7,
+          leftCircleCenter.dy + circleRadius * 0.2)
+      ..lineTo(rightCircleCenter.dx + circleRadius * 0.7,
+          rightCircleCenter.dy + circleRadius * 0.2)
+      ..lineTo(center.dx, center.dy + halfS * 0.75)
+      ..close();
+
+    canvas.drawPath(path, heartPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _HeartDotPainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.size != size;
   }
 }

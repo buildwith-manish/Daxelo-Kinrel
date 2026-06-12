@@ -9,19 +9,23 @@
 // Stack structure:
 //   Layer 1: CustomPaint with FamilyTreePainter (edges)
 //   Layer 2: EdgeDotWidget for each relationship (positioned at midpoint)
-//   Layer 3: Person node cards (Positioned widgets)
+//   Layer 3: Person node cards (Positioned widgets — circular avatar nodes)
 //   Layer 4: RelationshipPopupWidget (when an edge dot is tapped)
 //
 // Features:
 //   - InteractiveViewer with TransformationController for zoom/pan
 //   - Min scale: 0.1, Max scale: 4.0, constrained: false
-//   - Person node cards with avatar, name, generation badge
-//   - Anchor person "You" badge in gold
+//   - Circular avatar nodes (72dp) with generation-colored rings
+//   - Anchor person double-ring highlight
+//   - Name + relation label below circle
+//   - highlightedGeneration state: dims persons outside that generation
 //   - Deceased person: opacity 0.4
-//   - LOD-aware name sizing based on zoom level
+//   - Tap → navigate to person profile; Long-press → bottom sheet
+//   - Accessibility semantics
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
@@ -98,6 +102,18 @@ class RelationshipData {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// SPOUSE KEY SET
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Relationship keys that represent spouse/partner connections.
+const Set<String> _spouseKeys = <String>{
+  'husband',
+  'wife',
+  'spouse',
+  'partner',
+};
+
+// ═══════════════════════════════════════════════════════════════════════
 // GRAPH CANVAS WIDGET
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -158,10 +174,13 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
   /// Map of person ID → PersonData for quick lookups.
   late final Map<String, PersonData> _personMap;
 
+  /// When set, persons NOT in this generation get opacity 0.25.
+  int? highlightedGeneration;
+
   // ── Constants ──────────────────────────────────────────────────────
 
-  static const double _nodeWidth = 90.0;
-  static const double _nodeHeight = 110.0;
+  static const double _nodeWidth = 72.0;
+  static const double _nodeHeight = 72.0;
 
   // ── Lifecycle ──────────────────────────────────────────────────────
 
@@ -217,7 +236,6 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
   /// Gets the current zoom level from the transformation matrix.
   double get _currentZoom {
     final matrix = _transformationController.value;
-    // Extract scale from the transformation matrix
     return matrix.getMaxScaleOnAxis();
   }
 
@@ -249,6 +267,15 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
       _selectedEdgeId = null;
       _selectedEdgeData = null;
     });
+  }
+
+  // ── Find anchor person ─────────────────────────────────────────────
+
+  PersonData? get _anchorPerson {
+    for (final p in widget.persons) {
+      if (p.isAnchor) return p;
+    }
+    return null;
   }
 
   // ── Build ──────────────────────────────────────────────────────────
@@ -328,6 +355,8 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
         (fromPos.dy + toPos.dy) / 2,
       );
 
+      final isSpouse = _spouseKeys.contains(edge.relationshipKey);
+
       dots.add(
         Positioned(
           left: midpoint.dx - 16,
@@ -335,6 +364,7 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
           child: EdgeDotWidget(
             dotPosition: midpoint,
             isSelected: _selectedEdgeId == edge.id,
+            isSpouse: isSpouse,
             onTap: () => _onEdgeDotTapped(edge.id),
           ),
         ),
@@ -356,6 +386,18 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
       final pos = positions[person.id];
       if (pos == null) continue;
 
+      // Compute opacity based on highlightedGeneration
+      final double nodeOpacity;
+      if (highlightedGeneration != null &&
+          person.generationIndex != highlightedGeneration) {
+        nodeOpacity = 0.25;
+      } else {
+        nodeOpacity = 1.0;
+      }
+
+      // Resolve relation label relative to anchor
+      final relationLabel = _getRelationLabel(person);
+
       nodes.add(
         Positioned(
           left: pos.dx - _nodeWidth / 2,
@@ -365,12 +407,55 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
             nodeWidth: _nodeWidth,
             nodeHeight: _nodeHeight,
             zoomLevel: zoomLevel,
+            opacity: nodeOpacity,
+            relationLabel: relationLabel,
+            familyId: widget.familyId,
+            relationships: widget.relationships,
+            personMap: _personMap,
           ),
         ),
       );
     }
 
     return nodes;
+  }
+
+  // ── Relation Label Resolution ──────────────────────────────────────
+
+  /// Returns the relationship label for [person] relative to the anchor.
+  ///
+  /// Looks up the edge connecting this person to the anchor, then
+  /// formats the relationship key. Returns "You" for the anchor.
+  String _getRelationLabel(PersonData person) {
+    if (person.isAnchor) return 'You';
+
+    final anchor = _anchorPerson;
+    if (anchor == null) return '';
+
+    // Search for an edge connecting this person to the anchor
+    for (final edge in widget.relationships) {
+      // Case 1: anchor → person (relationshipKey describes person's
+      //         relationship TO the anchor, i.e. person is the "to" end)
+      if (edge.fromPersonId == anchor.id && edge.toPersonId == person.id) {
+        return _formatKey(edge.relationshipKey);
+      }
+      // Case 2: person → anchor (relationshipKey describes anchor's
+      //         relationship TO person, so we need the inverse)
+      if (edge.fromPersonId == person.id && edge.toPersonId == anchor.id) {
+        return _formatKey(_getInverseKey(edge.relationshipKey));
+      }
+    }
+
+    return '';
+  }
+
+  /// Formats a relationship key like 'father_in_law' → 'Father In Law'.
+  static String _formatKey(String key) {
+    return key
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
+        .join(' ');
   }
 
   // ── Layer 4: Relationship Popup ────────────────────────────────────
@@ -395,13 +480,22 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
       (fromPos.dy + toPos.dy) / 2,
     );
 
+    // Gender-aware inverse resolution
+    final inverseKey = _getInverseKey(
+      edge.relationshipKey,
+      personAGender: fromPerson.gender,
+      personBGender: toPerson.gender,
+    );
+
     return RelationshipPopupWidget(
       personAName: fromPerson.name,
       personBName: toPerson.name,
+      personAGender: fromPerson.gender,
+      personBGender: toPerson.gender,
       forwardKey: edge.relationshipKey,
-      inverseKey: _getInverseKey(edge.relationshipKey),
-      forwardHindi: hindiKinshipTerms[edge.relationshipKey],
-      inverseHindi: hindiKinshipTerms[_getInverseKey(edge.relationshipKey)],
+      inverseKey: inverseKey,
+      forwardNative: hindiKinshipTerms[edge.relationshipKey],
+      inverseNative: hindiKinshipTerms[inverseKey],
       dotPosition: midpoint,
       canvasSize: Size(canvasWidth, canvasHeight),
       onClose: _onPopupClose,
@@ -409,8 +503,66 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
   }
 
   /// Returns the inverse relationship key for a given key.
-  String _getInverseKey(String key) {
+  ///
+  /// Uses a comprehensive map of 30+ relationship keys. When
+  /// [personAGender] and [personBGender] are provided, gender-aware
+  /// inverse resolution is used (e.g., son→father if B is male,
+  /// son→mother if B is female).
+  String _getInverseKey(
+    String key, {
+    String? personAGender,
+    String? personBGender,
+  }) {
+    // Gender-aware overrides: the inverse of a relationship depends on
+    // the gender of the person being described. For example, "son" from
+    // A's perspective means A is the parent; the inverse describes A
+    // from B's perspective, and whether A is "father" or "mother"
+    // depends on A's gender.
+    if (personAGender != null) {
+      final aIsMale = personAGender.toLowerCase() == 'male';
+      final aIsFemale = personAGender.toLowerCase() == 'female';
+
+      switch (key) {
+        case 'son':
+        case 'daughter':
+          return aIsMale ? 'father' : (aIsFemale ? 'mother' : 'parent');
+        case 'grandson':
+        case 'granddaughter':
+          return aIsMale ? 'grandfather' : (aIsFemale ? 'grandmother' : 'grandparent');
+        case 'nephew':
+        case 'niece':
+          return aIsMale ? 'uncle' : (aIsFemale ? 'aunt' : 'uncle/aunt');
+        case 'brother':
+        case 'sister':
+          return aIsMale ? 'brother' : (aIsFemale ? 'sister' : 'sibling');
+        case 'husband':
+        case 'wife':
+        case 'spouse':
+        case 'partner':
+          return aIsMale ? 'husband' : (aIsFemale ? 'wife' : 'spouse');
+      }
+    }
+
+    if (personBGender != null) {
+      final bIsMale = personBGender.toLowerCase() == 'male';
+      final bIsFemale = personBGender.toLowerCase() == 'female';
+
+      switch (key) {
+        case 'father':
+        case 'mother':
+          return bIsMale ? 'son' : (bIsFemale ? 'daughter' : 'child');
+        case 'grandfather':
+        case 'grandmother':
+          return bIsMale ? 'grandson' : (bIsFemale ? 'granddaughter' : 'grandchild');
+        case 'uncle':
+        case 'aunt':
+          return bIsMale ? 'nephew' : (bIsFemale ? 'niece' : 'nephew/niece');
+      }
+    }
+
+    // Fallback: comprehensive static inverse map (30+ keys)
     const inverseMap = <String, String>{
+      // Immediate family
       'father': 'son',
       'mother': 'daughter',
       'son': 'father',
@@ -419,249 +571,368 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
       'sister': 'sister',
       'husband': 'wife',
       'wife': 'husband',
+      'spouse': 'spouse',
+      'partner': 'partner',
+      // Grandparents / grandchildren
       'grandfather': 'grandson',
       'grandmother': 'granddaughter',
+      'grandson': 'grandfather',
+      'granddaughter': 'grandmother',
+      // Uncles / aunts / nephews / nieces
       'uncle': 'nephew',
       'aunt': 'niece',
       'nephew': 'uncle',
       'niece': 'aunt',
+      // Cousins
       'cousin': 'cousin',
+      'cousin_brother': 'cousin_brother',
+      'cousin_sister': 'cousin_sister',
+      // In-laws
       'father_in_law': 'son_in_law',
       'mother_in_law': 'daughter_in_law',
       'son_in_law': 'father_in_law',
       'daughter_in_law': 'mother_in_law',
+      'brother_in_law': 'sister_in_law',
+      'sister_in_law': 'brother_in_law',
+      // Paternal
+      'paternal_uncle': 'nephew',
+      'paternal_aunt': 'niece',
+      // Maternal
+      'maternal_uncle': 'nephew',
+      'maternal_aunt': 'niece',
+      // Step
+      'stepfather': 'stepson',
+      'stepmother': 'stepdaughter',
+      'stepson': 'stepfather',
+      'stepdaughter': 'stepmother',
+      'stepbrother': 'stepbrother',
+      'stepsister': 'stepsister',
+      // Half-siblings
+      'half_brother': 'half_brother',
+      'half_sister': 'half_sister',
     };
     return inverseMap[key] ?? key;
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// PERSON NODE CARD
+// PERSON NODE CARD — Circular Avatar Node
 // ═══════════════════════════════════════════════════════════════════════
 
-/// A single person node card in the graph canvas.
+/// A circular avatar node card for a person in the graph canvas.
 ///
-/// Displays:
-///   - Avatar (48dp circle with gender color border)
-///   - Fallback avatar: first letter of name on KinrelColors.orange bg
-///   - Name: Outfit font, LOD-aware sizing
-///   - Generation badge (top-right)
-///   - Anchor person: "You" badge in gold
-///   - Deceased person: opacity 0.4
-class _PersonNodeCard extends StatelessWidget {
+/// Layout:
+///   - 72dp diameter circle with generation-colored border ring
+///   - Anchor person: double-ring (outer 88dp teal at 25% alpha,
+///     inner 72dp teal solid 3dp)
+///   - Content: 2-letter initials or ClipOval photo
+///   - Deceased: Opacity(0.4)
+///   - Name + relation label below the circle (2 lines, centered)
+///   - Tap: navigate to person profile
+///   - Long-press: bottom sheet with quick actions
+///   - Semantics for accessibility
+class _PersonNodeCard extends ConsumerWidget {
   const _PersonNodeCard({
     required this.person,
     required this.nodeWidth,
     required this.nodeHeight,
     required this.zoomLevel,
+    required this.opacity,
+    required this.relationLabel,
+    required this.familyId,
+    required this.relationships,
+    required this.personMap,
   });
 
   final PersonData person;
   final double nodeWidth;
   final double nodeHeight;
   final double zoomLevel;
+  final double opacity;
+  final String relationLabel;
+  final String familyId;
+  final List<RelationshipData> relationships;
+  final Map<String, PersonData> personMap;
 
-  // ── Gender Color ───────────────────────────────────────────────────
+  // ── Generation Ring Color ──────────────────────────────────────────
 
-  Color get _genderBorderColor {
-    switch (person.gender?.toLowerCase()) {
-      case 'male':
-        return KinrelColors.blue;
-      case 'female':
-        return KinrelColors.coral;
-      default:
-        return KinrelColors.textDim;
+  Color get _ringColor {
+    if (person.generationIndex < 0) {
+      // Parents
+      return KinrelColors.blue.withValues(alpha: 0.6);
+    } else if (person.generationIndex == 0) {
+      // Self / siblings
+      return KinrelColors.tealAccent;
+    } else {
+      // Children
+      return KinrelColors.coral.withValues(alpha: 0.6);
     }
   }
 
-  // ── Name Style ─────────────────────────────────────────────────────
+  // ── Initials ───────────────────────────────────────────────────────
 
-  TextStyle get _nameStyle {
-    if (zoomLevel < 0.8) {
-      return TextStyle(
-        fontFamily: KinrelTypography.displayFont,
-        fontSize: 11.0,
-        fontWeight: FontWeight.w500,
-        color: KinrelColors.textWhite,
-      );
+  String get _initials {
+    final parts = person.name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      // First letter of first name + first letter of last name
+      return (parts.first[0] + parts.last[0]).toUpperCase();
+    } else if (parts.isNotEmpty && parts.first.isNotEmpty) {
+      // First two letters of single name
+      return parts.first.length >= 2
+          ? parts.first.substring(0, 2).toUpperCase()
+          : parts.first[0].toUpperCase();
     }
-    return TextStyle(
-      fontFamily: KinrelTypography.displayFont,
-      fontSize: 13.0,
-      fontWeight: FontWeight.w600,
-      color: KinrelColors.textWhite,
-    );
+    return '?';
   }
 
   // ── Build ──────────────────────────────────────────────────────────
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Opacity(
-      opacity: person.isDeceased ? 0.4 : 1.0,
-      child: Container(
-        width: nodeWidth,
-        height: nodeHeight,
-        decoration: BoxDecoration(
-          color: KinrelColors.darkCard,
-          borderRadius: BorderRadius.circular(16.0),
-          border: person.isAnchor
-              ? Border.all(
-                  color: KinrelColors.orange,
-                  width: 2.0,
-                )
-              : Border.all(
-                  color: const Color(0x1AFFFFFF), // rgba(255, 255, 255, 0.10)
-                  width: 1.0,
+      opacity: person.isDeceased ? 0.4 * opacity : opacity,
+      child: Semantics(
+        label: '${person.name}, $relationLabel',
+        button: true,
+        child: GestureDetector(
+          onTap: () => context.push('/family/$familyId/person/${person.id}'),
+          onLongPress: () => _showQuickActions(context),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── Circle Node ───────────────────────────────────────
+              _buildCircleNode(),
+
+              const SizedBox(height: 6.0),
+
+              // ── Name below circle ─────────────────────────────────
+              Text(
+                person.name,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 14.0,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textWhite,
                 ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x4D000000), // rgba(0, 0, 0, 0.3)
-              blurRadius: 16.0,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            // ── Card Content ───────────────────────────────────────
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Avatar
-                  _buildAvatar(),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
 
-                  const SizedBox(height: 6.0),
-
-                  // Name
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                    child: Text(
-                      person.name,
-                      style: _nameStyle,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+              // ── Relation label below name ─────────────────────────
+              if (relationLabel.isNotEmpty)
+                Text(
+                  relationLabel,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 11.0,
+                    fontWeight: FontWeight.w500,
+                    color: _ringColor,
                   ),
-                ],
-              ),
-            ),
-
-            // ── Generation Badge (top-right) ───────────────────────
-            Positioned(
-              right: 4.0,
-              top: 4.0,
-              child: _buildGenerationBadge(),
-            ),
-
-            // ── "You" Badge for anchor (bottom-right) ─────────────
-            if (person.isAnchor)
-              Positioned(
-                right: 4.0,
-                bottom: 4.0,
-                child: _buildYouBadge(),
-              ),
-          ],
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  /// Builds the avatar circle with gender-colored border.
-  Widget _buildAvatar() {
+  // ── Circle Node Builder ────────────────────────────────────────────
+
+  Widget _buildCircleNode() {
+    const double diameter = 72.0;
+
+    // Anchor double-ring: outer glow ring behind, inner solid ring
+    if (person.isAnchor) {
+      return SizedBox(
+        width: 88.0,
+        height: 88.0,
+        child: Center(
+          child: Container(
+            width: diameter,
+            height: diameter,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: KinrelColors.darkCard,
+              border: Border.all(
+                color: KinrelColors.tealAccent,
+                width: 3.0,
+              ),
+              boxShadow: [
+                // Outer ring effect via box shadow
+                BoxShadow(
+                  color: KinrelColors.tealAccent.withValues(alpha: 0.25),
+                  blurRadius: 0.0,
+                  spreadRadius: 8.0,
+                ),
+              ],
+            ),
+            child: _buildCircleContent(diameter),
+          ),
+        ),
+      );
+    }
+
+    // Standard node with generation-colored ring
     return Container(
-      width: 48.0,
-      height: 48.0,
+      width: diameter,
+      height: diameter,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
+        color: KinrelColors.darkCard,
         border: Border.all(
-          color: _genderBorderColor,
-          width: 2.0,
+          color: _ringColor,
+          width: 2.5,
         ),
       ),
-      child: ClipOval(
-        child: person.photoUrl != null && person.photoUrl!.isNotEmpty
-            ? Image.network(
-                person.photoUrl!,
-                width: 48.0,
-                height: 48.0,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    _buildFallbackAvatar(),
-              )
-            : _buildFallbackAvatar(),
-      ),
+      child: _buildCircleContent(diameter),
     );
   }
 
-  /// Builds the fallback avatar with the first letter of the name.
-  Widget _buildFallbackAvatar() {
-    final initial = person.name.isNotEmpty ? person.name[0].toUpperCase() : '?';
+  // ── Circle Content (initials or photo) ─────────────────────────────
 
-    return Container(
-      width: 48.0,
-      height: 48.0,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        color: KinrelColors.orange,
-      ),
-      alignment: Alignment.center,
+  Widget _buildCircleContent(double diameter) {
+    // If photo URL is available, show photo in ClipOval
+    if (person.photoUrl != null && person.photoUrl!.isNotEmpty) {
+      return ClipOval(
+        child: Image.network(
+          person.photoUrl!,
+          width: diameter,
+          height: diameter,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => _buildInitialsContent(),
+        ),
+      );
+    }
+
+    // Fallback: initials
+    return _buildInitialsContent();
+  }
+
+  Widget _buildInitialsContent() {
+    return Center(
       child: Text(
-        initial,
+        _initials,
         style: TextStyle(
           fontFamily: KinrelTypography.displayFont,
           fontSize: 20.0,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.bold,
           color: KinrelColors.textWhite,
         ),
       ),
     );
   }
 
-  /// Builds the generation badge (e.g., "G0", "G1").
-  Widget _buildGenerationBadge() {
-    return Container(
-      width: 16.0,
-      height: 16.0,
-      decoration: BoxDecoration(
-        color: KinrelColors.darkElevated,
-        borderRadius: BorderRadius.circular(4.0),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        'G${person.generationIndex}',
-        style: TextStyle(
-          fontFamily: KinrelTypography.monoFont,
-          fontSize: 7.0,
-          fontWeight: FontWeight.w500,
-          color: KinrelColors.textDim,
-        ),
-      ),
-    );
-  }
+  // ── Quick Actions Bottom Sheet ─────────────────────────────────────
 
-  /// Builds the "You" badge for the anchor person.
-  Widget _buildYouBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 1.0),
-      decoration: BoxDecoration(
-        color: KinrelColors.gold.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(4.0),
-        border: Border.all(
-          color: KinrelColors.gold.withValues(alpha: 0.4),
-          width: 0.5,
-        ),
+  void _showQuickActions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
       ),
-      child: Text(
-        'You',
-        style: TextStyle(
-          fontFamily: KinrelTypography.bodyFont,
-          fontSize: 7.0,
-          fontWeight: FontWeight.w600,
-          color: KinrelColors.gold,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Padding(
+              padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
+              child: Container(
+                width: 40.0,
+                height: 4.0,
+                decoration: BoxDecoration(
+                  color: KinrelColors.textDim,
+                  borderRadius: BorderRadius.circular(2.0),
+                ),
+              ),
+            ),
+
+            // Person name header
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20.0,
+                vertical: 12.0,
+              ),
+              child: Text(
+                person.name,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 18.0,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+            ),
+
+            const Divider(
+              color: Color(0x1AFFFFFF),
+              height: 1.0,
+            ),
+
+            ListTile(
+              leading: const Icon(Icons.person, color: KinrelColors.tealAccent),
+              title: Text(
+                'View Profile',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/family/$familyId/person/${person.id}');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit, color: KinrelColors.amber),
+              title: Text(
+                'Edit',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: Navigate to edit screen
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.star, color: KinrelColors.gold),
+              title: Text(
+                'Set as Anchor',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: Set as anchor via provider
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: KinrelColors.coral),
+              title: Text(
+                'Remove',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: Remove person via provider
+              },
+            ),
+
+            const SizedBox(height: 8.0),
+          ],
         ),
       ),
     );

@@ -348,6 +348,16 @@ final selectedNodeProvider = StateProvider<String?>((ref) => null);
 final graphZoomProvider = StateProvider<double>((ref) => 1.0);
 
 // ═══════════════════════════════════════════════════════════════════════
+// 5b. HIGHLIGHTED GENERATION PROVIDER
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Tracks the currently highlighted generation index for the graph canvas.
+///
+/// Set to `null` when no generation is highlighted (all visible at full opacity).
+/// When set, persons NOT in this generation are dimmed to 0.25 opacity.
+final highlightedGenerationProvider = StateProvider<int?>((ref) => null);
+
+// ═══════════════════════════════════════════════════════════════════════
 // 6. GRAPH REALTIME PROVIDER — Socket.IO event listener
 // ═══════════════════════════════════════════════════════════════════════
 

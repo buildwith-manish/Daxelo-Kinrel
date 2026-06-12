@@ -4,21 +4,23 @@
 //
 // Full-screen graph viewer for visualizing family relationships.
 // Features:
-//   - AppBar with family name, back button, search, and settings
-//   - Loading state: shimmer skeleton of graph nodes
-//   - Error state: error message with retry button
-//   - Empty state: "No family members yet" message with add person CTA
+//   - AppBar with family name, back button, stacked avatar previews
+//   - Loading/error/empty states
 //   - Graph canvas with zoom/pan controls
-//   - Truncation warning banner for large families (>5000 persons)
-//   - FABs: zoom in, zoom out, reset view, center on anchor
+//   - Generation legend chips (top-left floating)
+//   - Bottom legend bar with dynamic categories
+//   - Bottom zoom/control bar with -, +, recenter, fit-to-screen
+//   - Truncation warning banner for large families
 //   - Real-time updates via Socket.IO
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/brand_colors.dart';
+import '../../../core/constants/brand_typography.dart';
 import 'providers/family_graph_provider.dart';
 import 'widgets/graph_canvas_widget.dart';
+import 'widgets/generation_legend_widget.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // FAMILY GRAPH SCREEN
@@ -31,10 +33,7 @@ class FamilyGraphScreen extends ConsumerStatefulWidget {
     this.familyName,
   });
 
-  /// The ID of the family whose graph to display.
   final String familyId;
-
-  /// Optional display name for the AppBar title.
   final String? familyName;
 
   @override
@@ -42,8 +41,10 @@ class FamilyGraphScreen extends ConsumerStatefulWidget {
 }
 
 class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
-  // ── Transformation Controller ──────────────────────────────────────
   final TransformationController _transformCtrl = TransformationController();
+
+  /// Highlighted generation index (null = no highlight).
+  int? _highlightedGeneration;
 
   @override
   void dispose() {
@@ -55,7 +56,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
   void _zoomIn() {
     final current = _transformCtrl.value;
-    final scale = current.storage[0]; // Scale X value from matrix
+    final scale = current.storage[0];
     final newScale = (scale * 1.2).clamp(0.1, 4.0);
     _transformCtrl.value = Matrix4.diagonal3Values(newScale, newScale, 1.0);
     ref.read(graphZoomProvider.notifier).state = newScale;
@@ -63,7 +64,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
   void _zoomOut() {
     final current = _transformCtrl.value;
-    final scale = current.storage[0]; // Scale X value from matrix
+    final scale = current.storage[0];
     final newScale = (scale / 1.2).clamp(0.1, 4.0);
     _transformCtrl.value = Matrix4.diagonal3Values(newScale, newScale, 1.0);
     ref.read(graphZoomProvider.notifier).state = newScale;
@@ -74,60 +75,153 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     ref.read(graphZoomProvider.notifier).state = 1.0;
   }
 
+  void _fitToScreen() {
+    // Reset to identity and let InteractiveViewer handle the fit
+    _transformCtrl.value = Matrix4.identity();
+    ref.read(graphZoomProvider.notifier).state = 1.0;
+  }
+
   // ── Build ─────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    // Watch real-time updates for this family
     ref.watch(graphRealtimeProvider(widget.familyId));
-
     final graphAsync = ref.watch(familyGraphProvider(widget.familyId));
 
     return Scaffold(
       backgroundColor: KinrelColors.darkBackground,
-      appBar: _buildAppBar(),
+      appBar: _buildAppBar(graphAsync.valueOrNull),
       body: graphAsync.when(
         loading: _buildLoadingState,
         error: _buildErrorState,
         data: _buildDataState,
       ),
-      floatingActionButton: _buildZoomControls(),
     );
   }
 
   // ── AppBar ────────────────────────────────────────────────────────
 
-  PreferredSizeWidget _buildAppBar() {
+  PreferredSizeWidget _buildAppBar(FlatGraphResult? graph) {
+    // Build up to 3 overlapping avatar circles for the top-right
+    final persons = graph?.toPersonDataList() ?? [];
+    final avatarPersons = persons.take(3).toList();
+
     return AppBar(
       backgroundColor: KinrelColors.darkCard,
       foregroundColor: KinrelColors.textWhite,
       elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, size: 22),
+        onPressed: () => Navigator.of(context).pop(),
+      ),
       title: Text(
         widget.familyName ?? 'Family Graph',
-        style: const TextStyle(
-          fontFamily: 'Outfit',
+        style: TextStyle(
+          fontFamily: KinrelTypography.displayFont,
           fontWeight: FontWeight.w600,
           fontSize: 18,
         ),
       ),
       actions: [
-        // Search button
-        IconButton(
-          icon: const Icon(Icons.search, size: 22),
-          onPressed: () {
-            // TODO: Navigate to person search within graph
-          },
-          tooltip: 'Search',
-        ),
-        // Settings / filter button
-        IconButton(
-          icon: const Icon(Icons.tune, size: 22),
-          onPressed: () {
-            // TODO: Show graph filter settings
-          },
-          tooltip: 'Filter',
-        ),
+        // 3 stacked circular avatar previews
+        if (avatarPersons.isNotEmpty)
+          GestureDetector(
+            onTap: () => _showFamilyMembersSheet(persons),
+            child: Padding(
+              padding: const EdgeInsets.only(right: 12.0),
+              child: SizedBox(
+                width: 28.0 * avatarPersons.length.toDouble() + 12.0,
+                height: 36.0,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: List.generate(avatarPersons.length, (i) {
+                    final p = avatarPersons[i];
+                    final initials = p.name.trim().split(RegExp(r'\s+'));
+                    final letter = initials.length >= 2
+                        ? '${initials[0][0]}${initials[1][0]}'.toUpperCase()
+                        : p.name.substring(0, p.name.length > 1 ? 2 : 1).toUpperCase();
+
+                    return Positioned(
+                      left: i * 16.0,
+                      child: Container(
+                        width: 28.0,
+                        height: 28.0,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: KinrelColors.darkElevated,
+                          border: Border.all(color: KinrelColors.textWhite, width: 1.5),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          letter,
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.displayFont,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: KinrelColors.textWhite,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+            ),
+          ),
       ],
+    );
+  }
+
+  void _showFamilyMembersSheet(List<PersonData> persons) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.5,
+        minChildSize: 0.25,
+        maxChildSize: 0.8,
+        builder: (context, scrollController) => Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'Family Members',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+            ),
+            const Divider(color: Color(0x1AFFFFFF), height: 1),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: persons.length,
+                itemBuilder: (context, index) {
+                  final p = persons[index];
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: KinrelColors.darkElevated,
+                      child: Text(
+                        p.name.isNotEmpty ? p.name[0].toUpperCase() : '?',
+                        style: TextStyle(color: KinrelColors.textWhite, fontSize: 14),
+                      ),
+                    ),
+                    title: Text(p.name, style: TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.displayFont)),
+                    subtitle: Text('Generation ${p.generationIndex}', style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -138,19 +232,9 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircularProgressIndicator(
-            color: KinrelColors.orange,
-            strokeWidth: 3,
-          ),
+          CircularProgressIndicator(color: KinrelColors.orange, strokeWidth: 3),
           SizedBox(height: 16),
-          Text(
-            'Loading family graph...',
-            style: TextStyle(
-              color: KinrelColors.textSecondaryDark,
-              fontFamily: 'DMSans',
-              fontSize: 14,
-            ),
-          ),
+          Text('Loading family graph...', style: TextStyle(color: KinrelColors.textSecondaryDark, fontFamily: 'DMSans', fontSize: 14)),
         ],
       ),
     );
@@ -165,50 +249,21 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.error_outline,
-              color: KinrelColors.orange,
-              size: 48,
-            ),
+            const Icon(Icons.error_outline, color: KinrelColors.orange, size: 48),
             const SizedBox(height: 16),
-            const Text(
-              'Something went wrong',
-              style: TextStyle(
-                color: KinrelColors.textWhite,
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                fontSize: 18,
-              ),
-            ),
+            const Text('Something went wrong', style: TextStyle(color: KinrelColors.textWhite, fontFamily: 'Outfit', fontWeight: FontWeight.w600, fontSize: 18)),
             const SizedBox(height: 8),
-            Text(
-              error.toString(),
-              style: const TextStyle(
-                color: KinrelColors.textSecondaryDark,
-                fontFamily: 'DMSans',
-                fontSize: 13,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
+            Text(error.toString(), style: const TextStyle(color: KinrelColors.textSecondaryDark, fontFamily: 'DMSans', fontSize: 13), textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: () {
-                ref.invalidate(familyGraphProvider(widget.familyId));
-              },
+              onPressed: () => ref.invalidate(familyGraphProvider(widget.familyId)),
               icon: const Icon(Icons.refresh, size: 18),
               label: const Text('Tap to retry'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: KinrelColors.orange,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
             ),
           ],
@@ -220,21 +275,46 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   // ── Data State ────────────────────────────────────────────────────
 
   Widget _buildDataState(FlatGraphResult graph) {
-    if (graph.persons.isEmpty) {
-      return _buildEmptyState();
+    if (graph.persons.isEmpty) return _buildEmptyState();
+
+    final persons = graph.toPersonDataList();
+
+    // Determine which generations are present
+    final presentGenerations = <int>{};
+    for (final p in persons) {
+      presentGenerations.add(p.generationIndex);
     }
 
-    return Column(
+    return Stack(
       children: [
-        // Truncation warning banner
-        if (graph.isTruncated) _buildTruncationBanner(graph),
+        // Main graph content
+        Column(
+          children: [
+            if (graph.isTruncated) _buildTruncationBanner(graph),
+            Expanded(
+              child: GraphCanvasWidget(
+                persons: persons,
+                relationships: graph.toRelationshipDataList(),
+                familyId: widget.familyId,
+              ),
+            ),
+            // Bottom legend bar
+            _buildBottomLegendBar(presentGenerations),
+            // Bottom zoom/control bar
+            _buildBottomControlBar(),
+          ],
+        ),
 
-        // Graph canvas
-        Expanded(
-          child: GraphCanvasWidget(
-            persons: graph.toPersonDataList(),
-            relationships: graph.toRelationshipDataList(),
-            familyId: widget.familyId,
+        // Generation legend chips (top-left floating)
+        Positioned(
+          left: 16,
+          top: graph.isTruncated ? 48 : 16,
+          child: GenerationLegendWidget(
+            presentGenerations: presentGenerations,
+            highlightedGeneration: _highlightedGeneration,
+            onGenerationTap: (gen) {
+              setState(() => _highlightedGeneration = gen);
+            },
           ),
         ),
       ],
@@ -250,48 +330,21 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.family_restroom_outlined,
-              color: KinrelColors.textDim,
-              size: 64,
-            ),
+            const Icon(Icons.family_restroom_outlined, color: KinrelColors.textDim, size: 64),
             const SizedBox(height: 16),
-            const Text(
-              'No family members yet',
-              style: TextStyle(
-                color: KinrelColors.textWhite,
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                fontSize: 18,
-              ),
-            ),
+            const Text('No family members yet', style: TextStyle(color: KinrelColors.textWhite, fontFamily: 'Outfit', fontWeight: FontWeight.w600, fontSize: 18)),
             const SizedBox(height: 8),
-            const Text(
-              'Add family members and relationships to see\nthe family graph visualization.',
-              style: TextStyle(
-                color: KinrelColors.textSecondaryDark,
-                fontFamily: 'DMSans',
-                fontSize: 14,
-              ),
-              textAlign: TextAlign.center,
-            ),
+            const Text('Add family members and relationships to see\nthe family graph visualization.', style: TextStyle(color: KinrelColors.textSecondaryDark, fontFamily: 'DMSans', fontSize: 14), textAlign: TextAlign.center),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: () {
-                // TODO: Navigate to add person screen
-              },
+              onPressed: () {},
               icon: const Icon(Icons.person_add, size: 18),
               label: const Text('Add Family Member'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: KinrelColors.orange,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
             ),
           ],
@@ -308,33 +361,18 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: const BoxDecoration(
         color: KinrelColors.darkElevated,
-        border: Border(
-          bottom: BorderSide(
-            color: KinrelColors.amber,
-            width: 1,
-          ),
-        ),
+        border: Border(bottom: BorderSide(color: KinrelColors.amber, width: 1)),
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.warning_amber_rounded,
-            color: KinrelColors.amber,
-            size: 20,
-          ),
+          const Icon(Icons.warning_amber_rounded, color: KinrelColors.amber, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               graph.totalCount != null
-                  ? 'Showing first ${graph.persons.length} of ${graph.totalCount} persons. '
-                      'The full family has more members.'
-                  : 'Showing first ${graph.persons.length} persons. '
-                      'The full family has more members.',
-              style: const TextStyle(
-                color: KinrelColors.textSecondaryDark,
-                fontFamily: 'DMSans',
-                fontSize: 12,
-              ),
+                  ? 'Showing first ${graph.persons.length} of ${graph.totalCount} persons.'
+                  : 'Showing first ${graph.persons.length} persons.',
+              style: const TextStyle(color: KinrelColors.textSecondaryDark, fontFamily: 'DMSans', fontSize: 12),
             ),
           ),
         ],
@@ -342,58 +380,128 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     );
   }
 
-  // ── Zoom Controls (FAB Column) ────────────────────────────────────
+  // ── Bottom Legend Bar ─────────────────────────────────────────────
 
-  Widget? _buildZoomControls() {
-    final graphAsync = ref.watch(familyGraphProvider(widget.familyId));
-    if (graphAsync.isLoading || graphAsync.hasError) return null;
-    final graph = graphAsync.valueOrNull;
-    if (graph == null || graph.persons.isEmpty) return null;
+  Widget _buildBottomLegendBar(Set<int> presentGenerations) {
+    final categories = <_LegendChip>[];
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Zoom In
-        FloatingActionButton.small(
-          heroTag: 'zoom_in',
-          onPressed: _zoomIn,
-          backgroundColor: KinrelColors.darkElevated,
-          foregroundColor: KinrelColors.textWhite,
-          child: const Icon(Icons.add, size: 20),
-        ),
-        const SizedBox(height: 8),
+    final hasParents = presentGenerations.any((g) => g < 0 && g.abs() < 2);
+    final hasSelf = presentGenerations.contains(0);
+    final hasSiblings = presentGenerations.contains(0); // Siblings are gen 0
+    final hasChildren = presentGenerations.any((g) => g > 0 && g < 2);
+    final hasExtended = presentGenerations.any((g) => g.abs() >= 2);
+    final hasInLaws = presentGenerations.contains(99);
 
-        // Zoom Out
-        FloatingActionButton.small(
-          heroTag: 'zoom_out',
-          onPressed: _zoomOut,
-          backgroundColor: KinrelColors.darkElevated,
-          foregroundColor: KinrelColors.textWhite,
-          child: const Icon(Icons.remove, size: 20),
-        ),
-        const SizedBox(height: 8),
+    if (hasParents) categories.add(_LegendChip('Parents', KinrelColors.blue));
+    if (hasSelf) categories.add(_LegendChip('Self', KinrelColors.tealAccent));
+    if (hasSiblings && !hasSelf) categories.add(_LegendChip('Siblings', KinrelColors.tealAccent));
+    if (hasChildren) categories.add(_LegendChip('Children', KinrelColors.coral));
+    if (hasExtended) categories.add(_LegendChip('Extended', KinrelColors.extendedPurple));
+    if (hasInLaws) categories.add(_LegendChip('In-laws', KinrelColors.inLawGold));
 
-        // Reset View
-        FloatingActionButton.small(
-          heroTag: 'reset_view',
-          onPressed: _resetView,
-          backgroundColor: KinrelColors.darkElevated,
-          foregroundColor: KinrelColors.textWhite,
-          child: const Icon(Icons.center_focus_strong, size: 20),
-        ),
-        const SizedBox(height: 8),
+    if (categories.isEmpty) return const SizedBox.shrink();
 
-        // Refresh
-        FloatingActionButton.small(
-          heroTag: 'refresh',
-          onPressed: () {
-            ref.invalidate(familyGraphProvider(widget.familyId));
-          },
-          backgroundColor: KinrelColors.darkElevated,
-          foregroundColor: KinrelColors.textWhite,
-          child: const Icon(Icons.refresh, size: 20),
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: KinrelColors.darkCard.withValues(alpha: 0.9),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: categories.map((chip) => _buildLegendChip(chip)).toList(),
+      ),
     );
   }
+
+  Widget _buildLegendChip(_LegendChip chip) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: chip.color),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            chip.label,
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 11,
+              color: KinrelColors.textSecondaryDark,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Bottom Control Bar ────────────────────────────────────────────
+
+  Widget _buildBottomControlBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      color: KinrelColors.darkCard,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Zoom out
+          _buildControlButton(Icons.remove, _zoomOut),
+          const SizedBox(width: 16),
+          // Zoom in
+          _buildControlButton(Icons.add, _zoomIn),
+          const SizedBox(width: 24),
+          // Recenter (orange filled circle)
+          GestureDetector(
+            onTap: _resetView,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: KinrelColors.orange,
+                boxShadow: [
+                  BoxShadow(
+                    color: KinrelColors.orange.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.center_focus_strong, color: Colors.white, size: 20),
+            ),
+          ),
+          const SizedBox(width: 24),
+          // Fit to screen
+          _buildControlButton(Icons.fullscreen, _fitToScreen),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildControlButton(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: KinrelColors.darkElevated,
+          border: Border.all(color: const Color(0x1AFFFFFF), width: 1),
+        ),
+        alignment: Alignment.center,
+        child: Icon(icon, color: KinrelColors.textWhite, size: 18),
+      ),
+    );
+  }
+}
+
+// ── Helper class for legend chips ──────────────────────────────────
+
+class _LegendChip {
+  final String label;
+  final Color color;
+  const _LegendChip(this.label, this.color);
 }
