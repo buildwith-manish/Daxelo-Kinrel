@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNotEmpty, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsNotEmpty, IsIn, IsUrl } from 'class-validator';
 
 export class CreateFamilyDto {
   @IsString()
@@ -24,4 +24,16 @@ export class CreateFamilyDto {
   @IsOptional()
   @IsIn(['private', 'invite', 'link'])
   privacyMode?: string;
+
+  @IsOptional()
+  @IsString()
+  region?: string;
+
+  @IsOptional()
+  @IsString()
+  username?: string;
+
+  @IsOptional()
+  @IsString()
+  avatarUrl?: string;
 }

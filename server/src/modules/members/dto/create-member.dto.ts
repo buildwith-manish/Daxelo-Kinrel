@@ -17,7 +17,7 @@ export class CreateMemberDto {
   name!: string;
 
   @IsOptional()
-  @IsIn(['male', 'female', 'other'])
+  @IsIn(['male', 'female', 'other', 'non-binary', 'prefer not to say'])
   gender?: string;
 
   @IsOptional()

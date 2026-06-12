@@ -48,6 +48,10 @@ export class FamiliesService {
     // holding a transaction lock while generating a random ID
     const kinFamilyId = await this.familyIdService.generateFamilyId();
 
+    // Use username as familyCode if provided (same convention as Flutter direct writes)
+    const effectiveUsername = dto.username?.trim() || null;
+    const familyCode = effectiveUsername || undefined; // falls back to cuid() default
+
     const family = await this.prisma.$transaction(async (tx) => {
       const created = await tx.family.create({
         data: {
@@ -57,8 +61,12 @@ export class FamiliesService {
           gotra: dto.gotra?.trim() || null,
           originVillage: dto.originVillage?.trim() || null,
           privacyMode: dto.privacyMode || 'private',
+          region: dto.region?.trim() || null,
+          username: effectiveUsername,
+          avatarUrl: dto.avatarUrl || null,
+          ...(familyCode ? { familyCode } : {}),
           createdBy: userId,
-          memberCount: 1,
+          memberCount: 0,
           lastActivityAt: new Date(),
           kinFamilyId,
         },

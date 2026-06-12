@@ -37,6 +37,28 @@ String _generateId() {
   return 'c$timestamp$rand'.substring(0, 25);
 }
 
+/// Extract a human-readable error message from a DioException.
+String _extractDioErrorMessage(DioException e) {
+  final data = e.response?.data;
+  if (data is Map<String, dynamic>) {
+    // NestJS often returns { message: "..." } or { error: "..." }
+    final msg = data['message'];
+    if (msg is String) return msg;
+    if (msg is List && msg.isNotEmpty) return msg.first.toString();
+    final err = data['error'];
+    if (err is String) return err;
+  }
+  if (data is String && data.isNotEmpty) return data;
+  // Fall back to DioException type-based messages
+  return switch (e.type) {
+    DioExceptionType.connectionTimeout => 'Connection timed out. Please try again.',
+    DioExceptionType.sendTimeout => 'Request timed out. Please try again.',
+    DioExceptionType.receiveTimeout => 'Server took too long to respond. Please try again.',
+    DioExceptionType.connectionError => 'No internet connection. Please try again.',
+    _ => 'Something went wrong. Please try again.',
+  };
+}
+
 // ── Data Models ────────────────────────────────────────────────
 
 class Family {
@@ -1140,7 +1162,7 @@ final familyListErrorProvider = Provider<Object?>((ref) {
   return ref.watch(familyListProvider).error;
 });
 
-/// Create family in Supabase with retry for cold starts
+/// Create family via NestJS API (atomically creates Family + FamilyMember)
 Future<Family> createFamily({
   required WidgetRef ref,
   required String name,
@@ -1165,108 +1187,53 @@ Future<Family> createFamily({
     throw Exception('You must be signed in to create a family.');
   }
 
-  // 1. Create the family
-  final now = DateTime.now().toIso8601String();
-  final familyId = _generateId();
-  
-  // Retry on familyCode uniqueness conflict (23505)
-  Map<String, dynamic>? response;
+  // Use NestJS API to atomically create Family + FamilyMember (admin)
+  // This avoids the RLS chicken-and-egg problem with direct Supabase inserts.
+  final dio = ref.read(dioProvider);
+
+  // Retry on familyCode/username uniqueness conflict
+  Response? response;
   String effectiveUsername = username ?? '';
   for (int attempt = 0; attempt < 3; attempt++) {
     try {
       final random = Random();
       final suffix = attempt == 0 ? '' : '-${List.generate(4, (_) => random.nextInt(36).toRadixString(36)).join()}';
       final usernameWithSuffix = effectiveUsername.isNotEmpty ? '$effectiveUsername$suffix' : null;
+
       response = await withRetry(
-        () => client
-            .from(_kFamilyTable)
-            .insert({
-              'id': familyId,
-              'name': name,
-              if (description != null) 'description': description,
-              'primaryLanguage': primaryLanguage ?? 'en',
-              if (gotra != null) 'gotra': gotra,
-              if (originVillage != null) 'originVillage': originVillage,
-              if (region != null) 'region': region,
-              'privacyMode': privacyMode ?? 'private',
-              if (photoUrl != null) 'avatarUrl': photoUrl,
-              if (usernameWithSuffix != null) 'username': usernameWithSuffix,
-              if (usernameWithSuffix != null) 'familyCode': usernameWithSuffix,
-              'isOnboarded': false,
-              'memberCount': 0,
-              'generationCount': 1,
-              'lastActivityAt': now,
-              'createdBy': userId,
-              'createdAt': now,
-              'updatedAt': now,
-            })
-            .select()
-            .maybeSingle(),
-        operationName: 'Create family',
+        () => dio.post('/api/families', data: {
+          'name': name,
+          if (description != null) 'description': description,
+          'primaryLanguage': primaryLanguage ?? 'en',
+          if (gotra != null) 'gotra': gotra,
+          if (originVillage != null) 'originVillage': originVillage,
+          if (region != null) 'region': region,
+          'privacyMode': privacyMode ?? 'private',
+          if (usernameWithSuffix != null) 'username': usernameWithSuffix,
+          if (photoUrl != null) 'avatarUrl': photoUrl,
+        }),
+        operationName: 'Create family via NestJS',
       );
       break; // success
-    } catch (e) {
-      final errStr = e.toString().toLowerCase();
-      if ((errStr.contains('23505') || errStr.contains('duplicate') || errStr.contains('conflict'))
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      final errStr = (e.response?.data?.toString() ?? e.toString()).toLowerCase();
+      // 409 Conflict or 23505 uniqueness violation — retry with new suffix
+      if ((status == 409 || errStr.contains('23505') || errStr.contains('duplicate') || errStr.contains('unique') || errStr.contains('conflict'))
           && attempt < 2) {
-        continue; // retry with new suffix
+        continue;
       }
-      rethrow;
+      // For other errors, try to extract a useful message
+      final serverMsg = _extractDioErrorMessage(e);
+      throw Exception(serverMsg);
     }
   }
 
-  if (response == null) {
+  if (response == null || response.data == null) {
     throw Exception('Failed to create family — no data returned from server.');
   }
 
-  final family = Family.fromJson(response);
-
-  // 2. Add the creator as an admin FamilyMember
-  // NOTE: This insert may fail due to RLS chicken-and-egg problem
-  // (FamilyMember INSERT requires user to already be a member of the family).
-  // We try via the NestJS API first (which uses service_role key to bypass RLS),
-  // then via Supabase RPC (atomic insert + memberCount bump), and if that
-  // fails, we fall back to a direct insert.
-  try {
-    // Try NestJS API first (bypasses RLS via service_role key)
-    final dio = ref.read(dioProvider);
-    await dio.post('/api/families/${family.id}/members', data: {
-      'userId': userId,
-      'role': 'admin',
-    });
-  } catch (e) {
-    // Fallback: Supabase RPC (atomic insert + memberCount bump in one call)
-    debugPrint('⚠️ API member insert failed, trying RPC: $e');
-    try {
-      await withRetry(
-        () => client.rpc('add_family_member', params: {
-          'p_family_id': family.id,
-          'p_user_id': userId,
-          'p_role': 'admin',
-        }),
-        operationName: 'Add creator as family member (RPC)',
-      );
-    } catch (e2) {
-      // Final fallback: direct Supabase insert (may fail due to RLS)
-      debugPrint('⚠️ RPC add_family_member failed, trying direct insert: $e2');
-      try {
-        await withRetry(
-          () => client.from(_kFamilyMemberTable).insert({
-            'id': _generateId(),
-            'familyId': family.id,
-            'userId': userId,
-            'role': 'admin',
-            'joinedAt': DateTime.now().toIso8601String(),
-          }),
-          operationName: 'Add creator as family member (direct)',
-        );
-      } catch (e3) {
-        // Best-effort — the family is still created.
-        // The creator can still access it via createdBy.
-        debugPrint('⚠️ Could not add creator as FamilyMember (RLS may block): $e3');
-      }
-    }
-  }
+  final family = Family.fromJson(response.data as Map<String, dynamic>);
 
   ref.invalidate(familyListProvider);
 
@@ -1278,7 +1245,6 @@ Future<Family> createFamily({
   }
 
   // ✅ FIX: Refresh profile stats after family creation
-  // Without this, the profile screen still shows 0 Family Trees
   try {
     await ref.read(profileProvider.notifier).loadStats();
   } catch (_) {}
@@ -1289,7 +1255,7 @@ Future<Family> createFamily({
   return family;
 }
 
-/// Create person in Supabase with retry for cold starts
+/// Create person via NestJS API (atomically creates Person + increments memberCount)
 Future<Person> createPerson({
   required WidgetRef ref,
   required String familyId,
@@ -1309,68 +1275,38 @@ Future<Person> createPerson({
     );
   }
 
-  final personId = _generateId();
-  final now = DateTime.now().toIso8601String();
-  final response = await withRetry(
-    () => client
-        .from(_kPersonTable)
-        .insert({
-          'id': personId,
-          'familyId': familyId,
-          'name': name,
-          if (gender != null) 'gender': gender,
-          if (dateOfBirth != null) 'dateOfBirth': dateOfBirth,
-          if (city != null) 'city': city,
-          if (gotra != null) 'gotra': gotra,
-          'isDeceased': isDeceased,
-          'privacyLevel': 'family',
-          if (birthYear != null) 'birthYear': birthYear,
-          'isAnchor': isAnchor,
-          'createdAt': now,
-          'updatedAt': now,
-        })
-        .select()
-        .maybeSingle(),
-    operationName: 'Create person',
-  );
+  // Use NestJS API to atomically create Person + increment Family.memberCount
+  // This avoids race conditions with the non-atomic read-then-write Supabase approach.
+  final dio = ref.read(dioProvider);
 
-  if (response == null) {
+  final Response response;
+  try {
+    response = await withRetry(
+      () => dio.post('/api/families/$familyId/persons', data: {
+        'name': name,
+        if (gender != null) 'gender': gender,
+        if (dateOfBirth != null) 'dateOfBirth': dateOfBirth,
+        if (city != null) 'city': city,
+        if (gotra != null) 'gotra': gotra,
+        'isDeceased': isDeceased,
+        if (birthYear != null) 'birthYear': birthYear,
+        'isAnchor': isAnchor,
+      }),
+      operationName: 'Create person via NestJS',
+    );
+  } on DioException catch (e) {
+    final serverMsg = _extractDioErrorMessage(e);
+    throw Exception(serverMsg);
+  }
+
+  if (response.data == null) {
     throw Exception('Failed to create person — no data returned from server.');
   }
+
+  final person = Person.fromJson(response.data as Map<String, dynamic>);
+
   ref.invalidate(familyMembersProvider(familyId));
   // familyDetailProvider auto-rebuilds via ref.watch on familyMembersProvider
-
-  // ✅ FIX: Increment Family.memberCount in Supabase
-  // The NestJS backend does memberCount: { increment: 1 } when adding a person.
-  // We must do the same when creating via Flutter direct Supabase writes.
-  // Note: Supabase PostgREST does NOT support { 'increment': 1 } Prisma syntax.
-  // We must read the current count and then write the incremented value.
-  try {
-    final familyData = await withRetry(
-      () => client
-          .from(_kFamilyTable)
-          .select('memberCount')
-          .eq('id', familyId)
-          .maybeSingle(),
-      operationName: 'Read memberCount for increment',
-    );
-    if (familyData != null) {
-      final currentCount = (familyData['memberCount'] as int?) ?? 0;
-      await withRetry(
-        () => client
-            .from(_kFamilyTable)
-            .update({
-              'memberCount': currentCount + 1,
-              'lastActivityAt': DateTime.now().toIso8601String(),
-              'updatedAt': DateTime.now().toIso8601String(),
-            })
-            .eq('id', familyId),
-        operationName: 'Increment memberCount',
-      );
-    }
-  } catch (e) {
-    debugPrint('⚠️ Could not increment memberCount: $e');
-  }
 
   // Invalidate the Isar cache for this family
   if (IsarDatabase.isInitialized) {
@@ -1380,7 +1316,6 @@ Future<Person> createPerson({
   }
 
   // ✅ FIX: Refresh profile stats after member addition
-  // Without this, the profile screen still shows old Members Added count
   try {
     await ref.read(profileProvider.notifier).loadStats();
   } catch (_) {}
@@ -1395,7 +1330,7 @@ Future<Person> createPerson({
     await prefs.setInt('members_added', count + 1);
   } catch (_) {}
 
-  return Person.fromJson(response);
+  return person;
 }
 
 /// Update person in Supabase with retry for cold starts
