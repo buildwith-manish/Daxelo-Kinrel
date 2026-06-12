@@ -23,6 +23,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
@@ -126,12 +127,15 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
 
     return FadeTransition(
       opacity: _fadeAnimation,
-      child: Center(
-        child: widget.memberCount == 0
-            ? _buildZeroMembers()
-            : widget.memberCount == 1
-                ? _buildOneMember()
-                : _buildTwoToThreeMembers(),
+      child: Material(
+        color: Colors.transparent,
+        child: Center(
+          child: widget.memberCount == 0
+              ? _buildZeroMembers()
+              : widget.memberCount == 1
+                  ? _buildOneMember()
+                  : _buildTwoToThreeMembers(),
+        ),
       ),
     );
   }
@@ -158,6 +162,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
               fontWeight: FontWeight.w700,
               color: KinrelColors.textWhite,
               letterSpacing: 0.5,
+              decoration: TextDecoration.none,
             ),
             textAlign: TextAlign.center,
           ),
@@ -172,6 +177,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
               fontSize: 15.0,
               color: KinrelColors.textSilver,
               height: 1.5,
+              decoration: TextDecoration.none,
             ),
             textAlign: TextAlign.center,
           ),
@@ -211,7 +217,8 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    // Import contacts flow
+                    // Import contacts flow — navigate to add-person with intent
+                    context.push('/family/${widget.familyId}/add-person');
                   },
                   icon: const Icon(Icons.contacts_outlined, size: 18.0),
                   label: const Text(
@@ -219,6 +226,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13.0,
+                      decoration: TextDecoration.none,
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
@@ -235,7 +243,8 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    // Invite family flow
+                    // Invite family flow — navigate to invite screen
+                    context.push('/family/${widget.familyId}/invite');
                   },
                   icon: const Icon(Icons.person_add_outlined, size: 18.0),
                   label: const Text(
@@ -243,6 +252,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13.0,
+                      decoration: TextDecoration.none,
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
@@ -321,6 +331,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
               fontSize: 16.0,
               fontWeight: FontWeight.w600,
               color: KinrelColors.textWhite,
+              decoration: TextDecoration.none,
             ),
           ),
 
@@ -333,6 +344,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14.0,
               color: KinrelColors.textSilver,
+              decoration: TextDecoration.none,
             ),
           ),
 
@@ -421,6 +433,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
                     fontSize: 14.0,
                     fontWeight: FontWeight.w500,
                     color: KinrelColors.textWhite,
+                    decoration: TextDecoration.none,
                   ),
                 ),
               ],
@@ -457,6 +470,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12.0,
                       color: KinrelColors.textSilver,
+                      decoration: TextDecoration.none,
                     ),
                   ),
                 ),

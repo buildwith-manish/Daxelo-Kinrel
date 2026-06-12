@@ -14,6 +14,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -256,7 +257,9 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           EmptyState(
             memberCount: memberCount,
             familyId: widget.familyId,
-            onAddMember: () {},
+            onAddMember: () {
+              context.push('/family/${widget.familyId}/add-person');
+            },
           ),
           // Still show the graph for 2-3 members (semi-transparent)
           if (memberCount >= 2)
@@ -311,7 +314,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       memberCount: 0,
       familyId: widget.familyId,
       onAddMember: () {
-        // Navigate to add person flow
+        context.push('/family/${widget.familyId}/add-person');
       },
     );
   }
