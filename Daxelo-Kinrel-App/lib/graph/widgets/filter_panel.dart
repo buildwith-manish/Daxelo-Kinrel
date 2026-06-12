@@ -570,14 +570,19 @@ class GraphFilterPanel extends ConsumerWidget {
                 color: KinrelColors.textDim,
               ),
             ),
-            const Expanded(
+            Expanded(
               child: Slider(
                 value: currentFilter.maxDegrees.toDouble(),
-                min: 1,
-                max: 5,
+                min: 1.0,
+                max: 5.0,
                 divisions: 4,
-                activeColor: Color(0xFF0D9488),
+                activeColor: const Color(0xFF0D9488),
                 inactiveColor: KinrelColors.border,
+                onChanged: (value) {
+                  onFilterChanged(
+                    currentFilter.copyWith(maxDegrees: value.round()),
+                  );
+                },
               ),
             ),
             Text(

@@ -26,7 +26,7 @@ import 'filter_panel.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Provider that watches connectivity status via connectivity_plus.
-final connectivityProvider = StreamProvider<ConnectivityResult>((ref) {
+final connectivityProvider = StreamProvider<List<ConnectivityResult>>((ref) {
   return Connectivity().onConnectivityChanged;
 });
 
@@ -34,7 +34,7 @@ final connectivityProvider = StreamProvider<ConnectivityResult>((ref) {
 final isOnlineProvider = Provider<bool>((ref) {
   final connectivity = ref.watch(connectivityProvider);
   return connectivity.when(
-    data: (result) => result != ConnectivityResult.none,
+    data: (results) => results.any((r) => r != ConnectivityResult.none),
     loading: () => true, // Assume online until we know otherwise
     error: (_, __) => true,
   );

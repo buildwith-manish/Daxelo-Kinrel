@@ -22,7 +22,7 @@ void main() {
     group('simulation cooling', () {
       test('simulation cools from alpha=1.0 to alphaMin within maxTicks', () {
         const config = SimulationConfig(
-          alphaStart: 1.0,
+          alpha: 1.0,
           alphaMin: 0.001,
           alphaDecay: 0.0228,
           maxTicks: 10000,
@@ -53,7 +53,7 @@ void main() {
       });
 
       test('reheat sets alpha to 0.3', () {
-        const config = SimulationConfig(alphaStart: 1.0);
+        const config = SimulationConfig(alpha: 1.0);
         final sim = ForceSimulator(config: config);
 
         final persons = _createTestPersons(5);

@@ -80,7 +80,8 @@ extension EngineTierLabel on EngineTier {
         EngineTier.hybrid => 1000,
         EngineTier.radial => 3000,
         EngineTier.hierarchical => 5000,
-        EngineTier.emergency => 0x7FFFFFFFFFFFFFFF, // unlimited
+        // Use 999999999 instead of max int to avoid JS precision issues on web
+        EngineTier.emergency => 999999999,
       };
 }
 
