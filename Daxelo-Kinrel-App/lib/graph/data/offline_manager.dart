@@ -64,7 +64,7 @@ class OfflineManager {
       StreamController<double>.broadcast();
 
   /// Connectivity subscription.
-  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   /// Whether the device is currently online.
   bool _isOnline = true;
@@ -95,9 +95,9 @@ class OfflineManager {
   /// Initializes the offline manager and starts connectivity monitoring.
   void initialize() {
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen(
-      (result) {
+      (results) {
         final wasOnline = _isOnline;
-        _isOnline = result != ConnectivityResult.none;
+        _isOnline = results.any((r) => r != ConnectivityResult.none);
 
         if (!_onlineController.isClosed) {
           _onlineController.add(_isOnline);

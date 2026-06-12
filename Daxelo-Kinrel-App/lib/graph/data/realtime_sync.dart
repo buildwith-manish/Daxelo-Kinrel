@@ -237,22 +237,11 @@ class RealtimeSync {
   void _checkConnection() {
     if (_isDisposed) return;
 
-    bool anyConnected = false;
-    for (final channel in _channels) {
-      // Check channel state
-      try {
-        final state = channel.state;
-        if (state == RealtimeChannelState.joined ||
-            state == RealtimeChannelState.joining) {
-          anyConnected = true;
-        }
-      } catch (_) {
-        // Channel state check failed
-      }
-    }
-
-    if (!anyConnected && _currentMemberId != null) {
-      _logEvent('heartbeat_failed');
+    // Simple heartbeat: if channels exist, assume connected.
+    // The Supabase Realtime client handles reconnection internally.
+    // If channels were unsubscribed (empty list), attempt reconnect.
+    if (_channels.isEmpty && _currentMemberId != null) {
+      _logEvent('heartbeat_channels_empty');
       _attemptReconnect();
     }
   }
