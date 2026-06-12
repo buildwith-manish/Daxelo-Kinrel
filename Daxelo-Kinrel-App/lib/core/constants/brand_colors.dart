@@ -43,7 +43,7 @@ class KinrelColors {
   static const Color blue = Color(0xFF3B82F6); // Tree nodes, dashboard accent
   static const Color red = Color(0xFFEF4444); // Destructive actions (legacy)
 
-  // ── Graph Generation Colors ──────────────────────────────────────
+  // ── Graph Generation Colors (Legacy) ──────────────────────────────
   /// Teal accent — Self/siblings generation ring
   static const Color tealAccent = Color(0xFF2DD4BF);
 
@@ -52,6 +52,56 @@ class KinrelColors {
 
   /// In-law gold — In-law relationships ring
   static const Color inLawGold = Color(0xFFD4AF37);
+
+  // ── Relationship-Based Node Color System (V2.1 Blueprint §11) ───
+  /// Self — Teal #0D9488, teal glow + pulse animation
+  static const Color nodeSelf = Color(0xFF0D9488);
+
+  /// Parent — Blue #3B82F6, blue tint 4%
+  static const Color nodeParent = Color(0xFF3B82F6);
+
+  /// Sibling — Purple #8B5CF6, purple tint 4%
+  static const Color nodeSibling = Color(0xFF8B5CF6);
+
+  /// Child — Pink #EC4899, pink tint 4%
+  static const Color nodeChild = Color(0xFFEC4899);
+
+  /// Spouse — Orange #F97316, orange tint 4%
+  static const Color nodeSpouse = Color(0xFFF97316);
+
+  /// Grandparent — Indigo #6366F1, indigo tint 4%
+  static const Color nodeGrandparent = Color(0xFF6366F1);
+
+  /// Aunt/Uncle — Cyan #06B6D4, cyan tint 4%
+  static const Color nodeAuntUncle = Color(0xFF06B6D4);
+
+  /// Cousin — Emerald #10B981, emerald tint 4%
+  static const Color nodeCousin = Color(0xFF10B981);
+
+  /// In-Law — Amber #F59E0B, amber tint 4%
+  static const Color nodeInLaw = Color(0xFFF59E0B);
+
+  /// Extended — Slate #64748B, slate tint 4%
+  static const Color nodeExtended = Color(0xFF64748B);
+
+  // ── Graph Edge Colors (V2.1 Blueprint §11.2) ────────────────────
+  /// Graph edge orange — dashed/solid line color
+  static const Color graphEdgeOrange = Color(0xFFF97316);
+
+  /// Graph dot orange — midpoint glow dot
+  static const Color graphDotOrange = Color(0xFFF97316);
+
+  /// Spouse heart color — heart icon on spouse edges
+  static const Color spouseHeartColor = Color(0xFFEC4899);
+
+  /// Anonymous node — gray for hidden members
+  static const Color nodeAnonymous = Color(0xFF4B5563);
+
+  /// Indirect connection — dashed gray for blocked-member paths
+  static const Color edgeIndirectConnection = Color(0xFF6B7280);
+
+  /// Private relationship — lock icon color
+  static const Color lockIconColor = Color(0xFFF59E0B);
 
   // ── Dark Theme ─────────────────────────────────────────────────
   /// App Background — #131416 (cool blue-dark)

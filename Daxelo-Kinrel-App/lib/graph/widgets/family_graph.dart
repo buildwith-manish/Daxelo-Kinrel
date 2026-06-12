@@ -1,0 +1,977 @@
+// lib/graph/widgets/family_graph.dart
+//
+// DAXELO KINREL — Family Graph Widget (V2.1 Redesign)
+//
+// The top-level graph container that replaces the existing graph canvas.
+//
+// Unidirectional data flow:
+//   User Action → Intent → Interaction → Engine → Rendering → Presentation
+//
+// Integrates:
+//   - CameraController for pan/zoom/focus (graph/interaction/)
+//   - ExpandCollapseController for progressive disclosure (graph/interaction/)
+//   - ViewportCuller for virtualization (graph/rendering/)
+//   - NodeRenderCoordinator for RepaintBoundary management (graph/rendering/)
+//   - EdgePathCache for path caching (graph/rendering/)
+//   - PermissionValidator for visibility filtering (graph/security/)
+//   - AnalyticsTracker for event tracking (graph/analytics/)
+//   - FallbackManager for engine switching (graph/engine/)
+//   - PositionMemory for camera persistence (graph/data/)
+
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/constants/brand_colors.dart';
+import '../../core/constants/brand_typography.dart';
+import '../../core/services/graph_layout_service.dart';
+import '../../features/family/presentation/providers/family_graph_provider.dart';
+import '../../features/family/presentation/widgets/graph_canvas_widget.dart';
+import '../analytics/analytics_tracker.dart';
+import '../data/position_memory.dart';
+import '../interaction/camera_controller.dart';
+import '../rendering/viewport_culler.dart';
+import 'empty_state.dart';
+import 'graph_node.dart';
+import 'onboarding_flow.dart';
+import 'relationship_edge.dart';
+import 'search_bar.dart';
+
+// ═══════════════════════════════════════════════════════════════════════
+// FAMILY GRAPH WIDGET
+// ═══════════════════════════════════════════════════════════════════════
+
+/// The main graph widget that replaces the existing graph canvas.
+///
+/// Combines all layers (security, analytics, rendering) into a single
+/// widget with unidirectional data flow and optimized rendering via
+/// RepaintBoundary and viewport culling.
+///
+/// Layout structure:
+/// ```
+/// Stack(
+///   RepaintBoundary(  // Camera transform layer
+///     Transform(pan + zoom)
+///       RepaintBoundary(  // Edge layer
+///         CustomPaint(painter: RelationshipEdge)
+///       )
+///       ...visible nodes wrapped in RepaintBoundary(  // Node layer
+///         GraphNode
+///       )
+///   )
+///   RepaintBoundary(SearchBar)
+///   RepaintBoundary(ControlBar)
+///   EmptyState (conditional)
+///   OnboardingFlow (conditional)
+/// )
+/// ```
+class FamilyGraphWidget extends ConsumerStatefulWidget {
+  const FamilyGraphWidget({
+    super.key,
+    required this.familyId,
+    required this.familyName,
+  });
+
+  /// The family ID for data fetching and permission checks.
+  final String familyId;
+
+  /// The family display name.
+  final String familyName;
+
+  @override
+  ConsumerState<FamilyGraphWidget> createState() => _FamilyGraphWidgetState();
+}
+
+class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
+  // ── Controllers ────────────────────────────────────────────────────
+
+  late final CameraController _cameraController;
+  ViewportCuller? _viewportCuller;
+  late final PositionMemory _positionMemory;
+  final TransformationController _transformationController =
+      TransformationController();
+
+  // ── State ──────────────────────────────────────────────────────────
+
+  /// Computed layout result.
+  GraphLayoutResult? _layoutResult;
+
+  /// Map of person ID → PersonData for quick lookups.
+  final Map<String, _GraphPersonData> _personMap = {};
+
+  /// List of relationship edge data.
+  final List<_GraphEdgeData> _edges = [];
+
+  /// Currently selected node ID.
+  String? _selectedNodeId;
+
+  /// Currently selected edge ID.
+  String? _selectedEdgeId;
+
+  /// Currently focused node ID (pulsing glow).
+  String? _focusedNodeId;
+
+  /// Currently highlighted generation index.
+  int? _highlightedGeneration;
+
+  /// Set of visible node IDs (viewport culling).
+  Set<String> _visibleNodeIds = {};
+
+  /// Set of blocked node IDs from permission filter.
+  Set<String> _blockedNodeIds = {};
+
+  /// Set of anonymous node IDs from permission filter.
+  Set<String> _anonymousNodeIds = {};
+
+  /// Whether the search bar is visible.
+  bool _searchBarVisible = false;
+
+  /// Debounce timer for camera position saving.
+  Timer? _cameraSaveDebounce;
+
+  /// Stopwatch for graph open time tracking.
+  final Stopwatch _openStopwatch = Stopwatch();
+
+  /// Current viewport size for culling.
+  Size _viewportSize = Size.zero;
+
+  // ── Constants ──────────────────────────────────────────────────────
+
+  static const double _nodeWidth = 72.0;
+  static const double _nodeHeight = 72.0;
+
+  // ── Lifecycle ──────────────────────────────────────────────────────
+
+  @override
+  void initState() {
+    super.initState();
+    _positionMemory = PositionMemory();
+    _cameraController = CameraController(positionMemory: _positionMemory);
+    _transformationController.addListener(_onTransformChanged);
+    _openStopwatch.start();
+  }
+
+  @override
+  void dispose() {
+    _cameraSaveDebounce?.cancel();
+    _openStopwatch.stop();
+    _transformationController.removeListener(_onTransformChanged);
+    _transformationController.dispose();
+    _cameraController.dispose();
+    _viewportCuller?.dispose();
+    super.dispose();
+  }
+
+  // ── Transform Change Handler ───────────────────────────────────────
+
+  void _onTransformChanged() {
+    if (!mounted) return;
+
+    final zoom = _currentZoom;
+    final pan = _currentPan;
+
+    // Update viewport culling using the existing ViewportCuller
+    if (_viewportSize != Size.zero && _layoutResult != null) {
+      final viewport = Rect.fromLTWH(
+        -pan.dx / zoom,
+        -pan.dy / zoom,
+        _viewportSize.width / zoom,
+        _viewportSize.height / zoom,
+      );
+
+      // Initialize culler if needed
+      if (_viewportCuller == null) {
+        _viewportCuller = ViewportCuller(viewport: viewport);
+      }
+
+      final nodeSizes = <String, Size>{
+        for (final id in _layoutResult!.positions.keys)
+          id: const Size(_nodeWidth, _nodeHeight),
+      };
+
+      final newVisible = _viewportCuller!.cull(
+        _layoutResult!.positions,
+        nodeSizes,
+        viewport,
+      );
+
+      if (newVisible != _visibleNodeIds) {
+        setState(() {
+          _visibleNodeIds = newVisible;
+        });
+      }
+    }
+
+    // Debounced camera position save (500ms)
+    _cameraSaveDebounce?.cancel();
+    _cameraSaveDebounce = Timer(const Duration(milliseconds: 500), () {
+      _positionMemory.savePosition(
+        widget.familyId,
+        panX: pan.dx,
+        panY: pan.dy,
+        zoomLevel: zoom,
+      );
+    });
+  }
+
+  /// Gets the current zoom level from the transformation matrix.
+  double get _currentZoom {
+    return _transformationController.value.getMaxScaleOnAxis();
+  }
+
+  /// Gets the current pan offset from the transformation matrix.
+  Offset get _currentPan {
+    final m = _transformationController.value;
+    return Offset(m.getTranslation().x, m.getTranslation().y);
+  }
+
+  // ── Gesture Handlers ───────────────────────────────────────────────
+
+  void _onNodeTap(String personId) {
+    final tracker = ref.read(analyticsTrackerProvider);
+    final person = _personMap[personId];
+    if (person != null) {
+      tracker.trackNodeClick(
+        personId,
+        person.relationshipKey ?? 'unknown',
+        person.disclosureLevel,
+      );
+    }
+
+    setState(() {
+      _selectedNodeId = _selectedNodeId == personId ? null : personId;
+      _selectedEdgeId = null;
+    });
+  }
+
+  void _onNodeLongPress(String personId) {
+    _showQuickActions(personId);
+  }
+
+  void _onNodeDoubleTap(String personId) {
+    // Focus camera on this node
+    final pos = _layoutResult?.positions[personId];
+    if (pos != null) {
+      _cameraController.focusOnNode(personId, pos);
+      ref.read(analyticsTrackerProvider).trackCameraFocus(personId, 400);
+    }
+
+    setState(() {
+      _focusedNodeId = _focusedNodeId == personId ? null : personId;
+    });
+  }
+
+  void _onEdgeTap(String edgeId) {
+    setState(() {
+      _selectedEdgeId = _selectedEdgeId == edgeId ? null : edgeId;
+      _selectedNodeId = null;
+    });
+  }
+
+  // ── Quick Actions Bottom Sheet ─────────────────────────────────────
+
+  void _showQuickActions(String personId) {
+    final person = _personMap[personId];
+    if (person == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
+              child: Container(
+                width: 40.0,
+                height: 4.0,
+                decoration: BoxDecoration(
+                  color: KinrelColors.textDim,
+                  borderRadius: BorderRadius.circular(2.0),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20.0,
+                vertical: 12.0,
+              ),
+              child: Text(
+                person.name,
+                style: const TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 18.0,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+            ),
+            const Divider(color: Color(0x1AFFFFFF), height: 1.0),
+            ListTile(
+              leading:
+                  const Icon(Icons.person, color: KinrelColors.tealAccent),
+              title: const Text(
+                'View Profile',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit, color: KinrelColors.amber),
+              title: const Text(
+                'Edit',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+              },
+            ),
+            const SizedBox(height: 8.0),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    // Watch graph data provider
+    final graphAsync = ref.watch(familyGraphProvider(widget.familyId));
+
+    return graphAsync.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator(color: KinrelColors.orange),
+      ),
+      error: (error, stack) => _buildErrorState(error),
+      data: (graphData) {
+        final persons = graphData.toPersonDataList();
+
+        if (persons.isEmpty) {
+          return _buildEmptyStack(
+            child: EmptyState(
+              familyId: widget.familyId,
+              memberCount: 0,
+              onAddMember: () {},
+            ),
+          );
+        }
+
+        // Build person map and edges
+        _personMap.clear();
+        _edges.clear();
+
+        for (final p in persons) {
+          _personMap[p.id] = _GraphPersonData(
+            id: p.id,
+            name: p.name,
+            gender: p.gender,
+            generationIndex: p.generationIndex,
+            isAnchor: p.isAnchor,
+            photoUrl: p.photoUrl,
+            isDeceased: p.isDeceased,
+          );
+        }
+
+        final relationships = graphData.toRelationshipDataList();
+        for (final r in relationships) {
+          _edges.add(_GraphEdgeData(
+            id: r.id,
+            sourceId: r.fromPersonId,
+            targetId: r.toPersonId,
+            relationshipKey: r.relationshipKey,
+          ));
+        }
+
+        // Compute layout
+        final graphPersons =
+            persons.map((p) => p.toGraphPerson()).toList();
+        final graphRelationships =
+            relationships.map((r) => r.toGraphRelationship()).toList();
+        final service = GraphLayoutService();
+        _layoutResult = service.computeLayout(
+          persons: graphPersons,
+          relationships: graphRelationships,
+        );
+
+        if (_layoutResult == null || _layoutResult!.positions.isEmpty) {
+          return _buildEmptyStack(
+            child: EmptyState(
+              familyId: widget.familyId,
+              memberCount: persons.length,
+              onAddMember: () {},
+            ),
+          );
+        }
+
+        // Track graph open time on first render
+        if (_openStopwatch.isRunning) {
+          _openStopwatch.stop();
+          ref.read(analyticsTrackerProvider).trackGraphOpenTime(
+                _openStopwatch.elapsedMilliseconds,
+                persons.length,
+                false,
+              );
+        }
+
+        return _buildGraphStack(_layoutResult!);
+      },
+    );
+  }
+
+  // ── Graph Stack Builder ────────────────────────────────────────────
+
+  Widget _buildGraphStack(GraphLayoutResult layout) {
+    final positions = layout.positions;
+    final canvasWidth = layout.canvasWidth;
+    final canvasHeight = layout.canvasHeight;
+    final zoomLevel = _currentZoom;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
+
+        // Update viewport culling using the existing ViewportCuller
+        final viewport = Rect.fromLTWH(
+          -_currentPan.dx / zoomLevel,
+          -_currentPan.dy / zoomLevel,
+          _viewportSize.width / zoomLevel,
+          _viewportSize.height / zoomLevel,
+        );
+
+        if (_viewportCuller == null) {
+          _viewportCuller = ViewportCuller(viewport: viewport);
+        }
+
+        final nodeSizes = <String, Size>{
+          for (final id in positions.keys)
+            id: const Size(_nodeWidth, _nodeHeight),
+        };
+
+        _visibleNodeIds = _viewportCuller!.cull(
+          positions,
+          nodeSizes,
+          viewport,
+        );
+
+        return Stack(
+          children: [
+            // ── Camera Transform Layer ───────────────────────────────
+            RepaintBoundary(
+              child: ClipRect(
+                child: InteractiveViewer(
+                  transformationController: _transformationController,
+                  minScale: 0.1,
+                  maxScale: 4.0,
+                  constrained: false,
+                  child: SizedBox(
+                    width: canvasWidth,
+                    height: canvasHeight,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        // ── Edge Layer ────────────────────────────────
+                        RepaintBoundary(
+                          child: Positioned.fill(
+                            child: CustomPaint(
+                              size: Size(canvasWidth, canvasHeight),
+                              painter: RelationshipEdge(
+                                positions: positions,
+                                edges: _edges,
+                                selectedEdgeId: _selectedEdgeId,
+                                zoomLevel: zoomLevel,
+                                nodeWidth: _nodeWidth,
+                                nodeHeight: _nodeHeight,
+                                generationMap: {
+                                  for (final p in _personMap.values)
+                                    p.id: p.generationIndex,
+                                },
+                                highlightedGeneration: _highlightedGeneration,
+                                anonymousNodeIds: _anonymousNodeIds,
+                                blockedNodeIds: _blockedNodeIds,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // ── Node Layer ────────────────────────────────
+                        ..._buildVisibleNodes(positions, zoomLevel),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // ── Search Bar ───────────────────────────────────────────
+            if (_searchBarVisible)
+              Positioned(
+                top: 16.0,
+                left: 16.0,
+                right: 16.0,
+                child: RepaintBoundary(
+                  child: GraphSearchBar(
+                    familyId: widget.familyId,
+                    onResultTap: (memberId) {
+                      final pos = positions[memberId];
+                      if (pos != null) {
+                        _cameraController.focusOnNode(memberId, pos);
+                        ref
+                            .read(analyticsTrackerProvider)
+                            .trackCameraFocus(memberId, 400);
+                      }
+                    },
+                    onClose: () {
+                      setState(() {
+                        _searchBarVisible = false;
+                      });
+                    },
+                  ),
+                ),
+              ),
+
+            // ── Control Bar ──────────────────────────────────────────
+            Positioned(
+              bottom: 24.0,
+              right: 16.0,
+              child: RepaintBoundary(
+                child: _ControlBar(
+                  zoomLevel: zoomLevel,
+                  onZoomIn: () {
+                    final current = _currentZoom;
+                    final newZoom = (current * 1.3).clamp(0.1, 4.0);
+                    final center = _viewportSize.center(Offset.zero);
+                    _transformationController.value = Matrix4.identity()
+                      ..translate(
+                        center.dx - center.dx * newZoom,
+                        center.dy - center.dy * newZoom,
+                      )
+                      ..scale(newZoom);
+                  },
+                  onZoomOut: () {
+                    final current = _currentZoom;
+                    final newZoom = (current / 1.3).clamp(0.1, 4.0);
+                    final center = _viewportSize.center(Offset.zero);
+                    _transformationController.value = Matrix4.identity()
+                      ..translate(
+                        center.dx - center.dx * newZoom,
+                        center.dy - center.dy * newZoom,
+                      )
+                      ..scale(newZoom);
+                  },
+                  onReset: () {
+                    _transformationController.value = Matrix4.identity();
+                  },
+                  onSearchToggle: () {
+                    setState(() {
+                      _searchBarVisible = !_searchBarVisible;
+                    });
+                  },
+                  searchBarVisible: _searchBarVisible,
+                ),
+              ),
+            ),
+
+            // ── Onboarding Flow (conditional) ────────────────────────
+            if (_personMap.length <= 4)
+              Positioned.fill(
+                child: OnboardingFlow(
+                  familyId: widget.familyId,
+                  memberCount: _personMap.length,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ── Visible Nodes Builder ──────────────────────────────────────────
+
+  List<Widget> _buildVisibleNodes(
+    Map<String, Offset> positions,
+    double zoomLevel,
+  ) {
+    final nodes = <Widget>[];
+
+    for (final person in _personMap.values) {
+      final pos = positions[person.id];
+      if (pos == null) continue;
+
+      // Skip nodes outside viewport (virtualization)
+      if (!_visibleNodeIds.contains(person.id)) continue;
+
+      final isSelected = _selectedNodeId == person.id;
+      final isFocused = _focusedNodeId == person.id;
+      final isAnonymous = _anonymousNodeIds.contains(person.id);
+
+      // Compute opacity based on highlightedGeneration
+      final double nodeOpacity;
+      if (_highlightedGeneration != null &&
+          person.generationIndex != _highlightedGeneration) {
+        nodeOpacity = 0.15;
+      } else {
+        nodeOpacity = 1.0;
+      }
+
+      // Determine node state
+      final nodeState = _resolveNodeState(
+        person.id,
+        isSelected,
+        isFocused,
+        isAnonymous,
+      );
+
+      // Resolve relationship label
+      final relationLabel = _getRelationLabel(person);
+
+      nodes.add(
+        Positioned(
+          left: pos.dx - _nodeWidth / 2,
+          top: pos.dy - _nodeHeight / 2,
+          child: RepaintBoundary(
+            key: ValueKey('node_${person.id}'),
+            child: GraphNode(
+              personId: person.id,
+              name: isAnonymous ? '' : person.name,
+              gender: person.gender,
+              generationIndex: person.generationIndex,
+              isAnchor: person.isAnchor,
+              photoUrl: isAnonymous ? null : person.photoUrl,
+              isDeceased: person.isDeceased,
+              isAnonymous: isAnonymous,
+              relationshipKey: _getRelationshipKey(person.id),
+              relationLabel: relationLabel,
+              nodeState: nodeState,
+              opacity: nodeOpacity,
+              nodeSize: _resolveNodeSize(zoomLevel),
+              onTap: () => _onNodeTap(person.id),
+              onLongPress: () => _onNodeLongPress(person.id),
+              onDoubleTap: () => _onNodeDoubleTap(person.id),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return nodes;
+  }
+
+  // ── Node State Resolution ──────────────────────────────────────────
+
+  NodeState _resolveNodeState(
+    String personId,
+    bool isSelected,
+    bool isFocused,
+    bool isAnonymous,
+  ) {
+    if (isAnonymous) return NodeState.normal;
+    if (isFocused) return NodeState.focused;
+    if (isSelected) return NodeState.selected;
+    return NodeState.normal;
+  }
+
+  /// Resolves responsive node size based on zoom level.
+  double _resolveNodeSize(double zoomLevel) {
+    if (zoomLevel < 0.5) return 48.0; // compact
+    if (zoomLevel < 0.8) return 56.0; // standard
+    if (zoomLevel < 1.5) return 60.0; // expanded
+    return 64.0; // large
+  }
+
+  // ── Relationship Label ─────────────────────────────────────────────
+
+  /// Returns the relationship label for [person] relative to the anchor.
+  String _getRelationLabel(_GraphPersonData person) {
+    if (person.isAnchor) return 'You';
+
+    // Find anchor
+    final anchor = _personMap.values.firstWhere(
+      (p) => p.isAnchor,
+      orElse: () => person,
+    );
+    if (anchor.id == person.id) return 'You';
+
+    // Search for an edge connecting this person to the anchor
+    for (final edge in _edges) {
+      if (edge.sourceId == anchor.id && edge.targetId == person.id) {
+        return _formatKey(edge.relationshipKey);
+      }
+      if (edge.sourceId == person.id && edge.targetId == anchor.id) {
+        return _formatKey(_getInverseKey(edge.relationshipKey));
+      }
+    }
+
+    return '';
+  }
+
+  /// Returns the relationship key for a person from the anchor.
+  String? _getRelationshipKey(String personId) {
+    final anchor = _personMap.values.firstWhere(
+      (p) => p.isAnchor,
+      orElse: () => _GraphPersonData.empty(),
+    );
+
+    for (final edge in _edges) {
+      if (edge.sourceId == anchor.id && edge.targetId == personId) {
+        return edge.relationshipKey;
+      }
+      if (edge.sourceId == personId && edge.targetId == anchor.id) {
+        return _getInverseKey(edge.relationshipKey);
+      }
+    }
+    return null;
+  }
+
+  /// Formats a relationship key like 'father_in_law' → 'Father In Law'.
+  static String _formatKey(String key) {
+    return key
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
+        .join(' ');
+  }
+
+  /// Returns the inverse relationship key.
+  static String _getInverseKey(String key) {
+    const inverseMap = <String, String>{
+      'father': 'son',
+      'mother': 'daughter',
+      'son': 'father',
+      'daughter': 'mother',
+      'brother': 'brother',
+      'sister': 'sister',
+      'husband': 'wife',
+      'wife': 'husband',
+      'spouse': 'spouse',
+      'partner': 'partner',
+      'grandfather': 'grandson',
+      'grandmother': 'granddaughter',
+      'grandson': 'grandfather',
+      'granddaughter': 'grandmother',
+      'uncle': 'nephew',
+      'aunt': 'niece',
+      'nephew': 'uncle',
+      'niece': 'aunt',
+      'cousin': 'cousin',
+      'father_in_law': 'son_in_law',
+      'mother_in_law': 'daughter_in_law',
+      'son_in_law': 'father_in_law',
+      'daughter_in_law': 'mother_in_law',
+      'brother_in_law': 'sister_in_law',
+      'sister_in_law': 'brother_in_law',
+      'half_brother': 'half_brother',
+      'half_sister': 'half_sister',
+    };
+    return inverseMap[key] ?? key;
+  }
+
+  // ── Error State ────────────────────────────────────────────────────
+
+  Widget _buildErrorState(Object error) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.error_outline,
+            size: 48.0,
+            color: KinrelColors.error,
+          ),
+          const SizedBox(height: 16.0),
+          Text(
+            'Failed to load graph',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 18.0,
+              fontWeight: FontWeight.w600,
+              color: KinrelColors.textWhite,
+            ),
+          ),
+          const SizedBox(height: 8.0),
+          Text(
+            error.toString(),
+            style: const TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 13.0,
+              color: KinrelColors.textSilver,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 3,
+          ),
+          const SizedBox(height: 16.0),
+          ElevatedButton(
+            onPressed: () {
+              ref.invalidate(familyGraphProvider(widget.familyId));
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: KinrelColors.orange,
+            ),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Empty Stack Wrapper ────────────────────────────────────────────
+
+  Widget _buildEmptyStack({required Widget child}) {
+    return Stack(
+      children: [
+        child,
+        Positioned.fill(
+          child: OnboardingFlow(
+            familyId: widget.familyId,
+            memberCount: _personMap.length,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INTERNAL DATA MODELS
+// ═══════════════════════════════════════════════════════════════════════
+
+class _GraphPersonData {
+  final String id;
+  final String name;
+  final String? gender;
+  final int generationIndex;
+  final bool isAnchor;
+  final String? photoUrl;
+  final bool isDeceased;
+  final String? relationshipKey;
+  final int disclosureLevel;
+
+  const _GraphPersonData({
+    required this.id,
+    required this.name,
+    this.gender,
+    this.generationIndex = 0,
+    this.isAnchor = false,
+    this.photoUrl,
+    this.isDeceased = false,
+    this.relationshipKey,
+    this.disclosureLevel = 1,
+  });
+
+  factory _GraphPersonData.empty() => const _GraphPersonData(
+        id: '',
+        name: '',
+      );
+}
+
+class _GraphEdgeData {
+  final String id;
+  final String sourceId;
+  final String targetId;
+  final String relationshipKey;
+
+  const _GraphEdgeData({
+    required this.id,
+    required this.sourceId,
+    required this.targetId,
+    required this.relationshipKey,
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CONTROL BAR
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Floating control bar with zoom and search controls.
+class _ControlBar extends StatelessWidget {
+  const _ControlBar({
+    required this.zoomLevel,
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onReset,
+    required this.onSearchToggle,
+    required this.searchBarVisible,
+  });
+
+  final double zoomLevel;
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onReset;
+  final VoidCallback onSearchToggle;
+  final bool searchBarVisible;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(16.0),
+        border: Border.all(color: KinrelColors.border),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _controlButton(
+            icon: searchBarVisible ? Icons.close : Icons.search,
+            onTap: onSearchToggle,
+          ),
+          const Divider(height: 1, color: KinrelColors.border),
+          _controlButton(
+            icon: Icons.add,
+            onTap: onZoomIn,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            child: Text(
+              '${(zoomLevel * 100).round()}%',
+              style: const TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 10.0,
+                color: KinrelColors.textDim,
+              ),
+            ),
+          ),
+          _controlButton(
+            icon: Icons.remove,
+            onTap: onZoomOut,
+          ),
+          const Divider(height: 1, color: KinrelColors.border),
+          _controlButton(
+            icon: Icons.center_focus_strong,
+            onTap: onReset,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _controlButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return SizedBox(
+      width: 44.0,
+      height: 44.0,
+      child: IconButton(
+        icon: Icon(icon, size: 20.0, color: KinrelColors.textSilver),
+        onPressed: onTap,
+        padding: EdgeInsets.zero,
+        splashRadius: 20.0,
+      ),
+    );
+  }
+}

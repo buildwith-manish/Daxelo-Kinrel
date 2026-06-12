@@ -110,6 +110,15 @@ class AnalyticsService {
     debugPrint('📊 Analytics enabled (${AppEnvironmentConfig.current.label})');
   }
 
+  // ── Public generic logger (for graph analytics tracker, etc.) ────
+
+  /// Logs a custom event with the given [name] and optional [params].
+  ///
+  /// Respects the same enabled/disabled rules as all other log methods.
+  Future<void> logEvent(String name, Map<String, Object>? params) async {
+    await _logEvent(name, params);
+  }
+
   // ── Internal helper ─────────────────────────────────────────────
 
   Future<void> _logEvent(String name, Map<String, Object>? params) async {

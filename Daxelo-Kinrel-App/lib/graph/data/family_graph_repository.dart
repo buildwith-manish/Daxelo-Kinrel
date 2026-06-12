@@ -1,0 +1,530 @@
+// lib/graph/data/family_graph_repository.dart
+//
+// DAXELO KINREL — Family Graph Repository (V2.1 Data Layer)
+//
+// Clean Architecture repository interface for graph data access.
+// Defines the contract that any data source (Supabase, mock, local)
+// must implement. All data models are co-located here for clarity.
+
+import '../../core/services/graph_layout_service.dart';
+
+// ═══════════════════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Branch types that can be expanded in the family graph.
+///
+/// Each type corresponds to a distinct family branch that can be
+/// lazily loaded and independently expanded/collapsed.
+enum BranchType {
+  /// Maternal ancestors and siblings.
+  maternal,
+
+  /// Paternal ancestors and siblings.
+  paternal,
+
+  /// Children of aunts/uncles.
+  cousins,
+
+  /// Spouse's parents and siblings.
+  inLaws,
+
+  /// Children of the selected child.
+  grandchildren,
+
+  /// Beyond immediate family — concentric rings.
+  extended,
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DATA MODELS
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Complete graph data returned by the repository.
+///
+/// Contains all nodes and edges for a given family graph query,
+/// along with metadata about truncation and total counts.
+class GraphData {
+  /// Creates graph data with the given [nodes], [edges], and metadata.
+  const GraphData({
+    required this.nodes,
+    required this.edges,
+    this.isTruncated = false,
+    this.totalCount = 0,
+  });
+
+  /// Person nodes in the graph.
+  final List<GraphNodeData> nodes;
+
+  /// Relationship edges between nodes.
+  final List<GraphEdgeData> edges;
+
+  /// Whether the result was truncated due to size limits.
+  final bool isTruncated;
+
+  /// Total number of nodes in the full graph (may differ from
+  /// [nodes.length] if [isTruncated] is true).
+  final int totalCount;
+
+  /// Deserializes from a JSON map.
+  factory GraphData.fromJson(Map<String, dynamic> json) {
+    return GraphData(
+      nodes: (json['nodes'] as List<dynamic>)
+          .map((dynamic e) =>
+              GraphNodeData.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      edges: (json['edges'] as List<dynamic>)
+          .map((dynamic e) =>
+              GraphEdgeData.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      isTruncated: json['is_truncated'] as bool? ?? false,
+      totalCount: json['total_count'] as int? ?? 0,
+    );
+  }
+
+  /// Serializes to a JSON map.
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'nodes': nodes.map((GraphNodeData n) => n.toJson()).toList(),
+        'edges': edges.map((GraphEdgeData e) => e.toJson()).toList(),
+        'is_truncated': isTruncated,
+        'total_count': totalCount,
+      };
+}
+
+/// A person node in the graph data model.
+///
+/// Represents a single family member with their core attributes.
+/// This is the data-layer representation; the layout-layer uses
+/// [GraphPerson] instead.
+class GraphNodeData {
+  /// Creates a graph node data instance.
+  const GraphNodeData({
+    required this.id,
+    required this.name,
+    this.avatarUrl,
+    this.gender,
+    this.generationIndex = 0,
+    this.isAnchor = false,
+    this.isDeceased = false,
+    this.visibility,
+  });
+
+  /// Unique identifier for this person.
+  final String id;
+
+  /// Display name.
+  final String name;
+
+  /// URL for the person's avatar image.
+  final String? avatarUrl;
+
+  /// Gender string (e.g. "male", "female", "non-binary").
+  final String? gender;
+
+  /// Generation index relative to the anchor person.
+  /// Anchor = 0, parents = -1, children = 1, etc.
+  final int generationIndex;
+
+  /// Whether this person is the anchor (ego) of the current view.
+  final bool isAnchor;
+
+  /// Whether this person is deceased.
+  final bool isDeceased;
+
+  /// Visibility level (e.g. "public", "family", "private").
+  final String? visibility;
+
+  /// Deserializes from a JSON map.
+  factory GraphNodeData.fromJson(Map<String, dynamic> json) {
+    return GraphNodeData(
+      id: json['id'] as String,
+      name: json['name'] as String? ?? '',
+      avatarUrl: json['avatar_url'] as String?,
+      gender: json['gender'] as String?,
+      generationIndex: json['generation_index'] as int? ?? 0,
+      isAnchor: json['is_anchor'] as bool? ?? false,
+      isDeceased: json['is_deceased'] as bool? ?? false,
+      visibility: json['visibility'] as String?,
+    );
+  }
+
+  /// Serializes to a JSON map.
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'id': id,
+        'name': name,
+        'avatar_url': avatarUrl,
+        'gender': gender,
+        'generation_index': generationIndex,
+        'is_anchor': isAnchor,
+        'is_deceased': isDeceased,
+        'visibility': visibility,
+      };
+
+  /// Converts this data model to the layout-layer [GraphPerson].
+  GraphPerson toGraphPerson() => GraphPerson(
+        id: id,
+        name: name,
+        gender: gender,
+        generationIndex: generationIndex,
+        isAnchor: isAnchor,
+        photoUrl: avatarUrl,
+        isDeceased: isDeceased,
+      );
+}
+
+/// A relationship edge in the graph data model.
+///
+/// Connects two [GraphNodeData] instances with a typed relationship.
+class GraphEdgeData {
+  /// Creates a graph edge data instance.
+  const GraphEdgeData({
+    required this.id,
+    required this.sourceId,
+    required this.targetId,
+    required this.relationshipKey,
+    this.isPrivate = false,
+  });
+
+  /// Unique identifier for this edge.
+  final String id;
+
+  /// Source node ID (the "from" person).
+  final String sourceId;
+
+  /// Target node ID (the "to" person).
+  final String targetId;
+
+  /// Relationship type key (e.g. "father", "spouse", "child").
+  final String relationshipKey;
+
+  /// Whether this relationship is marked private.
+  final bool isPrivate;
+
+  /// Deserializes from a JSON map.
+  factory GraphEdgeData.fromJson(Map<String, dynamic> json) {
+    return GraphEdgeData(
+      id: json['id'] as String,
+      sourceId: json['source_id'] as String,
+      targetId: json['target_id'] as String,
+      relationshipKey: json['relationship_key'] as String,
+      isPrivate: json['is_private'] as bool? ?? false,
+    );
+  }
+
+  /// Serializes to a JSON map.
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'id': id,
+        'source_id': sourceId,
+        'target_id': targetId,
+        'relationship_key': relationshipKey,
+        'is_private': isPrivate,
+      };
+
+  /// Converts this data model to the layout-layer [GraphRelationship].
+  GraphRelationship toGraphRelationship() => GraphRelationship(
+        id: id,
+        fromPersonId: sourceId,
+        toPersonId: targetId,
+        relationshipKey: relationshipKey,
+      );
+}
+
+/// Data for a specific family branch (maternal, paternal, etc.).
+class BranchData {
+  /// Creates branch data with the given [nodes] and [edges].
+  const BranchData({
+    required this.nodes,
+    required this.edges,
+  });
+
+  /// Person nodes in this branch.
+  final List<GraphNodeData> nodes;
+
+  /// Relationship edges within this branch.
+  final List<GraphEdgeData> edges;
+
+  /// Deserializes from a JSON map.
+  factory BranchData.fromJson(Map<String, dynamic> json) {
+    return BranchData(
+      nodes: (json['nodes'] as List<dynamic>)
+          .map((dynamic e) =>
+              GraphNodeData.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      edges: (json['edges'] as List<dynamic>)
+          .map((dynamic e) =>
+              GraphEdgeData.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+
+  /// Serializes to a JSON map.
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'nodes': nodes.map((GraphNodeData n) => n.toJson()).toList(),
+        'edges': edges.map((GraphEdgeData e) => e.toJson()).toList(),
+      };
+}
+
+/// Search result containing matching family members.
+class SearchResult {
+  /// Creates a search result with the given [results] and [total].
+  const SearchResult({
+    required this.results,
+    required this.total,
+  });
+
+  /// Matching person nodes.
+  final List<GraphNodeData> results;
+
+  /// Total number of matches (may exceed [results.length] if
+  /// paginated).
+  final int total;
+
+  /// Deserializes from a JSON map.
+  factory SearchResult.fromJson(Map<String, dynamic> json) {
+    return SearchResult(
+      results: (json['results'] as List<dynamic>)
+          .map((dynamic e) =>
+              GraphNodeData.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      total: json['total'] as int? ?? 0,
+    );
+  }
+
+  /// Serializes to a JSON map.
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'results': results.map((GraphNodeData n) => n.toJson()).toList(),
+        'total': total,
+      };
+}
+
+/// Result of resolving kinship between two family members.
+///
+/// Contains the computed relationship type, display label, and
+/// cultural context.
+class KinshipResult {
+  /// Creates a kinship result.
+  const KinshipResult({
+    required this.relationshipType,
+    required this.displayLabel,
+    required this.degreeOfSeparation,
+    this.culturalContext,
+    this.isMatrilateral = false,
+    this.isPatrilateral = false,
+    this.isByMarriage = false,
+  });
+
+  /// Machine-readable relationship type key.
+  final String relationshipType;
+
+  /// Human-readable display label.
+  final String displayLabel;
+
+  /// Number of relationship hops between the two members.
+  final int degreeOfSeparation;
+
+  /// Cultural context for the kinship term (e.g. "North Indian",
+  /// "South Indian", "Bengali").
+  final String? culturalContext;
+
+  /// Whether this is a matrilateral relationship (through mother's side).
+  final bool isMatrilateral;
+
+  /// Whether this is a patrilateral relationship (through father's side).
+  final bool isPatrilateral;
+
+  /// Whether this relationship is established through marriage.
+  final bool isByMarriage;
+
+  /// Deserializes from a JSON map.
+  factory KinshipResult.fromJson(Map<String, dynamic> json) {
+    return KinshipResult(
+      relationshipType: json['relationship_type'] as String,
+      displayLabel: json['display_label'] as String,
+      degreeOfSeparation: json['degree_of_separation'] as int? ?? 0,
+      culturalContext: json['cultural_context'] as String?,
+      isMatrilateral: json['is_matrilateral'] as bool? ?? false,
+      isPatrilateral: json['is_patrilateral'] as bool? ?? false,
+      isByMarriage: json['is_by_marriage'] as bool? ?? false,
+    );
+  }
+
+  /// Serializes to a JSON map.
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'relationship_type': relationshipType,
+        'display_label': displayLabel,
+        'degree_of_separation': degreeOfSeparation,
+        'cultural_context': culturalContext,
+        'is_matrilateral': isMatrilateral,
+        'is_patrilateral': isPatrilateral,
+        'is_by_marriage': isByMarriage,
+      };
+}
+
+/// Permission check result mapping target IDs to granted permission
+/// types.
+class PermissionMap {
+  /// Creates a permission map.
+  const PermissionMap({required this.permissions});
+
+  /// Maps target member ID to a list of granted permission types.
+  ///
+  /// Example: `{"member_123": ["view_profile", "view_relationships"]}`
+  final Map<String, List<String>> permissions;
+
+  /// Whether the viewer has a specific [permission] on [targetId].
+  bool hasPermission(String targetId, String permission) {
+    final perms = permissions[targetId];
+    if (perms == null) return false;
+    return perms.contains(permission);
+  }
+
+  /// Deserializes from a JSON map.
+  factory PermissionMap.fromJson(Map<String, dynamic> json) {
+    final raw = json['permissions'] as Map<String, dynamic>? ??
+        <String, dynamic>{};
+    final parsed = <String, List<String>>{};
+    for (final entry in raw.entries) {
+      parsed[entry.key] = (entry.value as List<dynamic>)
+          .cast<String>()
+          .toList();
+    }
+    return PermissionMap(permissions: parsed);
+  }
+
+  /// Serializes to a JSON map.
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'permissions': permissions.map(
+          (String key, List<String> value) =>
+              MapEntry<String, dynamic>(key, value),
+        ),
+      };
+}
+
+/// Realtime event from graph subscription.
+class GraphRealtimeEvent {
+  /// Creates a realtime event.
+  const GraphRealtimeEvent({
+    required this.type,
+    required this.payload,
+    required this.timestamp,
+  });
+
+  /// Event type (e.g. "relationship_added", "member_updated",
+  /// "permission_changed").
+  final String type;
+
+  /// Event payload data.
+  final Map<String, dynamic> payload;
+
+  /// When the event occurred.
+  final DateTime timestamp;
+
+  /// Deserializes from a JSON map.
+  factory GraphRealtimeEvent.fromJson(Map<String, dynamic> json) {
+    return GraphRealtimeEvent(
+      type: json['type'] as String,
+      payload: json['payload'] as Map<String, dynamic>? ??
+          <String, dynamic>{},
+      timestamp: json['timestamp'] != null
+          ? DateTime.parse(json['timestamp'] as String)
+          : DateTime.now(),
+    );
+  }
+
+  /// Serializes to a JSON map.
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'type': type,
+        'payload': payload,
+        'timestamp': timestamp.toIso8601String(),
+      };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// REPOSITORY INTERFACE
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Clean Architecture repository interface for family graph data.
+///
+/// Defines the contract that any data source must implement. The
+/// primary implementation is [SupabaseDataSource]; a mock
+/// implementation can be used for testing.
+///
+/// All methods are async and return strongly-typed models.
+abstract class FamilyGraphRepository {
+  /// Fetches the family graph centered on [memberId].
+  ///
+  /// [maxDegree] limits how many relationship hops from the anchor
+  /// are included (default: 3). [includeHidden] controls whether
+  /// members marked as hidden/removed are included.
+  Future<GraphData> getFamilyGraph({
+    required String memberId,
+    int maxDegree = 3,
+    bool includeHidden = false,
+  });
+
+  /// Fetches a specific branch of the family tree.
+  ///
+  /// [memberId] is the person whose branch is being expanded.
+  /// [branchType] specifies which branch to load.
+  /// [depth] controls how deep the branch extends (default: 2).
+  Future<BranchData> getMemberBranch({
+    required String memberId,
+    required BranchType branchType,
+    int depth = 2,
+  });
+
+  /// Searches family members by [query].
+  ///
+  /// [filters] optional filters (e.g. gender, generation).
+  /// [limit] maximum results per page (default: 20).
+  /// [offset] pagination offset.
+  Future<SearchResult> searchMembers({
+    required String query,
+    Map<String, dynamic>? filters,
+    int limit = 20,
+    int offset = 0,
+  });
+
+  /// Resolves the kinship relationship between two members.
+  ///
+  /// Returns a [KinshipResult] describing the relationship from
+  /// [memberAId]'s perspective to [memberBId].
+  Future<KinshipResult> resolveKinship({
+    required String memberAId,
+    required String memberBId,
+  });
+
+  /// Checks permissions for a viewer on multiple target members.
+  ///
+  /// [viewerId] is the person requesting access.
+  /// [targetIds] are the members being accessed.
+  /// [permissionTypes] are the permission types being checked.
+  Future<PermissionMap> checkPermissions({
+    required String viewerId,
+    required List<String> targetIds,
+    required List<String> permissionTypes,
+  });
+
+  /// Subscribes to realtime graph updates for [memberId].
+  ///
+  /// Emits [GraphRealtimeEvent]s for relationship changes, member
+  /// updates, and permission changes.
+  Stream<GraphRealtimeEvent> subscribeToGraphUpdates({
+    required String memberId,
+  });
+
+  /// Caches the current graph state for offline access.
+  ///
+  /// [familyId] identifies the family. [data] is the graph data to
+  /// cache.
+  Future<void> cacheGraphState({
+    required String familyId,
+    required GraphData data,
+  });
+
+  /// Retrieves a cached graph state if available.
+  ///
+  /// Returns null if no cached state exists or if the cache has
+  /// expired.
+  Future<GraphData?> getCachedGraphState({required String familyId});
+}
