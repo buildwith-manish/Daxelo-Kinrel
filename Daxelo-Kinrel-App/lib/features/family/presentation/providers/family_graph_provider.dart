@@ -3,39 +3,44 @@
 // DAXELO KINREL — Family Graph Providers
 //
 // Riverpod providers for the family graph feature:
-//   1. familyGraphProvider(familyId) — fetches flat graph data via Dio
+//   1. familyGraphProvider(familyId) — fetches flat graph data via Supabase RPC
 //   2. graphLayoutProvider(familyId) — computes layout in an isolate
 //   3. selectedEdgeProvider — tracks selected edge
 //   4. selectedNodeProvider — tracks selected node
 //   5. graphZoomProvider — tracks zoom level
-//   6. graphRealtimeProvider(familyId) — Socket.IO real-time invalidation
+//   6. graphRealtimeProvider(familyId) — Supabase Realtime invalidation
+//
+// CHANGED (Option C): Replaced Dio/Render server calls with direct
+// Supabase RPC calls (`get_family_graph`). No external server dependency.
 
-import 'package:dio/dio.dart';
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../core/networking/dio_client.dart';
-import '../../../../core/network/socket_service.dart';
 import '../../../../core/services/graph_layout_service.dart';
+import '../../../../core/services/supabase_service.dart';
 import '../widgets/graph_canvas_widget.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // DATA MODELS
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Flat graph data as received from the API.
+/// Flat graph data as received from the Supabase RPC.
 ///
-/// Contains raw person and relationship maps plus metadata about
-/// truncation for very large families.
+/// The RPC `get_family_graph` returns { nodes, edges, isTruncated, totalCount }.
+/// We map nodes → persons and edges → relationships to keep the rest of the
+/// app (GraphCanvasWidget, graphLayoutProvider) unchanged.
 class FlatGraphResult {
-  /// Raw person data from the API.
+  /// Raw person data mapped from RPC nodes.
   final List<Map<String, dynamic>> persons;
 
-  /// Raw relationship data from the API.
+  /// Raw relationship data mapped from RPC edges.
   final List<Map<String, dynamic>> relationships;
 
-  /// Whether the response was truncated (server capped at 5000 persons).
+  /// Whether the response was truncated (server capped at 5000 nodes).
   final bool isTruncated;
 
   /// Total count of persons in the family (may exceed [persons.length]
@@ -49,17 +54,46 @@ class FlatGraphResult {
     this.totalCount,
   });
 
-  /// Parses the API response JSON into a [FlatGraphResult].
-  factory FlatGraphResult.fromJson(Map<String, dynamic> json) {
+  /// Parses the Supabase RPC JSONB response into a [FlatGraphResult].
+  ///
+  /// RPC node shape:  { id, name, username, avatarUrl, gender,
+  ///                    generationIndex, isAnchor, isDeceased, visibility }
+  /// RPC edge shape:  { id, sourceId, targetId, relationshipKey, isPrivate }
+  factory FlatGraphResult.fromRpc(Map<String, dynamic> json) {
+    final rawNodes = (json['nodes'] as List?) ?? [];
+    final rawEdges = (json['edges'] as List?) ?? [];
+
+    // Map RPC node keys → legacy API keys expected by the rest of the app
+    final persons = rawNodes.map((dynamic n) {
+      final node = n as Map<String, dynamic>;
+      return <String, dynamic>{
+        'id': node['id'],
+        'name': node['name'],
+        'gender': node['gender'],
+        'generationIndex': node['generationIndex'] ?? 0,
+        'isAnchor': node['isAnchor'] ?? false,
+        'photoUrl': node['avatarUrl'],
+        'isDeceased': node['isDeceased'] ?? false,
+        'visibility': node['visibility'],
+        'username': node['username'],
+      };
+    }).toList();
+
+    // Map RPC edge keys → legacy API keys
+    final relationships = rawEdges.map((dynamic e) {
+      final edge = e as Map<String, dynamic>;
+      return <String, dynamic>{
+        'id': edge['id'],
+        'fromPersonId': edge['sourceId'],
+        'toPersonId': edge['targetId'],
+        'relationshipKey': edge['relationshipKey'],
+        'isPrivate': edge['isPrivate'] ?? false,
+      };
+    }).toList();
+
     return FlatGraphResult(
-      persons: (json['persons'] as List?)
-              ?.map((e) => Map<String, dynamic>.from(e as Map))
-              .toList() ??
-          [],
-      relationships: (json['relationships'] as List?)
-              ?.map((e) => Map<String, dynamic>.from(e as Map))
-              .toList() ??
-          [],
+      persons: persons,
+      relationships: relationships,
       isTruncated: json['isTruncated'] as bool? ?? false,
       totalCount: json['totalCount'] as int?,
     );
@@ -113,9 +147,6 @@ class _LayoutComputeParams {
 }
 
 /// Top-level function executed inside the isolate via [compute].
-///
-/// Must be a top-level or static function so it can be sent across
-/// isolate boundaries.
 GraphLayoutResult _runLayoutInIsolate(_LayoutComputeParams params) {
   final service = GraphLayoutService();
   return service.computeLayout(
@@ -127,13 +158,52 @@ GraphLayoutResult _runLayoutInIsolate(_LayoutComputeParams params) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// HELPER: resolve anchor member ID for a family
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Looks up the anchor person ID for [familyId] from the Person table.
+/// Falls back to the first person in the family if no anchor is set.
+Future<String?> _resolveAnchorMemberId(
+  SupabaseClient client,
+  String familyId,
+) async {
+  try {
+    // Try anchor person first (non-deleted)
+    final anchor = await client
+        .from('Person')
+        .select('id')
+        .eq('familyId', familyId)
+        .eq('isAnchor', true)
+        .isFilter('deletedAt', null)
+        .maybeSingle();
+
+    if (anchor != null) return anchor['id'] as String?;
+
+    // Fallback: first non-deleted person in family
+    final first = await client
+        .from('Person')
+        .select('id')
+        .eq('familyId', familyId)
+        .isFilter('deletedAt', null)
+        .order('createdAt')
+        .limit(1)
+        .maybeSingle();
+
+    return first?['id'] as String?;
+  } catch (e) {
+    debugPrint('[_resolveAnchorMemberId] Error: $e');
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // 1. FAMILY GRAPH PROVIDER — AsyncNotifierProvider.family
 // ═══════════════════════════════════════════════════════════════════════
 
 /// AsyncNotifier that fetches and caches flat graph data for a family.
 ///
 /// Features:
-///   - Fetches from `GET /graph/:familyId?format=flat` via Dio
+///   - Fetches from Supabase RPC `get_family_graph` directly (no server hop)
 ///   - Caches the last successful result in memory
 ///   - On error, returns cached data if available (graceful degradation)
 ///   - Supports refresh via [refreshGraph]
@@ -143,9 +213,6 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
 
   @override
   Future<FlatGraphResult> build(String familyId) async {
-    // Ensure the socket joins this family's room for real-time updates
-    _joinFamilyRoom(familyId);
-
     // Invalidate the layout when graph data is (re)fetched
     ref.invalidate(graphLayoutProvider(familyId));
 
@@ -155,57 +222,70 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
   // ── Data Fetching ──────────────────────────────────────────────────
 
   Future<FlatGraphResult> _fetchGraph(String familyId) async {
-    final dio = ref.read(dioProvider);
+    final client = ref.read(supabaseProvider);
+    if (client == null) {
+      throw Exception('Supabase client not available');
+    }
 
     try {
-      final response = await dio.get<Map<String, dynamic>>(
-        '/graph/$familyId',
-        queryParameters: {'format': 'flat'},
-      );
+      // Resolve which member ID to use as the graph anchor
+      final memberId = await _resolveAnchorMemberId(client, familyId);
 
-      final data = response.data;
-      if (data == null) {
-        throw const FormatException('Empty response from /graph endpoint');
+      if (memberId == null) {
+        // Family exists but has no members yet — return empty graph
+        debugPrint('[FamilyGraphNotifier] No members in family $familyId');
+        return const FlatGraphResult(persons: [], relationships: []);
       }
 
-      final result = FlatGraphResult.fromJson(data);
+      // Call Supabase RPC directly — no Render server involved
+      final response = await client.rpc(
+        'get_family_graph',
+        params: <String, dynamic>{
+          'p_member_id': memberId,
+          'p_max_degree': 4,
+          'p_include_hidden': false,
+        },
+      ).timeout(const Duration(seconds: 30));
+
+      final data = response as Map<String, dynamic>?;
+      if (data == null) {
+        throw const FormatException('Empty response from get_family_graph RPC');
+      }
+
+      final result = FlatGraphResult.fromRpc(data);
 
       // Cache the successful result
       _cache[familyId] = result;
 
+      debugPrint(
+        '[FamilyGraphNotifier] Loaded ${result.persons.length} persons, '
+        '${result.relationships.length} relationships for $familyId',
+      );
+
       return result;
-    } on DioException catch (e) {
-      // On network/server error, try to return cached data
-      final cached = _cache[familyId];
-      if (cached != null) {
-        debugPrint(
-          '[FamilyGraphNotifier] Using cached data for $familyId '
-          'after DioException: ${e.type}',
-        );
-        return cached;
-      }
-      rethrow;
-    } on FormatException catch (_) {
-      final cached = _cache[familyId];
-      if (cached != null) {
-        debugPrint(
-          '[FamilyGraphNotifier] Using cached data for $familyId '
-          'after FormatException',
-        );
-        return cached;
-      }
-      rethrow;
+    } on PostgrestException catch (e) {
+      debugPrint('[FamilyGraphNotifier] Supabase error: ${e.message}');
+      return _fallbackOrThrow(familyId, e);
+    } on TimeoutException catch (e) {
+      debugPrint('[FamilyGraphNotifier] Timeout: $e');
+      return _fallbackOrThrow(familyId, e);
+    } on FormatException catch (e) {
+      debugPrint('[FamilyGraphNotifier] Format error: $e');
+      return _fallbackOrThrow(familyId, e);
     } catch (e) {
-      final cached = _cache[familyId];
-      if (cached != null) {
-        debugPrint(
-          '[FamilyGraphNotifier] Using cached data for $familyId '
-          'after error: $e',
-        );
-        return cached;
-      }
-      rethrow;
+      debugPrint('[FamilyGraphNotifier] Unexpected error: $e');
+      return _fallbackOrThrow(familyId, e);
     }
+  }
+
+  /// Returns cached data if available, otherwise rethrows [error].
+  FlatGraphResult _fallbackOrThrow(String familyId, Object error) {
+    final cached = _cache[familyId];
+    if (cached != null) {
+      debugPrint('[FamilyGraphNotifier] Using cached data for $familyId');
+      return cached;
+    }
+    throw error;
   }
 
   // ── Public Methods ─────────────────────────────────────────────────
@@ -213,17 +293,6 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
   /// Refreshes the graph data by invalidating and re-fetching.
   Future<void> refreshGraph() async {
     ref.invalidateSelf();
-  }
-
-  // ── Socket Room Management ─────────────────────────────────────────
-
-  void _joinFamilyRoom(String familyId) {
-    try {
-      final socketService = ref.read(socketServiceProvider);
-      socketService.joinFamily(familyId);
-    } catch (e) {
-      debugPrint('[FamilyGraphNotifier] Could not join family room: $e');
-    }
   }
 }
 
@@ -248,22 +317,12 @@ final familyGraphProvider =
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Computes the graph layout for a given family in a background isolate.
-///
-/// Depends on [familyGraphProvider] for raw data, then passes typed
-/// [GraphPerson] and [GraphRelationship] lists to
-/// [GraphLayoutService.computeLayout] via [compute].
-///
-/// Automatically recomputes when the graph data changes
-/// (i.e., when [familyGraphProvider] is invalidated).
-///
-/// Uses compact mode when the person count exceeds 50.
 final graphLayoutProvider =
     FutureProvider.family<GraphLayoutResult, String>((ref, familyId) async {
   final graphAsync = ref.watch(familyGraphProvider(familyId));
 
   final graphData = graphAsync.valueOrNull;
   if (graphData == null) {
-    // Return an empty layout while loading
     return const GraphLayoutResult(
       positions: {},
       canvasWidth: 0,
@@ -286,13 +345,11 @@ final graphLayoutProvider =
   final graphRelationships =
       relationships.map((r) => r.toGraphRelationship()).toList();
 
-  // Find anchor person ID
   final anchorPerson = persons.firstWhere(
     (p) => p.isAnchor,
     orElse: () => persons.first,
   );
 
-  // Use compact mode for large graphs
   final compactMode = persons.length > 50;
 
   final params = _LayoutComputeParams(
@@ -302,13 +359,11 @@ final graphLayoutProvider =
     compactMode: compactMode,
   );
 
-  // Run layout computation in a background isolate
   try {
     return await compute(_runLayoutInIsolate, params);
   } catch (e) {
     debugPrint('[graphLayoutProvider] Isolate compute failed, '
         'falling back to main thread: $e');
-    // Fallback to main-thread computation if isolate fails
     final service = GraphLayoutService();
     return service.computeLayout(
       persons: graphPersons,
@@ -324,8 +379,6 @@ final graphLayoutProvider =
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Tracks the currently selected relationship edge ID.
-///
-/// Set to `null` when no edge is selected.
 final selectedEdgeProvider = StateProvider<String?>((ref) => null);
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -333,8 +386,6 @@ final selectedEdgeProvider = StateProvider<String?>((ref) => null);
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Tracks the currently selected person node ID.
-///
-/// Set to `null` when no node is selected.
 final selectedNodeProvider = StateProvider<String?>((ref) => null);
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -342,9 +393,6 @@ final selectedNodeProvider = StateProvider<String?>((ref) => null);
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Tracks the current zoom level of the graph viewer.
-///
-/// Default is 1.0 (100%). Updated by the [InteractiveViewer] controller
-/// when the user pinches or uses zoom FABs.
 final graphZoomProvider = StateProvider<double>((ref) => 1.0);
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -352,73 +400,63 @@ final graphZoomProvider = StateProvider<double>((ref) => 1.0);
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Tracks the currently highlighted generation index for the graph canvas.
-///
-/// Set to `null` when no generation is highlighted (all visible at full opacity).
-/// When set, persons NOT in this generation are dimmed to 0.25 opacity.
 final highlightedGenerationProvider = StateProvider<int?>((ref) => null);
 
 // ═══════════════════════════════════════════════════════════════════════
-// 6. GRAPH REALTIME PROVIDER — Socket.IO event listener
+// 6. GRAPH REALTIME PROVIDER — Supabase Realtime
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Listens to `graph:updated` Socket.IO events for a specific family
-/// and invalidates [familyGraphProvider] when graph data changes.
+/// Listens to Supabase Realtime changes on Person and Relationship tables
+/// for this family and invalidates [familyGraphProvider] when data changes.
 ///
-/// This provider is kept alive as long as the family graph screen is
-/// mounted. On dispose, it leaves the family room and cleans up
-/// the socket listener.
-///
-/// Usage:
-/// ```dart
-/// // In the screen's build or initState:
-/// ref.watch(graphRealtimeProvider(familyId));
-/// ```
+/// Replaces the Socket.IO-based graphRealtimeProvider since we no longer
+/// depend on the Render server.
 final graphRealtimeProvider =
     Provider.family<void, String>((ref, familyId) {
-  // Ensure the socket service is initialized and connected
-  final socketService = ref.read(socketServiceProvider);
+  final client = ref.read(supabaseProvider);
+  if (client == null) return;
 
-  // Timer to debounce rapid invalidation events
   DateTime? _lastInvalidation;
 
-  void onGraphUpdated(dynamic data) {
+  void invalidateIfNeeded() {
     final now = DateTime.now();
-
-    // Debounce: skip if we invalidated less than 2 seconds ago
     if (_lastInvalidation != null &&
         now.difference(_lastInvalidation!) < const Duration(seconds: 2)) {
       return;
     }
-
     _lastInvalidation = now;
-
-    // Check if the event is for this specific family
-    if (data is Map<String, dynamic>) {
-      final eventFamilyId = data['familyId'] as String?;
-      if (eventFamilyId != null && eventFamilyId != familyId) {
-        return; // Not for this family — skip
-      }
-    }
-
     debugPrint('[graphRealtimeProvider] Invalidating graph for $familyId');
     ref.invalidate(familyGraphProvider(familyId));
   }
 
-  // Register the listener
-  // The SocketService already listens to 'graph:updated' internally,
-  // but we add a direct listener here for per-family granularity.
-  try {
-    socketService.joinFamily(familyId);
-  } catch (e) {
-    debugPrint('[graphRealtimeProvider] Could not join family room: $e');
-  }
+  // Subscribe to Relationship changes for this family
+  final channel = client
+      .channel('graph_realtime_$familyId')
+      .onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'Relationship',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'familyId',
+          value: familyId,
+        ),
+        callback: (_) => invalidateIfNeeded(),
+      )
+      .onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'Person',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'familyId',
+          value: familyId,
+        ),
+        callback: (_) => invalidateIfNeeded(),
+      )
+      .subscribe();
 
-  // Clean up on dispose
   ref.onDispose(() {
-    try {
-      socketService.leaveFamily(familyId);
-    } catch (e) {
-      debugPrint('[graphRealtimeProvider] Could not leave family room: $e');
-    }
+    client.removeChannel(channel);
   });
 });
