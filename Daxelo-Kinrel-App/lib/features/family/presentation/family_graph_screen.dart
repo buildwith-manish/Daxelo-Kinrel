@@ -9,12 +9,8 @@
 //   - New FamilyGraphWidget from lib/graph/ architecture
 //   - Generation legend chips (top-left floating)
 //   - Bottom legend bar with dynamic categories
-//   - Bottom zoom/control bar with -, +, recenter, fit-to-screen
 //   - Truncation warning banner for large families
 //   - Real-time updates via Socket.IO
-//   - Camera persistence via PositionMemory
-//   - Progressive expand/collapse via ExpandCollapseController
-//   - Permission-aware visibility via PermissionValidator
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,8 +19,8 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../graph/graph.dart';
 import 'providers/family_graph_provider.dart';
-import 'widgets/graph_canvas_widget.dart';
 import 'widgets/generation_legend_widget.dart';
+import 'widgets/graph_canvas_widget.dart' show PersonData;
 
 // ═══════════════════════════════════════════════════════════════════════
 // FAMILY GRAPH SCREEN
@@ -45,45 +41,8 @@ class FamilyGraphScreen extends ConsumerStatefulWidget {
 }
 
 class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
-  final TransformationController _transformCtrl = TransformationController();
-
   /// Highlighted generation index (null = no highlight).
   int? _highlightedGeneration;
-
-  @override
-  void dispose() {
-    _transformCtrl.dispose();
-    super.dispose();
-  }
-
-  // ── Zoom Controls ─────────────────────────────────────────────────
-
-  void _zoomIn() {
-    final current = _transformCtrl.value;
-    final scale = current.storage[0];
-    final newScale = (scale * 1.2).clamp(0.1, 4.0);
-    _transformCtrl.value = Matrix4.diagonal3Values(newScale, newScale, 1.0);
-    ref.read(graphZoomProvider.notifier).state = newScale;
-  }
-
-  void _zoomOut() {
-    final current = _transformCtrl.value;
-    final scale = current.storage[0];
-    final newScale = (scale / 1.2).clamp(0.1, 4.0);
-    _transformCtrl.value = Matrix4.diagonal3Values(newScale, newScale, 1.0);
-    ref.read(graphZoomProvider.notifier).state = newScale;
-  }
-
-  void _resetView() {
-    _transformCtrl.value = Matrix4.identity();
-    ref.read(graphZoomProvider.notifier).state = 1.0;
-  }
-
-  void _fitToScreen() {
-    // Reset to identity and let InteractiveViewer handle the fit
-    _transformCtrl.value = Matrix4.identity();
-    ref.read(graphZoomProvider.notifier).state = 1.0;
-  }
 
   // ── Build ─────────────────────────────────────────────────────────
 
@@ -299,14 +258,13 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             familyId: widget.familyId,
             onAddMember: () {},
           ),
-          // Still show the legacy graph canvas for 2-3 members
+          // Still show the graph for 2-3 members (semi-transparent)
           if (memberCount >= 2)
             Opacity(
               opacity: 0.3,
-              child: GraphCanvasWidget(
-                persons: persons,
-                relationships: graph.toRelationshipDataList(),
+              child: FamilyGraphWidget(
                 familyId: widget.familyId,
+                familyName: widget.familyName ?? 'Family Tree',
               ),
             ),
         ],
@@ -315,22 +273,17 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
     return Stack(
       children: [
-        // Main graph content — uses existing GraphCanvasWidget (V2.1 FamilyGraphWidget
-        // can be enabled via feature flag when fully integrated)
         Column(
           children: [
             if (graph.isTruncated) _buildTruncationBanner(graph),
             Expanded(
-              child: GraphCanvasWidget(
-                persons: persons,
-                relationships: graph.toRelationshipDataList(),
+              child: FamilyGraphWidget(
                 familyId: widget.familyId,
+                familyName: widget.familyName ?? 'Family Tree',
               ),
             ),
             // Bottom legend bar
             _buildBottomLegendBar(presentGenerations),
-            // Bottom zoom/control bar
-            _buildBottomControlBar(),
           ],
         ),
 
@@ -442,67 +395,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  // ── Bottom Control Bar ────────────────────────────────────────────
-
-  Widget _buildBottomControlBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      color: KinrelColors.darkCard,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Zoom out
-          _buildControlButton(Icons.remove, _zoomOut),
-          const SizedBox(width: 16),
-          // Zoom in
-          _buildControlButton(Icons.add, _zoomIn),
-          const SizedBox(width: 24),
-          // Recenter (orange filled circle)
-          GestureDetector(
-            onTap: _resetView,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: KinrelColors.orange,
-                boxShadow: [
-                  BoxShadow(
-                    color: KinrelColors.orange.withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              alignment: Alignment.center,
-              child: const Icon(Icons.center_focus_strong, color: Colors.white, size: 20),
-            ),
-          ),
-          const SizedBox(width: 24),
-          // Fit to screen
-          _buildControlButton(Icons.fullscreen, _fitToScreen),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildControlButton(IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: KinrelColors.darkElevated,
-          border: Border.all(color: const Color(0x1AFFFFFF), width: 1),
-        ),
-        alignment: Alignment.center,
-        child: Icon(icon, color: KinrelColors.textWhite, size: 18),
       ),
     );
   }
