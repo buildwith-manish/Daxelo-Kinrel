@@ -17,7 +17,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
-import 'graph_node.dart' show RelationshipCategory, RelationshipColors;
+import 'graph_node.dart' show RelationshipColors;
 
 // ═══════════════════════════════════════════════════════════════════════
 // GRAPH LEGEND
@@ -195,12 +195,16 @@ class _GraphLegendState extends ConsumerState<GraphLegend> {
                             // Node colors section
                             _buildSectionTitle('Node Colors'),
                             const SizedBox(height: 8),
-                            ...RelationshipCategory.values.map(
-                              (cat) => _buildColorRow(
-                                cat.label,
-                                RelationshipColors.forCategory(cat),
-                              ),
-                            ),
+                            _buildColorRow('Self', RelationshipColors.self),
+                            _buildColorRow('Parent', RelationshipColors.parent),
+                            _buildColorRow('Sibling', RelationshipColors.sibling),
+                            _buildColorRow('Child', RelationshipColors.child),
+                            _buildColorRow('Spouse', RelationshipColors.spouse),
+                            _buildColorRow('Grandparent', RelationshipColors.grandparent),
+                            _buildColorRow('Aunt/Uncle', RelationshipColors.auntUncle),
+                            _buildColorRow('Cousin', RelationshipColors.cousin),
+                            _buildColorRow('In-Law', RelationshipColors.inLaw),
+                            _buildColorRow('Extended', RelationshipColors.extended),
                             const SizedBox(height: 16),
 
                             // Edge styles section
