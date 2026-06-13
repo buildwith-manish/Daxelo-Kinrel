@@ -420,9 +420,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
                 _highlightedGeneration = null;
               });
             },
-            onAddMember: () {
-              context.push('/family/${widget.familyId}/add-person');
-            },
           ),
         ),
       ],

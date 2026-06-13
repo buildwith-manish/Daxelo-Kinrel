@@ -13,10 +13,10 @@ import '../../../../core/constants/brand_typography.dart';
 // GRAPH TOOLBAR
 // ═══════════════════════════════════════════════════════════════════════
 
-/// A floating bottom-center toolbar providing zoom controls and graph actions.
+/// A floating bottom-center toolbar providing zoom controls for the
+/// family graph screen.
 ///
-/// Includes zoom in/out with a percentage display, a center/reset button,
-/// and an optional add-member button.
+/// Includes zoom in/out with a percentage display and a center/reset button.
 ///
 /// Usage:
 /// ```dart
@@ -26,7 +26,6 @@ import '../../../../core/constants/brand_typography.dart';
 ///   onZoomOut: _zoomOut,
 ///   onZoomReset: _resetZoom,
 ///   onCenterGraph: _centerGraph,
-///   onAddMember: _addMember,
 /// )
 /// ```
 class GraphToolbar extends StatelessWidget {
@@ -38,7 +37,6 @@ class GraphToolbar extends StatelessWidget {
     required this.onZoomOut,
     required this.onZoomReset,
     required this.onCenterGraph,
-    this.onAddMember,
   });
 
   /// Current zoom level where 1.0 = 100%.
@@ -55,10 +53,6 @@ class GraphToolbar extends StatelessWidget {
 
   /// Callback for center-graph action.
   final VoidCallback onCenterGraph;
-
-  /// Optional callback for add-member action.
-  /// If `null`, the add-member button is hidden.
-  final VoidCallback? onAddMember;
 
   /// Formats the zoom level as a percentage string (e.g., "100%").
   String get _zoomLabel => '${(zoomLevel * 100).round()}%';
@@ -121,20 +115,6 @@ class GraphToolbar extends StatelessWidget {
                   icon: Icons.center_focus_strong,
                   onPressed: onCenterGraph,
                 ),
-
-                // Add member (conditional)
-                if (onAddMember != null) ...[
-                  Container(
-                    width: 1,
-                    height: 16,
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    color: const Color(0xFF2A2A3D),
-                  ),
-                  _ToolbarIconButton(
-                    icon: Icons.person_add_outlined,
-                    onPressed: onAddMember,
-                  ),
-                ],
               ],
             ),
           ),
