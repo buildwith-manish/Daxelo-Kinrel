@@ -111,7 +111,7 @@ class _PersonNodeWidgetState extends ConsumerState<PersonNodeWidget>
     // Pulse controller — 2500ms repeat reverse
     _pulseController = AnimationController(
       vsync: this,
-      duration: GraphAnimations.pulseDuration,
+      duration: GraphAnimations.selectedGlowPulseDuration,
     );
     _pulseAnimation = Tween<double>(begin: 0.4, end: 1.0).animate(
       CurvedAnimation(
@@ -123,13 +123,13 @@ class _PersonNodeWidgetState extends ConsumerState<PersonNodeWidget>
     // Rotation controller — 8000ms repeat
     _rotationController = AnimationController(
       vsync: this,
-      duration: GraphAnimations.rotationDuration,
+      duration: GraphAnimations.rotatingRingDuration,
     );
 
     // Entry controller — 600ms forward
     _entryController = AnimationController(
       vsync: this,
-      duration: GraphAnimations.entryDuration,
+      duration: GraphAnimations.nodeEntryDuration,
     );
     _entryFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
@@ -154,7 +154,7 @@ class _PersonNodeWidgetState extends ConsumerState<PersonNodeWidget>
     // Info card controller
     _infoCardController = AnimationController(
       vsync: this,
-      duration: GraphAnimations.infoCardDuration,
+      duration: GraphAnimations.infoCardEntry,
     );
     _infoFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
@@ -238,7 +238,7 @@ class _PersonNodeWidgetState extends ConsumerState<PersonNodeWidget>
           : GraphCanvasConfig.defaultNodeSize;
 
   NodeColorSet get _colors =>
-      getNodeColors(relationshipTypeFromKey(widget.relationshipKey));
+      getNodeColors(relationshipTypeFromKey(widget.relationshipKey ?? '') ?? RelationshipType.extended);
 
   // ── Build ─────────────────────────────────────────────────────────────
 
@@ -257,13 +257,15 @@ class _PersonNodeWidgetState extends ConsumerState<PersonNodeWidget>
             opacity: widget.isDimmed ? 0.25 : 1.0,
             child: Material(
               color: Colors.transparent,
-              child: GestureDetector(
-                onTap: widget.onTap,
-                onHover: (hovering) => widget.onHover?.call(hovering),
-                behavior: HitTestBehavior.opaque,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+              child: MouseRegion(
+                onEnter: (_) => widget.onHover?.call(true),
+                onExit: (_) => widget.onHover?.call(false),
+                child: GestureDetector(
+                  onTap: widget.onTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                     // ── Node Circle Stack ────────────────────────────
                     SizedBox(
                       width: nodeSize + GraphCanvasConfig.glowExtent * 2,
@@ -317,14 +319,15 @@ class _PersonNodeWidgetState extends ConsumerState<PersonNodeWidget>
                         scaleAnimation: _infoScaleAnimation,
                         onTapProfile: widget.onTap,
                       ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+                  ], // Column children
+                ), // Column
+              ), // GestureDetector
+            ), // MouseRegion
+          ), // Material
+        ), // Opacity
+      ), // ScaleTransition
+    ), // SlideTransition
+    ); // FadeTransition
   }
 
   // ── Layer 1: Glow ─────────────────────────────────────────────────────
