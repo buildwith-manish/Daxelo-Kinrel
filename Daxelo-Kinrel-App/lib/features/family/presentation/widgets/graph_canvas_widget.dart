@@ -34,6 +34,7 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/services/graph_layout_service.dart';
 import '../../../../shared/painters/family_tree_painter.dart';
+import '../../../../shared/utils/node_colors.dart';
 import 'edge_dot_widget.dart';
 import 'relationship_popup_widget.dart';
 
@@ -50,6 +51,10 @@ class PersonData {
   final bool isAnchor;
   final String? photoUrl;
   final bool isDeceased;
+  /// Server-computed kinship category (e.g., "parent", "aunt_uncle") for node coloring.
+  final String? kinshipCategory;
+  /// Server-computed kinship term (e.g., "Uncle", "Cousin") for node label.
+  final String? computedKinship;
 
   const PersonData({
     required this.id,
@@ -59,6 +64,8 @@ class PersonData {
     this.isAnchor = false,
     this.photoUrl,
     this.isDeceased = false,
+    this.kinshipCategory,
+    this.computedKinship,
   });
 
   /// Converts to GraphPerson for layout computation.
@@ -79,12 +86,15 @@ class RelationshipData {
   final String fromPersonId;
   final String toPersonId;
   final String relationshipKey;
+  /// Optional display label from enriched graph API (e.g., "Father", "Mother's Brother").
+  final String? displayLabel;
 
   const RelationshipData({
     required this.id,
     required this.fromPersonId,
     required this.toPersonId,
     required this.relationshipKey,
+    this.displayLabel,
   });
 
   /// Converts to EdgeData for the painter.
@@ -93,6 +103,7 @@ class RelationshipData {
         fromPersonId: fromPersonId,
         toPersonId: toPersonId,
         relationshipKey: relationshipKey,
+        displayLabel: displayLabel,
       );
 
   /// Converts to GraphRelationship for layout computation.
@@ -430,6 +441,11 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
   /// Looks up the edge connecting this person to the anchor, then
   /// formats the relationship key. Returns "You" for the anchor.
   String _getRelationLabel(PersonData person) {
+    // Prefer server-computed kinship term (e.g., "Uncle", "Cousin")
+    if (person.computedKinship != null && person.computedKinship!.isNotEmpty) {
+      return person.computedKinship!;
+    }
+
     if (person.isAnchor) return 'You';
 
     final anchor = _anchorPerson;
@@ -660,6 +676,11 @@ class _PersonNodeCard extends ConsumerWidget {
   // ── Generation Ring Color ──────────────────────────────────────────
 
   Color get _ringColor {
+    // Prefer server-computed kinshipCategory for color resolution
+    if (person.kinshipCategory != null && person.kinshipCategory!.isNotEmpty) {
+      return getNodeColorsFromCategory(person.kinshipCategory).ring;
+    }
+    // Fallback to generation-based color
     if (person.generationIndex < 0) {
       // Parents
       return KinrelColors.blue.withValues(alpha: 0.6);

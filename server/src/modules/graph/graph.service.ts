@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { getInverseKey } from '../relationships/relationships.service';
 import { KinshipService } from '../kinship/kinship.service';
+import { GraphEngineService, ComputedRelationship } from './graph-engine.service';
 import { MAX_GRAPH_NODES, DEFAULT_GRAPH_DEPTH, MAX_GRAPH_DEPTH, DEFAULT_TREE_DEPTH } from '../../common/constants';
 import Redis from 'ioredis';
 
@@ -36,6 +37,35 @@ export interface FlatGraphResult {
   relationships: Array<Record<string, any>>;
 }
 
+export interface EnrichedGraphResult {
+  persons: Array<{
+    id: string;
+    familyId: string;
+    name: string;
+    gender: string | null;
+    generationIndex: number;
+    isAnchor: boolean;
+    isDeceased: boolean;
+    photoUrl: string | null;
+    username: string | null;
+    computedKinship: string | null;
+    kinshipCategory: string | null;
+    isSelf: boolean;
+  }>;
+  relationships: Array<{
+    id: string;
+    familyId: string;
+    fromPersonId: string;
+    toPersonId: string;
+    relationshipKey: string;
+    direction: string;
+    isActive: boolean;
+    label: string | null;
+    displayLabel: string;
+  }>;
+  selfPersonId: string | null;
+}
+
 export interface PathResult {
   path: Array<Record<string, any>>;
   relationships: Array<Record<string, any>>;
@@ -66,6 +96,8 @@ export class GraphService {
     private config: ConfigService,
     @Inject(forwardRef(() => KinshipService))
     private kinshipService: KinshipService,
+    @Inject(forwardRef(() => GraphEngineService))
+    private graphEngine: GraphEngineService,
   ) {
     const redisUrl = this.config.get<string>('REDIS_URL', '');
     if (redisUrl && redisUrl !== 'redis://localhost:6379') {
@@ -101,6 +133,110 @@ export class GraphService {
     } else {
       this.logger.verbose('REDIS_URL not configured — graph caching disabled');
     }
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // ENRICHED GRAPH: Computed kinship terms for graph rendering
+  // ════════════════════════════════════════════════════════════════════
+
+  /**
+   * Returns the family graph enriched with computed kinship terms.
+   *
+   * Each person gets a `computedKinship` field showing their relationship
+   * to the self/anchor person (e.g., "Uncle", "Cousin", "Grandmother").
+   *
+   * Each relationship gets a `displayLabel` field with proper English term.
+   */
+  async getEnrichedGraph(
+    userId: string,
+    familyId: string,
+    selfPersonId?: string,
+  ): Promise<EnrichedGraphResult> {
+    // Verify access
+    await this.requireFamilyMember(userId, familyId);
+
+    // Get base graph data
+    const { persons, relationships } = await this.getFlatGraph(familyId);
+
+    // Determine the "self" person (whose perspective we show relationships from)
+    const resolvedSelfId = selfPersonId
+      ?? await this.findSelfPersonId(userId, familyId)
+      ?? await this.findAnchorPersonId(familyId)
+      ?? persons[0]?.id;
+
+    if (!resolvedSelfId) {
+      return {
+        persons: persons.map(p => ({ ...p, computedKinship: null, kinshipCategory: null, isSelf: false })),
+        relationships: relationships.map(r => ({ ...r, displayLabel: this.formatKey(r.relationshipKey) })),
+        selfPersonId: null,
+      };
+    }
+
+    // Use GraphEngineService to compute ALL kinship relationships from self's perspective
+    let computedRelationships: ComputedRelationship[] = [];
+    try {
+      computedRelationships = await this.graphEngine.getAllRelationships(
+        familyId,
+        resolvedSelfId,
+        6, // max depth
+      );
+    } catch (error) {
+      this.logger.warn(`Failed to compute relationships: ${error}`);
+    }
+
+    // Build lookup: personId → computed kinship
+    const kinshipMap = new Map<string, ComputedRelationship>();
+    for (const cr of computedRelationships) {
+      kinshipMap.set(cr.personId, cr);
+    }
+
+    // Enrich persons with computed kinship labels (ENGLISH ONLY)
+    const enrichedPersons = persons.map((person) => {
+      if (person.id === resolvedSelfId) {
+        return {
+          ...person,
+          computedKinship: 'You',
+          kinshipCategory: 'self',
+          isSelf: true,
+        };
+      }
+
+      const computed = kinshipMap.get(person.id);
+      if (computed) {
+        return {
+          ...person,
+          computedKinship: this.formatKinshipTerm(computed.computedTerm),
+          kinshipCategory: this.categorizeKinship(computed.computedTerm),
+          isSelf: false,
+        };
+      }
+
+      return {
+        ...person,
+        computedKinship: null,
+        kinshipCategory: 'extended',
+        isSelf: false,
+      };
+    });
+
+    // Enrich relationships with display labels (ENGLISH ONLY)
+    const enrichedRelationships = relationships.map((rel) => {
+      // Try to get proper English term from KinshipService
+      const kinshipTerm = this.kinshipService.getByKey(rel.relationshipKey);
+      const displayLabel = kinshipTerm?.englishTerm
+        ?? this.formatKey(rel.relationshipKey);
+
+      return {
+        ...rel,
+        displayLabel,
+      };
+    });
+
+    return {
+      persons: enrichedPersons,
+      relationships: enrichedRelationships,
+      selfPersonId: resolvedSelfId,
+    };
   }
 
   /** Returns the family graph in flat, tree, or path format based on options. */
@@ -897,9 +1033,68 @@ export class GraphService {
     }
 
     // Fallback: format the key (e.g. "fathers_brother" → "Fathers Brother")
-    return relationshipKey
+    return this.formatKey(relationshipKey);
+  }
+
+  /** Find the "self" person for the current user in this family. */
+  private async findSelfPersonId(userId: string, familyId: string): Promise<string | null> {
+    const membership = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId, userId } },
+      select: { personId: true },
+    });
+
+    if (membership?.personId) {
+      return membership.personId;
+    }
+
+    const person = await this.prisma.person.findFirst({
+      where: { familyId, userId, deletedAt: null },
+      select: { id: true },
+    });
+
+    return person?.id ?? null;
+  }
+
+  /** Find the anchor person ID for the family. */
+  private async findAnchorPersonId(familyId: string): Promise<string | null> {
+    const family = await this.prisma.family.findUnique({
+      where: { id: familyId },
+      select: { anchorPersonId: true },
+    });
+    return family?.anchorPersonId ?? null;
+  }
+
+  /** Format a kinship term from snake_case to Title Case (English only). */
+  private formatKinshipTerm(term: string): string {
+    return term
       .split('_')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(' ');
+  }
+
+  /** Format a raw key to Title Case. */
+  private formatKey(key: string): string {
+    return key
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  /** Categorize a kinship term for node coloring. */
+  private categorizeKinship(term: string): string {
+    const t = term.toLowerCase();
+
+    if (t === 'self') return 'self';
+    if (t === 'father' || t === 'mother') return 'parent';
+    if (t === 'husband' || t === 'wife' || t === 'spouse') return 'spouse';
+    if (t === 'brother' || t === 'sister' || t.includes('sibling')) return 'sibling';
+    if (t === 'son' || t === 'daughter' || t === 'child') return 'child';
+    if (t.includes('grandfather') || t.includes('grandmother') || t.includes('grandparent')) return 'grandparent';
+    if (t.includes('uncle') || t.includes('aunt')) return 'aunt_uncle';
+    if (t.includes('cousin')) return 'cousin';
+    if (t.includes('in_law') || t.includes('in-law')) return 'in_law';
+    if (t.includes('nephew') || t.includes('niece') || t.includes('grandson') || t.includes('granddaughter')) return 'extended';
+
+    return 'extended';
   }
 }

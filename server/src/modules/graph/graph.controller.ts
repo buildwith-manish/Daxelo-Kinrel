@@ -8,7 +8,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { GraphService } from './graph.service';
+import { GraphService, EnrichedGraphResult } from './graph.service';
 import { GraphEngineService } from './graph-engine.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -22,6 +22,18 @@ export class GraphController {
     private graphService: GraphService,
     private graphEngineService: GraphEngineService,
   ) {}
+
+  @Get(':familyId/enriched')
+  @ApiOperation({ summary: 'Get enriched family graph with computed kinship terms' })
+  @ApiResponse({ status: 200, description: 'Returns graph data with computed kinship terms for each person' })
+  @ApiQuery({ name: 'selfPersonId', required: false, description: 'Person ID whose perspective to use for kinship computation' })
+  async getEnrichedGraph(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+    @Query('selfPersonId') selfPersonId?: string,
+  ): Promise<EnrichedGraphResult> {
+    return this.graphService.getEnrichedGraph(userId, familyId, selfPersonId);
+  }
 
   @Get(':familyId/layout')
   @ApiOperation({ summary: 'Get pre-computed graph layout positions' })

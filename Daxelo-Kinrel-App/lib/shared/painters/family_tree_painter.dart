@@ -35,12 +35,15 @@ class EdgeData {
   final String fromPersonId;
   final String toPersonId;
   final String relationshipKey;
+  /// Optional display label from enriched graph API (e.g., "Father", "Mother's Brother").
+  final String? displayLabel;
 
   const EdgeData({
     required this.id,
     required this.fromPersonId,
     required this.toPersonId,
     required this.relationshipKey,
+    this.displayLabel,
   });
 }
 
@@ -372,7 +375,9 @@ class FamilyTreePainter extends CustomPainter {
         !isSelected &&
         !isDimmed) {
       final midpoint = _computeMidpoint(start, end, isSpouse: isSpouse);
-      _drawEdgeLabel(canvas, midpoint, edge.relationshipKey);
+      // Use displayLabel from enriched API if available, otherwise format key
+      final edgeLabel = edge.displayLabel ?? _formatKey(edge.relationshipKey);
+      _drawEdgeLabel(canvas, midpoint, edgeLabel);
     }
   }
 
@@ -571,7 +576,16 @@ class FamilyTreePainter extends CustomPainter {
 
   // ── Edge Label Drawing ─────────────────────────────────────────────
 
-  /// Draws a small label at [midpoint] showing [relationshipKey].
+  /// Formats a relationship key like 'father_in_law' → 'Father In Law'.
+  static String _formatKey(String key) {
+    return key
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
+        .join(' ');
+  }
+
+  /// Draws a small label at [midpoint] showing [label].
   /// Background: darkElevated (#202338) rounded rect.
   /// Text: 10px, white 70% opacity.
   void _drawEdgeLabel(Canvas canvas, Offset midpoint, String label) {
