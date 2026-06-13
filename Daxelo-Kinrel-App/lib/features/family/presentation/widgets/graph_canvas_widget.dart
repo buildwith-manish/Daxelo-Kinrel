@@ -26,6 +26,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../providers/family_graph_provider.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
@@ -696,7 +699,7 @@ class _PersonNodeCard extends ConsumerWidget {
         button: true,
         child: GestureDetector(
           onTap: () => context.push('/family/$familyId/person/${person.id}'),
-          onLongPress: () => _showQuickActions(context),
+          onLongPress: () => _showQuickActions(context, ref),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -828,7 +831,7 @@ class _PersonNodeCard extends ConsumerWidget {
 
   // ── Quick Actions Bottom Sheet ─────────────────────────────────────
 
-  void _showQuickActions(BuildContext context) {
+  void _showQuickActions(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
       backgroundColor: KinrelColors.darkCard,
@@ -899,7 +902,7 @@ class _PersonNodeCard extends ConsumerWidget {
               ),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Navigate to edit screen
+                context.push('/member/${person.id}');
               },
             ),
             ListTile(
@@ -911,9 +914,18 @@ class _PersonNodeCard extends ConsumerWidget {
                   color: KinrelColors.textWhite,
                 ),
               ),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
-                // TODO: Set as anchor via provider
+                final client = Supabase.instance.client;
+                await client
+                    .from('Person')
+                    .update({'isAnchor': true})
+                    .eq('id', person.id);
+                await client
+                    .from('Family')
+                    .update({'anchorPersonId': person.id})
+                    .eq('id', familyId);
+                ref.invalidate(familyGraphProvider(familyId));
               },
             ),
             ListTile(
@@ -925,9 +937,32 @@ class _PersonNodeCard extends ConsumerWidget {
                   color: KinrelColors.textWhite,
                 ),
               ),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
-                // TODO: Remove person via provider
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    backgroundColor: const Color(0xFF191B2C),
+                    title: Text('Remove ${person.name}?',
+                        style: const TextStyle(color: Color(0xFFF5F0EE))),
+                    content: const Text('This will soft-delete them from the family.',
+                        style: TextStyle(color: Color(0xFF8A7A72))),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel')),
+                      TextButton(onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Remove',
+                              style: TextStyle(color: Color(0xFFE8612A)))),
+                    ],
+                  ),
+                );
+                if (confirmed == true) {
+                  await Supabase.instance.client
+                      .from('Person')
+                      .update({'deletedAt': DateTime.now().toIso8601String()})
+                      .eq('id', person.id);
+                  ref.invalidate(familyGraphProvider(familyId));
+                }
               },
             ),
 

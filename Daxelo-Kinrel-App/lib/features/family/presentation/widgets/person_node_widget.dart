@@ -17,6 +17,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/animation_constants.dart';
 import '../../../../core/constants/brand_colors.dart';
@@ -912,7 +913,7 @@ class _MemberInfoCard extends StatelessWidget {
                                 label: 'Edit',
                                 color: KinrelColors.textDim,
                                 onTap: () {
-                                  // TODO: Navigate to edit
+                                  context.push('/member/${widget.memberId}');
                                 },
                               ),
                             ],
