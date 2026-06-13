@@ -20,8 +20,12 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../graph/graph.dart';
 import 'providers/family_graph_provider.dart';
+import 'widgets/generation_filter_bar.dart';
 import 'widgets/generation_legend_widget.dart';
 import 'widgets/graph_canvas_widget.dart' show PersonData;
+import 'widgets/graph_toolbar.dart';
+import 'widgets/relationship_legend.dart';
+import 'widgets/stats_panel.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // FAMILY GRAPH SCREEN
@@ -44,6 +48,12 @@ class FamilyGraphScreen extends ConsumerStatefulWidget {
 class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   /// Highlighted generation index (null = no highlight).
   int? _highlightedGeneration;
+
+  /// Current zoom level (managed by InteractiveViewer).
+  double _zoomLevel = 1.0;
+
+  /// Currently hovered relationship key for legend filtering.
+  String? _hoveredRelationshipKey;
 
   // ── Build ─────────────────────────────────────────────────────────
 
@@ -274,31 +284,109 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       );
     }
 
+    // Determine which relationship types are present
+    final presentRelationshipKeys = <String>{};
+    for (final r in graph.relationships) {
+      presentRelationshipKeys.add(r['relationshipKey'] as String? ?? '');
+    }
+
     return Stack(
       children: [
+        // Main graph content
         Column(
           children: [
+            // V2.1 Generation filter bar at top
+            GenerationFilterBar(
+              presentGenerations: presentGenerations,
+              highlightedGeneration: _highlightedGeneration,
+              onGenerationTap: (gen) {
+                setState(() => _highlightedGeneration = gen);
+              },
+            ),
+
             if (graph.isTruncated) _buildTruncationBanner(graph),
+
             Expanded(
               child: FamilyGraphWidget(
                 familyId: widget.familyId,
                 familyName: widget.familyName ?? 'Family Tree',
               ),
             ),
-            // Bottom legend bar
-            _buildBottomLegendBar(presentGenerations),
           ],
         ),
 
-        // Generation legend chips (top-left floating)
+        // Generation legend chips (top-left floating, below filter bar)
         Positioned(
           left: 16,
-          top: graph.isTruncated ? 48 : 16,
+          top: graph.isTruncated ? 96 : 64,
           child: GenerationLegendWidget(
             presentGenerations: presentGenerations,
             highlightedGeneration: _highlightedGeneration,
             onGenerationTap: (gen) {
               setState(() => _highlightedGeneration = gen);
+            },
+          ),
+        ),
+
+        // V2.1 Relationship legend (right side)
+        if (presentRelationshipKeys.isNotEmpty)
+          Positioned(
+            right: 16,
+            top: 80,
+            child: RelationshipLegend(
+              presentRelationshipKeys: presentRelationshipKeys,
+              hoveredRelationshipKey: _hoveredRelationshipKey,
+              onRelationshipTap: (key) {
+                setState(() => _hoveredRelationshipKey = key);
+              },
+            ),
+          ),
+
+        // V2.1 Stats panel (bottom-left)
+        Positioned(
+          left: 16,
+          bottom: 80,
+          child: StatsPanel(
+            totalMembers: graph.persons.length,
+            totalConnections: graph.relationships.length,
+            totalGenerations: presentGenerations.length,
+            isTruncated: graph.isTruncated,
+          ),
+        ),
+
+        // V2.1 Graph toolbar (bottom-center)
+        Positioned(
+          bottom: 16,
+          left: 0,
+          right: 0,
+          child: GraphToolbar(
+            zoomLevel: _zoomLevel,
+            onZoomIn: () {
+              setState(() {
+                _zoomLevel = (_zoomLevel + 0.15).clamp(0.3, 2.5);
+              });
+            },
+            onZoomOut: () {
+              setState(() {
+                _zoomLevel = (_zoomLevel - 0.15).clamp(0.3, 2.5);
+              });
+            },
+            onZoomReset: () {
+              setState(() {
+                _zoomLevel = 1.0;
+                _highlightedGeneration = null;
+                _hoveredRelationshipKey = null;
+              });
+            },
+            onCenterGraph: () {
+              // Reset view to center
+              setState(() {
+                _zoomLevel = 1.0;
+                _highlightedGeneration = null;
+              });
+            },
+            onAddMember: () {
+              context.push('/family/${widget.familyId}/add-person');
             },
           ),
         ),
@@ -346,67 +434,4 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     );
   }
 
-  // ── Bottom Legend Bar ─────────────────────────────────────────────
-
-  Widget _buildBottomLegendBar(Set<int> presentGenerations) {
-    final categories = <_LegendChip>[];
-
-    final hasParents = presentGenerations.any((g) => g < 0 && g.abs() < 2);
-    final hasSelf = presentGenerations.contains(0);
-    final hasSiblings = presentGenerations.contains(0); // Siblings are gen 0
-    final hasChildren = presentGenerations.any((g) => g > 0 && g < 2);
-    final hasExtended = presentGenerations.any((g) => g.abs() >= 2);
-    final hasInLaws = presentGenerations.contains(99);
-
-    if (hasParents) categories.add(_LegendChip('Parents', KinrelColors.blue));
-    if (hasSelf) categories.add(_LegendChip('Self', KinrelColors.tealAccent));
-    if (hasSiblings && !hasSelf) categories.add(_LegendChip('Siblings', KinrelColors.tealAccent));
-    if (hasChildren) categories.add(_LegendChip('Children', KinrelColors.coral));
-    if (hasExtended) categories.add(_LegendChip('Extended', KinrelColors.extendedPurple));
-    if (hasInLaws) categories.add(_LegendChip('In-laws', KinrelColors.inLawGold));
-
-    if (categories.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: KinrelColors.darkCard.withValues(alpha: 0.9),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: categories.map((chip) => _buildLegendChip(chip)).toList(),
-      ),
-    );
-  }
-
-  Widget _buildLegendChip(_LegendChip chip) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: chip.color),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            chip.label,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 11,
-              color: KinrelColors.textSecondaryDark,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Helper class for legend chips ──────────────────────────────────
-
-class _LegendChip {
-  final String label;
-  final Color color;
-  const _LegendChip(this.label, this.color);
 }

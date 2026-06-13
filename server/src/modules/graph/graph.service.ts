@@ -587,6 +587,220 @@ export class GraphService {
     return result;
   }
 
+  /** Compute layout positions for graph nodes based on the specified algorithm. */
+  async computeLayout(familyId: string, algorithm: string): Promise<Record<string, { x: number; y: number }>> {
+    const { persons } = await this.getFlatGraph(familyId);
+
+    switch (algorithm) {
+      case 'hierarchical':
+        return this.hierarchicalLayout(persons);
+      case 'radial':
+        return this.radialLayout(persons);
+      case 'force':
+        return this.forceDirectedLayout(persons);
+      default:
+        return this.hierarchicalLayout(persons);
+    }
+  }
+
+  /** Get detailed member info for the info card popup. */
+  async getMemberDetails(familyId: string, memberId: string) {
+    const person = await this.prisma.person.findFirst({
+      where: { id: memberId, familyId, deletedAt: null },
+      select: {
+        id: true,
+        familyId: true,
+        name: true,
+        gender: true,
+        dateOfBirth: true,
+        city: true,
+        gotra: true,
+        isDeceased: true,
+        birthYear: true,
+        occupation: true,
+        privacyLevel: true,
+        sideOfFamily: true,
+        generationIndex: true,
+        isAnchor: true,
+        photoUrl: true,
+        photoThumb: true,
+        username: true,
+      },
+    });
+
+    if (!person) {
+      throw new NotFoundException('Person not found');
+    }
+
+    // Also fetch their relationships in this family
+    const relationships = await this.prisma.relationship.findMany({
+      where: {
+        familyId,
+        isActive: true,
+        OR: [
+          { fromPersonId: memberId },
+          { toPersonId: memberId },
+        ],
+      },
+      select: {
+        id: true,
+        fromPersonId: true,
+        toPersonId: true,
+        relationshipKey: true,
+        direction: true,
+        label: true,
+      },
+    });
+
+    return {
+      ...this.formatPerson(person),
+      relationships,
+      relationshipCount: relationships.length,
+    };
+  }
+
+  /** Get all members belonging to a specific generation within a family. */
+  async getMembersByGeneration(familyId: string, generation: number) {
+    const persons = await this.prisma.person.findMany({
+      where: {
+        familyId,
+        deletedAt: null,
+        generationIndex: generation,
+      },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        familyId: true,
+        name: true,
+        gender: true,
+        dateOfBirth: true,
+        isDeceased: true,
+        birthYear: true,
+        isAnchor: true,
+        photoUrl: true,
+        photoThumb: true,
+        sideOfFamily: true,
+        generationIndex: true,
+        username: true,
+      },
+    });
+
+    // Get relationships between these generation members
+    const personIds = persons.map(p => p.id);
+
+    const relationships = await this.prisma.relationship.findMany({
+      where: {
+        familyId,
+        isActive: true,
+        fromPersonId: { in: personIds },
+        toPersonId: { in: personIds },
+      },
+      select: {
+        id: true,
+        fromPersonId: true,
+        toPersonId: true,
+        relationshipKey: true,
+        direction: true,
+        label: true,
+      },
+    });
+
+    return {
+      generation,
+      members: persons.map(p => this.formatPerson(p)),
+      relationships,
+      totalMembers: persons.length,
+    };
+  }
+
+  private hierarchicalLayout(persons: Array<Record<string, any>>): Record<string, { x: number; y: number }> {
+    const positions: Record<string, { x: number; y: number }> = {};
+    const canvasWidth = 1400;
+
+    const genYPositions: Record<number, number> = {
+      0: 140,   // Grandparents
+      1: 350,   // Parents
+      2: 580,   // Self & siblings
+      3: 780,   // Children
+    };
+
+    // Group by generation
+    const genGroups = new Map<number, Array<Record<string, any>>>();
+    for (const person of persons) {
+      const gen = person.generationIndex ?? 0;
+      const group = genGroups.get(gen) || [];
+      group.push(person);
+      genGroups.set(gen, group);
+    }
+
+    // Layout each generation
+    for (const [gen, group] of genGroups) {
+      const y = genYPositions[gen] ?? (140 + gen * 200);
+      const spacing = canvasWidth / (group.length + 1);
+
+      group.forEach((person, idx) => {
+        positions[person.id] = {
+          x: spacing * (idx + 1),
+          y,
+        };
+      });
+    }
+
+    return positions;
+  }
+
+  private radialLayout(persons: Array<Record<string, any>>): Record<string, { x: number; y: number }> {
+    const positions: Record<string, { x: number; y: number }> = {};
+    const centerX = 700;
+    const centerY = 460;
+    const baseRadius = 150;
+
+    // Group by generation
+    const genGroups = new Map<number, Array<Record<string, any>>>();
+    for (const person of persons) {
+      const gen = person.generationIndex ?? 0;
+      const group = genGroups.get(gen) || [];
+      group.push(person);
+      genGroups.set(gen, group);
+    }
+
+    for (const [gen, group] of genGroups) {
+      const radius = baseRadius + gen * 130;
+      const angleStep = (2 * Math.PI) / group.length;
+
+      group.forEach((person, idx) => {
+        const angle = angleStep * idx - Math.PI / 2;
+        positions[person.id] = {
+          x: centerX + radius * Math.cos(angle),
+          y: centerY + radius * Math.sin(angle),
+        };
+      });
+    }
+
+    return positions;
+  }
+
+  private forceDirectedLayout(persons: Array<Record<string, any>>): Record<string, { x: number; y: number }> {
+    // Simple force-directed: start with hierarchical then add jitter
+    const positions = this.hierarchicalLayout(persons);
+
+    // Add small random offsets for natural look
+    const rng = (seed: number) => {
+      let x = Math.sin(seed) * 10000;
+      return x - Math.floor(x);
+    };
+
+    for (const [id, pos] of Object.entries(positions)) {
+      const hash = id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+      positions[id] = {
+        x: pos.x + (rng(hash) - 0.5) * 40,
+        y: pos.y + (rng(hash + 1) - 0.5) * 20,
+      };
+    }
+
+    return positions;
+  }
+
   private async requireFamilyMember(userId: string, familyId: string) {
     const membership = await this.prisma.familyMember.findUnique({
       where: { familyId_userId: { familyId, userId } },

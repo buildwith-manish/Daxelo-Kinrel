@@ -1,19 +1,23 @@
 // lib/shared/painters/family_tree_painter.dart
 //
-// DAXELO KINREL — Family Tree Edge Painter
+// DAXELO KINREL — Family Tree Edge Painter (V2.1 K-Graph Blueprint Phase 2)
 //
 // A CustomPainter that draws graph edges (connection lines between person nodes)
 // in the family tree graph canvas.
 //
 // Features:
-//   - ALL edges are dashed by default (dash [4,4], orange 45% alpha, width 1.5)
-//   - Spouse edges: small filled heart shape at midpoint (~14dp)
-//   - Parent-child & sibling edges: filled orange circle (r5) with glow halo (r9)
-//   - Selected edge: solid line, width 2.5, full-opacity KinrelColors.orange
-//   - Default straight lines for radial layout (Bezier method retained but unused)
+//   - Cubic Bezier S-curves for parent-child edges (zoom >= 0.4), straight in minimal
+//   - Quadratic Bezier arch for spouse edges (zoom >= 0.4), straight in minimal
+//   - Dashed edges with [5,4] dash pattern (default), solid for selected/connected-hover
+//   - Spouse heart midpoints (pink #EC4899)
+//   - Parent-child dot midpoints with glow halo
+//   - Selected edge: solid, full-opacity KinrelColors.orange, width 2.5
+//   - Connected-to-hovered edge: solid, 90% opacity, width 2.2
+//   - Dimmed edges (not connected to hovered node): 8% opacity
+//   - Edge labels on hover (relationshipKey) at midpoint when zoom >= 0.6
 //   - Level-of-Detail (LOD) rendering based on zoomLevel:
 //       zoom < 0.4 : minimal mode (straight lines only, no dots/hearts)
-//       zoom >= 0.4: full mode (lines with midpoint indicators)
+//       zoom >= 0.4: full mode (curves with midpoint indicators)
 //   - highlightedGeneration: when set, edges where BOTH endpoints are NOT
 //     in that generation are drawn at 0.15 alpha
 
@@ -66,6 +70,7 @@ const Set<String> _spouseKeys = <String>{
 ///     positions: layoutResult.positions,
 ///     relationships: edgeDataList,
 ///     selectedEdgeId: selectedEdgeId,
+///     hoveredNodeId: hoveredPersonId,
 ///     zoomLevel: currentZoom,
 ///     generationMap: personIdToGenerationIndex,
 ///     highlightedGeneration: 1,
@@ -77,6 +82,7 @@ class FamilyTreePainter extends CustomPainter {
     required this.positions,
     required this.relationships,
     this.selectedEdgeId,
+    this.hoveredNodeId,
     this.zoomLevel = 1.0,
     this.nodeWidth = 72.0,
     this.nodeHeight = 72.0,
@@ -92,6 +98,10 @@ class FamilyTreePainter extends CustomPainter {
 
   /// Currently selected edge ID (highlighted in orange).
   final String? selectedEdgeId;
+
+  /// Currently hovered node ID — edges connected to this node are emphasized,
+  /// while non-connected edges are dimmed.
+  final String? hoveredNodeId;
 
   /// Current zoom level from InteractiveViewer.
   final double zoomLevel;
@@ -124,8 +134,17 @@ class FamilyTreePainter extends CustomPainter {
   /// Selected edge stroke width.
   static const double _selectedStrokeWidth = 2.5;
 
+  /// Connected-to-hovered edge opacity.
+  static const double _hoveredConnectedAlpha = 0.90;
+
+  /// Connected-to-hovered edge stroke width.
+  static const double _hoveredConnectedStrokeWidth = 2.2;
+
+  /// Dimmed (not-connected-to-hovered) edge opacity.
+  static const double _hoveredDimmedAlpha = 0.08;
+
   /// Dash pattern for default edges: [dash, gap].
-  static const List<double> _dashArray = [4.0, 4.0];
+  static const List<double> _dashArray = [5.0, 4.0];
 
   /// Dimmed alpha for edges outside highlighted generation.
   static const double _dimmedAlpha = 0.15;
@@ -144,12 +163,44 @@ class FamilyTreePainter extends CustomPainter {
   /// Total size of the heart shape for spouse midpoints.
   static const double _heartSize = 14.0;
 
+  /// Spouse heart color — pink #EC4899 per V2.1 Blueprint.
+  static const Color _spouseHeartColor = Color(0xFFEC4899);
+
+  // ── Spouse Quadratic Curve Constants ──────────────────────────────
+
+  /// Vertical offset for spouse quadratic curve control point (upward arch).
+  static const double _spouseArchOffset = -20.0;
+
+  // ── Edge Label Constants ──────────────────────────────────────────
+
+  /// Background color for edge labels — darkElevated #202338.
+  static const Color _labelBackgroundColor = Color(0xFF202338);
+
+  /// Label text style font size.
+  static const double _labelFontSize = 10.0;
+
+  /// Label text color — white at 70% opacity.
+  static const Color _labelTextColor = Color(0xB3FFFFFF);
+
+  /// Label padding horizontal.
+  static const double _labelPaddingH = 6.0;
+
+  /// Label padding vertical.
+  static const double _labelPaddingV = 3.0;
+
+  /// Label border radius.
+  static const double _labelBorderRadius = 4.0;
+
   // ── LOD Thresholds ─────────────────────────────────────────────────
 
   /// Below this zoom level, skip dots/hearts and draw simplified lines only.
   static const double _lodMinimalZoom = 0.4;
 
+  /// Below this zoom level, skip edge labels (too small to read).
+  static const double _lodLabelZoom = 0.6;
+
   bool get _isMinimal => zoomLevel < _lodMinimalZoom;
+  bool get _showLabels => zoomLevel >= _lodLabelZoom;
 
   // ── Paint ──────────────────────────────────────────────────────────
 
@@ -162,19 +213,31 @@ class FamilyTreePainter extends CustomPainter {
 
       final isSelected = edge.id == selectedEdgeId;
       final isSpouse = _spouseKeys.contains(edge.relationshipKey);
+      final isConnectedToHovered = _isEdgeConnectedToHovered(edge);
 
       // Determine if this edge should be dimmed (generation filter)
       final isDimmed = _shouldDimEdge(edge);
 
       _drawEdge(
         canvas: canvas,
+        edge: edge,
         fromPos: fromPos,
         toPos: toPos,
         isSelected: isSelected,
         isSpouse: isSpouse,
         isDimmed: isDimmed,
+        isConnectedToHovered: isConnectedToHovered,
       );
     }
+  }
+
+  // ── Hover Helper ───────────────────────────────────────────────────
+
+  /// Returns true if the given edge is connected to [hoveredNodeId].
+  bool _isEdgeConnectedToHovered(EdgeData edge) {
+    if (hoveredNodeId == null) return false;
+    return edge.fromPersonId == hoveredNodeId ||
+        edge.toPersonId == hoveredNodeId;
   }
 
   /// Returns true if this edge should be drawn dimmed based on
@@ -195,11 +258,13 @@ class FamilyTreePainter extends CustomPainter {
   /// Draws a single edge between two person positions.
   void _drawEdge({
     required Canvas canvas,
+    required EdgeData edge,
     required Offset fromPos,
     required Offset toPos,
     required bool isSelected,
     required bool isSpouse,
     required bool isDimmed,
+    required bool isConnectedToHovered,
   }) {
     // Determine edge endpoints from node centers
     final Offset start;
@@ -225,23 +290,48 @@ class FamilyTreePainter extends CustomPainter {
       }
     }
 
-    // Determine color and stroke width
+    // ── Determine edge style ────────────────────────────────────────
+    // Priority: selected > connected-to-hovered > dimmed-by-hover > default
+
     final Color edgeColor;
     final double strokeWidth;
+    final bool isSolid; // true = solid line, false = dashed
+    final double opacityOverride; // null = use edge color as-is
 
     if (isSelected) {
-      // Selected: solid, full-opacity, wider
+      // Selected: solid, full-opacity orange, wider
       edgeColor = _selectedEdgeColor;
       strokeWidth = _selectedStrokeWidth;
+      isSolid = true;
+      opacityOverride = 1.0;
+    } else if (hoveredNodeId != null && isConnectedToHovered) {
+      // Connected to hovered node: solid, 90% opacity, medium width
+      edgeColor = _defaultEdgeColor;
+      strokeWidth = _hoveredConnectedStrokeWidth;
+      isSolid = true;
+      opacityOverride = _hoveredConnectedAlpha;
+    } else if (hoveredNodeId != null && !isConnectedToHovered) {
+      // NOT connected to hovered node: dimmed to 8% opacity
+      edgeColor = _defaultEdgeColor;
+      strokeWidth = _defaultStrokeWidth;
+      isSolid = false;
+      opacityOverride = _hoveredDimmedAlpha;
     } else {
       // Default: dashed, 45% alpha orange
       edgeColor = _defaultEdgeColor;
       strokeWidth = _defaultStrokeWidth;
+      isSolid = false;
+      opacityOverride = -1; // sentinel: use color as-is
     }
 
-    // Apply dimmed alpha override
-    final Color finalColor =
-        isDimmed ? edgeColor.withValues(alpha: _dimmedAlpha) : edgeColor;
+    // Build final color, applying opacity and dimming
+    Color finalColor = edgeColor;
+    if (opacityOverride >= 0) {
+      finalColor = edgeColor.withValues(alpha: opacityOverride);
+    }
+    if (isDimmed) {
+      finalColor = finalColor.withValues(alpha: _dimmedAlpha);
+    }
 
     final paint = Paint()
       ..color = finalColor
@@ -249,30 +339,159 @@ class FamilyTreePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
-    // ── Draw line ──────────────────────────────────────────────────
+    // ── Draw line / curve ───────────────────────────────────────────
 
-    if (isSelected) {
-      // Selected edge is SOLID (not dashed)
-      canvas.drawLine(start, end, paint);
+    if (isSpouse) {
+      _drawSpouseEdge(canvas, start, end, paint, isSolid);
     } else {
-      // Default: dashed line with [4, 4] pattern
-      _drawDashedLine(canvas, start, end, paint);
+      _drawParentChildEdge(canvas, start, end, paint, isSolid);
     }
 
-    // ── Draw midpoint indicator (skip in minimal LOD) ────────────
+    // ── Draw midpoint indicator (skip in minimal LOD or when dimmed) ─
 
-    if (!_isMinimal && !isDimmed) {
-      final midpoint = Offset(
-        (start.dx + end.dx) / 2,
-        (start.dy + end.dy) / 2,
-      );
+    final showMidpoint = !_isMinimal && !isDimmed;
+    // When hovering, only show midpoint for connected edges
+    final showMidpointForHover =
+        hoveredNodeId == null || isConnectedToHovered;
+
+    if (showMidpoint && showMidpointForHover) {
+      final midpoint = _computeMidpoint(start, end, isSpouse: isSpouse);
 
       if (isSpouse) {
         _drawHeart(canvas, midpoint);
       } else {
-        // Parent-child or sibling: filled dot with glow halo
         _drawDot(canvas, midpoint);
       }
+    }
+
+    // ── Draw edge label on hover (skip if too zoomed out) ───────────
+
+    if (_showLabels &&
+        hoveredNodeId != null &&
+        isConnectedToHovered &&
+        !isSelected &&
+        !isDimmed) {
+      final midpoint = _computeMidpoint(start, end, isSpouse: isSpouse);
+      _drawEdgeLabel(canvas, midpoint, edge.relationshipKey);
+    }
+  }
+
+  // ── Edge Drawing Strategies ────────────────────────────────────────
+
+  /// Draws a parent-child edge — Bezier curve in full LOD, straight line in minimal.
+  void _drawParentChildEdge(
+    Canvas canvas,
+    Offset start,
+    Offset end,
+    Paint paint,
+    bool isSolid,
+  ) {
+    if (_isMinimal) {
+      // Minimal LOD: straight lines for performance
+      if (isSolid) {
+        canvas.drawLine(start, end, paint);
+      } else {
+        _drawDashedLine(canvas, start, end, paint);
+      }
+    } else {
+      // Full LOD: cubic Bezier S-curve
+      final midY = (start.dy + end.dy) / 2;
+      final controlPoint1 = Offset(start.dx, midY);
+      final controlPoint2 = Offset(end.dx, midY);
+
+      final path = Path()
+        ..moveTo(start.dx, start.dy)
+        ..cubicTo(
+          controlPoint1.dx,
+          controlPoint1.dy,
+          controlPoint2.dx,
+          controlPoint2.dy,
+          end.dx,
+          end.dy,
+        );
+
+      if (isSolid) {
+        canvas.drawPath(path, paint);
+      } else {
+        _drawDashedPath(canvas, path, paint);
+      }
+    }
+  }
+
+  /// Draws a spouse edge — quadratic arch in full LOD, straight line in minimal.
+  void _drawSpouseEdge(
+    Canvas canvas,
+    Offset start,
+    Offset end,
+    Paint paint,
+    bool isSolid,
+  ) {
+    if (_isMinimal) {
+      // Minimal LOD: straight lines for performance
+      if (isSolid) {
+        canvas.drawLine(start, end, paint);
+      } else {
+        _drawDashedLine(canvas, start, end, paint);
+      }
+    } else {
+      // Full LOD: quadratic Bezier with upward arch
+      final midX = (start.dx + end.dx) / 2;
+      final midY = (start.dy + end.dy) / 2;
+      final controlPoint = Offset(midX, midY + _spouseArchOffset);
+
+      final path = Path()
+        ..moveTo(start.dx, start.dy)
+        ..quadraticBezierTo(
+          controlPoint.dx,
+          controlPoint.dy,
+          end.dx,
+          end.dy,
+        );
+
+      if (isSolid) {
+        canvas.drawPath(path, paint);
+      } else {
+        _drawDashedPath(canvas, path, paint);
+      }
+    }
+  }
+
+  /// Computes the visual midpoint of an edge, accounting for curves.
+  Offset _computeMidpoint(Offset start, Offset end, {required bool isSpouse}) {
+    if (_isMinimal) {
+      // Straight line midpoint
+      return Offset(
+        (start.dx + end.dx) / 2,
+        (start.dy + end.dy) / 2,
+      );
+    }
+
+    if (isSpouse) {
+      // Quadratic Bezier midpoint: t=0.5
+      // B(0.5) = 0.25*P0 + 0.5*P1 + 0.25*P2
+      final midX = (start.dx + end.dx) / 2;
+      final midY = (start.dy + end.dy) / 2;
+      final cp = Offset(midX, midY + _spouseArchOffset);
+      return Offset(
+        0.25 * start.dx + 0.5 * cp.dx + 0.25 * end.dx,
+        0.25 * start.dy + 0.5 * cp.dy + 0.25 * end.dy,
+      );
+    } else {
+      // Cubic Bezier midpoint: t=0.5
+      // B(0.5) = 0.125*P0 + 0.375*CP1 + 0.375*CP2 + 0.125*P3
+      final midY = (start.dy + end.dy) / 2;
+      final cp1 = Offset(start.dx, midY);
+      final cp2 = Offset(end.dx, midY);
+      return Offset(
+        0.125 * start.dx +
+            0.375 * cp1.dx +
+            0.375 * cp2.dx +
+            0.125 * end.dx,
+        0.125 * start.dy +
+            0.375 * cp1.dy +
+            0.375 * cp2.dy +
+            0.125 * end.dy,
+      );
     }
   }
 
@@ -296,10 +515,10 @@ class FamilyTreePainter extends CustomPainter {
 
   /// Draws a small filled heart shape at the midpoint for spouse edges.
   /// Heart = two overlapping circles + a downward-pointing triangle.
-  /// Total size ~14dp.
+  /// Total size ~14dp. Color: pink #EC4899 per V2.1 Blueprint.
   void _drawHeart(Canvas canvas, Offset center) {
     final heartPaint = Paint()
-      ..color = KinrelColors.orange
+      ..color = _spouseHeartColor
       ..style = PaintingStyle.fill;
 
     final s = _heartSize;
@@ -321,6 +540,53 @@ class FamilyTreePainter extends CustomPainter {
       ..close();
 
     canvas.drawPath(path, heartPaint);
+  }
+
+  // ── Edge Label Drawing ─────────────────────────────────────────────
+
+  /// Draws a small label at [midpoint] showing [relationshipKey].
+  /// Background: darkElevated (#202338) rounded rect.
+  /// Text: 10px, white 70% opacity.
+  void _drawEdgeLabel(Canvas canvas, Offset midpoint, String label) {
+    // Build text span to measure
+    final textSpan = TextSpan(
+      text: label,
+      style: TextStyle(
+        color: _labelTextColor,
+        fontSize: _labelFontSize,
+        fontWeight: FontWeight.w500,
+      ),
+    );
+
+    final textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final textWidth = textPainter.width;
+    final textHeight = textPainter.height;
+
+    // Background rect
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: midpoint,
+        width: textWidth + _labelPaddingH * 2,
+        height: textHeight + _labelPaddingV * 2,
+      ),
+      Radius.circular(_labelBorderRadius),
+    );
+
+    final bgPaint = Paint()
+      ..color = _labelBackgroundColor
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(rect, bgPaint);
+
+    // Draw text centered in the rect
+    final textOffset = Offset(
+      midpoint.dx - textWidth / 2,
+      midpoint.dy - textHeight / 2,
+    );
+    textPainter.paint(canvas, textOffset);
   }
 
   // ── Line Drawing ───────────────────────────────────────────────────
@@ -362,12 +628,45 @@ class FamilyTreePainter extends CustomPainter {
     }
   }
 
+  /// Draws a dashed path along an arbitrary [Path] using [_dashArray] pattern.
+  ///
+  /// Measures the path length using [PathMetrics], then iterates through
+  /// dash/gap segments, drawing only the dash portions.
+  void _drawDashedPath(Canvas canvas, Path path, Paint paint) {
+    final dashWidth = _dashArray[0];
+    final dashGap = _dashArray[1];
+
+    final metrics = path.computeMetrics();
+    for (final metric in metrics) {
+      double distance = 0.0;
+      bool draw = true;
+      while (distance < metric.length) {
+        final length = draw ? dashWidth : dashGap;
+        if (distance + length > metric.length) {
+          if (draw) {
+            canvas.drawPath(
+              metric.extractPath(distance, metric.length),
+              paint,
+            );
+          }
+          break;
+        }
+        if (draw) {
+          canvas.drawPath(
+            metric.extractPath(distance, distance + length),
+            paint,
+          );
+        }
+        distance += length;
+        draw = !draw;
+      }
+    }
+  }
+
   /// Draws a cubic Bezier curve (smooth S-curve) between two points.
   ///
-  /// Retained for optional use but NOT used by default in the radial layout.
-  /// The control points create a smooth vertical S-curve:
-  /// - CP1 pulls downward from start
-  /// - CP2 pulls upward toward end
+  /// Used internally by [_drawParentChildEdge]. Retained as a public
+  /// utility for external callers who need a simple Bezier draw.
   void _drawBezierCurve(Canvas canvas, Offset start, Offset end, Paint paint) {
     final midY = (start.dy + end.dy) / 2;
     final controlPoint1 = Offset(start.dx, midY);
@@ -394,6 +693,7 @@ class FamilyTreePainter extends CustomPainter {
     return oldDelegate.positions != positions ||
         oldDelegate.relationships != relationships ||
         oldDelegate.selectedEdgeId != selectedEdgeId ||
+        oldDelegate.hoveredNodeId != hoveredNodeId ||
         oldDelegate.zoomLevel != zoomLevel ||
         oldDelegate.nodeWidth != nodeWidth ||
         oldDelegate.nodeHeight != nodeHeight ||

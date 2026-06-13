@@ -5,6 +5,7 @@ import {
   Query,
   UseGuards,
   BadRequestException,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { GraphService } from './graph.service';
@@ -21,6 +22,40 @@ export class GraphController {
     private graphService: GraphService,
     private graphEngineService: GraphEngineService,
   ) {}
+
+  @Get(':familyId/layout')
+  @ApiOperation({ summary: 'Get pre-computed graph layout positions' })
+  @ApiQuery({ name: 'algorithm', enum: ['hierarchical', 'radial', 'force'], required: false })
+  async getGraphLayout(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+    @Query('algorithm') algorithm: 'hierarchical' | 'radial' | 'force' = 'hierarchical',
+  ): Promise<Record<string, { x: number; y: number }>> {
+    await this.graphService.resolveRootPersonId(userId, familyId);
+    return this.graphService.computeLayout(familyId, algorithm);
+  }
+
+  @Get(':familyId/member/:memberId')
+  @ApiOperation({ summary: 'Get detailed member info for info card' })
+  async getMemberDetails(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+    @Param('memberId') memberId: string,
+  ) {
+    await this.graphService.resolveRootPersonId(userId, familyId);
+    return this.graphService.getMemberDetails(familyId, memberId);
+  }
+
+  @Get(':familyId/generation/:gen')
+  @ApiOperation({ summary: 'Get members by generation' })
+  async getGenerationMembers(
+    @CurrentUser('id') userId: string,
+    @Param('familyId') familyId: string,
+    @Param('gen', new ParseIntPipe()) generation: number,
+  ) {
+    await this.graphService.resolveRootPersonId(userId, familyId);
+    return this.graphService.getMembersByGeneration(familyId, generation);
+  }
 
   @Get(':familyId')
   @ApiOperation({ summary: 'Get family graph data' })
