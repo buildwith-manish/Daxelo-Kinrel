@@ -162,6 +162,7 @@ class RelationshipLegend extends StatelessWidget {
               ),
             );
           }).toList(),
+          ],
         ),
       ),
     );
@@ -256,37 +257,6 @@ class RelationshipLegend extends StatelessWidget {
       return true;
     }
     return false;
-  }
-
-  /// Returns the [Color] for a given relationship [key].
-  ///
-  /// Used externally to color-code graph nodes by relationship type.
-  Color _colorForRelationshipKey(String key) {
-    final lowerKey = key.toLowerCase();
-
-    if (lowerKey == 'self') return KinrelColors.nodeSelf;
-    if ({'father', 'mother', 'parent'}.contains(lowerKey)) {
-      return KinrelColors.nodeParent;
-    }
-    if ({'husband', 'wife', 'spouse'}.contains(lowerKey)) {
-      return KinrelColors.nodeSpouse;
-    }
-    if ({'brother', 'sister', 'sibling'}.contains(lowerKey)) {
-      return KinrelColors.nodeSibling;
-    }
-    if ({'son', 'daughter', 'child'}.contains(lowerKey)) {
-      return KinrelColors.nodeChild;
-    }
-    if ({'grandfather', 'grandmother', 'grandparent'}.contains(lowerKey)) {
-      return KinrelColors.nodeGrandparent;
-    }
-    if ({'uncle', 'aunt'}.contains(lowerKey)) {
-      return KinrelColors.nodeAuntUncle;
-    }
-    if (lowerKey == 'cousin') return KinrelColors.nodeCousin;
-    if (lowerKey.contains('in-law')) return KinrelColors.nodeInLaw;
-
-    return KinrelColors.nodeExtended;
   }
 }
 
