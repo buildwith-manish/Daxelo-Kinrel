@@ -42,6 +42,7 @@ class RelationshipLegend extends StatelessWidget {
     required this.presentRelationshipKeys,
     this.hoveredRelationshipKey,
     this.onRelationshipTap,
+    this.onClose,
   });
 
   /// Which relationship type keys exist in the current graph.
@@ -53,6 +54,9 @@ class RelationshipLegend extends StatelessWidget {
   /// Callback invoked when a legend item is tapped.
   /// Passes the relationship key, or `null` to deselect.
   final ValueChanged<String?>? onRelationshipTap;
+
+  /// Callback to close the legend panel.
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +80,37 @@ class RelationshipLegend extends StatelessWidget {
         color: Colors.transparent,
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: entries.map((entry) {
+          children: [
+            // Header with close button
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'LEGEND',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white.withValues(alpha: 0.4),
+                    letterSpacing: 1.5,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+                if (onClose != null)
+                  GestureDetector(
+                    onTap: onClose,
+                    child: Icon(
+                      Icons.close,
+                      size: 16,
+                      color: Colors.white.withValues(alpha: 0.4),
+                    ),
+                  ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // Legend entries
+            ...entries.map((entry) {
             final isHovered = hoveredRelationshipKey != null &&
                 _keysMatchGroup(hoveredRelationshipKey!, entry.keys);
 

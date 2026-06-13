@@ -13,7 +13,7 @@
 //     Primary: "Add Yourself" button.
 //     Secondary: "Import contacts", "Invite family"
 //   1 member (self): Single node (teal glow) centered, subtle pulse.
-//     Primary: "Add Parent" / "Add Spouse" quick-action chips.
+//     Primary: "Add Spouse" / "Add Sibling" quick-action chips.
 //     Secondary: "Import contacts", "Share invite"
 //   2-3 members: Small graph with 2-3 nodes/edges.
 //     Primary: "Add more family" tooltip.
@@ -356,12 +356,6 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
             runSpacing: 10.0,
             alignment: WrapAlignment.center,
             children: [
-              _buildActionChip(
-                label: 'Add Parent',
-                icon: Icons.arrow_upward,
-                color: RelationshipColors.parent,
-                onTap: widget.onAddMember,
-              ),
               _buildActionChip(
                 label: 'Add Spouse',
                 icon: Icons.favorite_outline,

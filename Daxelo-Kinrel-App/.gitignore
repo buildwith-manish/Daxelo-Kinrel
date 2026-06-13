@@ -57,3 +57,10 @@ android/key.properties
 # Coverage
 coverage/
 lcov.info
+
+# Workspace artifacts
+agent-ctx/
+skills/
+worklog.md
+tool-results/
+download/

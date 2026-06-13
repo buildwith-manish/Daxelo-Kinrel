@@ -10,8 +10,8 @@
 //              border 2px KinrelColors.darkCard
 //   Selected : Same but radius scales to 7 with pulsing glow animation
 //              (1.2s repeat, scale 1.0↔1.3)
-//   Spouse   : Heart icon (two overlapping circles + triangle, size 14,
-//              KinrelColors.orange) instead of circle dot
+//   Spouse   : Infinity symbol (∞) drawn with vector paths, orange #F97316
+//              instead of circle dot
 //
 // The outer 32×32 tap target remains for touch accessibility.
 
@@ -24,7 +24,7 @@ import '../../../../core/constants/brand_colors.dart';
 
 /// An animated edge dot widget that appears at the midpoint of a graph edge.
 ///
-/// When [isSpouse] is true, shows a heart icon instead of a circle dot.
+/// When [isSpouse] is true, shows an infinity symbol instead of a circle dot.
 ///
 /// Usage:
 /// ```dart
@@ -57,7 +57,7 @@ class EdgeDotWidget extends StatefulWidget {
   /// Callback when the dot is tapped.
   final VoidCallback onTap;
 
-  /// When true, shows a heart icon instead of a circle dot.
+  /// When true, shows an infinity symbol instead of a circle dot.
   final bool isSpouse;
 
   @override
@@ -113,7 +113,7 @@ class _EdgeDotWidgetState extends State<EdgeDotWidget>
   @override
   Widget build(BuildContext context) {
     final Widget dotChild = widget.isSpouse
-        ? _buildHeartDot()
+        ? _buildSpouseInfinityDot()
         : _buildCircleDot();
 
     // The outer 32×32 tap target centered on the dot
@@ -163,14 +163,13 @@ class _EdgeDotWidgetState extends State<EdgeDotWidget>
     );
   }
 
-  // ── Heart Dot (spouse) ─────────────────────────────────────────────
+  // ── Infinity Dot (spouse) ────────────────────────────────────────────
 
-  /// Builds a small heart icon using two overlapping circles + a triangle.
-  /// Size 14dp, KinrelColors.orange fill.
-  Widget _buildHeartDot() {
+  /// Builds an infinity symbol (∞) for spouse edges using vector paths.
+  Widget _buildSpouseInfinityDot() {
     return CustomPaint(
       size: const Size(32, 32),
-      painter: _SpouseDotPainter(),
+      painter: _SpouseInfinityPainter(),
     );
   }
 }
@@ -224,23 +223,56 @@ class _CircleDotPainter extends CustomPainter {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// HEART DOT PAINTER
+// SPOUSE INFINITY PAINTER
 // ═══════════════════════════════════════════════════════════════════════
 
-/// CustomPainter for a small heart shape: two overlapping circles + triangle.
-class _SpouseDotPainter extends CustomPainter {
+/// CustomPainter for a small infinity symbol (∞) at spouse edge midpoints.
+/// Vector graphics only — no emoji.
+class _SpouseInfinityPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
+
     // Outer glow
     canvas.drawCircle(center, 10,
-        Paint()..color = const Color(0xFFF97316).withValues(alpha: 0.12));
-    // Filled dot
-    canvas.drawCircle(center, 5,
-        Paint()..color = const Color(0xFFF97316).withValues(alpha: 0.85));
-    // White highlight
-    canvas.drawCircle(center, 2.5,
-        Paint()..color = Colors.white.withValues(alpha: 0.35));
+        Paint()..color = const Color(0xFFF97316).withValues(alpha: 0.10));
+
+    // Middle glow
+    canvas.drawCircle(center, 6,
+        Paint()..color = const Color(0xFFF97316).withValues(alpha: 0.18));
+
+    // Infinity symbol path
+    final paint = Paint()
+      ..color = const Color(0xFFF97316)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final path = Path();
+    const double w = 5.5;
+    const double h = 3.0;
+
+    // Left loop of infinity
+    path.moveTo(center.dx, center.dy);
+    path.cubicTo(
+      center.dx - w * 0.8, center.dy - h,
+      center.dx - w, center.dy + h * 0.3,
+      center.dx, center.dy,
+    );
+
+    // Right loop of infinity
+    path.cubicTo(
+      center.dx + w * 0.8, center.dy - h,
+      center.dx + w, center.dy + h * 0.3,
+      center.dx, center.dy,
+    );
+
+    canvas.drawPath(path, paint);
+
+    // Center dot
+    canvas.drawCircle(center, 1.5,
+        Paint()..color = const Color(0xFFF97316)..style = PaintingStyle.fill);
   }
 
   @override

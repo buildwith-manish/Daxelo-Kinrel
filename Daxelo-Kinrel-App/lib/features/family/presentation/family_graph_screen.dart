@@ -370,6 +370,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
                     onRelationshipTap: (key) {
                       setState(() => _hoveredRelationshipKey = key);
                     },
+                    onClose: () => setState(() => _showLegend = false),
                   ),
                 ],
               ],

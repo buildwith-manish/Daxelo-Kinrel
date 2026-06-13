@@ -49,7 +49,6 @@ local-*
 *.g.dart
 *.freezed.dart
 *.mocks.dart
--e 
 # ── Android Signing ──
 *.jks
 *.keystore

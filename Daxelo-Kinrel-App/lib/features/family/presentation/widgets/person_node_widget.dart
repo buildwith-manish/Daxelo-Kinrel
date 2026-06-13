@@ -8,9 +8,9 @@
 //   Layer 1: Glow — RadialGradient pulse (self/selected/hovered)
 //   Layer 2: Rotating Dashed Ring — DashedCirclePainter (selected)
 //   Layer 3: Main Node Circle — Gradient fill, colored border, avatar
-//   Layer 4: Self Badge — Teal ★ indicator (isSelf)
+//   Layer 4: Self Badge — Teal star icon (isSelf)
 //   Layer 5: Deceased Indicator — Cloud icon (isDeceased)
-//   Layer 6: Labels — Relationship key, name, Hindi kinship term
+//   Layer 6: Labels — Relationship key, name
 //   Layer 7: Info Card — MemberInfoCard (isSelected)
 
 import 'dart:math' as math;
@@ -42,7 +42,6 @@ class PersonNodeWidget extends ConsumerStatefulWidget {
     this.gender,
     this.relationshipKey,
     this.relationLabel,
-    this.hindiLabel,
     this.username,
     required this.generationIndex,
     this.isSelf = false,
@@ -63,7 +62,6 @@ class PersonNodeWidget extends ConsumerStatefulWidget {
   final String? gender;
   final String? relationshipKey;
   final String? relationLabel;
-  final String? hindiLabel;
   final String? username;
   final int generationIndex;
   final bool isSelf;
@@ -312,7 +310,6 @@ class _PersonNodeWidgetState extends ConsumerState<PersonNodeWidget>
                         avatarUrl: widget.avatarUrl,
                         gender: widget.gender,
                         relationLabel: widget.relationLabel,
-                        hindiLabel: widget.hindiLabel,
                         generationIndex: widget.generationIndex,
                         isDeceased: widget.isDeceased,
                         ringColor: colors.ring,
@@ -489,12 +486,11 @@ class _PersonNodeWidgetState extends ConsumerState<PersonNodeWidget>
           ],
         ),
         alignment: Alignment.center,
-        child: const Text(
-          '★',
-          style: TextStyle(
-            fontSize: 10.0,
+        child: const Center(
+          child: Icon(
+            Icons.star_rounded,
+            size: 12.0,
             color: Colors.white,
-            decoration: TextDecoration.none,
           ),
         ),
       ),
@@ -647,7 +643,6 @@ class _MemberInfoCard extends StatelessWidget {
     this.avatarUrl,
     this.gender,
     this.relationLabel,
-    this.hindiLabel,
     required this.generationIndex,
     required this.isDeceased,
     required this.ringColor,
@@ -663,7 +658,6 @@ class _MemberInfoCard extends StatelessWidget {
   final String? avatarUrl;
   final String? gender;
   final String? relationLabel;
-  final String? hindiLabel;
   final int generationIndex;
   final bool isDeceased;
   final Color ringColor;

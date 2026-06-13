@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { getInverseKey } from '../relationships/relationships.service';
+import { KinshipService } from '../kinship/kinship.service';
 import { MAX_GRAPH_NODES, DEFAULT_GRAPH_DEPTH, MAX_GRAPH_DEPTH, DEFAULT_TREE_DEPTH } from '../../common/constants';
 import Redis from 'ioredis';
 
@@ -63,6 +64,8 @@ export class GraphService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    @Inject(forwardRef(() => KinshipService))
+    private kinshipService: KinshipService,
   ) {
     const redisUrl = this.config.get<string>('REDIS_URL', '');
     if (redisUrl && redisUrl !== 'redis://localhost:6379') {
@@ -572,6 +575,7 @@ export class GraphService {
         direction: r.direction,
         isActive: r.isActive,
         label: r.label,
+        displayLabel: this.resolveRelationshipLabel(r.relationshipKey),
       })),
     };
 
@@ -876,5 +880,26 @@ export class GraphService {
       photoThumb: person.photoThumb ?? null,
       username: person.username ?? null,
     };
+  }
+
+  /**
+   * Resolves a relationshipKey to a human-readable English display label.
+   * Uses KinshipService for known terms, falls back to key formatting.
+   */
+  private resolveRelationshipLabel(relationshipKey: string): string {
+    try {
+      const term = this.kinshipService.getByKey(relationshipKey);
+      if (term && term.englishTerm) {
+        return term.englishTerm;
+      }
+    } catch {
+      // KinshipService lookup failed — fall through to formatting
+    }
+
+    // Fallback: format the key (e.g. "fathers_brother" → "Fathers Brother")
+    return relationshipKey
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   }
 }

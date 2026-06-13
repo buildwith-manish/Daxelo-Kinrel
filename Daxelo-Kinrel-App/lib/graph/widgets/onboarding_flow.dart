@@ -27,18 +27,15 @@ import 'graph_node.dart';
 // ONBOARDING STEP ENUM
 // ═══════════════════════════════════════════════════════════════════════
 
-/// The four onboarding steps for the family graph.
+/// The onboarding steps for the family graph.
 enum OnboardingStep {
   /// Step 1: Create your profile (0 members). Cannot skip.
   createProfile,
 
-  /// Step 2: Add at least one parent (1 member). Can skip.
-  addParent,
+  /// Step 2: Add family members (1-3 members). Can skip.
+  addFamily,
 
-  /// Step 3: Add spouse/sibling/second parent (2-3 members). Can skip.
-  addMoreFamily,
-
-  /// Step 4: Explore your family graph (4+ members). Onboarding complete.
+  /// Step 3: Explore your family graph (4+ members). Onboarding complete.
   explore,
 
   /// Onboarding has been completed or dismissed.
@@ -49,20 +46,19 @@ enum OnboardingStep {
 // ONBOARDING FLOW WIDGET
 // ═══════════════════════════════════════════════════════════════════════
 
-/// A 4-step progressive onboarding overlay for the family graph.
+/// A 3-step progressive onboarding overlay for the family graph.
 ///
 /// Each step has:
 ///   - A visual reward animation when completed
-///   - A step indicator showing progress (1/4, 2/4, etc.)
+///   - A step indicator showing progress (1/3, 2/3, etc.)
 ///   - Animated transitions between steps
-///   - Skip option (steps 2-3 only)
+///   - Skip option (step 2 only)
 ///   - Completion celebration animation
 ///
 /// The onboarding auto-advances based on [memberCount]:
 ///   - 0 members → Step 1
-///   - 1 member → Step 2
-///   - 2-3 members → Step 3
-///   - 4+ members → Step 4 / Completed
+///   - 1-3 members → Step 2
+///   - 4+ members → Step 3 / Completed
 ///
 /// Usage:
 /// ```dart
@@ -183,31 +179,27 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
   /// Resolves the onboarding step from the current member count.
   OnboardingStep _resolveStep(int memberCount) {
     if (memberCount == 0) return OnboardingStep.createProfile;
-    if (memberCount == 1) return OnboardingStep.addParent;
-    if (memberCount <= 3) return OnboardingStep.addMoreFamily;
+    if (memberCount <= 3) return OnboardingStep.addFamily;
     return OnboardingStep.explore;
   }
 
-  /// Returns the step number (1-4) for display.
+  /// Returns the step number (1-3) for display.
   int _stepNumber(OnboardingStep step) {
     switch (step) {
       case OnboardingStep.createProfile:
         return 1;
-      case OnboardingStep.addParent:
+      case OnboardingStep.addFamily:
         return 2;
-      case OnboardingStep.addMoreFamily:
-        return 3;
       case OnboardingStep.explore:
-        return 4;
+        return 3;
       case OnboardingStep.completed:
-        return 4;
+        return 3;
     }
   }
 
   /// Whether the current step can be skipped.
   bool get _canSkip {
-    return _currentStep == OnboardingStep.addParent ||
-        _currentStep == OnboardingStep.addMoreFamily;
+    return _currentStep == OnboardingStep.addFamily;
   }
 
   // ── Step Transitions ───────────────────────────────────────────────
@@ -243,16 +235,12 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
     _glowController.repeat(reverse: true);
   }
 
-  /// Skips the current step (only available for steps 2-3).
+  /// Skips the current step (only available for step 2).
   void _skipStep() {
     if (!_canSkip) return;
 
-    final nextStep = _currentStep == OnboardingStep.addParent
-        ? OnboardingStep.addMoreFamily
-        : OnboardingStep.explore;
-
     _trackStepCompleted(_stepNumber(_currentStep));
-    _animateToStep(nextStep);
+    _animateToStep(OnboardingStep.explore);
   }
 
   /// Completes the current step action.
@@ -260,9 +248,8 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
     _trackStepCompleted(_stepNumber(_currentStep));
 
     final nextStep = switch (_currentStep) {
-      OnboardingStep.createProfile => OnboardingStep.addParent,
-      OnboardingStep.addParent => OnboardingStep.addMoreFamily,
-      OnboardingStep.addMoreFamily => OnboardingStep.explore,
+      OnboardingStep.createProfile => OnboardingStep.addFamily,
+      OnboardingStep.addFamily => OnboardingStep.explore,
       OnboardingStep.explore => OnboardingStep.completed,
       OnboardingStep.completed => OnboardingStep.completed,
     };
@@ -359,7 +346,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(4, (index) {
+      children: List.generate(3, (index) {
         final stepNum = index + 1;
         final isActive = stepNum == currentNum;
         final isCompleted = stepNum < currentNum;
@@ -447,67 +434,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
             ),
           ],
         ),
-      OnboardingStep.addParent => Column(
-          children: [
-            // Animated blue border node sliding in from above
-            AnimatedBuilder(
-              animation: _glowAnimation,
-              builder: (context, child) {
-                return Transform.translate(
-                  offset: Offset(0, -4 * _glowAnimation.value),
-                  child: child,
-                );
-              },
-              child: Container(
-                width: 48.0,
-                height: 48.0,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: KinrelColors.darkCard,
-                  border: Border.all(
-                    color: RelationshipColors.parent,
-                    width: 2.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: RelationshipColors.parent.withValues(alpha: 0.2),
-                      blurRadius: 8.0,
-                    ),
-                  ],
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.arrow_upward,
-                    size: 24.0,
-                    color: RelationshipColors.parent,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12.0),
-            Text(
-              'Add a parent',
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 18.0,
-                fontWeight: FontWeight.w700,
-                color: KinrelColors.textWhite,
-              ),
-            ),
-            const SizedBox(height: 4.0),
-            Text(
-              'Add your father or mother to start building your tree.',
-              style: const TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 13.0,
-                color: KinrelColors.textSilver,
-                height: 1.4,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      OnboardingStep.addMoreFamily => Column(
+      OnboardingStep.addFamily => Column(
           children: [
             // Multiple nodes illustration
             Row(
@@ -517,7 +444,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
                 const SizedBox(width: 8.0),
                 _buildMiniNode(RelationshipColors.self, Icons.person),
                 const SizedBox(width: 8.0),
-                _buildMiniNode(RelationshipColors.spouse, Icons.favorite),
+                _buildMiniNode(RelationshipColors.spouse, Icons.favorite_outline),
               ],
             ),
             const SizedBox(height: 12.0),
@@ -532,7 +459,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
             ),
             const SizedBox(height: 4.0),
             Text(
-              'Add a spouse, sibling, or second parent to expand.',
+              'Add parents, spouse, siblings, or children to build your tree.',
               style: const TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 13.0,
@@ -644,8 +571,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
   String get _ctaLabel {
     return switch (_currentStep) {
       OnboardingStep.createProfile => 'Create Profile',
-      OnboardingStep.addParent => 'Add Parent',
-      OnboardingStep.addMoreFamily => 'Add Family',
+      OnboardingStep.addFamily => 'Add Member',
       OnboardingStep.explore => 'Got it!',
       OnboardingStep.completed => '',
     };

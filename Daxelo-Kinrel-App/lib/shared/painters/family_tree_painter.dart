@@ -358,7 +358,7 @@ class FamilyTreePainter extends CustomPainter {
       final midpoint = _computeMidpoint(start, end, isSpouse: isSpouse);
 
       if (isSpouse) {
-        _drawHeart(canvas, midpoint);
+        _drawSpouseMidpoint(canvas, midpoint);
       } else {
         _drawDot(canvas, midpoint);
       }
@@ -513,19 +513,60 @@ class FamilyTreePainter extends CustomPainter {
     canvas.drawCircle(center, _dotRadius, dotPaint);
   }
 
-  /// Draws a small filled heart shape at the midpoint for spouse edges.
-  /// Heart = two overlapping circles + a downward-pointing triangle.
-  /// Total size ~14dp. Color: pink #EC4899 per V2.1 Blueprint.
-  void _drawHeart(Canvas canvas, Offset midpoint) {
-    // Outer glow
-    canvas.drawCircle(midpoint, 8,
-        Paint()..color = const Color(0xFFF97316).withValues(alpha: 0.12));
-    // Filled dot
-    canvas.drawCircle(midpoint, 4,
-        Paint()..color = const Color(0xFFF97316).withValues(alpha: 0.9));
-    // Highlight
-    canvas.drawCircle(midpoint, 2,
-        Paint()..color = Colors.white.withValues(alpha: 0.35));
+  /// Draws a professional infinity symbol at spouse edge midpoints.
+  /// Vector graphics only — no emoji.
+  void _drawSpouseMidpoint(Canvas canvas, Offset midpoint) {
+    // Outer glow circle
+    canvas.drawCircle(
+      midpoint,
+      10.0,
+      Paint()..color = const Color(0xFFF97316).withValues(alpha: 0.10),
+    );
+
+    // Middle glow circle
+    canvas.drawCircle(
+      midpoint,
+      6.0,
+      Paint()..color = const Color(0xFFF97316).withValues(alpha: 0.18),
+    );
+
+    // Infinity symbol path
+    final paint = Paint()
+      ..color = const Color(0xFFF97316)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final path = Path();
+    const double w = 5.5;
+    const double h = 3.0;
+
+    // Left loop of infinity
+    path.moveTo(midpoint.dx, midpoint.dy);
+    path.cubicTo(
+      midpoint.dx - w * 0.8, midpoint.dy - h,
+      midpoint.dx - w, midpoint.dy + h * 0.3,
+      midpoint.dx, midpoint.dy,
+    );
+
+    // Right loop of infinity
+    path.cubicTo(
+      midpoint.dx + w * 0.8, midpoint.dy - h,
+      midpoint.dx + w, midpoint.dy + h * 0.3,
+      midpoint.dx, midpoint.dy,
+    );
+
+    canvas.drawPath(path, paint);
+
+    // Center dot
+    canvas.drawCircle(
+      midpoint,
+      1.5,
+      Paint()
+        ..color = const Color(0xFFF97316)
+        ..style = PaintingStyle.fill,
+    );
   }
 
   // ── Edge Label Drawing ─────────────────────────────────────────────
