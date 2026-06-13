@@ -302,13 +302,6 @@ class _RelationshipPopupWidgetState extends State<RelationshipPopupWidget>
               _buildMiniAvatar(personTo, personToGender),
             ],
           ),
-          if (nativeTerm != null) ...[
-            const SizedBox(height: 4.0),
-            Padding(
-              padding: const EdgeInsets.only(left: 4.0),
-              child: Text(nativeTerm, style: TextStyle(fontFamily: 'NotoSansDevanagari', fontSize: 11.0, fontWeight: FontWeight.w400, color: KinrelColors.textDim)),
-            ),
-          ],
         ],
       ),
     );

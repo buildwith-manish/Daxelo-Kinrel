@@ -516,30 +516,16 @@ class FamilyTreePainter extends CustomPainter {
   /// Draws a small filled heart shape at the midpoint for spouse edges.
   /// Heart = two overlapping circles + a downward-pointing triangle.
   /// Total size ~14dp. Color: pink #EC4899 per V2.1 Blueprint.
-  void _drawHeart(Canvas canvas, Offset center) {
-    final heartPaint = Paint()
-      ..color = _spouseHeartColor
-      ..style = PaintingStyle.fill;
-
-    final s = _heartSize;
-    final halfS = s / 2;
-    final circleRadius = s / 4; // radius of the two top circles
-
-    // Two overlapping circles at the top of the heart
-    final leftCircleCenter = Offset(center.dx - circleRadius * 0.7, center.dy - circleRadius * 0.4);
-    final rightCircleCenter = Offset(center.dx + circleRadius * 0.7, center.dy - circleRadius * 0.4);
-
-    canvas.drawCircle(leftCircleCenter, circleRadius, heartPaint);
-    canvas.drawCircle(rightCircleCenter, circleRadius, heartPaint);
-
-    // Downward-pointing triangle to complete the heart
-    final path = Path()
-      ..moveTo(leftCircleCenter.dx - circleRadius * 0.7, leftCircleCenter.dy + circleRadius * 0.2)
-      ..lineTo(rightCircleCenter.dx + circleRadius * 0.7, rightCircleCenter.dy + circleRadius * 0.2)
-      ..lineTo(center.dx, center.dy + halfS * 0.75)
-      ..close();
-
-    canvas.drawPath(path, heartPaint);
+  void _drawHeart(Canvas canvas, Offset midpoint) {
+    // Outer glow
+    canvas.drawCircle(midpoint, 8,
+        Paint()..color = const Color(0xFFF97316).withValues(alpha: 0.12));
+    // Filled dot
+    canvas.drawCircle(midpoint, 4,
+        Paint()..color = const Color(0xFFF97316).withValues(alpha: 0.9));
+    // Highlight
+    canvas.drawCircle(midpoint, 2,
+        Paint()..color = Colors.white.withValues(alpha: 0.35));
   }
 
   // ── Edge Label Drawing ─────────────────────────────────────────────

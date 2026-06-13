@@ -168,14 +168,9 @@ class _EdgeDotWidgetState extends State<EdgeDotWidget>
   /// Builds a small heart icon using two overlapping circles + a triangle.
   /// Size 14dp, KinrelColors.orange fill.
   Widget _buildHeartDot() {
-    const double size = 14.0;
-
     return CustomPaint(
-      size: const Size(size, size),
-      painter: _HeartDotPainter(
-        color: KinrelColors.orange,
-        size: size,
-      ),
+      size: const Size(32, 32),
+      painter: _SpouseDotPainter(),
     );
   }
 }
@@ -233,48 +228,21 @@ class _CircleDotPainter extends CustomPainter {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// CustomPainter for a small heart shape: two overlapping circles + triangle.
-class _HeartDotPainter extends CustomPainter {
-  _HeartDotPainter({
-    required this.color,
-    required this.size,
-  });
-
-  final Color color;
-  final double size;
-
+class _SpouseDotPainter extends CustomPainter {
   @override
-  void paint(Canvas canvas, Size canvasSize) {
-    final center = Offset(canvasSize.width / 2, canvasSize.height / 2);
-    final heartPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    final circleRadius = size / 4;
-
-    // Two overlapping circles at the top of the heart
-    final leftCircleCenter =
-        Offset(center.dx - circleRadius * 0.7, center.dy - circleRadius * 0.4);
-    final rightCircleCenter =
-        Offset(center.dx + circleRadius * 0.7, center.dy - circleRadius * 0.4);
-
-    canvas.drawCircle(leftCircleCenter, circleRadius, heartPaint);
-    canvas.drawCircle(rightCircleCenter, circleRadius, heartPaint);
-
-    // Downward-pointing triangle to complete the heart
-    final halfS = size / 2;
-    final path = Path()
-      ..moveTo(leftCircleCenter.dx - circleRadius * 0.7,
-          leftCircleCenter.dy + circleRadius * 0.2)
-      ..lineTo(rightCircleCenter.dx + circleRadius * 0.7,
-          rightCircleCenter.dy + circleRadius * 0.2)
-      ..lineTo(center.dx, center.dy + halfS * 0.75)
-      ..close();
-
-    canvas.drawPath(path, heartPaint);
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    // Outer glow
+    canvas.drawCircle(center, 10,
+        Paint()..color = const Color(0xFFF97316).withValues(alpha: 0.12));
+    // Filled dot
+    canvas.drawCircle(center, 5,
+        Paint()..color = const Color(0xFFF97316).withValues(alpha: 0.85));
+    // White highlight
+    canvas.drawCircle(center, 2.5,
+        Paint()..color = Colors.white.withValues(alpha: 0.35));
   }
 
   @override
-  bool shouldRepaint(covariant _HeartDotPainter oldDelegate) {
-    return oldDelegate.color != color || oldDelegate.size != size;
-  }
+  bool shouldRepaint(covariant CustomPainter old) => false;
 }

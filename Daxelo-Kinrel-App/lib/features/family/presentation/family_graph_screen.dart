@@ -55,6 +55,9 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   /// Currently hovered relationship key for legend filtering.
   String? _hoveredRelationshipKey;
 
+  /// Whether the relationship legend is visible.
+  bool _showLegend = false;
+
   // ── Build ─────────────────────────────────────────────────────────
 
   @override
@@ -328,17 +331,48 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ),
         ),
 
-        // V2.1 Relationship legend (right side)
+        // Relationship legend — hidden by default, tap icon to show
         if (presentRelationshipKeys.isNotEmpty)
           Positioned(
             right: 16,
             top: 80,
-            child: RelationshipLegend(
-              presentRelationshipKeys: presentRelationshipKeys,
-              hoveredRelationshipKey: _hoveredRelationshipKey,
-              onRelationshipTap: (key) {
-                setState(() => _hoveredRelationshipKey = key);
-              },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                GestureDetector(
+                  onTap: () => setState(() => _showLegend = !_showLegend),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: KinrelColors.darkCard,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _showLegend
+                            ? KinrelColors.orange.withValues(alpha: 0.5)
+                            : Colors.white.withValues(alpha: 0.08),
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.account_tree_outlined,
+                      size: 18,
+                      color: _showLegend
+                          ? KinrelColors.orange
+                          : KinrelColors.textDim,
+                    ),
+                  ),
+                ),
+                if (_showLegend) ...[
+                  const SizedBox(height: 8),
+                  RelationshipLegend(
+                    presentRelationshipKeys: presentRelationshipKeys,
+                    hoveredRelationshipKey: _hoveredRelationshipKey,
+                    onRelationshipTap: (key) {
+                      setState(() => _hoveredRelationshipKey = key);
+                    },
+                  ),
+                ],
+              ],
             ),
           ),
 

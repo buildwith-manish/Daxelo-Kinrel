@@ -307,6 +307,7 @@ class _PersonNodeWidgetState extends ConsumerState<PersonNodeWidget>
                     if (widget.isSelected)
                       _MemberInfoCard(
                         name: widget.name,
+                        memberId: widget.memberId,
                         username: widget.username,
                         avatarUrl: widget.avatarUrl,
                         gender: widget.gender,
@@ -565,23 +566,6 @@ class _PersonNodeWidgetState extends ConsumerState<PersonNodeWidget>
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        // Hindi label
-        if (widget.hindiLabel != null && widget.hindiLabel!.isNotEmpty) ...[
-          const SizedBox(height: 2.0),
-          Text(
-            widget.hindiLabel!,
-            style: TextStyle(
-              fontFamily: 'NotoSansDevanagari',
-              fontSize: 9.0,
-              fontWeight: FontWeight.w400,
-              color: KinrelColors.textWhite.withValues(alpha: 0.25),
-              decoration: TextDecoration.none,
-            ),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
       ],
     );
   }
@@ -658,6 +642,7 @@ class DashedCirclePainter extends CustomPainter {
 class _MemberInfoCard extends StatelessWidget {
   const _MemberInfoCard({
     required this.name,
+    required this.memberId,
     this.username,
     this.avatarUrl,
     this.gender,
@@ -673,6 +658,7 @@ class _MemberInfoCard extends StatelessWidget {
   });
 
   final String name;
+  final String memberId;
   final String? username;
   final String? avatarUrl;
   final String? gender;
@@ -832,9 +818,7 @@ class _MemberInfoCard extends StatelessWidget {
                                 const SizedBox(width: 8.0),
                                 Expanded(
                                   child: Text(
-                                    hindiLabel != null
-                                        ? '$relationLabel · $hindiLabel'
-                                        : relationLabel!,
+                                    relationLabel!,
                                     style: TextStyle(
                                       fontFamily: KinrelTypography.bodyFont,
                                       fontSize: 11.0,
@@ -913,7 +897,7 @@ class _MemberInfoCard extends StatelessWidget {
                                 label: 'Edit',
                                 color: KinrelColors.textDim,
                                 onTap: () {
-                                  context.push('/member/${widget.memberId}');
+                                  context.push('/member/$memberId');
                                 },
                               ),
                             ],
