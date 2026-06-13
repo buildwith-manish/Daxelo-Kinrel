@@ -58,3 +58,7 @@ Daxelo-Kinrel-App/android/key.properties
 server/.z-ai-config
 node_modules/
 skills/
+worklog.md
+agent-ctx/
+tool-results/
+download/
