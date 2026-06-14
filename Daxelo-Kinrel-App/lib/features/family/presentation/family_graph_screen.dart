@@ -15,6 +15,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -24,7 +25,6 @@ import 'providers/family_graph_provider.dart';
 import 'widgets/generation_filter_bar.dart';
 import 'widgets/generation_legend_widget.dart';
 import 'widgets/graph_canvas_widget.dart' show PersonData;
-import 'widgets/graph_toolbar.dart';
 import 'widgets/relationship_legend.dart';
 import 'widgets/stats_panel.dart';
 
@@ -60,10 +60,59 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   /// Whether the relationship legend is visible.
   bool _showLegend = false;
 
+  /// SharedPreferences key for persisting transform state per family.
+  static const String _transformPrefsPrefix = 'kinrel_graph_transform_';
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreTransformState();
+  }
+
   @override
   void dispose() {
+    _saveTransformState();
     _graphTransformController.dispose();
     super.dispose();
+  }
+
+  /// Saves the current transform matrix to SharedPreferences.
+  Future<void> _saveTransformState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final m = _graphTransformController.value;
+      final values = <double>[
+        m.entry(0, 0), m.entry(0, 1), m.entry(0, 2), m.entry(0, 3),
+        m.entry(1, 0), m.entry(1, 1), m.entry(1, 2), m.entry(1, 3),
+        m.entry(2, 0), m.entry(2, 1), m.entry(2, 2), m.entry(2, 3),
+        m.entry(3, 0), m.entry(3, 1), m.entry(3, 2), m.entry(3, 3),
+      ];
+      await prefs.setStringList(
+        '$_transformPrefsPrefix${widget.familyId}',
+        values.map((v) => v.toString()).toList(),
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to save transform state: $e');
+    }
+  }
+
+  /// Restores the transform matrix from SharedPreferences.
+  Future<void> _restoreTransformState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getStringList(
+        '$_transformPrefsPrefix${widget.familyId}',
+      );
+      if (stored != null && stored.length == 16) {
+        final values = stored.map((v) => double.tryParse(v) ?? 0.0).toList();
+        final m = Matrix4.fromList(values);
+        if (mounted) {
+          _graphTransformController.value = m;
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to restore transform state: $e');
+    }
   }
 
   // ── Zoom helpers ───────────────────────────────────────────────────
@@ -100,6 +149,16 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
   void _resetZoom() {
     _graphTransformController.value = Matrix4.identity();
+  }
+
+  /// Centers the graph on the root/anchor user by resetting transform.
+  /// This is called from the "center" button in the bottom action bar.
+  void _centerOnRootUser() {
+    _resetZoom();
+    setState(() {
+      _highlightedGeneration = null;
+      _hoveredRelationshipKey = null;
+    });
   }
 
   // ── Build ─────────────────────────────────────────────────────────
@@ -397,7 +456,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             ),
           ),
 
-        // V2.1 Stats panel (bottom-left)
+        // V2.1 Stats panel (bottom-left, above action bar)
         Positioned(
           left: 16,
           bottom: MediaQuery.of(context).padding.bottom + 72,
@@ -409,33 +468,8 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ),
         ),
 
-        // V2.1 Graph toolbar (bottom-center, above action bar)
-        Positioned(
-          bottom: MediaQuery.of(context).padding.bottom + 68,
-          left: 0,
-          right: 0,
-          child: GraphToolbar(
-            zoomLevel:
-                _graphTransformController.value.getMaxScaleOnAxis(),
-            onZoomIn: _zoomIn,
-            onZoomOut: _zoomOut,
-            onZoomReset: () {
-              _resetZoom();
-              setState(() {
-                _highlightedGeneration = null;
-                _hoveredRelationshipKey = null;
-              });
-            },
-            onCenterGraph: () {
-              _resetZoom();
-              setState(() {
-                _highlightedGeneration = null;
-              });
-            },
-          ),
-        ),
-
-        // Bottom action bar (zoom + add member)
+        // Bottom action bar — single consolidated toolbar
+        // Contains: zoom out, reset view, zoom in, divider, add member
         Positioned(
           bottom: MediaQuery.of(context).padding.bottom + 8,
           left: 0,
@@ -504,11 +538,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             tooltip: 'Zoom Out',
             onPressed: _zoomOut,
           ),
-          // Center / Reset
+          // Center / Reset — centers on root user
           _actionBarButton(
             icon: Icons.center_focus_strong_outlined,
-            tooltip: 'Reset View',
-            onPressed: _resetZoom,
+            tooltip: 'Center on Root',
+            onPressed: _centerOnRootUser,
           ),
           // Zoom In
           _actionBarButton(

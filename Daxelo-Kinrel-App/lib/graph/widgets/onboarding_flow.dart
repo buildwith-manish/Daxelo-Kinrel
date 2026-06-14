@@ -228,10 +228,13 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
   // ── Step Resolution ────────────────────────────────────────────────
 
   /// Resolves the onboarding step from the current member count.
+  /// Only Step 1 (createProfile) is shown for brand new users.
+  /// Steps 2 and 3 are removed — existing users should never see
+  /// onboarding cards. Once a user has any members, skip to completed.
   OnboardingStep _resolveStep(int memberCount) {
     if (memberCount == 0) return OnboardingStep.createProfile;
-    if (memberCount <= 3) return OnboardingStep.addFamily;
-    return OnboardingStep.explore;
+    // Any members = immediately completed, no overlays.
+    return OnboardingStep.completed;
   }
 
   /// Returns the step number (1-3) for display.
@@ -306,12 +309,17 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
   void _completeStepAction() {
     _trackStepCompleted(_stepNumber(_currentStep));
 
-    final nextStep = switch (_currentStep) {
-      OnboardingStep.createProfile => OnboardingStep.addFamily,
-      OnboardingStep.addFamily => OnboardingStep.explore,
-      OnboardingStep.explore => OnboardingStep.completed,
-      OnboardingStep.completed => OnboardingStep.completed,
-    };
+    // For Step 1 (createProfile), open AddPersonSheet and skip to completed.
+    // Steps 2 (addFamily) and 3 (explore) are removed — existing users
+    // should never see onboarding cards.
+    if (_currentStep == OnboardingStep.createProfile) {
+      AddPersonSheet.show(context, familyId: widget.familyId);
+      // Mark as permanently dismissed so onboarding never reappears
+      setState(() => _permanentlyDismissed = true);
+      ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
+      _animateToStep(OnboardingStep.completed);
+      return;
+    }
 
     // When on the "addFamily" step, open the AddPersonSheet as a
     // modal bottom sheet instead of pushing a full-screen route.
@@ -325,6 +333,13 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
       setState(() => _permanentlyDismissed = true);
       ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
     }
+
+    final nextStep = switch (_currentStep) {
+      OnboardingStep.createProfile => OnboardingStep.completed,
+      OnboardingStep.addFamily => OnboardingStep.completed,
+      OnboardingStep.explore => OnboardingStep.completed,
+      OnboardingStep.completed => OnboardingStep.completed,
+    };
 
     _animateToStep(nextStep);
   }
@@ -356,8 +371,16 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
       return const SizedBox.shrink();
     }
 
-    // If member count is 4+, no onboarding overlay needed
-    if (widget.memberCount >= 4 && _currentStep != OnboardingStep.completed) {
+    // If member count is 1+, no onboarding overlay needed
+    // (only Step 1 — createProfile — is shown, and only for 0 members)
+    if (widget.memberCount >= 1 && _currentStep != OnboardingStep.completed) {
+      // Auto-dismiss and mark permanently so it never reappears
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
+          setState(() => _permanentlyDismissed = true);
+        }
+      });
       return const SizedBox.shrink();
     }
 
