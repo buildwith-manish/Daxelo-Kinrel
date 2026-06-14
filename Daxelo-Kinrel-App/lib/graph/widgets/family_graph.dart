@@ -39,6 +39,7 @@ import 'empty_state.dart';
 import 'filter_panel.dart';
 import 'graph_legend.dart';
 import 'graph_node.dart';
+import 'onboarding_flow.dart';
 import 'relationship_edge.dart';
 import 'search_bar.dart';
 
@@ -74,6 +75,7 @@ class FamilyGraphWidget extends ConsumerStatefulWidget {
     super.key,
     required this.familyId,
     required this.familyName,
+    this.externalTransformController,
   });
 
   /// The family ID for data fetching and permission checks.
@@ -81,6 +83,11 @@ class FamilyGraphWidget extends ConsumerStatefulWidget {
 
   /// The family display name.
   final String familyName;
+
+  /// Optional external TransformationController so the parent screen
+  /// can control zoom/pan programmatically. When provided, the widget
+  /// uses it instead of creating its own, and will NOT dispose it.
+  final TransformationController? externalTransformController;
 
   @override
   ConsumerState<FamilyGraphWidget> createState() => _FamilyGraphWidgetState();
@@ -92,8 +99,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   late final CameraController _cameraController;
   ViewportCuller? _viewportCuller;
   late final PositionMemory _positionMemory;
-  final TransformationController _transformationController =
-      TransformationController();
+  late final TransformationController _transformationController;
 
   // ── State ──────────────────────────────────────────────────────────
 
@@ -163,6 +169,8 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     super.initState();
     _positionMemory = PositionMemory();
     _cameraController = CameraController(positionMemory: _positionMemory);
+    _transformationController =
+        widget.externalTransformController ?? TransformationController();
     _transformationController.addListener(_onTransformChanged);
     _openStopwatch.start();
   }
@@ -181,7 +189,10 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     _cameraSaveDebounce?.cancel();
     _openStopwatch.stop();
     _transformationController.removeListener(_onTransformChanged);
-    _transformationController.dispose();
+    // Only dispose the transformation controller if we created it
+    if (widget.externalTransformController == null) {
+      _transformationController.dispose();
+    }
     _cameraController.dispose();
     _viewportCuller?.dispose();
     super.dispose();
@@ -222,6 +233,12 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         nodeSizes,
         viewport,
       );
+
+      // Always force-include the anchor node so it's never culled
+      final anchorId = _personMap.values
+          .firstWhere((p) => p.isAnchor, orElse: () => _GraphPersonData.empty())
+          .id;
+      if (anchorId.isNotEmpty) newVisible.add(anchorId);
 
       if (newVisible != _visibleNodeIds) {
         setState(() {
@@ -468,7 +485,30 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
               );
         }
 
-        // Auto-center on anchor node on first load
+        return _buildGraphStack(_layoutResult!, reduceMotion: reduceMotion, currentTier: currentTier);
+      },
+    );
+  }
+
+  // ── Graph Stack Builder ────────────────────────────────────────────
+
+  Widget _buildGraphStack(GraphLayoutResult layout, {bool reduceMotion = false, EngineTier currentTier = EngineTier.force}) {
+    final positions = layout.positions;
+    final canvasWidth = layout.canvasWidth;
+    final canvasHeight = layout.canvasHeight;
+    final zoomLevel = _currentZoom;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
+
+        // Show all nodes on first render before camera centers
+        if (_visibleNodeIds.isEmpty && positions.isNotEmpty) {
+          _visibleNodeIds = Set<String>.from(positions.keys);
+        }
+
+        // Auto-center on anchor node on first load (moved inside LayoutBuilder
+        // so _viewportSize is guaranteed to be set before postFrameCallback fires)
         if (!_initialCenterDone && _layoutResult != null) {
           final anchorId = _personMap.values
               .firstWhere((p) => p.isAnchor, orElse: () => _GraphPersonData.empty())
@@ -492,23 +532,6 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             });
           }
         }
-
-        return _buildGraphStack(_layoutResult!, reduceMotion: reduceMotion, currentTier: currentTier);
-      },
-    );
-  }
-
-  // ── Graph Stack Builder ────────────────────────────────────────────
-
-  Widget _buildGraphStack(GraphLayoutResult layout, {bool reduceMotion = false, EngineTier currentTier = EngineTier.force}) {
-    final positions = layout.positions;
-    final canvasWidth = layout.canvasWidth;
-    final canvasHeight = layout.canvasHeight;
-    final zoomLevel = _currentZoom;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        _viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
 
         // Update viewport culling using the existing ViewportCuller
         final viewport = Rect.fromLTWH(
@@ -641,6 +664,35 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
               onLegendTap: () => setState(() => _legendVisible = !_legendVisible),
               isFilterActive: _currentFilter.isActive,
               currentTier: currentTier,
+            ),
+
+            // ── Onboarding Flow (conditional) ────────────────────────
+            // Only show onboarding if not yet dismissed for this family
+            if (!(ref.watch(onboardingDismissedProvider).valueOrNull
+                ?.contains(widget.familyId) ?? false))
+              Positioned.fill(
+                child: OnboardingFlow(
+                  familyId: widget.familyId,
+                  memberCount: _personMap.length,
+                ),
+              ),
+
+            // ── Add Member FAB (always visible) ──────────────────────
+            // BUG-3 FIX: Persistent FAB inside the graph stack, positioned
+            // above the ControlBar so it's always accessible regardless of
+            // onboarding state or member count.
+            Positioned(
+              right: 16.0,
+              bottom: 96.0, // above the ControlBar
+              child: FloatingActionButton(
+                heroTag: 'graph_add_member_fab',
+                onPressed: () => context.push('/family/${widget.familyId}/add-person'),
+                backgroundColor: KinrelColors.orange,
+                foregroundColor: KinrelColors.textWhite,
+                mini: false,
+                tooltip: 'Add Member',
+                child: const Icon(Icons.person_add_alt_1_rounded),
+              ),
             ),
           ],
         );

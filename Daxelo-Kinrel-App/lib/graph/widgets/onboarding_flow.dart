@@ -17,6 +17,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
@@ -24,14 +25,50 @@ import '../analytics/analytics_tracker.dart';
 import 'graph_node.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
+// ONBOARDING PERSISTENCE (SharedPreferences-backed)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Helper class for persisting dismissed onboarding families across
+/// app restarts via SharedPreferences.
+class OnboardingPrefs {
+  static const _key = 'onboarding_dismissed_families';
+
+  static Future<Set<String>> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    return (prefs.getStringList(_key) ?? []).toSet();
+  }
+
+  static Future<void> dismiss(String familyId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final current = prefs.getStringList(_key) ?? [];
+    if (!current.contains(familyId)) {
+      current.add(familyId);
+      await prefs.setStringList(_key, current);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // ONBOARDING DISMISSED PROVIDER
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Tracks which familyIds have had onboarding dismissed.
 /// Once a user completes or skips onboarding for a family, it will not
-/// re-appear on subsequent visits.
+/// re-appear on subsequent visits or app restarts.
+class OnboardingDismissedNotifier extends AsyncNotifier<Set<String>> {
+  @override
+  Future<Set<String>> build() => OnboardingPrefs.load();
+
+  Future<void> dismiss(String familyId) async {
+    await OnboardingPrefs.dismiss(familyId);
+    state = AsyncData({...state.valueOrNull ?? {}, familyId});
+  }
+}
+
 final onboardingDismissedProvider =
-    StateProvider<Set<String>>((ref) => <String>{});
+    AsyncNotifierProvider<OnboardingDismissedNotifier, Set<String>>(
+  OnboardingDismissedNotifier.new,
+);
 
 // ═══════════════════════════════════════════════════════════════════════
 // ONBOARDING STEP ENUM
@@ -236,9 +273,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
             _permanentlyDismissed = true;
           });
           // Persist dismissal so onboarding never re-appears for this family
-          ref.read(onboardingDismissedProvider.notifier).update(
-                (set) => {...set, widget.familyId},
-              );
+          ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
         }
       });
       return;
@@ -261,9 +296,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
 
     // Mark permanently dismissed so onboarding never re-appears
     setState(() => _permanentlyDismissed = true);
-    ref.read(onboardingDismissedProvider.notifier).update(
-          (set) => {...set, widget.familyId},
-        );
+    ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
 
     _animateToStep(OnboardingStep.explore);
   }
@@ -283,9 +316,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
     // mark as permanently dismissed before transitioning to completed
     if (_currentStep == OnboardingStep.explore) {
       setState(() => _permanentlyDismissed = true);
-      ref.read(onboardingDismissedProvider.notifier).update(
-            (set) => {...set, widget.familyId},
-          );
+      ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
     }
 
     _animateToStep(nextStep);
@@ -300,7 +331,8 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
 
   /// Whether onboarding has been dismissed for this family via the provider.
   bool get _isDismissedForFamily {
-    return ref.watch(onboardingDismissedProvider).contains(widget.familyId);
+    return ref.watch(onboardingDismissedProvider).valueOrNull
+        ?.contains(widget.familyId) ?? false;
   }
 
   @override

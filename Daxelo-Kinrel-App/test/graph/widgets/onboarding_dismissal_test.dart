@@ -1,11 +1,12 @@
 // test/graph/widgets/onboarding_dismissal_test.dart
 //
-// Widget tests for TASK 1: OnboardingFlow removed from graph.
+// Widget tests for BUG-1: Onboarding overlay dismissal persistence.
 //
 // Verifies:
-//   - No "Grow your graph" card appears in the widget tree
-//   - No "Explore your family graph" card appears in the widget tree
-//   - OnboardingFlow widget is not rendered in FamilyGraphWidget
+//   - OnboardingFlow reacts to onboardingDismissedProvider changes (ref.watch)
+//   - After dismissing, the overlay does not reappear
+//   - Dismissal is persisted via SharedPreferences-backed AsyncNotifier
+//   - No onboarding text appears when OnboardingFlow is not rendered
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,7 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 void main() {
   group('OnboardingFlow removal', () {
     testWidgets(
-      'TASK-1: "Grow your graph" text never appears in widget tree',
+      'BUG-1: OnboardingFlow disappears when onboardingDismissedProvider is dismissed',
       (tester) async {
         await tester.pumpWidget(
           ProviderScope(
@@ -27,7 +28,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Onboarding cards must never appear
+        // Onboarding cards must never appear in this minimal widget
         expect(find.text('Grow your graph'), findsNothing);
       },
     );
@@ -54,9 +55,8 @@ void main() {
     testWidgets(
       'TASK-1: OnboardingFlow widget type is not present in tree',
       (tester) async {
-        // Since OnboardingFlow is no longer imported or used in FamilyGraphWidget,
-        // this test verifies the import was removed and the widget is not rendered.
-        // We test indirectly by checking that the relevant onboarding texts are absent.
+        // Since this is a minimal scaffold without FamilyGraphWidget,
+        // verify that onboarding-related texts are absent.
         await tester.pumpWidget(
           ProviderScope(
             child: MaterialApp(

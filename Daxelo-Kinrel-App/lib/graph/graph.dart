@@ -53,3 +53,4 @@ export 'widgets/search_bar.dart';
 export 'widgets/filter_panel.dart';
 export 'widgets/graph_legend.dart';
 export 'widgets/control_bar.dart';
+export 'widgets/onboarding_flow.dart';
