@@ -5,7 +5,7 @@
 // Full-screen graph viewer for visualizing family relationships.
 // Features:
 //   - AppBar with family name, back button, stacked avatar previews
-//   - Loading/error/empty states with V2.1 onboarding flow
+//   - Loading/error/empty states
 //   - New FamilyGraphWidget from lib/graph/ architecture
 //   - Generation legend chips (top-left floating)
 //   - Bottom legend bar with dynamic categories
@@ -325,8 +325,8 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       presentGenerations.add(p.generationIndex);
     }
 
-    // For 0 members, show the V2.1 EmptyState with onboarding.
-    // For 1+ members, show the full graph — OnboardingFlow handles guidance.
+    // For 0 members, show the V2.1 EmptyState.
+    // For 1+ members, show the full graph directly.
     if (memberCount == 0) {
       return EmptyState(
         memberCount: 0,
@@ -372,7 +372,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         // Generation legend chips (top-left floating, below filter bar)
         Positioned(
           left: 16,
-          top: graph.isTruncated ? 96 : 64,
+          top: graph.isTruncated ? 96 : 56,
           child: GenerationLegendWidget(
             presentGenerations: presentGenerations,
             highlightedGeneration: _highlightedGeneration,

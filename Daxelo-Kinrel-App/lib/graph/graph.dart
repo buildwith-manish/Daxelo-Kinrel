@@ -49,7 +49,6 @@ export 'widgets/family_graph.dart';
 export 'widgets/graph_node.dart';
 export 'widgets/relationship_edge.dart' hide GraphEdgeData;
 export 'widgets/empty_state.dart';
-export 'widgets/onboarding_flow.dart';
 export 'widgets/search_bar.dart';
 export 'widgets/filter_panel.dart';
 export 'widgets/graph_legend.dart';
