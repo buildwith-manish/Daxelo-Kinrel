@@ -104,6 +104,26 @@ test(families): add unit tests for createFamily
 - **State** — use Riverpod providers; avoid `setState` for complex state
 - **Models** — match backend field names (`englishTerm`, `relationshipKey`, `relationshipCategory`)
 
+### Flutter State Management (Riverpod) — ADR-006
+
+**This rule is binding on all agents.** See `docs/adr/ADR-006-riverpod-read-vs-watch.md` for full rationale.
+
+- **`ref.watch()` MUST be used** for all state consumed during rendering (inside `build()`, getters called from `build()`, or any method in the build path). This ensures the widget rebuilds when provider state changes.
+- **`ref.read()` is ONLY permitted** inside event handlers (`onPressed`, `onTap`, callbacks), `initState`, `dispose`, async callbacks (post-`await`), and notifier mutations (`ref.read(provider.notifier).update(...)`).
+- **NEVER use `ref.read()` inside `build()`** or any method/getter called from `build()`. This creates stale state — the widget will not rebuild when the provider changes.
+- **Lint comment**: All `ConsumerWidget` and `ConsumerStatefulWidget` classes must include this comment:
+
+```dart
+/// Riverpod Usage (ADR-006):
+///   - ref.watch(): used in build() for reactive state (UI rebuilds on change)
+///   - ref.read(): used ONLY in event handlers, initState, dispose,
+///     and notifier mutations (never in build path)
+```
+
+**Common mistake**: Calling `ref.read()` in a getter that is accessed during `build()`. The getter is part of the build path, so it must use `ref.watch()`.
+
+**Fix pattern**: If you need a one-time side effect during build (e.g., analytics tracking), wrap it in `WidgetsBinding.instance.addPostFrameCallback((_) { ref.read(provider).track(); })` to move it out of the build frame.
+
 ## PR Checklist
 
 Before submitting a Pull Request, verify:
@@ -115,6 +135,7 @@ Before submitting a Pull Request, verify:
 - [ ] **Lint passes** — `npm run lint` (backend) and `flutter analyze` (app)
 - [ ] **Documentation updated** — README, JSDoc, or inline comments as needed
 - [ ] **Breaking changes documented** — note in PR description and migration steps
+- [ ] **No `ref.read()` in build path** — Riverpod `ref.read()` must not appear inside `build()`, getters, or methods called from `build()` (ADR-006)
 
 ## Project Structure
 
