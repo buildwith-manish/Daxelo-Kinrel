@@ -150,6 +150,9 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   /// Current viewport size for culling.
   Size _viewportSize = Size.zero;
 
+  /// Whether the initial camera centering on the anchor node has been done.
+  bool _initialCenterDone = false;
+
   // ── Constants ──────────────────────────────────────────────────────
 
   static const double _nodeWidth = 72.0;
@@ -164,6 +167,15 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     _cameraController = CameraController(positionMemory: _positionMemory);
     _transformationController.addListener(_onTransformChanged);
     _openStopwatch.start();
+  }
+
+  @override
+  void didUpdateWidget(covariant FamilyGraphWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.familyId != widget.familyId) {
+      _initialCenterDone = false;
+      _viewportCuller = null;
+    }
   }
 
   @override
@@ -194,9 +206,12 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         _viewportSize.height / zoom,
       );
 
-      // Initialize culler if needed
+      // Initialize culler if needed (larger buffer for smoother initial visibility)
       if (_viewportCuller == null) {
-        _viewportCuller = ViewportCuller(viewport: viewport);
+        _viewportCuller = ViewportCuller(
+          viewport: viewport,
+          bufferPixels: 600.0,
+        );
       }
 
       final nodeSizes = <String, Size>{
@@ -455,6 +470,31 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
               );
         }
 
+        // Auto-center on anchor node on first load
+        if (!_initialCenterDone && _layoutResult != null) {
+          final anchorId = _personMap.values
+              .firstWhere((p) => p.isAnchor, orElse: () => _GraphPersonData.empty())
+              .id;
+          final anchorPos = _layoutResult!.positions[anchorId];
+          if (anchorPos != null && anchorId.isNotEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              final screenW = _viewportSize.width;
+              final screenH = _viewportSize.height;
+              if (screenW > 0 && screenH > 0) {
+                final scale = 1.0;
+                final translateX = (screenW / 2) - anchorPos.dx * scale;
+                final translateY = (screenH / 2) - anchorPos.dy * scale;
+                final matrix = Matrix4.identity()
+                  ..translate(translateX, translateY)
+                  ..scale(scale);
+                _transformationController.value = matrix;
+                setState(() => _initialCenterDone = true);
+              }
+            });
+          }
+        }
+
         return _buildGraphStack(_layoutResult!, reduceMotion: reduceMotion, currentTier: currentTier);
       },
     );
@@ -481,7 +521,10 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         );
 
         if (_viewportCuller == null) {
-          _viewportCuller = ViewportCuller(viewport: viewport);
+          _viewportCuller = ViewportCuller(
+            viewport: viewport,
+            bufferPixels: 600.0,
+          );
         }
 
         final nodeSizes = <String, Size>{
@@ -595,7 +638,8 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             ),
 
             // ── Onboarding Flow (conditional) ────────────────────────
-            if (_personMap.length <= 4)
+            // Only show onboarding if not yet dismissed for this family
+            if (!ref.read(onboardingDismissedProvider).contains(widget.familyId))
               Positioned.fill(
                 child: OnboardingFlow(
                   familyId: widget.familyId,
@@ -854,15 +898,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   // ── Empty Stack Wrapper ────────────────────────────────────────────
 
   Widget _buildEmptyStack({required Widget child}) {
+    // EmptyState handles the zero-member UI; OnboardingFlow is only
+    // rendered inside _buildGraphStack to avoid blocking gestures here.
     return Stack(
       children: [
         child,
-        Positioned.fill(
-          child: OnboardingFlow(
-            familyId: widget.familyId,
-            memberCount: _personMap.length,
-          ),
-        ),
       ],
     );
   }
