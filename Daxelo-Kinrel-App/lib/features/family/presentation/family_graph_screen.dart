@@ -13,12 +13,13 @@
 //   - Real-time updates via Socket.IO
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../graph/graph.dart';
+import 'add_person_sheet.dart';
 import 'providers/family_graph_provider.dart';
 import 'widgets/generation_filter_bar.dart';
 import 'widgets/generation_legend_widget.dart';
@@ -68,33 +69,33 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   // ── Zoom helpers ───────────────────────────────────────────────────
 
   void _zoomIn() {
-    final m = _graphTransformController.value.clone();
-    final scale = m.getMaxScaleOnAxis();
-    final newScale = (scale + 0.25).clamp(0.1, 4.0);
-    final factor = newScale / scale;
+    final current = _graphTransformController.value.clone();
+    final currentScale = current.getMaxScaleOnAxis();
+    if (currentScale >= 4.0) return;
+    final newScale = (currentScale + 0.25).clamp(0.1, 4.0);
+    final factor = newScale / currentScale;
     final size = MediaQuery.of(context).size;
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final zoomed = Matrix4.identity()
-      ..translate(cx, cy)
+    final focalPoint = Offset(size.width / 2, size.height / 2);
+    final tp = MatrixUtils.transformPoint(current, focalPoint);
+    _graphTransformController.value = current
+      ..translate(tp.dx, tp.dy)
       ..scale(factor)
-      ..translate(-cx, -cy);
-    _graphTransformController.value = zoomed * m;
+      ..translate(-tp.dx, -tp.dy);
   }
 
   void _zoomOut() {
-    final m = _graphTransformController.value.clone();
-    final scale = m.getMaxScaleOnAxis();
-    final newScale = (scale - 0.25).clamp(0.1, 4.0);
-    final factor = newScale / scale;
+    final current = _graphTransformController.value.clone();
+    final currentScale = current.getMaxScaleOnAxis();
+    if (currentScale <= 0.1) return;
+    final newScale = (currentScale - 0.25).clamp(0.1, 4.0);
+    final factor = newScale / currentScale;
     final size = MediaQuery.of(context).size;
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final zoomed = Matrix4.identity()
-      ..translate(cx, cy)
+    final focalPoint = Offset(size.width / 2, size.height / 2);
+    final tp = MatrixUtils.transformPoint(current, focalPoint);
+    _graphTransformController.value = current
+      ..translate(tp.dx, tp.dy)
       ..scale(factor)
-      ..translate(-cx, -cy);
-    _graphTransformController.value = zoomed * m;
+      ..translate(-tp.dx, -tp.dy);
   }
 
   void _resetZoom() {
@@ -143,25 +144,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         ),
       ),
       actions: [
-        // Add Member — primary action always in AppBar
-        IconButton(
-          icon: const Icon(Icons.person_add_alt_1_rounded),
-          tooltip: 'Add Member',
-          onPressed: () =>
-              context.push('/family/${widget.familyId}/add-person'),
-        ),
-        // Zoom In
-        IconButton(
-          icon: const Icon(Icons.zoom_in_rounded),
-          tooltip: 'Zoom In',
-          onPressed: _zoomIn,
-        ),
-        // Zoom Out
-        IconButton(
-          icon: const Icon(Icons.zoom_out_rounded),
-          tooltip: 'Zoom Out',
-          onPressed: _zoomOut,
-        ),
         // 3 stacked circular avatar previews
         if (avatarPersons.isNotEmpty)
           GestureDetector(
@@ -317,24 +299,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     if (graph.persons.isEmpty) return _buildEmptyState();
 
     final persons = graph.toPersonDataList();
-    final memberCount = persons.length;
 
     // Determine which generations are present
     final presentGenerations = <int>{};
     for (final p in persons) {
       presentGenerations.add(p.generationIndex);
-    }
-
-    // For 0 members, show the V2.1 EmptyState.
-    // For 1+ members, show the full graph directly.
-    if (memberCount == 0) {
-      return EmptyState(
-        memberCount: 0,
-        familyId: widget.familyId,
-        onAddMember: () {
-          context.push('/family/${widget.familyId}/add-person');
-        },
-      );
     }
 
     // Determine which relationship types are present
@@ -431,7 +400,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         // V2.1 Stats panel (bottom-left)
         Positioned(
           left: 16,
-          bottom: 80,
+          bottom: MediaQuery.of(context).padding.bottom + 72,
           child: StatsPanel(
             totalMembers: graph.persons.length,
             totalConnections: graph.relationships.length,
@@ -440,9 +409,9 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ),
         ),
 
-        // V2.1 Graph toolbar (bottom-center)
+        // V2.1 Graph toolbar (bottom-center, above action bar)
         Positioned(
-          bottom: MediaQuery.of(context).padding.bottom + 8,
+          bottom: MediaQuery.of(context).padding.bottom + 68,
           left: 0,
           right: 0,
           child: GraphToolbar(
@@ -466,19 +435,12 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ),
         ),
 
-        // Add Member FAB — always on top of graph and onboarding
+        // Bottom action bar (zoom + add member)
         Positioned(
-          right: 20,
-          bottom: MediaQuery.of(context).padding.bottom + 80,
-          child: FloatingActionButton(
-            heroTag: 'graph_add_member_fab',
-            backgroundColor: KinrelColors.orange,
-            foregroundColor: Colors.white,
-            elevation: 6,
-            onPressed: () =>
-                context.push('/family/${widget.familyId}/add-person'),
-            child: const Icon(Icons.person_add_alt_1_rounded, size: 24),
-          ),
+          bottom: MediaQuery.of(context).padding.bottom + 8,
+          left: 0,
+          right: 0,
+          child: Center(child: _buildBottomActionBar()),
         ),
       ],
     );
@@ -494,24 +456,112 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           memberCount: 0,
           familyId: widget.familyId,
           onAddMember: () {
-            context.push('/family/${widget.familyId}/add-person');
+            AddPersonSheet.show(context, familyId: widget.familyId);
           },
         ),
         // Add Member FAB — visible even in empty state
         Positioned(
           right: 20,
-          bottom: MediaQuery.of(context).padding.bottom + 80,
+          bottom: MediaQuery.of(context).padding.bottom + 20,
           child: FloatingActionButton(
             heroTag: 'empty_add_member_fab',
             backgroundColor: KinrelColors.orange,
             foregroundColor: Colors.white,
             elevation: 6,
             onPressed: () =>
-                context.push('/family/${widget.familyId}/add-person'),
+                AddPersonSheet.show(context, familyId: widget.familyId),
             child: const Icon(Icons.person_add_alt_1_rounded, size: 24),
           ),
         ),
       ],
+    );
+  }
+
+  // ── Bottom Action Bar ──────────────────────────────────────────────
+
+  Widget _buildBottomActionBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Zoom Out
+          _actionBarButton(
+            icon: Icons.zoom_out_rounded,
+            tooltip: 'Zoom Out',
+            onPressed: _zoomOut,
+          ),
+          // Center / Reset
+          _actionBarButton(
+            icon: Icons.center_focus_strong_outlined,
+            tooltip: 'Reset View',
+            onPressed: _resetZoom,
+          ),
+          // Zoom In
+          _actionBarButton(
+            icon: Icons.zoom_in_rounded,
+            tooltip: 'Zoom In',
+            onPressed: _zoomIn,
+          ),
+          // Divider
+          Container(
+            width: 1,
+            height: 24,
+            color: Colors.white.withValues(alpha: 0.1),
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+          ),
+          // Add Member (highlighted)
+          _actionBarButton(
+            icon: Icons.person_add_alt_1_rounded,
+            tooltip: 'Add Member',
+            onPressed: () => AddPersonSheet.show(context, familyId: widget.familyId),
+            highlighted: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionBarButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+    bool highlighted = false,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: highlighted
+              ? BoxDecoration(
+                  color: KinrelColors.orange.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(24),
+                )
+              : null,
+          child: Icon(
+            icon,
+            size: 22,
+            color: highlighted ? KinrelColors.orange : KinrelColors.textDim,
+          ),
+        ),
+      ),
     );
   }
 

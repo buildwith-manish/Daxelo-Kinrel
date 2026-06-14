@@ -22,11 +22,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/services/graph_layout_service.dart';
+import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/providers/family_graph_provider.dart';
 import '../analytics/analytics_tracker.dart';
 import '../data/family_graph_repository.dart' show GraphData, GraphEdgeData;
@@ -420,7 +420,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
               familyId: widget.familyId,
               memberCount: 0,
               onAddMember: () {
-                context.push('/family/${widget.familyId}/add-person');
+                AddPersonSheet.show(context, familyId: widget.familyId);
               },
             ),
           );
@@ -469,7 +469,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
               familyId: widget.familyId,
               memberCount: persons.length,
               onAddMember: () {
-                context.push('/family/${widget.familyId}/add-person');
+                AddPersonSheet.show(context, familyId: widget.familyId);
               },
             ),
           );
@@ -670,9 +670,14 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             ),
 
             // ── Onboarding Flow (conditional) ────────────────────────
-            // Only show onboarding if not yet dismissed for this family
-            if (!(ref.watch(onboardingDismissedProvider).valueOrNull
-                ?.contains(widget.familyId) ?? false))
+            // Only show onboarding if not yet dismissed for this family.
+            // Default to isDismissed = true while loading to prevent
+            // onboarding flash during async SharedPreferences load.
+            final dismissedAsync = ref.watch(onboardingDismissedProvider);
+            final isDismissed = dismissedAsync.valueOrNull
+                    ?.contains(widget.familyId) ??
+                true; // Default TRUE (hidden) while loading
+            if (!isDismissed)
               Positioned.fill(
                 child: OnboardingFlow(
                   familyId: widget.familyId,
@@ -689,7 +694,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
               bottom: 96.0, // above the ControlBar
               child: FloatingActionButton(
                 heroTag: 'graph_add_member_fab',
-                onPressed: () => context.push('/family/${widget.familyId}/add-person'),
+                onPressed: () => AddPersonSheet.show(context, familyId: widget.familyId),
                 backgroundColor: KinrelColors.orange,
                 foregroundColor: KinrelColors.textWhite,
                 mini: false,

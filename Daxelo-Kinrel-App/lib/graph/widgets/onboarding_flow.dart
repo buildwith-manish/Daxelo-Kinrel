@@ -21,6 +21,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
+import '../../features/family/presentation/add_person_sheet.dart';
 import '../analytics/analytics_tracker.dart';
 import 'graph_node.dart';
 
@@ -312,6 +313,12 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
       OnboardingStep.completed => OnboardingStep.completed,
     };
 
+    // When on the "addFamily" step, open the AddPersonSheet as a
+    // modal bottom sheet instead of pushing a full-screen route.
+    if (_currentStep == OnboardingStep.addFamily) {
+      AddPersonSheet.show(context, familyId: widget.familyId);
+    }
+
     // When on the "explore" step, the user has tapped "Got it!" —
     // mark as permanently dismissed before transitioning to completed
     if (_currentStep == OnboardingStep.explore) {
@@ -330,9 +337,11 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
   // ── Build ──────────────────────────────────────────────────────────
 
   /// Whether onboarding has been dismissed for this family via the provider.
+  /// Defaults to `true` while loading to prevent onboarding flash.
   bool get _isDismissedForFamily {
     return ref.watch(onboardingDismissedProvider).valueOrNull
-        ?.contains(widget.familyId) ?? false;
+            ?.contains(widget.familyId) ??
+        true;
   }
 
   @override
