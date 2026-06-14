@@ -39,7 +39,6 @@ import 'empty_state.dart';
 import 'filter_panel.dart';
 import 'graph_legend.dart';
 import 'graph_node.dart';
-import 'onboarding_flow.dart';
 import 'relationship_edge.dart';
 import 'search_bar.dart';
 
@@ -503,28 +502,39 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         _viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
 
         // Auto-center on anchor node on first load (moved inside LayoutBuilder
-        // so _viewportSize is guaranteed to be set before postFrameCallback fires)
+        // so _viewportSize is guaranteed to be set before postFrameCallback fires).
+        // If an external controller was provided and already has a non-identity
+        // transform (e.g. restored from SharedPreferences), respect it instead
+        // of overriding with auto-center.
         if (!_initialCenterDone && _layoutResult != null) {
-          final anchorId = _personMap.values
-              .firstWhere((p) => p.isAnchor, orElse: () => _GraphPersonData.empty())
-              .id;
-          final anchorPos = _layoutResult!.positions[anchorId];
-          if (anchorPos != null && anchorId.isNotEmpty) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-              final screenW = _viewportSize.width;
-              final screenH = _viewportSize.height;
-              if (screenW > 0 && screenH > 0) {
-                final scale = 1.0;
-                final translateX = (screenW / 2) - anchorPos.dx * scale;
-                final translateY = (screenH / 2) - anchorPos.dy * scale;
-                final matrix = Matrix4.identity()
-                  ..translate(translateX, translateY)
-                  ..scale(scale);
-                _transformationController.value = matrix;
-                setState(() => _initialCenterDone = true);
-              }
-            });
+          final hasExistingTransform =
+              widget.externalTransformController != null &&
+              !widget.externalTransformController!.value.isIdentity();
+          if (hasExistingTransform) {
+            // External controller already has a saved position — skip auto-center
+            _initialCenterDone = true;
+          } else {
+            final anchorId = _personMap.values
+                .firstWhere((p) => p.isAnchor, orElse: () => _GraphPersonData.empty())
+                .id;
+            final anchorPos = _layoutResult!.positions[anchorId];
+            if (anchorPos != null && anchorId.isNotEmpty) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                final screenW = _viewportSize.width;
+                final screenH = _viewportSize.height;
+                if (screenW > 0 && screenH > 0) {
+                  final scale = 1.0;
+                  final translateX = (screenW / 2) - anchorPos.dx * scale;
+                  final translateY = (screenH / 2) - anchorPos.dy * scale;
+                  final matrix = Matrix4.identity()
+                    ..translate(translateX, translateY)
+                    ..scale(scale);
+                  _transformationController.value = matrix;
+                  setState(() => _initialCenterDone = true);
+                }
+              });
+            }
           }
         }
 
@@ -570,13 +580,6 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
 
         final effectiveVisibleIds = _visibleNodeIds;
 
-        // ── Onboarding dismissal check ────────────────────────────
-        // Must be computed before the widget tree (not inside children list).
-        final dismissedAsync = ref.watch(onboardingDismissedProvider);
-        final isDismissed = dismissedAsync.valueOrNull
-                ?.contains(widget.familyId) ??
-            true; // Default TRUE (hidden) while loading
-
         return Stack(
           children: [
             // ── Camera Transform Layer ───────────────────────────────
@@ -587,6 +590,8 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
                   minScale: 0.1,
                   maxScale: 4.0,
                   constrained: false,
+                  boundaryMargin: const EdgeInsets.all(double.infinity),
+                  clipBehavior: Clip.none,
                   child: SizedBox(
                     width: canvasWidth,
                     height: canvasHeight,
@@ -674,34 +679,6 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
               onLegendTap: () => setState(() => _legendVisible = !_legendVisible),
               isFilterActive: _currentFilter.isActive,
               currentTier: currentTier,
-            ),
-
-            // ── Onboarding Flow (conditional) ────────────────────────
-            // Only show onboarding if not yet dismissed for this family.
-            if (!isDismissed)
-              Positioned.fill(
-                child: OnboardingFlow(
-                  familyId: widget.familyId,
-                  memberCount: _personMap.length,
-                ),
-              ),
-
-            // ── Add Member FAB (always visible) ──────────────────────
-            // BUG-3 FIX: Persistent FAB inside the graph stack, positioned
-            // above the ControlBar so it's always accessible regardless of
-            // onboarding state or member count.
-            Positioned(
-              right: 16.0,
-              bottom: 96.0, // above the ControlBar
-              child: FloatingActionButton(
-                heroTag: 'graph_add_member_fab',
-                onPressed: () => AddPersonSheet.show(context, familyId: widget.familyId),
-                backgroundColor: KinrelColors.orange,
-                foregroundColor: KinrelColors.textWhite,
-                mini: false,
-                tooltip: 'Add Member',
-                child: const Icon(Icons.person_add_alt_1_rounded),
-              ),
             ),
           ],
         );
