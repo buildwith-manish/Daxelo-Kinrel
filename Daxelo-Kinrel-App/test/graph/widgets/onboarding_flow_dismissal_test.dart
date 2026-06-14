@@ -1,7 +1,7 @@
 // test/graph/widgets/onboarding_flow_dismissal_test.dart
 //
-// AGENT-08 (Quality & Testing) — Regression test for BUG-1:
-// Onboarding overlay dismissal persistence.
+// Regression test for BUG-1: Onboarding overlay dismissal persistence.
+// Updated for SharedPreferences-backed AsyncNotifier provider.
 //
 // Verifies that:
 //   1. OnboardingFlow with memberCount=1 shows "Grow your graph"
@@ -103,9 +103,9 @@ void main() {
         final container = ProviderScope.containerOf(
           tester.element(find.byType(Scaffold)),
         );
-        final dismissedSet = container.read(onboardingDismissedProvider);
+        final dismissedAsync = container.read(onboardingDismissedProvider);
         expect(
-          dismissedSet.contains('test-family'),
+          dismissedAsync.valueOrNull?.contains('test-family') ?? false,
           isTrue,
           reason: 'onboardingDismissedProvider must contain "test-family" after skip',
         );

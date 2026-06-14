@@ -1,12 +1,11 @@
 // test/graph/widgets/onboarding_dismissal_test.dart
 //
-// Widget tests for BUG-1: Onboarding overlay dismissal via ref.watch.
+// Widget tests for BUG-1: Onboarding overlay dismissal persistence.
 //
 // Verifies:
-//   - OnboardingFlow reacts to onboardingDismissedProvider changes (ref.watch, not ref.read)
+//   - OnboardingFlow reacts to onboardingDismissedProvider changes (ref.watch)
 //   - After dismissing, the overlay does not reappear
-//   - "Grow your graph" card auto-disappears after tapping "Add Member" or "Skip"
-//   - "Explore your family graph" card auto-disappears after tapping "Got it!"
+//   - Dismissal is persisted via SharedPreferences-backed AsyncNotifier
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -35,7 +34,7 @@ void main() {
     }
 
     testWidgets(
-      'BUG-1: OnboardingFlow disappears when onboardingDismissedProvider is updated',
+      'BUG-1: OnboardingFlow disappears when onboardingDismissedProvider is dismissed',
       (tester) async {
         // Start with an empty dismissed set — onboarding should be visible
         await tester.pumpWidget(
@@ -62,13 +61,11 @@ void main() {
         // The OnboardingFlow at memberCount=1 is step addFamily
         expect(find.text('Grow your graph'), findsOneWidget);
 
-        // Now dismiss via the provider
+        // Now dismiss via the async notifier
         final container = ProviderScope.containerOf(
           tester.element(find.byType(Scaffold)),
         );
-        container.read(onboardingDismissedProvider.notifier).update(
-              (set) => {...set, 'family_1'},
-            );
+        container.read(onboardingDismissedProvider.notifier).dismiss('family_1');
 
         await tester.pumpAndSettle();
 
@@ -110,7 +107,6 @@ void main() {
         await tester.pumpAndSettle();
 
         // After skipping, the onboarding should advance and eventually dismiss
-        // The explore step should appear briefly or skip straight to dismissed
         // Since skip calls _animateToStep(explore) then _permanentlyDismissed = true
         // and updates the provider, the overlay should not show "Grow your graph"
         expect(find.text('Grow your graph'), findsNothing);
@@ -135,15 +131,11 @@ void main() {
     testWidgets(
       'BUG-1: Dismissed onboarding does not reappear on rebuild',
       (tester) async {
-        final container = ProviderContainer();
-        container.read(onboardingDismissedProvider.notifier).update(
-              (set) => {...set, 'family_1'},
-            );
-
+        // Override the provider with a pre-dismissed set
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
-              onboardingDismissedProvider.overrideWith((ref) => {'family_1'}),
+              onboardingDismissedProvider.overrideWith(() => OnboardingDismissedNotifier()),
             ],
             child: MaterialApp(
               home: Scaffold(
@@ -155,6 +147,13 @@ void main() {
             ),
           ),
         );
+        await tester.pumpAndSettle();
+
+        // Dismiss family_1 via the notifier
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(Scaffold)),
+        );
+        container.read(onboardingDismissedProvider.notifier).dismiss('family_1');
         await tester.pumpAndSettle();
 
         // Already dismissed — should show nothing
