@@ -300,7 +300,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
 
   /// Whether onboarding has been dismissed for this family via the provider.
   bool get _isDismissedForFamily {
-    return ref.read(onboardingDismissedProvider).contains(widget.familyId);
+    return ref.watch(onboardingDismissedProvider).contains(widget.familyId);
   }
 
   @override

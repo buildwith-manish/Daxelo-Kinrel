@@ -538,6 +538,14 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
           viewport,
         );
 
+        // BUG-2 FIX: If viewport culling has not yet fired (e.g. first paint
+        // before InteractiveViewer emits a transform event), _visibleNodeIds
+        // is empty and the single node gets culled → blank screen.
+        // Fallback: force all nodes visible when the culler returns nothing.
+        final effectiveVisibleIds = _visibleNodeIds.isEmpty
+            ? _personMap.keys.toSet()
+            : _visibleNodeIds;
+
         return Stack(
           children: [
             // ── Camera Transform Layer ───────────────────────────────
@@ -579,7 +587,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
                         ),
 
                         // ── Node Layer ────────────────────────────────
-                        ..._buildVisibleNodes(positions, zoomLevel),
+                        ..._buildVisibleNodes(positions, zoomLevel, effectiveVisibleIds),
                       ],
                     ),
                   ),
@@ -639,13 +647,31 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
 
             // ── Onboarding Flow (conditional) ────────────────────────
             // Only show onboarding if not yet dismissed for this family
-            if (!ref.read(onboardingDismissedProvider).contains(widget.familyId))
+            if (!ref.watch(onboardingDismissedProvider).contains(widget.familyId))
               Positioned.fill(
                 child: OnboardingFlow(
                   familyId: widget.familyId,
                   memberCount: _personMap.length,
                 ),
               ),
+
+            // ── Add Member FAB (always visible) ──────────────────────
+            // BUG-3 FIX: Persistent FAB inside the graph stack, positioned
+            // above the ControlBar so it's always accessible regardless of
+            // onboarding state or member count.
+            Positioned(
+              right: 16.0,
+              bottom: 96.0, // above the ControlBar
+              child: FloatingActionButton(
+                heroTag: 'graph_add_member_fab',
+                onPressed: () => context.push('/family/${widget.familyId}/add-person'),
+                backgroundColor: KinrelColors.orange,
+                foregroundColor: KinrelColors.textWhite,
+                mini: false,
+                tooltip: 'Add Member',
+                child: const Icon(Icons.person_add_alt_1_rounded),
+              ),
+            ),
           ],
         );
       },
@@ -657,15 +683,17 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   List<Widget> _buildVisibleNodes(
     Map<String, Offset> positions,
     double zoomLevel,
+    [Set<String>? visibleIds]
   ) {
     final nodes = <Widget>[];
+    final effectiveIds = visibleIds ?? _visibleNodeIds;
 
     for (final person in _personMap.values) {
       final pos = positions[person.id];
       if (pos == null) continue;
 
       // Skip nodes outside viewport (virtualization)
-      if (!_visibleNodeIds.contains(person.id)) continue;
+      if (!effectiveIds.contains(person.id)) continue;
 
       final isSelected = _selectedNodeId == person.id;
       final isFocused = _focusedNodeId == person.id;
