@@ -95,7 +95,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       body: familiesAsync.when(
         loading: () => _buildLoadingState(),
         error: (error, _) => DKErrorState(
-          message: 'Failed to load families',
+          message: error.toString(),
           onRetry: () => ref.invalidate(familyListProvider),
         ),
         data: (families) {

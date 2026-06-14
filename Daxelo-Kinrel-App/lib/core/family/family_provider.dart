@@ -709,7 +709,8 @@ void _cacheArchivedFamilies(List<ArchivedFamily> archivedFamilies) {
 /// Uses FamilyMember join table to find families, with createdBy fallback.
 ///
 /// With offline-first: Returns cached data immediately if available,
-/// then refreshes from Supabase in the background.
+/// then refreshes from the NestJS API in the background. Falls back to
+/// direct Supabase query if the NestJS API is unreachable.
 final familyListProvider = FutureProvider<List<Family>>((ref) async {
   // FIXED: Watch pending deletes so families being optimistically deleted
   // are filtered out even if Supabase returns stale data before the
@@ -723,38 +724,86 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilies();
-        // ✅ FIX (BUG-01): Filter out soft-deleted families from Isar cache
-        // ✅ FIX (BUG-03): Filter out pending-delete families (race condition guard)
         final filtered = cached
             .where((f) => f.deletedAt == null && !pendingDeletes.contains(f.id))
             .toList();
         if (filtered.isNotEmpty) return filtered;
       } catch (_) {}
     }
+    // Supabase not ready and no cache — return empty (no auth session yet)
     return [];
   }
 
   try {
-    // Use offline-first repository if Isar is initialized
+    // Use offline-first repository if Isar is initialized (instant cache hit)
     if (IsarDatabase.isInitialized) {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilies();
-        // ✅ FIX (BUG-01): Filter out soft-deleted families from Isar cache
-        // ✅ FIX (BUG-03): Filter out pending-delete families (race condition guard)
         final filtered = cached
             .where((f) => f.deletedAt == null && !pendingDeletes.contains(f.id))
             .toList();
         if (filtered.isNotEmpty) return filtered;
       } catch (e) {
         debugPrint('⚠️ Offline repo getFamilies failed, falling back: $e');
-        // Fall through to Supabase direct query
+        // Fall through to API call
       }
     }
 
-    // Fallback to direct Supabase query (original behavior)
+    // ── Primary: NestJS API (GET /families) ────────────────────────
+    // The Dio client's _AuthInterceptor automatically injects the
+    // Supabase Bearer token, and the backend now queries FamilyMember
+    // with BOTH the Prisma CUID and the Supabase UUID, so families
+    // created before the auth fix are also found.
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get('/families');
+      final data = response.data;
+
+      // Backend returns { items: [...], total, page, limit }
+      List<Family> result;
+      if (data is Map<String, dynamic> && data['items'] is List) {
+        final items = data['items'] as List;
+        result = items
+            .map((json) => Family.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } else if (data is List) {
+        result = data
+            .map((json) => Family.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } else {
+        debugPrint('⚠️ familyListProvider: unexpected NestJS response format');
+        result = [];
+      }
+
+      // Filter out pending-delete families
+      if (pendingDeletes.isNotEmpty) {
+        result = result.where((f) => !pendingDeletes.contains(f.id)).toList();
+      }
+
+      return result;
+    } on DioException catch (apiError) {
+      // If the NestJS API returned an auth error (401/403), surface it
+      // immediately — no point falling back to Supabase with the same
+      // broken session.
+      final statusCode = apiError.response?.statusCode;
+      if (statusCode == 401 || statusCode == 403) {
+        debugPrint('⚠️ familyListProvider: NestJS API auth error ($statusCode), '
+            'rethrowing');
+        rethrow;
+      }
+
+      // For other API errors (network, 500, etc.), fall back to Supabase
+      debugPrint('⚠️ familyListProvider: NestJS API failed '
+          '(${apiError.type}), falling back to Supabase: '
+          '${_extractDioErrorMessage(apiError)}');
+    }
+
+    // ── Fallback: Direct Supabase query (legacy path) ──────────────
     final client = ref.read(supabaseProvider);
-    if (client == null) return [];
+    if (client == null) {
+      throw Exception('No Supabase client available');
+    }
 
     // Guard against no valid session — RLS will deny queries
     // When kAuthDisabled, use MockUser.id so the query can proceed
@@ -762,7 +811,7 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
         (kAuthDisabled ? MockUser.id : null);
     if (userId == null) {
       debugPrint('⏭️ familyListProvider skipped — no auth session');
-      return [];
+      throw Exception('No authenticated user session');
     }
 
     // 1. Get family IDs from FamilyMember join table
@@ -795,8 +844,6 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
     if (familyIds.isEmpty) return [];
 
     // 3. Fetch all families by IDs (deduplicated)
-    // ✅ FIX (BUG-01): Filter out soft-deleted families so they don't
-    // reappear after app restart
     final response = await client
         .from(_kFamilyTable)
         .select()
@@ -814,8 +861,7 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
           .toList();
     }
 
-    // ✅ FIX (BUG-03): Client-side guard — filter out pending-delete families
-    // even if Supabase returns them (race condition before NestJS commits)
+    // Client-side guard — filter out pending-delete families
     if (pendingDeletes.isNotEmpty) {
       result = result.where((f) => !pendingDeletes.contains(f.id)).toList();
     }
@@ -823,13 +869,11 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
   } catch (e) {
     debugPrint('⚠️ familyListProvider error: $e');
 
-    // On network error, try Isar cache as last resort
+    // On network error, try Isar cache as last resort (graceful degradation)
     if (IsarDatabase.isInitialized) {
       try {
         final repo = ref.read(offlineFamilyRepositoryProvider);
         final cached = await repo.getFamilies();
-        // ✅ FIX (BUG-01): Filter out soft-deleted families from Isar cache
-        // ✅ FIX (BUG-03): Filter out pending-delete families (race condition guard)
         final filtered = cached
             .where((f) => f.deletedAt == null && !pendingDeletes.contains(f.id))
             .toList();
@@ -837,7 +881,10 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
       } catch (_) {}
     }
 
-    return [];
+    // FIX (BUG-empty-list): If offline cache is also empty, rethrow the
+    // error instead of returning []. This ensures the UI's .when() handler
+    // shows the actual error message instead of a misleading empty list.
+    rethrow;
   }
 });
 

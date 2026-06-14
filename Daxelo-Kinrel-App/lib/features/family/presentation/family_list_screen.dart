@@ -68,7 +68,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
       body: familiesAsync.when(
         loading: () => const _FamilyListLoadingWidget(),
         error: (error, _) => DKErrorState(
-          message: 'Failed to load families',
+          message: error.toString(),
           onRetry: () => ref.invalidate(familyListProvider),
         ),
         data: (families) {
