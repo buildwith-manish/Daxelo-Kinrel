@@ -503,11 +503,6 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       builder: (context, constraints) {
         _viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
 
-        // Show all nodes on first render before camera centers
-        if (_visibleNodeIds.isEmpty && positions.isNotEmpty) {
-          _visibleNodeIds = Set<String>.from(positions.keys);
-        }
-
         // Auto-center on anchor node on first load (moved inside LayoutBuilder
         // so _viewportSize is guaranteed to be set before postFrameCallback fires)
         if (!_initialCenterDone && _layoutResult != null) {
@@ -554,19 +549,27 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             id: const Size(_nodeWidth, _nodeHeight),
         };
 
-        _visibleNodeIds = _viewportCuller!.cull(
-          positions,
-          nodeSizes,
-          viewport,
-        );
+        // FIX A: Show all nodes on first render before camera centers
+        if (_visibleNodeIds.isEmpty && positions.isNotEmpty) {
+          _visibleNodeIds = Set<String>.from(positions.keys);
+        } else {
+          _visibleNodeIds = _viewportCuller!.cull(
+            positions,
+            nodeSizes,
+            viewport,
+          );
+        }
 
-        // BUG-2 FIX: If viewport culling has not yet fired (e.g. first paint
-        // before InteractiveViewer emits a transform event), _visibleNodeIds
-        // is empty and the single node gets culled → blank screen.
-        // Fallback: force all nodes visible when the culler returns nothing.
-        final effectiveVisibleIds = _visibleNodeIds.isEmpty
-            ? _personMap.keys.toSet()
-            : _visibleNodeIds;
+        // FIX C: Always force-include the anchor node in LayoutBuilder culling
+        final layoutAnchorId = _personMap.values
+            .firstWhere((p) => p.isAnchor,
+                orElse: () => _GraphPersonData.empty())
+            .id;
+        if (layoutAnchorId.isNotEmpty && !_visibleNodeIds.contains(layoutAnchorId)) {
+          _visibleNodeIds = Set<String>.from(_visibleNodeIds)..add(layoutAnchorId);
+        }
+
+        final effectiveVisibleIds = _visibleNodeIds;
 
         return Stack(
           children: [
