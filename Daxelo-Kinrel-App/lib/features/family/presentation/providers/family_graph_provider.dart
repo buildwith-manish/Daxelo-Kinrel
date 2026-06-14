@@ -110,6 +110,8 @@ class FlatGraphResult {
         isAnchor: p['isAnchor'] as bool? ?? false,
         photoUrl: p['photoUrl'] as String?,
         isDeceased: p['isDeceased'] as bool? ?? false,
+        kinshipCategory: p['kinshipCategory'] as String?,
+        computedKinship: p['computedKinship'] as String?,
       );
     }).toList();
   }
@@ -122,6 +124,7 @@ class FlatGraphResult {
         fromPersonId: r['fromPersonId'] as String? ?? '',
         toPersonId: r['toPersonId'] as String? ?? '',
         relationshipKey: r['relationshipKey'] as String? ?? '',
+        displayLabel: r['displayLabel'] as String?,
       );
     }).toList();
   }

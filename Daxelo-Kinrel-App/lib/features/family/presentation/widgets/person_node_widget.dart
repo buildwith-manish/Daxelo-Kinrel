@@ -42,6 +42,8 @@ class PersonNodeWidget extends ConsumerStatefulWidget {
     this.gender,
     this.relationshipKey,
     this.relationLabel,
+    this.kinshipCategory,
+    this.computedKinship,
     this.username,
     required this.generationIndex,
     this.isSelf = false,
@@ -62,6 +64,10 @@ class PersonNodeWidget extends ConsumerStatefulWidget {
   final String? gender;
   final String? relationshipKey;
   final String? relationLabel;
+  /// Server-computed kinship category (e.g., "parent", "aunt_uncle") for node coloring.
+  final String? kinshipCategory;
+  /// Server-computed kinship term (e.g., "Uncle", "Cousin") for node label.
+  final String? computedKinship;
   final String? username;
   final int generationIndex;
   final bool isSelf;
@@ -236,8 +242,14 @@ class _PersonNodeWidgetState extends ConsumerState<PersonNodeWidget>
           ? GraphCanvasConfig.selfNodeSize
           : GraphCanvasConfig.defaultNodeSize;
 
-  NodeColorSet get _colors =>
-      getNodeColors(relationshipTypeFromKey(widget.relationshipKey ?? '') ?? RelationshipType.extended);
+  NodeColorSet get _colors {
+    // Prefer server-computed kinshipCategory for color resolution
+    if (widget.kinshipCategory != null && widget.kinshipCategory!.isNotEmpty) {
+      return getNodeColorsFromCategory(widget.kinshipCategory);
+    }
+    // Fallback to key-based resolution
+    return getNodeColors(relationshipTypeFromKey(widget.relationshipKey ?? '') ?? RelationshipType.extended);
+  }
 
   // ── Build ─────────────────────────────────────────────────────────────
 
@@ -527,14 +539,26 @@ class _PersonNodeWidgetState extends ConsumerState<PersonNodeWidget>
   // ── Layer 6: Labels ───────────────────────────────────────────────────
 
   Widget _buildLabels(NodeColorSet colors) {
+    // Determine the display label: prefer computedKinship (e.g. "Uncle"),
+    // then relationLabel, then formatted relationshipKey
+    final String? displayLabel;
+    if (widget.computedKinship != null && widget.computedKinship!.isNotEmpty) {
+      displayLabel = widget.computedKinship;
+    } else if (widget.relationLabel != null && widget.relationLabel!.isNotEmpty) {
+      displayLabel = widget.relationLabel;
+    } else if (widget.relationshipKey != null && widget.relationshipKey!.isNotEmpty) {
+      displayLabel = widget.relationshipKey!.toUpperCase().replaceAll('_', ' ');
+    } else {
+      displayLabel = null;
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Relationship key label
-        if (widget.relationshipKey != null &&
-            widget.relationshipKey!.isNotEmpty)
+        // Relationship label
+        if (displayLabel != null)
           Text(
-            widget.relationshipKey!.toUpperCase().replaceAll('_', ' '),
+            displayLabel,
             style: TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 10.0,

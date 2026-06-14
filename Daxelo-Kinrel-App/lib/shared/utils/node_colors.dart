@@ -295,3 +295,78 @@ RelationshipType? relationshipTypeFromKey(String key) {
       return null;
   }
 }
+
+// ── Category-to-Color Helper ──────────────────────────────────────────────
+
+/// Returns the [NodeColorSet] for a kinship category string returned by the
+/// enriched graph API (e.g., "parent", "spouse", "aunt_uncle").
+///
+/// This is the preferred way to resolve colors when enriched graph data is
+/// available, as it directly uses the server-computed category rather than
+/// attempting to map the raw relationshipKey.
+///
+/// Falls back to the [extended] color scheme for unknown categories.
+NodeColorSet getNodeColorsFromCategory(String? category) {
+  switch (category) {
+    case 'self':
+      return NodeColorSet(
+        ring: KinrelColors.nodeSelf,
+        background: KinrelColors.nodeSelf.withValues(alpha: 0.08),
+        glow: KinrelColors.nodeSelf.withValues(alpha: 0.35),
+      );
+    case 'parent':
+      return NodeColorSet(
+        ring: KinrelColors.nodeParent,
+        background: KinrelColors.nodeParent.withValues(alpha: 0.06),
+        glow: KinrelColors.nodeParent.withValues(alpha: 0.30),
+      );
+    case 'spouse':
+      return NodeColorSet(
+        ring: KinrelColors.nodeSpouse,
+        background: KinrelColors.nodeSpouse.withValues(alpha: 0.06),
+        glow: KinrelColors.nodeSpouse.withValues(alpha: 0.30),
+      );
+    case 'sibling':
+      return NodeColorSet(
+        ring: KinrelColors.nodeSibling,
+        background: KinrelColors.nodeSibling.withValues(alpha: 0.06),
+        glow: KinrelColors.nodeSibling.withValues(alpha: 0.30),
+      );
+    case 'child':
+      return NodeColorSet(
+        ring: KinrelColors.nodeChild,
+        background: KinrelColors.nodeChild.withValues(alpha: 0.06),
+        glow: KinrelColors.nodeChild.withValues(alpha: 0.30),
+      );
+    case 'grandparent':
+      return NodeColorSet(
+        ring: KinrelColors.nodeGrandparent,
+        background: KinrelColors.nodeGrandparent.withValues(alpha: 0.06),
+        glow: KinrelColors.nodeGrandparent.withValues(alpha: 0.30),
+      );
+    case 'aunt_uncle':
+      return NodeColorSet(
+        ring: KinrelColors.nodeAuntUncle,
+        background: KinrelColors.nodeAuntUncle.withValues(alpha: 0.06),
+        glow: KinrelColors.nodeAuntUncle.withValues(alpha: 0.30),
+      );
+    case 'cousin':
+      return NodeColorSet(
+        ring: KinrelColors.nodeCousin,
+        background: KinrelColors.nodeCousin.withValues(alpha: 0.06),
+        glow: KinrelColors.nodeCousin.withValues(alpha: 0.30),
+      );
+    case 'in_law':
+      return NodeColorSet(
+        ring: KinrelColors.nodeInLaw,
+        background: KinrelColors.nodeInLaw.withValues(alpha: 0.06),
+        glow: KinrelColors.nodeInLaw.withValues(alpha: 0.30),
+      );
+    default:
+      return NodeColorSet(
+        ring: KinrelColors.nodeExtended,
+        background: KinrelColors.nodeExtended.withValues(alpha: 0.06),
+        glow: KinrelColors.nodeExtended.withValues(alpha: 0.30),
+      );
+  }
+}
