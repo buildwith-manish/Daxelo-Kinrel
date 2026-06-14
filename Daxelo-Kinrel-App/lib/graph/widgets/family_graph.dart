@@ -570,6 +570,13 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
 
         final effectiveVisibleIds = _visibleNodeIds;
 
+        // ── Onboarding dismissal check ────────────────────────────
+        // Must be computed before the widget tree (not inside children list).
+        final dismissedAsync = ref.watch(onboardingDismissedProvider);
+        final isDismissed = dismissedAsync.valueOrNull
+                ?.contains(widget.familyId) ??
+            true; // Default TRUE (hidden) while loading
+
         return Stack(
           children: [
             // ── Camera Transform Layer ───────────────────────────────
@@ -671,12 +678,6 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
 
             // ── Onboarding Flow (conditional) ────────────────────────
             // Only show onboarding if not yet dismissed for this family.
-            // Default to isDismissed = true while loading to prevent
-            // onboarding flash during async SharedPreferences load.
-            final dismissedAsync = ref.watch(onboardingDismissedProvider);
-            final isDismissed = dismissedAsync.valueOrNull
-                    ?.contains(widget.familyId) ??
-                true; // Default TRUE (hidden) while loading
             if (!isDismissed)
               Positioned.fill(
                 child: OnboardingFlow(
