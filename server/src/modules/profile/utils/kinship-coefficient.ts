@@ -272,8 +272,25 @@ export function classifyRelationship(
 export function determineLineage(path?: RelationshipStep[]): 'paternal' | 'maternal' | 'neutral' {
   if (!path || path.length === 0) return 'neutral';
 
+  // If the path starts with a spouse step, all subsequent "up" steps
+  // are on the spouse's side, not the ego's — return neutral (in-law).
+  let hasPassedSpouseConnector = false;
+
   for (const step of path) {
+    if (step.direction === 'sideways') {
+      const key = step.relationshipType;
+      if (key === 'husband' || key === 'wife') {
+        hasPassedSpouseConnector = true;
+        continue; // Skip spouse connectors
+      }
+      break; // Don't look past the first non-spouse sideways step
+    }
     if (step.direction === 'up') {
+      // If we've crossed a spouse connector, this "up" step is on the
+      // spouse's side — it's an in-law relationship, not blood lineage
+      if (hasPassedSpouseConnector) {
+        return 'neutral';
+      }
       const key = step.relationshipType;
       if (key === 'father' || key === 'paternal_grandfather' || key === 'fathers_brother' || key === 'fathers_sister') {
         return 'paternal';
@@ -281,11 +298,6 @@ export function determineLineage(path?: RelationshipStep[]): 'paternal' | 'mater
       if (key === 'mother' || key === 'maternal_grandfather' || key === 'maternal_grandmother' || key === 'mothers_brother' || key === 'mothers_sister') {
         return 'maternal';
       }
-    }
-    if (step.direction === 'sideways') {
-      const key = step.relationshipType;
-      if (key === 'husband' || key === 'wife') continue; // Skip spouse connectors
-      break; // Don't look past the first non-spouse sideways step
     }
   }
 

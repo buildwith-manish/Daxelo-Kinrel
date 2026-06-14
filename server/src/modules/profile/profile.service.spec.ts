@@ -40,12 +40,158 @@ const mockKinshipService = {
   findByNativeTerm: jest.fn(),
 };
 
+// ── Shared Test Data ─────────────────────────────────────────────────
+
+const userId = 'user-1';
+const familyId = 'family-1';
+const personId = 'person-1';
+
+const mockPerson = {
+  id: personId,
+  familyId,
+  name: 'Rahul Sharma',
+  gender: 'male',
+  dateOfBirth: new Date('1990-01-01'),
+  city: 'Delhi',
+  gotra: 'Bharadwaj',
+  isDeceased: false,
+  deletedAt: null,
+  birthYear: 1990,
+  occupation: 'Engineer',
+  privacyLevel: 'family',
+  notes: 'Some notes',
+  sideOfFamily: 'paternal',
+  generationIndex: 2,
+  isAnchor: false,
+  photoUrl: 'https://example.com/photo.jpg',
+  photoThumb: 'https://example.com/thumb.jpg',
+  username: 'rahul_s',
+  bloodGroup: 'O+',
+  education: 'B.Tech',
+  biography: 'A software engineer',
+  email: 'rahul@example.com',
+  phone: '+91-9876543210',
+  address: '{"city":"Delhi"}',
+  anniversaryDate: null,
+};
+
+const mockPrivacy = {
+  id: 'privacy-1',
+  personId,
+  visibility: 'family',
+  searchable: true,
+  matrimonialEligible: true,
+  communityFeatures: true,
+  minorFlag: false,
+  photoConsent: true,
+  healthConsent: false,
+  gotraVisibility: 'family',
+  showPhone: false,
+  showEmail: false,
+  showAddress: false,
+  showDob: true,
+  showAge: true,
+  showOccupation: true,
+  showEducation: true,
+  showBloodGroup: false,
+  showAnniversary: false,
+  profileVisibleTo: 'family',
+};
+
+const mockComputedRelationships = [
+  {
+    personId: 'person-2',
+    personName: 'Suresh Sharma',
+    relationshipKey: 'father',
+    computedTerm: 'father',
+    computedTermHindi: 'पिता',
+    distance: 1,
+    path: [
+      { personId: 'person-2', personName: 'Suresh Sharma', relationshipType: 'father', direction: 'up' },
+    ],
+  },
+  {
+    personId: 'person-3',
+    personName: 'Anita Sharma',
+    relationshipKey: 'mother',
+    computedTerm: 'mother',
+    computedTermHindi: 'माता',
+    distance: 1,
+    path: [
+      { personId: 'person-3', personName: 'Anita Sharma', relationshipType: 'mother', direction: 'up' },
+    ],
+  },
+  {
+    personId: 'person-4',
+    personName: 'Priya Sharma',
+    relationshipKey: 'wife',
+    computedTerm: 'wife',
+    computedTermHindi: 'पत्नी',
+    distance: 1,
+    path: [
+      { personId: 'person-4', personName: 'Priya Sharma', relationshipType: 'wife', direction: 'sideways' },
+    ],
+  },
+];
+
+/**
+ * Helper to set up the "self viewer" mock chain.
+ * The service calls person.findFirst multiple times:
+ *   1st call: loadPerson(familyId, personId)
+ *   2nd call: own person lookup (by username)
+ * We use mockImplementation to handle both based on the where clause.
+ */
+function setupSelfViewerMocks() {
+  mockPrismaService.familyMember.findUnique.mockResolvedValue({
+    id: 'member-1', familyId, userId, role: 'admin',
+  });
+  mockPrismaService.user.findUnique.mockResolvedValue({
+    id: userId, username: 'rahul_s',
+  });
+  // person.findFirst is called twice: loadPerson + ownPerson lookup
+  // Use mockImplementation to differentiate by the where clause
+  mockPrismaService.person.findFirst.mockImplementation((args: any) => {
+    if (args?.where?.id === personId && args?.where?.familyId === familyId) {
+      return Promise.resolve(mockPerson); // loadPerson
+    }
+    if (args?.where?.username === 'rahul_s') {
+      return Promise.resolve({ id: personId }); // own person → matches target → self
+    }
+    return Promise.resolve(null);
+  });
+  mockPrismaService.personPrivacySetting.findUnique.mockResolvedValue(mockPrivacy);
+  mockPrismaService.dataAccessLog.create.mockResolvedValue({});
+  mockGraphEngineService.getAllRelationships.mockResolvedValue(mockComputedRelationships);
+  mockKinshipService.getByKey.mockReturnValue(null);
+}
+
+function setupMemberViewerMocks() {
+  mockPrismaService.familyMember.findUnique.mockResolvedValue({
+    id: 'member-2', familyId, userId: 'user-2', role: 'member',
+  });
+  mockPrismaService.user.findUnique.mockResolvedValue({
+    id: 'user-2', username: 'other_user',
+  });
+  mockPrismaService.person.findFirst.mockImplementation((args: any) => {
+    if (args?.where?.id === personId && args?.where?.familyId === familyId) {
+      return Promise.resolve(mockPerson); // loadPerson
+    }
+    if (args?.where?.username === 'other_user') {
+      return Promise.resolve({ id: 'different-person-id' }); // own person ≠ target → member
+    }
+    return Promise.resolve(null);
+  });
+  mockPrismaService.personPrivacySetting.findUnique.mockResolvedValue(mockPrivacy);
+  mockPrismaService.dataAccessLog.create.mockResolvedValue({});
+  mockGraphEngineService.getAllRelationships.mockResolvedValue(mockComputedRelationships);
+  mockKinshipService.getByKey.mockReturnValue(null);
+}
+
 describe('ProfileService', () => {
   let service: ProfileService;
 
   beforeEach(async () => {
     jest.clearAllMocks();
-
     service = new ProfileService(
       mockPrismaService as any,
       mockGraphEngineService as any,
@@ -62,124 +208,9 @@ describe('ProfileService', () => {
   // ══════════════════════════════════════════════════════════════════
 
   describe('getProfileWithKinship', () => {
-    const userId = 'user-1';
-    const familyId = 'family-1';
-    const personId = 'person-1';
-
-    const mockPerson = {
-      id: personId,
-      familyId,
-      name: 'Rahul Sharma',
-      gender: 'male',
-      dateOfBirth: new Date('1990-01-01'),
-      city: 'Delhi',
-      gotra: 'Bharadwaj',
-      isDeceased: false,
-      deletedAt: null,
-      birthYear: 1990,
-      occupation: 'Engineer',
-      privacyLevel: 'family',
-      notes: 'Some notes',
-      sideOfFamily: 'paternal',
-      generationIndex: 2,
-      isAnchor: false,
-      photoUrl: 'https://example.com/photo.jpg',
-      photoThumb: 'https://example.com/thumb.jpg',
-      username: 'rahul_s',
-      bloodGroup: 'O+',
-      education: 'B.Tech',
-      biography: 'A software engineer',
-      email: 'rahul@example.com',
-      phone: '+91-9876543210',
-      address: '{"city":"Delhi"}',
-      anniversaryDate: null,
-    };
-
-    const mockPrivacy = {
-      id: 'privacy-1',
-      personId,
-      visibility: 'family',
-      searchable: true,
-      matrimonialEligible: true,
-      communityFeatures: true,
-      minorFlag: false,
-      photoConsent: true,
-      healthConsent: false,
-      gotraVisibility: 'family',
-      showPhone: false,
-      showEmail: false,
-      showAddress: false,
-      showDob: true,
-      showAge: true,
-      showOccupation: true,
-      showEducation: true,
-      showBloodGroup: false,
-      showAnniversary: false,
-      profileVisibleTo: 'family',
-    };
-
-    const mockComputedRelationships = [
-      {
-        personId: 'person-2',
-        personName: 'Suresh Sharma',
-        relationshipKey: 'father',
-        computedTerm: 'father',
-        computedTermHindi: 'पिता',
-        distance: 1,
-        path: [
-          { personId: 'person-2', personName: 'Suresh Sharma', relationshipType: 'father', direction: 'up' },
-        ],
-      },
-      {
-        personId: 'person-3',
-        personName: 'Anita Sharma',
-        relationshipKey: 'mother',
-        computedTerm: 'mother',
-        computedTermHindi: 'माता',
-        distance: 1,
-        path: [
-          { personId: 'person-3', personName: 'Anita Sharma', relationshipType: 'mother', direction: 'up' },
-        ],
-      },
-      {
-        personId: 'person-4',
-        personName: 'Priya Sharma',
-        relationshipKey: 'wife',
-        computedTerm: 'wife',
-        computedTermHindi: 'पत्नी',
-        distance: 1,
-        path: [
-          { personId: 'person-4', personName: 'Priya Sharma', relationshipType: 'wife', direction: 'sideways' },
-        ],
-      },
-    ];
-
-    beforeEach(() => {
-      // Default: user is self (own person record in the family)
-      mockPrismaService.familyMember.findUnique.mockResolvedValue({
-        id: 'member-1',
-        familyId,
-        userId,
-        role: 'admin',
-      });
-
-      mockPrismaService.person.findFirst
-        .mockResolvedValueOnce(mockPerson) // loadPerson call
-        .mockResolvedValueOnce({ id: personId }); // own person lookup
-
-      mockPrismaService.user.findUnique.mockResolvedValue({
-        id: userId,
-        username: 'rahul_s',
-      });
-
-      mockPrismaService.personPrivacySetting.findUnique.mockResolvedValue(mockPrivacy);
-      mockPrismaService.dataAccessLog.create.mockResolvedValue({});
-
-      mockGraphEngineService.getAllRelationships.mockResolvedValue(mockComputedRelationships);
-      mockKinshipService.getByKey.mockReturnValue(null);
-    });
-
     it('should return profile with kinship information for self', async () => {
+      setupSelfViewerMocks();
+
       const result = await service.getProfileWithKinship(userId, familyId, personId);
 
       expect(result).toBeDefined();
@@ -192,6 +223,8 @@ describe('ProfileService', () => {
     });
 
     it('should include privacy settings for self or admin', async () => {
+      setupSelfViewerMocks();
+
       const result = await service.getProfileWithKinship(userId, familyId, personId);
 
       expect(result.privacy).toBeDefined();
@@ -200,20 +233,22 @@ describe('ProfileService', () => {
     });
 
     it('should compute kinship coefficients for relationships', async () => {
+      setupSelfViewerMocks();
+
       const result = await service.getProfileWithKinship(userId, familyId, personId);
 
-      // Father should have coefficient 0.5
       const fatherRel = result.kinshipGraph.find((r: any) => r.computedTerm === 'father');
       expect(fatherRel).toBeDefined();
       expect(fatherRel.kinshipCoefficient).toBe(0.5);
 
-      // Wife should have coefficient 0 (spouse)
       const wifeRel = result.kinshipGraph.find((r: any) => r.computedTerm === 'wife');
       expect(wifeRel).toBeDefined();
       expect(wifeRel.kinshipCoefficient).toBe(0);
     });
 
     it('should classify relationships as blood, marital, or affinal', async () => {
+      setupSelfViewerMocks();
+
       const result = await service.getProfileWithKinship(userId, familyId, personId);
 
       const fatherRel = result.kinshipGraph.find((r: any) => r.computedTerm === 'father');
@@ -224,6 +259,8 @@ describe('ProfileService', () => {
     });
 
     it('should compute kinship summary statistics', async () => {
+      setupSelfViewerMocks();
+
       const result = await service.getProfileWithKinship(userId, familyId, personId);
 
       expect(result.kinshipSummary.totalRelationships).toBe(3);
@@ -233,6 +270,8 @@ describe('ProfileService', () => {
     });
 
     it('should determine lineage for relationships', async () => {
+      setupSelfViewerMocks();
+
       const result = await service.getProfileWithKinship(userId, familyId, personId);
 
       const fatherRel = result.kinshipGraph.find((r: any) => r.computedTerm === 'father');
@@ -243,33 +282,22 @@ describe('ProfileService', () => {
     });
 
     it('should apply privacy filtering for non-self viewers', async () => {
-      // Simulate a different user viewing the profile
-      mockPrismaService.person.findFirst
-        .mockReset()
-        .mockResolvedValueOnce(mockPerson) // loadPerson call
-        .mockResolvedValueOnce({ id: 'different-person-id' }); // own person lookup — different person
-
-      mockPrismaService.familyMember.findUnique.mockResolvedValue({
-        id: 'member-2',
-        familyId,
-        userId: 'user-2',
-        role: 'member',
-      });
+      setupMemberViewerMocks();
 
       const result = await service.getProfileWithKinship('user-2', familyId, personId);
 
       // Non-self viewer should not see privacy settings
       expect(result.privacy).toBeNull();
-      // Non-self viewer should not see phone, email, etc. (based on privacy settings)
+      // Non-self viewer should not see phone, email based on privacy settings
       expect(result.person.phone).toBeNull();
       expect(result.person.email).toBeNull();
     });
 
     it('should throw NotFoundException for missing person', async () => {
-      mockPrismaService.person.findFirst
-        .mockReset()
-        .mockResolvedValueOnce(null) // loadPerson returns null
-        .mockResolvedValueOnce({ id: personId });
+      mockPrismaService.familyMember.findUnique.mockResolvedValue({
+        id: 'member-1', familyId, userId, role: 'admin',
+      });
+      mockPrismaService.person.findFirst.mockResolvedValue(null);
 
       await expect(
         service.getProfileWithKinship(userId, familyId, 'nonexistent'),
@@ -286,6 +314,7 @@ describe('ProfileService', () => {
     });
 
     it('should continue with empty kinship if graph computation fails', async () => {
+      setupSelfViewerMocks();
       mockGraphEngineService.getAllRelationships.mockRejectedValue(
         new Error('Graph computation failed'),
       );
@@ -298,6 +327,7 @@ describe('ProfileService', () => {
     });
 
     it('should include multilingual translations when requested', async () => {
+      setupSelfViewerMocks();
       mockKinshipService.getByKey.mockReturnValue({
         relationshipKey: 'father',
         englishTerm: 'Father',
@@ -326,6 +356,7 @@ describe('ProfileService', () => {
     });
 
     it('should create default privacy settings if none exist', async () => {
+      setupSelfViewerMocks();
       mockPrismaService.personPrivacySetting.findUnique.mockResolvedValue(null);
       mockPrismaService.personPrivacySetting.create.mockResolvedValue(mockPrivacy);
 
@@ -345,25 +376,15 @@ describe('ProfileService', () => {
   // ══════════════════════════════════════════════════════════════════
 
   describe('getKinshipGraph', () => {
-    const userId = 'user-1';
-    const familyId = 'family-1';
-    const personId = 'person-1';
-
     beforeEach(() => {
       mockPrismaService.familyMember.findUnique.mockResolvedValue({
-        id: 'member-1',
-        familyId,
-        userId,
-        role: 'admin',
+        id: 'member-1', familyId, userId, role: 'admin',
       });
-
-      mockPrismaService.person.findFirst.mockResolvedValue({
-        id: personId,
-        familyId,
-        name: 'Rahul',
-        gender: 'male',
+      mockPrismaService.person.findFirst.mockImplementation((args: any) => {
+        if (args?.where?.id === personId) return Promise.resolve({ id: personId, familyId, name: 'Rahul', gender: 'male' });
+        if (args?.where?.username) return Promise.resolve({ id: personId });
+        return Promise.resolve(null);
       });
-
       mockPrismaService.user.findUnique.mockResolvedValue({ id: userId, username: 'rahul_s' });
       mockPrismaService.dataAccessLog.create.mockResolvedValue({});
 
@@ -438,47 +459,33 @@ describe('ProfileService', () => {
   // ══════════════════════════════════════════════════════════════════
 
   describe('updatePrivacySettings', () => {
-    const userId = 'user-1';
-    const familyId = 'family-1';
-    const personId = 'person-1';
-
     beforeEach(() => {
       mockPrismaService.familyMember.findUnique.mockResolvedValue({
-        id: 'member-1',
-        familyId,
-        userId,
-        role: 'admin',
+        id: 'member-1', familyId, userId, role: 'admin',
       });
-
-      mockPrismaService.person.findFirst.mockResolvedValue({
-        id: personId,
-        familyId,
-        name: 'Rahul',
+      mockPrismaService.person.findFirst.mockImplementation((args: any) => {
+        if (args?.where?.id === personId) return Promise.resolve({ id: personId, familyId, name: 'Rahul' });
+        if (args?.where?.username) return Promise.resolve({ id: personId }); // self
+        return Promise.resolve(null);
       });
-
       mockPrismaService.user.findUnique.mockResolvedValue({ id: userId, username: 'rahul_s' });
-      mockPrismaService.person.findFirst
-        .mockResolvedValueOnce({ id: personId }) // loadPerson
-        .mockResolvedValueOnce({ id: personId }); // own person check
 
       mockPrismaService.personPrivacySetting.findUnique.mockResolvedValue({
-        id: 'privacy-1',
-        personId,
-        visibility: 'family',
-        searchable: true,
-        showPhone: false,
-        showEmail: false,
-        profileVisibleTo: 'family',
+        id: 'privacy-1', personId, visibility: 'family', searchable: true,
+        showPhone: false, showEmail: false, profileVisibleTo: 'family',
+        matrimonialEligible: true, communityFeatures: true, minorFlag: false,
+        photoConsent: true, healthConsent: false, gotraVisibility: 'family',
+        showAddress: false, showDob: true, showAge: true, showOccupation: true,
+        showEducation: true, showBloodGroup: false, showAnniversary: false,
       });
 
       mockPrismaService.personPrivacySetting.update.mockResolvedValue({
-        id: 'privacy-1',
-        personId,
-        visibility: 'extended',
-        searchable: true,
-        showPhone: true,
-        showEmail: true,
-        profileVisibleTo: 'extended',
+        id: 'privacy-1', personId, visibility: 'extended', searchable: true,
+        showPhone: true, showEmail: true, profileVisibleTo: 'extended',
+        matrimonialEligible: true, communityFeatures: true, minorFlag: false,
+        photoConsent: true, healthConsent: false, gotraVisibility: 'family',
+        showAddress: false, showDob: true, showAge: true, showOccupation: true,
+        showEducation: true, showBloodGroup: false, showAnniversary: false,
       });
 
       mockPrismaService.dataAccessLog.create.mockResolvedValue({});
@@ -506,16 +513,14 @@ describe('ProfileService', () => {
     });
 
     it('should throw ForbiddenException for non-admin non-self viewer', async () => {
-      mockPrismaService.person.findFirst
-        .mockReset()
-        .mockResolvedValueOnce({ id: personId })
-        .mockResolvedValueOnce({ id: 'different-person' }); // Not self
-
       mockPrismaService.familyMember.findUnique.mockResolvedValue({
-        id: 'member-2',
-        familyId,
-        userId: 'user-2',
-        role: 'member', // Not admin
+        id: 'member-2', familyId, userId: 'user-2', role: 'member',
+      });
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'user-2', username: 'other' });
+      mockPrismaService.person.findFirst.mockImplementation((args: any) => {
+        if (args?.where?.id === personId) return Promise.resolve({ id: personId, familyId, name: 'Rahul' });
+        if (args?.where?.username === 'other') return Promise.resolve({ id: 'different-person' });
+        return Promise.resolve(null);
       });
 
       await expect(
@@ -529,19 +534,15 @@ describe('ProfileService', () => {
   // ══════════════════════════════════════════════════════════════════
 
   describe('getKinshipSummary', () => {
-    const userId = 'user-1';
-    const familyId = 'family-1';
-    const personId = 'person-1';
-
     beforeEach(() => {
       mockPrismaService.familyMember.findUnique.mockResolvedValue({
-        id: 'member-1',
-        familyId,
-        userId,
-        role: 'admin',
+        id: 'member-1', familyId, userId, role: 'admin',
       });
-
-      mockPrismaService.person.findFirst.mockResolvedValue({ id: personId, familyId, name: 'Rahul' });
+      mockPrismaService.person.findFirst.mockImplementation((args: any) => {
+        if (args?.where?.id === personId) return Promise.resolve({ id: personId, familyId, name: 'Rahul' });
+        if (args?.where?.username) return Promise.resolve({ id: personId });
+        return Promise.resolve(null);
+      });
       mockPrismaService.user.findUnique.mockResolvedValue({ id: userId, username: 'rahul_s' });
       mockPrismaService.dataAccessLog.create.mockResolvedValue({});
 
