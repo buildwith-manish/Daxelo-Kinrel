@@ -183,7 +183,7 @@ describe('FamiliesService', () => {
             create: jest.fn().mockImplementation(({ data }) => {
               expect(data.primaryLanguage).toBe('hi'); // custom
               expect(data.privacyMode).toBe('private'); // default
-              expect(data.memberCount).toBe(1);
+              expect(data.memberCount).toBe(0); // starts at 0, incremented separately
               expect(data.createdBy).toBe(userId);
               return Promise.resolve(createdFamily);
             }),
