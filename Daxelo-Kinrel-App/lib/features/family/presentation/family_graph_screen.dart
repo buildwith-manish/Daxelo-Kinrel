@@ -73,6 +73,15 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         error: _buildErrorState,
         data: _buildDataState,
       ),
+      // BUG-3 FIX: Persistent FAB so "Add Member" is always accessible,
+      // regardless of onboarding state or member count.
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push('/family/${widget.familyId}/add-person'),
+        backgroundColor: KinrelColors.orange,
+        foregroundColor: KinrelColors.textWhite,
+        tooltip: 'Add Family Member',
+        child: const Icon(Icons.person_add_alt_1_rounded),
+      ),
     );
   }
 
@@ -263,27 +272,15 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       presentGenerations.add(p.generationIndex);
     }
 
-    // For 0-3 members, show the V2.1 EmptyState with onboarding
-    if (memberCount <= 3) {
-      return Stack(
-        children: [
-          EmptyState(
-            memberCount: memberCount,
-            familyId: widget.familyId,
-            onAddMember: () {
-              context.push('/family/${widget.familyId}/add-person');
-            },
-          ),
-          // Still show the graph for 2-3 members (semi-transparent)
-          if (memberCount >= 2)
-            Opacity(
-              opacity: 0.3,
-              child: FamilyGraphWidget(
-                familyId: widget.familyId,
-                familyName: widget.familyName ?? 'Family Tree',
-              ),
-            ),
-        ],
+    // For 0 members, show the V2.1 EmptyState with onboarding.
+    // For 1+ members, show the full graph — OnboardingFlow handles guidance.
+    if (memberCount == 0) {
+      return EmptyState(
+        memberCount: 0,
+        familyId: widget.familyId,
+        onAddMember: () {
+          context.push('/family/${widget.familyId}/add-person');
+        },
       );
     }
 
