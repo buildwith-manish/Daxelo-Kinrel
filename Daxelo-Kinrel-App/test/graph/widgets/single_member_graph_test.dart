@@ -14,9 +14,8 @@
 // graph and verify the widget renders correctly.
 //
 // IMPORTANT: analyticsTrackerProvider depends on AnalyticsService which
-// requires Firebase.initializeApp(). We cannot extend AnalyticsService
-// (private constructor), so we override analyticsTrackerProvider at the
-// Riverpod level to provide a completely independent no-op implementation.
+// requires Firebase.initializeApp(). We override it at the Riverpod level
+// with a Provider that returns a no-op AnalyticsTracker.
 
 import 'dart:async';
 
@@ -32,10 +31,26 @@ import 'package:kinrel/core/database/sync/connectivity_service.dart';
 import 'package:kinrel/core/services/analytics_service.dart';
 import 'package:kinrel/features/family/presentation/providers/family_graph_provider.dart';
 
+// ═══════════════════════════════════════════════════════════════════════════
+// NO-OP ANALYTICS TRACKER PROVIDER
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// A no-op AnalyticsTracker provider that avoids Firebase entirely.
+///
+/// The real analyticsTrackerProvider → analyticsServiceProvider →
+/// AnalyticsService.instance → FirebaseAnalytics.instance, which crashes
+/// in tests without Firebase.initializeApp(). This provider creates an
+/// AnalyticsTracker that wraps AnalyticsService.instance (required by
+/// the constructor) but overrides every method to do nothing, so the
+/// internal _analyticsService field is never accessed after construction.
+final _noOpAnalyticsTrackerProvider = Provider<AnalyticsTracker>((ref) {
+  return _NoOpAnalyticsTracker();
+});
+
 void main() {
   group('Single-member graph rendering regression (BUG-2)', () {
     /// Builds a single-person FlatGraphResult for testing.
-    FlatGraphResult _buildSinglePersonGraph() {
+    FlatGraphResult buildSinglePersonGraph() {
       return FlatGraphResult(
         persons: [
           <String, dynamic>{
@@ -54,11 +69,6 @@ void main() {
 
     /// Helper: builds the FamilyGraphWidget inside a ProviderScope with
     /// all necessary provider overrides for a single-member graph.
-    ///
-    /// Key overrides to prevent Firebase/connectivity crashes in CI:
-    ///   - analyticsTrackerProvider → no-op tracker (avoids Firebase init)
-    ///   - fallbackManagerProvider → default state (avoids real engine logic)
-    ///   - isOnlineProvider → always online (avoids connectivity service)
     Widget buildTestWidget({
       required FlatGraphResult graphData,
       List<Override> additionalOverrides = const [],
@@ -70,31 +80,20 @@ void main() {
             () => _FakeFamilyGraphNotifier(graphData),
           ),
 
-          // Override analyticsServiceProvider FIRST to prevent Firebase crash.
-          // The real AnalyticsService.instance accesses FirebaseAnalytics.instance
-          // which throws FirebaseException if Firebase.initializeApp() hasn't run.
-          // We return a new instance that won't call Firebase because we override
-          // analyticsTrackerProvider below to never use the service's Firebase field.
-          //
-          // Since AnalyticsService has a private constructor, we can't subclass it.
-          // Instead, we override both providers in the chain:
-          //   1. analyticsServiceProvider → returns the singleton (needed by type)
-          //   2. analyticsTrackerProvider → returns a no-op tracker that never
-          //      calls any AnalyticsService methods (so Firebase is never touched)
-          analyticsServiceProvider.overrideWith((ref) => AnalyticsService.instance),
-
-          // Override the tracker itself to use a no-op implementation.
-          // This is the critical override — it prevents the AnalyticsTracker
-          // from ever calling AnalyticsService.logEvent(), which would trigger
-          // FirebaseAnalytics and crash in tests.
+          // Override analyticsTrackerProvider to avoid Firebase initialization.
+          // Uses a no-op tracker that discards all events silently.
           analyticsTrackerProvider
-              .overrideWithValue(_NoOpAnalyticsTracker()),
+              .overrideWith((ref) => ref.watch(_noOpAnalyticsTrackerProvider)),
+
+          // Override analyticsServiceProvider to prevent the real singleton
+          // from being accessed (it triggers FirebaseAnalytics.instance).
+          analyticsServiceProvider
+              .overrideWith((ref) => AnalyticsService.instance),
 
           // Provide a default FallbackManager state so currentEngineTierProvider
           // doesn't try to access real engine resources.
-          fallbackManagerProvider.overrideWith(
-            () => _NoOpFallbackManager(),
-          ),
+          fallbackManagerProvider
+              .overrideWith((ref) => FallbackManager()),
 
           // Always online in tests — avoids connectivity service dependency.
           isOnlineProvider.overrideWith(
@@ -117,14 +116,12 @@ void main() {
     testWidgets(
       'BUG-2: FamilyGraphWidget renders without blank screen for single member',
       (tester) async {
-        final graphData = _buildSinglePersonGraph();
+        final graphData = buildSinglePersonGraph();
 
         await tester.pumpWidget(buildTestWidget(graphData: graphData));
         await tester.pumpAndSettle();
 
         // The widget should NOT show a completely blank screen.
-        // Verify that at least some content is rendered (not just empty space).
-        // The FamilyGraphWidget builds a Stack with nodes when persons exist.
         final stackFinder = find.byType(Stack);
         expect(stackFinder, findsWidgets, reason: 'Graph should render a Stack layout');
 
@@ -145,21 +142,17 @@ void main() {
     testWidgets(
       'BUG-2: GraphNode with name "Kishan" is present in the widget tree',
       (tester) async {
-        final graphData = _buildSinglePersonGraph();
+        final graphData = buildSinglePersonGraph();
 
         await tester.pumpWidget(buildTestWidget(graphData: graphData));
         await tester.pumpAndSettle();
 
-        // A GraphNode should be rendered for our single person
-        // Note: The name 'Kishan' appears inside the GraphNode widget
-        // which renders the person's name as text.
         expect(
           find.byType(GraphNode),
           findsWidgets,
           reason: 'At least one GraphNode must be rendered for a single-member graph',
         );
 
-        // The name "Kishan" should appear somewhere in the tree
         expect(
           find.text('Kishan'),
           findsWidgets,
@@ -171,21 +164,17 @@ void main() {
     testWidgets(
       'BUG-2: No EmptyState (memberCount: 0 variant) is displayed',
       (tester) async {
-        final graphData = _buildSinglePersonGraph();
+        final graphData = buildSinglePersonGraph();
 
         await tester.pumpWidget(buildTestWidget(graphData: graphData));
         await tester.pumpAndSettle();
 
-        // The EmptyState widget should NOT be displayed when we have 1 member.
-        // In the fixed code, EmptyState only appears for persons.isEmpty (0 members).
-        // For 1+ members, the graph with GraphNode widgets is rendered instead.
         expect(
           find.text('Add Yourself'),
           findsNothing,
           reason: '0-member EmptyState "Add Yourself" must not appear for single-member graph',
         );
 
-        // Also verify the "Start your family tree." text is not present
         expect(
           find.text('Start your family tree.'),
           findsNothing,
@@ -197,11 +186,6 @@ void main() {
     testWidgets(
       'BUG-2: Viewport culling fallback — empty visible set shows all nodes',
       (tester) async {
-        // This verifies the core fix pattern:
-        //   final effectiveVisibleIds = _visibleNodeIds.isEmpty
-        //       ? _personMap.keys.toSet()
-        //       : _visibleNodeIds;
-
         final Set<String> visibleNodeIds = {};
         final Map<String, dynamic> personMap = {
           'p1': {'name': 'Kishan', 'id': 'p1'},
@@ -212,11 +196,9 @@ void main() {
             ? personMap.keys.toSet()
             : visibleNodeIds;
 
-        // When _visibleNodeIds is empty, fallback should include all persons
         expect(effectiveVisibleIds, isNotEmpty);
         expect(effectiveVisibleIds, contains('p1'));
 
-        // When _visibleNodeIds has content, it should be used directly
         final Set<String> populatedVisible = {'p1'};
         final effectivePopulated = populatedVisible.isEmpty
             ? personMap.keys.toSet()
@@ -251,60 +233,47 @@ class _FakeFamilyGraphNotifier extends FamilyGraphNotifier {
 
 /// A no-op [AnalyticsTracker] that silently discards all analytics events.
 ///
-/// The real AnalyticsTracker depends on AnalyticsService → FirebaseAnalytics,
-/// which requires Firebase.initializeApp(). In test environments, Firebase
-/// is not available, causing:
-///   FirebaseException: [core/no-app] No Firebase App '[DEFAULT]' has been created
-///
-/// This class overrides all tracking methods to do nothing, breaking the
-/// Firebase dependency chain entirely. It's used via Riverpod's
-/// overrideWithValue in the test's ProviderScope.
+/// Extends the real AnalyticsTracker and overrides every track method to
+/// do nothing, breaking the Firebase dependency chain. The super constructor
+/// requires an AnalyticsService, but since all methods are overridden to
+/// no-ops, the service's Firebase fields are never accessed after
+/// construction.
 class _NoOpAnalyticsTracker extends AnalyticsTracker {
-  /// Creates a no-op tracker. We pass a dummy AnalyticsService that is
-  /// never actually called (all methods are overridden below), so it
-  /// doesn't matter that we can't construct a real one.
-  ///
-  /// We use AnalyticsService.instance here because the constructor
-  /// AnalyticsTracker(AnalyticsService) requires it, but since every
-  /// method override discards the call, the _analyticsService field
-  /// inside AnalyticsTracker is never accessed after construction.
   _NoOpAnalyticsTracker() : super(AnalyticsService.instance);
 
   @override
-  void trackNodeClick(String memberId, String relationship, int generation) {}
+  void trackNodeClick(String memberId, String relationshipType, int disclosureLevel) {}
+
   @override
-  void trackBranchExpand(String memberId, int newVisibleCount) {}
+  void trackBranchExpand(String memberId, String branchType, int nodesRevealed, int loadTimeMs) {}
+
   @override
-  void trackSearchQuery(String query, int resultCount) {}
+  void trackSearchQuery(int queryLength, int resultCount, int responseTimeMs) {}
+
   @override
-  void trackFilterApplied(String filterType, int visibleCount) {}
+  void trackFilterApplied(String filterType, int nodesBefore, int nodesAfter) {}
+
   @override
-  void trackCameraFocus(String memberId, int durationMs) {}
+  void trackCameraFocus(String targetMemberId, int animationDurationMs) {}
+
   @override
-  void trackGraphOpenTime(int durationMs, int nodeCount, bool success) {}
+  void trackGraphOpenTime(int totalMs, int nodeCount, bool cacheHit) {}
+
   @override
-  void trackSimulationFps(int fps, int nodeCount) {}
+  void trackSimulationFps(double fps, int nodeCount, double alphaValue) {}
+
   @override
-  void trackMemoryUsage(int mb, int nodeCount) {}
+  void trackMemoryUsage(double totalMb, double graphMb, double cacheMb) {}
+
   @override
-  void trackGraphCrash(String errorType, StackTrace stackTrace, int nodeCount) {}
+  void trackGraphCrash(String exceptionType, String stackTrace, int nodeCount) {}
+
   @override
-  void trackEngineFallback(String fromEngine, String toEngine, int nodeCount) {}
+  void trackEngineFallback(String fromTier, String toTier, int nodeCount, String reason) {}
+
   @override
   void trackOnboardingStepCompleted(int stepNumber) {}
+
   @override
   void dispose() {}
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// NO-OP FALLBACK MANAGER: Provides default engine state for tests
-// ═══════════════════════════════════════════════════════════════════════════
-
-/// A no-op [FallbackManager] that returns a default [FallbackState]
-/// without initializing timers, performance monitors, or analytics.
-class _NoOpFallbackManager extends FallbackManager {
-  _NoOpFallbackManager() : super();
-
-  @override
-  FallbackState build() => const FallbackState();
 }
