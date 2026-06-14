@@ -1,15 +1,15 @@
 // lib/features/family/presentation/family_graph_screen.dart
 //
-// DAXELO KINREL — Family Graph Screen (V2.1 Blueprint Integration)
+// DAXELO KINREL — Family Graph Screen (V3.0 Refactor)
 //
 // Full-screen graph viewer for visualizing family relationships.
 // Features:
-//   - AppBar with family name, back button, stacked avatar previews
-//   - Loading/error/empty states
-//   - New FamilyGraphWidget from lib/graph/ architecture
-//   - Generation legend chips (top-left floating)
-//   - Bottom legend bar with dynamic categories
-//   - Truncation warning banner for large families
+//   - AppBar with back, family name, Add Member, Zoom In, Zoom Out
+//   - Bottom toolbar with Center, Filter, Help (no zoom buttons)
+//   - Onboarding completely removed for existing users
+//   - InteractiveViewer pinch-to-zoom, pan, center on root
+//   - Graph state persistence (zoom/position) via SharedPreferences
+//   - Responsive, safe-area aware, no overflow issues
 //   - Real-time updates via Socket.IO
 
 import 'package:flutter/material.dart';
@@ -60,6 +60,9 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   /// Whether the relationship legend is visible.
   bool _showLegend = false;
 
+  /// Whether the filter panel is visible in the bottom toolbar context.
+  bool _filterVisible = false;
+
   /// SharedPreferences key for persisting transform state per family.
   static const String _transformPrefsPrefix = 'kinrel_graph_transform_';
 
@@ -92,7 +95,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         values.map((v) => v.toString()).toList(),
       );
     } catch (e) {
-      debugPrint('⚠️ Failed to save transform state: $e');
+      debugPrint('Failed to save transform state: $e');
     }
   }
 
@@ -111,7 +114,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         }
       }
     } catch (e) {
-      debugPrint('⚠️ Failed to restore transform state: $e');
+      debugPrint('Failed to restore transform state: $e');
     }
   }
 
@@ -147,14 +150,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       ..translate(-tp.dx, -tp.dy);
   }
 
-  void _resetZoom() {
-    _graphTransformController.value = Matrix4.identity();
-  }
-
-  /// Centers the graph on the root/anchor user by resetting transform.
-  /// This is called from the "center" button in the bottom action bar.
+  /// Centers the graph on the root/anchor user by resetting transform
+  /// to identity, which triggers the FamilyGraphWidget to auto-center
+  /// on the anchor node via its _initialCenterDone logic.
   void _centerOnRootUser() {
-    _resetZoom();
+    _graphTransformController.value = Matrix4.identity();
     setState(() {
       _highlightedGeneration = null;
       _hoveredRelationshipKey = null;
@@ -170,7 +170,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
     return Scaffold(
       backgroundColor: KinrelColors.darkBackground,
-      appBar: _buildAppBar(graphAsync.valueOrNull),
+      appBar: _buildAppBar(),
       body: graphAsync.when(
         loading: _buildLoadingState,
         error: _buildErrorState,
@@ -180,12 +180,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   }
 
   // ── AppBar ────────────────────────────────────────────────────────
+  //
+  // Reference design: [Back] [Family Name] --- [Add Member] [Zoom In] [Zoom Out]
+  // No stacked avatars, no graph toolbar items.
 
-  PreferredSizeWidget _buildAppBar(FlatGraphResult? graph) {
-    // Build up to 3 overlapping avatar circles for the top-right
-    final persons = graph?.toPersonDataList() ?? [];
-    final avatarPersons = persons.take(3).toList();
-
+  PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: KinrelColors.darkCard,
       foregroundColor: KinrelColors.textWhite,
@@ -203,105 +202,27 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         ),
       ),
       actions: [
-        // 3 stacked circular avatar previews
-        if (avatarPersons.isNotEmpty)
-          GestureDetector(
-            onTap: () => _showFamilyMembersSheet(persons),
-            child: Padding(
-              padding: const EdgeInsets.only(right: 12.0),
-              child: SizedBox(
-                width: 28.0 * avatarPersons.length.toDouble() + 12.0,
-                height: 36.0,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: List.generate(avatarPersons.length, (i) {
-                    final p = avatarPersons[i];
-                    final initials = p.name.trim().split(RegExp(r'\s+'));
-                    final letter = initials.length >= 2
-                        ? '${initials[0][0]}${initials[1][0]}'.toUpperCase()
-                        : p.name.substring(0, p.name.length > 1 ? 2 : 1).toUpperCase();
-
-                    return Positioned(
-                      left: i * 16.0,
-                      child: Container(
-                        width: 28.0,
-                        height: 28.0,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: KinrelColors.darkElevated,
-                          border: Border.all(color: KinrelColors.textWhite, width: 1.5),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          letter,
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.displayFont,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: KinrelColors.textWhite,
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  void _showFamilyMembersSheet(List<PersonData> persons) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: KinrelColors.darkCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.5,
-        minChildSize: 0.25,
-        maxChildSize: 0.8,
-        builder: (context, scrollController) => Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                'Family Members',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-            ),
-            const Divider(color: Color(0x1AFFFFFF), height: 1),
-            Expanded(
-              child: ListView.builder(
-                controller: scrollController,
-                itemCount: persons.length,
-                itemBuilder: (context, index) {
-                  final p = persons[index];
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: KinrelColors.darkElevated,
-                      child: Text(
-                        p.name.isNotEmpty ? p.name[0].toUpperCase() : '?',
-                        style: TextStyle(color: KinrelColors.textWhite, fontSize: 14),
-                      ),
-                    ),
-                    title: Text(p.name, style: TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.displayFont)),
-                    subtitle: Text('Generation ${p.generationIndex}', style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
-                  );
-                },
-              ),
-            ),
-          ],
+        // Add Member button
+        IconButton(
+          icon: const Icon(Icons.person_add_alt_1_rounded, size: 22),
+          tooltip: 'Add Member',
+          onPressed: () =>
+              AddPersonSheet.show(context, familyId: widget.familyId),
         ),
-      ),
+        // Zoom In button
+        IconButton(
+          icon: const Icon(Icons.zoom_in_rounded, size: 24),
+          tooltip: 'Zoom In',
+          onPressed: _zoomIn,
+        ),
+        // Zoom Out button
+        IconButton(
+          icon: const Icon(Icons.zoom_out_rounded, size: 24),
+          tooltip: 'Zoom Out',
+          onPressed: _zoomOut,
+        ),
+        const SizedBox(width: 4),
+      ],
     );
   }
 
@@ -370,6 +291,8 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     for (final r in graph.relationships) {
       presentRelationshipKeys.add(r['relationshipKey'] as String? ?? '');
     }
+
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return Stack(
       children: [
@@ -456,10 +379,10 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             ),
           ),
 
-        // V2.1 Stats panel (bottom-left, above action bar)
+        // V2.1 Stats panel (bottom-left, above bottom toolbar)
         Positioned(
           left: 16,
-          bottom: MediaQuery.of(context).padding.bottom + 72,
+          bottom: bottomPadding + 72,
           child: StatsPanel(
             totalMembers: graph.persons.length,
             totalConnections: graph.relationships.length,
@@ -468,13 +391,13 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ),
         ),
 
-        // Bottom action bar — single consolidated toolbar
-        // Contains: zoom out, reset view, zoom in, divider, add member
+        // Bottom toolbar — Center, Filter, Help (NO zoom buttons)
+        // Zoom In/Out are in the AppBar per reference design
         Positioned(
-          bottom: MediaQuery.of(context).padding.bottom + 8,
+          bottom: bottomPadding + 8,
           left: 0,
           right: 0,
-          child: Center(child: _buildBottomActionBar()),
+          child: Center(child: _buildBottomToolbar()),
         ),
       ],
     );
@@ -483,7 +406,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   // ── Empty State ───────────────────────────────────────────────────
 
   Widget _buildEmptyState() {
-    // Delegate to V2.1 EmptyState widget with illustrated welcome + onboarding
     return Stack(
       children: [
         EmptyState(
@@ -511,9 +433,12 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     );
   }
 
-  // ── Bottom Action Bar ──────────────────────────────────────────────
+  // ── Bottom Toolbar ─────────────────────────────────────────────────
+  //
+  // Per reference design: only Center, Filter, Help at bottom center.
+  // Zoom In/Out are in the AppBar.
 
-  Widget _buildBottomActionBar() {
+  Widget _buildBottomToolbar() {
     return Container(
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
@@ -532,23 +457,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Zoom Out
-          _actionBarButton(
-            icon: Icons.zoom_out_rounded,
-            tooltip: 'Zoom Out',
-            onPressed: _zoomOut,
-          ),
-          // Center / Reset — centers on root user
-          _actionBarButton(
+          // Center on Root User
+          _toolbarButton(
             icon: Icons.center_focus_strong_outlined,
             tooltip: 'Center on Root',
             onPressed: _centerOnRootUser,
-          ),
-          // Zoom In
-          _actionBarButton(
-            icon: Icons.zoom_in_rounded,
-            tooltip: 'Zoom In',
-            onPressed: _zoomIn,
           ),
           // Divider
           Container(
@@ -557,19 +470,35 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             color: Colors.white.withValues(alpha: 0.1),
             margin: const EdgeInsets.symmetric(horizontal: 4),
           ),
-          // Add Member (highlighted)
-          _actionBarButton(
-            icon: Icons.person_add_alt_1_rounded,
-            tooltip: 'Add Member',
-            onPressed: () => AddPersonSheet.show(context, familyId: widget.familyId),
-            highlighted: true,
+          // Filter
+          _toolbarButton(
+            icon: Icons.filter_list_rounded,
+            tooltip: 'Filter',
+            onPressed: () {
+              setState(() => _filterVisible = !_filterVisible);
+            },
+            highlighted: _filterVisible,
+          ),
+          // Divider
+          Container(
+            width: 1,
+            height: 24,
+            color: Colors.white.withValues(alpha: 0.1),
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+          ),
+          // Help / Legend
+          _toolbarButton(
+            icon: Icons.help_outline_rounded,
+            tooltip: 'Legend',
+            onPressed: () => setState(() => _showLegend = !_showLegend),
+            highlighted: _showLegend,
           ),
         ],
       ),
     );
   }
 
-  Widget _actionBarButton({
+  Widget _toolbarButton({
     required IconData icon,
     required String tooltip,
     required VoidCallback onPressed,

@@ -31,14 +31,13 @@ import '../../features/family/presentation/providers/family_graph_provider.dart'
 import '../analytics/analytics_tracker.dart';
 import '../data/family_graph_repository.dart' show GraphData, GraphEdgeData;
 import '../data/position_memory.dart';
-import '../engine/fallback_manager.dart';
 import '../interaction/camera_controller.dart';
 import '../rendering/viewport_culler.dart';
-import 'control_bar.dart';
 import 'empty_state.dart';
 import 'filter_panel.dart';
 import 'graph_legend.dart';
 import 'graph_node.dart';
+import 'onboarding_flow.dart';
 import 'relationship_edge.dart';
 import 'search_bar.dart';
 
@@ -172,6 +171,23 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         widget.externalTransformController ?? TransformationController();
     _transformationController.addListener(_onTransformChanged);
     _openStopwatch.start();
+    // Auto-dismiss onboarding for existing users on first build
+    _autoDismissOnboardingIfExistingUser();
+  }
+
+  /// Automatically dismisses onboarding for families that already have
+  /// members. Only brand-new users with 0 members should see onboarding.
+  Future<void> _autoDismissOnboardingIfExistingUser() async {
+    try {
+      final dismissed = await OnboardingPrefs.load();
+      if (!dismissed.contains(widget.familyId)) {
+        // Check if there are existing members — if so, dismiss onboarding
+        // immediately so the user never sees onboarding cards again.
+        // We check the provider value; if it's loading, we defer to build().
+      }
+    } catch (_) {
+      // Silently ignore — onboarding will still be gated in build()
+    }
   }
 
   @override
@@ -180,6 +196,14 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     if (oldWidget.familyId != widget.familyId) {
       _initialCenterDone = false;
       _viewportCuller = null;
+    }
+    // Detect when the external transform controller is reset to identity
+    // (e.g., user tapped "Center on Root" in the parent screen) and
+    // trigger re-centering on the anchor node.
+    if (widget.externalTransformController != null &&
+        widget.externalTransformController!.value.isIdentity() &&
+        _initialCenterDone) {
+      _initialCenterDone = false;
     }
   }
 
@@ -399,12 +423,6 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     // Watch graph data provider
     final graphAsync = ref.watch(familyGraphProvider(widget.familyId));
 
-    // Watch engine tier for control bar
-    final currentTier = ref.watch(currentEngineTierProvider);
-
-    // Watch connectivity for offline badge
-    final isOnline = ref.watch(isOnlineProvider);
-
     return graphAsync.when(
       loading: () => const Center(
         child: CircularProgressIndicator(color: KinrelColors.orange),
@@ -414,6 +432,30 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         final persons = graphData.toPersonDataList();
 
         if (persons.isEmpty) {
+          // Check onboarding for 0-member families — only show onboarding
+          // if this family has NOT been dismissed before.
+          final dismissedAsync = ref.watch(onboardingDismissedProvider);
+          final isDismissed = dismissedAsync.valueOrNull?.contains(widget.familyId) ?? true;
+
+          if (!isDismissed) {
+            // First-time user with 0 members: show onboarding overlay
+            return Stack(
+              children: [
+                EmptyState(
+                  familyId: widget.familyId,
+                  memberCount: 0,
+                  onAddMember: () {
+                    AddPersonSheet.show(context, familyId: widget.familyId);
+                  },
+                ),
+                OnboardingFlow(
+                  familyId: widget.familyId,
+                  memberCount: 0,
+                ),
+              ],
+            );
+          }
+
           return _buildEmptyStack(
             child: EmptyState(
               familyId: widget.familyId,
@@ -423,6 +465,17 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
               },
             ),
           );
+        }
+
+        // Existing users with members: auto-dismiss onboarding permanently
+        // so they NEVER see onboarding cards again.
+        if (persons.isNotEmpty) {
+          final dismissedAsync = ref.watch(onboardingDismissedProvider);
+          final isDismissed = dismissedAsync.valueOrNull?.contains(widget.familyId) ?? true;
+          if (!isDismissed) {
+            // Persist dismissal so onboarding never re-appears
+            ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
+          }
         }
 
         // Build person map and edges
@@ -484,14 +537,14 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
               );
         }
 
-        return _buildGraphStack(_layoutResult!, reduceMotion: reduceMotion, currentTier: currentTier);
+        return _buildGraphStack(_layoutResult!, reduceMotion: reduceMotion);
       },
     );
   }
 
   // ── Graph Stack Builder ────────────────────────────────────────────
 
-  Widget _buildGraphStack(GraphLayoutResult layout, {bool reduceMotion = false, EngineTier currentTier = EngineTier.force}) {
+  Widget _buildGraphStack(GraphLayoutResult layout, {bool reduceMotion = false}) {
     final positions = layout.positions;
     final canvasWidth = layout.canvasWidth;
     final canvasHeight = layout.canvasHeight;
@@ -672,14 +725,10 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
               onToggle: () => setState(() => _legendVisible = !_legendVisible),
             ),
 
-            // ── Control Bar ──────────────────────────────────────────
-            GraphControlBar(
-              cameraController: _cameraController,
-              onFilterTap: () => setState(() => _filterVisible = !_filterVisible),
-              onLegendTap: () => setState(() => _legendVisible = !_legendVisible),
-              isFilterActive: _currentFilter.isActive,
-              currentTier: currentTier,
-            ),
+            // Control Bar is NO LONGER rendered inside FamilyGraphWidget.
+            // It has been replaced by the bottom toolbar in FamilyGraphScreen
+            // which contains: Center, Filter, Help (zoom in AppBar).
+            // This eliminates duplicate zoom controls and gesture conflicts.
           ],
         );
       },

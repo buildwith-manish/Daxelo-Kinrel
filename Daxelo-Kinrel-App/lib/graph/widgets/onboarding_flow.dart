@@ -228,13 +228,15 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
   // ── Step Resolution ────────────────────────────────────────────────
 
   /// Resolves the onboarding step from the current member count.
-  /// Only Step 1 (createProfile) is shown for brand new users.
-  /// Steps 2 and 3 are removed — existing users should never see
-  /// onboarding cards. Once a user has any members, skip to completed.
+  /// Onboarding is ONLY shown for brand-new users with 0 members
+  /// who have never dismissed onboarding for this family.
+  /// Any existing user (memberCount >= 1) immediately completes onboarding.
+  /// This is a safety net — the parent widget also gates onboarding.
   OnboardingStep _resolveStep(int memberCount) {
-    if (memberCount == 0) return OnboardingStep.createProfile;
-    // Any members = immediately completed, no overlays.
-    return OnboardingStep.completed;
+    // Any members at all = immediately completed, never show onboarding.
+    if (memberCount >= 1) return OnboardingStep.completed;
+    // 0 members: show createProfile step for brand new users only.
+    return OnboardingStep.createProfile;
   }
 
   /// Returns the step number (1-3) for display.
@@ -371,10 +373,9 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
       return const SizedBox.shrink();
     }
 
-    // If member count is 1+, no onboarding overlay needed
-    // (only Step 1 — createProfile — is shown, and only for 0 members)
-    if (widget.memberCount >= 1 && _currentStep != OnboardingStep.completed) {
-      // Auto-dismiss and mark permanently so it never reappears
+    // EXISTING USERS: If member count is 1+, NEVER show onboarding overlay.
+    // Auto-dismiss and mark permanently so it never reappears.
+    if (widget.memberCount >= 1) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
@@ -389,7 +390,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
       return _buildCelebrationOverlay();
     }
 
-    // Onboarding step overlay
+    // Onboarding step overlay — only for 0-member brand new users
     return _buildStepOverlay();
   }
 
