@@ -68,7 +68,6 @@ import 'search_bar.dart';
 ///   RepaintBoundary(SearchBar)
 ///   RepaintBoundary(ControlBar)
 ///   EmptyState (conditional)
-///   OnboardingFlow (conditional)
 /// )
 /// ```
 class FamilyGraphWidget extends ConsumerStatefulWidget {
@@ -623,7 +622,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             // ── Search Bar ───────────────────────────────────────────
             if (_searchBarVisible)
               Positioned(
-                top: 16.0,
+                top: MediaQuery.of(context).padding.top + 8.0,
                 left: 16.0,
                 right: 16.0,
                 child: RepaintBoundary(
@@ -952,8 +951,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   // ── Empty Stack Wrapper ────────────────────────────────────────────
 
   Widget _buildEmptyStack({required Widget child}) {
-    // EmptyState handles the zero-member UI; OnboardingFlow is only
-    // rendered inside _buildGraphStack to avoid blocking gestures here.
+    // EmptyState handles the zero-member UI.
     return Stack(
       children: [
         child,
