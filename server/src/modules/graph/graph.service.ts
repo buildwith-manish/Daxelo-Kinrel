@@ -166,8 +166,8 @@ export class GraphService {
 
     if (!resolvedSelfId) {
       return {
-        persons: persons.map(p => ({ ...p, computedKinship: null, kinshipCategory: null, isSelf: false })),
-        relationships: relationships.map(r => ({ ...r, displayLabel: this.formatKey(r.relationshipKey) })),
+        persons: persons.map(p => ({ ...p, computedKinship: null, kinshipCategory: null, isSelf: false })) as EnrichedGraphResult['persons'],
+        relationships: relationships.map(r => ({ ...r, displayLabel: this.formatKey(r.relationshipKey) })) as EnrichedGraphResult['relationships'],
         selfPersonId: null,
       };
     }
@@ -217,7 +217,7 @@ export class GraphService {
         kinshipCategory: 'extended',
         isSelf: false,
       };
-    });
+    }) as EnrichedGraphResult['persons'];
 
     // Enrich relationships with display labels (ENGLISH ONLY)
     const enrichedRelationships = relationships.map((rel) => {
@@ -230,7 +230,7 @@ export class GraphService {
         ...rel,
         displayLabel,
       };
-    });
+    }) as EnrichedGraphResult['relationships'];
 
     return {
       persons: enrichedPersons,
@@ -1038,21 +1038,26 @@ export class GraphService {
 
   /** Find the "self" person for the current user in this family. */
   private async findSelfPersonId(userId: string, familyId: string): Promise<string | null> {
-    const membership = await this.prisma.familyMember.findUnique({
-      where: { familyId_userId: { familyId, userId } },
-      select: { personId: true },
-    });
-
-    if (membership?.personId) {
-      return membership.personId;
-    }
-
-    const person = await this.prisma.person.findFirst({
-      where: { familyId, userId, deletedAt: null },
+    // Strategy: find the anchor person in the family, since that's the
+    // primary person from whose perspective kinship is computed.
+    // FamilyMember doesn't have a personId column, and Person doesn't
+    // have a userId column, so we use the anchor as the "self" proxy.
+    const anchor = await this.prisma.person.findFirst({
+      where: { familyId, isAnchor: true, deletedAt: null },
       select: { id: true },
     });
 
-    return person?.id ?? null;
+    if (anchor) {
+      return anchor.id;
+    }
+
+    // Fallback: return the first person in the family
+    const firstPerson = await this.prisma.person.findFirst({
+      where: { familyId, deletedAt: null },
+      select: { id: true },
+    });
+
+    return firstPerson?.id ?? null;
   }
 
   /** Find the anchor person ID for the family. */
