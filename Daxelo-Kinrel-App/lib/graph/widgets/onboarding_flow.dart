@@ -24,6 +24,16 @@ import '../analytics/analytics_tracker.dart';
 import 'graph_node.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
+// ONBOARDING DISMISSED PROVIDER
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Tracks which familyIds have had onboarding dismissed.
+/// Once a user completes or skips onboarding for a family, it will not
+/// re-appear on subsequent visits.
+final onboardingDismissedProvider =
+    StateProvider<Set<String>>((ref) => <String>{});
+
+// ═══════════════════════════════════════════════════════════════════════
 // ONBOARDING STEP ENUM
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -93,6 +103,9 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
 
   /// Whether the celebration animation is playing.
   bool _showCelebration = false;
+
+  /// Whether the user has permanently dismissed onboarding for this family.
+  bool _permanentlyDismissed = false;
 
   // ── Animation Controllers ───────────────────────────────────────────
 
@@ -215,12 +228,17 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
       _celebrationController.forward();
       _trackStepCompleted(4);
 
-      // Auto-dismiss celebration after 2 seconds
+      // Auto-dismiss celebration after 2 seconds and mark permanently dismissed
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) {
           setState(() {
             _showCelebration = false;
+            _permanentlyDismissed = true;
           });
+          // Persist dismissal so onboarding never re-appears for this family
+          ref.read(onboardingDismissedProvider.notifier).update(
+                (set) => {...set, widget.familyId},
+              );
         }
       });
       return;
@@ -240,6 +258,13 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
     if (!_canSkip) return;
 
     _trackStepCompleted(_stepNumber(_currentStep));
+
+    // Mark permanently dismissed so onboarding never re-appears
+    setState(() => _permanentlyDismissed = true);
+    ref.read(onboardingDismissedProvider.notifier).update(
+          (set) => {...set, widget.familyId},
+        );
+
     _animateToStep(OnboardingStep.explore);
   }
 
@@ -254,6 +279,15 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
       OnboardingStep.completed => OnboardingStep.completed,
     };
 
+    // When on the "explore" step, the user has tapped "Got it!" —
+    // mark as permanently dismissed before transitioning to completed
+    if (_currentStep == OnboardingStep.explore) {
+      setState(() => _permanentlyDismissed = true);
+      ref.read(onboardingDismissedProvider.notifier).update(
+            (set) => {...set, widget.familyId},
+          );
+    }
+
     _animateToStep(nextStep);
   }
 
@@ -264,8 +298,18 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
 
   // ── Build ──────────────────────────────────────────────────────────
 
+  /// Whether onboarding has been dismissed for this family via the provider.
+  bool get _isDismissedForFamily {
+    return ref.read(onboardingDismissedProvider).contains(widget.familyId);
+  }
+
   @override
   Widget build(BuildContext context) {
+    // If previously dismissed for this family, show nothing
+    if (_permanentlyDismissed || _isDismissedForFamily) {
+      return const SizedBox.shrink();
+    }
+
     // If onboarding is complete and celebration is done, show nothing
     if (_currentStep == OnboardingStep.completed && !_showCelebration) {
       return const SizedBox.shrink();
