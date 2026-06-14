@@ -7,11 +7,13 @@ import {
   Body,
   Param,
   Query,
+  Req,
   UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Request } from 'express';
 import { FamiliesService } from './families.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { Public } from '../../common/decorators/public.decorator';
@@ -28,14 +30,51 @@ import { GenerateInviteDto, JoinByTokenDto } from './dto/join-family.dto';
 export class FamiliesController {
   constructor(private familiesService: FamiliesService) {}
 
+  /**
+   * Extracts the Supabase UUID (JWT `sub` claim) from the Authorization header.
+   *
+   * This is needed because FamilyMember records created before the auth fix
+   * stored the Supabase UUID in `userId`, while the JWT strategy returns
+   * the Prisma CUID from `@CurrentUser('id')`. By also passing the Supabase
+   * UUID, the service can query FamilyMember with BOTH IDs and find legacy
+   * records that would otherwise be invisible.
+   */
+  private extractSupabaseUid(req: Request): string | undefined {
+    const authHeader = req.headers['authorization'];
+    if (typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
+      return undefined;
+    }
+    try {
+      const token = authHeader.substring(7);
+      const payloadPart = token.split('.')[1];
+      if (!payloadPart) return undefined;
+      // Add padding if needed for base64url decoding
+      const padded = payloadPart + '='.repeat((4 - (payloadPart.length % 4)) % 4);
+      const payload = JSON.parse(
+        Buffer.from(padded, 'base64').toString('utf-8'),
+      );
+      // Only return sub if this is a Supabase-issued token
+      if (payload?.iss?.includes('supabase') && typeof payload.sub === 'string') {
+        return payload.sub;
+      }
+    } catch {
+      // JWT decode failed — not a Supabase token, ignore
+    }
+    return undefined;
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get all active families for the current user' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Returns paginated list of active families' })
   async findAll(
     @CurrentUser('id') userId: string,
+    @Req() req: Request,
     @Query() pagination: PaginationDto,
   ) {
-    return this.familiesService.findAll(userId, pagination);
+    // Pass the Supabase UUID alongside the Prisma CUID so the service can
+    // find FamilyMember records created before the auth fix.
+    const supabaseUid = this.extractSupabaseUid(req);
+    return this.familiesService.findAll(userId, pagination, supabaseUid);
   }
 
   @Get('archived')
@@ -43,9 +82,11 @@ export class FamiliesController {
   @ApiResponse({ status: HttpStatus.OK, description: 'Returns paginated list of archived families with days remaining' })
   async findArchived(
     @CurrentUser('id') userId: string,
+    @Req() req: Request,
     @Query() pagination: PaginationDto,
   ) {
-    return this.familiesService.findArchived(userId, pagination);
+    const supabaseUid = this.extractSupabaseUid(req);
+    return this.familiesService.findArchived(userId, pagination, supabaseUid);
   }
 
   @Post()

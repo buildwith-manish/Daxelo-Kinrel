@@ -92,20 +92,37 @@ export class FamiliesService {
     return formattedFamily;
   }
 
+  /**
+   * Builds the Prisma `where` clause for FamilyMember queries that handles
+   * both the Prisma CUID and the legacy Supabase UUID.
+   *
+   * FamilyMember records created before the auth fix stored the Supabase
+   * UUID in `userId`. After the fix, new records use the Prisma CUID.
+   * This helper ensures queries match BOTH IDs so legacy families remain
+   * visible to their owners.
+   */
+  private buildUserIdFilter(userId: string, supabaseUid?: string) {
+    if (supabaseUid && supabaseUid !== userId) {
+      return { userId: { in: [userId, supabaseUid] } };
+    }
+    return { userId };
+  }
+
   /** Returns all active (non-archived) families the user is a member of, with pagination. */
-  async findAll(userId: string, pagination?: { page?: number; limit?: number }) {
+  async findAll(userId: string, pagination?: { page?: number; limit?: number }, supabaseUid?: string) {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 20;
     const skip = (page - 1) * limit;
+    const userFilter = this.buildUserIdFilter(userId, supabaseUid);
 
     // First get total count of active families
     const total = await this.prisma.familyMember.count({
-      where: { userId, family: { deletedAt: null } },
+      where: { ...userFilter, family: { deletedAt: null } },
     });
 
     // Then get the paginated family members with active families
     const items = await this.prisma.familyMember.findMany({
-      where: { userId, family: { deletedAt: null } },
+      where: { ...userFilter, family: { deletedAt: null } },
       skip,
       take: limit,
       include: {
@@ -346,17 +363,18 @@ export class FamiliesService {
    * Returns all archived families for the current user,
    * including days remaining until permanent deletion.
    */
-  async findArchived(userId: string, pagination?: { page?: number; limit?: number }) {
+  async findArchived(userId: string, pagination?: { page?: number; limit?: number }, supabaseUid?: string) {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 20;
     const skip = (page - 1) * limit;
+    const userFilter = this.buildUserIdFilter(userId, supabaseUid);
 
     const total = await this.prisma.familyMember.count({
-      where: { userId, family: { deletedAt: { not: null } } },
+      where: { ...userFilter, family: { deletedAt: { not: null } } },
     });
 
     const items = await this.prisma.familyMember.findMany({
-      where: { userId, family: { deletedAt: { not: null } } },
+      where: { ...userFilter, family: { deletedAt: { not: null } } },
       skip,
       take: limit,
       include: {
