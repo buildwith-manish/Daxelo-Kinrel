@@ -49,14 +49,57 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   /// Highlighted generation index (null = no highlight).
   int? _highlightedGeneration;
 
-  /// Current zoom level (managed by InteractiveViewer).
-  double _zoomLevel = 1.0;
+  /// External TransformationController to drive FamilyGraphWidget zoom/pan.
+  final TransformationController _graphTransformController =
+      TransformationController();
 
   /// Currently hovered relationship key for legend filtering.
   String? _hoveredRelationshipKey;
 
   /// Whether the relationship legend is visible.
   bool _showLegend = false;
+
+  @override
+  void dispose() {
+    _graphTransformController.dispose();
+    super.dispose();
+  }
+
+  // ── Zoom helpers ───────────────────────────────────────────────────
+
+  void _zoomIn() {
+    final m = _graphTransformController.value.clone();
+    final scale = m.getMaxScaleOnAxis();
+    final newScale = (scale + 0.25).clamp(0.1, 4.0);
+    final factor = newScale / scale;
+    final size = MediaQuery.of(context).size;
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final zoomed = Matrix4.identity()
+      ..translate(cx, cy)
+      ..scale(factor)
+      ..translate(-cx, -cy);
+    _graphTransformController.value = zoomed * m;
+  }
+
+  void _zoomOut() {
+    final m = _graphTransformController.value.clone();
+    final scale = m.getMaxScaleOnAxis();
+    final newScale = (scale - 0.25).clamp(0.1, 4.0);
+    final factor = newScale / scale;
+    final size = MediaQuery.of(context).size;
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final zoomed = Matrix4.identity()
+      ..translate(cx, cy)
+      ..scale(factor)
+      ..translate(-cx, -cy);
+    _graphTransformController.value = zoomed * m;
+  }
+
+  void _resetZoom() {
+    _graphTransformController.value = Matrix4.identity();
+  }
 
   // ── Build ─────────────────────────────────────────────────────────
 
@@ -104,23 +147,20 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         IconButton(
           icon: const Icon(Icons.person_add_alt_1_rounded),
           tooltip: 'Add Member',
-          onPressed: () => context.push('/family/${widget.familyId}/add-person'),
+          onPressed: () =>
+              context.push('/family/${widget.familyId}/add-person'),
         ),
         // Zoom In
         IconButton(
           icon: const Icon(Icons.zoom_in_rounded),
           tooltip: 'Zoom In',
-          onPressed: () => setState(() {
-            _zoomLevel = (_zoomLevel + 0.15).clamp(0.3, 2.5);
-          }),
+          onPressed: _zoomIn,
         ),
         // Zoom Out
         IconButton(
           icon: const Icon(Icons.zoom_out_rounded),
           tooltip: 'Zoom Out',
-          onPressed: () => setState(() {
-            _zoomLevel = (_zoomLevel - 0.15).clamp(0.3, 2.5);
-          }),
+          onPressed: _zoomOut,
         ),
         // 3 stacked circular avatar previews
         if (avatarPersons.isNotEmpty)
@@ -323,6 +363,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
               child: FamilyGraphWidget(
                 familyId: widget.familyId,
                 familyName: widget.familyName ?? 'Family Tree',
+                externalTransformController: _graphTransformController,
               ),
             ),
           ],
@@ -405,31 +446,38 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           left: 0,
           right: 0,
           child: GraphToolbar(
-            zoomLevel: _zoomLevel,
-            onZoomIn: () {
-              setState(() {
-                _zoomLevel = (_zoomLevel + 0.15).clamp(0.3, 2.5);
-              });
-            },
-            onZoomOut: () {
-              setState(() {
-                _zoomLevel = (_zoomLevel - 0.15).clamp(0.3, 2.5);
-              });
-            },
+            zoomLevel:
+                _graphTransformController.value.getMaxScaleOnAxis(),
+            onZoomIn: _zoomIn,
+            onZoomOut: _zoomOut,
             onZoomReset: () {
+              _resetZoom();
               setState(() {
-                _zoomLevel = 1.0;
                 _highlightedGeneration = null;
                 _hoveredRelationshipKey = null;
               });
             },
             onCenterGraph: () {
-              // Reset view to center
+              _resetZoom();
               setState(() {
-                _zoomLevel = 1.0;
                 _highlightedGeneration = null;
               });
             },
+          ),
+        ),
+
+        // Add Member FAB — always on top of graph and onboarding
+        Positioned(
+          right: 20,
+          bottom: MediaQuery.of(context).padding.bottom + 80,
+          child: FloatingActionButton(
+            heroTag: 'graph_add_member_fab',
+            backgroundColor: KinrelColors.orange,
+            foregroundColor: Colors.white,
+            elevation: 6,
+            onPressed: () =>
+                context.push('/family/${widget.familyId}/add-person'),
+            child: const Icon(Icons.person_add_alt_1_rounded, size: 24),
           ),
         ),
       ],
@@ -439,13 +487,31 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   // ── Empty State ───────────────────────────────────────────────────
 
   Widget _buildEmptyState() {
-    // Delegate to V2.1 EmptyState widget with illustrated welcome
-    return EmptyState(
-      memberCount: 0,
-      familyId: widget.familyId,
-      onAddMember: () {
-        context.push('/family/${widget.familyId}/add-person');
-      },
+    // Delegate to V2.1 EmptyState widget with illustrated welcome + onboarding
+    return Stack(
+      children: [
+        EmptyState(
+          memberCount: 0,
+          familyId: widget.familyId,
+          onAddMember: () {
+            context.push('/family/${widget.familyId}/add-person');
+          },
+        ),
+        // Add Member FAB — visible even in empty state
+        Positioned(
+          right: 20,
+          bottom: MediaQuery.of(context).padding.bottom + 80,
+          child: FloatingActionButton(
+            heroTag: 'empty_add_member_fab',
+            backgroundColor: KinrelColors.orange,
+            foregroundColor: Colors.white,
+            elevation: 6,
+            onPressed: () =>
+                context.push('/family/${widget.familyId}/add-person'),
+            child: const Icon(Icons.person_add_alt_1_rounded, size: 24),
+          ),
+        ),
+      ],
     );
   }
 
