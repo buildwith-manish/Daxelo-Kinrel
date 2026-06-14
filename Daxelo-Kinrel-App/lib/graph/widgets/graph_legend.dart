@@ -4,16 +4,11 @@
 //
 // A floating legend panel explaining the visual encoding of the family
 // graph. Shows relationship type colors and edge line styles.
-// Auto-opens for 5 seconds on first visit only (tracked via
-// SharedPreferences key `graph_legend_first_visit`). Positioned
-// bottom-left, collapsible via a "?" icon button. Dark theme.
+// Positioned bottom-left, collapsible via a "?" icon button. Dark theme.
 // Wrapped in RepaintBoundary.
-
-import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
@@ -47,38 +42,7 @@ class GraphLegend extends ConsumerStatefulWidget {
 }
 
 class _GraphLegendState extends ConsumerState<GraphLegend> {
-  Timer? _autoDismissTimer;
-  bool _isFirstVisit = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkFirstVisit();
-  }
-
-  @override
-  void dispose() {
-    _autoDismissTimer?.cancel();
-    super.dispose();
-  }
-
-  /// Checks if this is the first visit and auto-opens the legend.
-  Future<void> _checkFirstVisit() async {
-    final prefs = await SharedPreferences.getInstance();
-    final hasVisited = prefs.getBool('graph_legend_first_visit') ?? false;
-
-    if (!hasVisited && widget.isVisible) {
-      _isFirstVisit = true;
-      await prefs.setBool('graph_legend_first_visit', true);
-
-      // Auto-dismiss after 5 seconds
-      _autoDismissTimer = Timer(const Duration(seconds: 5), () {
-        if (mounted && widget.isVisible) {
-          widget.onToggle();
-        }
-      });
-    }
-  }
+  // Auto-open on first visit removed — legend only opens via user tap on "?" button.
 
   @override
   Widget build(BuildContext context) {
@@ -158,15 +122,7 @@ class _GraphLegendState extends ConsumerState<GraphLegend> {
                             ),
                           ),
                           const Spacer(),
-                          if (_isFirstVisit)
-                            Text(
-                              '5s',
-                              style: TextStyle(
-                                fontFamily: KinrelTypography.monoFont,
-                                fontSize: 10,
-                                color: KinrelColors.textDim,
-                              ),
-                            ),
+
                           IconButton(
                             icon: const Icon(
                               Icons.close,

@@ -5,7 +5,7 @@
 // Full-screen graph viewer for visualizing family relationships.
 // Features:
 //   - AppBar with family name, back button, stacked avatar previews
-//   - Loading/error/empty states with V2.1 onboarding flow
+//   - Loading/error/empty states
 //   - New FamilyGraphWidget from lib/graph/ architecture
 //   - Generation legend chips (top-left floating)
 //   - Bottom legend bar with dynamic categories
@@ -73,15 +73,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         error: _buildErrorState,
         data: _buildDataState,
       ),
-      // BUG-3 FIX: Persistent FAB so "Add Member" is always accessible,
-      // regardless of onboarding state or member count.
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/family/${widget.familyId}/add-person'),
-        backgroundColor: KinrelColors.orange,
-        foregroundColor: KinrelColors.textWhite,
-        tooltip: 'Add Family Member',
-        child: const Icon(Icons.person_add_alt_1_rounded),
-      ),
     );
   }
 
@@ -109,6 +100,28 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         ),
       ),
       actions: [
+        // Add Member — primary action always in AppBar
+        IconButton(
+          icon: const Icon(Icons.person_add_alt_1_rounded),
+          tooltip: 'Add Member',
+          onPressed: () => context.push('/family/${widget.familyId}/add-person'),
+        ),
+        // Zoom In
+        IconButton(
+          icon: const Icon(Icons.zoom_in_rounded),
+          tooltip: 'Zoom In',
+          onPressed: () => setState(() {
+            _zoomLevel = (_zoomLevel + 0.15).clamp(0.3, 2.5);
+          }),
+        ),
+        // Zoom Out
+        IconButton(
+          icon: const Icon(Icons.zoom_out_rounded),
+          tooltip: 'Zoom Out',
+          onPressed: () => setState(() {
+            _zoomLevel = (_zoomLevel - 0.15).clamp(0.3, 2.5);
+          }),
+        ),
         // 3 stacked circular avatar previews
         if (avatarPersons.isNotEmpty)
           GestureDetector(
@@ -272,8 +285,8 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       presentGenerations.add(p.generationIndex);
     }
 
-    // For 0 members, show the V2.1 EmptyState with onboarding.
-    // For 1+ members, show the full graph — OnboardingFlow handles guidance.
+    // For 0 members, show the V2.1 EmptyState.
+    // For 1+ members, show the full graph directly.
     if (memberCount == 0) {
       return EmptyState(
         memberCount: 0,
@@ -318,7 +331,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         // Generation legend chips (top-left floating, below filter bar)
         Positioned(
           left: 16,
-          top: graph.isTruncated ? 96 : 64,
+          top: graph.isTruncated ? 96 : 56,
           child: GenerationLegendWidget(
             presentGenerations: presentGenerations,
             highlightedGeneration: _highlightedGeneration,
@@ -388,7 +401,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
         // V2.1 Graph toolbar (bottom-center)
         Positioned(
-          bottom: 16,
+          bottom: MediaQuery.of(context).padding.bottom + 8,
           left: 0,
           right: 0,
           child: GraphToolbar(
@@ -426,7 +439,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   // ── Empty State ───────────────────────────────────────────────────
 
   Widget _buildEmptyState() {
-    // Delegate to V2.1 EmptyState widget with illustrated welcome + onboarding
+    // Delegate to V2.1 EmptyState widget with illustrated welcome
     return EmptyState(
       memberCount: 0,
       familyId: widget.familyId,

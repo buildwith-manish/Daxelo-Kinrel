@@ -39,7 +39,6 @@ import 'empty_state.dart';
 import 'filter_panel.dart';
 import 'graph_legend.dart';
 import 'graph_node.dart';
-import 'onboarding_flow.dart';
 import 'relationship_edge.dart';
 import 'search_bar.dart';
 
@@ -68,7 +67,6 @@ import 'search_bar.dart';
 ///   RepaintBoundary(SearchBar)
 ///   RepaintBoundary(ControlBar)
 ///   EmptyState (conditional)
-///   OnboardingFlow (conditional)
 /// )
 /// ```
 class FamilyGraphWidget extends ConsumerStatefulWidget {
@@ -598,7 +596,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             // ── Search Bar ───────────────────────────────────────────
             if (_searchBarVisible)
               Positioned(
-                top: 16.0,
+                top: MediaQuery.of(context).padding.top + 8.0,
                 left: 16.0,
                 right: 16.0,
                 child: RepaintBoundary(
@@ -643,34 +641,6 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
               onLegendTap: () => setState(() => _legendVisible = !_legendVisible),
               isFilterActive: _currentFilter.isActive,
               currentTier: currentTier,
-            ),
-
-            // ── Onboarding Flow (conditional) ────────────────────────
-            // Only show onboarding if not yet dismissed for this family
-            if (!ref.watch(onboardingDismissedProvider).contains(widget.familyId))
-              Positioned.fill(
-                child: OnboardingFlow(
-                  familyId: widget.familyId,
-                  memberCount: _personMap.length,
-                ),
-              ),
-
-            // ── Add Member FAB (always visible) ──────────────────────
-            // BUG-3 FIX: Persistent FAB inside the graph stack, positioned
-            // above the ControlBar so it's always accessible regardless of
-            // onboarding state or member count.
-            Positioned(
-              right: 16.0,
-              bottom: 96.0, // above the ControlBar
-              child: FloatingActionButton(
-                heroTag: 'graph_add_member_fab',
-                onPressed: () => context.push('/family/${widget.familyId}/add-person'),
-                backgroundColor: KinrelColors.orange,
-                foregroundColor: KinrelColors.textWhite,
-                mini: false,
-                tooltip: 'Add Member',
-                child: const Icon(Icons.person_add_alt_1_rounded),
-              ),
             ),
           ],
         );
@@ -926,8 +896,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   // ── Empty Stack Wrapper ────────────────────────────────────────────
 
   Widget _buildEmptyStack({required Widget child}) {
-    // EmptyState handles the zero-member UI; OnboardingFlow is only
-    // rendered inside _buildGraphStack to avoid blocking gestures here.
+    // EmptyState handles the zero-member UI.
     return Stack(
       children: [
         child,
