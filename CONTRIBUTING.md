@@ -104,6 +104,15 @@ test(families): add unit tests for createFamily
 - **State** — use Riverpod providers; avoid `setState` for complex state
 - **Models** — match backend field names (`englishTerm`, `relationshipKey`, `relationshipCategory`)
 
+### Safe Area & Overlays — ADR-007
+
+**This rule is binding on all agents.** See `docs/adr/ADR-007-safe-area-policy.md` for full rationale.
+
+- **`Positioned()` offsets inside Scaffold body `Stack` MUST use `MediaQuery.of(context).padding`** for top and bottom values — never hardcoded pixel values like `top: 16` or `bottom: 24`. The correct pattern is `top: MediaQuery.of(context).padding.top + 16` (safe-area inset plus desired spacing).
+- **No double-stacked `SafeArea()`** — if a `Positioned()` already offsets via `MediaQuery.padding`, its child must NOT also wrap in `SafeArea()` on the same axis. Pick ONE approach per axis per widget tree level. Prefer `MediaQuery` in `Positioned` for Stack-based overlays.
+- **Auto-opening panels/overlays are PROHIBITED** unless the feature is explicitly in the product spec and signed off by the product owner. The `graph_legend` first-visit auto-open has been removed. Any PR introducing an auto-opening overlay must link to the approving product spec issue.
+- **Onboarding overlays that block the graph canvas are deprecated.** `onboarding_flow.dart` must not be imported or rendered. No agent may re-introduce canvas-blocking overlays. Future onboarding must be non-blocking (tooltips, hint chips, opt-in buttons) and requires product spec sign-off.
+
 ### Flutter State Management (Riverpod) — ADR-006
 
 **This rule is binding on all agents.** See `docs/adr/ADR-006-riverpod-read-vs-watch.md` for full rationale.
@@ -136,6 +145,8 @@ Before submitting a Pull Request, verify:
 - [ ] **Documentation updated** — README, JSDoc, or inline comments as needed
 - [ ] **Breaking changes documented** — note in PR description and migration steps
 - [ ] **No `ref.read()` in build path** — Riverpod `ref.read()` must not appear inside `build()`, getters, or methods called from `build()` (ADR-006)
+- [ ] **Safe-area offsets use `MediaQuery`** — `Positioned()` in Scaffold body Stack must use `MediaQuery.of(context).padding` for top/bottom offsets, no hardcoded values; no double-stacked `SafeArea()` (ADR-007)
+- [ ] **No unsolicited overlays** — no auto-opening panels or canvas-blocking onboarding overlays unless in product spec with sign-off (ADR-007)
 
 ## Project Structure
 

@@ -84,7 +84,9 @@ class GraphControlBar extends ConsumerWidget {
 
     return RepaintBoundary(
       child: Positioned(
-        bottom: isCompact ? 16 : 24,
+        bottom: isCompact
+            ? MediaQuery.of(context).padding.bottom + 8
+            : MediaQuery.of(context).padding.bottom + 16,
         left: 16,
         right: 16,
         child: Container(
