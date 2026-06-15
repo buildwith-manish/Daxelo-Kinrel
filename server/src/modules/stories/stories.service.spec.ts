@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { StoriesService } from './stories.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { KinrelGateway } from '../gateway/kinrel.gateway';
+import { ConfigService } from '@nestjs/config';
 import {
   NotFoundException,
   ForbiddenException,
@@ -16,10 +18,23 @@ describe('StoriesService', () => {
       findMany: jest.fn(),
       create: jest.fn(),
       delete: jest.fn(),
+      deleteMany: jest.fn(),
     },
     storyView: {
       upsert: jest.fn(),
     },
+    familyMember: {
+      findFirst: jest.fn(),
+    },
+  };
+
+  const mockGateway = {
+    emitToUser: jest.fn(),
+    emitToFamily: jest.fn(),
+  };
+
+  const mockConfigService = {
+    get: jest.fn().mockReturnValue('default-value'),
   };
 
   beforeEach(async () => {
@@ -27,6 +42,8 @@ describe('StoriesService', () => {
       providers: [
         StoriesService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: KinrelGateway, useValue: mockGateway },
+        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 
@@ -169,6 +186,7 @@ describe('StoriesService', () => {
         },
       ];
 
+      mockPrisma.familyMember.findFirst.mockResolvedValue({ id: 'fm1' });
       mockPrisma.story.findMany.mockResolvedValue(stories);
 
       const result = await service.findByFamily('fam-1', 'viewer-1');
