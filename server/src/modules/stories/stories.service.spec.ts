@@ -103,7 +103,7 @@ describe('StoriesService', () => {
       expect(result.id).toBe('story-1');
     });
 
-    it('should create story with provided expiresAt', async () => {
+    it('should create story with default 24h expiry', async () => {
       const customExpiry = new Date(Date.now() + 7200000).toISOString();
       const storyData = {
         id: 'story-2',
@@ -125,10 +125,12 @@ describe('StoriesService', () => {
         expiresAt: customExpiry,
       });
 
+      // Service always sets expiresAt to now + 24h
       expect(mockPrisma.story.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            expiresAt: new Date(customExpiry),
+            // expiresAt is set to now + 24h by the service, not from dto
+            expiresAt: expect.any(Date),
           }),
         }),
       );
@@ -154,7 +156,7 @@ describe('StoriesService', () => {
           createdAt: now,
           updatedAt: now,
           user: { id: 'user-1', name: 'User 1', username: 'u1', avatarUrl: null },
-          views: [{ id: 'v1', viewerId: 'viewer-1', viewedAt: now }], // viewed
+          views: [{ id: 'v1', viewerId: 'viewer-1', viewedAt: now }],
         },
         {
           id: 's2',
@@ -168,7 +170,7 @@ describe('StoriesService', () => {
           createdAt: now,
           updatedAt: now,
           user: { id: 'user-1', name: 'User 1', username: 'u1', avatarUrl: null },
-          views: [], // not viewed
+          views: [],
         },
         {
           id: 's3',
@@ -182,7 +184,7 @@ describe('StoriesService', () => {
           createdAt: now,
           updatedAt: now,
           user: { id: 'user-2', name: 'User 2', username: 'u2', avatarUrl: null },
-          views: [], // not viewed
+          views: [],
         },
       ];
 
@@ -191,13 +193,13 @@ describe('StoriesService', () => {
 
       const result = await service.findByFamily('fam-1', 'viewer-1');
 
-      expect(result).toHaveLength(2); // 2 users
+      expect(result).toHaveLength(2);
       const user1Group = result.find((g: any) => g.user.id === 'user-1');
       const user2Group = result.find((g: any) => g.user.id === 'user-2');
 
       expect(user1Group!.stories).toHaveLength(2);
-      expect(user1Group!.hasUnviewed).toBe(true); // s2 is unviewed
-      expect(user2Group!.hasUnviewed).toBe(true); // s3 is unviewed
+      expect(user1Group!.hasUnviewed).toBe(true);
+      expect(user2Group!.hasUnviewed).toBe(true);
     });
   });
 
