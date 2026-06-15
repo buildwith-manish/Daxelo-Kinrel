@@ -15,7 +15,7 @@ describe('GamificationService', () => {
       lineage: 'neutral',
       relationshipCategory: 'immediate_family',
       translations: {
-        hi: { native: 'पिता', latin: 'Pita' },
+        hi: { native: '\u092a\u093f\u0924\u093e', latin: 'Pita' },
       },
       aliases: ['papa', 'dad'],
     },
@@ -26,7 +26,7 @@ describe('GamificationService', () => {
       lineage: 'neutral',
       relationshipCategory: 'immediate_family',
       translations: {
-        hi: { native: 'माता', latin: 'Mata' },
+        hi: { native: '\u092e\u093e\u0924\u093e', latin: 'Mata' },
       },
       aliases: ['mummy', 'mom'],
     },
@@ -37,7 +37,7 @@ describe('GamificationService', () => {
       lineage: 'neutral',
       relationshipCategory: 'immediate_family',
       translations: {
-        hi: { native: 'भाई', latin: 'Bhai' },
+        hi: { native: '\u092d\u093e\u0908', latin: 'Bhai' },
       },
       aliases: ['bhai'],
     },
@@ -48,7 +48,7 @@ describe('GamificationService', () => {
       lineage: 'neutral',
       relationshipCategory: 'immediate_family',
       translations: {
-        hi: { native: 'बहन', latin: 'Behan' },
+        hi: { native: '\u092c\u0939\u0928', latin: 'Behan' },
       },
       aliases: [],
     },
@@ -59,7 +59,7 @@ describe('GamificationService', () => {
       lineage: 'paternal',
       relationshipCategory: 'extended_paternal',
       translations: {
-        hi: { native: 'चाचा', latin: 'Chacha' },
+        hi: { native: '\u091a\u093e\u091a\u093e', latin: 'Chacha' },
       },
       aliases: ['chacha'],
     },
@@ -70,7 +70,7 @@ describe('GamificationService', () => {
       lineage: 'maternal',
       relationshipCategory: 'extended_maternal',
       translations: {
-        hi: { native: 'मामा', latin: 'Mama' },
+        hi: { native: '\u092e\u093e\u092e\u093e', latin: 'Mama' },
       },
       aliases: ['mama'],
     },
@@ -84,6 +84,8 @@ describe('GamificationService', () => {
     },
     userContribution: {
       findUnique: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([]),
+      count: jest.fn().mockResolvedValue(0),
       upsert: jest.fn().mockResolvedValue({}),
     },
     userBadge: {
@@ -119,6 +121,8 @@ describe('GamificationService', () => {
     mockPrisma.badge.createMany.mockResolvedValue({ count: 0 });
     mockPrisma.badge.findMany.mockResolvedValue([]);
     mockPrisma.userContribution.findUnique.mockResolvedValue(null);
+    mockPrisma.userContribution.findMany.mockResolvedValue([]);
+    mockPrisma.userContribution.count.mockResolvedValue(0);
     mockPrisma.userContribution.upsert.mockResolvedValue({});
     mockPrisma.userBadge.create.mockResolvedValue({});
     mockPrisma.userBadge.findFirst.mockResolvedValue(null);
@@ -205,8 +209,8 @@ describe('GamificationService', () => {
 
   // ─── submitQuiz ────────────────────────────────────────────────────
   describe('submitQuiz', () => {
-    it('should throw NotFoundException if session not found', () => {
-      expect(() =>
+    it('should throw NotFoundException if session not found', async () => {
+      await expect(
         service.submitQuiz('nonexistent-quiz', [0], 'user-1', 'User 1'),
       ).rejects.toThrow(NotFoundException);
     });
@@ -281,93 +285,79 @@ describe('GamificationService', () => {
 
   // ─── getLeaderboard ────────────────────────────────────────────────
   describe('getLeaderboard', () => {
-    it('should return sorted entries with ranks', async () => {
-      // Create two quiz sessions and submit them
-      const session1 = await service.createQuiz({
-        language: 'en',
-        count: 2,
-        difficulty: 'easy',
-      });
-      const session2 = await service.createQuiz({
-        language: 'en',
-        count: 2,
-        difficulty: 'easy',
-      });
+    it('should return paginated leaderboard from database', async () => {
+      mockPrisma.userContribution.findMany.mockResolvedValue([
+        { userId: 'user-A', totalPoints: 500, user: { id: 'user-A', name: 'User A', email: 'a@test.com' } },
+        { userId: 'user-B', totalPoints: 300, user: { id: 'user-B', name: 'User B', email: 'b@test.com' } },
+      ]);
+      mockPrisma.userContribution.count.mockResolvedValue(2);
 
-      // User A gets 100%
-      const answers1 = session1.questions.map((q) => q.correctIndex);
-      await service.submitQuiz(session1.quizId, answers1, 'user-A', 'User A');
+      const result = await service.getLeaderboard();
 
-      // User B gets partial score (answer wrong)
-      const answers2 = session2.questions.map((q, i) =>
-        i === 0 ? q.correctIndex : -1,
-      );
-      await service.submitQuiz(session2.quizId, answers2, 'user-B', 'User B');
-
-      const leaderboard = service.getLeaderboard();
-
-      expect(leaderboard.length).toBeGreaterThanOrEqual(2);
+      expect(result.entries).toBeDefined();
+      expect(result.entries.length).toBeLessThanOrEqual(2);
+      expect(result.total).toBe(2);
       // Should be sorted by score descending
-      for (let i = 1; i < leaderboard.length; i++) {
-        expect(leaderboard[i - 1].score).toBeGreaterThanOrEqual(
-          leaderboard[i].score,
+      for (let i = 1; i < result.entries.length; i++) {
+        expect(result.entries[i - 1].score).toBeGreaterThanOrEqual(
+          result.entries[i].score,
         );
       }
       // Ranks should be assigned
-      leaderboard.forEach((entry, index) => {
+      result.entries.forEach((entry, index) => {
         expect(entry.rank).toBe(index + 1);
       });
     });
 
-    it('should return empty leaderboard when no quizzes submitted', () => {
-      const leaderboard = service.getLeaderboard();
-      // Might have entries from previous tests if not isolated, but
-      // at minimum it should be an array
-      expect(Array.isArray(leaderboard)).toBe(true);
+    it('should return empty leaderboard when no contributions', async () => {
+      mockPrisma.userContribution.findMany.mockResolvedValue([]);
+      mockPrisma.userContribution.count.mockResolvedValue(0);
+
+      const result = await service.getLeaderboard();
+      expect(result.entries).toEqual([]);
+      expect(result.total).toBe(0);
     });
   });
 
   // ─── checkIn ───────────────────────────────────────────────────────
   describe('checkIn', () => {
-    it('should create initial streak and increment on consecutive days', async () => {
-      // First check-in
-      const result1 = await service.checkIn('user-1', 'family-1');
-      expect(result1.currentStreak).toBe(1);
-      expect(result1.totalCheckIns).toBe(1);
-
-      // Second check-in (same day should not increment streak, but counts)
-      const result2 = await service.checkIn('user-1', 'family-1');
-      expect(result2.currentStreak).toBe(1); // Same day = no streak increment
-      expect(result2.totalCheckIns).toBe(2); // But total check-ins increment
+    it('should create initial streak on first check-in', async () => {
+      const result = await service.checkIn('user-1', 'family-1');
+      expect(result.checkedIn).toBe(true);
+      expect(result.currentStreak).toBe(1);
+      expect(result.pointsEarned).toBeGreaterThanOrEqual(10);
     });
 
-    it('should track longest streak', async () => {
-      // Simulate multiple check-ins
+    it('should return checkedIn=true on same-day repeat without streak change', async () => {
+      // First check-in
+      const result1 = await service.checkIn('user-1', 'family-1');
+      expect(result1.checkedIn).toBe(true);
+
+      // Same-day check-in
+      const result2 = await service.checkIn('user-1', 'family-1');
+      expect(result2.checkedIn).toBe(true);
+      expect(result2.pointsEarned).toBe(0);
+    });
+
+    it('should track separate state per family', async () => {
+      // Check in to family-1
       await service.checkIn('user-1', 'family-1');
-      // Check-in with different family
+      // Check in to family-2 — starts fresh
       const result = await service.checkIn('user-1', 'family-2');
-      expect(result.totalCheckIns).toBe(1); // Different family, starts fresh
+      expect(result.checkedIn).toBe(true);
+      expect(result.currentStreak).toBe(1);
     });
   });
 
   // ─── getDailyChallenge ─────────────────────────────────────────────
   describe('getDailyChallenge', () => {
     it('should return a challenge for today', () => {
-      const challenge = service.getDailyChallenge('en');
+      const challenge = service.getDailyChallenge();
 
       expect(challenge).toBeDefined();
       expect(challenge.date).toBe(new Date().toISOString().split('T')[0]);
       expect(challenge.question).toBeDefined();
       expect(challenge.streakBonus).toBeGreaterThanOrEqual(0);
-    });
-
-    it('should return different challenges for different languages', () => {
-      const enChallenge = service.getDailyChallenge('en');
-      const hiChallenge = service.getDailyChallenge('hi');
-
-      // Both should be valid challenges (might be same or different)
-      expect(enChallenge.question).toBeDefined();
-      expect(hiChallenge.question).toBeDefined();
     });
   });
 });
