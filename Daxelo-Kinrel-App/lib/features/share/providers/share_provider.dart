@@ -12,6 +12,7 @@
 //   SMS=blue, Email=orange, Copy=white.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/share_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Invite Method Enum
@@ -327,7 +328,7 @@ class ShareState {
 
 /// State notifier managing share & invite operations.
 class ShareNotifier extends StateNotifier<ShareState> {
-  ShareNotifier({required String familyId, required String familyName})
+  ShareNotifier(this._ref, {required String familyId, required String familyName})
     : super(
         ShareState(
           familyId: familyId,
@@ -335,33 +336,67 @@ class ShareNotifier extends StateNotifier<ShareState> {
           inviteLinks: _demoInviteLinks,
           kinshipCards: _demoKinshipCards,
         ),
-      );
+      ) {
+    _loadFromApi();
+  }
+
+  final Ref _ref;
 
   /// Switch between tabs.
   void setTab(ShareTab tab) {
     state = state.copyWith(currentTab: tab);
   }
 
-  /// Generate a new invite link.
-  void generateLink() {
-    final code = _generateCode();
-    final now = DateTime.now();
-    final newLink = InviteLink(
-      id: 'link-${now.millisecondsSinceEpoch}',
-      code: code,
-      familyId: state.familyId,
-      familyName: state.familyName,
-      createdAt: now,
-      expiresAt: now.add(const Duration(days: 30)),
-      usedCount: 0,
-      maxUses: 50,
-      isActive: true,
-    );
-    state = state.copyWith(inviteLinks: [newLink, ...state.inviteLinks]);
+  /// Generate a new invite link via the API.
+  Future<void> generateLink() async {
+    try {
+      final service = _ref.read(shareServiceProvider);
+      final link = await service.createShareableLink(
+        cardType: 'family_tree',
+        title: '${state.familyName} Family Tree',
+        familyId: state.familyId,
+        expiresInDays: 30,
+      );
+      final now = DateTime.now();
+      final newLink = InviteLink(
+        id: link.id,
+        code: link.token,
+        familyId: state.familyId,
+        familyName: state.familyName,
+        createdAt: link.createdAt,
+        expiresAt: link.expiresAt ?? now.add(const Duration(days: 30)),
+        usedCount: link.viewCount,
+        maxUses: 50,
+        isActive: true,
+      );
+      state = state.copyWith(inviteLinks: [newLink, ...state.inviteLinks]);
+    } catch (e) {
+      // Fallback to local generation
+      final code = _generateCode();
+      final now = DateTime.now();
+      final newLink = InviteLink(
+        id: 'link-${now.millisecondsSinceEpoch}',
+        code: code,
+        familyId: state.familyId,
+        familyName: state.familyName,
+        createdAt: now,
+        expiresAt: now.add(const Duration(days: 30)),
+        usedCount: 0,
+        maxUses: 50,
+        isActive: true,
+      );
+      state = state.copyWith(inviteLinks: [newLink, ...state.inviteLinks]);
+    }
   }
 
-  /// Deactivate an invite link.
-  void deactivateLink(String linkId) {
+  /// Deactivate (revoke) an invite link via the API.
+  Future<void> deactivateLink(String linkId) async {
+    try {
+      final service = _ref.read(shareServiceProvider);
+      await service.revokeShareableLink(id: linkId);
+    } catch (e) {
+      // Even if API fails, update local state
+    }
     final updated = state.inviteLinks.map((l) {
       if (l.id == linkId) return l.copyWith(isActive: false);
       return l;
@@ -390,11 +425,53 @@ class ShareNotifier extends StateNotifier<ShareState> {
   static String _generateCode() {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
     final now = DateTime.now().millisecondsSinceEpoch;
-    // Simple deterministic "random" from timestamp
     return List.generate(6, (i) {
       final index = (now + i * 7) % chars.length;
       return chars[index];
     }).join();
+  }
+
+  /// Track a share event for analytics.
+  Future<void> trackShare(String token) async {
+    try {
+      final service = _ref.read(shareServiceProvider);
+      await service.trackShare(token: token);
+    } catch (e) {
+      // Silent failure for analytics tracking
+    }
+  }
+
+  /// Load shareable links from the API.
+  Future<void> _loadFromApi() async {
+    try {
+      final service = _ref.read(shareServiceProvider);
+      final result = await service.getMyShareableLinks(limit: 20, page: 1);
+      final items = result['items'] as List<dynamic>?;
+      if (items != null && items.isNotEmpty) {
+        final links = items.map((item) {
+          final json = item as Map<String, dynamic>;
+          return InviteLink(
+            id: json['id'] as String,
+            code: json['token'] as String,
+            familyId: json['familyId'] as String? ?? state.familyId,
+            familyName: state.familyName,
+            createdAt: DateTime.parse(json['createdAt'] as String),
+            expiresAt: json['expiresAt'] != null
+                ? DateTime.parse(json['expiresAt'] as String)
+                : DateTime.now().add(const Duration(days: 30)),
+            usedCount: json['viewCount'] as int? ?? 0,
+            maxUses: 50,
+            isActive: json['expiresAt'] == null ||
+                DateTime.parse(json['expiresAt'] as String).isAfter(DateTime.now()),
+          );
+        }).toList();
+        if (mounted) {
+          state = state.copyWith(inviteLinks: links);
+        }
+      }
+    } catch (e) {
+      // Keep demo data as fallback
+    }
   }
 }
 
@@ -411,6 +488,7 @@ final shareProvider =
       ({String familyId, String familyName})
     >(
       (ref, params) => ShareNotifier(
+        ref,
         familyId: params.familyId,
         familyName: params.familyName,
       ),
