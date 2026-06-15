@@ -22,14 +22,30 @@
 
 import 'dart:async';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/database/app_database.dart';
+import '../../../../core/database/isar_database.dart';
 import '../../../../core/services/graph_layout_service.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../widgets/graph_canvas_widget.dart';
+
+/// Provider for the Drift database instance.
+/// Used by [FamilyGraphNotifier] to persist graph data locally.
+final driftDatabaseProvider = Provider<AppDatabase?>((ref) {
+  try {
+    if (IsarDatabase.isInitialized) {
+      return IsarDatabase.instance;
+    }
+  } catch (e) {
+    debugPrint('[driftDatabaseProvider] Error: $e');
+  }
+  return null;
+});
 
 // ═══════════════════════════════════════════════════════════════════════
 // DATA MODELS
@@ -226,7 +242,65 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     // Invalidate the layout when graph data is (re)fetched
     ref.invalidate(graphLayoutProvider(familyId));
 
-    return _fetchGraph(familyId);
+    // Guard against empty familyId
+    if (familyId.isEmpty) {
+      debugPrint('[FamilyGraphNotifier] build() called with empty familyId, returning empty result');
+      return const FlatGraphResult(persons: [], relationships: []);
+    }
+
+    debugPrint('[FamilyGraphNotifier] build() called for familyId=$familyId');
+    final result = await _fetchGraph(familyId);
+
+    // Persist fetched data to Drift for offline access and reactive streams
+    await _syncToDrift(familyId, result);
+
+    debugPrint('[FamilyGraphNotifier] Loaded ${result.persons.length} persons, '
+        '${result.relationships.length} relationships for $familyId');
+    return result;
+  }
+
+  /// Persists fetched graph data into the local Drift database so that
+  /// Drift watch streams emit and the graph re-renders reactively.
+  Future<void> _syncToDrift(String familyId, FlatGraphResult result) async {
+    try {
+      final db = ref.read(driftDatabaseProvider);
+      if (db == null) return;
+
+      final persons = result.persons.map((p) {
+        return CachedPersonsCompanion(
+          id: Value(p['id'] as String? ?? ''),
+          familyId: Value(familyId),
+          name: Value(p['name'] as String? ?? ''),
+          data: Value(p.toString()),
+          cachedAt: Value(DateTime.now()),
+        );
+      }).toList();
+
+      if (persons.isNotEmpty) {
+        await db.upsertPersons(persons);
+        debugPrint('[FamilyGraphNotifier] Synced ${persons.length} persons to Drift for $familyId');
+      }
+
+      final relationships = result.relationships.map((r) {
+        return CachedRelationshipsCompanion(
+          id: Value(r['id'] as String? ?? ''),
+          familyId: Value(familyId),
+          fromId: Value(r['fromPersonId'] as String? ?? ''),
+          toId: Value(r['toPersonId'] as String? ?? ''),
+          relationshipType: Value(r['relationshipKey'] as String? ?? ''),
+          data: Value(r.toString()),
+          cachedAt: Value(DateTime.now()),
+        );
+      }).toList();
+
+      if (relationships.isNotEmpty) {
+        await db.upsertRelationships(relationships);
+        debugPrint('[FamilyGraphNotifier] Synced ${relationships.length} relationships to Drift for $familyId');
+      }
+    } catch (e) {
+      // Silently fail — Drift sync is best-effort, Supabase is the source of truth
+      debugPrint('[FamilyGraphNotifier] Drift sync failed: $e');
+    }
   }
 
   // ── Data Fetching ──────────────────────────────────────────────────
@@ -572,4 +646,44 @@ final graphRealtimeProvider =
   ref.onDispose(() {
     client.removeChannel(channel);
   });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// 7. GRAPH DRIFT STREAM PROVIDER — Reactive local DB watcher
+// ═══════════════════════════════════════════════════════════════════════
+
+/// StreamProvider that watches cached persons for a specific family from
+/// the Drift database. This is a reactive stream that emits whenever the
+/// local cache changes — including after [_syncToDrift] writes, optimistic
+/// actions, or background sync operations.
+///
+/// The graph screen can watch this provider as a supplementary data source
+/// to ensure members are never invisible even if Supabase fetch is slow.
+///
+/// Usage:
+/// ```dart
+/// final driftMembersAsync = ref.watch(graphDriftMembersProvider(familyId));
+/// ```
+final graphDriftMembersProvider =
+    StreamProvider.family<List<CachedPerson>, String>((ref, familyId) async* {
+  final db = ref.read(driftDatabaseProvider);
+  if (db == null) {
+    yield [];
+    return;
+  }
+
+  yield* db.watchPersonsByFamily(familyId);
+});
+
+/// StreamProvider that watches cached relationships for a specific family.
+final graphDriftRelationshipsProvider =
+    StreamProvider.family<List<CachedRelationship>, String>(
+        (ref, familyId) async* {
+  final db = ref.read(driftDatabaseProvider);
+  if (db == null) {
+    yield [];
+    return;
+  }
+
+  yield* db.watchRelationshipsByFamily(familyId);
 });
