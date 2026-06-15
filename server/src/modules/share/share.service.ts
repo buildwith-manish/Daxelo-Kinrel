@@ -2,8 +2,12 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { KinrelGateway } from '../gateway/kinrel.gateway';
+import { CreateShareableLinkDto, TrackShareDto } from './dto/share.dto';
 import { randomBytes } from 'crypto';
 
 const VALID_CARD_TYPES = [
@@ -18,30 +22,26 @@ const VALID_CARD_TYPES = [
 
 @Injectable()
 export class ShareService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(ShareService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly gateway: KinrelGateway,
+  ) {}
 
   /**
    * Create a shareable link.
+   * Stores the userId of the creator for ownership tracking.
+   * TODO (Task-3): Add userId column to ShareableLink schema.
    */
-  async createShareableLink(
-    userId: string,
-    data: {
-      cardType: string;
-      familyId?: string;
-      personId?: string;
-      title: string;
-      description?: string;
-      deepLinkUrl?: string;
-      expiresInDays?: number;
-    },
-  ) {
-    if (!VALID_CARD_TYPES.includes(data.cardType)) {
+  async createShareableLink(userId: string, dto: CreateShareableLinkDto) {
+    if (!VALID_CARD_TYPES.includes(dto.cardType)) {
       throw new BadRequestException(
         `Invalid card type. Must be one of: ${VALID_CARD_TYPES.join(', ')}`,
       );
     }
 
-    if (!data.title || data.title.trim().length === 0) {
+    if (!dto.title || dto.title.trim().length === 0) {
       throw new BadRequestException('Title is required');
     }
 
@@ -50,27 +50,35 @@ export class ShareService {
 
     // Set expiry if specified
     let expiresAt: Date | null = null;
-    if (data.expiresInDays && data.expiresInDays > 0) {
+    if (dto.expiresInDays && dto.expiresInDays > 0) {
       expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + data.expiresInDays);
+      expiresAt.setDate(expiresAt.getDate() + dto.expiresInDays);
     }
 
     // Build deep link URL
     const deepLinkUrl =
-      data.deepLinkUrl ||
-      `kinrel://share/${data.cardType}/${token}`;
+      dto.deepLinkUrl ||
+      `kinrel://share/${dto.cardType}/${token}`;
 
     const link = await this.prisma.shareableLink.create({
       data: {
         token,
-        cardType: data.cardType,
-        familyId: data.familyId || null,
-        personId: data.personId || null,
-        title: data.title.trim(),
-        description: data.description?.trim() || '',
+        cardType: dto.cardType,
+        familyId: dto.familyId || null,
+        personId: dto.personId || null,
+        title: dto.title.trim(),
+        description: dto.description?.trim() || '',
         deepLinkUrl,
         expiresAt,
       },
+    });
+
+    // Emit socket event to creator
+    this.gateway.emitToUser(userId, 'share:link_created', {
+      id: link.id,
+      token: link.token,
+      cardType: link.cardType,
+      title: link.title,
     });
 
     return {
@@ -190,5 +198,99 @@ export class ShareService {
       expiresAt: link.expiresAt,
       createdAt: link.createdAt,
     };
+  }
+
+  /**
+   * Track a share event — increments the shareCount when a user shares
+   * a link via any channel (WhatsApp, copy link, etc.).
+   */
+  async trackShare(dto: TrackShareDto) {
+    const link = await this.prisma.shareableLink.findUnique({
+      where: { token: dto.token },
+    });
+
+    if (!link) {
+      throw new NotFoundException('Shareable link not found');
+    }
+
+    // Check if expired
+    if (link.expiresAt && link.expiresAt < new Date()) {
+      throw new NotFoundException('Shareable link has expired');
+    }
+
+    const updated = await this.prisma.shareableLink.update({
+      where: { token: dto.token },
+      data: { shareCount: { increment: 1 } },
+    });
+
+    return {
+      id: updated.id,
+      token: updated.token,
+      shareCount: updated.shareCount,
+    };
+  }
+
+  /**
+   * Revoke (delete) a shareable link.
+   * Only the creator can revoke their own links.
+   * TODO (Task-3): Enforce userId check once schema adds userId column.
+   * For now, any authenticated user can revoke by token.
+   */
+  async revokeShareableLink(userId: string, linkId: string) {
+    const link = await this.prisma.shareableLink.findUnique({
+      where: { id: linkId },
+    });
+
+    if (!link) {
+      throw new NotFoundException('Shareable link not found');
+    }
+
+    // TODO: Once userId is added to ShareableLink schema, check:
+    // if (link.userId !== userId) throw new ForbiddenException('Not your link');
+
+    await this.prisma.shareableLink.delete({
+      where: { id: linkId },
+    });
+
+    // Emit socket event
+    this.gateway.emitToUser(userId, 'share:link_revoked', {
+      id: linkId,
+      token: link.token,
+    });
+
+    return { deleted: true, id: linkId };
+  }
+
+  /**
+   * List all shareable links created by the current user.
+   * TODO (Task-3): Filter by userId once schema adds userId column.
+   * For now, returns all links (will be filtered after schema update).
+   */
+  async getMyShareableLinks(userId: string, limit: number = 20, page: number = 1) {
+    // TODO: Add where: { userId } once schema has userId field
+    const [items, total] = await Promise.all([
+      this.prisma.shareableLink.findMany({
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true,
+          token: true,
+          cardType: true,
+          familyId: true,
+          personId: true,
+          title: true,
+          description: true,
+          deepLinkUrl: true,
+          viewCount: true,
+          shareCount: true,
+          expiresAt: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.shareableLink.count(),
+    ]);
+
+    return { items, total, page, limit };
   }
 }

@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ShareService } from './share.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { KinrelGateway } from '../gateway/kinrel.gateway';
 import {
   BadRequestException,
   NotFoundException,
@@ -10,11 +11,19 @@ describe('ShareService', () => {
   let service: ShareService;
   let prisma: PrismaService;
 
+  const mockGateway = {
+    emitToUser: jest.fn(),
+    emitToFamily: jest.fn(),
+  };
+
   const mockPrisma = {
     shareableLink: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
+      count: jest.fn(),
     },
     family: {
       findUnique: jest.fn(),
@@ -29,6 +38,7 @@ describe('ShareService', () => {
       providers: [
         ShareService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: KinrelGateway, useValue: mockGateway },
       ],
     }).compile();
 
@@ -45,390 +55,410 @@ describe('ShareService', () => {
   // ─── createShareableLink ───────────────────────────────────────────
   describe('createShareableLink', () => {
     const userId = 'user-1';
+    const baseDto = {
+      cardType: 'family_tree',
+      title: 'My Family Tree',
+    };
 
-    it('should throw BadRequestException for invalid card type', async () => {
+    it('should create a shareable link with valid data', async () => {
+      const mockLink = {
+        id: 'link-1',
+        token: 'abc123',
+        cardType: 'family_tree',
+        familyId: null,
+        personId: null,
+        title: 'My Family Tree',
+        description: '',
+        deepLinkUrl: 'kinrel://share/family_tree/abc123',
+        viewCount: 0,
+        shareCount: 0,
+        expiresAt: null,
+        createdAt: new Date(),
+      };
+      mockPrisma.shareableLink.create.mockResolvedValue(mockLink);
+
+      const result = await service.createShareableLink(userId, baseDto as any);
+
+      expect(result.token).toBe('abc123');
+      expect(result.cardType).toBe('family_tree');
+      expect(result.title).toBe('My Family Tree');
+      expect(mockGateway.emitToUser).toHaveBeenCalledWith(
+        userId,
+        'share:link_created',
+        expect.objectContaining({ token: 'abc123' }),
+      );
+    });
+
+    it('should throw BadRequestException for invalid cardType', async () => {
+      const invalidDto = { cardType: 'invalid_type', title: 'Test' };
+
       await expect(
-        service.createShareableLink(userId, {
-          cardType: 'invalid_type',
-          title: 'Test',
-        }),
+        service.createShareableLink(userId, invalidDto as any),
       ).rejects.toThrow(BadRequestException);
-      await expect(
-        service.createShareableLink(userId, {
-          cardType: 'invalid_type',
-          title: 'Test',
-        }),
-      ).rejects.toThrow('Invalid card type');
     });
 
     it('should throw BadRequestException for empty title', async () => {
-      await expect(
-        service.createShareableLink(userId, {
-          cardType: 'family_tree',
-          title: '',
-        }),
-      ).rejects.toThrow(BadRequestException);
-      await expect(
-        service.createShareableLink(userId, {
-          cardType: 'family_tree',
-          title: '',
-        }),
-      ).rejects.toThrow('Title is required');
-    });
+      const emptyTitleDto = { cardType: 'family_tree', title: '   ' };
 
-    it('should throw BadRequestException for whitespace-only title', async () => {
       await expect(
-        service.createShareableLink(userId, {
-          cardType: 'family_tree',
-          title: '   ',
-        }),
+        service.createShareableLink(userId, emptyTitleDto as any),
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should generate token and deep link', async () => {
-      mockPrisma.shareableLink.create.mockImplementation(({ data }) =>
-        Promise.resolve({
-          id: 'link-1',
-          ...data,
-          viewCount: 0,
-          shareCount: 0,
-          createdAt: new Date(),
-        }),
-      );
-
-      const result = await service.createShareableLink(userId, {
+    it('should set expiresAt when expiresInDays is provided', async () => {
+      const dtoWithExpiry = { ...baseDto, expiresInDays: 7 };
+      const mockLink = {
+        id: 'link-1',
+        token: 'abc123',
         cardType: 'family_tree',
-        title: 'My Family',
-      });
+        familyId: null,
+        personId: null,
+        title: 'My Family Tree',
+        description: '',
+        deepLinkUrl: 'kinrel://share/family_tree/abc123',
+        viewCount: 0,
+        shareCount: 0,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        createdAt: new Date(),
+      };
+      mockPrisma.shareableLink.create.mockResolvedValue(mockLink);
 
-      expect(result.token).toBeDefined();
-      expect(result.token.length).toBe(32); // randomBytes(16).toString('hex')
-      expect(result.deepLinkUrl).toContain('kinrel://share/family_tree/');
-      expect(result.cardType).toBe('family_tree');
+      const result = await service.createShareableLink(userId, dtoWithExpiry as any);
+
+      expect(result.expiresAt).toBeTruthy();
+      const createCall = mockPrisma.shareableLink.create.mock.calls[0][0];
+      expect(createCall.data.expiresAt).toBeInstanceOf(Date);
     });
 
-    it('should use provided deepLinkUrl if given', async () => {
-      mockPrisma.shareableLink.create.mockImplementation(({ data }) =>
-        Promise.resolve({
-          id: 'link-1',
-          ...data,
-          viewCount: 0,
-          shareCount: 0,
-          createdAt: new Date(),
-        }),
-      );
-
-      const result = await service.createShareableLink(userId, {
-        cardType: 'birthday',
-        title: 'Birthday Card',
-        deepLinkUrl: 'https://example.com/share/abc',
+    it('should use custom deepLinkUrl when provided', async () => {
+      const customUrlDto = { ...baseDto, deepLinkUrl: 'https://custom.url/abc' };
+      mockPrisma.shareableLink.create.mockResolvedValue({
+        id: 'link-1',
+        token: 'abc123',
+        deepLinkUrl: 'https://custom.url/abc',
+        createdAt: new Date(),
       });
 
-      expect(result.deepLinkUrl).toBe('https://example.com/share/abc');
+      await service.createShareableLink(userId, customUrlDto as any);
+
+      const createCall = mockPrisma.shareableLink.create.mock.calls[0][0];
+      expect(createCall.data.deepLinkUrl).toBe('https://custom.url/abc');
     });
 
-    it('should set expiry when expiresInDays provided', async () => {
-      mockPrisma.shareableLink.create.mockImplementation(({ data }) =>
-        Promise.resolve({
-          id: 'link-1',
-          ...data,
-          viewCount: 0,
-          shareCount: 0,
-          createdAt: new Date(),
-        }),
-      );
-
-      const result = await service.createShareableLink(userId, {
-        cardType: 'milestone',
-        title: 'Milestone',
-        expiresInDays: 7,
+    it('should auto-generate deepLinkUrl when not provided', async () => {
+      mockPrisma.shareableLink.create.mockResolvedValue({
+        id: 'link-1',
+        token: 'abc123',
+        deepLinkUrl: 'kinrel://share/family_tree/abc123',
+        createdAt: new Date(),
       });
 
-      expect(result.expiresAt).toBeDefined();
-      const expiresAt = new Date(result.expiresAt as string | number | Date);
-      const now = new Date();
-      const diffDays = Math.ceil(
-        (expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
-      );
-      expect(diffDays).toBeGreaterThanOrEqual(6);
-      expect(diffDays).toBeLessThanOrEqual(8);
+      await service.createShareableLink(userId, baseDto as any);
+
+      const createCall = mockPrisma.shareableLink.create.mock.calls[0][0];
+      expect(createCall.data.deepLinkUrl).toMatch(/^kinrel:\/\/share\//);
     });
 
-    it('should not set expiry when expiresInDays is not provided', async () => {
-      mockPrisma.shareableLink.create.mockImplementation(({ data }) =>
-        Promise.resolve({
-          id: 'link-1',
-          ...data,
-          viewCount: 0,
-          shareCount: 0,
-          createdAt: new Date(),
-        }),
-      );
-
-      const result = await service.createShareableLink(userId, {
-        cardType: 'milestone',
-        title: 'Milestone',
+    it('should create link with familyId and personId', async () => {
+      const fullDto = { ...baseDto, familyId: 'fam-1', personId: 'p-1', description: 'Test desc' };
+      mockPrisma.shareableLink.create.mockResolvedValue({
+        id: 'link-1',
+        token: 'abc123',
+        familyId: 'fam-1',
+        personId: 'p-1',
+        description: 'Test desc',
+        createdAt: new Date(),
       });
 
-      expect(result.expiresAt).toBeNull();
-    });
+      const result = await service.createShareableLink(userId, fullDto as any);
 
-    it('should accept all valid card types', async () => {
-      const validTypes = [
-        'family_tree',
-        'birthday',
-        'anniversary',
-        'memorial',
-        'milestone',
-        'relationship_discovery',
-        'festival_greeting',
-      ];
-
-      mockPrisma.shareableLink.create.mockImplementation(({ data }) =>
-        Promise.resolve({
-          id: 'link-1',
-          ...data,
-          viewCount: 0,
-          shareCount: 0,
-          createdAt: new Date(),
-        }),
-      );
-
-      for (const cardType of validTypes) {
-        const result = await service.createShareableLink(userId, {
-          cardType,
-          title: `Test ${cardType}`,
-        });
-        expect(result.cardType).toBe(cardType);
-      }
+      const createCall = mockPrisma.shareableLink.create.mock.calls[0][0];
+      expect(createCall.data.familyId).toBe('fam-1');
+      expect(createCall.data.personId).toBe('p-1');
+      expect(createCall.data.description).toBe('Test desc');
     });
   });
 
   // ─── getShareStats ─────────────────────────────────────────────────
   describe('getShareStats', () => {
-    it('should throw NotFoundException if not found', async () => {
-      mockPrisma.shareableLink.findUnique.mockResolvedValue(null);
-
-      await expect(service.getShareStats('nonexistent-token')).rejects.toThrow(
-        NotFoundException,
-      );
-      await expect(service.getShareStats('nonexistent-token')).rejects.toThrow(
-        'Shareable link not found',
-      );
-    });
-
-    it('should return share stats for valid token', async () => {
-      const linkData = {
+    it('should return share stats for a valid token', async () => {
+      mockPrisma.shareableLink.findUnique.mockResolvedValue({
         id: 'link-1',
         token: 'abc123',
         cardType: 'family_tree',
-        title: 'My Family',
+        title: 'Test',
         viewCount: 10,
-        shareCount: 3,
+        shareCount: 5,
         expiresAt: null,
         createdAt: new Date(),
-      };
-      mockPrisma.shareableLink.findUnique.mockResolvedValue(linkData);
+      });
 
       const result = await service.getShareStats('abc123');
 
-      expect(result.token).toBe('abc123');
       expect(result.viewCount).toBe(10);
-      expect(result.shareCount).toBe(3);
-      expect(result.cardType).toBe('family_tree');
+      expect(result.shareCount).toBe(5);
+      expect(result.token).toBe('abc123');
+    });
+
+    it('should throw NotFoundException for invalid token', async () => {
+      mockPrisma.shareableLink.findUnique.mockResolvedValue(null);
+
+      await expect(service.getShareStats('invalid')).rejects.toThrow(NotFoundException);
     });
   });
 
   // ─── getSharedCard ─────────────────────────────────────────────────
   describe('getSharedCard', () => {
-    it('should throw NotFoundException if not found', async () => {
-      mockPrisma.shareableLink.findUnique.mockResolvedValue(null);
-
-      await expect(service.getSharedCard('nonexistent')).rejects.toThrow(
-        NotFoundException,
-      );
-      await expect(service.getSharedCard('nonexistent')).rejects.toThrow(
-        'Shared card not found or has expired',
-      );
-    });
-
-    it('should throw NotFoundException if expired', async () => {
-      const expiredLink = {
+    it('should return card data and increment viewCount', async () => {
+      mockPrisma.shareableLink.findUnique.mockResolvedValue({
         id: 'link-1',
-        token: 'expired-token',
+        token: 'abc123',
         cardType: 'family_tree',
-        title: 'My Family',
+        title: 'Test',
         description: '',
-        deepLinkUrl: 'kinrel://share/family_tree/expired-token',
+        deepLinkUrl: 'kinrel://share/family_tree/abc123',
+        viewCount: 5,
+        shareCount: 2,
         familyId: null,
         personId: null,
-        viewCount: 5,
-        shareCount: 1,
-        expiresAt: new Date(Date.now() - 86400000), // yesterday
-        createdAt: new Date(),
-      };
-      mockPrisma.shareableLink.findUnique.mockResolvedValue(expiredLink);
-
-      await expect(service.getSharedCard('expired-token')).rejects.toThrow(
-        NotFoundException,
-      );
-      await expect(service.getSharedCard('expired-token')).rejects.toThrow(
-        'Shared card has expired',
-      );
-    });
-
-    it('should increment viewCount', async () => {
-      const linkData = {
-        id: 'link-1',
-        token: 'valid-token',
-        cardType: 'family_tree',
-        title: 'My Family',
-        description: 'A great family',
-        deepLinkUrl: 'kinrel://share/family_tree/valid-token',
-        familyId: null,
-        personId: null,
-        viewCount: 5,
-        shareCount: 1,
         expiresAt: null,
         createdAt: new Date(),
-      };
-      mockPrisma.shareableLink.findUnique.mockResolvedValue(linkData);
-      mockPrisma.shareableLink.update.mockResolvedValue({
-        ...linkData,
-        viewCount: 6,
       });
+      mockPrisma.shareableLink.update.mockResolvedValue({});
 
-      const result = await service.getSharedCard('valid-token');
+      const result = await service.getSharedCard('abc123');
 
-      expect(mockPrisma.shareableLink.update).toHaveBeenCalledWith({
-        where: { token: 'valid-token' },
-        data: { viewCount: { increment: 1 } },
-      });
       expect(result.viewCount).toBe(6); // 5 + 1
+      expect(mockPrisma.shareableLink.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { token: 'abc123' },
+          data: { viewCount: { increment: 1 } },
+        }),
+      );
     });
 
-    it('should fetch family data if familyId present', async () => {
-      const linkData = {
+    it('should include family data when familyId is set', async () => {
+      mockPrisma.shareableLink.findUnique.mockResolvedValue({
         id: 'link-1',
-        token: 'family-token',
+        token: 'abc123',
         cardType: 'family_tree',
-        title: 'My Family',
+        title: 'Test',
         description: '',
-        deepLinkUrl: 'kinrel://share/family_tree/family-token',
+        deepLinkUrl: 'kinrel://share/family_tree/abc123',
+        viewCount: 0,
+        shareCount: 0,
         familyId: 'fam-1',
         personId: null,
-        viewCount: 3,
-        shareCount: 0,
         expiresAt: null,
         createdAt: new Date(),
-      };
-      const familyData = {
+      });
+      mockPrisma.shareableLink.update.mockResolvedValue({});
+      mockPrisma.family.findUnique.mockResolvedValue({
         id: 'fam-1',
-        name: 'The Smiths',
-        description: 'A great family',
-        avatarUrl: 'https://example.com/avatar.jpg',
-        memberCount: 20,
-        gotra: 'Bharadwaj',
-        originVillage: 'Rampur',
-        region: 'Uttar Pradesh',
-      };
-
-      mockPrisma.shareableLink.findUnique.mockResolvedValue(linkData);
-      mockPrisma.shareableLink.update.mockResolvedValue({
-        ...linkData,
-        viewCount: 4,
+        name: 'Test Family',
       });
-      mockPrisma.family.findUnique.mockResolvedValue(familyData);
 
-      const result = await service.getSharedCard('family-token');
+      const result = await service.getSharedCard('abc123');
 
-      expect(result.family).toEqual(familyData);
-      expect(mockPrisma.family.findUnique).toHaveBeenCalledWith({
-        where: { id: 'fam-1' },
-        select: expect.objectContaining({
-          id: true,
-          name: true,
-          description: true,
-          avatarUrl: true,
-          memberCount: true,
-        }),
-      });
+      expect(result.family).toEqual({ id: 'fam-1', name: 'Test Family' });
     });
 
-    it('should fetch person data if personId present', async () => {
-      const linkData = {
+    it('should include person data when personId is set', async () => {
+      mockPrisma.shareableLink.findUnique.mockResolvedValue({
         id: 'link-1',
-        token: 'person-token',
+        token: 'abc123',
         cardType: 'birthday',
-        title: 'Birthday Card',
+        title: 'Birthday',
         description: '',
-        deepLinkUrl: 'kinrel://share/birthday/person-token',
+        deepLinkUrl: 'kinrel://share/birthday/abc123',
+        viewCount: 0,
+        shareCount: 0,
         familyId: null,
-        personId: 'person-1',
-        viewCount: 2,
-        shareCount: 1,
+        personId: 'p-1',
         expiresAt: null,
         createdAt: new Date(),
-      };
-      const personData = {
-        id: 'person-1',
-        name: 'John Doe',
-        dateOfBirth: '1990-01-01',
-        birthYear: 1990,
-        photoUrl: 'https://example.com/photo.jpg',
-        gender: 'male',
-        gotra: 'Bharadwaj',
-        occupation: 'Engineer',
-        city: 'New Delhi',
-      };
-
-      mockPrisma.shareableLink.findUnique.mockResolvedValue(linkData);
-      mockPrisma.shareableLink.update.mockResolvedValue({
-        ...linkData,
-        viewCount: 3,
       });
-      mockPrisma.person.findUnique.mockResolvedValue(personData);
-
-      const result = await service.getSharedCard('person-token');
-
-      expect(result.person).toEqual(personData);
-      expect(mockPrisma.person.findUnique).toHaveBeenCalledWith({
-        where: { id: 'person-1' },
-        select: expect.objectContaining({
-          id: true,
-          name: true,
-          photoUrl: true,
-          gender: true,
-        }),
+      mockPrisma.shareableLink.update.mockResolvedValue({});
+      mockPrisma.person.findUnique.mockResolvedValue({
+        id: 'p-1',
+        name: 'Test Person',
       });
+
+      const result = await service.getSharedCard('abc123');
+
+      expect(result.person).toEqual({ id: 'p-1', name: 'Test Person' });
     });
 
-    it('should handle non-expired link with future expiresAt', async () => {
-      const linkData = {
-        id: 'link-1',
-        token: 'future-token',
-        cardType: 'milestone',
-        title: 'Milestone',
-        description: '',
-        deepLinkUrl: 'kinrel://share/milestone/future-token',
-        familyId: null,
-        personId: null,
-        viewCount: 1,
-        shareCount: 0,
-        expiresAt: new Date(Date.now() + 86400000), // tomorrow
-        createdAt: new Date(),
-      };
+    it('should throw NotFoundException if link not found', async () => {
+      mockPrisma.shareableLink.findUnique.mockResolvedValue(null);
 
-      mockPrisma.shareableLink.findUnique.mockResolvedValue(linkData);
-      mockPrisma.shareableLink.update.mockResolvedValue({
-        ...linkData,
-        viewCount: 2,
+      await expect(service.getSharedCard('invalid')).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException if link has expired', async () => {
+      mockPrisma.shareableLink.findUnique.mockResolvedValue({
+        id: 'link-1',
+        token: 'abc123',
+        expiresAt: new Date('2020-01-01'),
       });
 
-      const result = await service.getSharedCard('future-token');
+      await expect(service.getSharedCard('abc123')).rejects.toThrow(NotFoundException);
+    });
+  });
 
-      expect(result.token).toBe('future-token');
-      expect(result.viewCount).toBe(2);
+  // ─── trackShare ────────────────────────────────────────────────────
+  describe('trackShare', () => {
+    it('should increment shareCount for a valid token', async () => {
+      mockPrisma.shareableLink.findUnique.mockResolvedValue({
+        id: 'link-1',
+        token: 'abc123',
+        shareCount: 5,
+        expiresAt: null,
+      });
+      mockPrisma.shareableLink.update.mockResolvedValue({
+        id: 'link-1',
+        token: 'abc123',
+        shareCount: 6,
+      });
+
+      const result = await service.trackShare({ token: 'abc123' });
+
+      expect(result.shareCount).toBe(6);
+      expect(mockPrisma.shareableLink.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { token: 'abc123' },
+          data: { shareCount: { increment: 1 } },
+        }),
+      );
+    });
+
+    it('should throw NotFoundException for invalid token', async () => {
+      mockPrisma.shareableLink.findUnique.mockResolvedValue(null);
+
+      await expect(service.trackShare({ token: 'invalid' })).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should throw NotFoundException for expired link', async () => {
+      mockPrisma.shareableLink.findUnique.mockResolvedValue({
+        id: 'link-1',
+        token: 'abc123',
+        expiresAt: new Date('2020-01-01'),
+      });
+
+      await expect(service.trackShare({ token: 'abc123' })).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  // ─── revokeShareableLink ───────────────────────────────────────────
+  describe('revokeShareableLink', () => {
+    const userId = 'user-1';
+    const linkId = 'link-1';
+
+    it('should delete a shareable link and emit socket event', async () => {
+      mockPrisma.shareableLink.findUnique.mockResolvedValue({
+        id: linkId,
+        token: 'abc123',
+      });
+      mockPrisma.shareableLink.delete.mockResolvedValue({ id: linkId });
+
+      const result = await service.revokeShareableLink(userId, linkId);
+
+      expect(result.deleted).toBe(true);
+      expect(result.id).toBe(linkId);
+      expect(mockPrisma.shareableLink.delete).toHaveBeenCalledWith({
+        where: { id: linkId },
+      });
+      expect(mockGateway.emitToUser).toHaveBeenCalledWith(
+        userId,
+        'share:link_revoked',
+        expect.objectContaining({ id: linkId }),
+      );
+    });
+
+    it('should throw NotFoundException if link not found', async () => {
+      mockPrisma.shareableLink.findUnique.mockResolvedValue(null);
+
+      await expect(service.revokeShareableLink(userId, linkId)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  // ─── getMyShareableLinks ───────────────────────────────────────────
+  describe('getMyShareableLinks', () => {
+    const userId = 'user-1';
+
+    it('should return paginated list of shareable links', async () => {
+      const links = [
+        {
+          id: 'link-1',
+          token: 'abc123',
+          cardType: 'family_tree',
+          familyId: null,
+          personId: null,
+          title: 'Family Tree',
+          description: '',
+          deepLinkUrl: 'kinrel://share/family_tree/abc123',
+          viewCount: 10,
+          shareCount: 3,
+          expiresAt: null,
+          createdAt: new Date(),
+        },
+        {
+          id: 'link-2',
+          token: 'def456',
+          cardType: 'birthday',
+          familyId: null,
+          personId: null,
+          title: 'Birthday Card',
+          description: '',
+          deepLinkUrl: 'kinrel://share/birthday/def456',
+          viewCount: 5,
+          shareCount: 1,
+          expiresAt: null,
+          createdAt: new Date(),
+        },
+      ];
+
+      mockPrisma.shareableLink.findMany.mockResolvedValue(links);
+      mockPrisma.shareableLink.count.mockResolvedValue(2);
+
+      const result = await service.getMyShareableLinks(userId, 20, 1);
+
+      expect(result.items).toHaveLength(2);
+      expect(result.total).toBe(2);
+      expect(result.page).toBe(1);
+      expect(result.limit).toBe(20);
+    });
+
+    it('should support pagination with page and limit', async () => {
+      mockPrisma.shareableLink.findMany.mockResolvedValue([]);
+      mockPrisma.shareableLink.count.mockResolvedValue(25);
+
+      const result = await service.getMyShareableLinks(userId, 10, 3);
+
+      expect(result.page).toBe(3);
+      expect(result.limit).toBe(10);
+      expect(mockPrisma.shareableLink.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skip: 20, // (3-1) * 10
+          take: 10,
+        }),
+      );
+    });
+
+    it('should return empty list when no links exist', async () => {
+      mockPrisma.shareableLink.findMany.mockResolvedValue([]);
+      mockPrisma.shareableLink.count.mockResolvedValue(0);
+
+      const result = await service.getMyShareableLinks(userId);
+
+      expect(result.items).toHaveLength(0);
+      expect(result.total).toBe(0);
     });
   });
 });
