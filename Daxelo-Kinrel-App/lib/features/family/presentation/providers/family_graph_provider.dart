@@ -3,15 +3,22 @@
 // DAXELO KINREL — Family Graph Providers
 //
 // Riverpod providers for the family graph feature:
-//   1. familyGraphProvider(familyId) — fetches flat graph data via Supabase RPC
+//   1. familyGraphProvider(familyId) — fetches flat graph data via Supabase
 //   2. graphLayoutProvider(familyId) — computes layout in an isolate
 //   3. selectedEdgeProvider — tracks selected edge
 //   4. selectedNodeProvider — tracks selected node
 //   5. graphZoomProvider — tracks zoom level
 //   6. graphRealtimeProvider(familyId) — Supabase Realtime invalidation
 //
-// CHANGED (Option C): Replaced Dio/Render server calls with direct
-// Supabase RPC calls (`get_family_graph`). No external server dependency.
+// DATA FETCHING STRATEGY (V6.0):
+//   - Direct Supabase query (Person + Relationship tables) is the PRIMARY source
+//     because it ALWAYS returns all non-deleted persons in the family, regardless
+//     of relationship connectivity or p_max_degree limits.
+//   - The RPC `get_family_graph` is used as a SUPPLEMENTARY source for richer
+//     data (kinship labels, computed relationships), but ONLY if it returns
+//     the same or more persons than the direct query.
+//   - This ensures newly added members are ALWAYS visible, even if they
+//     don't have relationships connecting them to the anchor yet.
 
 import 'dart:async';
 
@@ -231,53 +238,69 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     }
 
     try {
-      // Resolve which member ID to use as the graph anchor
-      final memberId = await _resolveAnchorMemberId(client, familyId);
+      // ── Step 1: Always fetch direct query first ──
+      // Direct query is the source of truth — it always returns ALL
+      // non-deleted persons in the family, regardless of relationships
+      // or connectivity. The RPC `get_family_graph` may return incomplete
+      // data (e.g., only the anchor node) if the person is not connected
+      // via relationships within p_max_degree. By always using direct
+      // query as the primary source, we guarantee all members are visible.
+      final directResult = await _fetchGraphDirectQuery(client, familyId);
 
-      if (memberId == null) {
-        // Family exists but has no members yet — return empty graph
-        debugPrint('[FamilyGraphNotifier] No members in family $familyId');
+      if (directResult.persons.isEmpty) {
+        debugPrint('[FamilyGraphNotifier] No members found in family $familyId');
         return const FlatGraphResult(persons: [], relationships: []);
       }
 
-      // Try Supabase RPC first
+      // ── Step 2: Try RPC as a supplementary source for richer data ──
+      // The RPC may provide enriched data (kinship labels, computed
+      // relationships, etc.) that the direct query doesn't have. If the
+      // RPC returns a complete result (same or more persons than direct
+      // query), prefer it for the richer data. Otherwise, use direct query.
       try {
-        final response = await client.rpc(
-          'get_family_graph',
-          params: <String, dynamic>{
-            'p_member_id': memberId,
-            'p_max_degree': 4,
-            'p_include_hidden': false,
-          },
-        ).timeout(const Duration(seconds: 15));
+        final memberId = await _resolveAnchorMemberId(client, familyId);
+        if (memberId != null) {
+          final response = await client.rpc(
+            'get_family_graph',
+            params: <String, dynamic>{
+              'p_member_id': memberId,
+              'p_max_degree': 6,
+              'p_include_hidden': false,
+            },
+          ).timeout(const Duration(seconds: 15));
 
-        final data = response as Map<String, dynamic>?;
-        if (data != null) {
-          final result = FlatGraphResult.fromRpc(data);
+          final data = response as Map<String, dynamic>?;
+          if (data != null) {
+            final rpcResult = FlatGraphResult.fromRpc(data);
 
-          // If RPC returned data, use it
-          if (result.persons.isNotEmpty) {
-            _cache[familyId] = result;
+            // Use RPC result ONLY if it returns all (or more) persons
+            // than the direct query. If it returns fewer, it means the
+            // RPC is missing disconnected members — use direct query instead.
+            if (rpcResult.persons.length >= directResult.persons.length) {
+              _cache[familyId] = rpcResult;
+              debugPrint(
+                '[FamilyGraphNotifier] RPC: Loaded ${rpcResult.persons.length} persons, '
+                '${rpcResult.relationships.length} relationships for $familyId',
+              );
+              return rpcResult;
+            }
+
+            // RPC returned fewer persons — log and use direct query
             debugPrint(
-              '[FamilyGraphNotifier] RPC: Loaded ${result.persons.length} persons, '
-              '${result.relationships.length} relationships for $familyId',
+              '[FamilyGraphNotifier] RPC returned ${rpcResult.persons.length} persons '
+              'but direct query found ${directResult.persons.length}. '
+              'Using direct query for completeness.',
             );
-            return result;
           }
-
-          // RPC returned empty — fall through to direct query
-          debugPrint(
-            '[FamilyGraphNotifier] RPC returned 0 persons, falling back to direct query for $familyId',
-          );
         }
       } catch (rpcError) {
-        debugPrint('[FamilyGraphNotifier] RPC failed: $rpcError, falling back to direct query');
+        debugPrint('[FamilyGraphNotifier] RPC failed: $rpcError, using direct query');
       }
 
-      // ── Direct query fallback ──
-      // Query Person and Relationship tables directly when RPC fails
-      // or returns incomplete data. This ensures all members are visible.
-      return _fetchGraphDirectQuery(client, familyId);
+      // ── Step 3: Return direct query result ──
+      // This is always the fallback and the primary source.
+      _cache[familyId] = directResult;
+      return directResult;
     } on PostgrestException catch (e) {
       debugPrint('[FamilyGraphNotifier] Supabase error: ${e.message}');
       return _fallbackOrThrow(familyId, e);

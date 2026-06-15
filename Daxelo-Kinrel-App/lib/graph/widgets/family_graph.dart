@@ -74,6 +74,7 @@ class FamilyGraphWidget extends ConsumerStatefulWidget {
     required this.familyId,
     required this.familyName,
     this.externalTransformController,
+    this.graphData,
   });
 
   /// The family ID for data fetching and permission checks.
@@ -86,6 +87,12 @@ class FamilyGraphWidget extends ConsumerStatefulWidget {
   /// can control zoom/pan programmatically. When provided, the widget
   /// uses it instead of creating its own, and will NOT dispose it.
   final TransformationController? externalTransformController;
+
+  /// Optional pre-fetched graph data from the parent screen.
+  /// When provided, the widget uses this data instead of watching
+  /// the familyGraphProvider, avoiding double-fetching and ensuring
+  /// data consistency between the parent screen and the graph widget.
+  final FlatGraphResult? graphData;
 
   @override
   ConsumerState<FamilyGraphWidget> createState() => _FamilyGraphWidgetState();
@@ -458,7 +465,15 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     // Accessibility: reduced motion
     final reduceMotion = MediaQuery.of(context).disableAnimations;
 
-    // Watch graph data provider
+    // If parent provided graphData, use it directly (no double-fetch).
+    // Otherwise, fall back to watching the provider.
+    final FlatGraphResult? effectiveGraphData = widget.graphData;
+
+    if (effectiveGraphData != null) {
+      return _buildFromGraphData(effectiveGraphData, reduceMotion);
+    }
+
+    // Watch graph data provider as fallback
     final graphAsync = ref.watch(familyGraphProvider(widget.familyId));
 
     return graphAsync.when(
@@ -466,117 +481,120 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         child: CircularProgressIndicator(color: KinrelColors.orange),
       ),
       error: (error, stack) => _buildErrorState(error),
-      data: (graphData) {
-        final persons = graphData.toPersonDataList();
+      data: (graphData) => _buildFromGraphData(graphData, reduceMotion),
+    );
+  }
 
-        if (persons.isEmpty) {
-          // ── Onboarding for 0-member families ──
-          // ONLY show onboarding for brand-new families that have never
-          // been dismissed. Existing users (with members) NEVER see it.
-          final dismissedAsync = ref.watch(onboardingDismissedProvider);
-          final isDismissed = dismissedAsync.valueOrNull?.contains(widget.familyId) ?? true;
+  /// Builds the graph from resolved data, shared by both code paths.
+  Widget _buildFromGraphData(FlatGraphResult graphData, bool reduceMotion) {
+    final persons = graphData.toPersonDataList();
 
-          if (!isDismissed && !_onboardingLocallyDismissed) {
-            // First-time user with 0 members: show onboarding overlay
-            return Stack(
-              children: [
-                EmptyState(
-                  familyId: widget.familyId,
-                  memberCount: 0,
-                  onAddMember: _openAddMemberSheet,
-                ),
-                OnboardingFlow(
-                  familyId: widget.familyId,
-                  memberCount: 0,
-                ),
-              ],
-            );
-          }
+    if (persons.isEmpty) {
+      // ── Onboarding for 0-member families ──
+      // ONLY show onboarding for brand-new families that have never
+      // been dismissed. Existing users (with members) NEVER see it.
+      final dismissedAsync = ref.watch(onboardingDismissedProvider);
+      final isDismissed = dismissedAsync.valueOrNull?.contains(widget.familyId) ?? true;
 
-          return _buildEmptyStack(
-            child: EmptyState(
+      if (!isDismissed && !_onboardingLocallyDismissed) {
+        // First-time user with 0 members: show onboarding overlay
+        return Stack(
+          children: [
+            EmptyState(
               familyId: widget.familyId,
               memberCount: 0,
               onAddMember: _openAddMemberSheet,
             ),
-          );
-        }
-
-        // ── Existing users with members: permanently dismiss onboarding ──
-        // This ensures onboarding NEVER re-appears for families with members.
-        if (persons.isNotEmpty && !_onboardingLocallyDismissed) {
-          final dismissedAsync = ref.watch(onboardingDismissedProvider);
-          final isDismissed = dismissedAsync.valueOrNull?.contains(widget.familyId) ?? true;
-          if (!isDismissed) {
-            // Persist dismissal so onboarding never re-appears
-            ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
-          }
-          // Set local flag so we don't keep reading the async provider
-          _onboardingLocallyDismissed = true;
-        }
-
-        // Build person map and edges
-        _personMap.clear();
-        _edges.clear();
-
-        for (final p in persons) {
-          _personMap[p.id] = _GraphPersonData(
-            id: p.id,
-            name: p.name,
-            gender: p.gender,
-            generationIndex: p.generationIndex,
-            isAnchor: p.isAnchor,
-            photoUrl: p.photoUrl,
-            isDeceased: p.isDeceased,
-          );
-        }
-
-        final relationships = graphData.toRelationshipDataList();
-        for (final r in relationships) {
-          _edges.add(GraphEdgeData(
-            id: r.id,
-            sourceId: r.fromPersonId,
-            targetId: r.toPersonId,
-            relationshipKey: r.relationshipKey,
-          ));
-        }
-
-        // Compute layout
-        final graphPersons =
-            persons.map((p) => p.toGraphPerson()).toList();
-        final graphRelationships =
-            relationships.map((r) => r.toGraphRelationship()).toList();
-        final service = GraphLayoutService();
-        _layoutResult = service.computeLayout(
-          persons: graphPersons,
-          relationships: graphRelationships,
-        );
-
-        if (_layoutResult == null || _layoutResult!.positions.isEmpty) {
-          return _buildEmptyStack(
-            child: EmptyState(
+            OnboardingFlow(
               familyId: widget.familyId,
-              memberCount: persons.length,
-              onAddMember: () {
-                AddPersonSheet.show(context, familyId: widget.familyId);
-              },
+              memberCount: 0,
             ),
-          );
-        }
+          ],
+        );
+      }
 
-        // Track graph open time on first render
-        if (_openStopwatch.isRunning) {
-          _openStopwatch.stop();
-          ref.read(analyticsTrackerProvider).trackGraphOpenTime(
-                _openStopwatch.elapsedMilliseconds,
-                persons.length,
-                false,
-              );
-        }
+      return _buildEmptyStack(
+        child: EmptyState(
+          familyId: widget.familyId,
+          memberCount: 0,
+          onAddMember: _openAddMemberSheet,
+        ),
+      );
+    }
 
-        return _buildGraphStack(_layoutResult!, reduceMotion: reduceMotion);
-      },
+    // ── Existing users with members: permanently dismiss onboarding ──
+    // This ensures onboarding NEVER re-appears for families with members.
+    if (persons.isNotEmpty && !_onboardingLocallyDismissed) {
+      final dismissedAsync = ref.watch(onboardingDismissedProvider);
+      final isDismissed = dismissedAsync.valueOrNull?.contains(widget.familyId) ?? true;
+      if (!isDismissed) {
+        // Persist dismissal so onboarding never re-appears
+        ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
+      }
+      // Set local flag so we don't keep reading the async provider
+      _onboardingLocallyDismissed = true;
+    }
+
+    // Build person map and edges
+    _personMap.clear();
+    _edges.clear();
+
+    for (final p in persons) {
+      _personMap[p.id] = _GraphPersonData(
+        id: p.id,
+        name: p.name,
+        gender: p.gender,
+        generationIndex: p.generationIndex,
+        isAnchor: p.isAnchor,
+        photoUrl: p.photoUrl,
+        isDeceased: p.isDeceased,
+      );
+    }
+
+    final relationships = graphData.toRelationshipDataList();
+    for (final r in relationships) {
+      _edges.add(GraphEdgeData(
+        id: r.id,
+        sourceId: r.fromPersonId,
+        targetId: r.toPersonId,
+        relationshipKey: r.relationshipKey,
+      ));
+    }
+
+    // Compute layout
+    final graphPersons =
+        persons.map((p) => p.toGraphPerson()).toList();
+    final graphRelationships =
+        relationships.map((r) => r.toGraphRelationship()).toList();
+    final service = GraphLayoutService();
+    _layoutResult = service.computeLayout(
+      persons: graphPersons,
+      relationships: graphRelationships,
     );
+
+    if (_layoutResult == null || _layoutResult!.positions.isEmpty) {
+      return _buildEmptyStack(
+        child: EmptyState(
+          familyId: widget.familyId,
+          memberCount: persons.length,
+          onAddMember: () {
+            AddPersonSheet.show(context, familyId: widget.familyId);
+          },
+        ),
+      );
+    }
+
+    // Track graph open time on first render
+    if (_openStopwatch.isRunning) {
+      _openStopwatch.stop();
+      ref.read(analyticsTrackerProvider).trackGraphOpenTime(
+            _openStopwatch.elapsedMilliseconds,
+            persons.length,
+            false,
+          );
+    }
+
+    return _buildGraphStack(_layoutResult!, reduceMotion: reduceMotion);
   }
 
   // ── Graph Stack Builder ────────────────────────────────────────────
