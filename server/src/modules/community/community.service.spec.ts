@@ -22,7 +22,10 @@ describe('CommunityService', () => {
     },
     communityMember: {
       findFirst: jest.fn(),
+      findMany: jest.fn(),
       create: jest.fn(),
+      delete: jest.fn(),
+      count: jest.fn(),
     },
     $transaction: jest.fn((fn: any) =>
       typeof fn === 'function' ? fn(mockPrisma) : Promise.resolve(),
@@ -284,7 +287,7 @@ describe('CommunityService', () => {
       );
     });
 
-    it('should handle private communities (pending request)', async () => {
+    it('should create pending request for private communities', async () => {
       mockPrisma.community.findUnique.mockResolvedValue({
         id: communityId,
         isPrivate: true,
@@ -301,17 +304,12 @@ describe('CommunityService', () => {
 
       const result = await service.join(communityId, userId);
 
-      // NOTE: On the Gatekeeper branch, private communities have a bug where
-      // they auto-join and increment memberCount immediately instead of pending.
-      // The fix is on the feat/agent03/community-crud branch.
-      expect(result.joined).toBe(true);
+      // Private communities now return joined: false, pending: true
+      expect(result.joined).toBe(false);
+      expect(result.pending).toBe(true);
       expect(result.communityId).toBe(communityId);
-      expect(mockPrisma.community.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: communityId },
-          data: { memberCount: { increment: 1 } },
-        }),
-      );
+      // Should NOT increment memberCount for pending joins
+      expect(mockPrisma.community.update).not.toHaveBeenCalled();
     });
 
     it('should auto-join for public communities via transaction', async () => {
