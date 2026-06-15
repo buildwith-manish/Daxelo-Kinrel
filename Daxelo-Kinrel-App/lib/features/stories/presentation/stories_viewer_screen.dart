@@ -206,7 +206,7 @@ class _StoriesViewerScreenState extends ConsumerState<StoriesViewerScreen>
     }
     return hexColors.map((hex) {
       final code = hex.replaceAll('#', '');
-      return Color(int.parse('FF$code', radix: 32));
+      return Color(int.parse('FF$code', radix: 16));
     }).toList();
   }
 
