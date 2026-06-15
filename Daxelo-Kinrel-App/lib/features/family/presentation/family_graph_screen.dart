@@ -195,6 +195,41 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Guard: ensure familyId is valid before proceeding
+    if (widget.familyId.isEmpty) {
+      return Scaffold(
+        backgroundColor: KinrelColors.darkBackground,
+        appBar: _buildAppBar(),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.family_restroom,
+                  color: KinrelColors.textDim, size: 48),
+              const SizedBox(height: 16),
+              const Text('No family selected',
+                  style: TextStyle(
+                      color: KinrelColors.textSecondaryDark,
+                      fontFamily: 'DMSans',
+                      fontSize: 14)),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.arrow_back, size: 18),
+                label: const Text('Go back'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: KinrelColors.orange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     // Watch the realtime provider to auto-invalidate graph data on changes
     ref.watch(graphRealtimeProvider(widget.familyId));
     final graphAsync = ref.watch(familyGraphProvider(widget.familyId));

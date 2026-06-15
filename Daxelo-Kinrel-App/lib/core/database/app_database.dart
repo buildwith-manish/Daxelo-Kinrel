@@ -386,6 +386,16 @@ class AppDatabase extends _$AppDatabase {
   Future<void> upsertPerson(CachedPersonsCompanion person) =>
       into(cachedPersons).insertOnConflictUpdate(person);
 
+  /// Batch upsert multiple persons in a single transaction.
+  /// Used by graph data sync to persist all fetched persons at once,
+  /// which is more efficient than individual upserts and ensures
+  /// the Drift watch stream emits only once after all inserts.
+  Future<void> upsertPersons(List<CachedPersonsCompanion> persons) async {
+    await batch((b) {
+      b.insertAllOnConflictUpdate(cachedPersons, persons);
+    });
+  }
+
   Future<void> deletePersonsByFamily(String familyId) =>
       (delete(cachedPersons)..where((t) => t.familyId.equals(familyId))).go();
 
@@ -411,6 +421,17 @@ class AppDatabase extends _$AppDatabase {
   Future<void> upsertRelationship(
           CachedRelationshipsCompanion relationship) =>
       into(cachedRelationships).insertOnConflictUpdate(relationship);
+
+  /// Batch upsert multiple relationships in a single transaction.
+  /// Used by graph data sync to persist all fetched relationships at once,
+  /// which is more efficient than individual upserts and ensures
+  /// the Drift watch stream emits only once after all inserts.
+  Future<void> upsertRelationships(
+          List<CachedRelationshipsCompanion> relationships) async {
+    await batch((b) {
+      b.insertAllOnConflictUpdate(cachedRelationships, relationships);
+    });
+  }
 
   Future<void> deleteRelationshipsByFamily(String familyId) =>
       (delete(cachedRelationships)

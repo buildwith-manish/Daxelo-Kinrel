@@ -209,6 +209,10 @@ class FamilyTreePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Debug: log painter invocation to help diagnose invisible nodes
+    debugPrint('[FamilyTreePainter] paint() called: '
+        '${relationships.length} edges, ${positions.length} positions, size=$size');
+
     for (final edge in relationships) {
       final fromPos = positions[edge.fromPersonId];
       final toPos = positions[edge.toPersonId];

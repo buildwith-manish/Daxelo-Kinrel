@@ -309,6 +309,11 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
     final canvasHeight = _layoutResult!.canvasHeight;
     final zoomLevel = _currentZoom;
 
+    // Guard: ensure canvas has non-zero dimensions to prevent
+    // CustomPaint from having zero size and rendering nothing
+    final effectiveWidth = canvasWidth > 0 ? canvasWidth : 3000.0;
+    final effectiveHeight = canvasHeight > 0 ? canvasHeight : 3000.0;
+
     return ClipRect(
       child: InteractiveViewer(
         transformationController: _transformationController,
@@ -316,15 +321,15 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
         maxScale: 4.0,
         constrained: false,
         child: SizedBox(
-          width: canvasWidth,
-          height: canvasHeight,
+          width: effectiveWidth,
+          height: effectiveHeight,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
               // ── Layer 1: Edges (CustomPaint) ───────────────────────
               Positioned.fill(
                 child: CustomPaint(
-                  size: Size(canvasWidth, canvasHeight),
+                  size: Size(effectiveWidth, effectiveHeight),
                   painter: FamilyTreePainter(
                     positions: positions,
                     relationships: widget.relationships
