@@ -240,44 +240,131 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
         return const FlatGraphResult(persons: [], relationships: []);
       }
 
-      // Call Supabase RPC directly — no Render server involved
-      final response = await client.rpc(
-        'get_family_graph',
-        params: <String, dynamic>{
-          'p_member_id': memberId,
-          'p_max_degree': 4,
-          'p_include_hidden': false,
-        },
-      ).timeout(const Duration(seconds: 30));
+      // Try Supabase RPC first
+      try {
+        final response = await client.rpc(
+          'get_family_graph',
+          params: <String, dynamic>{
+            'p_member_id': memberId,
+            'p_max_degree': 4,
+            'p_include_hidden': false,
+          },
+        ).timeout(const Duration(seconds: 15));
 
-      final data = response as Map<String, dynamic>?;
-      if (data == null) {
-        throw const FormatException('Empty response from get_family_graph RPC');
+        final data = response as Map<String, dynamic>?;
+        if (data != null) {
+          final result = FlatGraphResult.fromRpc(data);
+
+          // If RPC returned data, use it
+          if (result.persons.isNotEmpty) {
+            _cache[familyId] = result;
+            debugPrint(
+              '[FamilyGraphNotifier] RPC: Loaded ${result.persons.length} persons, '
+              '${result.relationships.length} relationships for $familyId',
+            );
+            return result;
+          }
+
+          // RPC returned empty — fall through to direct query
+          debugPrint(
+            '[FamilyGraphNotifier] RPC returned 0 persons, falling back to direct query for $familyId',
+          );
+        }
+      } catch (rpcError) {
+        debugPrint('[FamilyGraphNotifier] RPC failed: $rpcError, falling back to direct query');
       }
 
-      final result = FlatGraphResult.fromRpc(data);
-
-      // Cache the successful result
-      _cache[familyId] = result;
-
-      debugPrint(
-        '[FamilyGraphNotifier] Loaded ${result.persons.length} persons, '
-        '${result.relationships.length} relationships for $familyId',
-      );
-
-      return result;
+      // ── Direct query fallback ──
+      // Query Person and Relationship tables directly when RPC fails
+      // or returns incomplete data. This ensures all members are visible.
+      return _fetchGraphDirectQuery(client, familyId);
     } on PostgrestException catch (e) {
       debugPrint('[FamilyGraphNotifier] Supabase error: ${e.message}');
       return _fallbackOrThrow(familyId, e);
     } on TimeoutException catch (e) {
       debugPrint('[FamilyGraphNotifier] Timeout: $e');
       return _fallbackOrThrow(familyId, e);
-    } on FormatException catch (e) {
-      debugPrint('[FamilyGraphNotifier] Format error: $e');
-      return _fallbackOrThrow(familyId, e);
     } catch (e) {
       debugPrint('[FamilyGraphNotifier] Unexpected error: $e');
       return _fallbackOrThrow(familyId, e);
+    }
+  }
+
+  /// Fetches graph data by directly querying Person and Relationship tables.
+  /// Used as a fallback when the `get_family_graph` RPC fails or returns
+  /// incomplete results.
+  Future<FlatGraphResult> _fetchGraphDirectQuery(
+    SupabaseClient client,
+    String familyId,
+  ) async {
+    try {
+      // Query all non-deleted persons in this family
+      final rawPersons = await client
+          .from('Person')
+          .select('id, name, gender, generationIndex, isAnchor, avatarUrl, '
+              'isDeceased, visibility, username, familyId')
+          .eq('familyId', familyId)
+          .isFilter('deletedAt', null)
+          .timeout(const Duration(seconds: 15));
+
+      // Query all relationships in this family
+      final rawRelationships = await client
+          .from('Relationship')
+          .select('id, sourceId, targetId, relationshipKey, isPrivate, familyId')
+          .eq('familyId', familyId)
+          .timeout(const Duration(seconds: 15));
+
+      // Map to the same format as FlatGraphResult.fromRpc
+      final persons = rawPersons.map((dynamic n) {
+        final node = n as Map<String, dynamic>;
+        return <String, dynamic>{
+          'id': node['id'],
+          'name': node['name'],
+          'gender': node['gender'],
+          'generationIndex': node['generationIndex'] ?? 0,
+          'isAnchor': node['isAnchor'] ?? false,
+          'photoUrl': node['avatarUrl'],
+          'isDeceased': node['isDeceased'] ?? false,
+          'visibility': node['visibility'],
+          'username': node['username'],
+        };
+      }).toList();
+
+      final relationships = rawRelationships.map((dynamic e) {
+        final edge = e as Map<String, dynamic>;
+        return <String, dynamic>{
+          'id': edge['id'],
+          'fromPersonId': edge['sourceId'],
+          'toPersonId': edge['targetId'],
+          'relationshipKey': edge['relationshipKey'],
+          'isPrivate': edge['isPrivate'] ?? false,
+        };
+      }).toList();
+
+      final result = FlatGraphResult(
+        persons: persons,
+        relationships: relationships,
+        isTruncated: false,
+        totalCount: persons.length,
+      );
+
+      _cache[familyId] = result;
+
+      debugPrint(
+        '[FamilyGraphNotifier] Direct query: Loaded ${result.persons.length} persons, '
+        '${result.relationships.length} relationships for $familyId',
+      );
+
+      return result;
+    } catch (e) {
+      debugPrint('[FamilyGraphNotifier] Direct query error: $e');
+      // If even the direct query fails, try cache
+      final cached = _cache[familyId];
+      if (cached != null) {
+        debugPrint('[FamilyGraphNotifier] Using cached data for $familyId');
+        return cached;
+      }
+      rethrow;
     }
   }
 

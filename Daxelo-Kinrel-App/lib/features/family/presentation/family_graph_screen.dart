@@ -1,10 +1,11 @@
 // lib/features/family/presentation/family_graph_screen.dart
 //
-// DAXELO KINREL — Family Graph Screen (V4.0 Comprehensive Fix)
+// DAXELO KINREL — Family Graph Screen (V5.0 Complete Fix)
 //
 // Full-screen graph viewer for visualizing family relationships.
 // Features:
-//   - AppBar with back, family name, Add Member, Zoom In, Zoom Out
+//   - AppBar with back, family name, Zoom In, Zoom Out
+//   - Add Member FAB always visible inside the graph
 //   - Bottom toolbar with Center, Filter, Help (no zoom buttons)
 //   - Onboarding completely removed for existing users
 //   - InteractiveViewer pinch-to-zoom, pan, center on root
@@ -12,14 +13,17 @@
 //   - Responsive, safe-area aware, no overflow issues
 //   - Real-time updates via Supabase Realtime
 //   - Immediate graph refresh after adding members
+//   - Direct Supabase query fallback if RPC fails
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../graph/graph.dart';
 import 'add_person_sheet.dart';
 import 'providers/family_graph_provider.dart';
@@ -168,9 +172,22 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     // Refresh graph data after the sheet closes to immediately show
     // newly added members. The Supabase Realtime subscription may have
     // already invalidated, but we force a refresh as a safety net.
+    // Also add a small delay to allow Supabase to propagate the change.
     if (mounted) {
+      // First immediate refresh
       ref.invalidate(familyGraphProvider(widget.familyId));
+      // Second delayed refresh as safety net for slow DB propagation
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (mounted) {
+          ref.invalidate(familyGraphProvider(widget.familyId));
+        }
+      });
     }
+  }
+
+  /// Manual refresh — forces a complete re-fetch of graph data.
+  void _refreshGraph() {
+    ref.invalidate(familyGraphProvider(widget.familyId));
   }
 
   // ── Build ─────────────────────────────────────────────────────────
@@ -194,8 +211,8 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
   // ── AppBar ────────────────────────────────────────────────────────
   //
-  // Reference design: [Back] [Family Name] --- [Add Member] [Zoom In] [Zoom Out]
-  // No stacked avatars, no graph toolbar items.
+  // [Back] [Family Name] --- [Zoom In] [Zoom Out]
+  // Add Member is now a prominent FAB inside the graph, not in the AppBar.
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
@@ -215,12 +232,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         ),
       ),
       actions: [
-        // Add Member button
-        IconButton(
-          icon: const Icon(Icons.person_add_alt_1_rounded, size: 22),
-          tooltip: 'Add Member',
-          onPressed: _openAddMember,
-        ),
         // Zoom In button
         IconButton(
           icon: const Icon(Icons.zoom_in_rounded, size: 24),
@@ -241,13 +252,27 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   // ── Loading State ─────────────────────────────────────────────────
 
   Widget _buildLoadingState() {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircularProgressIndicator(color: KinrelColors.orange, strokeWidth: 3),
-          SizedBox(height: 16),
-          Text('Loading family graph...', style: TextStyle(color: KinrelColors.textSecondaryDark, fontFamily: 'DMSans', fontSize: 14)),
+          const CircularProgressIndicator(
+              color: KinrelColors.orange, strokeWidth: 3),
+          const SizedBox(height: 16),
+          const Text('Loading family graph...',
+              style: TextStyle(
+                  color: KinrelColors.textSecondaryDark,
+                  fontFamily: 'DMSans',
+                  fontSize: 14)),
+          const SizedBox(height: 24),
+          TextButton.icon(
+            onPressed: _refreshGraph,
+            icon: const Icon(Icons.refresh, size: 18),
+            label: const Text('Refresh'),
+            style: TextButton.styleFrom(
+              foregroundColor: KinrelColors.orange,
+            ),
+          ),
         ],
       ),
     );
@@ -262,22 +287,57 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: KinrelColors.orange, size: 48),
+            const Icon(Icons.error_outline,
+                color: KinrelColors.orange, size: 48),
             const SizedBox(height: 16),
-            const Text('Something went wrong', style: TextStyle(color: KinrelColors.textWhite, fontFamily: 'Outfit', fontWeight: FontWeight.w600, fontSize: 18)),
+            const Text('Something went wrong',
+                style: TextStyle(
+                    color: KinrelColors.textWhite,
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 18)),
             const SizedBox(height: 8),
-            Text(error.toString(), style: const TextStyle(color: KinrelColors.textSecondaryDark, fontFamily: 'DMSans', fontSize: 13), textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis),
+            Text(error.toString(),
+                style: const TextStyle(
+                    color: KinrelColors.textSecondaryDark,
+                    fontFamily: 'DMSans',
+                    fontSize: 13),
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis),
             const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () => ref.invalidate(familyGraphProvider(widget.familyId)),
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Tap to retry'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: KinrelColors.orange,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _refreshGraph,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Tap to retry'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: KinrelColors.orange,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Direct DB query fallback button
+                OutlinedButton.icon(
+                  onPressed: _directDBRefresh,
+                  icon: const Icon(Icons.storage_outlined, size: 18),
+                  label: const Text('Direct query'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: KinrelColors.orange,
+                    side: const BorderSide(color: KinrelColors.orange),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -285,12 +345,61 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     );
   }
 
+  // ── Direct DB Refresh ─────────────────────────────────────────────
+  //
+  // Bypasses the RPC and queries Person + Relationship tables directly.
+  // This is a fallback for when the `get_family_graph` RPC fails or
+  // returns incomplete data.
+
+  Future<void> _directDBRefresh() async {
+    try {
+      final client = ref.read(supabaseProvider);
+      if (client == null) {
+        debugPrint('[DirectDBRefresh] Supabase client not available');
+        return;
+      }
+
+      // Query all non-deleted persons in this family
+      final persons = await client
+          .from('Person')
+          .select('id, name, gender, generationIndex, isAnchor, avatarUrl, isDeceased, visibility, username, familyId')
+          .eq('familyId', widget.familyId)
+          .isFilter('deletedAt', null);
+
+      // Query all relationships in this family
+      final relationships = await client
+          .from('Relationship')
+          .select('id, sourceId, targetId, relationshipKey, isPrivate, familyId')
+          .eq('familyId', widget.familyId);
+
+      debugPrint(
+        '[DirectDBRefresh] Found ${persons.length} persons, '
+        '${relationships.length} relationships for ${widget.familyId}',
+      );
+
+      // Force invalidate to trigger a full re-fetch
+      ref.invalidate(familyGraphProvider(widget.familyId));
+    } catch (e) {
+      debugPrint('[DirectDBRefresh] Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Direct query failed: $e'),
+            backgroundColor: KinrelColors.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   // ── Data State ────────────────────────────────────────────────────
 
   Widget _buildDataState(FlatGraphResult graph) {
-    if (graph.persons.isEmpty) return _buildEmptyState();
-
     final persons = graph.toPersonDataList();
+
+    // If no persons at all, show the empty state with add member FAB
+    if (persons.isEmpty) return _buildEmptyState();
 
     // Determine which generations are present
     final presentGenerations = <int>{};
@@ -336,7 +445,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         // Generation legend chips (top-left floating, with safe area)
         Positioned(
           left: 16,
-          top: topPadding + 56,
+          top: topPadding + kToolbarHeight + 12,
           child: GenerationLegendWidget(
             presentGenerations: presentGenerations,
             highlightedGeneration: _highlightedGeneration,
@@ -346,12 +455,12 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ),
         ),
 
-        // Relationship legend — hidden by default, tap icon to show
-        // Uses safe area for notch devices
+        // Relationship legend icon — safe area for notch devices
+        // Positioned below AppBar with proper safe area offset
         if (presentRelationshipKeys.isNotEmpty)
           Positioned(
             right: 16,
-            top: topPadding + 60,
+            top: topPadding + kToolbarHeight + 16,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -393,10 +502,20 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             ),
           ),
 
+        // ── Add Member FAB ──────────────────────────────────────────
+        // Prominent FAB always visible inside the graph view.
+        // Positioned at bottom-right, above the bottom toolbar.
+        // Uses the Kinrel orange brand color with extended label.
+        Positioned(
+          right: 20,
+          bottom: bottomPadding + 80,
+          child: _buildAddMemberFAB(),
+        ),
+
         // V2.1 Stats panel (bottom-left, above bottom toolbar)
         Positioned(
           left: 16,
-          bottom: bottomPadding + 72,
+          bottom: bottomPadding + 80,
           child: StatsPanel(
             totalMembers: graph.persons.length,
             totalConnections: graph.relationships.length,
@@ -414,6 +533,71 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           child: Center(child: _buildBottomToolbar()),
         ),
       ],
+    );
+  }
+
+  // ── Add Member FAB ─────────────────────────────────────────────────
+  //
+  // Extended FAB with icon + label for maximum visibility and clarity.
+  // Uses Kinrel orange brand color. Always visible in the graph view.
+
+  Widget _buildAddMemberFAB() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _openAddMember,
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: KinrelGradients.igniteGradient,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: KinrelColors.orange.withValues(alpha: 0.35),
+                blurRadius: 16,
+                spreadRadius: 2,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: KinrelColors.orange.withValues(alpha: 0.15),
+                blurRadius: 32,
+                spreadRadius: 4,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.person_add_alt_1_rounded,
+                  size: 18,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Add Member',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -552,19 +736,22 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded, color: KinrelColors.amber, size: 20),
+          const Icon(Icons.warning_amber_rounded,
+              color: KinrelColors.amber, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               graph.totalCount != null
                   ? 'Showing first ${graph.persons.length} of ${graph.totalCount} persons.'
                   : 'Showing first ${graph.persons.length} persons.',
-              style: const TextStyle(color: KinrelColors.textSecondaryDark, fontFamily: 'DMSans', fontSize: 12),
+              style: const TextStyle(
+                  color: KinrelColors.textSecondaryDark,
+                  fontFamily: 'DMSans',
+                  fontSize: 12),
             ),
           ),
         ],
       ),
     );
   }
-
 }
