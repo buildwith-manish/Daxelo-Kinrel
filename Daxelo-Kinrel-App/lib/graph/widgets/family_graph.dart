@@ -238,42 +238,55 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
 
     // Update viewport culling using the existing ViewportCuller
     if (_viewportSize != Size.zero && _layoutResult != null) {
-      final viewport = Rect.fromLTWH(
-        -pan.dx / zoom,
-        -pan.dy / zoom,
-        _viewportSize.width / zoom,
-        _viewportSize.height / zoom,
-      );
-
-      // Initialize culler if needed (larger buffer for smoother initial visibility)
-      if (_viewportCuller == null) {
-        _viewportCuller = ViewportCuller(
-          viewport: viewport,
-          bufferPixels: 600.0,
+      // For small graphs (<=30 nodes), skip culling entirely — always
+      // show all nodes. This prevents the "only creator visible" bug
+      // on small families where viewport culling can be too aggressive.
+      final totalNodeCount = _layoutResult!.positions.length;
+      if (totalNodeCount <= 30) {
+        final allIds = Set<String>.from(_layoutResult!.positions.keys);
+        if (allIds != _visibleNodeIds) {
+          setState(() {
+            _visibleNodeIds = allIds;
+          });
+        }
+      } else {
+        final viewport = Rect.fromLTWH(
+          -pan.dx / zoom,
+          -pan.dy / zoom,
+          _viewportSize.width / zoom,
+          _viewportSize.height / zoom,
         );
-      }
 
-      final nodeSizes = <String, Size>{
-        for (final id in _layoutResult!.positions.keys)
-          id: const Size(_nodeWidth, _nodeHeight),
-      };
+        // Initialize culler if needed (larger buffer for smoother initial visibility)
+        if (_viewportCuller == null) {
+          _viewportCuller = ViewportCuller(
+            viewport: viewport,
+            bufferPixels: 600.0,
+          );
+        }
 
-      final newVisible = _viewportCuller!.cull(
-        _layoutResult!.positions,
-        nodeSizes,
-        viewport,
-      );
+        final nodeSizes = <String, Size>{
+          for (final id in _layoutResult!.positions.keys)
+            id: const Size(_nodeWidth, _nodeHeight),
+        };
 
-      // Always force-include the anchor node so it's never culled
-      final anchorId = _personMap.values
-          .firstWhere((p) => p.isAnchor, orElse: () => _GraphPersonData.empty())
-          .id;
-      if (anchorId.isNotEmpty) newVisible.add(anchorId);
+        final newVisible = _viewportCuller!.cull(
+          _layoutResult!.positions,
+          nodeSizes,
+          viewport,
+        );
 
-      if (newVisible != _visibleNodeIds) {
-        setState(() {
-          _visibleNodeIds = newVisible;
-        });
+        // Always force-include the anchor node so it's never culled
+        final anchorId = _personMap.values
+            .firstWhere((p) => p.isAnchor, orElse: () => _GraphPersonData.empty())
+            .id;
+        if (anchorId.isNotEmpty) newVisible.add(anchorId);
+
+        if (newVisible != _visibleNodeIds) {
+          setState(() {
+            _visibleNodeIds = newVisible;
+          });
+        }
       }
     }
 
@@ -420,6 +433,24 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     );
   }
 
+  // ── Add Member Sheet Handler ──────────────────────────────────────
+
+  /// Opens the AddPersonSheet and invalidates graph data when it closes
+  /// to ensure newly added members are immediately visible.
+  Future<void> _openAddMemberSheet() async {
+    await AddPersonSheet.show(context, familyId: widget.familyId);
+    // Invalidate graph data after the sheet closes to show new members
+    if (mounted) {
+      ref.invalidate(familyGraphProvider(widget.familyId));
+      // Safety net: second refresh after delay for slow DB propagation
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (mounted) {
+          ref.invalidate(familyGraphProvider(widget.familyId));
+        }
+      });
+    }
+  }
+
   // ── Build ──────────────────────────────────────────────────────────
 
   @override
@@ -452,9 +483,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
                 EmptyState(
                   familyId: widget.familyId,
                   memberCount: 0,
-                  onAddMember: () {
-                    AddPersonSheet.show(context, familyId: widget.familyId);
-                  },
+                  onAddMember: _openAddMemberSheet,
                 ),
                 OnboardingFlow(
                   familyId: widget.familyId,
@@ -468,9 +497,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             child: EmptyState(
               familyId: widget.familyId,
               memberCount: 0,
-              onAddMember: () {
-                AddPersonSheet.show(context, familyId: widget.familyId);
-              },
+              onAddMember: _openAddMemberSheet,
             ),
           );
         }
@@ -626,7 +653,15 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         // The viewport culling only works correctly once the camera
         // transform has been applied, which happens in a post-frame
         // callback. Until then, show every node.
+        //
+        // Additionally, for small graphs (<=30 nodes), always show all
+        // nodes since the culling overhead isn't worth the visual bugs
+        // it can cause on small families.
+        final totalNodeCount = positions.length;
         if (!_initialCenterDone && positions.isNotEmpty) {
+          _visibleNodeIds = Set<String>.from(positions.keys);
+        } else if (totalNodeCount <= 30) {
+          // For small families, always show all nodes — no culling needed
           _visibleNodeIds = Set<String>.from(positions.keys);
         } else {
           final culled = _viewportCuller!.cull(
