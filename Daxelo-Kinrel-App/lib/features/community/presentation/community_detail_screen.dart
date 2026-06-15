@@ -50,7 +50,7 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen>
     final actionState = ref.watch(communityActionProvider);
 
     return Scaffold(
-      backgroundColor: KinrelColors.darkBg,
+      backgroundColor: KinrelColors.darkBackground,
       body: communityAsync.when(
         loading: () => const Center(child: CircularProgressIndicator(color: _cOrange)),
         error: (e, _) => Center(

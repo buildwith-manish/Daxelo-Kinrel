@@ -57,7 +57,7 @@ class _CommunityDiscoveryScreenState extends ConsumerState<CommunityDiscoveryScr
     final communitiesAsync = ref.watch(communitySearchProvider(searchParams));
 
     return Scaffold(
-      backgroundColor: KinrelColors.darkBg,
+      backgroundColor: KinrelColors.darkBackground,
       appBar: AppBar(
         title: Text(
           'Communities',
