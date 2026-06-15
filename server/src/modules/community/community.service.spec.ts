@@ -100,11 +100,12 @@ describe('CommunityService', () => {
           where: expect.objectContaining({
             type: 'gotra',
             OR: expect.arrayContaining([
-              { name: { contains: 'Test' } },
+              { name: { contains: 'Test', mode: 'insensitive' } },
             ]),
           }),
           skip: 0,
           take: 20,
+          orderBy: { memberCount: 'desc' },
         }),
       );
     });
