@@ -2,7 +2,9 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
 import { KinshipService, KinshipTerm } from '../kinship/kinship.service';
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -43,15 +45,185 @@ export interface DailyChallenge {
   streakBonus: number;
 }
 
+/** In-memory check-in state per user+family */
+interface CheckInState {
+  currentStreak: number;
+  longestStreak: number;
+  lastCheckInAt: Date | null;
+  totalCheckIns: number;
+}
+
+/** In-memory quiz stats per user+family */
+interface QuizStats {
+  quizzesCompleted: number;
+  totalQuizScore: number;
+}
+
+// ── Point Values ─────────────────────────────────────────────────────
+
+const POINT_VALUES: Record<string, number> = {
+  personsAdded: 5,
+  relationshipsAdded: 10,
+  storiesShared: 3,
+  photosAdded: 3,
+  eventsCreated: 5,
+  commentsWritten: 2,
+  invitationsSent: 5,
+  personsEdited: 1,
+};
+
+// ── Standard Badge Definitions ───────────────────────────────────────
+
+const STANDARD_BADGES = [
+  {
+    slug: 'first_person',
+    name: 'First Person',
+    nameHi: 'पहला व्यक्ति',
+    description: 'Added your first family member',
+    icon: '🌱',
+    category: 'tree_builder',
+    tier: 'bronze',
+    threshold: 1,
+    isSecret: false,
+  },
+  {
+    slug: 'centurion',
+    name: 'Centurion',
+    nameHi: 'शताब्दी',
+    description: 'Added 100 family members',
+    icon: '💯',
+    category: 'tree_builder',
+    tier: 'gold',
+    threshold: 100,
+    isSecret: false,
+  },
+  {
+    slug: 'bond_maker',
+    name: 'Bond Maker',
+    nameHi: 'रिश्ता बनाने वाला',
+    description: 'Created 10 relationships',
+    icon: '🔗',
+    category: 'connector',
+    tier: 'bronze',
+    threshold: 10,
+    isSecret: false,
+  },
+  {
+    slug: 'super_connector',
+    name: 'Super Connector',
+    nameHi: 'सुपर कनेक्टर',
+    description: 'Created 50 relationships',
+    icon: '🤝',
+    category: 'connector',
+    tier: 'silver',
+    threshold: 50,
+    isSecret: false,
+  },
+  {
+    slug: 'storyteller',
+    name: 'Storyteller',
+    nameHi: 'कहानीकार',
+    description: 'Shared 5 family stories',
+    icon: '📖',
+    category: 'historian',
+    tier: 'bronze',
+    threshold: 5,
+    isSecret: false,
+  },
+  {
+    slug: 'memory_keeper',
+    name: 'Memory Keeper',
+    nameHi: 'याद रखने वाला',
+    description: 'Shared 25 family stories',
+    icon: '🏛️',
+    category: 'historian',
+    tier: 'silver',
+    threshold: 25,
+    isSecret: false,
+  },
+  {
+    slug: 'photographer',
+    name: 'Photographer',
+    nameHi: 'फोटोग्राफर',
+    description: 'Added 10 photos',
+    icon: '📷',
+    category: 'historian',
+    tier: 'bronze',
+    threshold: 10,
+    isSecret: false,
+  },
+  {
+    slug: 'social_butterfly',
+    name: 'Social Butterfly',
+    nameHi: 'सामाजिक तितली',
+    description: 'Sent 10 invitations',
+    icon: '🦋',
+    category: 'social',
+    tier: 'bronze',
+    threshold: 10,
+    isSecret: false,
+  },
+  {
+    slug: 'family_organizer',
+    name: 'Family Organizer',
+    nameHi: 'पारिवारिक आयोजक',
+    description: 'Created 5 family events',
+    icon: '🎉',
+    category: 'social',
+    tier: 'bronze',
+    threshold: 5,
+    isSecret: false,
+  },
+];
+
 // ── Service ──────────────────────────────────────────────────────────
 
 @Injectable()
-export class GamificationService {
+export class GamificationService implements OnModuleInit {
   private readonly logger = new Logger(GamificationService.name);
-  private readonly quizSessions: Map<string, QuizSession> = new Map();
-  private readonly leaderboard: Map<string, LeaderboardEntry> = new Map();
 
-  constructor(private readonly kinshipService: KinshipService) {}
+  /** Quiz sessions — kept in-memory (temporary by nature) */
+  private readonly quizSessions: Map<string, QuizSession> = new Map();
+
+  /** Check-in state per user+family — in-memory */
+  private readonly checkInStates: Map<string, CheckInState> = new Map();
+
+  /** Quiz stats per user+family — in-memory */
+  private readonly quizStatsMap: Map<string, QuizStats> = new Map();
+
+  /** Daily challenge submissions per user per day */
+  private readonly dailyChallengeSubmissions: Map<string, Set<string>> = new Map();
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly kinshipService: KinshipService,
+  ) {}
+
+  async onModuleInit() {
+    await this.seedBadges();
+  }
+
+  // ── Badge Seeding ──────────────────────────────────────────────────
+
+  private async seedBadges() {
+    try {
+      const existingCount = await this.prisma.badge.count();
+      if (existingCount > 0) {
+        this.logger.log(`🏅 ${existingCount} badges already exist — skipping seed`);
+        return;
+      }
+
+      await this.prisma.badge.createMany({
+        data: STANDARD_BADGES,
+      });
+
+      this.logger.log(`🏅 Seeded ${STANDARD_BADGES.length} badges`);
+    } catch (error) {
+      this.logger.warn(`Failed to seed badges: ${(error as Error).message}`);
+    }
+  }
+
+  // ── Quiz ───────────────────────────────────────────────────────────
 
   /**
    * Start a new quiz session with generated questions.
@@ -93,18 +265,27 @@ export class GamificationService {
 
   /**
    * Submit answers for a quiz and calculate score.
+   * Persists the score to UserContribution when familyId is provided.
    */
-  submitQuiz(
+  async submitQuiz(
     quizId: string,
     answers: number[],
     userId: string,
     userName: string,
-  ): {
+    familyId?: string,
+  ): Promise<{
     score: number;
     totalQuestions: number;
     correctAnswers: number;
-    details: Array<{ questionId: string; correct: boolean; correctIndex: number; userAnswer: number }>;
-  } {
+    details: Array<{
+      questionId: string;
+      correct: boolean;
+      correctIndex: number;
+      userAnswer: number;
+    }>;
+    pointsEarned: number;
+    newBadges: string[];
+  }> {
     const session = this.quizSessions.get(quizId);
     if (!session) {
       throw new NotFoundException(`Quiz session ${quizId} not found`);
@@ -123,10 +304,40 @@ export class GamificationService {
       };
     });
 
-    const score = Math.round((correctAnswers / session.totalQuestions) * 100);
+    const score = Math.round(
+      (correctAnswers / session.totalQuestions) * 100,
+    );
 
-    // Update leaderboard
-    this.updateLeaderboard(userId, userName, score);
+    // Track quiz stats in-memory
+    if (familyId) {
+      const statsKey = `${userId}:${familyId}`;
+      const stats = this.quizStatsMap.get(statsKey) || {
+        quizzesCompleted: 0,
+        totalQuizScore: 0,
+      };
+      stats.quizzesCompleted += 1;
+      stats.totalQuizScore += score;
+      this.quizStatsMap.set(statsKey, stats);
+
+      // Award quiz points (1 point per score point)
+      const pointsEarned = score;
+      await this.updateContribution(userId, familyId, 'commentsWritten', 0, pointsEarned);
+
+      // Check for new badges
+      const newBadges = await this.checkAndAwardBadges(userId, familyId);
+
+      // Clean up session
+      this.quizSessions.delete(quizId);
+
+      return {
+        score,
+        totalQuestions: session.totalQuestions,
+        correctAnswers,
+        details,
+        pointsEarned,
+        newBadges: newBadges.map((b) => b.slug),
+      };
+    }
 
     // Clean up session
     this.quizSessions.delete(quizId);
@@ -136,23 +347,413 @@ export class GamificationService {
       totalQuestions: session.totalQuestions,
       correctAnswers,
       details,
+      pointsEarned: 0,
+      newBadges: [],
     };
   }
 
-  /**
-   * Get leaderboard sorted by score.
-   */
-  getLeaderboard(): LeaderboardEntry[] {
-    const entries = [...this.leaderboard.values()].sort(
-      (a, b) => b.score - a.score,
-    );
+  // ── Leaderboard ────────────────────────────────────────────────────
 
-    // Assign ranks
-    return entries.map((entry, index) => ({
-      ...entry,
-      rank: index + 1,
+  /**
+   * Get leaderboard from DB, ordered by totalPoints desc.
+   * Supports optional familyId filter and timeframe.
+   */
+  async getLeaderboard(query?: {
+    familyId?: string;
+    timeframe?: 'weekly' | 'monthly' | 'all';
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    entries: LeaderboardEntry[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const {
+      familyId,
+      timeframe = 'all',
+      page = 1,
+      limit = 20,
+    } = query || {};
+
+    const where: any = {};
+
+    if (familyId) {
+      where.familyId = familyId;
+    }
+
+    // Apply timeframe filter based on updatedAt
+    if (timeframe !== 'all') {
+      const now = new Date();
+      let since: Date;
+      if (timeframe === 'weekly') {
+        since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      } else {
+        since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      }
+      where.updatedAt = { gte: since };
+    }
+
+    const [contributions, total] = await Promise.all([
+      this.prisma.userContribution.findMany({
+        where,
+        orderBy: { totalPoints: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      }),
+      this.prisma.userContribution.count({ where }),
+    ]);
+
+    const entries: LeaderboardEntry[] = contributions.map((c, index) => ({
+      userId: c.userId,
+      name: c.user?.name || c.user?.email || 'Anonymous',
+      score: c.totalPoints,
+      quizzesCompleted: 0,
+      rank: (page - 1) * limit + index + 1,
     }));
+
+    return { entries, total, page, limit };
   }
+
+  // ── Badges ─────────────────────────────────────────────────────────
+
+  /**
+   * List all available badges from DB.
+   */
+  async getBadges() {
+    return this.prisma.badge.findMany({
+      orderBy: [{ category: 'asc' }, { threshold: 'asc' }],
+    });
+  }
+
+  /**
+   * List earned badges for a user, optionally filtered by familyId.
+   */
+  async getUserBadges(userId: string, familyId?: string) {
+    const where: any = { userId };
+    if (familyId) {
+      where.familyId = familyId;
+    }
+
+    return this.prisma.userBadge.findMany({
+      where,
+      include: {
+        badge: true,
+      },
+      orderBy: { earnedAt: 'desc' },
+    });
+  }
+
+  /**
+   * Check contribution thresholds against badge thresholds and award new badges.
+   */
+  async checkAndAwardBadges(
+    userId: string,
+    familyId: string,
+  ): Promise<{ slug: string; name: string }[]> {
+    const contribution = await this.prisma.userContribution.findUnique({
+      where: { userId_familyId: { userId, familyId } },
+    });
+
+    if (!contribution) return [];
+
+    // Get all badges the user hasn't earned yet for this family
+    const earnedBadgeIds = (
+      await this.prisma.userBadge.findMany({
+        where: { userId, familyId },
+        select: { badgeId: true },
+      })
+    ).map((ub) => ub.badgeId);
+
+    const unearnedBadges = await this.prisma.badge.findMany({
+      where: {
+        id: { notIn: earnedBadgeIds },
+      },
+    });
+
+    const newBadges: { slug: string; name: string }[] = [];
+
+    for (const badge of unearnedBadges) {
+      const qualifies = this.checkBadgeQualification(
+        badge.slug,
+        badge.category,
+        badge.threshold,
+        contribution,
+      );
+
+      if (qualifies) {
+        try {
+          await this.prisma.userBadge.create({
+            data: {
+              userId,
+              badgeId: badge.id,
+              familyId,
+            },
+          });
+          newBadges.push({ slug: badge.slug, name: badge.name });
+          this.logger.log(
+            `🏅 User ${userId} earned badge "${badge.name}" (${badge.slug})`,
+          );
+        } catch {
+          // Unique constraint violation — badge already awarded, skip silently
+        }
+      }
+    }
+
+    return newBadges;
+  }
+
+  /**
+   * Determine if a user qualifies for a badge based on their contributions.
+   */
+  private checkBadgeQualification(
+    slug: string,
+    category: string,
+    threshold: number,
+    contribution: Record<string, any>,
+  ): boolean {
+    switch (slug) {
+      // Tree builder badges
+      case 'first_person':
+        return (contribution.personsAdded ?? 0) >= threshold;
+      case 'centurion':
+        return (contribution.personsAdded ?? 0) >= threshold;
+
+      // Connector badges
+      case 'bond_maker':
+        return (contribution.relationshipsAdded ?? 0) >= threshold;
+      case 'super_connector':
+        return (contribution.relationshipsAdded ?? 0) >= threshold;
+
+      // Historian badges
+      case 'storyteller':
+        return (contribution.storiesShared ?? 0) >= threshold;
+      case 'memory_keeper':
+        return (contribution.storiesShared ?? 0) >= threshold;
+      case 'photographer':
+        return (contribution.photosAdded ?? 0) >= threshold;
+
+      // Social badges
+      case 'social_butterfly':
+        return (contribution.invitationsSent ?? 0) >= threshold;
+      case 'family_organizer':
+        return (contribution.eventsCreated ?? 0) >= threshold;
+
+      default:
+        // Generic category-based check using totalPoints
+        return (contribution.totalPoints ?? 0) >= threshold;
+    }
+  }
+
+  // ── Contributions ──────────────────────────────────────────────────
+
+  /**
+   * Update a contribution field and recalculate totalPoints and level.
+   */
+  async updateContribution(
+    userId: string,
+    familyId: string,
+    field: string,
+    increment: number = 1,
+    extraPoints: number = 0,
+  ): Promise<Record<string, any>> {
+    const validFields = [
+      'personsAdded',
+      'relationshipsAdded',
+      'photosAdded',
+      'eventsCreated',
+      'storiesShared',
+      'commentsWritten',
+      'invitationsSent',
+      'personsEdited',
+    ];
+
+    // Upsert the contribution record
+    const existing = await this.prisma.userContribution.findUnique({
+      where: { userId_familyId: { userId, familyId } },
+    });
+
+    const updateData: Record<string, any> = {};
+
+    if (validFields.includes(field) && increment > 0) {
+      const currentValue = existing ? (existing as any)[field] ?? 0 : 0;
+      updateData[field] = currentValue + increment;
+    }
+
+    // Recalculate total points from all fields
+    const base = existing
+      ? { ...existing }
+      : {
+          personsAdded: 0,
+          relationshipsAdded: 0,
+          photosAdded: 0,
+          eventsCreated: 0,
+          storiesShared: 0,
+          commentsWritten: 0,
+          invitationsSent: 0,
+          personsEdited: 0,
+        };
+
+    // Apply the field increment on top of base
+    if (validFields.includes(field) && increment > 0) {
+      (base as any)[field] = updateData[field];
+    }
+
+    let totalPoints = 0;
+    for (const f of validFields) {
+      totalPoints += ((base as any)[f] ?? 0) * (POINT_VALUES[f] ?? 0);
+    }
+    totalPoints += extraPoints;
+
+    updateData.totalPoints = totalPoints;
+    updateData.level = Math.floor(totalPoints / 100) + 1;
+
+    const result = await this.prisma.userContribution.upsert({
+      where: { userId_familyId: { userId, familyId } },
+      create: {
+        userId,
+        familyId,
+        ...updateData,
+      },
+      update: updateData,
+    });
+
+    return result;
+  }
+
+  /**
+   * Get contribution summary for a user in a family.
+   */
+  async getContribution(userId: string, familyId: string) {
+    const contribution = await this.prisma.userContribution.findUnique({
+      where: { userId_familyId: { userId, familyId } },
+    });
+
+    if (!contribution) {
+      return {
+        userId,
+        familyId,
+        personsAdded: 0,
+        relationshipsAdded: 0,
+        photosAdded: 0,
+        eventsCreated: 0,
+        storiesShared: 0,
+        commentsWritten: 0,
+        invitationsSent: 0,
+        personsEdited: 0,
+        totalPoints: 0,
+        level: 1,
+        checkIns: 0,
+        currentStreak: 0,
+        longestStreak: 0,
+        quizzesCompleted: 0,
+      };
+    }
+
+    // Merge in-memory stats
+    const key = `${userId}:${familyId}`;
+    const checkInState = this.checkInStates.get(key);
+    const quizStats = this.quizStatsMap.get(key);
+
+    return {
+      ...contribution,
+      checkIns: checkInState?.totalCheckIns ?? 0,
+      currentStreak: checkInState?.currentStreak ?? 0,
+      longestStreak: checkInState?.longestStreak ?? 0,
+      quizzesCompleted: quizStats?.quizzesCompleted ?? 0,
+    };
+  }
+
+  // ── Check-In System ────────────────────────────────────────────────
+
+  /**
+   * Record a daily check-in for a user.
+   * Updates streak logic and awards points.
+   */
+  async checkIn(
+    userId: string,
+    familyId: string,
+  ): Promise<{
+    checkedIn: boolean;
+    currentStreak: number;
+    pointsEarned: number;
+    newBadges: string[];
+  }> {
+    const key = `${userId}:${familyId}`;
+    const now = new Date();
+    const state = this.checkInStates.get(key) || {
+      currentStreak: 0,
+      longestStreak: 0,
+      lastCheckInAt: null as Date | null,
+      totalCheckIns: 0,
+    };
+
+    // Streak logic
+    if (state.lastCheckInAt) {
+      const lastDate = new Date(state.lastCheckInAt);
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const lastDateStart = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
+      const diffDays = Math.floor(
+        (todayStart.getTime() - lastDateStart.getTime()) / (24 * 60 * 60 * 1000),
+      );
+
+      if (diffDays === 0) {
+        // Already checked in today — no change
+        return {
+          checkedIn: true,
+          currentStreak: state.currentStreak,
+          pointsEarned: 0,
+          newBadges: [],
+        };
+      } else if (diffDays === 1) {
+        // Checked in yesterday — increment streak
+        state.currentStreak += 1;
+      } else {
+        // Streak broken — reset to 1
+        state.currentStreak = 1;
+      }
+    } else {
+      // First check-in
+      state.currentStreak = 1;
+    }
+
+    // Update longest streak
+    if (state.currentStreak > state.longestStreak) {
+      state.longestStreak = state.currentStreak;
+    }
+
+    state.lastCheckInAt = now;
+    state.totalCheckIns += 1;
+
+    this.checkInStates.set(key, state);
+
+    // Award check-in points (10 base, +5 bonus for 7+ day streak)
+    const streakBonus = state.currentStreak >= 7 ? 15 : 10;
+    const pointsEarned = streakBonus;
+
+    await this.updateContribution(userId, familyId, 'commentsWritten', 0, pointsEarned);
+
+    // Check for new badges
+    const newBadges = await this.checkAndAwardBadges(userId, familyId);
+
+    return {
+      checkedIn: true,
+      currentStreak: state.currentStreak,
+      pointsEarned,
+      newBadges: newBadges.map((b) => b.slug),
+    };
+  }
+
+  // ── Daily Challenge ────────────────────────────────────────────────
 
   /**
    * Get daily challenge based on today's date.
@@ -177,6 +778,72 @@ export class GamificationService {
     };
   }
 
+  /**
+   * Submit answer for the daily challenge.
+   * Awards points if correct, tracks completion.
+   */
+  async submitDailyChallenge(
+    userId: string,
+    familyId: string,
+    answer: number,
+  ): Promise<{
+    correct: boolean;
+    pointsEarned: number;
+    alreadySubmitted: boolean;
+    correctIndex: number;
+    newBadges: string[];
+  }> {
+    const today = new Date().toISOString().split('T')[0];
+
+    // Check if already submitted today
+    if (!this.dailyChallengeSubmissions.has(today)) {
+      this.dailyChallengeSubmissions.set(today, new Set());
+    }
+    const todaySubmissions = this.dailyChallengeSubmissions.get(today)!;
+
+    if (todaySubmissions.has(userId)) {
+      return {
+        correct: false,
+        pointsEarned: 0,
+        alreadySubmitted: true,
+        correctIndex: -1,
+        newBadges: [],
+      };
+    }
+
+    // Mark as submitted
+    todaySubmissions.add(userId);
+
+    // Get today's challenge
+    const challenge = this.getDailyChallenge();
+    const correct = answer === challenge.question.correctIndex;
+
+    let pointsEarned = 0;
+    if (correct) {
+      pointsEarned = challenge.streakBonus + 20; // base 20 + streak bonus
+      await this.updateContribution(
+        userId,
+        familyId,
+        'commentsWritten',
+        0,
+        pointsEarned,
+      );
+    }
+
+    // Check for new badges
+    const newBadges = correct
+      ? (await this.checkAndAwardBadges(userId, familyId)).map((b) => b.slug)
+      : [];
+
+    return {
+      correct,
+      pointsEarned,
+      alreadySubmitted: false,
+      correctIndex: challenge.question.correctIndex,
+      newBadges,
+    };
+  }
+
   // ── Private Helpers ────────────────────────────────────────────────
 
   private generateQuestions(
@@ -185,8 +852,6 @@ export class GamificationService {
     count: number,
     difficulty: string,
   ): QuizQuestion[] {
-    const questions: QuizQuestion[] = [];
-
     switch (category) {
       case 'kinship_basic':
         return this.generateKinshipBasicQuestions(language, count, difficulty);
@@ -510,26 +1175,6 @@ export class GamificationService {
         translations: { [targetLang]: translation },
       },
     };
-  }
-
-  private updateLeaderboard(
-    userId: string,
-    name: string,
-    score: number,
-  ): void {
-    const existing = this.leaderboard.get(userId);
-    if (existing) {
-      existing.score = Math.max(existing.score, score);
-      existing.quizzesCompleted += 1;
-    } else {
-      this.leaderboard.set(userId, {
-        userId,
-        name,
-        score,
-        quizzesCompleted: 1,
-        rank: 0,
-      });
-    }
   }
 
   private dateSeed(dateString: string): number {
