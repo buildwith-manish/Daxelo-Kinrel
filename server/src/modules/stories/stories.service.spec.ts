@@ -195,9 +195,9 @@ describe('StoriesService', () => {
       const user1Group = result.find((g: any) => g.user.id === 'user-1');
       const user2Group = result.find((g: any) => g.user.id === 'user-2');
 
-      expect(user1Group.stories).toHaveLength(2);
-      expect(user1Group.hasUnviewed).toBe(true); // s2 is unviewed
-      expect(user2Group.hasUnviewed).toBe(true); // s3 is unviewed
+      expect(user1Group!.stories).toHaveLength(2);
+      expect(user1Group!.hasUnviewed).toBe(true); // s2 is unviewed
+      expect(user2Group!.hasUnviewed).toBe(true); // s3 is unviewed
     });
   });
 
