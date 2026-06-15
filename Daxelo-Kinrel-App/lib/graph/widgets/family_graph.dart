@@ -155,6 +155,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   /// Whether the initial camera centering on the anchor node has been done.
   bool _initialCenterDone = false;
 
+  /// Whether onboarding has been permanently dismissed for this family.
+  /// This is a local cache so we don't need to check the async provider
+  /// on every build, preventing onboarding flashes.
+  bool _onboardingLocallyDismissed = false;
+
   // ── Constants ──────────────────────────────────────────────────────
 
   static const double _nodeWidth = 72.0;
@@ -180,10 +185,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   Future<void> _autoDismissOnboardingIfExistingUser() async {
     try {
       final dismissed = await OnboardingPrefs.load();
-      if (!dismissed.contains(widget.familyId)) {
-        // Check if there are existing members — if so, dismiss onboarding
-        // immediately so the user never sees onboarding cards again.
-        // We check the provider value; if it's loading, we defer to build().
+      if (dismissed.contains(widget.familyId)) {
+        // Already dismissed — set local flag to prevent any flash
+        if (mounted) {
+          setState(() => _onboardingLocallyDismissed = true);
+        }
       }
     } catch (_) {
       // Silently ignore — onboarding will still be gated in build()
@@ -196,6 +202,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     if (oldWidget.familyId != widget.familyId) {
       _initialCenterDone = false;
       _viewportCuller = null;
+      _onboardingLocallyDismissed = false;
     }
     // Detect when the external transform controller is reset to identity
     // (e.g., user tapped "Center on Root" in the parent screen) and
@@ -432,12 +439,13 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         final persons = graphData.toPersonDataList();
 
         if (persons.isEmpty) {
-          // Check onboarding for 0-member families — only show onboarding
-          // if this family has NOT been dismissed before.
+          // ── Onboarding for 0-member families ──
+          // ONLY show onboarding for brand-new families that have never
+          // been dismissed. Existing users (with members) NEVER see it.
           final dismissedAsync = ref.watch(onboardingDismissedProvider);
           final isDismissed = dismissedAsync.valueOrNull?.contains(widget.familyId) ?? true;
 
-          if (!isDismissed) {
+          if (!isDismissed && !_onboardingLocallyDismissed) {
             // First-time user with 0 members: show onboarding overlay
             return Stack(
               children: [
@@ -467,15 +475,17 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
           );
         }
 
-        // Existing users with members: auto-dismiss onboarding permanently
-        // so they NEVER see onboarding cards again.
-        if (persons.isNotEmpty) {
+        // ── Existing users with members: permanently dismiss onboarding ──
+        // This ensures onboarding NEVER re-appears for families with members.
+        if (persons.isNotEmpty && !_onboardingLocallyDismissed) {
           final dismissedAsync = ref.watch(onboardingDismissedProvider);
           final isDismissed = dismissedAsync.valueOrNull?.contains(widget.familyId) ?? true;
           if (!isDismissed) {
             // Persist dismissal so onboarding never re-appears
             ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
           }
+          // Set local flag so we don't keep reading the async provider
+          _onboardingLocallyDismissed = true;
         }
 
         // Build person map and edges
@@ -611,24 +621,30 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             id: const Size(_nodeWidth, _nodeHeight),
         };
 
-        // FIX A: Show all nodes on first render before camera centers
-        if (_visibleNodeIds.isEmpty && positions.isNotEmpty) {
+        // FIX A (improved): On first render before camera has centered,
+        // show ALL nodes to prevent the "only creator visible" bug.
+        // The viewport culling only works correctly once the camera
+        // transform has been applied, which happens in a post-frame
+        // callback. Until then, show every node.
+        if (!_initialCenterDone && positions.isNotEmpty) {
           _visibleNodeIds = Set<String>.from(positions.keys);
         } else {
-          _visibleNodeIds = _viewportCuller!.cull(
+          final culled = _viewportCuller!.cull(
             positions,
             nodeSizes,
             viewport,
           );
-        }
 
-        // FIX C: Always force-include the anchor node in LayoutBuilder culling
-        final layoutAnchorId = _personMap.values
-            .firstWhere((p) => p.isAnchor,
-                orElse: () => _GraphPersonData.empty())
-            .id;
-        if (layoutAnchorId.isNotEmpty && !_visibleNodeIds.contains(layoutAnchorId)) {
-          _visibleNodeIds = Set<String>.from(_visibleNodeIds)..add(layoutAnchorId);
+          // FIX C: Always force-include the anchor node in culling
+          final anchorId = _personMap.values
+              .firstWhere((p) => p.isAnchor,
+                  orElse: () => _GraphPersonData.empty())
+              .id;
+          if (anchorId.isNotEmpty && !culled.contains(anchorId)) {
+            culled.add(anchorId);
+          }
+
+          _visibleNodeIds = culled;
         }
 
         final effectiveVisibleIds = _visibleNodeIds;

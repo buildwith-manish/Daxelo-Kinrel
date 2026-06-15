@@ -1,6 +1,6 @@
 // lib/features/family/presentation/family_graph_screen.dart
 //
-// DAXELO KINREL — Family Graph Screen (V3.0 Refactor)
+// DAXELO KINREL — Family Graph Screen (V4.0 Comprehensive Fix)
 //
 // Full-screen graph viewer for visualizing family relationships.
 // Features:
@@ -10,7 +10,8 @@
 //   - InteractiveViewer pinch-to-zoom, pan, center on root
 //   - Graph state persistence (zoom/position) via SharedPreferences
 //   - Responsive, safe-area aware, no overflow issues
-//   - Real-time updates via Socket.IO
+//   - Real-time updates via Supabase Realtime
+//   - Immediate graph refresh after adding members
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -161,10 +162,22 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     });
   }
 
+  /// Opens the Add Member sheet and refreshes graph data when it closes.
+  Future<void> _openAddMember() async {
+    await AddPersonSheet.show(context, familyId: widget.familyId);
+    // Refresh graph data after the sheet closes to immediately show
+    // newly added members. The Supabase Realtime subscription may have
+    // already invalidated, but we force a refresh as a safety net.
+    if (mounted) {
+      ref.invalidate(familyGraphProvider(widget.familyId));
+    }
+  }
+
   // ── Build ─────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    // Watch the realtime provider to auto-invalidate graph data on changes
     ref.watch(graphRealtimeProvider(widget.familyId));
     final graphAsync = ref.watch(familyGraphProvider(widget.familyId));
 
@@ -206,8 +219,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         IconButton(
           icon: const Icon(Icons.person_add_alt_1_rounded, size: 22),
           tooltip: 'Add Member',
-          onPressed: () =>
-              AddPersonSheet.show(context, familyId: widget.familyId),
+          onPressed: _openAddMember,
         ),
         // Zoom In button
         IconButton(
@@ -293,6 +305,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     }
 
     final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final topPadding = MediaQuery.of(context).padding.top;
 
     return Stack(
       children: [
@@ -320,10 +333,10 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ],
         ),
 
-        // Generation legend chips (top-left floating, below filter bar)
+        // Generation legend chips (top-left floating, with safe area)
         Positioned(
           left: 16,
-          top: graph.isTruncated ? 96 : 56,
+          top: topPadding + 56,
           child: GenerationLegendWidget(
             presentGenerations: presentGenerations,
             highlightedGeneration: _highlightedGeneration,
@@ -334,10 +347,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         ),
 
         // Relationship legend — hidden by default, tap icon to show
+        // Uses safe area for notch devices
         if (presentRelationshipKeys.isNotEmpty)
           Positioned(
             right: 16,
-            top: 80,
+            top: topPadding + 60,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -406,26 +420,24 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   // ── Empty State ───────────────────────────────────────────────────
 
   Widget _buildEmptyState() {
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
     return Stack(
       children: [
         EmptyState(
           memberCount: 0,
           familyId: widget.familyId,
-          onAddMember: () {
-            AddPersonSheet.show(context, familyId: widget.familyId);
-          },
+          onAddMember: _openAddMember,
         ),
         // Add Member FAB — visible even in empty state
         Positioned(
           right: 20,
-          bottom: MediaQuery.of(context).padding.bottom + 20,
+          bottom: bottomPadding + 20,
           child: FloatingActionButton(
             heroTag: 'empty_add_member_fab',
             backgroundColor: KinrelColors.orange,
             foregroundColor: Colors.white,
             elevation: 6,
-            onPressed: () =>
-                AddPersonSheet.show(context, familyId: widget.familyId),
+            onPressed: _openAddMember,
             child: const Icon(Icons.person_add_alt_1_rounded, size: 24),
           ),
         ),
