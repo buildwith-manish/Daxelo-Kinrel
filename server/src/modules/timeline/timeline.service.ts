@@ -1,9 +1,63 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { KinrelGateway } from '../gateway/kinrel.gateway';
+import { CreateCommentDto } from './dto/timeline.dto';
+
+/** Shape of the reactions JSON stored on FamilyPost */
+export interface ReactionsData {
+  emojis: Record<string, number>;
+  userReactions: Record<string, string[]>;
+  commentCount: number;
+  comments: CommentData[];
+}
+
+/** Shape of a single comment stored in the reactions JSON */
+export interface CommentData {
+  id: string;
+  authorId: string;
+  authorName: string;
+  body: string;
+  parentId: string | null;
+  createdAt: string;
+}
 
 @Injectable()
 export class TimelineService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(TimelineService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly gateway: KinrelGateway,
+  ) {}
+
+  // ── Helpers ────────────────────────────────────────────────────────
+
+  /** Parse the reactions JSON field safely, falling back to a blank slate. */
+  private parseReactions(raw: string | null | undefined): ReactionsData {
+    try {
+      const parsed = JSON.parse(raw || '{}');
+      return {
+        emojis: parsed.emojis ?? {},
+        userReactions: parsed.userReactions ?? {},
+        commentCount: parsed.commentCount ?? 0,
+        comments: parsed.comments ?? [],
+      };
+    } catch {
+      return { emojis: {}, userReactions: {}, commentCount: 0, comments: [] };
+    }
+  }
+
+  /** Serialize the ReactionsData back to a JSON string for storage. */
+  private serializeReactions(data: ReactionsData): string {
+    return JSON.stringify(data);
+  }
+
+  /** Generate a simple unique ID for inline comments. */
+  private generateId(): string {
+    return `cmt_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  // ── Read Operations ───────────────────────────────────────────────
 
   /** Returns paginated family posts ordered by newest first with cursor-based pagination. */
   async getTimeline(familyId: string, limit: number = 20, cursor?: string) {
@@ -30,10 +84,7 @@ export class TimelineService {
     const data = hasNextPage ? posts.slice(0, -1) : posts;
     const nextCursor = hasNextPage ? data[data.length - 1].id : null;
 
-    return {
-      data,
-      nextCursor,
-    };
+    return { data, nextCursor };
   }
 
   /**
@@ -52,7 +103,6 @@ export class TimelineService {
     const myFamilyIds = myFamilyMemberships.map((m) => m.familyId);
 
     // ── Step 2: Gather family IDs from followed users' memberships ──────
-    // Get users the current user follows (ACCEPTED)
     const following = await this.prisma.follow.findMany({
       where: { followerId: userId, status: 'ACCEPTED' },
       select: { followingId: true },
@@ -61,7 +111,6 @@ export class TimelineService {
 
     let followedFamilyIds: string[] = [];
     if (followedUserIds.length > 0) {
-      // Get families where followed users are members
       const followedFamilyMemberships = await this.prisma.familyMember.findMany({
         where: {
           userId: { in: followedUserIds },
@@ -118,21 +167,277 @@ export class TimelineService {
       source: myFamilyIdSet.has(post.familyId) ? 'family' : 'following',
     }));
 
-    return {
-      data: enrichedData,
-      nextCursor,
-    };
+    return { data: enrichedData, nextCursor };
   }
 
   /** Creates a new post in the family timeline feed. */
   async createPost(familyId: string, authorId: string, postType: string, content: Record<string, any>) {
-    return this.prisma.familyPost.create({
+    const post = await this.prisma.familyPost.create({
       data: {
         familyId,
         authorId,
         postType,
         content: JSON.stringify(content),
+        reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 0, comments: [] }),
+      },
+      include: {
+        author: { select: { id: true, name: true, photoUrl: true } },
       },
     });
+
+    // Emit socket event to family room
+    this.gateway.emitToFamily(familyId, 'timeline:post_created', {
+      id: post.id,
+      type: 'timeline:post_created',
+      familyId,
+      updatedAt: post.updatedAt.toISOString(),
+    });
+
+    return post;
+  }
+
+  // ── Reaction Toggle ────────────────────────────────────────────────
+
+  /**
+   * Toggle a reaction on a post. If the user already reacted with the same
+   * emoji, the reaction is removed (un-react). Otherwise it is added.
+   * Returns the updated reactions object.
+   */
+  async toggleReaction(postId: string, userId: string, emoji: string) {
+    // Verify post exists
+    const post = await this.prisma.familyPost.findUnique({ where: { id: postId } });
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    const reactions = this.parseReactions(post.reactions as string);
+
+    // Check if user already has this emoji
+    const userEmojis = reactions.userReactions[userId] ?? [];
+    const hasEmoji = userEmojis.includes(emoji);
+
+    if (hasEmoji) {
+      // Remove reaction
+      reactions.userReactions[userId] = userEmojis.filter((e) => e !== emoji);
+      if (reactions.userReactions[userId].length === 0) {
+        delete reactions.userReactions[userId];
+      }
+      reactions.emojis[emoji] = Math.max(0, (reactions.emojis[emoji] ?? 1) - 1);
+      if (reactions.emojis[emoji] === 0) {
+        delete reactions.emojis[emoji];
+      }
+    } else {
+      // Add reaction
+      reactions.userReactions[userId] = [...userEmojis, emoji];
+      reactions.emojis[emoji] = (reactions.emojis[emoji] ?? 0) + 1;
+    }
+
+    // Persist
+    await this.prisma.familyPost.update({
+      where: { id: postId },
+      data: { reactions: this.serializeReactions(reactions) },
+    });
+
+    // Emit socket event
+    this.gateway.emitToFamily(post.familyId, 'timeline:reaction', {
+      id: postId,
+      type: 'timeline:reaction',
+      familyId: post.familyId,
+      emoji,
+      userId,
+      action: hasEmoji ? 'removed' : 'added',
+      updatedAt: new Date().toISOString(),
+    });
+
+    return reactions;
+  }
+
+  // ── Comments ───────────────────────────────────────────────────────
+
+  /**
+   * Get comments for a post.
+   * Comments are stored in the reactions JSON field on FamilyPost.
+   * TODO (Task-3): Migrate to dedicated Comment rows once schema adds familyPostId.
+   */
+  async getComments(postId: string, limit: number = 50, cursor?: string) {
+    const post = await this.prisma.familyPost.findUnique({ where: { id: postId } });
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    const reactions = this.parseReactions(post.reactions as string);
+    let comments = [...reactions.comments].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+
+    // Cursor-based pagination: skip comments with id <= cursor
+    if (cursor) {
+      const cursorIdx = comments.findIndex((c) => c.id === cursor);
+      if (cursorIdx >= 0) {
+        comments = comments.slice(cursorIdx + 1);
+      }
+    }
+
+    const hasNextPage = comments.length > limit;
+    const data = hasNextPage ? comments.slice(0, limit) : comments;
+    const nextCursor = hasNextPage ? data[data.length - 1].id : null;
+
+    return { data, nextCursor };
+  }
+
+  /**
+   * Add a comment to a post.
+   * The comment is stored in the reactions JSON field.
+   * Author name is resolved from the User table automatically.
+   */
+  async addComment(
+    postId: string,
+    authorId: string,
+    dto: CreateCommentDto,
+  ) {
+    const post = await this.prisma.familyPost.findUnique({ where: { id: postId } });
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    // Resolve author name from User table
+    const author = await this.prisma.user.findUnique({
+      where: { id: authorId },
+      select: { name: true },
+    });
+    const authorName = author?.name ?? 'Unknown';
+
+    // Validate parentId if provided
+    const reactions = this.parseReactions(post.reactions as string);
+    if (dto.parentId) {
+      const parentExists = reactions.comments.some((c) => c.id === dto.parentId);
+      if (!parentExists) {
+        throw new NotFoundException('Parent comment not found');
+      }
+    }
+
+    const newComment: CommentData = {
+      id: this.generateId(),
+      authorId,
+      authorName,
+      body: dto.body,
+      parentId: dto.parentId ?? null,
+      createdAt: new Date().toISOString(),
+    };
+
+    reactions.comments.push(newComment);
+    reactions.commentCount = reactions.comments.length;
+
+    await this.prisma.familyPost.update({
+      where: { id: postId },
+      data: { reactions: this.serializeReactions(reactions) },
+    });
+
+    // Emit socket event
+    this.gateway.emitToFamily(post.familyId, 'timeline:comment', {
+      id: postId,
+      type: 'timeline:comment',
+      familyId: post.familyId,
+      comment: newComment,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return newComment;
+  }
+
+  /**
+   * Delete a comment from a post.
+   * Only the comment author or a family admin/owner can delete.
+   */
+  async deleteComment(postId: string, commentId: string, userId: string) {
+    const post = await this.prisma.familyPost.findUnique({ where: { id: postId } });
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    const reactions = this.parseReactions(post.reactions as string);
+    const comment = reactions.comments.find((c) => c.id === commentId);
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    // Authorization: comment author, post author, or family admin/owner
+    const isCommentAuthor = comment.authorId === userId;
+    const isPostAuthor = post.authorId === userId;
+    let isFamilyAdmin = false;
+
+    if (!isCommentAuthor && !isPostAuthor) {
+      const membership = await this.prisma.familyMember.findFirst({
+        where: { familyId: post.familyId, userId },
+      });
+      isFamilyAdmin = membership?.role === 'owner' || membership?.role === 'admin';
+    }
+
+    if (!isCommentAuthor && !isPostAuthor && !isFamilyAdmin) {
+      throw new ForbiddenException('You can only delete your own comments');
+    }
+
+    // Remove the comment and any replies to it
+    reactions.comments = reactions.comments.filter(
+      (c) => c.id !== commentId && c.parentId !== commentId,
+    );
+    reactions.commentCount = reactions.comments.length;
+
+    await this.prisma.familyPost.update({
+      where: { id: postId },
+      data: { reactions: this.serializeReactions(reactions) },
+    });
+
+    // Emit socket event
+    this.gateway.emitToFamily(post.familyId, 'timeline:comment_deleted', {
+      id: postId,
+      type: 'timeline:comment_deleted',
+      familyId: post.familyId,
+      commentId,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { deleted: true, commentId };
+  }
+
+  // ── Delete Post ────────────────────────────────────────────────────
+
+  /**
+   * Delete a post. Only the post author or a family admin/owner can delete.
+   */
+  async deletePost(postId: string, userId: string) {
+    const post = await this.prisma.familyPost.findUnique({ where: { id: postId } });
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    // Authorization: post author or family admin/owner
+    const isPostAuthor = post.authorId === userId;
+    let isFamilyAdmin = false;
+
+    if (!isPostAuthor) {
+      const membership = await this.prisma.familyMember.findFirst({
+        where: { familyId: post.familyId, userId },
+      });
+      isFamilyAdmin = membership?.role === 'owner' || membership?.role === 'admin';
+    }
+
+    if (!isPostAuthor && !isFamilyAdmin) {
+      throw new ForbiddenException('You can only delete your own posts');
+    }
+
+    const familyId = post.familyId;
+
+    await this.prisma.familyPost.delete({ where: { id: postId } });
+
+    // Emit socket event
+    this.gateway.emitToFamily(familyId, 'timeline:post_deleted', {
+      id: postId,
+      type: 'timeline:post_deleted',
+      familyId,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { deleted: true, postId };
   }
 }
