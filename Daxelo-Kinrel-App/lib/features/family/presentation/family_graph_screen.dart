@@ -1,19 +1,20 @@
 // lib/features/family/presentation/family_graph_screen.dart
 //
-// DAXELO KINREL — Family Graph Screen (V5.0 Complete Fix)
+// DAXELO KINREL — Family Graph Screen (V6.0 Complete Fix)
 //
 // Full-screen graph viewer for visualizing family relationships.
 // Features:
 //   - AppBar with back, family name, Zoom In, Zoom Out
-//   - Add Member FAB always visible inside the graph
-//   - Bottom toolbar with Center, Filter, Help (no zoom buttons)
-//   - Onboarding completely removed for existing users
+//   - Add Member button in bottom toolbar (always visible, orange highlight)
+//   - Add Member FAB floating above toolbar (extended label style)
+//   - Bottom toolbar with Center, Add Member, Filter, Help
+//   - Passes graph data directly to FamilyGraphWidget (no double-fetch)
 //   - InteractiveViewer pinch-to-zoom, pan, center on root
 //   - Graph state persistence (zoom/position) via SharedPreferences
 //   - Responsive, safe-area aware, no overflow issues
 //   - Real-time updates via Supabase Realtime
 //   - Immediate graph refresh after adding members
-//   - Direct Supabase query fallback if RPC fails
+//   - Direct Supabase query as primary source (always fetches ALL members)
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -416,6 +417,10 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     final topPadding = MediaQuery.of(context).padding.top;
 
+    // Calculate safe bottom offset for FAB above toolbar
+    // Toolbar height = 48px + 8px bottom margin
+    final fabBottomOffset = bottomPadding + 72;
+
     return Stack(
       children: [
         // Main graph content
@@ -437,6 +442,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
                 familyId: widget.familyId,
                 familyName: widget.familyName ?? 'Family Tree',
                 externalTransformController: _graphTransformController,
+                graphData: graph,
               ),
             ),
           ],
@@ -508,14 +514,14 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         // Uses the Kinrel orange brand color with extended label.
         Positioned(
           right: 20,
-          bottom: bottomPadding + 80,
+          bottom: fabBottomOffset,
           child: _buildAddMemberFAB(),
         ),
 
         // V2.1 Stats panel (bottom-left, above bottom toolbar)
         Positioned(
           left: 16,
-          bottom: bottomPadding + 80,
+          bottom: fabBottomOffset,
           child: StatsPanel(
             totalMembers: graph.persons.length,
             totalConnections: graph.relationships.length,
@@ -524,8 +530,9 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ),
         ),
 
-        // Bottom toolbar — Center, Filter, Help (NO zoom buttons)
+        // Bottom toolbar — Center, Add Member, Filter, Help (NO zoom buttons)
         // Zoom In/Out are in the AppBar per reference design
+        // Add Member button is in the toolbar for guaranteed visibility
         Positioned(
           bottom: bottomPadding + 8,
           left: 0,
@@ -631,8 +638,9 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
   // ── Bottom Toolbar ─────────────────────────────────────────────────
   //
-  // Per reference design: only Center, Filter, Help at bottom center.
-  // Zoom In/Out are in the AppBar.
+  // Per reference design: Center, Add Member, Filter, Help at bottom center.
+  // Zoom In/Out are in the AppBar. Add Member is prominently placed
+  // in the toolbar for guaranteed visibility and one-tap access.
 
   Widget _buildBottomToolbar() {
     return Container(
@@ -658,6 +666,21 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             icon: Icons.center_focus_strong_outlined,
             tooltip: 'Center on Root',
             onPressed: _centerOnRootUser,
+          ),
+          // Divider
+          Container(
+            width: 1,
+            height: 24,
+            color: Colors.white.withValues(alpha: 0.1),
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+          ),
+          // Add Member — PROMINENT in toolbar for guaranteed visibility
+          _toolbarButton(
+            icon: Icons.person_add_alt_1_rounded,
+            tooltip: 'Add Member',
+            onPressed: _openAddMember,
+            highlighted: true,
+            isPrimary: true,
           ),
           // Divider
           Container(
@@ -699,6 +722,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     required String tooltip,
     required VoidCallback onPressed,
     bool highlighted = false,
+    bool isPrimary = false,
   }) {
     return Tooltip(
       message: tooltip,
@@ -708,16 +732,25 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         child: Container(
           width: 48,
           height: 48,
-          decoration: highlighted
+          decoration: isPrimary
               ? BoxDecoration(
-                  color: KinrelColors.orange.withValues(alpha: 0.15),
+                  color: KinrelColors.orange.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(24),
                 )
-              : null,
+              : highlighted
+                  ? BoxDecoration(
+                      color: KinrelColors.orange.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(24),
+                    )
+                  : null,
           child: Icon(
             icon,
             size: 22,
-            color: highlighted ? KinrelColors.orange : KinrelColors.textDim,
+            color: isPrimary
+                ? KinrelColors.orange
+                : highlighted
+                    ? KinrelColors.orange
+                    : KinrelColors.textDim,
           ),
         ),
       ),
