@@ -13,7 +13,7 @@
 /// - Skip session validation
 /// - Use mock user for all auth-dependent code
 /// - Bypass all auth guards
-const bool kAuthDisabled = true;
+const bool kAuthDisabled = false;
 
 /// Mock authenticated user used when kAuthDisabled = true.
 class MockUser {
