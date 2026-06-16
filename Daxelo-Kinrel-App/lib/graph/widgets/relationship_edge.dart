@@ -384,6 +384,8 @@ class RelationshipEdge extends CustomPainter {
         isHalfSibling: isHalfSibling,
         isPrivate: edge.isPrivate,
         isIndirect: edge.isIndirectConnection,
+        sourceId: edge.sourceId,
+        targetId: edge.targetId,
       );
     }
   }
@@ -418,6 +420,8 @@ class RelationshipEdge extends CustomPainter {
     required bool isHalfSibling,
     required bool isPrivate,
     required bool isIndirect,
+    required String sourceId,
+    required String targetId,
   }) {
     // Compute edge endpoints
     final (start, end) = _computeEndpoints(fromPos, toPos, category);
@@ -440,8 +444,8 @@ class RelationshipEdge extends CustomPainter {
     }
 
     // Anonymous endpoint: reduce opacity
-    if (anonymousNodeIds.contains(edge.sourceId) ||
-        anonymousNodeIds.contains(edge.targetId)) {
+    if (anonymousNodeIds.contains(sourceId) ||
+        anonymousNodeIds.contains(targetId)) {
       edgeColor = edgeColor.withValues(alpha: edgeColor.a * 0.5);
     }
 
