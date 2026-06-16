@@ -181,7 +181,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       case 0:
         return nameValidator(_nameController.text) == null;
       case 1:
-        return true; // Relationship is optional
+        // Relationship is mandatory when there are existing family members
+        // (i.e., when an anchor person exists). If this is the very first
+        // member being added, relationship can be skipped.
+        if (_effectiveAnchorPerson != null) {
+          return _effectiveRelationshipKey != null;
+        }
+        return true;
       case 2:
         return true; // Additional details are optional
       case 3:
@@ -1073,6 +1079,42 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               ),
             ),
           ],
+
+          // Mandatory hint when no relationship selected but anchor exists
+          if (_effectiveAnchorPerson != null && _effectiveRelationshipKey == null) ...[
+            SizedBox(height: 16),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: KinrelColors.orange.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+                border: Border.all(
+                  color: KinrelColors.orange.withValues(alpha: 0.15),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: KinrelColors.orange,
+                    size: 16,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Please select how they are related to proceed',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 13,
+                        color: KinrelColors.orange,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1622,9 +1664,11 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                     isLoading: _isSubmitting,
                   )
                 : _buildIgniteButton(
-                    label: _currentStep == 0 && !_canProceed()
-                        ? 'Next (name required)'
-                        : 'Next',
+                    label: _currentStep == 1 && !_canProceed()
+                        ? 'Next (select relationship)'
+                        : _currentStep == 0 && !_canProceed()
+                            ? 'Next (name required)'
+                            : 'Next',
                     onPressed: _canProceed() ? _nextStep : null,
                   ),
           ),

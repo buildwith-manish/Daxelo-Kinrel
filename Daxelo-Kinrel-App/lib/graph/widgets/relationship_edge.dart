@@ -187,23 +187,23 @@ class EdgeStyleResolver {
     switch (category) {
       case EdgeCategory.parent:
       case EdgeCategory.child:
-        return 0.65;
+        return 0.85;
       case EdgeCategory.spouse:
-        return 0.7;
+        return 0.85;
       case EdgeCategory.sibling:
-        return 0.55;
+        return 0.75;
       case EdgeCategory.grandparent:
-        return 0.55;
+        return 0.75;
       case EdgeCategory.auntUncle:
-        return 0.5;
+        return 0.7;
       case EdgeCategory.cousin:
-        return 0.4;
+        return 0.6;
       case EdgeCategory.inLaw:
-        return 0.5;
+        return 0.7;
       case EdgeCategory.extended:
-        return 0.25;
+        return 0.45;
       case EdgeCategory.indirect:
-        return 0.35;
+        return 0.5;
     }
   }
 
@@ -321,13 +321,13 @@ class RelationshipEdge extends CustomPainter {
   // ── Paint Constants ────────────────────────────────────────────────
 
   /// Default stroke width.
-  static const double _defaultStrokeWidth = 1.5;
+  static const double _defaultStrokeWidth = 2.0;
 
   /// Selected edge stroke width.
   static const double _selectedStrokeWidth = 2.5;
 
   /// Dimmed alpha for edges outside highlighted generation.
-  static const double _dimmedAlpha = 0.15;
+  static const double _dimmedAlpha = 0.30;
 
   // ── Midpoint Indicator Constants ──────────────────────────────────
 
@@ -440,8 +440,8 @@ class RelationshipEdge extends CustomPainter {
     }
 
     // Anonymous endpoint: reduce opacity
-    if (anonymousNodeIds.contains(fromPos.toString()) ||
-        anonymousNodeIds.contains(toPos.toString())) {
+    if (anonymousNodeIds.contains(edge.sourceId) ||
+        anonymousNodeIds.contains(edge.targetId)) {
       edgeColor = edgeColor.withValues(alpha: edgeColor.a * 0.5);
     }
 
@@ -802,15 +802,22 @@ class RelationshipEdge extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant RelationshipEdge oldDelegate) {
-    return oldDelegate.positions != positions ||
-        oldDelegate.edges != edges ||
+    // Always repaint when data changes — use length checks for mutable
+    // collections since reference equality fails when list contents change
+    // but the list object is reused (clear + add pattern).
+    return oldDelegate.positions.length != positions.length ||
+        oldDelegate.edges.length != edges.length ||
         oldDelegate.selectedEdgeId != selectedEdgeId ||
         oldDelegate.zoomLevel != zoomLevel ||
         oldDelegate.nodeWidth != nodeWidth ||
         oldDelegate.nodeHeight != nodeHeight ||
-        oldDelegate.generationMap != generationMap ||
         oldDelegate.highlightedGeneration != highlightedGeneration ||
-        oldDelegate.anonymousNodeIds != anonymousNodeIds ||
-        oldDelegate.blockedNodeIds != blockedNodeIds;
+        oldDelegate.anonymousNodeIds.length != anonymousNodeIds.length ||
+        oldDelegate.blockedNodeIds.length != blockedNodeIds.length ||
+        // Deep-check first edge id as a heuristic for content change
+        (edges.isNotEmpty &&
+            oldDelegate.edges.isNotEmpty &&
+            edges.first.id != oldDelegate.edges.first.id) ||
+        (edges.isNotEmpty && oldDelegate.edges.isEmpty);
   }
 }
