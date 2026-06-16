@@ -802,22 +802,25 @@ class RelationshipEdge extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant RelationshipEdge oldDelegate) {
-    // Always repaint when data changes — use length checks for mutable
-    // collections since reference equality fails when list contents change
-    // but the list object is reused (clear + add pattern).
-    return oldDelegate.positions.length != positions.length ||
-        oldDelegate.edges.length != edges.length ||
-        oldDelegate.selectedEdgeId != selectedEdgeId ||
-        oldDelegate.zoomLevel != zoomLevel ||
-        oldDelegate.nodeWidth != nodeWidth ||
-        oldDelegate.nodeHeight != nodeHeight ||
-        oldDelegate.highlightedGeneration != highlightedGeneration ||
-        oldDelegate.anonymousNodeIds.length != anonymousNodeIds.length ||
-        oldDelegate.blockedNodeIds.length != blockedNodeIds.length ||
-        // Deep-check first edge id as a heuristic for content change
-        (edges.isNotEmpty &&
-            oldDelegate.edges.isNotEmpty &&
-            edges.first.id != oldDelegate.edges.first.id) ||
-        (edges.isNotEmpty && oldDelegate.edges.isEmpty);
+    // Repaint when the edges list object changed (new list created each build)
+    // or when any other visual property changed.
+    if (!identical(oldDelegate.edges, edges)) return true;
+    if (oldDelegate.positions.length != positions.length) return true;
+    if (oldDelegate.selectedEdgeId != selectedEdgeId) return true;
+    if (oldDelegate.zoomLevel != zoomLevel) return true;
+    if (oldDelegate.nodeWidth != nodeWidth) return true;
+    if (oldDelegate.nodeHeight != nodeHeight) return true;
+    if (oldDelegate.highlightedGeneration != highlightedGeneration) return true;
+    if (oldDelegate.anonymousNodeIds.length != anonymousNodeIds.length) return true;
+    if (oldDelegate.blockedNodeIds.length != blockedNodeIds.length) return true;
+    // Check if position values actually changed (not just count)
+    if (!identical(oldDelegate.positions, positions)) {
+      for (final key in positions.keys) {
+        final oldPos = oldDelegate.positions[key];
+        final newPos = positions[key];
+        if (oldPos != newPos) return true;
+      }
+    }
+    return false;
   }
 }
