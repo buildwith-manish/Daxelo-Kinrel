@@ -268,6 +268,19 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         ),
       ),
       actions: [
+        // Add Member button in AppBar
+        Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: TextButton.icon(
+            onPressed: _openAddMember,
+            icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+            label: const Text('Add'),
+            style: TextButton.styleFrom(
+              foregroundColor: KinrelColors.orange,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+          ),
+        ),
         // Zoom In button
         IconButton(
           icon: const Icon(Icons.zoom_in_rounded, size: 24),
@@ -483,10 +496,10 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ],
         ),
 
-        // Generation legend chips (top-left floating, with safe area)
+        // Generation legend chips (top-left floating, below filter bar)
         Positioned(
           left: 16,
-          top: topPadding + kToolbarHeight + 12,
+          top: 56,
           child: GenerationLegendWidget(
             presentGenerations: presentGenerations,
             highlightedGeneration: _highlightedGeneration,
@@ -496,15 +509,55 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ),
         ),
 
-        // Relationship legend icon — safe area for notch devices
-        // Positioned below AppBar with proper safe area offset
-        if (presentRelationshipKeys.isNotEmpty)
-          Positioned(
-            right: 16,
-            top: topPadding + kToolbarHeight + 16,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
+        // Add Member + Legend buttons (top-right, below filter bar)
+        // Positioned below the GenerationFilterBar to avoid notch overlap
+        Positioned(
+          right: 16,
+          top: 56,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // Add Member button (top, prominent)
+              GestureDetector(
+                onTap: _openAddMember,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: KinrelGradients.igniteGradient,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: KinrelColors.orange.withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.person_add_alt_1_rounded,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Add Member',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Legend (?) button (only when relationships exist)
+              if (presentRelationshipKeys.isNotEmpty) ...[
+                const SizedBox(height: 8),
                 GestureDetector(
                   onTap: () => setState(() => _showLegend = !_showLegend),
                   child: Container(
@@ -520,7 +573,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
                       ),
                     ),
                     child: Icon(
-                      Icons.account_tree_outlined,
+                      Icons.help_outline_rounded,
                       size: 18,
                       color: _showLegend
                           ? KinrelColors.orange
@@ -540,8 +593,9 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
                   ),
                 ],
               ],
-            ),
+            ],
           ),
+        ),
 
         // ── Add Member FAB ──────────────────────────────────────────
         // Prominent FAB always visible inside the graph view.
