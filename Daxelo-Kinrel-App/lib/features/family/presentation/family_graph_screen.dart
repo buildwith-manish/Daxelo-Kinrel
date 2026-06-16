@@ -29,7 +29,6 @@ import '../../../graph/graph.dart';
 import 'add_person_sheet.dart';
 import 'providers/family_graph_provider.dart';
 import 'widgets/generation_filter_bar.dart';
-import 'widgets/generation_legend_widget.dart';
 import 'widgets/graph_canvas_widget.dart' show PersonData;
 import 'widgets/relationship_legend.dart';
 import 'widgets/stats_panel.dart';
@@ -516,71 +515,16 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ],
         ),
 
-        // Generation legend chips (top-left floating, below filter bar)
-        // Positioned relative to the Scaffold body, which starts BELOW
-        // the AppBar — so no need to add topPadding (already accounted for).
-        Positioned(
-          left: 16,
-          top: filterBarTopOffset,
-          child: GenerationLegendWidget(
-            presentGenerations: presentGenerations,
-            highlightedGeneration: _highlightedGeneration,
-            onGenerationTap: (gen) {
-              setState(() => _highlightedGeneration = gen);
-            },
-          ),
-        ),
-
-        // Add Member + Legend buttons (top-right, below filter bar)
-        // Positioned relative to the Scaffold body, which starts BELOW
-        // the AppBar — so no need to add topPadding (already accounted for).
-        Positioned(
-          right: 16,
-          top: filterBarTopOffset,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              // Add Member button (top, prominent)
-              GestureDetector(
-                onTap: _openAddMember,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    gradient: KinrelGradients.igniteGradient,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: KinrelColors.orange.withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.person_add_alt_1_rounded,
-                        size: 16,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Add Member',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.displayFont,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              // Legend (?) button (only when relationships exist)
-              if (presentRelationshipKeys.isNotEmpty) ...[
-                const SizedBox(height: 8),
+        // Legend (?) button (top-right, below filter bar)
+        // Only the help/legend button — no Add Member pill here
+        // (Add Member is in the AppBar and bottom toolbar).
+        if (presentRelationshipKeys.isNotEmpty)
+          Positioned(
+            right: 16,
+            top: filterBarTopOffset,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
                 GestureDetector(
                   onTap: () => setState(() => _showLegend = !_showLegend),
                   child: Container(
@@ -616,19 +560,8 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
                   ),
                 ],
               ],
-            ],
+            ),
           ),
-        ),
-
-        // ── Add Member FAB ──────────────────────────────────────────
-        // Prominent FAB always visible inside the graph view.
-        // Positioned at bottom-right, above the bottom toolbar.
-        // Uses the Kinrel orange brand color with extended label.
-        Positioned(
-          right: 20,
-          bottom: fabBottomOffset,
-          child: _buildAddMemberFAB(),
-        ),
 
         // V2.1 Stats panel (bottom-left, above bottom toolbar)
         Positioned(
@@ -652,71 +585,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           child: Center(child: _buildBottomToolbar()),
         ),
       ],
-    );
-  }
-
-  // ── Add Member FAB ─────────────────────────────────────────────────
-  //
-  // Extended FAB with icon + label for maximum visibility and clarity.
-  // Uses Kinrel orange brand color. Always visible in the graph view.
-
-  Widget _buildAddMemberFAB() {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: _openAddMember,
-        borderRadius: BorderRadius.circular(28),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: KinrelGradients.igniteGradient,
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: KinrelColors.orange.withValues(alpha: 0.35),
-                blurRadius: 16,
-                spreadRadius: 2,
-                offset: const Offset(0, 4),
-              ),
-              BoxShadow(
-                color: KinrelColors.orange.withValues(alpha: 0.15),
-                blurRadius: 32,
-                spreadRadius: 4,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.person_add_alt_1_rounded,
-                  size: 18,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'Add Member',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
