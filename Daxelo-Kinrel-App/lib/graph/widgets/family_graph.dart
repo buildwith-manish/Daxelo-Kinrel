@@ -20,6 +20,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -560,6 +561,22 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     }
 
     final relationships = graphData.toRelationshipDataList();
+
+    // ── EDGE DEBUG: Trace relationship data ──
+    debugPrint('[EDGE-DEBUG] Raw relationships count: ${graphData.relationships.length}');
+    debugPrint('[EDGE-DEBUG] Parsed RelationshipData count: ${relationships.length}');
+    if (relationships.isNotEmpty) {
+      final first = relationships.first;
+      debugPrint('[EDGE-DEBUG] First relationship: id=${first.id}, '
+          'fromPersonId=${first.fromPersonId}, toPersonId=${first.toPersonId}, '
+          'key=${first.relationshipKey}');
+    }
+    if (graphData.relationships.isNotEmpty) {
+      final raw = graphData.relationships.first;
+      debugPrint('[EDGE-DEBUG] Raw first relationship keys: ${raw.keys.toList()}');
+      debugPrint('[EDGE-DEBUG] Raw first relationship values: $raw');
+    }
+
     for (final r in relationships) {
       newEdges.add(GraphEdgeData(
         id: r.id,
@@ -569,17 +586,50 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       ));
     }
     _edges = newEdges;
+    debugPrint('[EDGE-DEBUG] Built ${_edges.length} GraphEdgeData entries');
+    if (_edges.isNotEmpty) {
+      debugPrint('[EDGE-DEBUG] First edge: id=${_edges.first.id}, '
+          'sourceId=${_edges.first.sourceId}, targetId=${_edges.first.targetId}');
+    }
 
     // Compute layout
     final graphPersons =
         persons.map((p) => p.toGraphPerson()).toList();
     final graphRelationships =
         relationships.map((r) => r.toGraphRelationship()).toList();
+
+    debugPrint('[EDGE-DEBUG] Layout input: ${graphPersons.length} persons, '
+        '${graphRelationships.length} relationships');
+    debugPrint('[EDGE-DEBUG] Person IDs in _personMap: ${_personMap.keys.take(5).toList()}...');
+
     final service = GraphLayoutService();
     _layoutResult = service.computeLayout(
       persons: graphPersons,
       relationships: graphRelationships,
     );
+
+    debugPrint('[EDGE-DEBUG] Layout result: ${_layoutResult?.positions.length ?? 0} positions, '
+        'canvas=${_layoutResult?.canvasWidth ?? 0}x${_layoutResult?.canvasHeight ?? 0}');
+
+    // Cross-check: do edge source/target IDs exist in positions map?
+    if (_layoutResult != null && _edges.isNotEmpty) {
+      int matched = 0, missed = 0;
+      for (final edge in _edges) {
+        final srcOk = _layoutResult!.positions.containsKey(edge.sourceId);
+        final tgtOk = _layoutResult!.positions.containsKey(edge.targetId);
+        if (srcOk && tgtOk) {
+          matched++;
+        } else {
+          missed++;
+          if (missed <= 3) {
+            debugPrint('[EDGE-DEBUG] MISSED edge ${edge.id}: '
+                'sourceId=${edge.sourceId} inPositions=$srcOk, '
+                'targetId=${edge.targetId} inPositions=$tgtOk');
+          }
+        }
+      }
+      debugPrint('[EDGE-DEBUG] Edge-positions cross-check: $matched matched, $missed missed');
+    }
 
     if (_layoutResult == null || _layoutResult!.positions.isEmpty) {
       return _buildEmptyStack(

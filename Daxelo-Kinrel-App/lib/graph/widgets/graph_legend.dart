@@ -46,10 +46,12 @@ class _GraphLegendState extends ConsumerState<GraphLegend> {
 
   @override
   Widget build(BuildContext context) {
-    return RepaintBoundary(
-      child: Positioned(
-        bottom: 80,
-        left: 16,
+    // Must be a direct child of Stack — Positioned only works as an
+    // immediate child. Wrapping it in RepaintBoundary breaks positioning.
+    return Positioned(
+      bottom: 80,
+      left: 16,
+      child: RepaintBoundary(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,

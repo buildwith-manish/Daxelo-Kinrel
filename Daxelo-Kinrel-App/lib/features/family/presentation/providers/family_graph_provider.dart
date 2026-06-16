@@ -105,12 +105,18 @@ class FlatGraphResult {
     // Map RPC edge keys → legacy API keys
     final relationships = rawEdges.map((dynamic e) {
       final edge = e as Map<String, dynamic>;
+      // The RPC may return 'sourceId'/'targetId' or 'member_a_id'/'member_b_id'
+      // depending on the SQL function version. Handle both.
+      final sourceId = edge['sourceId'] ?? edge['member_a_id'] ?? edge['source_id'];
+      final targetId = edge['targetId'] ?? edge['member_b_id'] ?? edge['target_id'];
+      final relKey = edge['relationshipKey'] ?? edge['relationship_type']
+          ?? edge['relationshipType'] ?? 'unknown';
       return <String, dynamic>{
         'id': edge['id'],
-        'fromPersonId': edge['sourceId'],
-        'toPersonId': edge['targetId'],
-        'relationshipKey': edge['relationshipKey'],
-        'isPrivate': edge['isPrivate'] ?? false,
+        'fromPersonId': sourceId,
+        'toPersonId': targetId,
+        'relationshipKey': relKey,
+        'isPrivate': edge['isPrivate'] ?? edge['is_private'] ?? false,
       };
     }).toList();
 
@@ -356,6 +362,20 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
                 '[FamilyGraphNotifier] RPC: Loaded ${rpcResult.persons.length} persons, '
                 '${rpcResult.relationships.length} relationships for $familyId',
               );
+              // ── EDGE DEBUG: Log RPC edge data ──
+              debugPrint('[EDGE-DEBUG] RPC data being used. '
+                  'RPC relationships: ${rpcResult.relationships.length}');
+              if (rpcResult.relationships.isNotEmpty) {
+                debugPrint('[EDGE-DEBUG] RPC first edge: ${rpcResult.relationships.first}');
+              } else {
+                debugPrint('[EDGE-DEBUG] WARNING: RPC returned ZERO relationships! '
+                    'Falling back to direct query which has ${directResult.relationships.length}');
+                // Prefer direct query when RPC has no relationships but direct does
+                if (directResult.relationships.isNotEmpty) {
+                  _cache[familyId] = directResult;
+                  return directResult;
+                }
+              }
               return rpcResult;
             }
 
@@ -404,12 +424,51 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
           .isFilter('deletedAt', null)
           .timeout(const Duration(seconds: 15));
 
-      // Query all relationships in this family
-      final rawRelationships = await client
-          .from('Relationship')
-          .select('id, "fromPersonId", "toPersonId", "relationshipKey", is_private, "familyId"')
-          .eq('familyId', familyId)
-          .timeout(const Duration(seconds: 15));
+      // Query all relationships in this family.
+      // Use select('*') to avoid failing on missing columns (e.g., if
+      // relationshipKey column doesn't exist yet), then pick what we need.
+      List<Map<String, dynamic>> rawRelationships;
+      try {
+        rawRelationships = await client
+            .from('Relationship')
+            .select('id, "fromPersonId", "toPersonId", "relationshipKey", is_private, "familyId"')
+            .eq('familyId', familyId)
+            .timeout(const Duration(seconds: 15));
+      } catch (colError) {
+        // Fallback: select all columns and pick what exists
+        debugPrint('[EDGE-DEBUG] Specific column select failed: $colError. Trying select(*)');
+        try {
+          final rawAll = await client
+              .from('Relationship')
+              .select('*')
+              .eq('familyId', familyId)
+              .timeout(const Duration(seconds: 15));
+          rawRelationships = rawAll;
+        } catch (e2) {
+          debugPrint('[EDGE-DEBUG] Even select(*) failed: $e2');
+          rawRelationships = [];
+        }
+      }
+
+      // ── EDGE DEBUG: Log raw Supabase relationship data ──
+      debugPrint('[EDGE-DEBUG] Raw relationships from Supabase: ${rawRelationships.length}');
+      if (rawRelationships.isNotEmpty) {
+        final rawFirst = rawRelationships.first as Map<String, dynamic>;
+        debugPrint('[EDGE-DEBUG] Raw first relationship keys: ${rawFirst.keys.toList()}');
+        debugPrint('[EDGE-DEBUG] Raw first relationship values: $rawFirst');
+      } else {
+        debugPrint('[EDGE-DEBUG] WARNING: No relationships returned from Supabase!');
+        // Try a broader query to check if the table/columns exist
+        try {
+          final countCheck = await client
+              .from('Relationship')
+              .select('id')
+              .limit(1);
+          debugPrint('[EDGE-DEBUG] Table exists, total rows (sampled): ${countCheck.length}');
+        } catch (e2) {
+          debugPrint('[EDGE-DEBUG] Relationship table query failed: $e2');
+        }
+      }
 
       // Map to the same format as FlatGraphResult.fromRpc
       final persons = rawPersons.map((dynamic n) {
@@ -429,12 +488,24 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
 
       final relationships = rawRelationships.map((dynamic e) {
         final edge = e as Map<String, dynamic>;
+        // ── EDGE DEBUG: Log individual mapping ──
+        // Try multiple possible column names for compatibility
+        // with different schema versions (Prisma camelCase vs SQL snake_case)
+        final fromId = edge['fromPersonId'] ?? edge['frompersonid'] ?? edge['from_person_id'];
+        final toId = edge['toPersonId'] ?? edge['topersonid'] ?? edge['to_person_id'];
+        final rKey = edge['relationshipKey'] ?? edge['relationshipkey']
+            ?? edge['relationship_type'] ?? edge['relationshipType'] ?? 'unknown';
+        if (fromId == null || toId == null) {
+          debugPrint('[EDGE-DEBUG] WARNING: Null ID in relationship! '
+              'edge keys=${edge.keys.toList()}, '
+              'fromPersonId=$fromId, toPersonId=$toId, relationshipKey=$rKey');
+        }
         return <String, dynamic>{
           'id': edge['id'],
-          'fromPersonId': edge['fromPersonId'],
-          'toPersonId': edge['toPersonId'],
-          'relationshipKey': edge['relationshipKey'],
-          'isPrivate': edge['is_private'] ?? false,
+          'fromPersonId': fromId,
+          'toPersonId': toId,
+          'relationshipKey': rKey,
+          'isPrivate': edge['is_private'] ?? edge['isPrivate'] ?? false,
         };
       }).toList();
 
