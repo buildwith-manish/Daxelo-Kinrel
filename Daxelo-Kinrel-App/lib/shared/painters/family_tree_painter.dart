@@ -124,12 +124,12 @@ class FamilyTreePainter extends CustomPainter {
 
   // ── Paint Constants ────────────────────────────────────────────────
 
-  /// Default edge color: KinrelColors.orange at 45% alpha, dashed
+  /// Default edge color: KinrelColors.orange at 65% alpha, dashed
   static final Color _defaultEdgeColor =
-      KinrelColors.orange.withValues(alpha: 0.45);
+      KinrelColors.orange.withValues(alpha: 0.65);
 
   /// Default edge stroke width.
-  static const double _defaultStrokeWidth = 1.5;
+  static const double _defaultStrokeWidth = 2.0;
 
   /// Selected edge color: full-opacity KinrelColors.orange, solid
   static const Color _selectedEdgeColor = KinrelColors.orange;
@@ -144,13 +144,13 @@ class FamilyTreePainter extends CustomPainter {
   static const double _hoveredConnectedStrokeWidth = 2.2;
 
   /// Dimmed (not-connected-to-hovered) edge opacity.
-  static const double _hoveredDimmedAlpha = 0.08;
+  static const double _hoveredDimmedAlpha = 0.20;
 
   /// Dash pattern for default edges: [dash, gap].
   static const List<double> _dashArray = [5.0, 4.0];
 
   /// Dimmed alpha for edges outside highlighted generation.
-  static const double _dimmedAlpha = 0.15;
+  static const double _dimmedAlpha = 0.30;
 
   // ── Midpoint Indicator Constants ──────────────────────────────────
 
