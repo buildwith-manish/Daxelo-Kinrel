@@ -497,9 +497,10 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         ),
 
         // Generation legend chips (top-left floating, below filter bar)
+        // Use topPadding to clear the notch / status bar area
         Positioned(
           left: 16,
-          top: 56,
+          top: topPadding + 56,
           child: GenerationLegendWidget(
             presentGenerations: presentGenerations,
             highlightedGeneration: _highlightedGeneration,
@@ -510,10 +511,10 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         ),
 
         // Add Member + Legend buttons (top-right, below filter bar)
-        // Positioned below the GenerationFilterBar to avoid notch overlap
+        // Use topPadding to clear the notch / status bar area
         Positioned(
           right: 16,
-          top: 56,
+          top: topPadding + 56,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [

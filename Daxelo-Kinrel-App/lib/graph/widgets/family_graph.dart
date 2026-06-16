@@ -115,7 +115,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   final Map<String, _GraphPersonData> _personMap = {};
 
   /// List of relationship edge data.
-  final List<GraphEdgeData> _edges = [];
+  /// NOT final — must be reassigned as a new list each build so that
+  /// [RelationshipEdge.shouldRepaint] detects the change (reference
+  /// equality fails when the same list is mutated in-place via
+  /// clear + add, causing edges to never repaint after the first frame).
+  List<GraphEdgeData> _edges = [];
 
   /// Currently selected node ID.
   String? _selectedNodeId;
@@ -537,7 +541,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
 
     // Build person map and edges
     _personMap.clear();
-    _edges.clear();
+    // Create a NEW list each build so RelationshipEdge.shouldRepaint
+    // detects the change via reference equality. Mutating the same list
+    // (clear + add) causes shouldRepaint to always return false because
+    // oldDelegate.edges and edges are the same object.
+    final newEdges = <GraphEdgeData>[];
 
     for (final p in persons) {
       _personMap[p.id] = _GraphPersonData(
@@ -553,13 +561,14 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
 
     final relationships = graphData.toRelationshipDataList();
     for (final r in relationships) {
-      _edges.add(GraphEdgeData(
+      newEdges.add(GraphEdgeData(
         id: r.id,
         sourceId: r.fromPersonId,
         targetId: r.toPersonId,
         relationshipKey: r.relationshipKey,
       ));
     }
+    _edges = newEdges;
 
     // Compute layout
     final graphPersons =

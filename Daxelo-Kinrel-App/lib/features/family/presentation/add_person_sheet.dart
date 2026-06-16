@@ -131,6 +131,27 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     return anchor;
   }
 
+  /// Whether the family members provider is still loading.
+  /// Used to prevent the user from skipping Step 1 while we
+  /// don't yet know if there are existing members.
+  bool get _isFamilyMembersLoading {
+    if (_isEditMode) return false;
+    final membersAsync = ref.read(familyMembersProvider(widget.familyId));
+    return membersAsync.isLoading;
+  }
+
+  /// Whether the family has existing members (definitively).
+  /// Returns false only when we are certain there are no members.
+  /// Returns true if members exist OR if we're still loading
+  /// (conservative: assume members exist until proven otherwise).
+  bool get _familyHasExistingMembers {
+    if (_isEditMode) return false;
+    final membersAsync = ref.read(familyMembersProvider(widget.familyId));
+    if (membersAsync.isLoading) return true; // Assume members exist while loading
+    final existingMembers = membersAsync.valueOrNull;
+    return existingMembers != null && existingMembers.isNotEmpty;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -182,9 +203,11 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         return nameValidator(_nameController.text) == null;
       case 1:
         // Relationship is mandatory when there are existing family members
-        // (i.e., when an anchor person exists). If this is the very first
-        // member being added, relationship can be skipped.
-        if (_effectiveAnchorPerson != null) {
+        // (i.e., when an anchor person exists) OR when we're still loading
+        // the members list (conservative: assume members exist until proven
+        // otherwise). If this is the very first member being added and we
+        // have confirmed there are no members, relationship can be skipped.
+        if (_familyHasExistingMembers) {
           return _effectiveRelationshipKey != null;
         }
         return true;
@@ -1080,8 +1103,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             ),
           ],
 
-          // Mandatory hint when no relationship selected but anchor exists
-          if (_effectiveAnchorPerson != null && _effectiveRelationshipKey == null) ...[
+          // Mandatory hint when no relationship selected but family has existing members
+          if (_familyHasExistingMembers && _effectiveRelationshipKey == null) ...[
             SizedBox(height: 16),
             Container(
               padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
