@@ -398,8 +398,8 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       // Query all non-deleted persons in this family
       final rawPersons = await client
           .from('Person')
-          .select('id, name, gender, generationIndex, isAnchor, avatarUrl, '
-              'isDeceased, visibility, username, familyId')
+          .select('id, name, gender, "generationIndex", "isAnchor", "photoUrl", '
+              '"isDeceased", visibility, username, "familyId"')
           .eq('familyId', familyId)
           .isFilter('deletedAt', null)
           .timeout(const Duration(seconds: 15));
@@ -407,7 +407,7 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       // Query all relationships in this family
       final rawRelationships = await client
           .from('Relationship')
-          .select('id, sourceId, targetId, relationshipKey, isPrivate, familyId')
+          .select('id, "fromPersonId", "toPersonId", "relationshipKey", is_private, "familyId"')
           .eq('familyId', familyId)
           .timeout(const Duration(seconds: 15));
 
@@ -420,7 +420,7 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
           'gender': node['gender'],
           'generationIndex': node['generationIndex'] ?? 0,
           'isAnchor': node['isAnchor'] ?? false,
-          'photoUrl': node['avatarUrl'],
+          'photoUrl': node['photoUrl'],
           'isDeceased': node['isDeceased'] ?? false,
           'visibility': node['visibility'],
           'username': node['username'],
@@ -431,10 +431,10 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
         final edge = e as Map<String, dynamic>;
         return <String, dynamic>{
           'id': edge['id'],
-          'fromPersonId': edge['sourceId'],
-          'toPersonId': edge['targetId'],
+          'fromPersonId': edge['fromPersonId'],
+          'toPersonId': edge['toPersonId'],
           'relationshipKey': edge['relationshipKey'],
-          'isPrivate': edge['isPrivate'] ?? false,
+          'isPrivate': edge['is_private'] ?? false,
         };
       }).toList();
 
