@@ -665,6 +665,10 @@ model Person {
   phone           String? // Contact phone
   address         String? // Contact address (JSON: {street, city, state, country, zip})
   anniversaryDate DateTime? // Marriage/wedding anniversary
+  latitude         Float?
+  longitude        Float?
+  location_name    String?  @map("location_name")
+  visibility       String?
 
   family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
@@ -1029,6 +1033,9 @@ model Relationship {
   direction        String    @default("from") // from: fromPerson is the type of toPerson (e.g. from=father means fromPerson is father of toPerson)
   isActive         Boolean   @default(true)
   label            String? // Custom user-defined label override
+  isPrivate        Boolean?  @default(false) @map("is_private")
+  validFrom        DateTime? @map("valid_from")
+  validTo          DateTime? @map("valid_to")
   verifiedAt       DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt

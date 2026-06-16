@@ -398,14 +398,14 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       // Query all non-deleted persons in this family
       final persons = await client
           .from('Person')
-          .select('id, name, gender, generationIndex, isAnchor, avatarUrl, isDeceased, visibility, username, familyId')
+          .select('id, name, gender, "generationIndex", "isAnchor", "photoUrl", "isDeceased", visibility, username, "familyId"')
           .eq('familyId', widget.familyId)
           .isFilter('deletedAt', null);
 
       // Query all relationships in this family
       final relationships = await client
           .from('Relationship')
-          .select('id, sourceId, targetId, relationshipKey, isPrivate, familyId')
+          .select('id, "fromPersonId", "toPersonId", "relationshipKey", is_private, "familyId"')
           .eq('familyId', widget.familyId);
 
       debugPrint(
