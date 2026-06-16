@@ -780,8 +780,8 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
                       clipBehavior: Clip.none,
                       children: [
                         // ── Edge Layer ────────────────────────────────
-                        RepaintBoundary(
-                          child: Positioned.fill(
+                        Positioned.fill(
+                          child: RepaintBoundary(
                             child: CustomPaint(
                               size: Size(canvasWidth, canvasHeight),
                               painter: RelationshipEdge(
