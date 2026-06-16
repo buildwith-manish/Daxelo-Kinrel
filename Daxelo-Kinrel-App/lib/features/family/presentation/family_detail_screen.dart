@@ -911,7 +911,10 @@ class _GraphTabState extends ConsumerState<_GraphTab> {
           child: _ToolbarButton(
             icon: Icons.fullscreen_rounded,
             tooltip: 'Full Screen Graph',
-            onTap: () => context.push('/family/$familyId/graph'),
+            onTap: () {
+              final name = ref.read(familyDetailProvider(widget.familyId)).valueOrNull?.family.name;
+              context.push('/family/${widget.familyId}/graph${name != null ? '?name=${Uri.encodeComponent(name)}' : ''}');
+            },
           ),
         ),
       ],
@@ -2131,7 +2134,7 @@ class _EmbeddedHierarchyGraph extends StatelessWidget {
             children: [
               // Graph preview card
               GestureDetector(
-                onTap: () => context.push('/family/$familyId/graph'),
+                onTap: () => context.push('/family/$familyId/graph?name=${Uri.encodeComponent(detail.family.name)}'),
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(

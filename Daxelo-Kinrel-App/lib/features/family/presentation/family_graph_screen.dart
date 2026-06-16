@@ -416,10 +416,20 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           .isFilter('deletedAt', null);
 
       // Query all relationships in this family
-      final relationships = await client
-          .from('Relationship')
-          .select('id, "fromPersonId", "toPersonId", "relationshipKey", is_private, "familyId"')
-          .eq('familyId', widget.familyId);
+      // Use resilient column selection with fallback to select(*)
+      List<Map<String, dynamic>> relationships;
+      try {
+        relationships = await client
+            .from('Relationship')
+            .select('id, "fromPersonId", "toPersonId", "relationshipKey", is_private, "familyId"')
+            .eq('familyId', widget.familyId);
+      } catch (e) {
+        debugPrint('[DirectDBRefresh] Specific column select failed, trying select(*): $e');
+        relationships = await client
+            .from('Relationship')
+            .select('*')
+            .eq('familyId', widget.familyId);
+      }
 
       debugPrint(
         '[DirectDBRefresh] Found ${persons.length} persons, '
@@ -447,6 +457,10 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   Widget _buildDataState(FlatGraphResult graph) {
     final persons = graph.toPersonDataList();
 
+    // ── EDGE DEBUG: Log data passed to FamilyGraphWidget ──
+    debugPrint('[EDGE-DEBUG] _buildDataState: ${persons.length} persons, '
+        '${graph.relationships.length} relationships');
+
     // If no persons at all, show the empty state with add member FAB
     if (persons.isEmpty) return _buildEmptyState();
 
@@ -463,7 +477,13 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     }
 
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    final topPadding = MediaQuery.of(context).padding.top;
+
+    // NOTE: We do NOT add topPadding here because the Scaffold already has
+    // an AppBar, which consumes the status bar height. The body coordinate
+    // system starts at y=0 below the AppBar. Using topPadding would
+    // double-count the safe area.
+    // GenerationFilterBar height = 48px, margin below it = 8px
+    const filterBarTopOffset = 56.0;
 
     // Calculate safe bottom offset for FAB above toolbar
     // Toolbar height = 48px + 8px bottom margin
@@ -497,10 +517,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         ),
 
         // Generation legend chips (top-left floating, below filter bar)
-        // Use topPadding to clear the notch / status bar area
+        // Positioned relative to the Scaffold body, which starts BELOW
+        // the AppBar — so no need to add topPadding (already accounted for).
         Positioned(
           left: 16,
-          top: topPadding + 56,
+          top: filterBarTopOffset,
           child: GenerationLegendWidget(
             presentGenerations: presentGenerations,
             highlightedGeneration: _highlightedGeneration,
@@ -511,10 +532,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         ),
 
         // Add Member + Legend buttons (top-right, below filter bar)
-        // Use topPadding to clear the notch / status bar area
+        // Positioned relative to the Scaffold body, which starts BELOW
+        // the AppBar — so no need to add topPadding (already accounted for).
         Positioned(
           right: 16,
-          top: topPadding + 56,
+          top: filterBarTopOffset,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [

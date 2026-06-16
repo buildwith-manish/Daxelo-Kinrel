@@ -212,12 +212,11 @@ class GraphFilterPanel extends ConsumerWidget {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth < 400;
 
-    return RepaintBoundary(
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 250),
-        child: isCompact ? _buildBottomPanel(context) : _buildSidePanel(context),
-      ),
-    );
+    // Positioned must be a direct structural descendant of the Stack.
+    // Wrapping it in RepaintBoundary (a RenderObjectWidget) breaks
+    // Stack's ability to read the positioning data. We therefore
+    // return the Positioned directly and place RepaintBoundary inside.
+    return isCompact ? _buildBottomPanel(context) : _buildSidePanel(context);
   }
 
   // ── Side Panel (right slide-in for standard mobile) ─────────────────
@@ -228,14 +227,16 @@ class GraphFilterPanel extends ConsumerWidget {
       right: 0,
       bottom: 0,
       width: 300,
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF0A0E1A),
-          border: Border(
-            left: BorderSide(color: KinrelColors.border, width: 1),
+      child: RepaintBoundary(
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF0A0E1A),
+            border: Border(
+              left: BorderSide(color: KinrelColors.border, width: 1),
+            ),
           ),
+          child: _buildPanelContent(context),
         ),
-        child: _buildPanelContent(context),
       ),
     );
   }
@@ -248,17 +249,19 @@ class GraphFilterPanel extends ConsumerWidget {
       right: 0,
       bottom: 0,
       height: 360,
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF0A0E1A),
-          border: Border(
-            top: BorderSide(color: KinrelColors.border, width: 1),
+      child: RepaintBoundary(
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF0A0E1A),
+            border: Border(
+              top: BorderSide(color: KinrelColors.border, width: 1),
+            ),
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(20),
+            ),
           ),
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(20),
-          ),
+          child: _buildPanelContent(context),
         ),
-        child: _buildPanelContent(context),
       ),
     );
   }

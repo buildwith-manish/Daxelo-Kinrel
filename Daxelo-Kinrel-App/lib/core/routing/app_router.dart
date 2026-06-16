@@ -59,6 +59,7 @@ import '../../features/family/presentation/family_qr_screen.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_builder_screen.dart';
 import '../../features/family/presentation/relationship_graph_screen.dart';
+import '../../features/family/presentation/family_graph_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
@@ -707,7 +708,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/graph',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: RelationshipGraphScreen(familyId: state.pathParameters['id']!),
+          child: FamilyGraphScreen(
+            familyId: state.pathParameters['id']!,
+            familyName: state.uri.queryParameters['name'],
+          ),
         ),
       ),
 

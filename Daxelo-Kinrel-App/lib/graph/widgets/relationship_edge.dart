@@ -35,6 +35,7 @@
 
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/brand_colors.dart';
@@ -354,17 +355,33 @@ class RelationshipEdge extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // ── EDGE DEBUG: Painter diagnostics ──
+    debugPrint('[EDGE-DEBUG] paint() called: size=$size, edges=${edges.length}, '
+        'positions=${positions.length}, blocked=${blockedNodeIds.length}, '
+        'anonymous=${anonymousNodeIds.length}');
+
+    int drawn = 0, blocked = 0, nullPos = 0;
     for (final edge in edges) {
       // Skip edges with blocked endpoints
       if (blockedNodeIds.contains(edge.sourceId) ||
           blockedNodeIds.contains(edge.targetId)) {
+        blocked++;
         continue;
       }
 
       final fromPos = positions[edge.sourceId];
       final toPos = positions[edge.targetId];
-      if (fromPos == null || toPos == null) continue;
+      if (fromPos == null || toPos == null) {
+        nullPos++;
+        if (nullPos <= 3) {
+          debugPrint('[EDGE-DEBUG] NULL POS edge ${edge.id}: '
+              'sourceId=${edge.sourceId} pos=$fromPos, '
+              'targetId=${edge.targetId} pos=$toPos');
+        }
+        continue;
+      }
 
+      drawn++;
       final isSelected = edge.id == selectedEdgeId;
       final category = edge.isIndirectConnection
           ? EdgeCategory.indirect
@@ -388,6 +405,8 @@ class RelationshipEdge extends CustomPainter {
         targetId: edge.targetId,
       );
     }
+
+    debugPrint('[EDGE-DEBUG] paint() result: drawn=$drawn, blocked=$blocked, nullPos=$nullPos');
   }
 
   // ── Dimming Check ──────────────────────────────────────────────────
