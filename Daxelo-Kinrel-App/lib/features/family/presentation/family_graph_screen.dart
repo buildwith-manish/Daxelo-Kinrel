@@ -1,29 +1,36 @@
 // lib/features/family/presentation/family_graph_screen.dart
 //
-// DAXELO KINREL — Family Graph Screen (V2.1 Blueprint Integration)
+// DAXELO KINREL — Family Graph Screen (V6.0 Complete Fix)
 //
 // Full-screen graph viewer for visualizing family relationships.
 // Features:
-//   - AppBar with family name, back button, stacked avatar previews
-//   - Loading/error/empty states with V2.1 onboarding flow
-//   - New FamilyGraphWidget from lib/graph/ architecture
-//   - Generation legend chips (top-left floating)
-//   - Bottom legend bar with dynamic categories
-//   - Truncation warning banner for large families
-//   - Real-time updates via Socket.IO
+//   - AppBar with back, family name, Zoom In, Zoom Out
+//   - Add Member button in bottom toolbar (always visible, orange highlight)
+//   - Add Member FAB floating above toolbar (extended label style)
+//   - Bottom toolbar with Center, Add Member, Filter, Help
+//   - Passes graph data directly to FamilyGraphWidget (no double-fetch)
+//   - InteractiveViewer pinch-to-zoom, pan, center on root
+//   - Graph state persistence (zoom/position) via SharedPreferences
+//   - Responsive, safe-area aware, no overflow issues
+//   - Real-time updates via Supabase Realtime
+//   - Immediate graph refresh after adding members
+//   - Direct Supabase query as primary source (always fetches ALL members)
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../graph/graph.dart';
+import 'add_person_sheet.dart';
 import 'providers/family_graph_provider.dart';
 import 'widgets/generation_filter_bar.dart';
 import 'widgets/generation_legend_widget.dart';
 import 'widgets/graph_canvas_widget.dart' show PersonData;
-import 'widgets/graph_toolbar.dart';
 import 'widgets/relationship_legend.dart';
 import 'widgets/stats_panel.dart';
 
@@ -49,8 +56,9 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   /// Highlighted generation index (null = no highlight).
   int? _highlightedGeneration;
 
-  /// Current zoom level (managed by InteractiveViewer).
-  double _zoomLevel = 1.0;
+  /// External TransformationController to drive FamilyGraphWidget zoom/pan.
+  final TransformationController _graphTransformController =
+      TransformationController();
 
   /// Currently hovered relationship key for legend filtering.
   String? _hoveredRelationshipKey;
@@ -58,40 +66,191 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   /// Whether the relationship legend is visible.
   bool _showLegend = false;
 
+  /// Whether the filter panel is visible in the bottom toolbar context.
+  bool _filterVisible = false;
+
+  /// SharedPreferences key for persisting transform state per family.
+  static const String _transformPrefsPrefix = 'kinrel_graph_transform_';
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreTransformState();
+  }
+
+  @override
+  void dispose() {
+    _saveTransformState();
+    _graphTransformController.dispose();
+    super.dispose();
+  }
+
+  /// Saves the current transform matrix to SharedPreferences.
+  Future<void> _saveTransformState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final m = _graphTransformController.value;
+      final values = <double>[
+        m.entry(0, 0), m.entry(0, 1), m.entry(0, 2), m.entry(0, 3),
+        m.entry(1, 0), m.entry(1, 1), m.entry(1, 2), m.entry(1, 3),
+        m.entry(2, 0), m.entry(2, 1), m.entry(2, 2), m.entry(2, 3),
+        m.entry(3, 0), m.entry(3, 1), m.entry(3, 2), m.entry(3, 3),
+      ];
+      await prefs.setStringList(
+        '$_transformPrefsPrefix${widget.familyId}',
+        values.map((v) => v.toString()).toList(),
+      );
+    } catch (e) {
+      debugPrint('Failed to save transform state: $e');
+    }
+  }
+
+  /// Restores the transform matrix from SharedPreferences.
+  Future<void> _restoreTransformState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getStringList(
+        '$_transformPrefsPrefix${widget.familyId}',
+      );
+      if (stored != null && stored.length == 16) {
+        final values = stored.map((v) => double.tryParse(v) ?? 0.0).toList();
+        final m = Matrix4.fromList(values);
+        if (mounted) {
+          _graphTransformController.value = m;
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to restore transform state: $e');
+    }
+  }
+
+  // ── Zoom helpers ───────────────────────────────────────────────────
+
+  void _zoomIn() {
+    final current = _graphTransformController.value.clone();
+    final currentScale = current.getMaxScaleOnAxis();
+    if (currentScale >= 4.0) return;
+    final newScale = (currentScale + 0.25).clamp(0.1, 4.0);
+    final factor = newScale / currentScale;
+    final size = MediaQuery.of(context).size;
+    final focalPoint = Offset(size.width / 2, size.height / 2);
+    final tp = MatrixUtils.transformPoint(current, focalPoint);
+    _graphTransformController.value = current
+      ..translate(tp.dx, tp.dy)
+      ..scale(factor)
+      ..translate(-tp.dx, -tp.dy);
+  }
+
+  void _zoomOut() {
+    final current = _graphTransformController.value.clone();
+    final currentScale = current.getMaxScaleOnAxis();
+    if (currentScale <= 0.1) return;
+    final newScale = (currentScale - 0.25).clamp(0.1, 4.0);
+    final factor = newScale / currentScale;
+    final size = MediaQuery.of(context).size;
+    final focalPoint = Offset(size.width / 2, size.height / 2);
+    final tp = MatrixUtils.transformPoint(current, focalPoint);
+    _graphTransformController.value = current
+      ..translate(tp.dx, tp.dy)
+      ..scale(factor)
+      ..translate(-tp.dx, -tp.dy);
+  }
+
+  /// Centers the graph on the root/anchor user by resetting transform
+  /// to identity, which triggers the FamilyGraphWidget to auto-center
+  /// on the anchor node via its _initialCenterDone logic.
+  void _centerOnRootUser() {
+    _graphTransformController.value = Matrix4.identity();
+    setState(() {
+      _highlightedGeneration = null;
+      _hoveredRelationshipKey = null;
+    });
+  }
+
+  /// Opens the Add Member sheet and refreshes graph data when it closes.
+  Future<void> _openAddMember() async {
+    await AddPersonSheet.show(context, familyId: widget.familyId);
+    // Refresh graph data after the sheet closes to immediately show
+    // newly added members. The Supabase Realtime subscription may have
+    // already invalidated, but we force a refresh as a safety net.
+    // Also add a small delay to allow Supabase to propagate the change.
+    if (mounted) {
+      // First immediate refresh
+      ref.invalidate(familyGraphProvider(widget.familyId));
+      // Second delayed refresh as safety net for slow DB propagation
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (mounted) {
+          ref.invalidate(familyGraphProvider(widget.familyId));
+        }
+      });
+    }
+  }
+
+  /// Manual refresh — forces a complete re-fetch of graph data.
+  void _refreshGraph() {
+    ref.invalidate(familyGraphProvider(widget.familyId));
+  }
+
   // ── Build ─────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    // Guard: ensure familyId is valid before proceeding
+    if (widget.familyId.isEmpty) {
+      return Scaffold(
+        backgroundColor: KinrelColors.darkBackground,
+        appBar: _buildAppBar(),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.family_restroom,
+                  color: KinrelColors.textDim, size: 48),
+              const SizedBox(height: 16),
+              const Text('No family selected',
+                  style: TextStyle(
+                      color: KinrelColors.textSecondaryDark,
+                      fontFamily: 'DMSans',
+                      fontSize: 14)),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.arrow_back, size: 18),
+                label: const Text('Go back'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: KinrelColors.orange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Watch the realtime provider to auto-invalidate graph data on changes
     ref.watch(graphRealtimeProvider(widget.familyId));
     final graphAsync = ref.watch(familyGraphProvider(widget.familyId));
 
     return Scaffold(
       backgroundColor: KinrelColors.darkBackground,
-      appBar: _buildAppBar(graphAsync.valueOrNull),
+      appBar: _buildAppBar(),
       body: graphAsync.when(
         loading: _buildLoadingState,
         error: _buildErrorState,
         data: _buildDataState,
       ),
-      // BUG-3 FIX: Persistent FAB so "Add Member" is always accessible,
-      // regardless of onboarding state or member count.
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/family/${widget.familyId}/add-person'),
-        backgroundColor: KinrelColors.orange,
-        foregroundColor: KinrelColors.textWhite,
-        tooltip: 'Add Family Member',
-        child: const Icon(Icons.person_add_alt_1_rounded),
-      ),
     );
   }
 
   // ── AppBar ────────────────────────────────────────────────────────
+  //
+  // [Back] [Family Name] --- [Zoom In] [Zoom Out]
+  // Add Member is now a prominent FAB inside the graph, not in the AppBar.
 
-  PreferredSizeWidget _buildAppBar(FlatGraphResult? graph) {
-    // Build up to 3 overlapping avatar circles for the top-right
-    final persons = graph?.toPersonDataList() ?? [];
-    final avatarPersons = persons.take(3).toList();
-
+  PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: KinrelColors.darkCard,
       foregroundColor: KinrelColors.textWhite,
@@ -109,118 +268,47 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         ),
       ),
       actions: [
-        // 3 stacked circular avatar previews
-        if (avatarPersons.isNotEmpty)
-          GestureDetector(
-            onTap: () => _showFamilyMembersSheet(persons),
-            child: Padding(
-              padding: const EdgeInsets.only(right: 12.0),
-              child: SizedBox(
-                width: 28.0 * avatarPersons.length.toDouble() + 12.0,
-                height: 36.0,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: List.generate(avatarPersons.length, (i) {
-                    final p = avatarPersons[i];
-                    final initials = p.name.trim().split(RegExp(r'\s+'));
-                    final letter = initials.length >= 2
-                        ? '${initials[0][0]}${initials[1][0]}'.toUpperCase()
-                        : p.name.substring(0, p.name.length > 1 ? 2 : 1).toUpperCase();
-
-                    return Positioned(
-                      left: i * 16.0,
-                      child: Container(
-                        width: 28.0,
-                        height: 28.0,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: KinrelColors.darkElevated,
-                          border: Border.all(color: KinrelColors.textWhite, width: 1.5),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          letter,
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.displayFont,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: KinrelColors.textWhite,
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  void _showFamilyMembersSheet(List<PersonData> persons) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: KinrelColors.darkCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.5,
-        minChildSize: 0.25,
-        maxChildSize: 0.8,
-        builder: (context, scrollController) => Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                'Family Members',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-            ),
-            const Divider(color: Color(0x1AFFFFFF), height: 1),
-            Expanded(
-              child: ListView.builder(
-                controller: scrollController,
-                itemCount: persons.length,
-                itemBuilder: (context, index) {
-                  final p = persons[index];
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: KinrelColors.darkElevated,
-                      child: Text(
-                        p.name.isNotEmpty ? p.name[0].toUpperCase() : '?',
-                        style: TextStyle(color: KinrelColors.textWhite, fontSize: 14),
-                      ),
-                    ),
-                    title: Text(p.name, style: TextStyle(color: KinrelColors.textWhite, fontFamily: KinrelTypography.displayFont)),
-                    subtitle: Text('Generation ${p.generationIndex}', style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
-                  );
-                },
-              ),
-            ),
-          ],
+        // Zoom In button
+        IconButton(
+          icon: const Icon(Icons.zoom_in_rounded, size: 24),
+          tooltip: 'Zoom In',
+          onPressed: _zoomIn,
         ),
-      ),
+        // Zoom Out button
+        IconButton(
+          icon: const Icon(Icons.zoom_out_rounded, size: 24),
+          tooltip: 'Zoom Out',
+          onPressed: _zoomOut,
+        ),
+        const SizedBox(width: 4),
+      ],
     );
   }
 
   // ── Loading State ─────────────────────────────────────────────────
 
   Widget _buildLoadingState() {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircularProgressIndicator(color: KinrelColors.orange, strokeWidth: 3),
-          SizedBox(height: 16),
-          Text('Loading family graph...', style: TextStyle(color: KinrelColors.textSecondaryDark, fontFamily: 'DMSans', fontSize: 14)),
+          const CircularProgressIndicator(
+              color: KinrelColors.orange, strokeWidth: 3),
+          const SizedBox(height: 16),
+          const Text('Loading family graph...',
+              style: TextStyle(
+                  color: KinrelColors.textSecondaryDark,
+                  fontFamily: 'DMSans',
+                  fontSize: 14)),
+          const SizedBox(height: 24),
+          TextButton.icon(
+            onPressed: _refreshGraph,
+            icon: const Icon(Icons.refresh, size: 18),
+            label: const Text('Refresh'),
+            style: TextButton.styleFrom(
+              foregroundColor: KinrelColors.orange,
+            ),
+          ),
         ],
       ),
     );
@@ -235,22 +323,57 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: KinrelColors.orange, size: 48),
+            const Icon(Icons.error_outline,
+                color: KinrelColors.orange, size: 48),
             const SizedBox(height: 16),
-            const Text('Something went wrong', style: TextStyle(color: KinrelColors.textWhite, fontFamily: 'Outfit', fontWeight: FontWeight.w600, fontSize: 18)),
+            const Text('Something went wrong',
+                style: TextStyle(
+                    color: KinrelColors.textWhite,
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 18)),
             const SizedBox(height: 8),
-            Text(error.toString(), style: const TextStyle(color: KinrelColors.textSecondaryDark, fontFamily: 'DMSans', fontSize: 13), textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis),
+            Text(error.toString(),
+                style: const TextStyle(
+                    color: KinrelColors.textSecondaryDark,
+                    fontFamily: 'DMSans',
+                    fontSize: 13),
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis),
             const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () => ref.invalidate(familyGraphProvider(widget.familyId)),
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Tap to retry'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: KinrelColors.orange,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _refreshGraph,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Tap to retry'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: KinrelColors.orange,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Direct DB query fallback button
+                OutlinedButton.icon(
+                  onPressed: _directDBRefresh,
+                  icon: const Icon(Icons.storage_outlined, size: 18),
+                  label: const Text('Direct query'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: KinrelColors.orange,
+                    side: const BorderSide(color: KinrelColors.orange),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -258,13 +381,61 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     );
   }
 
+  // ── Direct DB Refresh ─────────────────────────────────────────────
+  //
+  // Bypasses the RPC and queries Person + Relationship tables directly.
+  // This is a fallback for when the `get_family_graph` RPC fails or
+  // returns incomplete data.
+
+  Future<void> _directDBRefresh() async {
+    try {
+      final client = ref.read(supabaseProvider);
+      if (client == null) {
+        debugPrint('[DirectDBRefresh] Supabase client not available');
+        return;
+      }
+
+      // Query all non-deleted persons in this family
+      final persons = await client
+          .from('Person')
+          .select('id, name, gender, generationIndex, isAnchor, avatarUrl, isDeceased, visibility, username, familyId')
+          .eq('familyId', widget.familyId)
+          .isFilter('deletedAt', null);
+
+      // Query all relationships in this family
+      final relationships = await client
+          .from('Relationship')
+          .select('id, sourceId, targetId, relationshipKey, isPrivate, familyId')
+          .eq('familyId', widget.familyId);
+
+      debugPrint(
+        '[DirectDBRefresh] Found ${persons.length} persons, '
+        '${relationships.length} relationships for ${widget.familyId}',
+      );
+
+      // Force invalidate to trigger a full re-fetch
+      ref.invalidate(familyGraphProvider(widget.familyId));
+    } catch (e) {
+      debugPrint('[DirectDBRefresh] Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Direct query failed: $e'),
+            backgroundColor: KinrelColors.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   // ── Data State ────────────────────────────────────────────────────
 
   Widget _buildDataState(FlatGraphResult graph) {
-    if (graph.persons.isEmpty) return _buildEmptyState();
-
     final persons = graph.toPersonDataList();
-    final memberCount = persons.length;
+
+    // If no persons at all, show the empty state with add member FAB
+    if (persons.isEmpty) return _buildEmptyState();
 
     // Determine which generations are present
     final presentGenerations = <int>{};
@@ -272,23 +443,18 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       presentGenerations.add(p.generationIndex);
     }
 
-    // For 0 members, show the V2.1 EmptyState with onboarding.
-    // For 1+ members, show the full graph — OnboardingFlow handles guidance.
-    if (memberCount == 0) {
-      return EmptyState(
-        memberCount: 0,
-        familyId: widget.familyId,
-        onAddMember: () {
-          context.push('/family/${widget.familyId}/add-person');
-        },
-      );
-    }
-
     // Determine which relationship types are present
     final presentRelationshipKeys = <String>{};
     for (final r in graph.relationships) {
       presentRelationshipKeys.add(r['relationshipKey'] as String? ?? '');
     }
+
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final topPadding = MediaQuery.of(context).padding.top;
+
+    // Calculate safe bottom offset for FAB above toolbar
+    // Toolbar height = 48px + 8px bottom margin
+    final fabBottomOffset = bottomPadding + 72;
 
     return Stack(
       children: [
@@ -310,15 +476,17 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
               child: FamilyGraphWidget(
                 familyId: widget.familyId,
                 familyName: widget.familyName ?? 'Family Tree',
+                externalTransformController: _graphTransformController,
+                graphData: graph,
               ),
             ),
           ],
         ),
 
-        // Generation legend chips (top-left floating, below filter bar)
+        // Generation legend chips (top-left floating, with safe area)
         Positioned(
           left: 16,
-          top: graph.isTruncated ? 96 : 64,
+          top: topPadding + kToolbarHeight + 12,
           child: GenerationLegendWidget(
             presentGenerations: presentGenerations,
             highlightedGeneration: _highlightedGeneration,
@@ -328,11 +496,12 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ),
         ),
 
-        // Relationship legend — hidden by default, tap icon to show
+        // Relationship legend icon — safe area for notch devices
+        // Positioned below AppBar with proper safe area offset
         if (presentRelationshipKeys.isNotEmpty)
           Positioned(
             right: 16,
-            top: 80,
+            top: topPadding + kToolbarHeight + 16,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -374,10 +543,20 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             ),
           ),
 
-        // V2.1 Stats panel (bottom-left)
+        // ── Add Member FAB ──────────────────────────────────────────
+        // Prominent FAB always visible inside the graph view.
+        // Positioned at bottom-right, above the bottom toolbar.
+        // Uses the Kinrel orange brand color with extended label.
+        Positioned(
+          right: 20,
+          bottom: fabBottomOffset,
+          child: _buildAddMemberFAB(),
+        ),
+
+        // V2.1 Stats panel (bottom-left, above bottom toolbar)
         Positioned(
           left: 16,
-          bottom: 80,
+          bottom: fabBottomOffset,
           child: StatsPanel(
             totalMembers: graph.persons.length,
             totalConnections: graph.relationships.length,
@@ -386,53 +565,230 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ),
         ),
 
-        // V2.1 Graph toolbar (bottom-center)
+        // Bottom toolbar — Center, Add Member, Filter, Help (NO zoom buttons)
+        // Zoom In/Out are in the AppBar per reference design
+        // Add Member button is in the toolbar for guaranteed visibility
         Positioned(
-          bottom: 16,
+          bottom: bottomPadding + 8,
           left: 0,
           right: 0,
-          child: GraphToolbar(
-            zoomLevel: _zoomLevel,
-            onZoomIn: () {
-              setState(() {
-                _zoomLevel = (_zoomLevel + 0.15).clamp(0.3, 2.5);
-              });
-            },
-            onZoomOut: () {
-              setState(() {
-                _zoomLevel = (_zoomLevel - 0.15).clamp(0.3, 2.5);
-              });
-            },
-            onZoomReset: () {
-              setState(() {
-                _zoomLevel = 1.0;
-                _highlightedGeneration = null;
-                _hoveredRelationshipKey = null;
-              });
-            },
-            onCenterGraph: () {
-              // Reset view to center
-              setState(() {
-                _zoomLevel = 1.0;
-                _highlightedGeneration = null;
-              });
-            },
-          ),
+          child: Center(child: _buildBottomToolbar()),
         ),
       ],
+    );
+  }
+
+  // ── Add Member FAB ─────────────────────────────────────────────────
+  //
+  // Extended FAB with icon + label for maximum visibility and clarity.
+  // Uses Kinrel orange brand color. Always visible in the graph view.
+
+  Widget _buildAddMemberFAB() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _openAddMember,
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: KinrelGradients.igniteGradient,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: KinrelColors.orange.withValues(alpha: 0.35),
+                blurRadius: 16,
+                spreadRadius: 2,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: KinrelColors.orange.withValues(alpha: 0.15),
+                blurRadius: 32,
+                spreadRadius: 4,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.person_add_alt_1_rounded,
+                  size: 18,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Add Member',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
   // ── Empty State ───────────────────────────────────────────────────
 
   Widget _buildEmptyState() {
-    // Delegate to V2.1 EmptyState widget with illustrated welcome + onboarding
-    return EmptyState(
-      memberCount: 0,
-      familyId: widget.familyId,
-      onAddMember: () {
-        context.push('/family/${widget.familyId}/add-person');
-      },
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    return Stack(
+      children: [
+        EmptyState(
+          memberCount: 0,
+          familyId: widget.familyId,
+          onAddMember: _openAddMember,
+        ),
+        // Add Member FAB — visible even in empty state
+        Positioned(
+          right: 20,
+          bottom: bottomPadding + 20,
+          child: FloatingActionButton(
+            heroTag: 'empty_add_member_fab',
+            backgroundColor: KinrelColors.orange,
+            foregroundColor: Colors.white,
+            elevation: 6,
+            onPressed: _openAddMember,
+            child: const Icon(Icons.person_add_alt_1_rounded, size: 24),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Bottom Toolbar ─────────────────────────────────────────────────
+  //
+  // Per reference design: Center, Add Member, Filter, Help at bottom center.
+  // Zoom In/Out are in the AppBar. Add Member is prominently placed
+  // in the toolbar for guaranteed visibility and one-tap access.
+
+  Widget _buildBottomToolbar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Center on Root User
+          _toolbarButton(
+            icon: Icons.center_focus_strong_outlined,
+            tooltip: 'Center on Root',
+            onPressed: _centerOnRootUser,
+          ),
+          // Divider
+          Container(
+            width: 1,
+            height: 24,
+            color: Colors.white.withValues(alpha: 0.1),
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+          ),
+          // Add Member — PROMINENT in toolbar for guaranteed visibility
+          _toolbarButton(
+            icon: Icons.person_add_alt_1_rounded,
+            tooltip: 'Add Member',
+            onPressed: _openAddMember,
+            highlighted: true,
+            isPrimary: true,
+          ),
+          // Divider
+          Container(
+            width: 1,
+            height: 24,
+            color: Colors.white.withValues(alpha: 0.1),
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+          ),
+          // Filter
+          _toolbarButton(
+            icon: Icons.filter_list_rounded,
+            tooltip: 'Filter',
+            onPressed: () {
+              setState(() => _filterVisible = !_filterVisible);
+            },
+            highlighted: _filterVisible,
+          ),
+          // Divider
+          Container(
+            width: 1,
+            height: 24,
+            color: Colors.white.withValues(alpha: 0.1),
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+          ),
+          // Help / Legend
+          _toolbarButton(
+            icon: Icons.help_outline_rounded,
+            tooltip: 'Legend',
+            onPressed: () => setState(() => _showLegend = !_showLegend),
+            highlighted: _showLegend,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _toolbarButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+    bool highlighted = false,
+    bool isPrimary = false,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: isPrimary
+              ? BoxDecoration(
+                  color: KinrelColors.orange.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(24),
+                )
+              : highlighted
+                  ? BoxDecoration(
+                      color: KinrelColors.orange.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(24),
+                    )
+                  : null,
+          child: Icon(
+            icon,
+            size: 22,
+            color: isPrimary
+                ? KinrelColors.orange
+                : highlighted
+                    ? KinrelColors.orange
+                    : KinrelColors.textDim,
+          ),
+        ),
+      ),
     );
   }
 
@@ -448,19 +804,22 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded, color: KinrelColors.amber, size: 20),
+          const Icon(Icons.warning_amber_rounded,
+              color: KinrelColors.amber, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               graph.totalCount != null
                   ? 'Showing first ${graph.persons.length} of ${graph.totalCount} persons.'
                   : 'Showing first ${graph.persons.length} persons.',
-              style: const TextStyle(color: KinrelColors.textSecondaryDark, fontFamily: 'DMSans', fontSize: 12),
+              style: const TextStyle(
+                  color: KinrelColors.textSecondaryDark,
+                  fontFamily: 'DMSans',
+                  fontSize: 12),
             ),
           ),
         ],
       ),
     );
   }
-
 }

@@ -17,11 +17,37 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
+import '../../features/family/presentation/add_person_sheet.dart';
 import '../analytics/analytics_tracker.dart';
 import 'graph_node.dart';
+
+// ═══════════════════════════════════════════════════════════════════════
+// ONBOARDING PERSISTENCE (SharedPreferences-backed)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Helper class for persisting dismissed onboarding families across
+/// app restarts via SharedPreferences.
+class OnboardingPrefs {
+  static const _key = 'onboarding_dismissed_families';
+
+  static Future<Set<String>> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    return (prefs.getStringList(_key) ?? []).toSet();
+  }
+
+  static Future<void> dismiss(String familyId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final current = prefs.getStringList(_key) ?? [];
+    if (!current.contains(familyId)) {
+      current.add(familyId);
+      await prefs.setStringList(_key, current);
+    }
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // ONBOARDING DISMISSED PROVIDER
@@ -29,9 +55,21 @@ import 'graph_node.dart';
 
 /// Tracks which familyIds have had onboarding dismissed.
 /// Once a user completes or skips onboarding for a family, it will not
-/// re-appear on subsequent visits.
+/// re-appear on subsequent visits or app restarts.
+class OnboardingDismissedNotifier extends AsyncNotifier<Set<String>> {
+  @override
+  Future<Set<String>> build() => OnboardingPrefs.load();
+
+  Future<void> dismiss(String familyId) async {
+    await OnboardingPrefs.dismiss(familyId);
+    state = AsyncData({...state.valueOrNull ?? {}, familyId});
+  }
+}
+
 final onboardingDismissedProvider =
-    StateProvider<Set<String>>((ref) => <String>{});
+    AsyncNotifierProvider<OnboardingDismissedNotifier, Set<String>>(
+  OnboardingDismissedNotifier.new,
+);
 
 // ═══════════════════════════════════════════════════════════════════════
 // ONBOARDING STEP ENUM
@@ -190,10 +228,15 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
   // ── Step Resolution ────────────────────────────────────────────────
 
   /// Resolves the onboarding step from the current member count.
+  /// Onboarding is ONLY shown for brand-new users with 0 members
+  /// who have never dismissed onboarding for this family.
+  /// Any existing user (memberCount >= 1) immediately completes onboarding.
+  /// This is a safety net — the parent widget also gates onboarding.
   OnboardingStep _resolveStep(int memberCount) {
-    if (memberCount == 0) return OnboardingStep.createProfile;
-    if (memberCount <= 3) return OnboardingStep.addFamily;
-    return OnboardingStep.explore;
+    // Any members at all = immediately completed, never show onboarding.
+    if (memberCount >= 1) return OnboardingStep.completed;
+    // 0 members: show createProfile step for brand new users only.
+    return OnboardingStep.createProfile;
   }
 
   /// Returns the step number (1-3) for display.
@@ -236,9 +279,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
             _permanentlyDismissed = true;
           });
           // Persist dismissal so onboarding never re-appears for this family
-          ref.read(onboardingDismissedProvider.notifier).update(
-                (set) => {...set, widget.familyId},
-              );
+          ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
         }
       });
       return;
@@ -261,9 +302,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
 
     // Mark permanently dismissed so onboarding never re-appears
     setState(() => _permanentlyDismissed = true);
-    ref.read(onboardingDismissedProvider.notifier).update(
-          (set) => {...set, widget.familyId},
-        );
+    ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
 
     _animateToStep(OnboardingStep.explore);
   }
@@ -272,21 +311,37 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
   void _completeStepAction() {
     _trackStepCompleted(_stepNumber(_currentStep));
 
-    final nextStep = switch (_currentStep) {
-      OnboardingStep.createProfile => OnboardingStep.addFamily,
-      OnboardingStep.addFamily => OnboardingStep.explore,
-      OnboardingStep.explore => OnboardingStep.completed,
-      OnboardingStep.completed => OnboardingStep.completed,
-    };
+    // For Step 1 (createProfile), open AddPersonSheet and skip to completed.
+    // Steps 2 (addFamily) and 3 (explore) are removed — existing users
+    // should never see onboarding cards.
+    if (_currentStep == OnboardingStep.createProfile) {
+      AddPersonSheet.show(context, familyId: widget.familyId);
+      // Mark as permanently dismissed so onboarding never reappears
+      setState(() => _permanentlyDismissed = true);
+      ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
+      _animateToStep(OnboardingStep.completed);
+      return;
+    }
+
+    // When on the "addFamily" step, open the AddPersonSheet as a
+    // modal bottom sheet instead of pushing a full-screen route.
+    if (_currentStep == OnboardingStep.addFamily) {
+      AddPersonSheet.show(context, familyId: widget.familyId);
+    }
 
     // When on the "explore" step, the user has tapped "Got it!" —
     // mark as permanently dismissed before transitioning to completed
     if (_currentStep == OnboardingStep.explore) {
       setState(() => _permanentlyDismissed = true);
-      ref.read(onboardingDismissedProvider.notifier).update(
-            (set) => {...set, widget.familyId},
-          );
+      ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
     }
+
+    final nextStep = switch (_currentStep) {
+      OnboardingStep.createProfile => OnboardingStep.completed,
+      OnboardingStep.addFamily => OnboardingStep.completed,
+      OnboardingStep.explore => OnboardingStep.completed,
+      OnboardingStep.completed => OnboardingStep.completed,
+    };
 
     _animateToStep(nextStep);
   }
@@ -299,8 +354,11 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
   // ── Build ──────────────────────────────────────────────────────────
 
   /// Whether onboarding has been dismissed for this family via the provider.
+  /// Defaults to `true` while loading to prevent onboarding flash.
   bool get _isDismissedForFamily {
-    return ref.watch(onboardingDismissedProvider).contains(widget.familyId);
+    return ref.watch(onboardingDismissedProvider).valueOrNull
+            ?.contains(widget.familyId) ??
+        true;
   }
 
   @override
@@ -315,8 +373,15 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
       return const SizedBox.shrink();
     }
 
-    // If member count is 4+, no onboarding overlay needed
-    if (widget.memberCount >= 4 && _currentStep != OnboardingStep.completed) {
+    // EXISTING USERS: If member count is 1+, NEVER show onboarding overlay.
+    // Auto-dismiss and mark permanently so it never reappears.
+    if (widget.memberCount >= 1) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
+          setState(() => _permanentlyDismissed = true);
+        }
+      });
       return const SizedBox.shrink();
     }
 
@@ -325,7 +390,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
       return _buildCelebrationOverlay();
     }
 
-    // Onboarding step overlay
+    // Onboarding step overlay — only for 0-member brand new users
     return _buildStepOverlay();
   }
 

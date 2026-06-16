@@ -313,6 +313,7 @@ class CreateStoryParams {
     this.caption,
     this.mediaUrl,
     this.gradientColors,
+    this.audience,
   });
 
   final String familyId;
@@ -323,12 +324,16 @@ class CreateStoryParams {
   final String? mediaUrl;
   final List<String>? gradientColors;
 
+  /// 'PUBLIC' or 'FAMILY_ONLY'
+  final String? audience;
+
   Map<String, dynamic> toJson() => {
         'familyId': familyId,
         'type': type,
         if (caption != null) 'caption': caption,
         if (mediaUrl != null) 'mediaUrl': mediaUrl,
         if (gradientColors != null) 'gradientColors': gradientColors,
+        if (audience != null) 'audience': audience,
       };
 }
 

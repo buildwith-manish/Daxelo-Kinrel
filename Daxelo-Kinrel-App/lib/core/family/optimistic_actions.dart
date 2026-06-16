@@ -27,6 +27,7 @@ import 'optimistic_provider.dart';
 import '../database/isar_database.dart';
 import '../database/app_database.dart';
 import '../../features/events/providers/events_provider.dart';
+import '../../features/family/presentation/providers/family_graph_provider.dart';
 
 // ════════════════════════════════════════════════════════════════════
 // DEBOUNCE UTILITY
@@ -569,6 +570,13 @@ Future<Person> createPersonOptimistic({
   ref.invalidate(familyMembersProvider(familyId));
   ref.invalidate(familyDetailProvider(familyId));
 
+  // Invalidate graph provider so the family graph re-renders with the new member
+  try {
+    ref.invalidate(familyGraphProvider(familyId));
+  } catch (_) {
+    // familyGraphProvider may not be in scope if imported differently
+  }
+
   // 4. Fire real API call in background
   try {
     final realPerson = await createPerson(
@@ -855,6 +863,13 @@ Future<FamilyRelationship> addRelationshipOptimistic({
   // 3. Invalidate providers so UI updates immediately
   ref.invalidate(familyRelationshipsProvider(familyId));
   ref.invalidate(familyDetailProvider(familyId));
+
+  // Invalidate graph provider so the family graph re-renders with the new relationship
+  try {
+    ref.invalidate(familyGraphProvider(familyId));
+  } catch (_) {
+    // familyGraphProvider may not be in scope if imported differently
+  }
 
   // 4. Fire real API call in background
   try {

@@ -23,10 +23,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
+import '../../features/family/presentation/add_person_sheet.dart';
 import 'graph_node.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -218,7 +218,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
                 child: OutlinedButton.icon(
                   onPressed: () {
                     // Import contacts flow — navigate to add-person with intent
-                    context.push('/family/${widget.familyId}/add-person');
+                    AddPersonSheet.show(context, familyId: widget.familyId);
                   },
                   icon: const Icon(Icons.contacts_outlined, size: 18.0),
                   label: const Text(
@@ -244,7 +244,8 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
                 child: OutlinedButton.icon(
                   onPressed: () {
                     // Invite family flow — navigate to invite screen
-                    context.push('/family/${widget.familyId}/invite');
+                    // TODO: Implement invite family flow
+                    // context.push('/family/${widget.familyId}/invite');
                   },
                   icon: const Icon(Icons.person_add_outlined, size: 18.0),
                   label: const Text(

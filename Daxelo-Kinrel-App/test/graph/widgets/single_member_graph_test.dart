@@ -12,6 +12,12 @@
 // (familyGraphProvider, graphLayoutProvider, analyticsTrackerProvider, etc.),
 // we override familyGraphProvider to return a deterministic single-person
 // graph and verify the widget renders correctly.
+//
+// IMPORTANT: analyticsTrackerProvider depends on AnalyticsService which
+// requires Firebase.initializeApp(). We override it at the Riverpod level
+// with a Provider that returns a no-op AnalyticsTracker.
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,14 +25,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:kinrel/graph/widgets/family_graph.dart';
 import 'package:kinrel/graph/widgets/graph_node.dart';
-import 'package:kinrel/graph/widgets/empty_state.dart';
+import 'package:kinrel/graph/analytics/analytics_tracker.dart';
+import 'package:kinrel/graph/engine/fallback_manager.dart';
+import 'package:kinrel/core/database/sync/connectivity_service.dart';
+import 'package:kinrel/core/services/analytics_service.dart';
 import 'package:kinrel/features/family/presentation/providers/family_graph_provider.dart';
-import 'package:kinrel/features/family/presentation/widgets/graph_canvas_widget.dart';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NO-OP ANALYTICS TRACKER PROVIDER
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// A no-op AnalyticsTracker provider that avoids Firebase entirely.
+///
+/// The real analyticsTrackerProvider → analyticsServiceProvider →
+/// AnalyticsService.instance → FirebaseAnalytics.instance, which crashes
+/// in tests without Firebase.initializeApp(). This provider creates an
+/// AnalyticsTracker that wraps AnalyticsService.instance (required by
+/// the constructor) but overrides every method to do nothing, so the
+/// internal _analyticsService field is never accessed after construction.
+final _noOpAnalyticsTrackerProvider = Provider<AnalyticsTracker>((ref) {
+  return _NoOpAnalyticsTracker();
+});
 
 void main() {
   group('Single-member graph rendering regression (BUG-2)', () {
     /// Builds a single-person FlatGraphResult for testing.
-    FlatGraphResult _buildSinglePersonGraph() {
+    FlatGraphResult buildSinglePersonGraph() {
       return FlatGraphResult(
         persons: [
           <String, dynamic>{
@@ -55,6 +79,27 @@ void main() {
           familyGraphProvider.overrideWith(
             () => _FakeFamilyGraphNotifier(graphData),
           ),
+
+          // Override analyticsTrackerProvider to avoid Firebase initialization.
+          // Uses a no-op tracker that discards all events silently.
+          analyticsTrackerProvider
+              .overrideWith((ref) => ref.watch(_noOpAnalyticsTrackerProvider)),
+
+          // Override analyticsServiceProvider to prevent the real singleton
+          // from being accessed (it triggers FirebaseAnalytics.instance).
+          analyticsServiceProvider
+              .overrideWith((ref) => AnalyticsService.instance),
+
+          // Provide a default FallbackManager state so currentEngineTierProvider
+          // doesn't try to access real engine resources.
+          fallbackManagerProvider
+              .overrideWith((ref) => FallbackManager()),
+
+          // Always online in tests — avoids connectivity service dependency.
+          isOnlineProvider.overrideWith(
+            (ref) => Stream.value(true),
+          ),
+
           ...additionalOverrides,
         ],
         child: MaterialApp(
@@ -71,14 +116,12 @@ void main() {
     testWidgets(
       'BUG-2: FamilyGraphWidget renders without blank screen for single member',
       (tester) async {
-        final graphData = _buildSinglePersonGraph();
+        final graphData = buildSinglePersonGraph();
 
         await tester.pumpWidget(buildTestWidget(graphData: graphData));
         await tester.pumpAndSettle();
 
         // The widget should NOT show a completely blank screen.
-        // Verify that at least some content is rendered (not just empty space).
-        // The FamilyGraphWidget builds a Stack with nodes when persons exist.
         final stackFinder = find.byType(Stack);
         expect(stackFinder, findsWidgets, reason: 'Graph should render a Stack layout');
 
@@ -99,21 +142,17 @@ void main() {
     testWidgets(
       'BUG-2: GraphNode with name "Kishan" is present in the widget tree',
       (tester) async {
-        final graphData = _buildSinglePersonGraph();
+        final graphData = buildSinglePersonGraph();
 
         await tester.pumpWidget(buildTestWidget(graphData: graphData));
         await tester.pumpAndSettle();
 
-        // A GraphNode should be rendered for our single person
-        // Note: The name 'Kishan' appears inside the GraphNode widget
-        // which renders the person's name as text.
         expect(
           find.byType(GraphNode),
           findsWidgets,
           reason: 'At least one GraphNode must be rendered for a single-member graph',
         );
 
-        // The name "Kishan" should appear somewhere in the tree
         expect(
           find.text('Kishan'),
           findsWidgets,
@@ -125,25 +164,17 @@ void main() {
     testWidgets(
       'BUG-2: No EmptyState (memberCount: 0 variant) is displayed',
       (tester) async {
-        final graphData = _buildSinglePersonGraph();
+        final graphData = buildSinglePersonGraph();
 
         await tester.pumpWidget(buildTestWidget(graphData: graphData));
         await tester.pumpAndSettle();
 
-        // The EmptyState widget should NOT be displayed when we have 1 member.
-        // In the fixed code, EmptyState only appears for persons.isEmpty (0 members).
-        // For 1+ members, the graph with GraphNode widgets is rendered instead.
-        //
-        // However, the EmptyState widget IS used for the memberCount >= 1 variant
-        // (shows "You" node). But the 0-member variant with "Add Yourself" must not show.
-        // We check specifically for 0-member indicators.
         expect(
           find.text('Add Yourself'),
           findsNothing,
           reason: '0-member EmptyState "Add Yourself" must not appear for single-member graph',
         );
 
-        // Also verify the "Start your family tree." text is not present
         expect(
           find.text('Start your family tree.'),
           findsNothing,
@@ -155,14 +186,6 @@ void main() {
     testWidgets(
       'BUG-2: Viewport culling fallback — empty visible set shows all nodes',
       (tester) async {
-        // This verifies the core fix pattern:
-        //   final effectiveVisibleIds = _visibleNodeIds.isEmpty
-        //       ? _personMap.keys.toSet()
-        //       : _visibleNodeIds;
-        //
-        // When _visibleNodeIds is empty (no transform event yet),
-        // all nodes should be shown instead of none (blank screen).
-
         final Set<String> visibleNodeIds = {};
         final Map<String, dynamic> personMap = {
           'p1': {'name': 'Kishan', 'id': 'p1'},
@@ -173,11 +196,9 @@ void main() {
             ? personMap.keys.toSet()
             : visibleNodeIds;
 
-        // When _visibleNodeIds is empty, fallback should include all persons
         expect(effectiveVisibleIds, isNotEmpty);
         expect(effectiveVisibleIds, contains('p1'));
 
-        // When _visibleNodeIds has content, it should be used directly
         final Set<String> populatedVisible = {'p1'};
         final effectivePopulated = populatedVisible.isEmpty
             ? personMap.keys.toSet()
@@ -204,4 +225,55 @@ class _FakeFamilyGraphNotifier extends FamilyGraphNotifier {
   Future<FlatGraphResult> build(String familyId) async {
     return _graphData;
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NO-OP ANALYTICS TRACKER: Prevents FirebaseException in test environment
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// A no-op [AnalyticsTracker] that silently discards all analytics events.
+///
+/// Extends the real AnalyticsTracker and overrides every track method to
+/// do nothing, breaking the Firebase dependency chain. The super constructor
+/// requires an AnalyticsService, but since all methods are overridden to
+/// no-ops, the service's Firebase fields are never accessed after
+/// construction.
+class _NoOpAnalyticsTracker extends AnalyticsTracker {
+  _NoOpAnalyticsTracker() : super(AnalyticsService.instance);
+
+  @override
+  void trackNodeClick(String memberId, String relationshipType, int disclosureLevel) {}
+
+  @override
+  void trackBranchExpand(String memberId, String branchType, int nodesRevealed, int loadTimeMs) {}
+
+  @override
+  void trackSearchQuery(int queryLength, int resultCount, int responseTimeMs) {}
+
+  @override
+  void trackFilterApplied(String filterType, int nodesBefore, int nodesAfter) {}
+
+  @override
+  void trackCameraFocus(String targetMemberId, int animationDurationMs) {}
+
+  @override
+  void trackGraphOpenTime(int totalMs, int nodeCount, bool cacheHit) {}
+
+  @override
+  void trackSimulationFps(double fps, int nodeCount, double alphaValue) {}
+
+  @override
+  void trackMemoryUsage(double totalMb, double graphMb, double cacheMb) {}
+
+  @override
+  void trackGraphCrash(String exceptionType, String stackTrace, int nodeCount) {}
+
+  @override
+  void trackEngineFallback(String fromTier, String toTier, int nodeCount, String reason) {}
+
+  @override
+  void trackOnboardingStepCompleted(int stepNumber) {}
+
+  @override
+  void dispose() {}
 }

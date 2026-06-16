@@ -59,64 +59,62 @@ class GraphToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Center(
-        child: Container(
-          decoration: BoxDecoration(
-            color: KinrelColors.darkElevated,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: const Color(0xFF2A2A3D),
-              width: 1,
-            ),
+    return Center(
+      child: Container(
+        decoration: BoxDecoration(
+          color: KinrelColors.darkElevated,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: const Color(0xFF2A2A3D),
+            width: 1,
           ),
-          child: Material(
-            color: Colors.transparent,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Zoom out
-                _ToolbarIconButton(
-                  icon: Icons.zoom_out,
-                  onPressed: onZoomOut,
-                ),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Zoom out
+              _ToolbarIconButton(
+                icon: Icons.zoom_out,
+                onPressed: onZoomOut,
+              ),
 
-                // Zoom percentage
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Text(
-                    _zoomLabel,
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: KinrelColors.textSilver,
-                      decoration: TextDecoration.none,
-                    ),
+              // Zoom percentage
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  _zoomLabel,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: KinrelColors.textSilver,
+                    decoration: TextDecoration.none,
                   ),
                 ),
+              ),
 
-                // Zoom in
-                _ToolbarIconButton(
-                  icon: Icons.zoom_in,
-                  onPressed: onZoomIn,
-                ),
+              // Zoom in
+              _ToolbarIconButton(
+                icon: Icons.zoom_in,
+                onPressed: onZoomIn,
+              ),
 
-                // Divider
-                Container(
-                  width: 1,
-                  height: 16,
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  color: const Color(0xFF2A2A3D),
-                ),
+              // Divider
+              Container(
+                width: 1,
+                height: 16,
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                color: const Color(0xFF2A2A3D),
+              ),
 
-                // Center / reset
-                _ToolbarIconButton(
-                  icon: Icons.center_focus_strong,
-                  onPressed: onCenterGraph,
-                ),
-              ],
-            ),
+              // Center / reset
+              _ToolbarIconButton(
+                icon: Icons.center_focus_strong,
+                onPressed: onCenterGraph,
+              ),
+            ],
           ),
         ),
       ),

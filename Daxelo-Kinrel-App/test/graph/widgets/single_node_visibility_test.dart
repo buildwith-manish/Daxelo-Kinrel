@@ -123,7 +123,7 @@ void main() {
         // Since the graph rendering requires complex providers,
         // we verify the behavioral contract:
         //   - memberCount == 0 → EmptyState only
-        //   - memberCount >= 1 → graph (OnboardingFlow handles guidance inside)
+        //   - memberCount >= 1 → graph (onboarding removed)
 
         // Verify 0-member state shows EmptyState
         await tester.pumpWidget(buildTestWidget(

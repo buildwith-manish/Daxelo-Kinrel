@@ -7,14 +7,55 @@ import {
   Param,
   Query,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 import { StoriesService } from './stories.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CreateStoryDto } from './dto/create-story.dto';
+
+/** Shared file filter logic for Story uploads */
+const storyFileFilter = (
+  _req: any,
+  file: Express.Multer.File,
+  cb: (error: any, acceptFile: boolean) => void,
+) => {
+  const allowed = [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+    'video/mp4',
+    'video/quicktime',
+    'video/webm',
+  ];
+  if (allowed.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(
+      new BadRequestException({
+        statusCode: 400,
+        errorCode: 'UNSUPPORTED_FORMAT',
+        message:
+          'File format not supported. Use JPG, PNG, WebP, GIF, MP4, MOV, or WebM.',
+      }),
+      false,
+    );
+  }
+};
 
 @ApiTags('Stories')
 @Controller('stories')
@@ -42,14 +83,35 @@ export class StoriesController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(
+    FileInterceptor('media', {
+      limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+      fileFilter: storyFileFilter,
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create a new story' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        familyId: { type: 'string' },
+        caption: { type: 'string' },
+        mediaType: { type: 'string', enum: ['text', 'image', 'video'] },
+        bgGradient: { type: 'string' },
+        audience: { type: 'string', enum: ['PUBLIC', 'FAMILY_ONLY'] },
+        media: { type: 'string', format: 'binary' },
+      },
+    },
+  })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Story created successfully' })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input data' })
   async create(
     @CurrentUser('id') userId: string,
     @Body() dto: CreateStoryDto,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.storiesService.create(userId, dto);
+    return this.storiesService.create(userId, dto, file);
   }
 
   @Post(':id/view')
@@ -58,10 +120,10 @@ export class StoriesController {
   @ApiResponse({ status: HttpStatus.OK, description: 'Story marked as viewed' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Story not found' })
   async markViewed(
+    @CurrentUser('id') userId: string,
     @Param('id') storyId: string,
-    @Body() body: { viewerId: string },
   ) {
-    return this.storiesService.markViewed(storyId, body.viewerId);
+    return this.storiesService.markViewed(storyId, userId);
   }
 
   @Delete(':id')
