@@ -399,6 +399,7 @@ class RelationshipEdge extends CustomPainter {
         isHalfSibling: isHalfSibling,
         isPrivate: edge.isPrivate,
         isIndirect: edge.isIndirectConnection,
+        relationshipKey: edge.relationshipKey,
         sourceId: edge.sourceId,
         targetId: edge.targetId,
       );
@@ -435,6 +436,7 @@ class RelationshipEdge extends CustomPainter {
     required bool isHalfSibling,
     required bool isPrivate,
     required bool isIndirect,
+    required String relationshipKey,
     required String sourceId,
     required String targetId,
   }) {
@@ -532,7 +534,83 @@ class RelationshipEdge extends CustomPainter {
       if (isIndirect) {
         _drawIndirectLabel(canvas, midpoint, edgeColor);
       }
+
+      // ── Relationship label on the edge ─────────────────────────
+      // Always render the human-readable relationship type on the edge
+      // midpoint, so users can see at a glance how two members are
+      // connected (e.g., "Father", "Spouse", "Brother").
+      //
+      // Skip when zoomed too far out (text would be unreadable clutter),
+      // when the edge is dimmed (would compete with the focus), or when
+      // an indirect label was already drawn above.
+      if (!isIndirect && zoomLevel >= 0.6) {
+        _drawRelationshipLabel(canvas, midpoint, edgeColor, relationshipKey);
+      }
     }
+  }
+
+  /// Draws a formatted relationship-key label near the edge midpoint.
+  ///
+  /// Examples: 'father' -> 'Father', 'father_in_law' -> 'Father In Law',
+  /// 'elder_brother' -> 'Elder Brother', 'paternal_grandfather' ->
+  /// 'Paternal Grandfather'.
+  void _drawRelationshipLabel(
+    Canvas canvas,
+    Offset center,
+    Color edgeColor,
+    String relationshipKey,
+  ) {
+    if (relationshipKey.isEmpty || relationshipKey == 'unknown') return;
+
+    // Title-case each underscore-separated word.
+    final formatted = relationshipKey
+        .split('_')
+        .where((w) => w.isNotEmpty)
+        .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
+        .join(' ');
+
+    // Background pill so the label is readable on top of edges/nodes.
+    const fontSize = 9.0;
+    const horizontalPadding = 4.0;
+    const verticalPadding = 2.0;
+
+    final textSpan = TextSpan(
+      text: formatted,
+      style: TextStyle(
+        fontSize: fontSize,
+        fontWeight: FontWeight.w600,
+        color: Colors.white,
+      ),
+    );
+    final textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout();
+
+    final pillWidth = textPainter.width + horizontalPadding * 2;
+    final pillHeight = textPainter.height + verticalPadding * 2;
+    final pillRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: center,
+        width: pillWidth,
+        height: pillHeight,
+      ),
+      const Radius.circular(6.0),
+    );
+
+    // Semi-transparent background tinted with the edge color so the label
+    // visually associates with its edge category.
+    final bgPaint = Paint()
+      ..color = edgeColor.withValues(alpha: 0.85)
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(pillRect, bgPaint);
+
+    final textOffset = Offset(
+      center.dx - textPainter.width / 2,
+      center.dy - textPainter.height / 2,
+    );
+    textPainter.paint(canvas, textOffset);
   }
 
   // ── Endpoint Computation ───────────────────────────────────────────

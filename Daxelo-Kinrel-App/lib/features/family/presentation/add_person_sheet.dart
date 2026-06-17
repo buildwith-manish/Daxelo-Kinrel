@@ -413,8 +413,22 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               relationshipKey: relKey,
             );
           } catch (e) {
-            // Relationship creation is best-effort; person is already created
-            debugPrint('⚠️ Relationship creation failed: $e');
+            // Surface the failure to the user so they know the link didn't
+            // get created. Without this, the new member appears as an
+            // isolated node with no edge — which looks like a graph bug.
+            //
+            // Common causes:
+            //  - Supabase schema uses snake_case columns while INSERT uses
+            //    camelCase -> PostgrestException "column X does not exist"
+            //  - RLS policy blocks inserts on the Relationship table
+            //  - The Relationship table doesn't exist yet
+            debugPrint('[ADD-MEMBER] Relationship creation failed: $e');
+            if (mounted) {
+              context.showSnackBar(
+                'Member added, but the relationship link could not be created: $e',
+                isError: true,
+              );
+            }
           }
         }
       }

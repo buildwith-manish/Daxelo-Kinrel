@@ -740,51 +740,59 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         return Stack(
           children: [
             // ── Camera Transform Layer ───────────────────────────────
-            // NOTE: A RepaintBoundary wrapping InteractiveViewer intercepts
-            // gesture events and breaks pinch-to-zoom. ClipRect alone is enough
-            // to clip the unconstrained InteractiveViewer content.
-            ClipRect(
-              child: InteractiveViewer(
-                transformationController: _transformationController,
-                minScale: 0.1,
-                maxScale: 4.0,
-                constrained: false,
-                boundaryMargin: const EdgeInsets.all(double.infinity),
-                clipBehavior: Clip.none,
-                child: SizedBox(
-                  width: canvasWidth,
-                  height: canvasHeight,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      // ── Edge Layer ────────────────────────────────
-                      // No RepaintBoundary wrapper — it can cache an empty
-                      // frame and prevent edges from ever appearing.
-                      Positioned.fill(
-                        child: CustomPaint(
-                          size: Size(canvasWidth, canvasHeight),
-                          painter: RelationshipEdge(
-                            positions: positions,
-                            edges: _edges,
-                            selectedEdgeId: _selectedEdgeId,
-                            zoomLevel: zoomLevel,
-                            nodeWidth: _nodeWidth,
-                            nodeHeight: _nodeHeight,
-                            generationMap: {
-                              for (final p in _personMap.values)
-                                p.id: p.generationIndex,
-                            },
-                            highlightedGeneration: _highlightedGeneration,
-                            anonymousNodeIds: _anonymousNodeIds,
-                            blockedNodeIds: _blockedNodeIds,
-                          ),
+            // NOTE: Do NOT set `clipBehavior: Clip.none` here and do NOT wrap
+            // in a separate outer ClipRect.
+            //
+            // InteractiveViewer internally inserts a ClipRect ONLY when
+            // clipBehavior != Clip.none. That internal ClipRect is what sizes
+            // InteractiveViewer's internal GestureDetector (HitTestBehavior.opaque)
+            // to the viewport, so pinch-to-zoom works everywhere on screen.
+            //
+            // Setting clipBehavior: Clip.none removes that internal ClipRect,
+            // causing the GestureDetector to be sized to its child (canvasWidth ×
+            // canvasHeight). Pinches starting on empty space OUTSIDE the canvas
+            // were silently dropped — that was the actual pinch-to-zoom bug.
+            //
+            // The default clipBehavior (Clip.hardEdge) is what we want.
+            InteractiveViewer(
+              transformationController: _transformationController,
+              minScale: 0.1,
+              maxScale: 4.0,
+              constrained: false,
+              boundaryMargin: const EdgeInsets.all(double.infinity),
+              child: SizedBox(
+                width: canvasWidth,
+                height: canvasHeight,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // ── Edge Layer ────────────────────────────────
+                    // No RepaintBoundary wrapper — it can cache an empty
+                    // frame and prevent edges from ever appearing.
+                    Positioned.fill(
+                      child: CustomPaint(
+                        size: Size(canvasWidth, canvasHeight),
+                        painter: RelationshipEdge(
+                          positions: positions,
+                          edges: _edges,
+                          selectedEdgeId: _selectedEdgeId,
+                          zoomLevel: zoomLevel,
+                          nodeWidth: _nodeWidth,
+                          nodeHeight: _nodeHeight,
+                          generationMap: {
+                            for (final p in _personMap.values)
+                              p.id: p.generationIndex,
+                          },
+                          highlightedGeneration: _highlightedGeneration,
+                          anonymousNodeIds: _anonymousNodeIds,
+                          blockedNodeIds: _blockedNodeIds,
                         ),
                       ),
+                    ),
 
-                      // ── Node Layer ────────────────────────────────
-                      ..._buildVisibleNodes(positions, zoomLevel, effectiveVisibleIds),
-                    ],
-                  ),
+                    // ── Node Layer ────────────────────────────────
+                    ..._buildVisibleNodes(positions, zoomLevel, effectiveVisibleIds),
+                  ],
                 ),
               ),
             ),
