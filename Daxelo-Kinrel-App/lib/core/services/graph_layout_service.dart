@@ -161,9 +161,8 @@ class GraphLayoutService {
     'parent',
     'father',
     'mother',
-    'grandparent',
-    'grandfather',
-    'grandmother',
+    'stepfather',
+    'stepmother',
   };
 
   /// Keys where toPerson is a child of fromPerson (one generation below).
@@ -171,7 +170,8 @@ class GraphLayoutService {
     'child',
     'son',
     'daughter',
-    'grandchild',
+    'stepson',
+    'stepdaughter',
   };
 
   /// Keys where toPerson is a spouse/partner of fromPerson (same generation).
@@ -188,18 +188,34 @@ class GraphLayoutService {
     'sibling',
     'brother',
     'sister',
+    'half_brother',
+    'half_sister',
+    'elder_brother',
+    'elder_sister',
+    'younger_brother',
+    'younger_sister',
+    'stepbrother',
+    'stepsister',
   };
 
   /// Extended family keys that span two generations above.
+  // NOTE: grandparent/grandchild keys intentionally NOT in _parentKeys/_childKeys
+  // so they use the correct ±2 offset in BFS (checked before _parentKeys).
   static const Set<String> _grandparentKeys = {
     'grandparent',
     'grandfather',
     'grandmother',
+    'paternal_grandfather',
+    'paternal_grandmother',
+    'maternal_grandfather',
+    'maternal_grandmother',
   };
 
   /// Extended family keys that span two generations below.
   static const Set<String> _grandchildKeys = {
     'grandchild',
+    'grandson',
+    'granddaughter',
   };
 
   // ── Mutable State (per compute call) ──────────────────────────────

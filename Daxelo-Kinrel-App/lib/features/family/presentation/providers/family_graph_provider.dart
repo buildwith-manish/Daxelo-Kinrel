@@ -433,15 +433,19 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
             .from('Relationship')
             .select('id, "fromPersonId", "toPersonId", "relationshipKey", is_private, "familyId"')
             .eq('familyId', familyId)
+            .eq('isActive', true)
             .timeout(const Duration(seconds: 15));
       } catch (colError) {
-        // Fallback: select all columns and pick what exists
+        // Fallback: select all columns and pick what exists.
+        // Note: the isActive filter is applied here too so the fallback
+        // path doesn't surface ghost edges to soft-deleted members.
         debugPrint('[EDGE-DEBUG] Specific column select failed: $colError. Trying select(*)');
         try {
           final rawAll = await client
               .from('Relationship')
               .select('*')
               .eq('familyId', familyId)
+              .eq('isActive', true)
               .timeout(const Duration(seconds: 15));
           rawRelationships = rawAll;
         } catch (e2) {

@@ -114,6 +114,10 @@ class EdgeStyleResolver {
     'sister': EdgeCategory.sibling,
     'half_brother': EdgeCategory.sibling,
     'half_sister': EdgeCategory.sibling,
+    'elder_brother': EdgeCategory.sibling,
+    'elder_sister': EdgeCategory.sibling,
+    'younger_brother': EdgeCategory.sibling,
+    'younger_sister': EdgeCategory.sibling,
     // Spouse
     'spouse': EdgeCategory.spouse,
     'husband': EdgeCategory.spouse,
@@ -123,6 +127,12 @@ class EdgeStyleResolver {
     'grandparent': EdgeCategory.grandparent,
     'grandfather': EdgeCategory.grandparent,
     'grandmother': EdgeCategory.grandparent,
+    'paternal_grandfather': EdgeCategory.grandparent,
+    'paternal_grandmother': EdgeCategory.grandparent,
+    'maternal_grandfather': EdgeCategory.grandparent,
+    'maternal_grandmother': EdgeCategory.grandparent,
+    'grandson': EdgeCategory.grandparent,
+    'granddaughter': EdgeCategory.grandparent,
     // Aunt/Uncle
     'aunt': EdgeCategory.auntUncle,
     'uncle': EdgeCategory.auntUncle,
@@ -130,6 +140,8 @@ class EdgeStyleResolver {
     'paternal_aunt': EdgeCategory.auntUncle,
     'maternal_uncle': EdgeCategory.auntUncle,
     'maternal_aunt': EdgeCategory.auntUncle,
+    'niece': EdgeCategory.auntUncle,
+    'nephew': EdgeCategory.auntUncle,
     // Cousin
     'cousin': EdgeCategory.cousin,
     'cousin_brother': EdgeCategory.cousin,
@@ -355,46 +367,19 @@ class RelationshipEdge extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // ── EDGE DEBUG: Painter diagnostics ──
-    debugPrint('[EDGE-DEBUG] paint() called: size=$size, edges=${edges.length}, '
-        'positions=${positions.length}, blocked=${blockedNodeIds.length}, '
-        'anonymous=${anonymousNodeIds.length}');
-
-    // ── FALLBACK: If no edges data but we have positions, draw a test line
-    // between the first two positions to confirm the painter is working.
-    if (edges.isEmpty && positions.length >= 2) {
-      debugPrint('[EDGE-DEBUG] No edges but ${positions.length} positions exist. '
-          'Drawing fallback test line between first two positions.');
-      final posList = positions.values.toList();
-      final testPaint = Paint()
-        ..color = const Color(0xFFFF6600) // bright orange
-        ..strokeWidth = 3.0
-        ..style = PaintingStyle.stroke;
-      canvas.drawLine(posList[0], posList[1], testPaint);
-    }
-
-    int drawn = 0, blocked = 0, nullPos = 0;
     for (final edge in edges) {
       // Skip edges with blocked endpoints
       if (blockedNodeIds.contains(edge.sourceId) ||
           blockedNodeIds.contains(edge.targetId)) {
-        blocked++;
         continue;
       }
 
       final fromPos = positions[edge.sourceId];
       final toPos = positions[edge.targetId];
       if (fromPos == null || toPos == null) {
-        nullPos++;
-        if (nullPos <= 3) {
-          debugPrint('[EDGE-DEBUG] NULL POS edge ${edge.id}: '
-              'sourceId=${edge.sourceId} pos=$fromPos, '
-              'targetId=${edge.targetId} pos=$toPos');
-        }
         continue;
       }
 
-      drawn++;
       final isSelected = edge.id == selectedEdgeId;
       final category = edge.isIndirectConnection
           ? EdgeCategory.indirect
@@ -416,8 +401,6 @@ class RelationshipEdge extends CustomPainter {
         isIndirect: edge.isIndirectConnection,
       );
     }
-
-    debugPrint('[EDGE-DEBUG] paint() result: drawn=$drawn, blocked=$blocked, nullPos=$nullPos');
   }
 
   // ── Dimming Check ──────────────────────────────────────────────────
@@ -834,10 +817,10 @@ class RelationshipEdge extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant RelationshipEdge oldDelegate) {
-    // Always repaint to ensure edges are drawn. The previous optimization
-    // with identical() checks was causing edges to never repaint in some
-    // scenarios. Re-enable optimization only after edge rendering is
-    // confirmed working.
-    return true;
+    return !identical(edges, oldDelegate.edges) ||
+        !identical(positions, oldDelegate.positions) ||
+        selectedEdgeId != oldDelegate.selectedEdgeId ||
+        zoomLevel != oldDelegate.zoomLevel ||
+        highlightedGeneration != oldDelegate.highlightedGeneration;
   }
 }

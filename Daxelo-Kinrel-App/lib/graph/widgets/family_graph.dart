@@ -256,7 +256,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       final totalNodeCount = _layoutResult!.positions.length;
       if (totalNodeCount <= 30) {
         final allIds = Set<String>.from(_layoutResult!.positions.keys);
-        if (allIds != _visibleNodeIds) {
+        if (!_setsEqual(allIds, _visibleNodeIds)) {
           setState(() {
             _visibleNodeIds = allIds;
           });
@@ -294,7 +294,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             .id;
         if (anchorId.isNotEmpty) newVisible.add(anchorId);
 
-        if (newVisible != _visibleNodeIds) {
+        if (!_setsEqual(newVisible, _visibleNodeIds)) {
           setState(() {
             _visibleNodeIds = newVisible;
           });
@@ -562,21 +562,6 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
 
     final relationships = graphData.toRelationshipDataList();
 
-    // ── EDGE DEBUG: Trace relationship data ──
-    debugPrint('[EDGE-DEBUG] Raw relationships count: ${graphData.relationships.length}');
-    debugPrint('[EDGE-DEBUG] Parsed RelationshipData count: ${relationships.length}');
-    if (relationships.isNotEmpty) {
-      final first = relationships.first;
-      debugPrint('[EDGE-DEBUG] First relationship: id=${first.id}, '
-          'fromPersonId=${first.fromPersonId}, toPersonId=${first.toPersonId}, '
-          'key=${first.relationshipKey}');
-    }
-    if (graphData.relationships.isNotEmpty) {
-      final raw = graphData.relationships.first;
-      debugPrint('[EDGE-DEBUG] Raw first relationship keys: ${raw.keys.toList()}');
-      debugPrint('[EDGE-DEBUG] Raw first relationship values: $raw');
-    }
-
     for (final r in relationships) {
       newEdges.add(GraphEdgeData(
         id: r.id,
@@ -586,11 +571,6 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       ));
     }
     _edges = newEdges;
-    debugPrint('[EDGE-DEBUG] Built ${_edges.length} GraphEdgeData entries');
-    if (_edges.isNotEmpty) {
-      debugPrint('[EDGE-DEBUG] First edge: id=${_edges.first.id}, '
-          'sourceId=${_edges.first.sourceId}, targetId=${_edges.first.targetId}');
-    }
 
     // Compute layout
     final graphPersons =
@@ -598,38 +578,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     final graphRelationships =
         relationships.map((r) => r.toGraphRelationship()).toList();
 
-    debugPrint('[EDGE-DEBUG] Layout input: ${graphPersons.length} persons, '
-        '${graphRelationships.length} relationships');
-    debugPrint('[EDGE-DEBUG] Person IDs in _personMap: ${_personMap.keys.take(5).toList()}...');
-
     final service = GraphLayoutService();
     _layoutResult = service.computeLayout(
       persons: graphPersons,
       relationships: graphRelationships,
     );
-
-    debugPrint('[EDGE-DEBUG] Layout result: ${_layoutResult?.positions.length ?? 0} positions, '
-        'canvas=${_layoutResult?.canvasWidth ?? 0}x${_layoutResult?.canvasHeight ?? 0}');
-
-    // Cross-check: do edge source/target IDs exist in positions map?
-    if (_layoutResult != null && _edges.isNotEmpty) {
-      int matched = 0, missed = 0;
-      for (final edge in _edges) {
-        final srcOk = _layoutResult!.positions.containsKey(edge.sourceId);
-        final tgtOk = _layoutResult!.positions.containsKey(edge.targetId);
-        if (srcOk && tgtOk) {
-          matched++;
-        } else {
-          missed++;
-          if (missed <= 3) {
-            debugPrint('[EDGE-DEBUG] MISSED edge ${edge.id}: '
-                'sourceId=${edge.sourceId} inPositions=$srcOk, '
-                'targetId=${edge.targetId} inPositions=$tgtOk');
-          }
-        }
-      }
-      debugPrint('[EDGE-DEBUG] Edge-positions cross-check: $matched matched, $missed missed');
-    }
 
     if (_layoutResult == null || _layoutResult!.positions.isEmpty) {
       return _buildEmptyStack(
@@ -1003,12 +956,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   String _getRelationLabel(_GraphPersonData person) {
     if (person.isAnchor) return 'You';
 
-    // Find anchor
-    final anchor = _personMap.values.firstWhere(
-      (p) => p.isAnchor,
-      orElse: () => person,
-    );
-    if (anchor.id == person.id) return 'You';
+    // Find a true anchor — if none exists, no relation labels can be shown
+    final anchors = _personMap.values.where((p) => p.isAnchor).toList();
+    if (anchors.isEmpty) return '';
+    final anchor = anchors.first;
+    if (anchor.id == person.id) return 'You'; // shouldn't happen since person.isAnchor checked above
 
     // Search for an edge connecting this person to the anchor
     for (final edge in _edges) {
@@ -1053,35 +1005,77 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   /// Returns the inverse relationship key.
   static String _getInverseKey(String key) {
     const inverseMap = <String, String>{
+      // Core parent/child
       'father': 'son',
       'mother': 'daughter',
       'son': 'father',
       'daughter': 'mother',
+      'parent': 'child',
+      'child': 'parent',
+      // Sibling
       'brother': 'brother',
       'sister': 'sister',
+      'sibling': 'sibling',
+      'elder_brother': 'younger_brother',
+      'younger_brother': 'elder_brother',
+      'elder_sister': 'younger_sister',
+      'younger_sister': 'elder_sister',
+      'half_brother': 'half_brother',
+      'half_sister': 'half_sister',
+      // Spouse
       'husband': 'wife',
       'wife': 'husband',
       'spouse': 'spouse',
       'partner': 'partner',
+      // Grandparent / grandchild
       'grandfather': 'grandson',
       'grandmother': 'granddaughter',
       'grandson': 'grandfather',
       'granddaughter': 'grandmother',
+      'grandparent': 'grandchild',
+      'grandchild': 'grandparent',
+      'paternal_grandfather': 'grandson',
+      'paternal_grandmother': 'granddaughter',
+      'maternal_grandfather': 'grandson',
+      'maternal_grandmother': 'granddaughter',
+      // Uncle / aunt / nephew / niece
       'uncle': 'nephew',
       'aunt': 'niece',
       'nephew': 'uncle',
       'niece': 'aunt',
+      'paternal_uncle': 'nephew',
+      'paternal_aunt': 'niece',
+      'maternal_uncle': 'nephew',
+      'maternal_aunt': 'niece',
+      // Cousin
       'cousin': 'cousin',
+      'cousin_brother': 'cousin_sister',
+      'cousin_sister': 'cousin_brother',
+      // In-law
       'father_in_law': 'son_in_law',
       'mother_in_law': 'daughter_in_law',
       'son_in_law': 'father_in_law',
       'daughter_in_law': 'mother_in_law',
       'brother_in_law': 'sister_in_law',
       'sister_in_law': 'brother_in_law',
-      'half_brother': 'half_brother',
-      'half_sister': 'half_sister',
+      // Step
+      'stepfather': 'stepson',
+      'stepmother': 'stepdaughter',
+      'stepson': 'stepfather',
+      'stepdaughter': 'stepmother',
+      'stepbrother': 'stepbrother',
+      'stepsister': 'stepsister',
     };
     return inverseMap[key] ?? key;
+  }
+
+  /// Compares two Sets by value (not reference).
+  static bool _setsEqual(Set<String> a, Set<String> b) {
+    if (a.length != b.length) return false;
+    for (final item in a) {
+      if (!b.contains(item)) return false;
+    }
+    return true;
   }
 
   // ── Error State ────────────────────────────────────────────────────

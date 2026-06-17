@@ -465,10 +465,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   Widget _buildDataState(FlatGraphResult graph) {
     final persons = graph.toPersonDataList();
 
-    // ── EDGE DEBUG: Log data passed to FamilyGraphWidget ──
-    debugPrint('[EDGE-DEBUG] _buildDataState: ${persons.length} persons, '
-        '${graph.relationships.length} relationships');
-
     // If no persons at all, show the empty state with add member FAB
     if (persons.isEmpty) return _buildEmptyState();
 
