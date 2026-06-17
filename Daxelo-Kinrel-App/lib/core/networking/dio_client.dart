@@ -220,13 +220,10 @@ class _AuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    // ── AUTH DISABLED: Skip auth token injection ────────────────────
-    if (kAuthDisabled) {
-      handler.next(options);
-      return;
-    }
-
-    // Add auth token from Supabase session if available
+    // ── Always inject auth token from Supabase session if available ──
+    // Even when kAuthDisabled=true, the autoSignInForDebug() creates a
+    // real Supabase session. The NestJS API needs the JWT for RLS and
+    // auth middleware, so we must inject it whenever a session exists.
     try {
       final client = _ref.read(supabaseProvider);
       if (client != null) {

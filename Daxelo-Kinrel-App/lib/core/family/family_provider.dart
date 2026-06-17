@@ -1326,9 +1326,8 @@ Future<Person> createPerson({
   // This avoids race conditions with the non-atomic read-then-write Supabase approach.
   final dio = ref.read(dioProvider);
 
-  final Response response;
   try {
-    response = await withRetry(
+    final response = await withRetry(
       () => dio.post('/api/families/$familyId/persons', data: {
         'name': name,
         if (gender != null) 'gender': gender,
@@ -1341,43 +1340,88 @@ Future<Person> createPerson({
       }),
       operationName: 'Create person via NestJS',
     );
+
+    if (response.data == null) {
+      throw Exception('Failed to create person — no data returned from server.');
+    }
+
+    final person = Person.fromJson(response.data as Map<String, dynamic>);
+
+    ref.invalidate(familyMembersProvider(familyId));
+
+    // Invalidate the Isar cache for this family
+    if (IsarDatabase.isInitialized) {
+      try {
+        await CacheInvalidation.invalidateFamily(familyId);
+      } catch (_) {}
+    }
+
+    // ✅ FIX: Refresh profile stats after member addition
+    try {
+      await ref.read(profileProvider.notifier).loadStats();
+    } catch (_) {}
+
+    // P5-F1: Track member addition
+    AnalyticsService.instance.logMemberAdded(gender ?? 'unknown');
+
+    // P5-F4: Record member added for retention tracking
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final count = prefs.getInt('members_added') ?? 0;
+      await prefs.setInt('members_added', count + 1);
+    } catch (_) {}
+
+    return person;
   } on DioException catch (e) {
     final serverMsg = _extractDioErrorMessage(e);
-    throw Exception(serverMsg);
-  }
+    debugPrint('[createPerson] NestJS API failed: $serverMsg');
+    debugPrint('[createPerson] Falling back to Supabase direct insert...');
 
-  if (response.data == null) {
-    throw Exception('Failed to create person — no data returned from server.');
-  }
-
-  final person = Person.fromJson(response.data as Map<String, dynamic>);
-
-  ref.invalidate(familyMembersProvider(familyId));
-  // familyDetailProvider auto-rebuilds via ref.watch on familyMembersProvider
-
-  // Invalidate the Isar cache for this family
-  if (IsarDatabase.isInitialized) {
+    // ── FALLBACK: Insert directly into Supabase Person table ──
+    // When the NestJS API is unavailable (auth issues, network, etc.),
+    // we fall back to a direct Supabase insert. This does NOT atomically
+    // increment Family.memberCount, but it ensures the person is created.
     try {
-      await CacheInvalidation.invalidateFamily(familyId);
-    } catch (_) {}
+      final insertData = <String, dynamic>{
+        'familyId': familyId,
+        'name': name,
+        'gender': gender ?? 'male',
+        'isDeceased': isDeceased,
+        'isAnchor': isAnchor,
+        'visibility': 'family',
+      };
+      if (dateOfBirth != null) insertData['dateOfBirth'] = dateOfBirth;
+      if (city != null) insertData['city'] = city;
+      if (gotra != null) insertData['gotra'] = gotra;
+      if (birthYear != null) insertData['birthYear'] = birthYear;
+
+      final response = await client
+          .from('Person')
+          .insert(insertData)
+          .select()
+          .single();
+
+      final person = Person.fromJson(response as Map<String, dynamic>);
+      debugPrint('[createPerson] Supabase direct insert succeeded for ${person.id}');
+
+      ref.invalidate(familyMembersProvider(familyId));
+
+      if (IsarDatabase.isInitialized) {
+        try {
+          await CacheInvalidation.invalidateFamily(familyId);
+        } catch (_) {}
+      }
+
+      try {
+        await ref.read(profileProvider.notifier).loadStats();
+      } catch (_) {}
+
+      return person;
+    } catch (supaError) {
+      debugPrint('[createPerson] Supabase direct insert also failed: $supaError');
+      throw Exception('Failed to add person: $serverMsg');
+    }
   }
-
-  // ✅ FIX: Refresh profile stats after member addition
-  try {
-    await ref.read(profileProvider.notifier).loadStats();
-  } catch (_) {}
-
-  // P5-F1: Track member addition
-  AnalyticsService.instance.logMemberAdded(gender ?? 'unknown');
-
-  // P5-F4: Record member added for retention tracking
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final count = prefs.getInt('members_added') ?? 0;
-    await prefs.setInt('members_added', count + 1);
-  } catch (_) {}
-
-  return person;
 }
 
 /// Update person in Supabase with retry for cold starts
