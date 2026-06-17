@@ -38,6 +38,7 @@ import 'empty_state.dart';
 import 'filter_panel.dart';
 import 'graph_legend.dart';
 import 'graph_node.dart';
+import 'graph_pan_zoom.dart';
 import 'onboarding_flow.dart';
 import 'relationship_edge.dart';
 import 'search_bar.dart';
@@ -741,82 +742,76 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
           children: [
             // ── Camera Transform Layer ───────────────────────────────
             //
-            // PERMANENT PINCH-TO-ZOOM FIX
-            // --------------------------------
-            // Root cause of the "pinch still broken" bug:
-            //   With `constrained: false`, InteractiveViewer's internal
-            //   _boundedChild returns the child as-is (no viewport-sized
-            //   SizedBox is inserted). Since every RenderProxyBox in the
-            //   chain (Listener → RawGestureDetector → ColoredBox →
-            //   ClipRect) sizes itself to its child, the entire
-            //   InteractiveViewer — INCLUDING its ScaleGestureRecognizer
-            //   — gets sized to the child SizedBox(canvasWidth ×
-            //   canvasHeight), NOT to the viewport.
+            // PRODUCTION-READY PINCH-TO-ZOOM (CUSTOM IMPLEMENTATION)
+            // ----------------------------------------------------------
+            // We replaced Flutter's `InteractiveViewer` with a custom
+            // `GraphPanZoom` widget because InteractiveViewer has too
+            // many quirks that broke pinch-to-zoom repeatedly:
+            //   - With `constrained: false`, its internal
+            //     RawGestureDetector is sized to the child SizedBox
+            //     (canvas size, NOT viewport), so pinches outside the
+            //     canvas rectangle are silently dropped.
+            //   - `clipBehavior: Clip.none` causes HitTestBehavior to
+            //     fall back to deferToChild, making empty canvas space
+            //     untouchable.
+            //   - The viewport-sized SizedBox wrap we tried earlier
+            //     forces TIGHT constraints on InteractiveViewer, but
+            //     its internal RenderProxyBox chain STILL sizes itself
+            //     to its child (the canvas-sized SizedBox) — so the
+            //     gesture detector remained canvas-sized in practice.
             //
-            //   For small families (1–3 members), the canvas is much
-            //   smaller than the phone viewport (~340×360 vs ~400×700).
-            //   Pinches starting on empty screen space OUTSIDE the
-            //   canvas rectangle are silently dropped — there is no
-            //   gesture detector at those screen coordinates.
+            // GraphPanZoom uses a plain GestureDetector with
+            // `behavior: HitTestBehavior.opaque` inside a viewport-sized
+            // SizedBox. The detector covers the entire visible area,
+            // so pinch-to-zoom works ANYWHERE on screen, including
+            // empty space far from any node.
             //
-            // Fix:
-            //   Wrap the InteractiveViewer in a SizedBox that is sized
-            //   to the LayoutBuilder's viewport constraints. This forces
-            //   TIGHT viewport constraints down into InteractiveViewer's
-            //   RenderProxyBox chain, so the RawGestureDetector — and
-            //   therefore the ScaleGestureRecognizer's hit-test region —
-            //   becomes viewport-sized. Pinches now work everywhere on
-            //   the visible graph area.
-            //
-            //   The inner SizedBox(canvasWidth × canvasHeight) is kept
-            //   so the painter and Positioned nodes still use canvas
-            //   coordinates. The InteractiveViewer transform maps
-            //   canvas-coordinates into viewport-coordinates, and the
-            //   initial-centering logic at lines 666–728 still places
-            //   the anchor at viewport center.
-            SizedBox(
-              width: constraints.maxWidth,
-              height: constraints.maxHeight,
-              child: InteractiveViewer(
-                transformationController: _transformationController,
-                minScale: 0.1,
-                maxScale: 4.0,
-                constrained: false,
-                boundaryMargin: const EdgeInsets.all(double.infinity),
-                child: SizedBox(
-                  width: canvasWidth,
-                  height: canvasHeight,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      // ── Edge Layer ────────────────────────────────
-                      // No RepaintBoundary wrapper — it can cache an empty
-                      // frame and prevent edges from ever appearing.
-                      Positioned.fill(
-                        child: CustomPaint(
-                          size: Size(canvasWidth, canvasHeight),
-                          painter: RelationshipEdge(
-                            positions: positions,
-                            edges: _edges,
-                            selectedEdgeId: _selectedEdgeId,
-                            zoomLevel: zoomLevel,
-                            nodeWidth: _nodeWidth,
-                            nodeHeight: _nodeHeight,
-                            generationMap: {
-                              for (final p in _personMap.values)
-                                p.id: p.generationIndex,
-                            },
-                            highlightedGeneration: _highlightedGeneration,
-                            anonymousNodeIds: _anonymousNodeIds,
-                            blockedNodeIds: _blockedNodeIds,
-                          ),
+            // The transform is written to the same
+            // `_transformationController`, so existing code that reads
+            // `_currentZoom` / `_currentPan` and the initial-centering
+            // logic at lines 666-680 continue to work unchanged.
+            GraphPanZoom(
+              transformationController: _transformationController,
+              minScale: 0.1,
+              maxScale: 4.0,
+              // Note: we don't pass onTransformChanged because
+              // _onTransformChanged is already registered as a listener
+              // on _transformationController (see initState at line 190).
+              // Writing to the controller inside GraphPanZoom will fire
+              // that listener automatically.
+              child: SizedBox(
+                width: canvasWidth,
+                height: canvasHeight,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // ── Edge Layer ────────────────────────────────
+                    // No RepaintBoundary wrapper — it can cache an empty
+                    // frame and prevent edges from ever appearing.
+                    Positioned.fill(
+                      child: CustomPaint(
+                        size: Size(canvasWidth, canvasHeight),
+                        painter: RelationshipEdge(
+                          positions: positions,
+                          edges: _edges,
+                          selectedEdgeId: _selectedEdgeId,
+                          zoomLevel: zoomLevel,
+                          nodeWidth: _nodeWidth,
+                          nodeHeight: _nodeHeight,
+                          generationMap: {
+                            for (final p in _personMap.values)
+                              p.id: p.generationIndex,
+                          },
+                          highlightedGeneration: _highlightedGeneration,
+                          anonymousNodeIds: _anonymousNodeIds,
+                          blockedNodeIds: _blockedNodeIds,
                         ),
                       ),
+                    ),
 
-                      // ── Node Layer ────────────────────────────────
-                      ..._buildVisibleNodes(positions, zoomLevel, effectiveVisibleIds),
-                    ],
-                  ),
+                    // ── Node Layer ────────────────────────────────
+                    ..._buildVisibleNodes(positions, zoomLevel, effectiveVisibleIds),
+                  ],
                 ),
               ),
             ),
