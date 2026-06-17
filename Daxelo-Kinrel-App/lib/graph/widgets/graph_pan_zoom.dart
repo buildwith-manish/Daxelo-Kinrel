@@ -121,7 +121,16 @@ class _GraphPanZoomState extends State<GraphPanZoom>
       matrix.getTranslation().x,
       matrix.getTranslation().y,
     );
-    _initialFocalPoint = details.focalPoint;
+    // CRITICAL: use localFocalPoint (GestureDetector-local coords), NOT
+    // focalPoint (screen-global coords). _initialTranslation is in the
+    // GestureDetector's local coordinate space (the Transform is applied
+    // inside this widget), so the focal point must be in the same space.
+    // Using global coords here introduces an error equal to the widget's
+    // top-left offset (AppBar height + GenerationFilterBar height ≈ 104px),
+    // which makes the canvas JUMP upward during zoom and disappear off the
+    // top of the viewport — visually indistinguishable from "pinch doesn't
+    // work".
+    _initialFocalPoint = details.localFocalPoint;
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
@@ -130,15 +139,17 @@ class _GraphPanZoomState extends State<GraphPanZoom>
     final newScale = (_initialScale * details.scale)
         .clamp(widget.minScale, widget.maxScale);
 
-    // The focal point in screen coordinates has moved by
-    // (details.focalPoint - _initialFocalPoint). We want the canvas
-    // point under the focal point to stay under the focal point.
+    // The focal point has moved by (localFocalPoint - _initialFocalPoint).
+    // We want the canvas point under the focal point to stay under the
+    // focal point.
     //
-    // Compose: new_translation = focal_screen + (initial_translation - focal_screen) * (newScale / initialScale) + (focal_now - focal_start)
+    // Compose: new_translation = focal + (initial_translation - focal) * (newScale / initialScale) + focalDelta
     //
-    // Simpler form: keep the same screen→canvas mapping as before
-    // for the initial focal point, then pan by the focal delta.
-    final focalDelta = details.focalPoint - _initialFocalPoint;
+    // All quantities here are in the GestureDetector's LOCAL coordinate
+    // space, matching the matrix's translation. Using details.localFocalPoint
+    // (NOT details.focalPoint, which is screen-global) is essential —
+    // otherwise the canvas jumps by the widget's screen offset on every zoom.
+    final focalDelta = details.localFocalPoint - _initialFocalPoint;
     final scaleRatio = _initialScale == 0 ? 1.0 : newScale / _initialScale;
     final newTranslation = Offset(
       _initialFocalPoint.dx +
@@ -169,11 +180,17 @@ class _GraphPanZoomState extends State<GraphPanZoom>
     );
     final scale = matrix.getMaxScaleOnAxis();
 
-    // Friction simulation — high drag so the fling decays quickly.
-    // finalX gives the resting position given the initial velocity.
-    final frictionSimX = FrictionSimulation(0.005, startTranslation.dx,
+    // Friction simulation for the pan inertia. The drag coefficient
+    // controls how far the canvas coasts: finalX = start + velocity/drag.
+    // The previous value (0.005) gave finalX = start + 200*velocity,
+    // which hurled the canvas tens of thousands of pixels off-screen on
+    // any release with velocity > 200px/s. 0.135 is Flutter's default
+    // drag for fling simulations (kDrag => ~7.4x the velocity), which
+    // feels natural and keeps the canvas within a screen or two.
+    const flingDrag = 0.135;
+    final frictionSimX = FrictionSimulation(flingDrag, startTranslation.dx,
         velocity.dx);
-    final frictionSimY = FrictionSimulation(0.005, startTranslation.dy,
+    final frictionSimY = FrictionSimulation(flingDrag, startTranslation.dy,
         velocity.dy);
 
     final endMatrix = Matrix4.identity()
