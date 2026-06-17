@@ -740,59 +740,83 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         return Stack(
           children: [
             // ── Camera Transform Layer ───────────────────────────────
-            // NOTE: Do NOT set `clipBehavior: Clip.none` here and do NOT wrap
-            // in a separate outer ClipRect.
             //
-            // InteractiveViewer internally inserts a ClipRect ONLY when
-            // clipBehavior != Clip.none. That internal ClipRect is what sizes
-            // InteractiveViewer's internal GestureDetector (HitTestBehavior.opaque)
-            // to the viewport, so pinch-to-zoom works everywhere on screen.
+            // PERMANENT PINCH-TO-ZOOM FIX
+            // --------------------------------
+            // Root cause of the "pinch still broken" bug:
+            //   With `constrained: false`, InteractiveViewer's internal
+            //   _boundedChild returns the child as-is (no viewport-sized
+            //   SizedBox is inserted). Since every RenderProxyBox in the
+            //   chain (Listener → RawGestureDetector → ColoredBox →
+            //   ClipRect) sizes itself to its child, the entire
+            //   InteractiveViewer — INCLUDING its ScaleGestureRecognizer
+            //   — gets sized to the child SizedBox(canvasWidth ×
+            //   canvasHeight), NOT to the viewport.
             //
-            // Setting clipBehavior: Clip.none removes that internal ClipRect,
-            // causing the GestureDetector to be sized to its child (canvasWidth ×
-            // canvasHeight). Pinches starting on empty space OUTSIDE the canvas
-            // were silently dropped — that was the actual pinch-to-zoom bug.
+            //   For small families (1–3 members), the canvas is much
+            //   smaller than the phone viewport (~340×360 vs ~400×700).
+            //   Pinches starting on empty screen space OUTSIDE the
+            //   canvas rectangle are silently dropped — there is no
+            //   gesture detector at those screen coordinates.
             //
-            // The default clipBehavior (Clip.hardEdge) is what we want.
-            InteractiveViewer(
-              transformationController: _transformationController,
-              minScale: 0.1,
-              maxScale: 4.0,
-              constrained: false,
-              boundaryMargin: const EdgeInsets.all(double.infinity),
-              child: SizedBox(
-                width: canvasWidth,
-                height: canvasHeight,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // ── Edge Layer ────────────────────────────────
-                    // No RepaintBoundary wrapper — it can cache an empty
-                    // frame and prevent edges from ever appearing.
-                    Positioned.fill(
-                      child: CustomPaint(
-                        size: Size(canvasWidth, canvasHeight),
-                        painter: RelationshipEdge(
-                          positions: positions,
-                          edges: _edges,
-                          selectedEdgeId: _selectedEdgeId,
-                          zoomLevel: zoomLevel,
-                          nodeWidth: _nodeWidth,
-                          nodeHeight: _nodeHeight,
-                          generationMap: {
-                            for (final p in _personMap.values)
-                              p.id: p.generationIndex,
-                          },
-                          highlightedGeneration: _highlightedGeneration,
-                          anonymousNodeIds: _anonymousNodeIds,
-                          blockedNodeIds: _blockedNodeIds,
+            // Fix:
+            //   Wrap the InteractiveViewer in a SizedBox that is sized
+            //   to the LayoutBuilder's viewport constraints. This forces
+            //   TIGHT viewport constraints down into InteractiveViewer's
+            //   RenderProxyBox chain, so the RawGestureDetector — and
+            //   therefore the ScaleGestureRecognizer's hit-test region —
+            //   becomes viewport-sized. Pinches now work everywhere on
+            //   the visible graph area.
+            //
+            //   The inner SizedBox(canvasWidth × canvasHeight) is kept
+            //   so the painter and Positioned nodes still use canvas
+            //   coordinates. The InteractiveViewer transform maps
+            //   canvas-coordinates into viewport-coordinates, and the
+            //   initial-centering logic at lines 666–728 still places
+            //   the anchor at viewport center.
+            SizedBox(
+              width: constraints.maxWidth,
+              height: constraints.maxHeight,
+              child: InteractiveViewer(
+                transformationController: _transformationController,
+                minScale: 0.1,
+                maxScale: 4.0,
+                constrained: false,
+                boundaryMargin: const EdgeInsets.all(double.infinity),
+                child: SizedBox(
+                  width: canvasWidth,
+                  height: canvasHeight,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      // ── Edge Layer ────────────────────────────────
+                      // No RepaintBoundary wrapper — it can cache an empty
+                      // frame and prevent edges from ever appearing.
+                      Positioned.fill(
+                        child: CustomPaint(
+                          size: Size(canvasWidth, canvasHeight),
+                          painter: RelationshipEdge(
+                            positions: positions,
+                            edges: _edges,
+                            selectedEdgeId: _selectedEdgeId,
+                            zoomLevel: zoomLevel,
+                            nodeWidth: _nodeWidth,
+                            nodeHeight: _nodeHeight,
+                            generationMap: {
+                              for (final p in _personMap.values)
+                                p.id: p.generationIndex,
+                            },
+                            highlightedGeneration: _highlightedGeneration,
+                            anonymousNodeIds: _anonymousNodeIds,
+                            blockedNodeIds: _blockedNodeIds,
+                          ),
                         ),
                       ),
-                    ),
 
-                    // ── Node Layer ────────────────────────────────
-                    ..._buildVisibleNodes(positions, zoomLevel, effectiveVisibleIds),
-                  ],
+                      // ── Node Layer ────────────────────────────────
+                      ..._buildVisibleNodes(positions, zoomLevel, effectiveVisibleIds),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -825,17 +849,30 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
               ),
 
             // ── Filter Panel ─────────────────────────────────────────
-            GraphFilterPanel(
-              isVisible: _filterVisible,
-              onClose: () => setState(() => _filterVisible = false),
-              onFilterChanged: (filter) => setState(() => _currentFilter = filter),
-              currentFilter: _currentFilter,
+            // Wrapped in IgnorePointer(ignoring: !_filterVisible) so that
+            // when the panel is hidden, its (possibly full-viewport)
+            // transparent container does NOT swallow two-finger touch
+            // events that are intended for the InteractiveViewer below.
+            // Without this guard, hidden overlays are a known cause of
+            // pinch-to-zoom failures on the regions they cover.
+            IgnorePointer(
+              ignoring: !_filterVisible,
+              child: GraphFilterPanel(
+                isVisible: _filterVisible,
+                onClose: () => setState(() => _filterVisible = false),
+                onFilterChanged: (filter) => setState(() => _currentFilter = filter),
+                currentFilter: _currentFilter,
+              ),
             ),
 
             // ── Legend Panel ───────────────────────────────────────────
-            GraphLegend(
-              isVisible: _legendVisible,
-              onToggle: () => setState(() => _legendVisible = !_legendVisible),
+            // Same IgnorePointer guard as above.
+            IgnorePointer(
+              ignoring: !_legendVisible,
+              child: GraphLegend(
+                isVisible: _legendVisible,
+                onToggle: () => setState(() => _legendVisible = !_legendVisible),
+              ),
             ),
 
             // Control Bar is NO LONGER rendered inside FamilyGraphWidget.
