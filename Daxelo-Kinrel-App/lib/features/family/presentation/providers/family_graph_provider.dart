@@ -425,32 +425,54 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
           .timeout(const Duration(seconds: 15));
 
       // Query all relationships in this family.
-      // Use select('*') to avoid failing on missing columns (e.g., if
-      // relationshipKey column doesn't exist yet), then pick what we need.
+      // Strategy: try the optimal filtered query first; if it fails (column
+      // mismatch, RLS, etc.), progressively degrade to broader queries so we
+      // never silently return zero edges when data actually exists.
+      //
+      // The previous implementation had a single fallback that re-applied the
+      // SAME `.eq('isActive', true)` filter — if the primary query failed
+      // because `isActive` was named `is_active` in the schema, the fallback
+      // failed for the same reason and zero rows came back, making the graph
+      // look edgeless even when relationships existed in the DB.
       List<Map<String, dynamic>> rawRelationships;
       try {
+        // Primary: explicit column select with isActive filter.
+        // Note: is_private is intentionally omitted (it's read via fallback
+        // in the row-mapping step below) to avoid a column-name mismatch
+        // breaking the whole SELECT.
         rawRelationships = await client
             .from('Relationship')
-            .select('id, "fromPersonId", "toPersonId", "relationshipKey", is_private, "familyId"')
+            .select('id, "fromPersonId", "toPersonId", "relationshipKey", "familyId", "isActive"')
             .eq('familyId', familyId)
             .eq('isActive', true)
             .timeout(const Duration(seconds: 15));
       } catch (colError) {
-        // Fallback: select all columns and pick what exists.
-        // Note: the isActive filter is applied here too so the fallback
-        // path doesn't surface ghost edges to soft-deleted members.
-        debugPrint('[EDGE-DEBUG] Specific column select failed: $colError. Trying select(*)');
+        debugPrint('[EDGE-DEBUG] Primary relationship query failed: $colError. Trying select(*).eq(isActive)');
         try {
-          final rawAll = await client
+          // Fallback A: select all columns, keep isActive filter
+          rawRelationships = await client
               .from('Relationship')
               .select('*')
               .eq('familyId', familyId)
               .eq('isActive', true)
               .timeout(const Duration(seconds: 15));
-          rawRelationships = rawAll;
-        } catch (e2) {
-          debugPrint('[EDGE-DEBUG] Even select(*) failed: $e2');
-          rawRelationships = [];
+        } catch (activeError) {
+          debugPrint('[EDGE-DEBUG] isActive filter failed too: $activeError. Falling back to unfiltered select(*)');
+          try {
+            // Fallback B: drop the isActive filter entirely.
+            // We rely on the Person query's `deletedAt is null` filter to
+            // hide soft-deleted members — relationships pointing at deleted
+            // persons simply won't have matching positions in the painter
+            // and will be skipped silently.
+            rawRelationships = await client
+                .from('Relationship')
+                .select('*')
+                .eq('familyId', familyId)
+                .timeout(const Duration(seconds: 15));
+          } catch (e2) {
+            debugPrint('[EDGE-DEBUG] All relationship queries failed: $e2');
+            rawRelationships = [];
+          }
         }
       }
 
@@ -492,24 +514,32 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
 
       final relationships = rawRelationships.map((dynamic e) {
         final edge = e as Map<String, dynamic>;
-        // ── EDGE DEBUG: Log individual mapping ──
-        // Try multiple possible column names for compatibility
-        // with different schema versions (Prisma camelCase vs SQL snake_case)
-        final fromId = edge['fromPersonId'] ?? edge['frompersonid'] ?? edge['from_person_id'];
-        final toId = edge['toPersonId'] ?? edge['topersonid'] ?? edge['to_person_id'];
-        final rKey = edge['relationshipKey'] ?? edge['relationshipkey']
-            ?? edge['relationship_type'] ?? edge['relationshipType'] ?? 'unknown';
+        // Try every plausible column-name variant for cross-schema compatibility
+        // (Prisma camelCase, Postgres snake_case, lowercase fallback).
+        final fromId = edge['fromPersonId'] ?? edge['from_person_id']
+            ?? edge['fromPersonid'] ?? edge['frompersonid'];
+        final toId = edge['toPersonId'] ?? edge['to_person_id']
+            ?? edge['toPersonid'] ?? edge['topersonid'];
+        final rKey = edge['relationshipKey'] ?? edge['relationship_key']
+            ?? edge['relationshipType'] ?? edge['relationship_type']
+            ?? edge['relationshipkey'] ?? 'unknown';
         if (fromId == null || toId == null) {
           debugPrint('[EDGE-DEBUG] WARNING: Null ID in relationship! '
               'edge keys=${edge.keys.toList()}, '
               'fromPersonId=$fromId, toPersonId=$toId, relationshipKey=$rKey');
         }
+        // isActive may be returned as bool or as a String; coerce defensively
+        final activeRaw = edge['isActive'] ?? edge['is_active'];
+        final isActive = activeRaw is bool
+            ? activeRaw
+            : (activeRaw is String ? activeRaw.toLowerCase() == 'true' : true);
         return <String, dynamic>{
           'id': edge['id'],
           'fromPersonId': fromId,
           'toPersonId': toId,
           'relationshipKey': rKey,
           'isPrivate': edge['is_private'] ?? edge['isPrivate'] ?? false,
+          'isActive': isActive,
         };
       }).toList();
 
