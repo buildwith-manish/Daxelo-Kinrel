@@ -570,11 +570,14 @@ Future<Person> createPersonOptimistic({
   ref.invalidate(familyMembersProvider(familyId));
   ref.invalidate(familyDetailProvider(familyId));
 
-  // Invalidate graph provider so the family graph re-renders with the new member
+  // ✅ RELEASE-READY FIX: invalidate graph provider + clear cache so
+  // the optimistic new member shows up in the family graph immediately.
+  // (See addRelationshipOptimistic for the full rationale.)
   try {
+    FamilyGraphNotifier.clearCache(familyId);
     ref.invalidate(familyGraphProvider(familyId));
-  } catch (_) {
-    // familyGraphProvider may not be in scope if imported differently
+  } catch (e) {
+    debugPrint('[OPT-PERSON] Could not invalidate familyGraphProvider: $e');
   }
 
   // 4. Fire real API call in background
@@ -864,11 +867,19 @@ Future<FamilyRelationship> addRelationshipOptimistic({
   ref.invalidate(familyRelationshipsProvider(familyId));
   ref.invalidate(familyDetailProvider(familyId));
 
-  // Invalidate graph provider so the family graph re-renders with the new relationship
+  // ✅ RELEASE-READY FIX: invalidate graph provider + clear cache so
+  // the optimistic edge shows up in the family graph immediately.
+  // Previously this was wrapped in try/catch that SILENTLY swallowed
+  // any failure (e.g. provider symbol not in scope due to import
+  // issue), causing the optimistic edge to never appear until the
+  // background API call completed and triggered a refresh elsewhere.
+  // We also clear the in-memory cache so the next read forces a fresh
+  // Supabase round-trip.
   try {
+    FamilyGraphNotifier.clearCache(familyId);
     ref.invalidate(familyGraphProvider(familyId));
-  } catch (_) {
-    // familyGraphProvider may not be in scope if imported differently
+  } catch (e) {
+    debugPrint('[OPT-REL] Could not invalidate familyGraphProvider: $e');
   }
 
   // 4. Fire real API call in background

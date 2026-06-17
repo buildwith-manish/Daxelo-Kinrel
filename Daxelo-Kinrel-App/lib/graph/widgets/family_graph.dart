@@ -879,6 +879,43 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             // It has been replaced by the bottom toolbar in FamilyGraphScreen
             // which contains: Center, Filter, Help (zoom in AppBar).
             // This eliminates duplicate zoom controls and gesture conflicts.
+
+            // ── Debug State Badge ──────────────────────────────────────
+            // Small, dismissible, kDebugMode-only overlay at the
+            // top-left of the graph viewport showing the current graph
+            // state (persons count, edges count, canvas size, anchor
+            // status). Helps diagnose "why don't I see edges?" at a
+            // glance without needing logcat.
+            //
+            // In release builds (kReleaseMode), this is compiled out.
+            if (kDebugMode)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 4.0,
+                left: 4.0,
+                child: IgnorePointer(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6.0, vertical: 3.0),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(4.0),
+                    ),
+                    child: Text(
+                      'P:${_personMap.length} '
+                      'E:${_edges.length} '
+                      'C:${canvasWidth.round()}x${canvasHeight.round()} '
+                      'V:${constraints.maxWidth.round()}x${constraints.maxHeight.round()} '
+                      'A:${_personMap.values.any((p) => p.isAnchor) ? "Y" : "N"}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9.0,
+                        fontFamily: 'monospace',
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         );
       },

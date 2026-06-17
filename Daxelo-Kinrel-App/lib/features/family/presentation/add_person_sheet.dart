@@ -400,8 +400,37 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           isDeceased: _isDeceased,
         );
 
-        // Create the relationship if one was selected
+        // Create the relationship if one was selected.
+        //
+        // RELEASE-READY FIX (edge rendering bug):
+        // Previously, `_effectiveAnchorPerson` was read synchronously
+        // here. If `familyMembersProvider` was still loading (or held a
+        // stale empty cache), `_effectiveAnchorPerson` returned null
+        // and the entire relationship-creation block was SILENTLY
+        // skipped — the user saw the new member appear as an isolated
+        // node with no connecting line, and had no idea why.
+        //
+        // We now explicitly await the provider future before reading
+        // the anchor, and we surface any "couldn't create the link"
+        // failure to the user instead of swallowing it.
         final relKey = _effectiveRelationshipKey;
+
+        // Ensure the family members provider has finished loading so
+        // _effectiveAnchorPerson can actually find the anchor.
+        if (relKey != null && !_isEditMode) {
+          final membersAsync =
+              ref.read(familyMembersProvider(widget.familyId));
+          if (membersAsync.isLoading) {
+            try {
+              await ref.read(
+                familyMembersProvider(widget.familyId).future,
+              );
+            } catch (e) {
+              debugPrint('[ADD-MEMBER] familyMembersProvider.future threw: $e');
+            }
+          }
+        }
+
         final anchor = _effectiveAnchorPerson;
         if (relKey != null && anchor != null) {
           try {
@@ -412,6 +441,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               toPersonId: result.id,
               relationshipKey: relKey,
             );
+            debugPrint('[ADD-MEMBER] Relationship created: '
+                'from=${anchor.id} to=${result.id} key=$relKey');
           } catch (e) {
             // Surface the failure to the user so they know the link didn't
             // get created. Without this, the new member appears as an
@@ -429,6 +460,21 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 isError: true,
               );
             }
+          }
+        } else if (relKey != null && anchor == null) {
+          // Relationship was selected but we couldn't determine the
+          // anchor person. Previously this was SILENTLY skipped. Now
+          // we tell the user so they know why no edge was drawn.
+          debugPrint('[ADD-MEMBER] Cannot create relationship: anchor '
+              'person is null (familyMembersProvider may be empty). '
+              'relKey=$relKey, familyId=${widget.familyId}');
+          if (mounted) {
+            context.showSnackBar(
+              'Member added, but no anchor was found to link them to. '
+              'Please reopen the family graph and add the relationship '
+              'from there.',
+              isError: true,
+            );
           }
         }
       }
