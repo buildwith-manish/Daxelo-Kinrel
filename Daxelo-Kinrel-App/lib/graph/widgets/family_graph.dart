@@ -681,27 +681,50 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             // External controller already has a saved position — skip auto-center
             _initialCenterDone = true;
           } else {
+            // Use anchor node if it exists, otherwise fall back to centroid
+            // of all node positions. This fixes the "nodes at bottom" bug when
+            // no member is marked isAnchor.
+            Offset? focusPoint;
+
+            // Try anchor first
             final anchorId = _personMap.values
                 .firstWhere((p) => p.isAnchor, orElse: () => _GraphPersonData.empty())
                 .id;
-            final anchorPos = _layoutResult!.positions[anchorId];
-            if (anchorPos != null && anchorId.isNotEmpty) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                final screenW = _viewportSize.width;
-                final screenH = _viewportSize.height;
-                if (screenW > 0 && screenH > 0) {
-                  final scale = 1.0;
-                  final translateX = (screenW / 2) - anchorPos.dx * scale;
-                  final translateY = (screenH / 2) - anchorPos.dy * scale;
-                  final matrix = Matrix4.identity()
-                    ..translate(translateX, translateY)
-                    ..scale(scale);
-                  _transformationController.value = matrix;
-                  setState(() => _initialCenterDone = true);
-                }
-              });
+            if (anchorId.isNotEmpty) {
+              focusPoint = _layoutResult!.positions[anchorId];
             }
+
+            // Fallback: centroid of all positions
+            if (focusPoint == null && _layoutResult!.positions.isNotEmpty) {
+              final allPos = _layoutResult!.positions.values;
+              final sumX = allPos.fold(0.0, (s, p) => s + p.dx);
+              final sumY = allPos.fold(0.0, (s, p) => s + p.dy);
+              focusPoint =
+                  Offset(sumX / allPos.length, sumY / allPos.length);
+            }
+
+            // Fallback: canvas center
+            focusPoint ??= Offset(canvasWidth / 2, canvasHeight / 2);
+
+            // Mark as done immediately so we only fire once, then apply
+            // the transform after the first frame so viewport size is set.
+            _initialCenterDone = true;
+            final targetPoint = focusPoint;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              final screenW = _viewportSize.width;
+              final screenH = _viewportSize.height;
+              if (screenW > 0 && screenH > 0) {
+                const scale = 1.0;
+                final translateX = (screenW / 2) - targetPoint.dx * scale;
+                final translateY = (screenH / 2) - targetPoint.dy * scale;
+                final matrix = Matrix4.identity()
+                  ..translate(translateX, translateY)
+                  ..scale(scale);
+                _transformationController.value = matrix;
+                if (mounted) setState(() {});
+              }
+            });
           }
         }
 
@@ -764,49 +787,50 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         return Stack(
           children: [
             // ── Camera Transform Layer ───────────────────────────────
-            RepaintBoundary(
-              child: ClipRect(
-                child: InteractiveViewer(
-                  transformationController: _transformationController,
-                  minScale: 0.1,
-                  maxScale: 4.0,
-                  constrained: false,
-                  boundaryMargin: const EdgeInsets.all(double.infinity),
-                  clipBehavior: Clip.none,
-                  child: SizedBox(
-                    width: canvasWidth,
-                    height: canvasHeight,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        // ── Edge Layer ────────────────────────────────
-                        // No RepaintBoundary wrapper — it can cache an empty
-                        // frame and prevent edges from ever appearing.
-                        Positioned.fill(
-                          child: CustomPaint(
-                            size: Size(canvasWidth, canvasHeight),
-                            painter: RelationshipEdge(
-                              positions: positions,
-                              edges: _edges,
-                              selectedEdgeId: _selectedEdgeId,
-                              zoomLevel: zoomLevel,
-                              nodeWidth: _nodeWidth,
-                              nodeHeight: _nodeHeight,
-                              generationMap: {
-                                for (final p in _personMap.values)
-                                  p.id: p.generationIndex,
-                              },
-                              highlightedGeneration: _highlightedGeneration,
-                              anonymousNodeIds: _anonymousNodeIds,
-                              blockedNodeIds: _blockedNodeIds,
-                            ),
+            // NOTE: A RepaintBoundary wrapping InteractiveViewer intercepts
+            // gesture events and breaks pinch-to-zoom. ClipRect alone is enough
+            // to clip the unconstrained InteractiveViewer content.
+            ClipRect(
+              child: InteractiveViewer(
+                transformationController: _transformationController,
+                minScale: 0.1,
+                maxScale: 4.0,
+                constrained: false,
+                boundaryMargin: const EdgeInsets.all(double.infinity),
+                clipBehavior: Clip.none,
+                child: SizedBox(
+                  width: canvasWidth,
+                  height: canvasHeight,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      // ── Edge Layer ────────────────────────────────
+                      // No RepaintBoundary wrapper — it can cache an empty
+                      // frame and prevent edges from ever appearing.
+                      Positioned.fill(
+                        child: CustomPaint(
+                          size: Size(canvasWidth, canvasHeight),
+                          painter: RelationshipEdge(
+                            positions: positions,
+                            edges: _edges,
+                            selectedEdgeId: _selectedEdgeId,
+                            zoomLevel: zoomLevel,
+                            nodeWidth: _nodeWidth,
+                            nodeHeight: _nodeHeight,
+                            generationMap: {
+                              for (final p in _personMap.values)
+                                p.id: p.generationIndex,
+                            },
+                            highlightedGeneration: _highlightedGeneration,
+                            anonymousNodeIds: _anonymousNodeIds,
+                            blockedNodeIds: _blockedNodeIds,
                           ),
                         ),
+                      ),
 
-                        // ── Node Layer ────────────────────────────────
-                        ..._buildVisibleNodes(positions, zoomLevel, effectiveVisibleIds),
-                      ],
-                    ),
+                      // ── Node Layer ────────────────────────────────
+                      ..._buildVisibleNodes(positions, zoomLevel, effectiveVisibleIds),
+                    ],
                   ),
                 ),
               ),

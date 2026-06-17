@@ -129,30 +129,39 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     final current = _graphTransformController.value.clone();
     final currentScale = current.getMaxScaleOnAxis();
     if (currentScale >= 4.0) return;
-    final newScale = (currentScale + 0.25).clamp(0.1, 4.0);
-    final factor = newScale / currentScale;
+    final factor =
+        ((currentScale + 0.25).clamp(0.1, 4.0)) / currentScale;
     final size = MediaQuery.of(context).size;
     final focalPoint = Offset(size.width / 2, size.height / 2);
-    final tp = MatrixUtils.transformPoint(current, focalPoint);
-    _graphTransformController.value = current
-      ..translate(tp.dx, tp.dy)
-      ..scale(factor)
-      ..translate(-tp.dx, -tp.dy);
+    // Apply scale around screen center — build a NEW matrix from scratch
+    // so listeners fire correctly. Mutating `current` in place and reassigning
+    // it does not trigger TransformationController listeners.
+    final tx = current.getTranslation().x;
+    final ty = current.getTranslation().y;
+    final newTx = focalPoint.dx + (tx - focalPoint.dx) * factor;
+    final newTy = focalPoint.dy + (ty - focalPoint.dy) * factor;
+    final newMatrix = Matrix4.identity()
+      ..translate(newTx, newTy)
+      ..scale(currentScale * factor);
+    _graphTransformController.value = newMatrix;
   }
 
   void _zoomOut() {
     final current = _graphTransformController.value.clone();
     final currentScale = current.getMaxScaleOnAxis();
     if (currentScale <= 0.1) return;
-    final newScale = (currentScale - 0.25).clamp(0.1, 4.0);
-    final factor = newScale / currentScale;
+    final factor =
+        ((currentScale - 0.25).clamp(0.1, 4.0)) / currentScale;
     final size = MediaQuery.of(context).size;
     final focalPoint = Offset(size.width / 2, size.height / 2);
-    final tp = MatrixUtils.transformPoint(current, focalPoint);
-    _graphTransformController.value = current
-      ..translate(tp.dx, tp.dy)
-      ..scale(factor)
-      ..translate(-tp.dx, -tp.dy);
+    final tx = current.getTranslation().x;
+    final ty = current.getTranslation().y;
+    final newTx = focalPoint.dx + (tx - focalPoint.dx) * factor;
+    final newTy = focalPoint.dy + (ty - focalPoint.dy) * factor;
+    final newMatrix = Matrix4.identity()
+      ..translate(newTx, newTy)
+      ..scale(currentScale * factor);
+    _graphTransformController.value = newMatrix;
   }
 
   /// Centers the graph on the root/anchor user by resetting transform
