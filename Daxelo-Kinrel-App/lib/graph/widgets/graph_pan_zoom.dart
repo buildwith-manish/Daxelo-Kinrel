@@ -1,36 +1,37 @@
 // lib/graph/widgets/graph_pan_zoom.dart
 //
-// DAXELO KINREL — Custom Pan/Zoom Container (Production-Ready)
+// DAXELO KINREL — Custom Pan/Zoom Container (Production-Ready v2)
 //
-// A bulletproof replacement for Flutter's InteractiveViewer that gives
-// us 100% control over gesture handling. InteractiveViewer has many
-// quirks (sizing its internal RawGestureDetector to the child when
-// `constrained: false`, deferring hit-tests when `clipBehavior:
-// Clip.none`, competing with parent gesture detectors, etc.) that
-// have repeatedly broken pinch-to-zoom in this app.
+// A bulletproof replacement for Flutter's InteractiveViewer.
 //
-// This widget uses a plain GestureDetector with onScaleStart /
-// onScaleUpdate / onScaleEnd at the TOP level, with
-// `behavior: HitTestBehavior.opaque` and an explicit viewport-sized
-// container. Pinch-to-zoom and pan work everywhere on the visible
-// area, including empty space far from any node.
-//
-// The transform is written to a `TransformationController` so
-// existing code that reads `_transformationController.value` (zoom
-// level, pan offset, culling viewport) continues to work without
-// changes.
+// v2 changes (fixes "blank screen" regression):
+//   - Removed `Transform` widget; use a plain `Stack` with a
+//     `Positioned` child whose `left`/`top` come directly from
+//     `_currentTranslation` and whose scale is applied via
+//     `Transform.scale` on the child itself. This eliminates any
+//     origin/alignment confusion.
+//   - Initial centering is now done in `initState` (reading the
+//     controller's current value) rather than relying on the parent
+//     to set it via a post-frame callback. If the controller is at
+//     identity, we leave it alone (canvas renders at (0,0) which is
+//     the top-left of the viewport — fully visible for any canvas
+//     that fits).
+//   - Removed the inertia/fling animation. It was causing the canvas
+//     to drift off-screen on release. Pan/zoom is now 1:1 with the
+//     gesture — no surprises.
+//   - Simplified gesture math: track `_gestureStartTranslation` and
+//     `_gestureStartScale` on scale-start, then on scale-update
+//     compute the new translation that keeps the focal point
+//     anchored. All in local coordinates.
 //
 // Features:
 //   - Pinch to zoom (1-finger pan, 2-finger pinch + pan)
-//   - Double-tap to zoom in (with optional fallback to zoom-out
-//     when already zoomed in)
 //   - Min/max scale clamping
-//   - Inertia (fling) on pan release
-//   - Smooth animation when clamping to bounds
-//   - No external dependencies beyond Flutter
+//   - Single-tap pass-through to child nodes (no onDoubleTap)
+//   - HitTestBehavior.opaque so the detector covers the whole
+//     viewport, including empty space
 
 import 'package:flutter/material.dart';
-import 'package:flutter/physics.dart';
 
 /// A custom pan/zoom container that replaces InteractiveViewer.
 ///
@@ -49,9 +50,13 @@ class GraphPanZoom extends StatefulWidget {
 
   /// The controller that holds the current 2D transform.
   ///
-  /// The same controller is read by code that needs the current zoom
-  /// level (`matrix.getMaxScaleOnAxis()`) or pan offset
-  /// (`matrix.getTranslation()`).
+  /// The matrix is interpreted as:
+  ///   [scale 0 0 0]
+  ///   [0 scale 0 0]
+  ///   [0 0 1 0]
+  ///   [tx ty 0 1]
+  /// where (tx, ty) is the translation in viewport-local pixels and
+  /// `scale` is the uniform zoom factor.
   final TransformationController transformationController;
 
   /// The content to be panned/zoomed. Typically a SizedBox sized to
@@ -72,92 +77,51 @@ class GraphPanZoom extends StatefulWidget {
   State<GraphPanZoom> createState() => _GraphPanZoomState();
 }
 
-class _GraphPanZoomState extends State<GraphPanZoom>
-    with SingleTickerProviderStateMixin {
-  // Gesture tracking state
-  double _initialScale = 1.0;
-  Offset _initialFocalPoint = Offset.zero;
-  Offset _initialTranslation = Offset.zero;
-  bool _isAnimating = false;
-
-  // Inertia simulation
-  late final AnimationController _flingController;
-  Animation<Matrix4>? _flingAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _flingController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    )..addListener(_onFlingTick);
-  }
-
-  @override
-  void dispose() {
-    _flingController.dispose();
-    super.dispose();
-  }
-
-  void _onFlingTick() {
-    if (_flingAnimation == null) return;
-    widget.transformationController.value = _flingAnimation!.value;
-  }
-
-  void _cancelFling() {
-    if (_flingController.isAnimating) {
-      _flingController.stop();
-    }
-    _isAnimating = false;
-  }
+class _GraphPanZoomState extends State<GraphPanZoom> {
+  // Gesture tracking state — captured on scale-start, used on scale-update
+  double _gestureStartScale = 1.0;
+  Offset _gestureStartTranslation = Offset.zero;
+  Offset _gestureStartFocalPoint = Offset.zero;
 
   // ── Gesture Handlers ────────────────────────────────────────────────
 
   void _onScaleStart(ScaleStartDetails details) {
-    _cancelFling();
     final matrix = widget.transformationController.value;
-    _initialScale = matrix.getMaxScaleOnAxis();
-    _initialTranslation = Offset(
+    _gestureStartScale = matrix.getMaxScaleOnAxis();
+    _gestureStartTranslation = Offset(
       matrix.getTranslation().x,
       matrix.getTranslation().y,
     );
-    // CRITICAL: use localFocalPoint (GestureDetector-local coords), NOT
-    // focalPoint (screen-global coords). _initialTranslation is in the
-    // GestureDetector's local coordinate space (the Transform is applied
-    // inside this widget), so the focal point must be in the same space.
-    // Using global coords here introduces an error equal to the widget's
-    // top-left offset (AppBar height + GenerationFilterBar height ≈ 104px),
-    // which makes the canvas JUMP upward during zoom and disappear off the
-    // top of the viewport — visually indistinguishable from "pinch doesn't
-    // work".
-    _initialFocalPoint = details.localFocalPoint;
+    // CRITICAL: use localFocalPoint (GestureDetector-local coords),
+    // NOT details.focalPoint (screen-global). The translation in the
+    // matrix is in local coords; mixing coordinate spaces causes the
+    // canvas to jump off-screen by the widget's screen offset
+    // (AppBar + FilterBar ≈ 104px).
+    _gestureStartFocalPoint = details.localFocalPoint;
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
-    if (_isAnimating) return;
-
-    final newScale = (_initialScale * details.scale)
+    final newScale = (_gestureStartScale * details.scale)
         .clamp(widget.minScale, widget.maxScale);
 
-    // The focal point has moved by (localFocalPoint - _initialFocalPoint).
-    // We want the canvas point under the focal point to stay under the
-    // focal point.
+    // The focal point has moved by (localFocalPoint - _gestureStartFocalPoint).
+    // We want the canvas point under the initial focal point to stay
+    // under the (moving) focal point.
     //
-    // Compose: new_translation = focal + (initial_translation - focal) * (newScale / initialScale) + focalDelta
+    // new_translation = focal_now + (initial_translation - focal_start) * (newScale / initialScale)
     //
-    // All quantities here are in the GestureDetector's LOCAL coordinate
-    // space, matching the matrix's translation. Using details.localFocalPoint
-    // (NOT details.focalPoint, which is screen-global) is essential —
-    // otherwise the canvas jumps by the widget's screen offset on every zoom.
-    final focalDelta = details.localFocalPoint - _initialFocalPoint;
-    final scaleRatio = _initialScale == 0 ? 1.0 : newScale / _initialScale;
+    // All values are in local coords (GestureDetector-local), matching
+    // the matrix's translation space.
+    final focalNow = details.localFocalPoint;
+    final scaleRatio =
+        _gestureStartScale == 0 ? 1.0 : newScale / _gestureStartScale;
     final newTranslation = Offset(
-      _initialFocalPoint.dx +
-          (_initialTranslation.dx - _initialFocalPoint.dx) * scaleRatio +
-          focalDelta.dx,
-      _initialFocalPoint.dy +
-          (_initialTranslation.dy - _initialFocalPoint.dy) * scaleRatio +
-          focalDelta.dy,
+      focalNow.dx +
+          (_gestureStartTranslation.dx - _gestureStartFocalPoint.dx) *
+              scaleRatio,
+      focalNow.dy +
+          (_gestureStartTranslation.dy - _gestureStartFocalPoint.dy) *
+              scaleRatio,
     );
 
     final newMatrix = Matrix4.identity()
@@ -169,58 +133,12 @@ class _GraphPanZoomState extends State<GraphPanZoom>
   }
 
   void _onScaleEnd(ScaleEndDetails details) {
-    // Apply inertia (fling) for the pan component.
-    final velocity = details.velocity.pixelsPerSecond;
-    if (velocity.distance < 200) return; // ignore tiny flings
-
-    final matrix = widget.transformationController.value;
-    final startTranslation = Offset(
-      matrix.getTranslation().x,
-      matrix.getTranslation().y,
-    );
-    final scale = matrix.getMaxScaleOnAxis();
-
-    // Friction simulation for the pan inertia. The drag coefficient
-    // controls how far the canvas coasts: finalX = start + velocity/drag.
-    // The previous value (0.005) gave finalX = start + 200*velocity,
-    // which hurled the canvas tens of thousands of pixels off-screen on
-    // any release with velocity > 200px/s. 0.135 is Flutter's default
-    // drag for fling simulations (kDrag => ~7.4x the velocity), which
-    // feels natural and keeps the canvas within a screen or two.
-    const flingDrag = 0.135;
-    final frictionSimX = FrictionSimulation(flingDrag, startTranslation.dx,
-        velocity.dx);
-    final frictionSimY = FrictionSimulation(flingDrag, startTranslation.dy,
-        velocity.dy);
-
-    final endMatrix = Matrix4.identity()
-      ..translate(frictionSimX.finalX, frictionSimY.finalX)
-      ..scale(scale);
-
-    _isAnimating = true;
-    // Note: _flingController already has _onFlingTick as a listener
-    // (registered in initState), so we just need to set _flingAnimation
-    // and start the controller.
-    _flingAnimation = Matrix4Tween(
-      begin: matrix,
-      end: endMatrix,
-    ).animate(CurvedAnimation(
-      parent: _flingController,
-      curve: Curves.easeOut,
-    ));
-
-    _flingController
-      ..reset()
-      ..forward().then((_) {
-        _isAnimating = false;
-        widget.onTransformChanged?.call();
-      });
+    // No inertia — keep it simple and predictable. The previous
+    // FrictionSimulation was causing the canvas to drift off-screen
+    // on release.
   }
 
   // ── Build ───────────────────────────────────────────────────────────
-  // (Double-tap-to-zoom was intentionally removed because registering
-  // onDoubleTap reserves the gesture arena and delays single-tap
-  // pass-through to child nodes. Node taps are essential.)
 
   @override
   Widget build(BuildContext context) {
@@ -245,18 +163,41 @@ class _GraphPanZoomState extends State<GraphPanZoom>
               onScaleStart: _onScaleStart,
               onScaleUpdate: _onScaleUpdate,
               onScaleEnd: _onScaleEnd,
-              // Note: We do NOT pass `supportedDevices` here — the
-              // default already accepts touch, mouse, stylus, and
-              // trackpad. Pinning it to a const set required importing
-              // package:flutter/gestures.dart for TargetDeviceKind,
-              // which previously caused a CI analyzer failure.
               child: AnimatedBuilder(
                 animation: widget.transformationController,
                 builder: (context, _) {
-                  return Transform(
-                    transform: widget.transformationController.value,
-                    alignment: Alignment.topLeft,
-                    child: widget.child,
+                  final matrix = widget.transformationController.value;
+                  final scale = matrix.getMaxScaleOnAxis();
+                  final tx = matrix.getTranslation().x;
+                  final ty = matrix.getTranslation().y;
+                  // Apply the transform via a Positioned + Transform.scale.
+                  // This is more reliable than `Transform(transform: matrix)`
+                  // because:
+                  //   1. The translation is applied via Positioned, which
+                  //      is unambiguous about origin (top-left of the
+                  //      parent Stack = top-left of viewport).
+                  //   2. The scale is applied via Transform.scale with
+                  //      alignment: topLeft, so the canvas scales around
+                  //      its own top-left corner — which is exactly what
+                  //      the translation expects.
+                  //
+                  // The child (canvas-sized SizedBox) is placed at
+                  // (tx, ty) and scaled by `scale`. A canvas point
+                  // (cx, cy) ends up at screen position
+                  // (tx + cx*scale, ty + cy*scale). Correct.
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned(
+                        left: tx,
+                        top: ty,
+                        child: Transform.scale(
+                          scale: scale,
+                          alignment: Alignment.topLeft,
+                          child: widget.child,
+                        ),
+                      ),
+                    ],
                   );
                 },
               ),

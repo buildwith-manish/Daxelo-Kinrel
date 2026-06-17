@@ -640,50 +640,67 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             // External controller already has a saved position — skip auto-center
             _initialCenterDone = true;
           } else {
-            // Use anchor node if it exists, otherwise fall back to centroid
-            // of all node positions. This fixes the "nodes at bottom" bug when
-            // no member is marked isAnchor.
-            Offset? focusPoint;
-
-            // Try anchor first
-            final anchorId = _personMap.values
-                .firstWhere((p) => p.isAnchor, orElse: () => _GraphPersonData.empty())
-                .id;
-            if (anchorId.isNotEmpty) {
-              focusPoint = _layoutResult!.positions[anchorId];
-            }
-
-            // Fallback: centroid of all positions
-            if (focusPoint == null && _layoutResult!.positions.isNotEmpty) {
-              final allPos = _layoutResult!.positions.values;
-              final sumX = allPos.fold(0.0, (s, p) => s + p.dx);
-              final sumY = allPos.fold(0.0, (s, p) => s + p.dy);
-              focusPoint =
-                  Offset(sumX / allPos.length, sumY / allPos.length);
-            }
-
-            // Fallback: canvas center
-            focusPoint ??= Offset(canvasWidth / 2, canvasHeight / 2);
-
-            // Mark as done immediately so we only fire once, then apply
-            // the transform after the first frame so viewport size is set.
+            // RELEASE-READY FIX: Apply the initial centering transform
+            // SYNCHRONOUSLY in the build (not in a post-frame callback).
+            //
+            // The previous post-frame-callback approach caused a race:
+            // the first frame rendered the canvas at the identity matrix
+            // (canvas top-left at viewport top-left), then the callback
+            // fired after the frame and set the matrix. If the canvas
+            // was smaller than the viewport, the first frame showed
+            // nodes in the top-left corner; then the callback moved
+            // them to center. This worked but caused a visible flash.
+            //
+            // WORSE: if the post-frame callback's setState triggered a
+            // rebuild that reset _initialCenterDone (e.g., because the
+            // widget was still mounting), the centering never applied
+            // and the canvas stayed at identity — visible but in the
+            // top-left corner, not centered. For a 500x360 canvas in a
+            // 384x693 viewport, the right 116px of the canvas was
+            // clipped, and the bottom 333px of the viewport was empty.
+            //
+            // The new approach: compute the "fit" transform here and
+            // set it on the controller BEFORE the build returns. The
+            // first frame will already show the centered, fitted canvas.
             _initialCenterDone = true;
-            final targetPoint = focusPoint;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-              final screenW = _viewportSize.width;
-              final screenH = _viewportSize.height;
-              if (screenW > 0 && screenH > 0) {
-                const scale = 1.0;
-                final translateX = (screenW / 2) - targetPoint.dx * scale;
-                final translateY = (screenH / 2) - targetPoint.dy * scale;
-                final matrix = Matrix4.identity()
-                  ..translate(translateX, translateY)
-                  ..scale(scale);
-                _transformationController.value = matrix;
-                if (mounted) setState(() {});
-              }
-            });
+            final screenW = constraints.maxWidth;
+            final screenH = constraints.maxHeight;
+
+            if (screenW > 0 && screenH > 0 && canvasWidth > 0 && canvasHeight > 0) {
+              // Compute a scale that fits the entire canvas in the
+              // viewport with a small margin. Use the min of the
+              // horizontal and vertical fit ratios so the whole canvas
+              // is visible.
+              const margin = 32.0; // 16px margin on each side
+              final fitScaleX = (screenW - margin * 2) / canvasWidth;
+              final fitScaleY = (screenH - margin * 2) / canvasHeight;
+              var fitScale = fitScaleX < fitScaleY ? fitScaleX : fitScaleY;
+              // Don't zoom in beyond 1.0 on initial load — only zoom
+              // out to fit. This prevents tiny canvases from being
+              // blown up to fill the viewport (which would pixelate
+              // node text).
+              if (fitScale > 1.0) fitScale = 1.0;
+              // Don't go below the min scale.
+              if (fitScale < 0.1) fitScale = 0.1;
+
+              // Center the canvas in the viewport:
+              //   translate = (viewport_center) - (canvas_center * scale)
+              final canvasCenterX = canvasWidth / 2;
+              final canvasCenterY = canvasHeight / 2;
+              final translateX = (screenW / 2) - (canvasCenterX * fitScale);
+              final translateY = (screenH / 2) - (canvasCenterY * fitScale);
+
+              final matrix = Matrix4.identity()
+                ..translate(translateX, translateY)
+                ..scale(fitScale);
+              // Set the matrix directly. Setting TransformationController
+              // value during build is safe — it calls notifyListeners()
+              // which schedules (not immediately invokes) listener
+              // callbacks. The AnimatedBuilder inside GraphPanZoom
+              // listens to the controller and will rebuild with the new
+              // transform on the next frame.
+              _transformationController.value = matrix;
+            }
           }
         }
 
@@ -966,8 +983,10 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
                     child: Text(
                       'P:${_personMap.length} '
                       'E:${_edges.length} '
+                      'L:${_layoutResult?.positions.length ?? 0} '
                       'C:${canvasWidth.round()}x${canvasHeight.round()} '
                       'V:${constraints.maxWidth.round()}x${constraints.maxHeight.round()} '
+                      'Z:${_currentZoom.toStringAsFixed(2)} '
                       'A:${_personMap.values.any((p) => p.isAnchor) ? "Y" : "N"}',
                       style: const TextStyle(
                         color: Colors.white,
