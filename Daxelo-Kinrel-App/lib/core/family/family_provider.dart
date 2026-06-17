@@ -16,6 +16,8 @@ import '../database/app_database.dart';
 import '../database/repositories/offline_family_repository.dart';
 import '../database/sync/cache_invalidation.dart';
 import '../../features/profile/data/profile_provider.dart';
+import '../../features/family/presentation/providers/family_graph_provider.dart'
+    show FamilyGraphNotifier, familyGraphProvider;
 
 // ── Table name constants (matching Prisma schema PascalCase) ────────
 const _kFamilyTable = 'Family';
@@ -1406,6 +1408,11 @@ Future<Person> createPerson({
 
       ref.invalidate(familyMembersProvider(familyId));
 
+      // ✅ RELEASE-READY FIX: invalidate graph provider + clear cache
+      // so the new person shows up in the family graph immediately.
+      FamilyGraphNotifier.clearCache(familyId);
+      ref.invalidate(familyGraphProvider(familyId));
+
       if (IsarDatabase.isInitialized) {
         try {
           await CacheInvalidation.invalidateFamily(familyId);
@@ -1470,6 +1477,11 @@ Future<Person> updatePerson({
   }
   ref.invalidate(familyMembersProvider(familyId));
   // familyDetailProvider auto-rebuilds via ref.watch on familyMembersProvider
+
+  // ✅ RELEASE-READY FIX: invalidate graph provider + clear cache
+  // so name/gender/photo changes reflect in the family graph immediately.
+  FamilyGraphNotifier.clearCache(familyId);
+  ref.invalidate(familyGraphProvider(familyId));
 
   // Invalidate the Isar cache for this family
   if (IsarDatabase.isInitialized) {
@@ -1763,6 +1775,11 @@ Future<void> deletePerson({
   ref.invalidate(familyMembersProvider(familyId));
   // familyDetailProvider auto-rebuilds via ref.watch on familyMembersProvider
 
+  // ✅ RELEASE-READY FIX: invalidate graph provider + clear cache
+  // so the deleted person disappears from the family graph immediately.
+  FamilyGraphNotifier.clearCache(familyId);
+  ref.invalidate(familyGraphProvider(familyId));
+
   // ✅ FIX: Decrement Family.memberCount in Supabase
   // The NestJS backend decrements memberCount when a person is deleted.
   // We must do the same when deleting via Flutter direct Supabase writes.
@@ -1908,6 +1925,21 @@ Future<FamilyRelationship> createRelationship({
 
   ref.invalidate(familyRelationshipsProvider(familyId));
   // familyDetailProvider auto-rebuilds via ref.watch on familyRelationshipsProvider
+
+  // ✅ RELEASE-READY FIX: invalidate the graph provider so the family
+  // graph re-fetches immediately and the new edge becomes visible.
+  // Previously, only familyRelationshipsProvider was invalidated — the
+  // familyGraphProvider kept serving the stale cached FlatGraphResult
+  // (cached at family_graph_provider.dart line 244 in `_cache[familyId]`),
+  // so the new edge never appeared until something else (a manual
+  // pull-to-refresh, app restart, or another provider invalidation)
+  // caused a re-fetch.
+  //
+  // We clear the in-memory cache first (so the next read is forced to
+  // hit Supabase), then invalidate the provider (so any active widget
+  // watchers rebuild).
+  FamilyGraphNotifier.clearCache(familyId);
+  ref.invalidate(familyGraphProvider(familyId));
 
   // Invalidate the Isar cache for this family
   if (IsarDatabase.isInitialized) {
@@ -2339,6 +2371,12 @@ Future<void> deleteRelationship({
 
   ref.invalidate(familyRelationshipsProvider(familyId));
   ref.invalidate(familyDetailProvider(familyId));
+
+  // ✅ RELEASE-READY FIX: invalidate the graph provider + clear its
+  // in-memory cache so the deleted edge disappears immediately.
+  // (See createRelationship for the full rationale.)
+  FamilyGraphNotifier.clearCache(familyId);
+  ref.invalidate(familyGraphProvider(familyId));
 
   // Invalidate the Isar cache for this family
   if (IsarDatabase.isInitialized) {

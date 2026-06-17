@@ -243,6 +243,24 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
   /// In-memory cache keyed by familyId so we can fallback on error.
   static final Map<String, FlatGraphResult> _cache = {};
 
+  /// Clear the in-memory cache for a specific family (or all families
+  /// if [familyId] is null). This forces the next read of
+  /// [familyGraphProvider] to do a fresh Supabase round-trip.
+  ///
+  /// Call this whenever the underlying data changes outside the
+  /// notifier's own write path — e.g. after `createRelationship`,
+  /// `deleteRelationship`, `createPerson`, `updatePerson`,
+  /// `deletePerson`. Without this, the notifier will keep returning
+  /// the stale cached [FlatGraphResult] until something else
+  /// invalidates the provider.
+  static void clearCache([String? familyId]) {
+    if (familyId == null) {
+      _cache.clear();
+    } else {
+      _cache.remove(familyId);
+    }
+  }
+
   @override
   Future<FlatGraphResult> build(String familyId) async {
     // Invalidate the layout when graph data is (re)fetched
@@ -512,36 +530,63 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
         };
       }).toList();
 
-      final relationships = rawRelationships.map((dynamic e) {
-        final edge = e as Map<String, dynamic>;
-        // Try every plausible column-name variant for cross-schema compatibility
-        // (Prisma camelCase, Postgres snake_case, lowercase fallback).
-        final fromId = edge['fromPersonId'] ?? edge['from_person_id']
-            ?? edge['fromPersonid'] ?? edge['frompersonid'];
-        final toId = edge['toPersonId'] ?? edge['to_person_id']
-            ?? edge['toPersonid'] ?? edge['topersonid'];
-        final rKey = edge['relationshipKey'] ?? edge['relationship_key']
-            ?? edge['relationshipType'] ?? edge['relationship_type']
-            ?? edge['relationshipkey'] ?? 'unknown';
-        if (fromId == null || toId == null) {
-          debugPrint('[EDGE-DEBUG] WARNING: Null ID in relationship! '
-              'edge keys=${edge.keys.toList()}, '
-              'fromPersonId=$fromId, toPersonId=$toId, relationshipKey=$rKey');
-        }
-        // isActive may be returned as bool or as a String; coerce defensively
-        final activeRaw = edge['isActive'] ?? edge['is_active'];
-        final isActive = activeRaw is bool
-            ? activeRaw
-            : (activeRaw is String ? activeRaw.toLowerCase() == 'true' : true);
-        return <String, dynamic>{
-          'id': edge['id'],
-          'fromPersonId': fromId,
-          'toPersonId': toId,
-          'relationshipKey': rKey,
-          'isPrivate': edge['is_private'] ?? edge['isPrivate'] ?? false,
-          'isActive': isActive,
-        };
-      }).toList();
+      final relationships = rawRelationships
+          .map((dynamic e) {
+            final edge = e as Map<String, dynamic>;
+            // Try every plausible column-name variant for cross-schema compatibility
+            // (Prisma camelCase, Postgres snake_case, lowercase fallback).
+            // Also handle RPC-style member_a_id/member_b_id which the
+            // FlatGraphResult.fromRpc factory already supports.
+            final fromId = edge['fromPersonId'] ?? edge['from_person_id']
+                ?? edge['fromPersonid'] ?? edge['frompersonid']
+                ?? edge['member_a_id'] ?? edge['from_member_id']
+                ?? edge['sourceId'] ?? edge['source_id'];
+            final toId = edge['toPersonId'] ?? edge['to_person_id']
+                ?? edge['toPersonid'] ?? edge['topersonid']
+                ?? edge['member_b_id'] ?? edge['to_member_id']
+                ?? edge['targetId'] ?? edge['target_id'];
+            final rKey = edge['relationshipKey'] ?? edge['relationship_key']
+                ?? edge['relationshipType'] ?? edge['relationship_type']
+                ?? edge['relationshipkey'] ?? 'unknown';
+            if (fromId == null || toId == null) {
+              debugPrint('[EDGE-DEBUG] WARNING: Null ID in relationship! '
+                  'edge keys=${edge.keys.toList()}, '
+                  'fromPersonId=$fromId, toPersonId=$toId, relationshipKey=$rKey');
+            }
+            // isActive may be returned as bool or as a String; coerce defensively
+            final activeRaw = edge['isActive'] ?? edge['is_active'];
+            final isActive = activeRaw is bool
+                ? activeRaw
+                : (activeRaw is String
+                    ? activeRaw.toLowerCase() == 'true'
+                    : true);
+            return <String, dynamic>{
+              'id': edge['id'],
+              'fromPersonId': fromId,
+              'toPersonId': toId,
+              'relationshipKey': rKey,
+              'isPrivate': edge['is_private'] ?? edge['isPrivate'] ?? false,
+              'isActive': isActive,
+            };
+          })
+          // Filter out edges with null/empty IDs — these can never be
+          // drawn (the painter looks up positions[fromPersonId] which
+          // would return null for "" and silently skip the edge).
+          // Previously these were appended with null IDs and then
+          // silently dropped by the painter, making the bug invisible.
+          .where((r) {
+            final fromId = r['fromPersonId'];
+            final toId = r['toPersonId'];
+            return fromId != null &&
+                toId != null &&
+                fromId.toString().isNotEmpty &&
+                toId.toString().isNotEmpty;
+          })
+          .toList();
+
+      debugPrint('[EDGE-DEBUG] After mapping+filter: '
+          '${relationships.length} valid relationships '
+          '(from ${rawRelationships.length} raw rows)');
 
       final result = FlatGraphResult(
         persons: persons,
