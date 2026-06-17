@@ -360,6 +360,19 @@ class RelationshipEdge extends CustomPainter {
         'positions=${positions.length}, blocked=${blockedNodeIds.length}, '
         'anonymous=${anonymousNodeIds.length}');
 
+    // ── FALLBACK: If no edges data but we have positions, draw a test line
+    // between the first two positions to confirm the painter is working.
+    if (edges.isEmpty && positions.length >= 2) {
+      debugPrint('[EDGE-DEBUG] No edges but ${positions.length} positions exist. '
+          'Drawing fallback test line between first two positions.');
+      final posList = positions.values.toList();
+      final testPaint = Paint()
+        ..color = const Color(0xFFFF6600) // bright orange
+        ..strokeWidth = 3.0
+        ..style = PaintingStyle.stroke;
+      canvas.drawLine(posList[0], posList[1], testPaint);
+    }
+
     int drawn = 0, blocked = 0, nullPos = 0;
     for (final edge in edges) {
       // Skip edges with blocked endpoints
@@ -825,25 +838,10 @@ class RelationshipEdge extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant RelationshipEdge oldDelegate) {
-    // Repaint when the edges list object changed (new list created each build)
-    // or when any other visual property changed.
-    if (!identical(oldDelegate.edges, edges)) return true;
-    if (oldDelegate.positions.length != positions.length) return true;
-    if (oldDelegate.selectedEdgeId != selectedEdgeId) return true;
-    if (oldDelegate.zoomLevel != zoomLevel) return true;
-    if (oldDelegate.nodeWidth != nodeWidth) return true;
-    if (oldDelegate.nodeHeight != nodeHeight) return true;
-    if (oldDelegate.highlightedGeneration != highlightedGeneration) return true;
-    if (oldDelegate.anonymousNodeIds.length != anonymousNodeIds.length) return true;
-    if (oldDelegate.blockedNodeIds.length != blockedNodeIds.length) return true;
-    // Check if position values actually changed (not just count)
-    if (!identical(oldDelegate.positions, positions)) {
-      for (final key in positions.keys) {
-        final oldPos = oldDelegate.positions[key];
-        final newPos = positions[key];
-        if (oldPos != newPos) return true;
-      }
-    }
-    return false;
+    // Always repaint to ensure edges are drawn. The previous optimization
+    // with identical() checks was causing edges to never repaint in some
+    // scenarios. Re-enable optimization only after edge rendering is
+    // confirmed working.
+    return true;
   }
 }

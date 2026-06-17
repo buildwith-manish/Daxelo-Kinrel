@@ -780,25 +780,25 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
                       clipBehavior: Clip.none,
                       children: [
                         // ── Edge Layer ────────────────────────────────
+                        // No RepaintBoundary wrapper — it can cache an empty
+                        // frame and prevent edges from ever appearing.
                         Positioned.fill(
-                          child: RepaintBoundary(
-                            child: CustomPaint(
-                              size: Size(canvasWidth, canvasHeight),
-                              painter: RelationshipEdge(
-                                positions: positions,
-                                edges: _edges,
-                                selectedEdgeId: _selectedEdgeId,
-                                zoomLevel: zoomLevel,
-                                nodeWidth: _nodeWidth,
-                                nodeHeight: _nodeHeight,
-                                generationMap: {
-                                  for (final p in _personMap.values)
-                                    p.id: p.generationIndex,
-                                },
-                                highlightedGeneration: _highlightedGeneration,
-                                anonymousNodeIds: _anonymousNodeIds,
-                                blockedNodeIds: _blockedNodeIds,
-                              ),
+                          child: CustomPaint(
+                            size: Size(canvasWidth, canvasHeight),
+                            painter: RelationshipEdge(
+                              positions: positions,
+                              edges: _edges,
+                              selectedEdgeId: _selectedEdgeId,
+                              zoomLevel: zoomLevel,
+                              nodeWidth: _nodeWidth,
+                              nodeHeight: _nodeHeight,
+                              generationMap: {
+                                for (final p in _personMap.values)
+                                  p.id: p.generationIndex,
+                              },
+                              highlightedGeneration: _highlightedGeneration,
+                              anonymousNodeIds: _anonymousNodeIds,
+                              blockedNodeIds: _blockedNodeIds,
                             ),
                           ),
                         ),
