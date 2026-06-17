@@ -153,6 +153,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   /// Whether the legend panel is visible.
   bool _legendVisible = false;
 
+  /// Whether the "no edges found" banner is currently shown.
+  /// Auto-shown when 2+ persons exist but 0 edges are loaded.
+  /// User can dismiss it; it reappears on next graph load.
+  bool _showNoEdgesBanner = true;
+
   /// Current filter state.
   FilterState _currentFilter = const FilterState();
 
@@ -861,19 +866,82 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             ),
 
             // ── Legend Panel ───────────────────────────────────────────
-            // Same IgnorePointer guard as above.
-            IgnorePointer(
-              ignoring: !_legendVisible,
-              child: GraphLegend(
-                isVisible: _legendVisible,
-                onToggle: () => setState(() => _legendVisible = !_legendVisible),
-              ),
+            // NOTE: We intentionally do NOT wrap GraphLegend in
+            // IgnorePointer here. GraphLegend internally renders just
+            // its "?" toggle button when `isVisible: false`, and the
+            // full panel when `isVisible: true`. The toggle button
+            // MUST remain tappable so the user can open the legend.
+            // Wrapping in IgnorePointer(ignoring: !isVisible) made
+            // the toggle unclickable when the legend was hidden,
+            // which was reported as "the ? button doesn't work".
+            GraphLegend(
+              isVisible: _legendVisible,
+              onToggle: () => setState(() => _legendVisible = !_legendVisible),
             ),
 
             // Control Bar is NO LONGER rendered inside FamilyGraphWidget.
             // It has been replaced by the bottom toolbar in FamilyGraphScreen
             // which contains: Center, Filter, Help (zoom in AppBar).
             // This eliminates duplicate zoom controls and gesture conflicts.
+
+            // ── "No Relationships" Banner ─────────────────────────────
+            // When 2+ persons exist but 0 edges are loaded, show a
+            // prominent banner telling the user no relationships were
+            // found and guiding them to add one. This addresses the
+            // "E:0" case where the graph looks broken because no
+            // connecting lines are drawn.
+            //
+            // The banner is dismissible (tap the X) and does NOT
+            // block gestures (wrapped in IgnorePointer except for
+            // the action button).
+            if (_personMap.length >= 2 && _edges.isEmpty && _showNoEdgesBanner)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 36.0,
+                left: 16.0,
+                right: 16.0,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12.0, vertical: 10.0),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE65100).withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(8.0),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.link_off, size: 18, color: Colors.white),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'No connections found. Add a relationship from a member\'s profile to link them.',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () {
+                            setState(() => _showNoEdgesBanner = false);
+                          },
+                          child: const Icon(Icons.close,
+                              size: 16, color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
 
             // ── Debug State Badge ──────────────────────────────────────
             // Small, dismissible, kDebugMode-only overlay at the
