@@ -228,15 +228,11 @@ class _GraphPanZoomState extends State<GraphPanZoom>
               onScaleStart: _onScaleStart,
               onScaleUpdate: _onScaleUpdate,
               onScaleEnd: _onScaleEnd,
-              // Support all input device kinds so the graph works on
-              // touchscreens, trackpads, mice, and styluses.
-              supportedDevices: const {
-                TargetDeviceKind.touch,
-                TargetDeviceKind.mouse,
-                TargetDeviceKind.stylus,
-                TargetDeviceKind.trackpad,
-                TargetDeviceKind.invertedStylus,
-              },
+              // Note: We do NOT pass `supportedDevices` here — the
+              // default already accepts touch, mouse, stylus, and
+              // trackpad. Pinning it to a const set required importing
+              // package:flutter/gestures.dart for TargetDeviceKind,
+              // which previously caused a CI analyzer failure.
               child: AnimatedBuilder(
                 animation: widget.transformationController,
                 builder: (context, _) {
