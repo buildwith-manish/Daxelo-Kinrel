@@ -17,10 +17,16 @@ Thank you for your interest in contributing! This guide will help you get set up
 1. Clone the repo
 2. Copy `.env.example` → `.env` in the repo root and fill in all values
 3. Run `cd server && npm install`
-4. Run `npx prisma generate`
-5. Run `npx prisma migrate dev`
-6. Run `npx prisma db seed` (optional — creates demo data)
-7. Run `npm run start:dev`
+4. Install the Supabase CLI: `brew install supabase/tap/supabase` (macOS) or `npm install -g supabase`
+5. Link the project: `supabase link --project-ref promxswvsnvilplmrtsj`
+6. Apply migrations: `supabase db push`
+7. Refresh Prisma types from the live schema: `npx prisma db pull && npx prisma generate`
+8. Run `npx prisma db seed` (optional — creates demo data)
+9. Run `npm run start:dev`
+
+> ⚠️ **Do NOT run `prisma migrate dev` or `prisma migrate deploy`.**
+> Prisma Migrate is no longer the migration tool — Supabase CLI is.
+> See [`docs/MIGRATIONS.md`](docs/MIGRATIONS.md) for the full policy.
 
 ### Flutter App
 
