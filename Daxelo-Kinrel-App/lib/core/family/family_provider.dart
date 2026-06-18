@@ -1924,43 +1924,74 @@ Future<FamilyRelationship> createRelationship({
   // e.g., "father" → "child", "husband" → "wife", "brother" → "sibling"
   final inverseKey = _relationshipInverseMap[relationshipKey] ?? relationshipKey;
 
+  debugPrint('[CREATE-REL] === START createRelationship ===');
+  debugPrint('[CREATE-REL] familyId: $familyId');
+  debugPrint('[CREATE-REL] fromPersonId: $fromPersonId');
+  debugPrint('[CREATE-REL] toPersonId: $toPersonId');
+  debugPrint('[CREATE-REL] relationshipKey: $relationshipKey');
+  debugPrint('[CREATE-REL] inverseKey: $inverseKey');
+  debugPrint('[CREATE-REL] forwardRelId: $forwardRelId');
+  debugPrint('[CREATE-REL] inverseRelId: $inverseRelId');
+  debugPrint('[CREATE-REL] auth.currentSession: ${client.auth.currentSession != null ? "present" : "NULL"}');
+  if (client.auth.currentSession == null) {
+    debugPrint('[CREATE-REL] ❌ No session — RLS will deny the INSERT');
+    throw Exception(
+      'You must be signed in to create a relationship. Please restart the app.',
+    );
+  }
+
   // 1. Create the forward relationship
   // ⏱️ TIMEOUT FIX: Wrap in .timeout() to prevent the spinner from
   // hanging forever if Supabase is slow or unreachable. Without this,
   // the await never resolves and the user sees a perpetual spinner.
-  final response = await withRetry(
-    () => client
-        .from(_kRelationshipTable)
-        .insert({
-          'id': forwardRelId,
-          'familyId': familyId,
-          'fromPersonId': fromPersonId,
-          'toPersonId': toPersonId,
-          'relationshipKey': relationshipKey,
-          'relationshipType': relationshipKey,
-          'direction': 'from',
-          'isActive': true,
-          'createdAt': now,
-          'updatedAt': now,
-        })
-        .select()
-        .maybeSingle()
-        .timeout(const Duration(seconds: 15),
-            onTimeout: () => null),
-    operationName: 'Create forward relationship',
-  );
+  Map<String, dynamic>? response;
+  try {
+    debugPrint('[CREATE-REL] Inserting forward relationship...');
+    response = await withRetry(
+      () => client
+          .from(_kRelationshipTable)
+          .insert({
+            'id': forwardRelId,
+            'familyId': familyId,
+            'fromPersonId': fromPersonId,
+            'toPersonId': toPersonId,
+            'relationshipKey': relationshipKey,
+            'relationshipType': relationshipKey,
+            'direction': 'from',
+            'isActive': true,
+            'createdAt': now,
+            'updatedAt': now,
+          })
+          .select()
+          .maybeSingle()
+          .timeout(const Duration(seconds: 15),
+              onTimeout: () => null),
+      operationName: 'Create forward relationship',
+    );
+    debugPrint('[CREATE-REL] Forward INSERT returned: $response');
+  } on PostgrestException catch (e) {
+    debugPrint('[CREATE-REL] ❌ Forward INSERT PostgrestException: code=${e.code} message=${e.message} hint=${e.hint} details=${e.details}');
+    rethrow;
+  } catch (e, stack) {
+    debugPrint('[CREATE-REL] ❌ Forward INSERT failed: $e');
+    debugPrint('[CREATE-REL] Stack: $stack');
+    rethrow;
+  }
 
   if (response == null) {
+    debugPrint('[CREATE-REL] ❌ Forward INSERT returned null (timeout or no rows)');
     throw Exception(
       'Failed to create relationship — the request timed out or returned no data. '
       'Check your internet connection and try again.',
     );
   }
+  debugPrint('[CREATE-REL] ✅ Forward relationship created with id: ${response['id']}');
 
   // 2. Create the inverse relationship (best-effort)
   // The NestJS backend creates both in a transaction. We do best-effort
   // since Supabase client doesn't support transactions easily.
   try {
+    debugPrint('[CREATE-REL] Inserting inverse relationship (key=$inverseKey)...');
     await withRetry(
       () => client.from(_kRelationshipTable).insert({
         'id': inverseRelId,
@@ -1977,9 +2008,13 @@ Future<FamilyRelationship> createRelationship({
           onTimeout: () => []),
       operationName: 'Create inverse relationship',
     );
+    debugPrint('[CREATE-REL] ✅ Inverse relationship created');
+  } on PostgrestException catch (e) {
+    // Best-effort — inverse creation failure shouldn't block the user
+    debugPrint('[CREATE-REL] ⚠️ Inverse INSERT PostgrestException (non-fatal): code=${e.code} message=${e.message}');
   } catch (e) {
     // Best-effort — inverse creation failure shouldn't block the user
-    debugPrint('⚠️ Could not create inverse relationship: $e');
+    debugPrint('[CREATE-REL] ⚠️ Could not create inverse relationship (non-fatal): $e');
   }
 
   // 3. Update Family.lastActivityAt

@@ -435,9 +435,29 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           }
         }
 
+        // ── v6 DIAGNOSTIC LOGGING ──────────────────────────────────
+        // Log every variable that affects relationship creation so we
+        // can see exactly why relationships aren't being created.
         final anchor = _effectiveAnchorPerson;
+        debugPrint('[ADD-MEMBER] === RELATIONSHIP CREATION DIAGNOSTICS ===');
+        debugPrint('[ADD-MEMBER] relKey (effective): $relKey');
+        debugPrint('[ADD-MEMBER] _selectedRelationshipKey: $_selectedRelationshipKey');
+        debugPrint('[ADD-MEMBER] _selectedRelType: $_selectedRelType');
+        debugPrint('[ADD-MEMBER] _selectedSubType: $_selectedSubType');
+        debugPrint('[ADD-MEMBER] anchor person: ${anchor?.name ?? "NULL"} (id=${anchor?.id ?? "none"})');
+        debugPrint('[ADD-MEMBER] new person: ${result.name} (id=${result.id})');
+        debugPrint('[ADD-MEMBER] familyId: ${widget.familyId}');
+        final membersList = ref.read(familyMembersProvider(widget.familyId)).valueOrNull ?? [];
+        debugPrint('[ADD-MEMBER] familyMembersProvider has ${membersList.length} members:');
+        for (final m in membersList) {
+          debugPrint('[ADD-MEMBER]   - ${m.name} (id=${m.id}, isAnchor=${m.isAnchor}, gender=${m.gender})');
+        }
+        debugPrint('[ADD-MEMBER] =================================================');
+
         if (relKey != null && anchor != null) {
           try {
+            debugPrint('[ADD-MEMBER] Calling addRelationshipOptimistic: '
+                'from=${anchor.id} (${anchor.name}) to=${result.id} (${result.name}) key=$relKey');
             await addRelationshipOptimistic(
               ref: ref,
               familyId: widget.familyId,
@@ -445,19 +465,14 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               toPersonId: result.id,
               relationshipKey: relKey,
             );
-            debugPrint('[ADD-MEMBER] Relationship created: '
+            debugPrint('[ADD-MEMBER] ✅ Relationship created: '
                 'from=${anchor.id} to=${result.id} key=$relKey');
-          } catch (e) {
+          } catch (e, stackTrace) {
             // Surface the failure to the user so they know the link didn't
             // get created. Without this, the new member appears as an
             // isolated node with no edge — which looks like a graph bug.
-            //
-            // Common causes:
-            //  - Supabase schema uses snake_case columns while INSERT uses
-            //    camelCase -> PostgrestException "column X does not exist"
-            //  - RLS policy blocks inserts on the Relationship table
-            //  - The Relationship table doesn't exist yet
-            debugPrint('[ADD-MEMBER] Relationship creation failed: $e');
+            debugPrint('[ADD-MEMBER] ❌ Relationship creation failed: $e');
+            debugPrint('[ADD-MEMBER] Stack trace: $stackTrace');
             if (mounted) {
               context.showSnackBar(
                 'Member added, but the relationship link could not be created: $e',
@@ -469,7 +484,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           // Relationship was selected but we couldn't determine the
           // anchor person. Previously this was SILENTLY skipped. Now
           // we tell the user so they know why no edge was drawn.
-          debugPrint('[ADD-MEMBER] Cannot create relationship: anchor '
+          debugPrint('[ADD-MEMBER] ❌ Cannot create relationship: anchor '
               'person is null (familyMembersProvider may be empty). '
               'relKey=$relKey, familyId=${widget.familyId}');
           if (mounted) {
@@ -480,6 +495,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               isError: true,
             );
           }
+        } else {
+          debugPrint('[ADD-MEMBER] No relationship selected (relKey=$relKey) — skipping relationship creation');
         }
       }
 
