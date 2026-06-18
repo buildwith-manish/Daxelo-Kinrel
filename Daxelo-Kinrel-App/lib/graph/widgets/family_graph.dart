@@ -154,9 +154,14 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   bool _legendVisible = false;
 
   /// Whether the "no edges found" banner is currently shown.
-  /// Auto-shown when 2+ persons exist but 0 edges are loaded.
+  /// Auto-shown when 2+ persons exist but 0 real edges are loaded.
   /// User can dismiss it; it reappears on next graph load.
   bool _showNoEdgesBanner = true;
+
+  /// Count of REAL edges (excluding synthetic fallback edges).
+  /// Used to decide whether to show the "no relationships" banner.
+  /// Set in `_buildFromGraphData` each build.
+  int _realEdgesCount = 0;
 
   /// Current filter state.
   FilterState _currentFilter = const FilterState();
@@ -576,6 +581,48 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         relationshipKey: r.relationshipKey,
       ));
     }
+
+    // Record the count of REAL edges (before synthetic fallback) so
+    // the "no relationships" banner can decide whether to show.
+    _realEdgesCount = newEdges.length;
+
+    // ── SYNTHETIC EDGE FALLBACK ──────────────────────────────────────
+    // If we have 2+ persons but ZERO real relationships, the graph
+    // renders as floating disconnected nodes (E:0 in the debug badge).
+    // This happens when Relationship INSERTs failed silently (RLS,
+    // schema drift, anchor-not-found in add_person_sheet), or when
+    // members were added without picking a relationship type.
+    //
+    // Rather than show a broken graph, synthesize a single 'related'
+    // edge between the anchor and the first other person. This is
+    // UI-only — it does NOT write to the database. As soon as a real
+    // relationship row exists, newEdges is non-empty and this branch
+    // is skipped, so the synthetic edge is automatically superseded.
+    //
+    // The painter (RelationshipEdge) will draw this as a curved slate
+    // line (EdgeCategory.extended is the default for unknown keys),
+    // and the relationship label "Related" will appear at the midpoint.
+    if (newEdges.isEmpty && persons.length >= 2) {
+      final anchor = persons.firstWhere(
+        (p) => p.isAnchor,
+        orElse: () => persons.first,
+      );
+      final other = persons.firstWhere(
+        (p) => p.id != anchor.id,
+        orElse: () => persons[1],
+      );
+      if (anchor.id.isNotEmpty && other.id.isNotEmpty) {
+        newEdges.add(GraphEdgeData(
+          id: 'synthetic_${anchor.id}_${other.id}',
+          sourceId: anchor.id,
+          targetId: other.id,
+          relationshipKey: 'related',
+        ));
+        debugPrint('[EDGE-DEBUG] Synthetic edge: ${anchor.id} → ${other.id} '
+            '(no real relationships found in DB for this family)');
+      }
+    }
+
     _edges = newEdges;
 
     // Compute layout
@@ -901,17 +948,14 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             // which contains: Center, Filter, Help (zoom in AppBar).
             // This eliminates duplicate zoom controls and gesture conflicts.
 
-            // ── "No Relationships" Banner ─────────────────────────────
-            // When 2+ persons exist but 0 edges are loaded, show a
-            // prominent banner telling the user no relationships were
-            // found and guiding them to add one. This addresses the
-            // "E:0" case where the graph looks broken because no
-            // connecting lines are drawn.
-            //
-            // The banner is dismissible (tap the X) and does NOT
-            // block gestures (wrapped in IgnorePointer except for
-            // the action button).
-            if (_personMap.length >= 2 && _edges.isEmpty && _showNoEdgesBanner)
+            // ── "No Relationships" Banner ────────────────────────────
+            // When 2+ persons exist but 0 REAL edges are loaded, show
+            // an informational banner. Note: a synthetic 'related'
+            // edge IS drawn (see _buildFromGraphData) so the graph
+            // doesn't look broken — but we still tell the user that
+            // no real relationship data exists, and guide them to
+            // add one for proper labeling.
+            if (_personMap.length >= 2 && _realEdgesCount == 0 && _showNoEdgesBanner)
               Positioned(
                 top: MediaQuery.of(context).padding.top + 36.0,
                 left: 16.0,
@@ -938,7 +982,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
                         const SizedBox(width: 8),
                         const Expanded(
                           child: Text(
-                            'No connections found. Add a relationship from a member\'s profile to link them.',
+                            'No relationships in database. Add a member with a relationship (Father, Mother, etc.) to create a proper connection.',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 12,
