@@ -417,14 +417,18 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
         // Ensure the family members provider has finished loading so
         // _effectiveAnchorPerson can actually find the anchor.
+        // ⏱️ TIMEOUT FIX: Wrap in .timeout() to prevent the spinner from
+        // hanging forever if the provider's Supabase query is slow. The
+        // 5s budget is generous for what should be a sub-second query.
         if (relKey != null && !_isEditMode) {
           final membersAsync =
               ref.read(familyMembersProvider(widget.familyId));
           if (membersAsync.isLoading) {
             try {
-              await ref.read(
-                familyMembersProvider(widget.familyId).future,
-              );
+              await ref
+                  .read(familyMembersProvider(widget.familyId).future)
+                  .timeout(const Duration(seconds: 5),
+                      onTimeout: () => <Person>[]);
             } catch (e) {
               debugPrint('[ADD-MEMBER] familyMembersProvider.future threw: $e');
             }

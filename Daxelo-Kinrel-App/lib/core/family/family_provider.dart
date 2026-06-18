@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:dio/dio.dart';
@@ -1011,7 +1012,8 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
         .select()
         .eq('familyId', familyId)
         .filter('deletedAt', 'is', null)
-        .order('createdAt', ascending: true);
+        .order('createdAt', ascending: true)
+        .timeout(const Duration(seconds: 15));
 
     final list = response as List;
     if (list.length > 20) {
@@ -1329,17 +1331,31 @@ Future<Person> createPerson({
   final dio = ref.read(dioProvider);
 
   try {
+    // ⏱️ TIMEOUT FIX: Add an explicit 10s timeout on top of Dio's
+    // connectTimeout/receiveTimeout. The NestJS backend is hosted on
+    // Render free tier which can cold-start in 30-60s. Without this
+    // override, the user sees a perpetual spinner during cold starts.
+    // On timeout, we fall through to the Supabase direct-insert
+    // fallback below — which is fast and reliable.
     final response = await withRetry(
-      () => dio.post('/api/families/$familyId/persons', data: {
-        'name': name,
-        if (gender != null) 'gender': gender,
-        if (dateOfBirth != null) 'dateOfBirth': dateOfBirth,
-        if (city != null) 'city': city,
-        if (gotra != null) 'gotra': gotra,
-        'isDeceased': isDeceased,
-        if (birthYear != null) 'birthYear': birthYear,
-        'isAnchor': isAnchor,
-      }),
+      () => dio
+          .post('/api/families/$familyId/persons', data: {
+            'name': name,
+            if (gender != null) 'gender': gender,
+            if (dateOfBirth != null) 'dateOfBirth': dateOfBirth,
+            if (city != null) 'city': city,
+            if (gotra != null) 'gotra': gotra,
+            'isDeceased': isDeceased,
+            if (birthYear != null) 'birthYear': birthYear,
+            'isAnchor': isAnchor,
+          })
+          .timeout(const Duration(seconds: 10),
+              onTimeout: () => throw DioException(
+                    requestOptions: RequestOptions(path: '/api/families/$familyId/persons'),
+                    type: DioExceptionType.receiveTimeout,
+                    error: 'NestJS API timed out after 10s — falling back to Supabase direct insert',
+                    message: 'NestJS API timed out after 10s',
+                  )),
       operationName: 'Create person via NestJS',
     );
 
@@ -1401,7 +1417,10 @@ Future<Person> createPerson({
           .from('Person')
           .insert(insertData)
           .select()
-          .single();
+          .single()
+          .timeout(const Duration(seconds: 15),
+              onTimeout: () => throw Exception(
+                  'Supabase direct insert timed out after 15s'));
 
       final person = Person.fromJson(response as Map<String, dynamic>);
       debugPrint('[createPerson] Supabase direct insert succeeded for ${person.id}');
@@ -1857,6 +1876,9 @@ Future<FamilyRelationship> createRelationship({
   final inverseKey = _relationshipInverseMap[relationshipKey] ?? relationshipKey;
 
   // 1. Create the forward relationship
+  // ⏱️ TIMEOUT FIX: Wrap in .timeout() to prevent the spinner from
+  // hanging forever if Supabase is slow or unreachable. Without this,
+  // the await never resolves and the user sees a perpetual spinner.
   final response = await withRetry(
     () => client
         .from(_kRelationshipTable)
@@ -1873,13 +1895,16 @@ Future<FamilyRelationship> createRelationship({
           'updatedAt': now,
         })
         .select()
-        .maybeSingle(),
+        .maybeSingle()
+        .timeout(const Duration(seconds: 15),
+            onTimeout: () => null),
     operationName: 'Create forward relationship',
   );
 
   if (response == null) {
     throw Exception(
-      'Failed to create relationship — no data returned from server.',
+      'Failed to create relationship — the request timed out or returned no data. '
+      'Check your internet connection and try again.',
     );
   }
 
@@ -1899,7 +1924,8 @@ Future<FamilyRelationship> createRelationship({
         'isActive': true,
         'createdAt': now,
         'updatedAt': now,
-      }),
+      }).timeout(const Duration(seconds: 10),
+          onTimeout: () => []),
       operationName: 'Create inverse relationship',
     );
   } catch (e) {
