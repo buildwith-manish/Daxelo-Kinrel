@@ -841,8 +841,9 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             // logic at lines 666-680 continue to work unchanged.
             GraphPanZoom(
               transformationController: _transformationController,
-              minScale: 0.1,
+              minScale: 0.2,
               maxScale: 4.0,
+              enableMomentum: true,
               // Note: we don't pass onTransformChanged because
               // _onTransformChanged is already registered as a listener
               // on _transformationController (see initState at line 190).
@@ -955,50 +956,75 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             // doesn't look broken — but we still tell the user that
             // no real relationship data exists, and guide them to
             // add one for proper labeling.
-            if (_personMap.length >= 2 && _realEdgesCount == 0 && _showNoEdgesBanner)
+            //
+            // The banner slides in from the top with a smooth animation.
+            if (_personMap.length >= 2 && _realEdgesCount == 0)
               Positioned(
                 top: MediaQuery.of(context).padding.top + 36.0,
                 left: 16.0,
                 right: 16.0,
-                child: Material(
-                  color: Colors.transparent,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12.0, vertical: 10.0),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE65100).withValues(alpha: 0.92),
-                      borderRadius: BorderRadius.circular(8.0),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.link_off, size: 18, color: Colors.white),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text(
-                            'No relationships in database. Add a member with a relationship (Father, Mother, etc.) to create a proper connection.',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              height: 1.3,
+                child: AnimatedSlide(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutCubic,
+                  offset: _showNoEdgesBanner
+                      ? Offset.zero
+                      : const Offset(0, -1.5),
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 300),
+                    opacity: _showNoEdgesBanner ? 1.0 : 0.0,
+                    child: IgnorePointer(
+                      ignoring: !_showNoEdgesBanner,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12.0, vertical: 10.0),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [
+                                Color(0xFFE65100),
+                                Color(0xFFFF8C00),
+                              ],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
                             ),
+                            borderRadius: BorderRadius.circular(12.0),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.4),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.link_off,
+                                  size: 18, color: Colors.white),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'No relationships in database. Add a member with a relationship (Father, Mother, etc.) to create a proper connection.',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() => _showNoEdgesBanner = false);
+                                },
+                                child: const Icon(Icons.close,
+                                    size: 16, color: Colors.white70),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: () {
-                            setState(() => _showNoEdgesBanner = false);
-                          },
-                          child: const Icon(Icons.close,
-                              size: 16, color: Colors.white70),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
