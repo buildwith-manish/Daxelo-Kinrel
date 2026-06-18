@@ -12,7 +12,8 @@
 | Auth | Supabase Auth |
 | Storage | Supabase Storage |
 | Realtime | Supabase Realtime + Socket.IO |
-| ORM | Prisma (backend) + Drift (Flutter) |
+| Migrations | Supabase CLI (`supabase/migrations/`) — see [docs/MIGRATIONS.md](docs/MIGRATIONS.md) |
+| ORM | Prisma (backend, type-generator only) + Drift (Flutter) |
 
 ## CI/CD Status
 

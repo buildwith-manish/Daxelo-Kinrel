@@ -161,16 +161,16 @@ model User {
   stories              Story[]
 
   // ── Social System Fields ──
-  isPrivate           Boolean                   @default(false) // Profile privacy: true = follow requests required
-  isFamilyGraphPublic Boolean                   @default(true) // Family tree visibility to non-members
+  isPrivate           Boolean @default(false) // Profile privacy: true = follow requests required
+  isFamilyGraphPublic Boolean @default(true) // Family tree visibility to non-members
 
   // ── Social System Relations ──
-  followers           Follow[]                  @relation("UserFollowers")
-  following           Follow[]                  @relation("UserFollowing")
-  sparqs              Sparq[]
-  sparqViews          SparqView[]
-  sparqEchoes         SparqEcho[]
-  createdInvites      FamilyInvite[]           @relation("UserCreatedInvites")
+  followers      Follow[]       @relation("UserFollowers")
+  following      Follow[]       @relation("UserFollowing")
+  sparqs         Sparq[]
+  sparqViews     SparqView[]
+  sparqEchoes    SparqEcho[]
+  createdInvites FamilyInvite[] @relation("UserCreatedInvites")
 }
 
 // ── Blocked Users (replaces JSON blockedUserIds anti-pattern) ────────
@@ -581,31 +581,32 @@ model Family {
   updatedAt       DateTime @updatedAt
 
   // ── Graph-First Redesign Fields ──
-  familyCode      String   @unique @default(cuid()) // Shareable family ID like Instagram handle
-  kinFamilyId     String?  @unique // Human-readable Family ID: KIN-AB12CD34 (Feature 1: Family ID System)
-  username        String?  @unique // Unique @username for display (e.g. @sharmw)
+  familyCode      String    @unique @default(cuid()) // Shareable family ID like Instagram handle
+  kinFamilyId     String?   @unique // Human-readable Family ID: KIN-AB12CD34 (Feature 1: Family ID System)
+  username        String?   @unique // Unique @username for display (e.g. @sharmw)
   avatarUrl       String?
   region          String?
-  privacyMode     String   @default("private") // private/invite/link
-  isOnboarded     Boolean  @default(false)
+  privacyMode     String    @default("private") // private/invite/link
+  isOnboarded     Boolean   @default(false)
   anchorPersonId  String? // The primary household anchor person
-  memberCount     Int      @default(0)
-  generationCount Int      @default(1)
-  lastActivityAt  DateTime @default(now())
+  memberCount     Int       @default(0)
+  generationCount Int       @default(1)
+  lastActivityAt  DateTime  @default(now())
   createdBy       String? // User ID who created this family
   deletedAt       DateTime? // Soft-delete: archived for 30 days before permanent deletion
 
-  members         FamilyMember[]
-  persons         Person[]
-  invitations     Invitation[]
-  familyInvites   FamilyInvite[]
-  graphLayouts    GraphLayoutState[]
-  graphChangeLogs GraphChangeLog[]
-  feedPosts       FamilyPost[]
-  stories         Story[]
+  members          FamilyMember[]
+  persons          Person[]
+  invitations      Invitation[]
+  familyInvites    FamilyInvite[]
+  graphLayouts     GraphLayoutState[]
+  graphChangeLogs  GraphChangeLog[]
+  feedPosts        FamilyPost[]
+  stories          Story[]
+  graphStateCaches GraphStateCache[]
 
   // ── Social System Fields ──
-  isPublic        Boolean  @default(false) // Family visibility: true = non-members can see tree (read-only)
+  isPublic Boolean @default(false) // Family visibility: true = non-members can see tree (read-only)
 
   @@index([name])
   @@index([familyCode])
@@ -665,10 +666,10 @@ model Person {
   phone           String? // Contact phone
   address         String? // Contact address (JSON: {street, city, state, country, zip})
   anniversaryDate DateTime? // Marriage/wedding anniversary
-  latitude         Float?
-  longitude        Float?
-  location_name    String?  @map("location_name")
-  visibility       String?
+  latitude        Float?
+  longitude       Float?
+  location_name   String?   @map("location_name")
+  visibility      String?
 
   family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
@@ -677,6 +678,13 @@ model Person {
 
   feedPosts       FamilyPost[]
   privacySettings PersonPrivacySetting?
+
+  // ── Graph V2.1 backward relations ──
+  graphStateCaches    GraphStateCache[]
+  blocksInitiated     Block[]           @relation("BlockBlocker")
+  blocksReceived      Block[]           @relation("BlockBlocked")
+  permissionsGranted  Permission[]      @relation("PermissionGrantor")
+  permissionsReceived Permission[]      @relation("PermissionGrantee")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -690,6 +698,75 @@ model Person {
   @@index([familyId])
   @@index([familyId, deletedAt])
   @@index([updatedAt])
+}
+
+// ── Graph V2.1: State Cache ─────────────────────────────────────────
+// Stores pre-computed family graph snapshots for fast RPC retrieval.
+// Rows expire after 30 minutes (see expires_at default) and are also
+// invalidated by the expire_graph_cache() RPC function.
+
+model GraphStateCache {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  familyId        String
+  memberId        String
+  graphData       Json
+  nodeCount       Int       @default(0)
+  disclosureLevel Int       @default(1)
+  createdAt       DateTime? @default(now())
+  updatedAt       DateTime? @default(now())
+  // expiresAt default is `(now() + '00:30:00'::interval)` set via raw SQL in
+  // migration 20260612180545_graph_v2_1_step7_expire_cache_fn — Prisma can't
+  // express interval arithmetic in @default, so we omit it here. Inserts via
+  // raw SQL / RPC will get the default; Prisma inserts should set it explicitly.
+  expiresAt       DateTime?
+
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  member Person @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([familyId, memberId, disclosureLevel])
+  @@index([memberId])
+  @@index([expiresAt])
+  @@map("graph_state_cache")
+}
+
+// ── Graph V2.1: Block (user-to-user block) ──────────────────────────
+// Prevents one person from seeing/interacting with another in the graph.
+// CHECK constraint enforces blocker_id <> blocked_id.
+
+model Block {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  blockerId String
+  blockedId String
+  createdAt DateTime? @default(now())
+
+  blocker Person @relation("BlockBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked Person @relation("BlockBlocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
+  @@map("blocks")
+}
+
+// ── Graph V2.1: Permission grants ───────────────────────────────────
+// Per-pair permissions for graph operations (view_profile, expand_branch,
+// edit_relationship, view_relationship, admin). CHECK constraint on
+// permission_type is enforced at the DB level.
+
+model Permission {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  grantorId      String
+  granteeId      String
+  permissionType String
+  createdAt      DateTime? @default(now())
+
+  grantor Person @relation("PermissionGrantor", fields: [grantorId], references: [id], onDelete: Cascade)
+  grantee Person @relation("PermissionGrantee", fields: [granteeId], references: [id], onDelete: Cascade)
+
+  @@unique([grantorId, granteeId, permissionType])
+  @@index([grantorId])
+  @@index([granteeId])
+  @@map("permissions")
 }
 
 // WhatsApp Template Management
@@ -1642,8 +1719,8 @@ model FamilyInvite {
   createdAt   DateTime  @default(now())
 
   // ── Social System Fields ──
-  creatorId   String?   // User ID who created the invite (social system)
-  active      Boolean   @default(true) // Whether this invite link is still active
+  creatorId String? // User ID who created the invite (social system)
+  active    Boolean @default(true) // Whether this invite link is still active
 
   family        Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
   inviterMember FamilyMember @relation(fields: [invitedBy], references: [id], onDelete: Cascade)
@@ -1863,7 +1940,7 @@ model Follow {
 // ── Sparq (24-hour expiring story) ──────────────────────────────────
 
 model Sparq {
-  id              String        @id @default(cuid())
+  id              String         @id @default(cuid())
   userId          String
   type            SparqType
   mediaUrl        String?
@@ -1871,26 +1948,26 @@ model Sparq {
   text            String?
   backgroundColor String?
   duration        Int?
-  audience        SparqAudience @default(PUBLIC)
-  mood            SparqMood     @default(happy)
+  audience        SparqAudience  @default(PUBLIC)
+  mood            SparqMood      @default(happy)
   intensity       SparqIntensity @default(warm)
-  allowChain      Boolean       @default(false)
-  allowReplies    Boolean       @default(true)
-  isTimeCapsule   Boolean       @default(false)
+  allowChain      Boolean        @default(false)
+  allowReplies    Boolean        @default(true)
+  isTimeCapsule   Boolean        @default(false)
   revealAt        DateTime?
-  isRevealed      Boolean       @default(false)
+  isRevealed      Boolean        @default(false)
   parentSparqId   String?
   chainOrder      Int?
-  echoCount       Int           @default(0)
+  echoCount       Int            @default(0)
   expiresAt       DateTime
-  createdAt       DateTime      @default(now())
-  viewCount       Int           @default(0)
+  createdAt       DateTime       @default(now())
+  viewCount       Int            @default(0)
 
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   views       SparqView[]
   echoes      SparqEcho[]
-  parentSparq Sparq?        @relation("SparqChain", fields: [parentSparqId], references: [id], onDelete: Cascade)
-  chainItems  Sparq[]       @relation("SparqChain")
+  parentSparq Sparq?      @relation("SparqChain", fields: [parentSparqId], references: [id], onDelete: Cascade)
+  chainItems  Sparq[]     @relation("SparqChain")
 
   @@index([userId, createdAt])
   @@index([expiresAt])
@@ -1918,9 +1995,9 @@ model SparqView {
 // ── Sparq Echo (unique echo toggle per Sparq per user) ──────────────
 
 model SparqEcho {
-  id       String   @id @default(cuid())
-  sparqId  String
-  userId   String
+  id        String   @id @default(cuid())
+  sparqId   String
+  userId    String
   createdAt DateTime @default(now())
 
   sparq Sparq @relation(fields: [sparqId], references: [id], onDelete: Cascade)
