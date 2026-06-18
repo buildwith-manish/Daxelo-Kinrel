@@ -160,6 +160,11 @@ class EdgeStyleResolver {
     'stepdaughter': EdgeCategory.extended,
     'stepbrother': EdgeCategory.extended,
     'stepsister': EdgeCategory.extended,
+    // Synthetic fallback (used when no real relationships exist in DB
+    // but 2+ persons are visible — see family_graph.dart synthetic
+    // edge fallback). Renders as a visible extended edge so the graph
+    // doesn't look broken.
+    'related': EdgeCategory.extended,
     // Indirect
     'indirect_connection': EdgeCategory.indirect,
   };

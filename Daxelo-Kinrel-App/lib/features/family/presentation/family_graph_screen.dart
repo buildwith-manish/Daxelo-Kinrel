@@ -584,17 +584,21 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         // Zoom In/Out are in the AppBar per reference design
         // Add Member button is in the toolbar for guaranteed visibility.
         //
-        // RELEASE-READY FIX: Use a larger bottom offset (bottomPadding + 16)
+        // RELEASE-READY FIX: Use a larger bottom offset (bottomPadding + 24)
         // to ensure the toolbar is always visible above the system
-        // navigation bar. The previous offset (bottomPadding + 8) could
-        // be obscured by gesture nav bars on some Android devices.
-        // Also wrap in Material elevation to ensure it's visible above
-        // the graph canvas.
+        // navigation bar. Wrap in Material with elevation to ensure it
+        // renders ABOVE the graph canvas (which uses GestureDetector
+        // with HitTestBehavior.opaque that could otherwise intercept
+        // touches meant for the toolbar).
         Positioned(
-          bottom: bottomPadding + 16,
+          bottom: bottomPadding + 24,
           left: 0,
           right: 0,
-          child: Center(child: _buildBottomToolbar()),
+          child: Material(
+            color: Colors.transparent,
+            elevation: 8,
+            child: Center(child: _buildBottomToolbar()),
+          ),
         ),
       ],
     );
