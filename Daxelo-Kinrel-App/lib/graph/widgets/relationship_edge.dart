@@ -541,14 +541,16 @@ class RelationshipEdge extends CustomPainter {
       }
 
       // ── Relationship label on the edge ─────────────────────────
-      // Always render the human-readable relationship type on the edge
-      // midpoint, so users can see at a glance how two members are
-      // connected (e.g., "Father", "Spouse", "Brother").
+      // v6 (2026-06-18): Always render the human-readable relationship
+      // type on the edge midpoint, so users can see at a glance how two
+      // members are connected (e.g., "Father", "Spouse", "Brother").
+      // Previously this was gated on zoomLevel >= 0.6, which meant the
+      // label was invisible at the default zoom — users thought the
+      // graph was broken because edges had no labels.
       //
-      // Skip when zoomed too far out (text would be unreadable clutter),
-      // when the edge is dimmed (would compete with the focus), or when
-      // an indirect label was already drawn above.
-      if (!isIndirect && zoomLevel >= 0.6) {
+      // We still skip when zoomed extremely far out (< 0.3) to avoid
+      // clutter, and skip when an indirect label was already drawn.
+      if (!isIndirect && zoomLevel >= 0.3) {
         _drawRelationshipLabel(canvas, midpoint, edgeColor, relationshipKey);
       }
     }
@@ -574,16 +576,16 @@ class RelationshipEdge extends CustomPainter {
         .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
         .join(' ');
 
-    // Background pill so the label is readable on top of edges/nodes.
-    const fontSize = 9.0;
-    const horizontalPadding = 4.0;
-    const verticalPadding = 2.0;
+    // v6: Larger font (11px → readable at default zoom), more padding.
+    const fontSize = 11.0;
+    const horizontalPadding = 6.0;
+    const verticalPadding = 3.0;
 
     final textSpan = TextSpan(
       text: formatted,
-      style: TextStyle(
+      style: const TextStyle(
         fontSize: fontSize,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w700,
         color: Colors.white,
       ),
     );
@@ -601,15 +603,23 @@ class RelationshipEdge extends CustomPainter {
         width: pillWidth,
         height: pillHeight,
       ),
-      const Radius.circular(6.0),
+      const Radius.circular(8.0),
     );
 
-    // Semi-transparent background tinted with the edge color so the label
-    // visually associates with its edge category.
+    // v6: Solid background (alpha 0.95) so the label is fully readable
+    // over any edge color or node. Tinted with the edge color so the
+    // label visually associates with its edge category.
     final bgPaint = Paint()
-      ..color = edgeColor.withValues(alpha: 0.85)
+      ..color = edgeColor.withValues(alpha: 0.95)
       ..style = PaintingStyle.fill;
     canvas.drawRRect(pillRect, bgPaint);
+
+    // Subtle white border for extra contrast on light backgrounds.
+    final borderPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.25)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.5;
+    canvas.drawRRect(pillRect, borderPaint);
 
     final textOffset = Offset(
       center.dx - textPainter.width / 2,
