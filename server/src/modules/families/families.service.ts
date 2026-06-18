@@ -76,7 +76,15 @@ export class FamiliesService {
         data: {
           familyId: created.id,
           userId,
-          role: 'admin',
+          // ✅ FIX: Family creator must be 'owner', not 'admin'.
+          // The RLS policies for Person/FamilyMember/Relationship
+          // INSERT checks require role IN ('owner','admin','member'),
+          // so 'admin' technically works — but 'owner' is semantically
+          // correct and matches what the _fn_after_family_insert
+          // trigger sets. Using 'admin' here previously caused a
+          // unique-constraint race with the trigger and left creators
+          // with the wrong role in the database.
+          role: 'owner',
         },
       });
 
