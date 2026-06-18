@@ -22,6 +22,7 @@ import 'database/sync/connectivity_service.dart';
 import 'database/sync/background_sync_manager.dart';
 import 'database/sync/offline_queue.dart';
 import 'family/family_provider.dart';
+import 'kinship/kinship_provider.dart';
 import 'services/supabase_service.dart';
 import 'services/local_notification_scheduler.dart';
 import 'utils/image_cache_config.dart';
@@ -211,6 +212,12 @@ class AppStartupService {
       } catch (_) {}
     }
 
+    // Preload the 5,359-entry Indian kinship dataset so the Add Member
+    // flow can use it for inverse-relationship lookup, label display,
+    // and the relationship picker sheet. This loads in the background
+    // and is cached for the app's lifetime. See kinship_service.dart.
+    _preloadKinshipData();
+
     // Now invalidate providers to trigger server-side refresh
     _invalidateAllProviders();
     _syncScheduled = false;
@@ -220,6 +227,25 @@ class AppStartupService {
 
     // Schedule birthday & anniversary reminders after providers are loaded
     _scheduleOccasionReminders();
+  }
+
+  /// Preload the kinship dataset (5,359 relationships × 15 languages)
+  /// in the background so the Add Member flow has it ready.
+  void _preloadKinshipData() {
+    if (_container == null) return;
+    try {
+      // Reading the FutureProvider triggers the load. The result is
+      // cached by Riverpod for the app's lifetime.
+      _container!.read(kinshipInitializedProvider.future).then((_) {
+        final service = _container!.read(kinshipServiceProvider);
+        debugPrint(
+            '🚀 AppStartup: Kinship dataset loaded — ${service.totalRelationships} relationships across ${service.supportedLanguages.length} languages');
+      }).catchError((e) {
+        debugPrint('⚠️ AppStartup: Kinship dataset load failed: $e');
+      });
+    } catch (e) {
+      debugPrint('⚠️ AppStartup: Could not preload kinship data: $e');
+    }
   }
 
   /// Subscribe to Supabase Realtime channels for all families.

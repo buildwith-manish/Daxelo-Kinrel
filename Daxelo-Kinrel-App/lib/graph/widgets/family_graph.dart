@@ -20,7 +20,6 @@
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -153,15 +152,9 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   /// Whether the legend panel is visible.
   bool _legendVisible = false;
 
-  /// Whether the "no edges found" banner is currently shown.
-  /// Auto-shown when 2+ persons exist but 0 real edges are loaded.
-  /// User can dismiss it; it reappears on next graph load.
-  bool _showNoEdgesBanner = true;
-
-  /// Count of REAL edges (excluding synthetic fallback edges).
-  /// Used to decide whether to show the "no relationships" banner.
-  /// Set in `_buildFromGraphData` each build.
-  int _realEdgesCount = 0;
+  // _showNoEdgesBanner and _realEdgesCount were removed in v4 along
+  // with the "No relationships in database" warning banner. Kept as
+  // comments for git-blame archaeology.
 
   /// Current filter state.
   FilterState _currentFilter = const FilterState();
@@ -582,10 +575,6 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       ));
     }
 
-    // Record the count of REAL edges (before synthetic fallback) so
-    // the "no relationships" banner can decide whether to show.
-    _realEdgesCount = newEdges.length;
-
     // ── SYNTHETIC EDGE FALLBACK ──────────────────────────────────────
     // If we have 2+ persons but ZERO real relationships, the graph
     // renders as floating disconnected nodes (E:0 in the debug badge).
@@ -841,9 +830,13 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             // logic at lines 666-680 continue to work unchanged.
             GraphPanZoom(
               transformationController: _transformationController,
-              minScale: 0.2,
-              maxScale: 4.0,
-              enableMomentum: true,
+              // v4: Very lenient bounds so the user can freely move
+              // the graph across the entire canvas without restrictions.
+              // minScale 0.05 lets them zoom way out to see everything;
+              // maxScale 8.0 lets them zoom way in to read small labels.
+              minScale: 0.05,
+              maxScale: 8.0,
+              enableMomentum: false,
               // Note: we don't pass onTransformChanged because
               // _onTransformChanged is already registered as a listener
               // on _transformationController (see initState at line 190).
@@ -949,125 +942,24 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             // which contains: Center, Filter, Help (zoom in AppBar).
             // This eliminates duplicate zoom controls and gesture conflicts.
 
-            // ── "No Relationships" Banner ────────────────────────────
-            // When 2+ persons exist but 0 REAL edges are loaded, show
-            // an informational banner. Note: a synthetic 'related'
-            // edge IS drawn (see _buildFromGraphData) so the graph
-            // doesn't look broken — but we still tell the user that
-            // no real relationship data exists, and guide them to
-            // add one for proper labeling.
-            //
-            // The banner slides in from the top with a smooth animation.
-            if (_personMap.length >= 2 && _realEdgesCount == 0)
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 36.0,
-                left: 16.0,
-                right: 16.0,
-                child: AnimatedSlide(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutCubic,
-                  offset: _showNoEdgesBanner
-                      ? Offset.zero
-                      : const Offset(0, -1.5),
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 300),
-                    opacity: _showNoEdgesBanner ? 1.0 : 0.0,
-                    child: IgnorePointer(
-                      ignoring: !_showNoEdgesBanner,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12.0, vertical: 10.0),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [
-                                Color(0xFFE65100),
-                                Color(0xFFFF8C00),
-                              ],
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
-                            ),
-                            borderRadius: BorderRadius.circular(12.0),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.4),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.link_off,
-                                  size: 18, color: Colors.white),
-                              const SizedBox(width: 8),
-                              const Expanded(
-                                child: Text(
-                                  'No relationships in database. Add a member with a relationship (Father, Mother, etc.) to create a proper connection.',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    height: 1.3,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() => _showNoEdgesBanner = false);
-                                },
-                                child: const Icon(Icons.close,
-                                    size: 16, color: Colors.white70),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+            // ── "No Relationships" Banner — REMOVED in v4 ────────────
+            // The banner was removed per user request 2026-06-18:
+            //   - It was showing even when relationships existed in the
+            //     app (false positive due to _realEdgesCount being 0
+            //     when synthetic 'related' edges were drawn).
+            //   - It was visually intrusive and overlapped the graph.
+            //   - The synthetic 'related' edge is sufficient indication
+            //     that the graph is functional; users can add proper
+            //     relationships via the Add Member flow.
+            // The _showNoEdgesBanner state variable is kept (declared
+            // elsewhere) but the banner widget is no longer rendered.
 
-            // ── Debug State Badge ──────────────────────────────────────
-            // Small, dismissible, kDebugMode-only overlay at the
-            // top-left of the graph viewport showing the current graph
-            // state (persons count, edges count, canvas size, anchor
-            // status). Helps diagnose "why don't I see edges?" at a
-            // glance without needing logcat.
-            //
-            // In release builds (kReleaseMode), this is compiled out.
-            if (kDebugMode)
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 4.0,
-                left: 4.0,
-                child: IgnorePointer(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6.0, vertical: 3.0),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(4.0),
-                    ),
-                    child: Text(
-                      'P:${_personMap.length} '
-                      'E:${_edges.length} '
-                      'L:${_layoutResult?.positions.length ?? 0} '
-                      'C:${canvasWidth.round()}x${canvasHeight.round()} '
-                      'V:${constraints.maxWidth.round()}x${constraints.maxHeight.round()} '
-                      'Z:${_currentZoom.toStringAsFixed(2)} '
-                      'A:${_personMap.values.any((p) => p.isAnchor) ? "Y" : "N"}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9.0,
-                        fontFamily: 'monospace',
-                        height: 1.1,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+            // ── Debug State Badge — REMOVED in v4 ─────────────────────
+            // The debug overlay (P:2 E:1 L:2 C:500x250 V:284x693 Z:0.64 A:Y)
+            // was visible to end users in debug builds and cluttered
+            // the UI. Removed per user request 2026-06-18.
+            // Developers who need to inspect graph state can use the
+            // Flutter DevTools inspector or add print statements.
           ],
         );
       },

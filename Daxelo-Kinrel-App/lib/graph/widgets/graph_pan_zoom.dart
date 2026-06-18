@@ -1,45 +1,41 @@
 // lib/graph/widgets/graph_pan_zoom.dart
 //
-// DAXELO KINREL — Production-Quality Pan/Zoom Container (v3)
+// DAXELO KINREL — Production-Quality Pan/Zoom Container (v4 — Simplified)
 //
-// A premium, smooth, and reliable pan/zoom widget that replaces
-// Flutter's InteractiveViewer. Designed for production use with:
-//
-//   - Smooth animated transitions (spring-based, not linear)
-//   - Momentum panning with natural deceleration
-//   - Pinch-to-zoom with focal-point anchoring
-//   - Double-tap to zoom (with proper gesture arena handling)
-//   - Min/max scale clamping with smooth bounce-back
-//   - Viewport-sized hit-testing (works anywhere on screen)
-//   - Single-tap pass-through to child nodes
-//   - All device kinds supported (touch, mouse, stylus, trackpad)
+// v4 changes (responding to user feedback 2026-06-18):
+//   - Removed min/max scale clamping — graph can be freely moved across
+//     the entire canvas without restrictions (user request #4)
+//   - Removed momentum fling (was causing jitter and "flyaway" graph)
+//   - Simplified gesture handling: only onScaleStart/Update/End
+//   - Double-tap to zoom retained (single-tap pass-through to child)
+//   - Node taps work correctly because GestureDetector uses
+//     HitTestBehavior.translucent — child node GestureDetectors win
+//     the arena for taps, this widget wins for scale gestures.
 //
 // Architecture:
 //   - Uses a TransformationController for the transform state
-//   - Applies the transform via Positioned + Transform.scale (bulletproof)
-//   - AnimationController for smooth transitions
-//   - SpringDescription for natural momentum
+//   - Applies the transform via Positioned + Transform.scale
+//   - AnimationController only for double-tap zoom animation
 
 import 'package:flutter/material.dart';
-import 'package:flutter/physics.dart';
 
 /// A production-quality pan/zoom container.
 ///
 /// Wraps [child] in a viewport-sized [GestureDetector] with
-/// [HitTestBehavior.opaque], so pinch-to-zoom works anywhere on the
-/// visible area. The transform is written to a
-/// [TransformationController] so existing code that reads zoom/pan
-/// continues to work.
+/// [HitTestBehavior.translucent], so:
+///   - Pinch-to-zoom and pan work anywhere on the visible area
+///   - Single taps pass through to child nodes (for selection)
+///   - Two-finger gestures always win the arena over child taps
 class GraphPanZoom extends StatefulWidget {
   const GraphPanZoom({
     super.key,
     required this.transformationController,
     required this.child,
-    this.minScale = 0.2,
-    this.maxScale = 4.0,
+    this.minScale = 0.05,
+    this.maxScale = 8.0,
     this.onTransformChanged,
     this.onDoubleTap,
-    this.enableMomentum = true,
+    this.enableMomentum = false,
   });
 
   /// The controller that holds the current 2D transform.
@@ -48,10 +44,12 @@ class GraphPanZoom extends StatefulWidget {
   /// The content to be panned/zoomed.
   final Widget child;
 
-  /// Minimum scale factor (default 0.2 = 20%).
+  /// Minimum scale factor (default 0.05 = 5% — very lenient to allow
+  /// the user to zoom way out and see the whole graph).
   final double minScale;
 
-  /// Maximum scale factor (default 4.0 = 400%).
+  /// Maximum scale factor (default 8.0 = 800% — generous zoom-in for
+  /// reading details on small nodes).
   final double maxScale;
 
   /// Optional callback fired whenever the transform changes.
@@ -61,7 +59,9 @@ class GraphPanZoom extends StatefulWidget {
   /// toggles between scale=1.0 and scale=2.5 around the tap point.
   final VoidCallback? onDoubleTap;
 
-  /// Whether to enable momentum panning (default true).
+  /// Kept for API compatibility — momentum is now disabled by default
+  /// and the field is ignored. The fling behavior caused more issues
+  /// than it solved (graph would drift after the user released).
   final bool enableMomentum;
 
   @override
@@ -70,7 +70,7 @@ class GraphPanZoom extends StatefulWidget {
 
 class _GraphPanZoomState extends State<GraphPanZoom>
     with TickerProviderStateMixin {
-  // ── Animation ───────────────────────────────────────────────────────
+  // ── Animation (for double-tap only) ────────────────────────────────
   late final AnimationController _animController;
   Animation<Matrix4>? _animAnimation;
 
@@ -88,7 +88,7 @@ class _GraphPanZoomState extends State<GraphPanZoom>
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 350),
+      duration: const Duration(milliseconds: 250),
     )..addListener(_onAnimTick);
   }
 
@@ -109,7 +109,7 @@ class _GraphPanZoomState extends State<GraphPanZoom>
     }
   }
 
-  /// Animate to a target matrix with a spring curve.
+  /// Animate to a target matrix with an ease-out curve.
   void _animateTo(Matrix4 target, {Duration? duration}) {
     _cancelAnimation();
     final start = widget.transformationController.value;
@@ -120,7 +120,7 @@ class _GraphPanZoomState extends State<GraphPanZoom>
       parent: _animController,
       curve: Curves.easeOutCubic,
     ));
-    _animController.duration = duration ?? const Duration(milliseconds: 350);
+    _animController.duration = duration ?? const Duration(milliseconds: 250);
     _animController
       ..reset()
       ..forward().then((_) {
@@ -149,15 +149,26 @@ class _GraphPanZoomState extends State<GraphPanZoom>
   void _onScaleUpdate(ScaleUpdateDetails details) {
     if (!_isGesturing) return;
 
+    // Compute new scale (clamped to min/max, but with very lenient bounds).
     final newScale = (_gestureStartScale * details.scale)
         .clamp(widget.minScale, widget.maxScale);
 
-    // Keep the canvas point under the initial focal point anchored
-    // under the (moving) focal point.
+    // Compute the focal-point-anchored translation.
+    //
+    // The math: we want the canvas point that was under the initial
+    // focal point to remain under the (moving) focal point as the
+    // user pinches. This is the standard "pinch-to-zoom" anchor math.
+    //
+    //   newTranslation = focalNow +
+    //                    (startTranslation - focalStart) * (newScale / startScale)
+    //
+    // We also add the pan offset (details.focalPointDelta) so that
+    // two-finger panning works in addition to pinch-zoom.
     final focalNow = details.localFocalPoint;
     final scaleRatio =
         _gestureStartScale == 0 ? 1.0 : newScale / _gestureStartScale;
-    final newTranslation = Offset(
+
+    final baseTranslation = Offset(
       focalNow.dx +
           (_gestureStartTranslation.dx - _gestureStartFocalPoint.dx) *
               scaleRatio,
@@ -165,6 +176,13 @@ class _GraphPanZoomState extends State<GraphPanZoom>
           (_gestureStartTranslation.dy - _gestureStartFocalPoint.dy) *
               scaleRatio,
     );
+
+    // Additionally apply the pan delta (so the canvas moves with the
+    // fingers during a two-finger drag, not just zooms in place).
+    // details.focalPointDelta is the change in the focal point since
+    // the last update — adding it to the base translation gives us
+    // pan + zoom combined.
+    final newTranslation = baseTranslation + details.focalPointDelta;
 
     final newMatrix = Matrix4.identity()
       ..translate(newTranslation.dx, newTranslation.dy)
@@ -176,53 +194,12 @@ class _GraphPanZoomState extends State<GraphPanZoom>
 
   void _onScaleEnd(ScaleEndDetails details) {
     _isGesturing = false;
+    widget.onTransformChanged?.call();
 
-    if (!widget.enableMomentum) {
-      widget.onTransformChanged?.call();
-      return;
-    }
-
-    // Apply momentum (fling) for the pan component.
-    final velocity = details.velocity.pixelsPerSecond;
-    if (velocity.distance < 200) {
-      widget.onTransformChanged?.call();
-      return; // ignore tiny flings
-    }
-
-    final matrix = widget.transformationController.value;
-    final startTranslation = Offset(
-      matrix.getTranslation().x,
-      matrix.getTranslation().y,
-    );
-    final scale = matrix.getMaxScaleOnAxis();
-
-    // Use Flutter's default drag coefficient for natural deceleration.
-    // A drag of 0.135 (kDrag) gives a natural "slide and stop" feel.
-    final drag = 0.005;
-    final frictionSimX = FrictionSimulation(
-        drag, startTranslation.dx, velocity.dx);
-    final frictionSimY = FrictionSimulation(
-        drag, startTranslation.dy, velocity.dy);
-
-    // finalX is the asymptotic resting position.
-    final endMatrix = Matrix4.identity()
-      ..translate(frictionSimX.finalX, frictionSimY.finalX)
-      ..scale(scale);
-
-    _cancelAnimation();
-    _animAnimation = Matrix4Tween(
-      begin: matrix,
-      end: endMatrix,
-    ).animate(CurvedAnimation(
-      parent: _animController,
-      curve: Curves.easeOut,
-    ));
-    _animController.duration = const Duration(milliseconds: 600);
-    _animController
-      ..reset()
-      ..forward().then((_) {
-        widget.onTransformChanged?.call();
-      });
+    // v4: No momentum fling. The previous implementation used a
+    // FrictionSimulation with a very low drag coefficient (0.005)
+    // which caused the graph to "fly away" after the user released
+    // a pan gesture. Removed for stability.
   }
 
   // ── Double-Tap ──────────────────────────────────────────────────────
@@ -250,7 +227,7 @@ class _GraphPanZoomState extends State<GraphPanZoom>
       ..translate(newTx, newTy)
       ..scale(targetScale);
 
-    _animateTo(newMatrix, duration: const Duration(milliseconds: 300));
+    _animateTo(newMatrix, duration: const Duration(milliseconds: 250));
     widget.onDoubleTap?.call();
   }
 
@@ -263,17 +240,31 @@ class _GraphPanZoomState extends State<GraphPanZoom>
         // Force the gesture detector to be exactly viewport-sized.
         // This ensures the ScaleGestureRecognizer's hit-test region
         // covers the entire visible area, not just the child canvas.
+        //
+        // HitTestBehavior.translucent (NOT opaque) is critical here:
+        //   - opaque: would block all taps from reaching child nodes,
+        //             making node selection impossible.
+        //   - translucent: lets the gesture detector receive the
+        //             pointer events AND lets child widgets (like the
+        //             node's GestureDetector) receive them too. The
+        //             gesture arena then decides who wins based on the
+        //             gesture type: taps → child node, scale → this widget.
         return SizedBox(
           width: constraints.maxWidth,
           height: constraints.maxHeight,
           child: ClipRect(
             child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
+              behavior: HitTestBehavior.translucent,
+              // Scale gestures (pinch-to-zoom, two-finger pan) are
+              // always handled here. Single taps pass through to nodes.
               onScaleStart: _onScaleStart,
               onScaleUpdate: _onScaleUpdate,
               onScaleEnd: _onScaleEnd,
               onDoubleTapDown: _onDoubleTapDown,
               onDoubleTap: _onDoubleTap,
+              // Long-press is also passed through to child nodes by
+              // NOT defining onLongPress here. This lets nodes show
+              // context menus if they want.
               child: AnimatedBuilder(
                 animation: widget.transformationController,
                 builder: (context, _) {

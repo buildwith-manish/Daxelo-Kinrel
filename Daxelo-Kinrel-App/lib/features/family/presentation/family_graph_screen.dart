@@ -1,15 +1,24 @@
 // lib/features/family/presentation/family_graph_screen.dart
 //
-// DAXELO KINREL — Family Graph Screen (V6.0 Complete Fix)
+// DAXELO KINREL — Family Graph Screen (v7.0 — Graph Overhaul)
 //
 // Full-screen graph viewer for visualizing family relationships.
+//
+// v7 changes (2026-06-18, responding to user feedback):
+//   - Removed Zoom In / Zoom Out buttons from AppBar
+//   - Pinch-to-zoom is now the only zoom method (handled by GraphPanZoom v4)
+//   - Double-tap-to-zoom (toggle 1x ↔ 2.5x) also available
+//   - Graph can be freely moved across the entire canvas (no clamping)
+//   - Removed "No relationships in database" warning banner
+//   - Removed debug overlay (P:2 E:1 L:2 C:500x250 V:284x693 Z:0.64 A:Y)
+//   - Kinship dataset (5,359 relationships × 15 languages) preloaded
+//     at app startup so the Add Member flow has it ready
+//
 // Features:
-//   - AppBar with back, family name, Zoom In, Zoom Out
-//   - Add Member button in bottom toolbar (always visible, orange highlight)
-//   - Add Member FAB floating above toolbar (extended label style)
-//   - Bottom toolbar with Center, Add Member, Filter, Help
+//   - AppBar: [Back] [Family Name] --- [Add Member]
+//   - Bottom toolbar: Center, Add Member (primary), Filter, Help
 //   - Passes graph data directly to FamilyGraphWidget (no double-fetch)
-//   - InteractiveViewer pinch-to-zoom, pan, center on root
+//   - Custom GraphPanZoom (v4) — pinch, pan, double-tap, no clamping
 //   - Graph state persistence (zoom/position) via SharedPreferences
 //   - Responsive, safe-area aware, no overflow issues
 //   - Real-time updates via Supabase Realtime
@@ -124,45 +133,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   }
 
   // ── Zoom helpers ───────────────────────────────────────────────────
-
-  void _zoomIn() {
-    final current = _graphTransformController.value.clone();
-    final currentScale = current.getMaxScaleOnAxis();
-    if (currentScale >= 4.0) return;
-    final factor =
-        ((currentScale + 0.25).clamp(0.1, 4.0)) / currentScale;
-    final size = MediaQuery.of(context).size;
-    final focalPoint = Offset(size.width / 2, size.height / 2);
-    // Apply scale around screen center — build a NEW matrix from scratch
-    // so listeners fire correctly. Mutating `current` in place and reassigning
-    // it does not trigger TransformationController listeners.
-    final tx = current.getTranslation().x;
-    final ty = current.getTranslation().y;
-    final newTx = focalPoint.dx + (tx - focalPoint.dx) * factor;
-    final newTy = focalPoint.dy + (ty - focalPoint.dy) * factor;
-    final newMatrix = Matrix4.identity()
-      ..translate(newTx, newTy)
-      ..scale(currentScale * factor);
-    _graphTransformController.value = newMatrix;
-  }
-
-  void _zoomOut() {
-    final current = _graphTransformController.value.clone();
-    final currentScale = current.getMaxScaleOnAxis();
-    if (currentScale <= 0.1) return;
-    final factor =
-        ((currentScale - 0.25).clamp(0.1, 4.0)) / currentScale;
-    final size = MediaQuery.of(context).size;
-    final focalPoint = Offset(size.width / 2, size.height / 2);
-    final tx = current.getTranslation().x;
-    final ty = current.getTranslation().y;
-    final newTx = focalPoint.dx + (tx - focalPoint.dx) * factor;
-    final newTy = focalPoint.dy + (ty - focalPoint.dy) * factor;
-    final newMatrix = Matrix4.identity()
-      ..translate(newTx, newTy)
-      ..scale(currentScale * factor);
-    _graphTransformController.value = newMatrix;
-  }
+  //
+  // v4 (2026-06-18): _zoomIn() and _zoomOut() removed. Zoom is now
+  // exclusively via pinch gestures handled by GraphPanZoom.
+  // Double-tap-to-zoom (toggle 1x ↔ 2.5x) is also handled by
+  // GraphPanZoom, so users have a one-finger zoom option too.
 
   /// Centers the graph on the root/anchor user by resetting transform
   /// to identity, which triggers the FamilyGraphWidget to auto-center
@@ -255,8 +230,12 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
   // ── AppBar ────────────────────────────────────────────────────────
   //
-  // [Back] [Family Name] --- [Zoom In] [Zoom Out]
-  // Add Member is now a prominent FAB inside the graph, not in the AppBar.
+  // v4 (2026-06-18): Removed Zoom In / Zoom Out buttons per user request.
+  // Users now zoom naturally with two-finger pinch gestures. The custom
+  // GraphPanZoom widget handles pinch-to-zoom, two-finger panning, and
+  // double-tap-to-zoom — no on-screen zoom buttons needed.
+  //
+  // Layout: [Back] [Family Name] --- [Add Member]
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
@@ -276,32 +255,22 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         ),
       ),
       actions: [
-        // Add Member button in AppBar
+        // Add Member button — primary action, always visible
         Padding(
-          padding: const EdgeInsets.only(right: 4),
+          padding: const EdgeInsets.only(right: 8),
           child: TextButton.icon(
             onPressed: _openAddMember,
             icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
             label: const Text('Add'),
             style: TextButton.styleFrom(
               foregroundColor: KinrelColors.orange,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           ),
         ),
-        // Zoom In button
-        IconButton(
-          icon: const Icon(Icons.zoom_in_rounded, size: 24),
-          tooltip: 'Zoom In',
-          onPressed: _zoomIn,
-        ),
-        // Zoom Out button
-        IconButton(
-          icon: const Icon(Icons.zoom_out_rounded, size: 24),
-          tooltip: 'Zoom Out',
-          onPressed: _zoomOut,
-        ),
-        const SizedBox(width: 4),
       ],
     );
   }

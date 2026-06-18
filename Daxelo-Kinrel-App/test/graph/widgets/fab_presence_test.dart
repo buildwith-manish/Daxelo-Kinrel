@@ -1,11 +1,19 @@
 // test/graph/widgets/fab_presence_test.dart
 //
-// Widget tests for TASK 2: FAB removed, Add Member moved to AppBar.
+// Widget tests for the FamilyGraphScreen AppBar actions.
+//
+// v4 (2026-06-18) updates:
+//   - Zoom In / Zoom Out icons were REMOVED from the AppBar per user
+//     request. Zoom is now handled exclusively by pinch gestures and
+//     double-tap-to-zoom in the GraphPanZoom widget.
+//   - The two zoom-related tests were replaced with tests that verify
+//     the zoom icons are NOT present (so we don't regress by re-adding
+//     them).
 //
 // Verifies:
 //   - No FloatingActionButton exists in FamilyGraphScreen
 //   - "Add Member" icon (person_add_alt_1_rounded) exists in AppBar actions
-//   - Zoom in/out icons exist in AppBar actions
+//   - Zoom in/out icons do NOT exist in AppBar (removed in v4)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -37,7 +45,7 @@ void main() {
     }
 
     testWidgets(
-      'TASK-2: No FloatingActionButton exists in the graph screen',
+      'No FloatingActionButton exists in the graph screen',
       (tester) async {
         await tester.pumpWidget(
           ProviderScope(
@@ -54,7 +62,7 @@ void main() {
     );
 
     testWidgets(
-      'TASK-2: Add Member icon exists in AppBar actions',
+      'Add Member icon exists in AppBar actions',
       (tester) async {
         await tester.pumpWidget(
           ProviderScope(
@@ -71,7 +79,7 @@ void main() {
     );
 
     testWidgets(
-      'TASK-2: Zoom In icon exists in AppBar actions',
+      'v4: Zoom In icon is NOT in AppBar (removed — pinch-to-zoom only)',
       (tester) async {
         await tester.pumpWidget(
           ProviderScope(
@@ -82,12 +90,14 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.byIcon(Icons.zoom_in_rounded), findsOneWidget);
+        // The zoom_in icon should NOT be present — we removed it in v4
+        // in favor of pinch-to-zoom gestures handled by GraphPanZoom.
+        expect(find.byIcon(Icons.zoom_in_rounded), findsNothing);
       },
     );
 
     testWidgets(
-      'TASK-2: Zoom Out icon exists in AppBar actions',
+      'v4: Zoom Out icon is NOT in AppBar (removed — pinch-to-zoom only)',
       (tester) async {
         await tester.pumpWidget(
           ProviderScope(
@@ -98,7 +108,9 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        expect(find.byIcon(Icons.zoom_out_rounded), findsOneWidget);
+        // The zoom_out icon should NOT be present — we removed it in v4
+        // in favor of pinch-to-zoom gestures handled by GraphPanZoom.
+        expect(find.byIcon(Icons.zoom_out_rounded), findsNothing);
       },
     );
   });
