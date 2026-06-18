@@ -725,20 +725,19 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(24),
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
           width: 48,
           height: 48,
-          decoration: isPrimary
-              ? BoxDecoration(
-                  color: KinrelColors.orange.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(24),
-                )
-              : highlighted
-                  ? BoxDecoration(
-                      color: KinrelColors.orange.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(24),
-                    )
-                  : null,
+          decoration: BoxDecoration(
+            color: isPrimary
+                ? KinrelColors.orange.withValues(alpha: 0.2)
+                : highlighted
+                    ? KinrelColors.orange.withValues(alpha: 0.15)
+                    : Colors.transparent,
+            borderRadius: BorderRadius.circular(24),
+          ),
           child: Icon(
             icon,
             size: 22,
