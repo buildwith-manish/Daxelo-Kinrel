@@ -6,6 +6,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import '../networking/dio_client.dart';
 import '../services/supabase_service.dart';
@@ -1326,128 +1327,176 @@ Future<Person> createPerson({
     );
   }
 
-  // Use NestJS API to atomically create Person + increment Family.memberCount
-  // This avoids race conditions with the non-atomic read-then-write Supabase approach.
-  final dio = ref.read(dioProvider);
+  // ════════════════════════════════════════════════════════════════════
+  // v5 (2026-06-18): SUPABASE DIRECT INSERT IS NOW THE PRIMARY PATH.
+  // ════════════════════════════════════════════════════════════════════
+  // The previous implementation tried the NestJS API first (with a 10s
+  // timeout) and fell back to Supabase on failure. BUT the Dio
+  // RetryInterceptor retries receiveTimeout 3 more times (1s + 2s + 4s
+  // delays), so the user waited 40+ seconds before the fallback kicked
+  // in — leading to "Server took too long to respond" errors.
+  //
+  // The NestJS API is on Render free tier (cold starts 30-60s) and adds
+  // no value for this operation — it just does INSERT Person + UPDATE
+  // Family.memberCount in a transaction. We can do the same with two
+  // Supabase calls (Person INSERT + Family UPDATE), which is fast and
+  // reliable. The non-atomicity is acceptable: if the Family UPDATE
+  // fails, the memberCount is just stale until the next time it's
+  // refreshed (it's a denormalized cache field, not source of truth).
+  //
+  // The NestJS API is still used for other operations that genuinely
+  // need server-side logic (auth, notifications, etc.) — just not for
+  // simple Person creation.
+  // ════════════════════════════════════════════════════════════════════
 
-  try {
-    // ⏱️ TIMEOUT FIX: Add an explicit 10s timeout on top of Dio's
-    // connectTimeout/receiveTimeout. The NestJS backend is hosted on
-    // Render free tier which can cold-start in 30-60s. Without this
-    // override, the user sees a perpetual spinner during cold starts.
-    // On timeout, we fall through to the Supabase direct-insert
-    // fallback below — which is fast and reliable.
-    final response = await withRetry(
-      () => dio
-          .post('/api/families/$familyId/persons', data: {
-            'name': name,
-            if (gender != null) 'gender': gender,
-            if (dateOfBirth != null) 'dateOfBirth': dateOfBirth,
-            if (city != null) 'city': city,
-            if (gotra != null) 'gotra': gotra,
-            'isDeceased': isDeceased,
-            if (birthYear != null) 'birthYear': birthYear,
-            'isAnchor': isAnchor,
-          })
-          .timeout(const Duration(seconds: 10),
-              onTimeout: () => throw DioException(
-                    requestOptions: RequestOptions(path: '/api/families/$familyId/persons'),
-                    type: DioExceptionType.receiveTimeout,
-                    error: 'NestJS API timed out after 10s — falling back to Supabase direct insert',
-                    message: 'NestJS API timed out after 10s',
-                  )),
-      operationName: 'Create person via NestJS',
+  // Guard against no valid session — RLS will deny the INSERT.
+  if (client.auth.currentSession == null) {
+    throw Exception(
+      'You must be signed in to add a family member. Please restart the app.',
     );
+  }
 
-    if (response.data == null) {
-      throw Exception('Failed to create person — no data returned from server.');
+  // Build the insert payload.
+  // CRITICAL: The Person table has a NOT NULL `id` column with NO
+  // database default. Prisma normally generates CUIDs client-side;
+  // when inserting via Supabase REST API (bypassing Prisma), we MUST
+  // generate the ID ourselves. Without this, the INSERT fails with
+  // "null value in column id violates not-null constraint".
+  //
+  // NOTE: Do NOT set `visibility` here — it has a CHECK constraint
+  // that only allows 'public', 'family_only', 'private'. The NestJS
+  // backend doesn't set it either (it sets `privacyLevel` instead,
+  // which defaults to 'family' via Prisma). Leaving `visibility` NULL
+  // is fine (the column is nullable).
+  final insertData = <String, dynamic>{
+    'id': _generateId(),  // Generate CUID-style ID client-side
+    'familyId': familyId,
+    'name': name,
+    'gender': gender ?? 'male',
+    'isDeceased': isDeceased,
+    'isAnchor': isAnchor,
+    'privacyLevel': 'family',  // Matches Prisma schema default
+  };
+  if (dateOfBirth != null && dateOfBirth.isNotEmpty) {
+    insertData['dateOfBirth'] = dateOfBirth;
+  }
+  if (city != null) insertData['city'] = city;
+  if (gotra != null) insertData['gotra'] = gotra;
+  if (birthYear != null) insertData['birthYear'] = birthYear;
+
+  // ── Step 1: INSERT the Person row via Supabase ────────────────────
+  // Use a generous 15s timeout. Supabase REST API typically responds
+  // in <500ms; 15s is a safety net for slow networks.
+  late final Map<String, dynamic> response;
+  try {
+    response = await client
+        .from('Person')
+        .insert(insertData)
+        .select()
+        .single()
+        .timeout(const Duration(seconds: 15));
+  } on PostgrestException catch (e) {
+    debugPrint('[createPerson] Supabase INSERT failed: ${e.message}');
+    debugPrint('[createPerson] RLS denied? code=${e.code} hint=${e.hint}');
+    // Distinguish common RLS / schema errors for the user.
+    if (e.code == '42501') {
+      throw Exception(
+        'Permission denied. You may not have permission to add members to this family. '
+        'Please ask the family owner to grant you access.',
+      );
+    } else if (e.code == '23505') {
+      throw Exception('A person with this name already exists in the family.');
+    } else if (e.code == '23503') {
+      throw Exception('The selected family does not exist.');
     }
+    throw Exception('Could not save the new member: ${e.message}');
+  } on TimeoutException {
+    throw Exception(
+      'The database is taking too long to respond. Please check your '
+      'internet connection and try again.',
+    );
+  } catch (e) {
+    debugPrint('[createPerson] Unexpected INSERT error: $e');
+    throw Exception('Could not save the new member. Please try again. ($e)');
+  }
 
-    final person = Person.fromJson(response.data as Map<String, dynamic>);
+  final person = Person.fromJson(response);
+  debugPrint('[createPerson] Supabase INSERT succeeded for ${person.id}');
 
-    ref.invalidate(familyMembersProvider(familyId));
+  // ── Step 2: Update Family.memberCount + lastActivityAt (best-effort) ──
+  // This is non-atomic with Step 1, but that's OK — memberCount is a
+  // denormalized cache field. If it's stale, the next family refresh
+  // will recompute it. We don't fail the whole operation if this fails.
+  try {
+    // Count FamilyMember rows (simple, no special count() API needed).
+    final memberRows = await client
+        .from('FamilyMember')
+        .select('id')
+        .eq('familyId', familyId)
+        .timeout(const Duration(seconds: 5));
+    final memberCount = (memberRows as List).length;
 
-    // Invalidate the Isar cache for this family
-    if (IsarDatabase.isInitialized) {
-      try {
-        await CacheInvalidation.invalidateFamily(familyId);
-      } catch (_) {}
-    }
+    await client
+        .from('Family')
+        .update({
+          'memberCount': memberCount,
+          'lastActivityAt': DateTime.now().toUtc().toIso8601String(),
+          'updatedAt': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', familyId)
+        .timeout(const Duration(seconds: 5));
+    debugPrint('[createPerson] Family.memberCount updated to $memberCount');
+  } catch (e) {
+    // Best-effort — don't fail the person creation over a stale counter.
+    debugPrint('[createPerson] Family.memberCount update failed (non-fatal): $e');
+  }
 
-    // ✅ FIX: Refresh profile stats after member addition
+  // ── Step 3: If this person is the anchor, update Family.anchorPersonId ──
+  if (isAnchor) {
     try {
-      await ref.read(profileProvider.notifier).loadStats();
-    } catch (_) {}
-
-    // P5-F1: Track member addition
-    AnalyticsService.instance.logMemberAdded(gender ?? 'unknown');
-
-    // P5-F4: Record member added for retention tracking
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final count = prefs.getInt('members_added') ?? 0;
-      await prefs.setInt('members_added', count + 1);
-    } catch (_) {}
-
-    return person;
-  } on DioException catch (e) {
-    final serverMsg = _extractDioErrorMessage(e);
-    debugPrint('[createPerson] NestJS API failed: $serverMsg');
-    debugPrint('[createPerson] Falling back to Supabase direct insert...');
-
-    // ── FALLBACK: Insert directly into Supabase Person table ──
-    // When the NestJS API is unavailable (auth issues, network, etc.),
-    // we fall back to a direct Supabase insert. This does NOT atomically
-    // increment Family.memberCount, but it ensures the person is created.
-    try {
-      final insertData = <String, dynamic>{
-        'familyId': familyId,
-        'name': name,
-        'gender': gender ?? 'male',
-        'isDeceased': isDeceased,
-        'isAnchor': isAnchor,
-        'visibility': 'family',
-      };
-      if (dateOfBirth != null) insertData['dateOfBirth'] = dateOfBirth;
-      if (city != null) insertData['city'] = city;
-      if (gotra != null) insertData['gotra'] = gotra;
-      if (birthYear != null) insertData['birthYear'] = birthYear;
-
-      final response = await client
-          .from('Person')
-          .insert(insertData)
-          .select()
-          .single()
-          .timeout(const Duration(seconds: 15),
-              onTimeout: () => throw Exception(
-                  'Supabase direct insert timed out after 15s'));
-
-      final person = Person.fromJson(response as Map<String, dynamic>);
-      debugPrint('[createPerson] Supabase direct insert succeeded for ${person.id}');
-
-      ref.invalidate(familyMembersProvider(familyId));
-
-      // ✅ RELEASE-READY FIX: invalidate graph provider + clear cache
-      // so the new person shows up in the family graph immediately.
-      FamilyGraphNotifier.clearCache(familyId);
-      ref.invalidate(familyGraphProvider(familyId));
-
-      if (IsarDatabase.isInitialized) {
-        try {
-          await CacheInvalidation.invalidateFamily(familyId);
-        } catch (_) {}
-      }
-
-      try {
-        await ref.read(profileProvider.notifier).loadStats();
-      } catch (_) {}
-
-      return person;
-    } catch (supaError) {
-      debugPrint('[createPerson] Supabase direct insert also failed: $supaError');
-      throw Exception('Failed to add person: $serverMsg');
+      await client
+          .from('Family')
+          .update({'anchorPersonId': person.id})
+          .eq('id', familyId)
+          .timeout(const Duration(seconds: 5));
+    } catch (e) {
+      debugPrint('[createPerson] anchorPersonId update failed (non-fatal): $e');
     }
   }
+
+  // ── Step 4: Invalidate all providers so the UI refreshes immediately ──
+  ref.invalidate(familyMembersProvider(familyId));
+  ref.invalidate(familyDetailProvider(familyId));
+
+  // Clear the graph cache + invalidate so the new node appears instantly.
+  try {
+    FamilyGraphNotifier.clearCache(familyId);
+    ref.invalidate(familyGraphProvider(familyId));
+  } catch (e) {
+    debugPrint('[createPerson] graph provider invalidate failed: $e');
+  }
+
+  // Invalidate the Isar cache for this family.
+  if (IsarDatabase.isInitialized) {
+    try {
+      await CacheInvalidation.invalidateFamily(familyId);
+    } catch (_) {}
+  }
+
+  // Refresh profile stats (member count badge, etc.).
+  try {
+    await ref.read(profileProvider.notifier).loadStats();
+  } catch (_) {}
+
+  // Analytics + retention tracking (best-effort).
+  AnalyticsService.instance.logMemberAdded(gender ?? 'unknown');
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final count = prefs.getInt('members_added') ?? 0;
+    await prefs.setInt('members_added', count + 1);
+  } catch (_) {}
+
+  return person;
 }
 
 /// Update person in Supabase with retry for cold starts
