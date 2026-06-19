@@ -548,15 +548,17 @@ class _GraphNodeState extends ConsumerState<GraphNode>
         label: _buildSemanticLabel(),
         button: true,
         child: GestureDetector(
-          // v10 Fix #1C: Use translucent behavior so two-finger pinch
-          // gestures (ScaleGestureRecognizer in InteractiveViewer) can
-          // win the arena even when the pinch starts over a node.
-          // Opaque would block scale gestures; translucent lets both
-          // this detector AND the parent InteractiveViewer participate.
+          // translucent: InteractiveViewer's ScaleGestureRecognizer wins
+          // the arena for two-finger pinch even when fingers start on a node.
           behavior: HitTestBehavior.translucent,
           onTap: widget.onTap,
           onLongPress: widget.onLongPress,
-          onDoubleTap: widget.onDoubleTap,
+          // FIX: onDoubleTap REMOVED. A DoubleTapGestureRecognizer on each
+          // node competes with InteractiveViewer's ScaleGestureRecognizer.
+          // Flutter's gesture arena resolves DoubleTap before Scale, so
+          // every two-finger pinch that starts on a node gets swallowed
+          // — killing pinch-to-zoom. Camera focus is now via long-press.
+          onDoubleTap: null,
           child: _buildAnimatedNode(reduceMotion: reduceMotion),
         ),
       ),

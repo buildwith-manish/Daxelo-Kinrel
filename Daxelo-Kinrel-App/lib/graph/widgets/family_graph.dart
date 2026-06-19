@@ -861,20 +861,21 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             //   - transformationController: shared with existing code
             // ═══════════════════════════════════════════════════════════════
             InteractiveViewer(
-              alignment: Alignment.center,   // v11 Fix: flips internal RawGestureDetector
-                                              //   behavior from deferToChild → translucent,
-                                              //   so the entire viewport hit-tests to
-                                              //   InteractiveViewer's recognizers (no dead
-                                              //   zones when pinching across the canvas edge
-                                              //   on small graphs). Does not change visual
-                                              //   layout — initial centering matrix still
-                                              //   controls where the canvas appears.
+              // FIX: No alignment override — default (null) keeps the
+              // transform origin at top-left, which is correct for our
+              // canvas-based layout. alignment: Alignment.center shifts
+              // the origin to center and breaks focal-point zoom math,
+              // causing the canvas to jump during pinch gestures.
               transformationController: _transformationController,
               constrained: false,
               boundaryMargin: const EdgeInsets.all(double.infinity),
               minScale: 0.1,
               maxScale: 5.0,
-              clipBehavior: Clip.none,
+              // FIX: Clip.hardEdge (not Clip.none) so InteractiveViewer's
+              // internal RawGestureDetector is clipped to viewport bounds.
+              // Clip.none makes the gesture region unbounded, causing
+              // mis-routing of multi-touch events on some devices.
+              clipBehavior: Clip.hardEdge,
               panEnabled: true,
               scaleEnabled: true,
               child: SizedBox(
@@ -883,24 +884,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    // v11 Fix: Explicit hit-test layer to ensure empty canvas area
-                    // hit-tests to the InteractiveViewer. CRITICAL: this GestureDetector
-                    // must have NO callbacks — any non-null onScale*/onTap*/onPan* callback
-                    // would register a competing gesture recognizer that wins the arena
-                    // over InteractiveViewer's own ScaleGestureRecognizer and silently
-                    // swallows every two-finger pinch.
-                    //
-                    // A GestureDetector with HitTestBehavior.opaque and zero callbacks
-                    // still hit-tests (its render object's hitTestSelf returns true when
-                    // behavior != deferToChild), so touches on empty canvas are routed up
-                    // to InteractiveViewer's RawGestureDetector — but it adds ZERO
-                    // competing recognizers, so InteractiveViewer wins the arena.
-                    Positioned.fill(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        // Intentionally no callbacks.
-                      ),
-                    ),
+                    // FIX: Removed the empty GestureDetector that was here.
+                    // Even with no callbacks, HitTestBehavior.opaque blocks
+                    // InteractiveViewer from seeing pointer-down events on
+                    // empty canvas areas, breaking two-finger pinch when
+                    // fingers start over empty space.
                     // ── Edge Layer ────────────────────────────────
                     Positioned.fill(
                       child: CustomPaint(
