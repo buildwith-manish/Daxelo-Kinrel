@@ -1,5 +1,6 @@
 import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -2318,29 +2319,19 @@ class _ConstellationPainter extends CustomPainter {
   }
 
   // ── Edge drawing ─────────────────────────────────────────────────
-  // v9: Solid continuous lines (no more dashed segments). Quadratic
-  // bezier for parent→child, straight solid for spouse/sibling/inLaw.
+  // v16: Dashed orange glow lines matching the reference design.
+  // All edges use the same warm orange color with dashed pattern,
+  // glow effect, and connection dots. Spouse edges get a heart icon.
   void _drawEdge(Canvas canvas, VisEdge edge, Offset start, Offset end) {
     if ((end - start).distance < 1) return;
 
     final isConnectedToSelected =
         edge.fromId == selectedNodeId || edge.toId == selectedNodeId;
 
-    // Color by edge type
-    Color lineColor;
-    switch (edge.type) {
-      case EdgeType.spouse:
-        lineColor = const Color(0xFFE8612A);
-      case EdgeType.parentChild:
-        lineColor = const Color(0xFF4A9FBF);
-      case EdgeType.sibling:
-        lineColor = const Color(0xFF8A8AAA);
-      case EdgeType.inLaw:
-        lineColor = const Color(0xFF8A6A4A);
-      case EdgeType.unknown:
-        lineColor = const Color(0xFF555566);
-    }
-    if (isConnectedToSelected) lineColor = const Color(0xFFE8612A);
+    // v16: Unified warm orange color for all edges (matching reference)
+    const Color lineColor = Color(0xFFE8612A);
+    final effectiveColor =
+        isConnectedToSelected ? lineColor : lineColor;
 
     // Shorten endpoints so lines don't pass under node circles
     final dir = end - start;
@@ -2348,29 +2339,33 @@ class _ConstellationPainter extends CustomPainter {
     final unit = dir / dist;
     const double nodeR = nodeRadius; // 40.0
     final trimmedStart = start + unit * (nodeR + 4);
-    final trimmedEnd   = end   - unit * (nodeR + 4);
+    final trimmedEnd = end - unit * (nodeR + 4);
     if ((trimmedEnd - trimmedStart).distance < 10) return;
 
-    final strokeWidth = isConnectedToSelected ? 2.5 : 1.8;
-    final alpha       = isConnectedToSelected ? 1.0 : 0.85;
+    final strokeWidth = isConnectedToSelected ? 2.5 : 2.0;
+    final alpha = isConnectedToSelected ? 1.0 : 0.8;
 
-    // Glow paint (soft blur behind line)
+    // Glow paint (soft blur behind dashed line)
     final glowPaint = Paint()
-      ..color = lineColor.withValues(alpha: isConnectedToSelected ? 0.30 : 0.12)
-      ..strokeWidth = strokeWidth + 5
+      ..color = effectiveColor.withValues(alpha: isConnectedToSelected ? 0.35 : 0.20)
+      ..strokeWidth = strokeWidth + 6
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
 
-    // Main line paint
+    // Main dashed line paint
     final linePaint = Paint()
-      ..color = lineColor.withValues(alpha: alpha)
+      ..color = effectiveColor.withValues(alpha: alpha)
       ..strokeWidth = strokeWidth
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
+    // v16: Dashed pattern — 8px dash, 5px gap (matching reference)
+    const double dashLen = 8.0;
+    const double gapLen = 5.0;
+
     if (edge.type == EdgeType.parentChild) {
-      // Quadratic bezier — control point offset toward start Y so it curves gently
+      // Parent→Child: smooth bezier curve with dashed pattern
       final controlPoint = Offset(
         (trimmedStart.dx + trimmedEnd.dx) / 2,
         trimmedStart.dy + (trimmedEnd.dy - trimmedStart.dy) * 0.35,
@@ -2380,40 +2375,121 @@ class _ConstellationPainter extends CustomPainter {
         ..quadraticBezierTo(
             controlPoint.dx, controlPoint.dy,
             trimmedEnd.dx, trimmedEnd.dy);
+
+      // Draw glow (solid, not dashed — gives soft halo)
       canvas.drawPath(path, glowPaint);
-      canvas.drawPath(path, linePaint);
+
+      // Draw dashed line along the bezier path
+      _drawDashedPath(canvas, path, linePaint, dashLen, gapLen);
+
       // Small arrowhead to show direction (parent → child)
       _drawArrowhead(canvas, trimmedStart, trimmedEnd, linePaint);
 
     } else if (edge.type == EdgeType.spouse) {
-      // Straight solid line + heart icon at midpoint
-      canvas.drawLine(trimmedStart, trimmedEnd, glowPaint);
-      canvas.drawLine(trimmedStart, trimmedEnd, linePaint);
+      // Spouse: straight dashed line + heart icon at midpoint
+      _drawDashedLine(canvas, trimmedStart, trimmedEnd, glowPaint, dashLen, gapLen);
+      _drawDashedLine(canvas, trimmedStart, trimmedEnd, linePaint, dashLen, gapLen);
       _drawHeartAtMidpoint(canvas, start, end);
 
     } else {
-      // Sibling / inLaw / unknown — straight line + tappable midpoint dot
-      canvas.drawLine(trimmedStart, trimmedEnd, glowPaint);
-      canvas.drawLine(trimmedStart, trimmedEnd, linePaint);
+      // Sibling / inLaw / unknown: straight dashed line + connection dot
+      _drawDashedLine(canvas, trimmedStart, trimmedEnd, glowPaint, dashLen, gapLen);
+      _drawDashedLine(canvas, trimmedStart, trimmedEnd, linePaint, dashLen, gapLen);
 
+      // Glowing connection dot at midpoint
       final mid = Offset(
         (trimmedStart.dx + trimmedEnd.dx) / 2,
         (trimmedStart.dy + trimmedEnd.dy) / 2,
       );
       // Glow halo behind dot
       canvas.drawCircle(mid, 10.0, Paint()
-        ..color = lineColor.withValues(alpha: 0.20)
+        ..color = effectiveColor.withValues(alpha: 0.25)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5));
       // Solid dot
       canvas.drawCircle(mid, 5.5, Paint()
-        ..color = lineColor.withValues(alpha: alpha));
+        ..color = effectiveColor.withValues(alpha: alpha));
       // White center highlight
       canvas.drawCircle(mid, 2.0, Paint()
         ..color = Colors.white.withValues(alpha: 0.65));
     }
+
+    // v16: Small glowing dots at both connection points (start + end)
+    // These mark where the line meets the node edge
+    _drawConnectionDot(canvas, trimmedStart, effectiveColor, alpha);
+    _drawConnectionDot(canvas, trimmedEnd, effectiveColor, alpha);
   }
 
-  // v9: _drawDashedSegment removed — no longer used. Solid lines only.
+  /// Draws a small glowing dot at a connection point (where line meets node).
+  void _drawConnectionDot(Canvas canvas, Offset pos, Color color, double alpha) {
+    // Glow halo
+    canvas.drawCircle(pos, 6.0, Paint()
+      ..color = color.withValues(alpha: 0.20)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3));
+    // Solid dot
+    canvas.drawCircle(pos, 3.0, Paint()
+      ..color = color.withValues(alpha: alpha));
+    // White center
+    canvas.drawCircle(pos, 1.0, Paint()
+      ..color = Colors.white.withValues(alpha: 0.5));
+  }
+
+  /// Draws a dashed line between two points.
+  void _drawDashedLine(
+    Canvas canvas,
+    Offset start,
+    Offset end,
+    Paint paint,
+    double dashLen,
+    double gapLen,
+  ) {
+    final dx = end.dx - start.dx;
+    final dy = end.dy - start.dy;
+    final distance = math.sqrt(dx * dx + dy * dy);
+    if (distance == 0) return;
+    final steps = (distance / (dashLen + gapLen)).floor();
+    for (int i = 0; i < steps; i++) {
+      final s = i * (dashLen + gapLen) / distance;
+      final e = math.min((i * (dashLen + gapLen) + dashLen) / distance, 1.0);
+      canvas.drawLine(
+        Offset(start.dx + dx * s, start.dy + dy * s),
+        Offset(start.dx + dx * e, start.dy + dy * e),
+        paint,
+      );
+    }
+  }
+
+  /// Draws a dashed path along a Path (for bezier curves).
+  void _drawDashedPath(
+    Canvas canvas,
+    Path path,
+    Paint paint,
+    double dashLen,
+    double gapLen,
+  ) {
+    for (final ui.PathMetric metric in path.computeMetrics()) {
+      double distance = 0.0;
+      bool draw = true;
+      while (distance < metric.length) {
+        final double len = draw ? dashLen : gapLen;
+        final double next = (distance + len).clamp(0.0, metric.length);
+        if (draw) {
+          final tangent = metric.getTangentForOffset(distance);
+          if (tangent != null) {
+            final endTangent = metric.getTangentForOffset(next);
+            if (endTangent != null) {
+              canvas.drawLine(
+                tangent.position,
+                endTangent.position,
+                paint,
+              );
+            }
+          }
+        }
+        distance = next;
+        draw = !draw;
+      }
+    }
+  }
 
   // Change 10D: Draw arrowhead for parent→child edges
   void _drawArrowhead(Canvas canvas, Offset from, Offset to, Paint paint) {
