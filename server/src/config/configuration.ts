@@ -45,7 +45,7 @@ export function validate(config: Record<string, unknown>) {
     ...config,
     DATABASE_URL: config.DATABASE_URL || 'postgresql://placeholder:placeholder@localhost:5432/placeholder',
     REDIS_URL: config.REDIS_URL || 'redis://localhost:6379',
-    PORT: config.PORT || 3000,
+    PORT: config.PORT || 5000,
     API_PREFIX: config.API_PREFIX || 'api',
     NODE_ENV: config.NODE_ENV || 'development',
   } as Record<string, unknown>;
