@@ -310,8 +310,9 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
     );
 
     // Change 1: Center on anchor after first frame
+    // v9: Guard with mounted check for safety
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _centerOnAnchor();
+      if (mounted) _centerOnAnchor();
     });
 
     // P5-F1: Track graph opened with node count
@@ -395,18 +396,24 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
       child: Stack(
         children: [
           // ── Interactive graph canvas ─────────────────────────────
+          // v9: Map-like zoom/pan — constrained:false + infinite boundary
+          // margin removes all pan snap/rubber-banding. Users can freely
+          // pan like Google Maps.
           InteractiveViewer(
             transformationController: _transformationController,
-            minScale: 0.3,
-            maxScale: 3.0,
-            boundaryMargin: const EdgeInsets.all(2000),
+            minScale: 0.2,
+            maxScale: 4.0,
+            boundaryMargin: const EdgeInsets.all(double.infinity),
+            constrained: false,
+            panEnabled: true,
+            scaleEnabled: true,
             onInteractionUpdate: (details) {
               // P5-F1: Track zoom changes (only for pinch zoom, not pan)
               if (details.scale != 1.0 && details.scale != _currentScale) {
                 AnalyticsService.instance.logGraphZoomed(details.scale);
               }
               setState(() {
-                _currentScale = details.scale;
+                _currentScale = _transformationController.value.getMaxScaleOnAxis();
               });
             },
             child: Semantics(
@@ -856,17 +863,16 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
     });
   }
 
+  // v9: Read scale from matrix (not _currentScale which can drift)
   void _zoomIn() {
     final screenSize = MediaQuery.of(context).size;
     final viewportCenter = Offset(screenSize.width / 2, screenSize.height / 2);
-    final newScale = (_currentScale * 1.3).clamp(0.3, 3.0);
-
+    final currentScale = _transformationController.value.getMaxScaleOnAxis();
+    final newScale = (currentScale * 1.3).clamp(0.2, 4.0);
     setState(() {
       final inverse = Matrix4.identity()
         ..copyInverse(_transformationController.value);
-      final graphCenter =
-          MatrixUtils.transformPoint(inverse, viewportCenter);
-
+      final graphCenter = MatrixUtils.transformPoint(inverse, viewportCenter);
       final m = Matrix4.identity();
       m.setEntry(0, 3, viewportCenter.dx - graphCenter.dx * newScale);
       m.setEntry(1, 3, viewportCenter.dy - graphCenter.dy * newScale);
@@ -879,14 +885,12 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
   void _zoomOut() {
     final screenSize = MediaQuery.of(context).size;
     final viewportCenter = Offset(screenSize.width / 2, screenSize.height / 2);
-    final newScale = (_currentScale / 1.3).clamp(0.3, 3.0);
-
+    final currentScale = _transformationController.value.getMaxScaleOnAxis();
+    final newScale = (currentScale / 1.3).clamp(0.2, 4.0);
     setState(() {
       final inverse = Matrix4.identity()
         ..copyInverse(_transformationController.value);
-      final graphCenter =
-          MatrixUtils.transformPoint(inverse, viewportCenter);
-
+      final graphCenter = MatrixUtils.transformPoint(inverse, viewportCenter);
       final m = Matrix4.identity();
       m.setEntry(0, 3, viewportCenter.dx - graphCenter.dx * newScale);
       m.setEntry(1, 3, viewportCenter.dy - graphCenter.dy * newScale);
@@ -1119,6 +1123,8 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
   /// Compute relative generation level from anchor for each node.
   /// anchor = 0, parents = -1, grandparents = -2,
   /// children = +1, grandchildren = +2, siblings/spouse = 0
+  // v9: Robust normalized key matching — handles mixed case, whitespace,
+  // underscores, and common Indian family terms (nana, nani, dada, dadi).
   Map<String, int> _computeRelativeLevels(Set<String> nodeIds) {
     final relLevel = <String, int>{};
     if (widget.anchorPersonId == null) return relLevel;
@@ -1128,41 +1134,76 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
 
     for (final rel in widget.relationships) {
       if (!rel.isActive) continue;
-      final key = rel.relationshipKey.toLowerCase();
+
+      // Normalize key: lowercase + collapse whitespace/underscores
+      final rawKey = rel.relationshipKey
+          .toLowerCase()
+          .replaceAll(RegExp(r'[\s]+'), '_');
+
       final isFromAnchor = rel.fromPersonId == anchorId;
+      final isToAnchor   = rel.toPersonId   == anchorId;
+      if (!isFromAnchor && !isToAnchor) continue;
+
       final otherId = isFromAnchor ? rel.toPersonId : rel.fromPersonId;
 
-      if (['father', 'mother', 'parent'].contains(key)) {
-        relLevel[otherId] = isFromAnchor ? -1 : 1;
-      } else if (['son', 'daughter', 'child'].contains(key)) {
-        relLevel[otherId] = isFromAnchor ? 1 : -1;
-      } else if ([
-        'paternal_grandfather',
-        'paternal_grandmother',
-        'maternal_grandfather',
-        'maternal_grandmother',
-        'grandfather',
-        'grandmother',
-        'grandparent',
-      ].contains(key)) {
-        relLevel[otherId] = isFromAnchor ? -2 : 2;
-      } else if (['grandson', 'granddaughter', 'grandchild'].contains(key)) {
-        relLevel[otherId] = isFromAnchor ? 2 : -2;
-      } else if ([
-        'brother',
-        'sister',
-        'sibling',
-        'spouse',
-        'husband',
-        'wife',
-      ].contains(key)) {
+      // Grandparent of anchor?
+      final otherIsGrandparentOfAnchor =
+          (isFromAnchor && {'grandchild', 'grandson', 'granddaughter'}.contains(rawKey)) ||
+          (isToAnchor   && {
+            'grandfather', 'grandmother', 'grandparent',
+            'paternal_grandfather', 'paternal_grandmother',
+            'maternal_grandfather', 'maternal_grandmother',
+            'nana', 'nani', 'dada', 'dadi',
+          }.contains(rawKey));
+
+      // Parent of anchor?
+      final otherIsParentOfAnchor =
+          (isFromAnchor && {'child', 'son', 'daughter'}.contains(rawKey)) ||
+          (isToAnchor   && {'father', 'mother', 'parent', 'parent_of',
+            'dad', 'mom', 'papa', 'mama'}.contains(rawKey));
+
+      // Same generation (sibling, spouse)?
+      final otherIsSameLevel = {
+        'brother', 'sister', 'sibling',
+        'spouse', 'husband', 'wife',
+        'elder_brother', 'younger_brother',
+        'elder_sister', 'younger_sister',
+        'brother_in_law', 'sister_in_law',
+        'twin_brother', 'twin_sister',
+      }.contains(rawKey);
+
+      // Child of anchor?
+      final otherIsChildOfAnchor =
+          (isFromAnchor && {'father', 'mother', 'parent', 'parent_of',
+            'dad', 'mom', 'papa', 'mama'}.contains(rawKey)) ||
+          (isToAnchor   && {'child', 'son', 'daughter'}.contains(rawKey));
+
+      // Grandchild of anchor?
+      final otherIsGrandchildOfAnchor =
+          (isFromAnchor && {
+            'grandfather', 'grandmother', 'grandparent',
+            'paternal_grandfather', 'paternal_grandmother',
+            'maternal_grandfather', 'maternal_grandmother',
+            'nana', 'nani', 'dada', 'dadi',
+          }.contains(rawKey)) ||
+          (isToAnchor && {'grandchild', 'grandson', 'granddaughter'}.contains(rawKey));
+
+      if (otherIsGrandparentOfAnchor) {
+        relLevel[otherId] = -2;
+      } else if (otherIsParentOfAnchor) {
+        relLevel[otherId] = -1;
+      } else if (otherIsSameLevel) {
         relLevel[otherId] = 0;
+      } else if (otherIsChildOfAnchor) {
+        relLevel[otherId] = 1;
+      } else if (otherIsGrandchildOfAnchor) {
+        relLevel[otherId] = 2;
+      } else {
+        relLevel.putIfAbsent(otherId, () => 0);
       }
-      // Default: same level as anchor if unknown
-      relLevel.putIfAbsent(otherId, () => 0);
     }
 
-    // Ensure all node IDs have a level
+    // Ensure every visible node has a level
     for (final id in nodeIds) {
       relLevel.putIfAbsent(id, () => 0);
     }
@@ -1578,8 +1619,9 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
   ) {
     const double centerX = canvasSize / 2;
     const double centerY = canvasSize / 2;
-    const double levelHeight = 180.0; // vertical gap between generations
-    const double nodeSpacing = 150.0; // horizontal gap between siblings
+    // v9: Increased spacing so nodes at the same level don't overlap.
+    const double levelHeight = 220.0; // vertical gap between generations
+    const double nodeSpacing = 170.0; // horizontal gap between siblings
 
     if (widget.anchorPersonId == null) {
       // Fallback to radial if no anchor
@@ -1617,6 +1659,16 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
         for (int i = 0; i < ids.length; i++) {
           positions[ids[i]] = Offset(startX + i * nodeSpacing, y);
         }
+      }
+    }
+
+    // v9: Ensure spouse pairs sit side by side
+    for (final node in nodes.values) {
+      if (node.spouse == null) continue;
+      final myPos = positions[node.person.id];
+      if (myPos == null) continue;
+      if (!positions.containsKey(node.spouse!.id)) {
+        positions[node.spouse!.id] = Offset(myPos.dx + nodeSpacing, myPos.dy);
       }
     }
 
@@ -2266,125 +2318,102 @@ class _ConstellationPainter extends CustomPainter {
   }
 
   // ── Edge drawing ─────────────────────────────────────────────────
-
+  // v9: Solid continuous lines (no more dashed segments). Quadratic
+  // bezier for parent→child, straight solid for spouse/sibling/inLaw.
   void _drawEdge(Canvas canvas, VisEdge edge, Offset start, Offset end) {
     if ((end - start).distance < 1) return;
 
     final isConnectedToSelected =
         edge.fromId == selectedNodeId || edge.toId == selectedNodeId;
 
-    // ── Color by edge type ────────────────────────────────────────
+    // Color by edge type
     Color lineColor;
     switch (edge.type) {
       case EdgeType.spouse:
         lineColor = const Color(0xFFE8612A);
       case EdgeType.parentChild:
-        lineColor = const Color(0xFF4A9FBF);   // blue for parent→child
+        lineColor = const Color(0xFF4A9FBF);
       case EdgeType.sibling:
-        lineColor = const Color(0xFF8A8AAA);   // muted slate for siblings
+        lineColor = const Color(0xFF8A8AAA);
       case EdgeType.inLaw:
-        lineColor = const Color(0xFF8A6A4A);   // warm brown for in-laws
+        lineColor = const Color(0xFF8A6A4A);
       case EdgeType.unknown:
         lineColor = const Color(0xFF555566);
     }
-
     if (isConnectedToSelected) lineColor = const Color(0xFFE8612A);
 
-    // ── Shorten line to node edges (so it doesn't go under nodes) ──
-    final dir = (end - start);
+    // Shorten endpoints so lines don't pass under node circles
+    final dir = end - start;
     final dist = dir.distance;
     final unit = dir / dist;
-    const double nodeR = _ConstellationPainter.nodeRadius;
+    const double nodeR = nodeRadius; // 40.0
     final trimmedStart = start + unit * (nodeR + 4);
-    final trimmedEnd = end - unit * (nodeR + 4);
+    final trimmedEnd   = end   - unit * (nodeR + 4);
+    if ((trimmedEnd - trimmedStart).distance < 10) return;
 
-    if ((trimmedEnd - trimmedStart).distance < 10) return; // nodes too close
+    final strokeWidth = isConnectedToSelected ? 2.5 : 1.8;
+    final alpha       = isConnectedToSelected ? 1.0 : 0.85;
 
-    // ── Glow layer (blur behind the line) ─────────────────────────
+    // Glow paint (soft blur behind line)
     final glowPaint = Paint()
-      ..color = lineColor.withValues(alpha: isConnectedToSelected ? 0.35 : 0.18)
-      ..strokeWidth = 6.0
+      ..color = lineColor.withValues(alpha: isConnectedToSelected ? 0.30 : 0.12)
+      ..strokeWidth = strokeWidth + 5
       ..style = PaintingStyle.stroke
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-    _drawDashedSegment(canvas, trimmedStart, trimmedEnd, glowPaint, 10, 6);
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
 
-    // ── Main dashed line ──────────────────────────────────────────
+    // Main line paint
     final linePaint = Paint()
-      ..color = lineColor.withValues(alpha: isConnectedToSelected ? 1.0 : 0.85)
-      ..strokeWidth = isConnectedToSelected ? 2.5 : 1.8
+      ..color = lineColor.withValues(alpha: alpha)
+      ..strokeWidth = strokeWidth
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
-    _drawDashedSegment(canvas, trimmedStart, trimmedEnd, linePaint, 10, 6);
 
-    // ── Midpoint dot (the tappable "——•——" dot) ─────────────────
-    final mid = Offset(
-      (trimmedStart.dx + trimmedEnd.dx) / 2,
-      (trimmedStart.dy + trimmedEnd.dy) / 2,
-    );
-
-    // Glow behind dot
-    canvas.drawCircle(
-      mid,
-      10.0,
-      Paint()
-        ..color = lineColor.withValues(alpha: 0.25)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-    );
-
-    // Outer ring
-    canvas.drawCircle(
-      mid,
-      6.5,
-      Paint()
-        ..color = lineColor.withValues(alpha: 0.5)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0,
-    );
-
-    // Inner fill
-    canvas.drawCircle(
-      mid,
-      4.5,
-      Paint()..color = lineColor.withValues(alpha: isConnectedToSelected ? 1.0 : 0.9),
-    );
-
-    // White center highlight
-    canvas.drawCircle(
-      mid,
-      1.5,
-      Paint()..color = Colors.white.withValues(alpha: 0.7),
-    );
-
-    // ── Spouse heart above midpoint (not inside dot) ───────────────
-    if (edge.type == EdgeType.spouse) {
-      _drawHeartAtMidpoint(canvas, start, end);
-    }
-  }
-
-  // Unified dashed segment drawer (replaces old _drawDashedLine)
-  void _drawDashedSegment(
-    Canvas canvas,
-    Offset start,
-    Offset end,
-    Paint paint,
-    double dashLen,
-    double gapLen,
-  ) {
-    final dx = end.dx - start.dx;
-    final dy = end.dy - start.dy;
-    final distance = math.sqrt(dx * dx + dy * dy);
-    if (distance == 0) return;
-    final steps = (distance / (dashLen + gapLen)).floor();
-    for (int i = 0; i < steps; i++) {
-      final s = i * (dashLen + gapLen) / distance;
-      final e = math.min((i * (dashLen + gapLen) + dashLen) / distance, 1.0);
-      canvas.drawLine(
-        Offset(start.dx + dx * s, start.dy + dy * s),
-        Offset(start.dx + dx * e, start.dy + dy * e),
-        paint,
+    if (edge.type == EdgeType.parentChild) {
+      // Quadratic bezier — control point offset toward start Y so it curves gently
+      final controlPoint = Offset(
+        (trimmedStart.dx + trimmedEnd.dx) / 2,
+        trimmedStart.dy + (trimmedEnd.dy - trimmedStart.dy) * 0.35,
       );
+      final path = Path()
+        ..moveTo(trimmedStart.dx, trimmedStart.dy)
+        ..quadraticBezierTo(
+            controlPoint.dx, controlPoint.dy,
+            trimmedEnd.dx, trimmedEnd.dy);
+      canvas.drawPath(path, glowPaint);
+      canvas.drawPath(path, linePaint);
+      // Small arrowhead to show direction (parent → child)
+      _drawArrowhead(canvas, trimmedStart, trimmedEnd, linePaint);
+
+    } else if (edge.type == EdgeType.spouse) {
+      // Straight solid line + heart icon at midpoint
+      canvas.drawLine(trimmedStart, trimmedEnd, glowPaint);
+      canvas.drawLine(trimmedStart, trimmedEnd, linePaint);
+      _drawHeartAtMidpoint(canvas, start, end);
+
+    } else {
+      // Sibling / inLaw / unknown — straight line + tappable midpoint dot
+      canvas.drawLine(trimmedStart, trimmedEnd, glowPaint);
+      canvas.drawLine(trimmedStart, trimmedEnd, linePaint);
+
+      final mid = Offset(
+        (trimmedStart.dx + trimmedEnd.dx) / 2,
+        (trimmedStart.dy + trimmedEnd.dy) / 2,
+      );
+      // Glow halo behind dot
+      canvas.drawCircle(mid, 10.0, Paint()
+        ..color = lineColor.withValues(alpha: 0.20)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5));
+      // Solid dot
+      canvas.drawCircle(mid, 5.5, Paint()
+        ..color = lineColor.withValues(alpha: alpha));
+      // White center highlight
+      canvas.drawCircle(mid, 2.0, Paint()
+        ..color = Colors.white.withValues(alpha: 0.65));
     }
   }
+
+  // v9: _drawDashedSegment removed — no longer used. Solid lines only.
 
   // Change 10D: Draw arrowhead for parent→child edges
   void _drawArrowhead(Canvas canvas, Offset from, Offset to, Paint paint) {

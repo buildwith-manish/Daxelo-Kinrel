@@ -36,7 +36,8 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../graph/graph.dart';
 import 'add_person_sheet.dart';
-import 'providers/family_graph_provider.dart';
+import 'providers/family_graph_provider.dart'
+    show FamilyGraphNotifier, familyGraphProvider, graphRealtimeProvider;
 import 'widgets/generation_filter_bar.dart';
 import 'widgets/graph_canvas_widget.dart' show PersonData;
 import 'widgets/relationship_legend.dart';
@@ -151,18 +152,23 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   }
 
   /// Opens the Add Member sheet and refreshes graph data when it closes.
+  // v9: Clear in-memory cache before invalidating so the notifier is
+  // forced to do a fresh Supabase fetch. Without clearCache, the
+  // notifier may return stale cached data (missing the new relationship).
   Future<void> _openAddMember() async {
     await AddPersonSheet.show(context, familyId: widget.familyId);
-    // Refresh graph data after the sheet closes to immediately show
-    // newly added members. The Supabase Realtime subscription may have
-    // already invalidated, but we force a refresh as a safety net.
-    // Also add a small delay to allow Supabase to propagate the change.
+
     if (mounted) {
+      // Clear in-memory cache so the invalidation forces a fresh Supabase fetch
+      FamilyGraphNotifier.clearCache(widget.familyId);
+
       // First immediate refresh
       ref.invalidate(familyGraphProvider(widget.familyId));
-      // Second delayed refresh as safety net for slow DB propagation
+
+      // Safety net: second refresh after DB propagation delay
       Future.delayed(const Duration(milliseconds: 1500), () {
         if (mounted) {
+          FamilyGraphNotifier.clearCache(widget.familyId);
           ref.invalidate(familyGraphProvider(widget.familyId));
         }
       });

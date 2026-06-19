@@ -588,9 +588,56 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
           '${relationships.length} valid relationships '
           '(from ${rawRelationships.length} raw rows)');
 
+      // v9: Safety net — if we got persons but zero relationships, retry
+      // without the isActive filter. This handles race conditions where
+      // isActive hasn't been set yet by DB triggers on freshly-created
+      // relationship rows.
+      List<Map<String, dynamic>> finalRelationships = relationships;
+      if (relationships.isEmpty && rawPersons.length > 1) {
+        debugPrint('[EDGE-DEBUG] v9: Got ${rawPersons.length} persons but 0 relationships. '
+            'Retrying without isActive filter...');
+        try {
+          final retryRaw = await client
+              .from('Relationship')
+              .select('id, "fromPersonId", "toPersonId", "relationshipKey", "familyId"')
+              .eq('familyId', familyId)
+              .timeout(const Duration(seconds: 10));
+
+          final retryMapped = retryRaw
+              .map((dynamic e) {
+                final edge = e as Map<String, dynamic>;
+                final fromId = edge['fromPersonId'] ?? edge['from_person_id'] ?? edge['sourceId'];
+                final toId   = edge['toPersonId']   ?? edge['to_person_id']   ?? edge['targetId'];
+                final rKey   = edge['relationshipKey'] ?? edge['relationship_key'] ?? 'unknown';
+                return <String, dynamic>{
+                  'id': edge['id'],
+                  'fromPersonId': fromId,
+                  'toPersonId': toId,
+                  'relationshipKey': rKey,
+                  'isPrivate': false,
+                  'isActive': true,
+                };
+              })
+              .where((r) {
+                final f = r['fromPersonId'];
+                final t = r['toPersonId'];
+                return f != null && t != null &&
+                    f.toString().isNotEmpty && t.toString().isNotEmpty;
+              })
+              .toList();
+
+          if (retryMapped.isNotEmpty) {
+            debugPrint('[EDGE-DEBUG] v9: Retry without isActive got ${retryMapped.length} relationships');
+            finalRelationships = retryMapped;
+          }
+        } catch (retryError) {
+          debugPrint('[EDGE-DEBUG] v9: Retry query failed: $retryError');
+        }
+      }
+
       final result = FlatGraphResult(
         persons: persons,
-        relationships: relationships,
+        relationships: finalRelationships,
         isTruncated: false,
         totalCount: persons.length,
       );
