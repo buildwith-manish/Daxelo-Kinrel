@@ -37,7 +37,7 @@ import 'empty_state.dart';
 import 'filter_panel.dart';
 import 'graph_legend.dart';
 import 'graph_node.dart';
-import 'graph_pan_zoom.dart';
+// v8: GraphPanZoom import removed — now using Flutter's built-in InteractiveViewer
 import 'onboarding_flow.dart';
 import 'relationship_edge.dart';
 import 'search_bar.dart';
@@ -802,46 +802,30 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             //
             // PRODUCTION-READY PINCH-TO-ZOOM (CUSTOM IMPLEMENTATION)
             // ----------------------------------------------------------
-            // We replaced Flutter's `InteractiveViewer` with a custom
-            // `GraphPanZoom` widget because InteractiveViewer has too
-            // many quirks that broke pinch-to-zoom repeatedly:
-            //   - With `constrained: false`, its internal
-            //     RawGestureDetector is sized to the child SizedBox
-            //     (canvas size, NOT viewport), so pinches outside the
-            //     canvas rectangle are silently dropped.
-            //   - `clipBehavior: Clip.none` causes HitTestBehavior to
-            //     fall back to deferToChild, making empty canvas space
-            //     untouchable.
-            //   - The viewport-sized SizedBox wrap we tried earlier
-            //     forces TIGHT constraints on InteractiveViewer, but
-            //     its internal RenderProxyBox chain STILL sizes itself
-            //     to its child (the canvas-sized SizedBox) — so the
-            //     gesture detector remained canvas-sized in practice.
+            // ═══════════════════════════════════════════════════════════════
+            // v8 (2026-06-19): USE FLUTTER'S INTERACTIVEVIEWER
+            // ═══════════════════════════════════════════════════════════════
+            // The custom GraphPanZoom had persistent issues with
+            // pinch-to-zoom and panning across multiple iterations.
+            // Flutter's InteractiveViewer is battle-tested, handles
+            // all gesture types correctly (pinch, pan, double-tap),
+            // and works reliably on all platforms.
             //
-            // GraphPanZoom uses a plain GestureDetector with
-            // `behavior: HitTestBehavior.opaque` inside a viewport-sized
-            // SizedBox. The detector covers the entire visible area,
-            // so pinch-to-zoom works ANYWHERE on screen, including
-            // empty space far from any node.
-            //
-            // The transform is written to the same
-            // `_transformationController`, so existing code that reads
-            // `_currentZoom` / `_currentPan` and the initial-centering
-            // logic at lines 666-680 continue to work unchanged.
-            GraphPanZoom(
+            // Key settings:
+            //   - constrained: false → child can be any size (canvas-sized)
+            //   - boundaryMargin: Infinity → user can pan freely
+            //   - clipBehavior: Clip.none → gestures work on empty space
+            //   - transformationController: shared with existing code
+            // ═══════════════════════════════════════════════════════════════
+            InteractiveViewer(
               transformationController: _transformationController,
-              // v4: Very lenient bounds so the user can freely move
-              // the graph across the entire canvas without restrictions.
-              // minScale 0.05 lets them zoom way out to see everything;
-              // maxScale 8.0 lets them zoom way in to read small labels.
-              minScale: 0.05,
-              maxScale: 8.0,
-              enableMomentum: false,
-              // Note: we don't pass onTransformChanged because
-              // _onTransformChanged is already registered as a listener
-              // on _transformationController (see initState at line 190).
-              // Writing to the controller inside GraphPanZoom will fire
-              // that listener automatically.
+              constrained: false,
+              boundaryMargin: const EdgeInsets.all(double.infinity),
+              minScale: 0.1,
+              maxScale: 5.0,
+              clipBehavior: Clip.none,
+              panEnabled: true,
+              scaleEnabled: true,
               child: SizedBox(
                 width: canvasWidth,
                 height: canvasHeight,
@@ -849,8 +833,6 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
                   clipBehavior: Clip.none,
                   children: [
                     // ── Edge Layer ────────────────────────────────
-                    // No RepaintBoundary wrapper — it can cache an empty
-                    // frame and prevent edges from ever appearing.
                     Positioned.fill(
                       child: CustomPaint(
                         size: Size(canvasWidth, canvasHeight),
