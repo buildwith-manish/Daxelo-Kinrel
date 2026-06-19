@@ -176,6 +176,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   /// on every build, preventing onboarding flashes.
   bool _onboardingLocallyDismissed = false;
 
+  // v10 Fix #3c: Flags to prevent feedback loops between
+  // CameraController and TransformationController.
+  bool _transformationControllerChangeFromExternal = false;
+  bool _cameraControllerChangeFromInternal = false;
+
   // ── Constants ──────────────────────────────────────────────────────
 
   static const double _nodeWidth = 72.0;
@@ -192,6 +197,22 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         widget.externalTransformController ?? TransformationController();
     _transformationController.addListener(_onTransformChanged);
     _openStopwatch.start();
+
+    // v10 Fix #3c: Bridge CameraController output to TransformationController.
+    // When CameraController.focusOnNode animates, it calls notifyListeners(),
+    // which fires this listener. We push the new matrix into the
+    // TransformationController so the double-tap-to-focus actually works.
+    // The _transformationControllerChangeFromExternal flag prevents feedback
+    // loops (TransformationController listener → CameraController → back).
+    _cameraController.addListener(() {
+      if (!mounted) return;
+      if (!_transformationControllerChangeFromExternal) {
+        _cameraControllerChangeFromInternal = true;
+        _transformationController.value = _cameraController.transformMatrix;
+        _cameraControllerChangeFromInternal = false;
+      }
+    });
+
     // Auto-dismiss onboarding for existing users on first build
     _autoDismissOnboardingIfExistingUser();
   }
@@ -248,6 +269,13 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
 
   void _onTransformChanged() {
     if (!mounted) return;
+
+    // v10 Fix #3c: Set flag so the CameraController listener doesn't
+    // fire when the change came from the user manually panning/zooming
+    // (which updates the TransformationController directly).
+    if (!_cameraControllerChangeFromInternal) {
+      _transformationControllerChangeFromExternal = true;
+    }
 
     final zoom = _currentZoom;
     final pan = _currentPan;
@@ -316,6 +344,9 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         zoomLevel: zoom,
       );
     });
+
+    // v10 Fix #3c: Reset the flag after handling the external change.
+    _transformationControllerChangeFromExternal = false;
   }
 
   /// Gets the current zoom level from the transformation matrix.
@@ -582,33 +613,44 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     // schema drift, anchor-not-found in add_person_sheet), or when
     // members were added without picking a relationship type.
     //
-    // Rather than show a broken graph, synthesize a single 'related'
-    // edge between the anchor and the first other person. This is
-    // UI-only — it does NOT write to the database. As soon as a real
-    // relationship row exists, newEdges is non-empty and this branch
-    // is skipped, so the synthetic edge is automatically superseded.
+    // v10 Fix #2b: Synthesize an 'extended' edge for EVERY orphan node.
+    // The old code only ran when newEdges.isEmpty, so as soon as one
+    // real edge existed, any other person with no relationship stayed
+    // isolated forever (e.g., Shravan in the screenshot).
     //
-    // The painter (RelationshipEdge) will draw this as a curved slate
-    // line (EdgeCategory.extended is the default for unknown keys),
-    // and the relationship label "Related" will appear at the midpoint.
-    if (newEdges.isEmpty && persons.length >= 2) {
+    // New approach: after building newEdges from real relationships,
+    // iterate every person and synthesize an edge for any person that
+    // has no incident edge. Use 'extended' (not 'related') so the
+    // synthetic edge uses the muted slate color and 0.45 alpha per
+    // EdgeStyleResolver — visually clear that it's a fallback line.
+    if (persons.length >= 2) {
+      final Set<String> connectedIds = <String>{};
+      for (final e in newEdges) {
+        connectedIds.add(e.sourceId);
+        connectedIds.add(e.targetId);
+      }
+
       final anchor = persons.firstWhere(
         (p) => p.isAnchor,
         orElse: () => persons.first,
       );
-      final other = persons.firstWhere(
-        (p) => p.id != anchor.id,
-        orElse: () => persons[1],
-      );
-      if (anchor.id.isNotEmpty && other.id.isNotEmpty) {
+
+      for (final person in persons) {
+        if (connectedIds.contains(person.id)) continue;
+        if (person.id.isEmpty) continue;
+        if (person.id == anchor.id) continue; // anchor is always connected
+
+        // Connect the orphan to the anchor via a low-emphasis 'extended'
+        // edge so it visually attaches to the tree.
         newEdges.add(GraphEdgeData(
-          id: 'synthetic_${anchor.id}_${other.id}',
+          id: 'synthetic_${anchor.id}_${person.id}',
           sourceId: anchor.id,
-          targetId: other.id,
-          relationshipKey: 'related',
+          targetId: person.id,
+          relationshipKey: 'extended',
         ));
-        debugPrint('[EDGE-DEBUG] Synthetic edge: ${anchor.id} → ${other.id} '
-            '(no real relationships found in DB for this family)');
+        connectedIds.add(person.id);
+        debugPrint('[EDGE-DEBUG] v10: Synthetic extended edge for orphan: '
+            '${anchor.id} → ${person.id}');
       }
     }
 
@@ -711,11 +753,12 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
               final fitScaleX = (screenW - margin * 2) / canvasWidth;
               final fitScaleY = (screenH - margin * 2) / canvasHeight;
               var fitScale = fitScaleX < fitScaleY ? fitScaleX : fitScaleY;
-              // Don't zoom in beyond 1.0 on initial load — only zoom
-              // out to fit. This prevents tiny canvases from being
-              // blown up to fill the viewport (which would pixelate
-              // node text).
-              if (fitScale > 1.0) fitScale = 1.0;
+              // v10 Fix #3b: Allow small graphs (≤12 nodes) to scale up
+              // to 2.0x so they fill the viewport. Large graphs stay at
+              // 1.0 max to avoid pixelation. Previously the hard clamp
+              // at 1.0 left small graphs tiny in the center of the screen.
+              final double fitCeiling = positions.length <= 12 ? 2.0 : 1.0;
+              if (fitScale > fitCeiling) fitScale = fitCeiling;
               // Don't go below the min scale.
               if (fitScale < 0.1) fitScale = 0.1;
 
@@ -832,6 +875,19 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
+                    // v10 Fix #1D: Explicit hit-test layer to ensure empty
+                    // canvas area hit-tests to the InteractiveViewer. Without
+                    // this, pinches that begin over empty space (between nodes)
+                    // can fall through to whatever is behind the graph.
+                    Positioned.fill(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onScaleStart: (_) {},
+                        onScaleUpdate: (_) {},
+                        // Do NOT handle tap here — let it bubble to
+                        // InteractiveViewer's pan/zoom.
+                      ),
+                    ),
                     // ── Edge Layer ────────────────────────────────
                     Positioned.fill(
                       child: CustomPaint(
@@ -889,34 +945,30 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
               ),
 
             // ── Filter Panel ─────────────────────────────────────────
-            // Wrapped in IgnorePointer(ignoring: !_filterVisible) so that
-            // when the panel is hidden, its (possibly full-viewport)
-            // transparent container does NOT swallow two-finger touch
-            // events that are intended for the InteractiveViewer below.
-            // Without this guard, hidden overlays are a known cause of
-            // pinch-to-zoom failures on the regions they cover.
-            IgnorePointer(
-              ignoring: !_filterVisible,
-              child: GraphFilterPanel(
+            // v10 Fix #1A: When hidden, render SizedBox.shrink() instead
+            // of IgnorePointer wrapping a hidden widget. This guarantees
+            // NO widget in the upper Stack layer participates in hit
+            // testing when the panel is hidden, so all touches fall
+            // through to the InteractiveViewer below.
+            if (_filterVisible)
+              GraphFilterPanel(
                 isVisible: _filterVisible,
                 onClose: () => setState(() => _filterVisible = false),
                 onFilterChanged: (filter) => setState(() => _currentFilter = filter),
                 currentFilter: _currentFilter,
-              ),
-            ),
+              )
+            else
+              const SizedBox.shrink(),
 
             // ── Legend Panel ───────────────────────────────────────────
-            // v7 FIX: Wrap in IgnorePointer when not visible to prevent
-            // any invisible container from eating pinch-to-zoom gestures.
-            // The "?" toggle button is in family_graph_screen.dart, not
-            // here — so IgnorePointer is safe.
-            IgnorePointer(
-              ignoring: !_legendVisible,
-              child: GraphLegend(
+            // v10 Fix #1A: Same pattern — SizedBox.shrink() when hidden.
+            if (_legendVisible)
+              GraphLegend(
                 isVisible: _legendVisible,
                 onToggle: () => setState(() => _legendVisible = !_legendVisible),
-              ),
-            ),
+              )
+            else
+              const SizedBox.shrink(),
 
             // Control Bar is NO LONGER rendered inside FamilyGraphWidget.
             // It has been replaced by the bottom toolbar in FamilyGraphScreen

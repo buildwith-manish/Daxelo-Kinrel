@@ -219,11 +219,13 @@ class RelationshipLegend extends StatelessWidget {
       ),
       _LegendGroup(
         label: 'In-Law',
+        // v10 Fix #2c: Use underscored keys to match EdgeStyleResolver._categoryMap
+        // in relationship_edge.dart (father_in_law, mother_in_law, etc.)
         keys: {
-          'father-in-law', 'mother-in-law',
-          'son-in-law', 'daughter-in-law',
-          'brother-in-law', 'sister-in-law',
-          'in-law',
+          'father_in_law', 'mother_in_law',
+          'son_in_law', 'daughter_in_law',
+          'brother_in_law', 'sister_in_law',
+          'in_law',
         },
         color: KinrelColors.nodeInLaw,
       ),
@@ -251,9 +253,12 @@ class RelationshipLegend extends StatelessWidget {
   /// Checks whether the given [key] belongs to a group defined by [groupKeys].
   bool _keysMatchGroup(String key, Set<String> groupKeys) {
     if (groupKeys.contains(key)) return true;
-    // Check in-law variants: if the key ends with "-in-law" and the group
-    // contains "in-law" or other in-law keys, match it.
-    if (key.contains('in-law') && groupKeys.any((k) => k.contains('in-law'))) {
+    // v10 Fix #2c: Check in-law variants with underscores (the codebase
+    // standard) AND hyphens (for backwards compatibility). If the key
+    // contains "in_law" or "in-law" and the group contains any in-law
+    // key, match it.
+    if ((key.contains('in_law') || key.contains('in-law')) &&
+        groupKeys.any((k) => k.contains('in_law') || k.contains('in-law'))) {
       return true;
     }
     return false;

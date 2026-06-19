@@ -474,12 +474,18 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         Column(
           children: [
             // V2.1 Generation filter bar at top
-            GenerationFilterBar(
-              presentGenerations: presentGenerations,
-              highlightedGeneration: _highlightedGeneration,
-              onGenerationTap: (gen) {
-                setState(() => _highlightedGeneration = gen);
-              },
+            // v10 Fix #1B: Wrap in SizedBox with fixed height to constrain
+            // the hit-test region. Without this, the filter bar's
+            // InkWells could absorb touches below their visible area.
+            SizedBox(
+              height: 56,
+              child: GenerationFilterBar(
+                presentGenerations: presentGenerations,
+                highlightedGeneration: _highlightedGeneration,
+                onGenerationTap: (gen) {
+                  setState(() => _highlightedGeneration = gen);
+                },
+              ),
             ),
 
             if (graph.isTruncated) _buildTruncationBanner(graph),

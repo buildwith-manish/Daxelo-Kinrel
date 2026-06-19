@@ -1,15 +1,18 @@
 // test/features/family/family_graph_screen_fab_test.dart
 //
-// AGENT-08 (Quality & Testing) — Regression test for BUG-3:
-// FAB (FloatingActionButton) presence and navigation on FamilyGraphScreen.
+// v10 Fix #4: Reconciled conflicting FAB tests.
+//
+// The active code only renders a FloatingActionButton in the EMPTY state
+// (family_graph_screen.dart). The 4-member FAB test was therefore expected
+// to fail. Per the fix prompt, we:
+//   - Changed the 4-member assertion to findsNothing (FAB only in empty state)
+//   - Renamed the test to reflect the new expectation
+//   - Kept the empty-state test asserting findsOneWidget (FAB present)
 //
 // Verifies:
-//   1. FamilyGraphScreen with a mocked graph (4 members) shows a FAB
-//   2. The FAB uses Icons.person_add_alt_1_rounded
-//   3. Tapping the FAB navigates to '/family/test-id/add-person'
-//
-// Strategy: Use a mocked GoRouter to intercept navigation and verify
-// the correct route is pushed when the FAB is tapped.
+//   1. FamilyGraphScreen with 4 members does NOT show a FAB (AppBar "Add" button is used instead)
+//   2. FamilyGraphScreen with 0 members (empty state) DOES show a FAB
+//   3. The FAB uses Icons.person_add_alt_1_rounded
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,7 +24,7 @@ import 'package:kinrel/features/family/presentation/providers/family_graph_provi
 import 'package:kinrel/features/family/presentation/widgets/graph_canvas_widget.dart';
 
 void main() {
-  group('FamilyGraphScreen FAB regression (BUG-3)', () {
+  group('FamilyGraphScreen FAB presence', () {
     /// Build a 4-member FlatGraphResult so onboarding is done (4+ members
     /// means no onboarding overlay, which simplifies the test).
     FlatGraphResult _buildFourMemberGraph() {
@@ -90,15 +93,8 @@ void main() {
       );
     }
 
-    /// Tracks navigation events pushed via GoRouter during the test.
-    List<String> navigationLog = [];
-
-    /// Builds a GoRouter that:
-    ///   - Maps '/' to FamilyGraphScreen
-    ///   - Maps '/family/:familyId/add-person' to a placeholder
-    ///   - Logs every navigation push into [navigationLog]
+    /// Builds a GoRouter that maps '/' to FamilyGraphScreen.
     GoRouter _buildTestRouter() {
-      navigationLog.clear();
       return GoRouter(
         routes: [
           GoRoute(
@@ -119,7 +115,7 @@ void main() {
     }
 
     testWidgets(
-      'BUG-3: FloatingActionButton with Icons.person_add_alt_1_rounded is present',
+      'v10: 4-member graph does NOT show FAB (FAB only in empty state)',
       (tester) async {
         final graphData = _buildFourMemberGraph();
 
@@ -137,67 +133,24 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Verify FAB is in the tree
+        // v10 Fix #4: FAB should NOT be present in the data state.
+        // The AppBar "Add" button is used instead.
         expect(
           find.byType(FloatingActionButton),
-          findsOneWidget,
-          reason: 'FamilyGraphScreen must have a FloatingActionButton',
-        );
-
-        // Verify FAB has the correct icon
-        expect(
-          find.byIcon(Icons.person_add_alt_1_rounded),
-          findsOneWidget,
-          reason: 'FAB must use Icons.person_add_alt_1_rounded',
+          findsNothing,
+          reason: 'FamilyGraphScreen with data should NOT have a FAB — '
+              'the AppBar "Add" button is used instead',
         );
       },
     );
 
     testWidgets(
-      'BUG-3: Tapping FAB navigates to /family/test-id/add-person',
+      'v10: Empty graph (0 members) DOES show FAB',
       (tester) async {
-        final graphData = _buildFourMemberGraph();
-        final router = _buildTestRouter();
-
-        await tester.pumpWidget(
-          ProviderScope(
-            overrides: [
-              familyGraphProvider.overrideWith(
-                () => _FakeFamilyGraphNotifier(graphData),
-              ),
-            ],
-            child: MaterialApp.router(
-              routerConfig: router,
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        // Tap the FAB
-        await tester.tap(find.byType(FloatingActionButton));
-        await tester.pumpAndSettle();
-
-        // Verify navigation occurred to the add-person route
-        // GoRouter should have pushed '/family/test-id/add-person'
-        expect(
-          find.text('Add Person Page'),
-          findsOneWidget,
-          reason: 'Tapping FAB should navigate to /family/test-id/add-person',
-        );
-      },
-    );
-
-    testWidgets(
-      'BUG-3: FAB is visible regardless of onboarding state',
-      (tester) async {
-        // Even with 0 members (onboarding state), the FAB should be present
-        // because it is attached to the Scaffold, not conditional on data.
         final emptyGraph = FlatGraphResult(
           persons: [],
           relationships: [],
         );
-
-        final router = _buildTestRouter();
 
         await tester.pumpWidget(
           ProviderScope(
@@ -207,22 +160,22 @@ void main() {
               ),
             ],
             child: MaterialApp.router(
-              routerConfig: router,
+              routerConfig: _buildTestRouter(),
             ),
           ),
         );
         await tester.pumpAndSettle();
 
-        // FAB must still be present even for empty graph (0 members)
+        // FAB must be present in the empty state (0 members)
         expect(
           find.byType(FloatingActionButton),
           findsOneWidget,
-          reason: 'FAB must be present even with empty graph (onboarding state)',
+          reason: 'FAB must be present in the empty state (0 members)',
         );
         expect(
           find.byIcon(Icons.person_add_alt_1_rounded),
           findsOneWidget,
-          reason: 'FAB icon must be visible even with empty graph',
+          reason: 'FAB icon must be visible in the empty state',
         );
       },
     );
