@@ -37,7 +37,7 @@ import '../../../core/services/supabase_service.dart';
 import '../../../graph/graph.dart';
 import 'add_person_sheet.dart';
 import 'providers/family_graph_provider.dart'
-    show FamilyGraphNotifier, familyGraphProvider, graphRealtimeProvider;
+    show FamilyGraphNotifier, FlatGraphResult, familyGraphProvider, graphRealtimeProvider;
 import 'widgets/generation_filter_bar.dart';
 import 'widgets/graph_canvas_widget.dart' show PersonData;
 import 'widgets/relationship_legend.dart';
