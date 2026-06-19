@@ -739,105 +739,44 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
   }
 
   try {
-    // Use offline-first repository if Isar is initialized (instant cache hit)
-    if (IsarDatabase.isInitialized) {
-      try {
-        final repo = ref.read(offlineFamilyRepositoryProvider);
-        final cached = await repo.getFamilies();
-        final filtered = cached
-            .where((f) => f.deletedAt == null && !pendingDeletes.contains(f.id))
-            .toList();
-        if (filtered.isNotEmpty) return filtered;
-      } catch (e) {
-        debugPrint('⚠️ Offline repo getFamilies failed, falling back: $e');
-        // Fall through to API call
-      }
-    }
-
-    // ── Primary: NestJS API (GET /families) ────────────────────────
-    // The Dio client's _AuthInterceptor automatically injects the
-    // Supabase Bearer token, and the backend now queries FamilyMember
-    // with BOTH the Prisma CUID and the Supabase UUID, so families
-    // created before the auth fix are also found.
-    try {
-      final dio = ref.read(dioProvider);
-      final response = await dio.get('/families');
-      final data = response.data;
-
-      // Backend returns { items: [...], total, page, limit }
-      List<Family> result;
-      if (data is Map<String, dynamic> && data['items'] is List) {
-        final items = data['items'] as List;
-        result = items
-            .map((json) => Family.fromJson(json as Map<String, dynamic>))
-            .toList();
-      } else if (data is List) {
-        result = data
-            .map((json) => Family.fromJson(json as Map<String, dynamic>))
-            .toList();
-      } else {
-        debugPrint('⚠️ familyListProvider: unexpected NestJS response format');
-        result = [];
-      }
-
-      // Filter out pending-delete families
-      if (pendingDeletes.isNotEmpty) {
-        result = result.where((f) => !pendingDeletes.contains(f.id)).toList();
-      }
-
-      return result;
-    } on DioException catch (apiError) {
-      // If the NestJS API returned an auth error (401/403), surface it
-      // immediately — no point falling back to Supabase with the same
-      // broken session.
-      final statusCode = apiError.response?.statusCode;
-      if (statusCode == 401 || statusCode == 403) {
-        debugPrint('⚠️ familyListProvider: NestJS API auth error ($statusCode), '
-            'rethrowing');
-        rethrow;
-      }
-
-      // For other API errors (network, 500, etc.), fall back to Supabase
-      debugPrint('⚠️ familyListProvider: NestJS API failed '
-          '(${apiError.type}), falling back to Supabase: '
-          '${_extractDioErrorMessage(apiError)}');
-    }
-
-    // ── Fallback: Direct Supabase query (legacy path) ──────────────
+    // v19: Query Supabase DIRECTLY instead of NestJS API.
+    // The NestJS API was causing issues:
+    //   1. Cold-start timeout on Render free tier
+    //   2. May not include 'createdBy' field in response
+    //   3. Missing families created via Supabase direct INSERT (v18)
+    //
+    // Supabase direct query returns all columns including 'createdBy',
+    // which is needed for the Creator badge on the family list screen.
     final client = ref.read(supabaseProvider);
-    if (client == null) {
-      throw Exception('No Supabase client available');
+    if (client == null || client.auth.currentSession == null) {
+      return [];
     }
+    final userId = client.auth.currentUser!.id;
 
-    // Guard against no valid session — RLS will deny queries
-    // When kAuthDisabled, use MockUser.id so the query can proceed
-    final userId = client.auth.currentUser?.id ??
-        (kAuthDisabled ? MockUser.id : null);
-    if (userId == null) {
-      debugPrint('⏭️ familyListProvider skipped — no auth session');
-      throw Exception('No authenticated user session');
-    }
-
-    // 1. Get family IDs from FamilyMember join table
+    // 1. Find all family IDs where the user is a member OR creator
     final familyIds = <String>{};
+
+    // 1a. Via FamilyMember
     try {
-      final memberEntries = await client
-          .from(_kFamilyMemberTable)
+      final memberRows = await client
+          .from('FamilyMember')
           .select('familyId')
-          .eq('userId', userId);
-      for (final row in (memberEntries as List)) {
+          .eq('userId', userId)
+          .timeout(const Duration(seconds: 10));
+      for (final row in (memberRows as List)) {
         familyIds.add(row['familyId'] as String);
       }
     } catch (e) {
       debugPrint('⚠️ FamilyMember lookup failed, using createdBy fallback: $e');
     }
 
-    // 2. Also find families where user is the creator (fallback for missing FamilyMember entries)
+    // 1b. Via createdBy (fallback for missing FamilyMember entries)
     try {
       final createdFamilies = await client
           .from(_kFamilyTable)
           .select('id')
-          .eq('createdBy', userId);
+          .eq('createdBy', userId)
+          .timeout(const Duration(seconds: 10));
       for (final row in (createdFamilies as List)) {
         familyIds.add(row['id'] as String);
       }
@@ -847,13 +786,14 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
 
     if (familyIds.isEmpty) return [];
 
-    // 3. Fetch all families by IDs (deduplicated)
+    // 2. Fetch all families by IDs (deduplicated) — includes 'createdBy'
     final response = await client
         .from(_kFamilyTable)
         .select()
         .inFilter('id', familyIds.toList())
         .filter('deletedAt', 'is', null)
-        .order('createdAt', ascending: false);
+        .order('createdAt', ascending: false)
+        .timeout(const Duration(seconds: 15));
 
     final list = response as List;
     List<Family> result;
@@ -869,6 +809,14 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
     if (pendingDeletes.isNotEmpty) {
       result = result.where((f) => !pendingDeletes.contains(f.id)).toList();
     }
+
+    // v19: Update offline cache with fresh data
+    if (result.isNotEmpty && IsarDatabase.isInitialized) {
+      try {
+        await CacheInvalidation.invalidateFamilyList();
+      } catch (_) {}
+    }
+
     return result;
   } catch (e) {
     debugPrint('⚠️ familyListProvider error: $e');
