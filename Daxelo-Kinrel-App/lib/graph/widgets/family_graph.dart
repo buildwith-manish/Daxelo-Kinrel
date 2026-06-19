@@ -924,17 +924,16 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             ),
 
             // ── Legend Panel ───────────────────────────────────────────
-            // NOTE: We intentionally do NOT wrap GraphLegend in
-            // IgnorePointer here. GraphLegend internally renders just
-            // its "?" toggle button when `isVisible: false`, and the
-            // full panel when `isVisible: true`. The toggle button
-            // MUST remain tappable so the user can open the legend.
-            // Wrapping in IgnorePointer(ignoring: !isVisible) made
-            // the toggle unclickable when the legend was hidden,
-            // which was reported as "the ? button doesn't work".
-            GraphLegend(
-              isVisible: _legendVisible,
-              onToggle: () => setState(() => _legendVisible = !_legendVisible),
+            // v7 FIX: Wrap in IgnorePointer when not visible to prevent
+            // any invisible container from eating pinch-to-zoom gestures.
+            // The "?" toggle button is in family_graph_screen.dart, not
+            // here — so IgnorePointer is safe.
+            IgnorePointer(
+              ignoring: !_legendVisible,
+              child: GraphLegend(
+                isVisible: _legendVisible,
+                onToggle: () => setState(() => _legendVisible = !_legendVisible),
+              ),
             ),
 
             // Control Bar is NO LONGER rendered inside FamilyGraphWidget.

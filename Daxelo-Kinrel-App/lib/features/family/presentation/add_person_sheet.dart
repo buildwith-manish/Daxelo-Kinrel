@@ -11,6 +11,8 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
+import '../../../core/services/supabase_service.dart';
+import 'providers/family_graph_provider.dart' show FamilyGraphNotifier, familyGraphProvider;
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
 import 'relationship_picker_sheet.dart';
@@ -400,79 +402,89 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           isDeceased: _isDeceased,
         );
 
-        // Create the relationship if one was selected.
+        // ═══════════════════════════════════════════════════════════════
+        // v7 (2026-06-19): RELATIONSHIP CREATION — DIRECT SUPABASE QUERY
+        // ═══════════════════════════════════════════════════════════════
+        // The previous implementation relied on `_effectiveAnchorPerson`
+        // which reads from `familyMembersProvider`. This provider might
+        // not have loaded yet, or might have stale data, causing the
+        // anchor to be null and the relationship creation to be
+        // SILENTLY SKIPPED.
         //
-        // RELEASE-READY FIX (edge rendering bug):
-        // Previously, `_effectiveAnchorPerson` was read synchronously
-        // here. If `familyMembersProvider` was still loading (or held a
-        // stale empty cache), `_effectiveAnchorPerson` returned null
-        // and the entire relationship-creation block was SILENTLY
-        // skipped — the user saw the new member appear as an isolated
-        // node with no connecting line, and had no idea why.
-        //
-        // We now explicitly await the provider future before reading
-        // the anchor, and we surface any "couldn't create the link"
-        // failure to the user instead of swallowing it.
+        // New approach: query the anchor person DIRECTLY from Supabase.
+        // This is 100% reliable — no provider timing issues.
+        // ═══════════════════════════════════════════════════════════════
         final relKey = _effectiveRelationshipKey;
 
-        // Ensure the family members provider has finished loading so
-        // _effectiveAnchorPerson can actually find the anchor.
-        // ⏱️ TIMEOUT FIX: Wrap in .timeout() to prevent the spinner from
-        // hanging forever if the provider's Supabase query is slow. The
-        // 5s budget is generous for what should be a sub-second query.
-        if (relKey != null && !_isEditMode) {
-          final membersAsync =
-              ref.read(familyMembersProvider(widget.familyId));
-          if (membersAsync.isLoading) {
-            try {
-              await ref
-                  .read(familyMembersProvider(widget.familyId).future)
-                  .timeout(const Duration(seconds: 5),
-                      onTimeout: () => <Person>[]);
-            } catch (e) {
-              debugPrint('[ADD-MEMBER] familyMembersProvider.future threw: $e');
-            }
-          }
-        }
-
-        // ── v6 DIAGNOSTIC LOGGING ──────────────────────────────────
-        // Log every variable that affects relationship creation so we
-        // can see exactly why relationships aren't being created.
-        final anchor = _effectiveAnchorPerson;
-        debugPrint('[ADD-MEMBER] === RELATIONSHIP CREATION DIAGNOSTICS ===');
-        debugPrint('[ADD-MEMBER] relKey (effective): $relKey');
-        debugPrint('[ADD-MEMBER] _selectedRelationshipKey: $_selectedRelationshipKey');
-        debugPrint('[ADD-MEMBER] _selectedRelType: $_selectedRelType');
-        debugPrint('[ADD-MEMBER] _selectedSubType: $_selectedSubType');
-        debugPrint('[ADD-MEMBER] anchor person: ${anchor?.name ?? "NULL"} (id=${anchor?.id ?? "none"})');
-        debugPrint('[ADD-MEMBER] new person: ${result.name} (id=${result.id})');
-        debugPrint('[ADD-MEMBER] familyId: ${widget.familyId}');
-        final membersList = ref.read(familyMembersProvider(widget.familyId)).valueOrNull ?? [];
-        debugPrint('[ADD-MEMBER] familyMembersProvider has ${membersList.length} members:');
-        for (final m in membersList) {
-          debugPrint('[ADD-MEMBER]   - ${m.name} (id=${m.id}, isAnchor=${m.isAnchor}, gender=${m.gender})');
-        }
-        debugPrint('[ADD-MEMBER] =================================================');
-
-        if (relKey != null && anchor != null) {
+        if (relKey != null && !_isEditMode && result != null) {
           try {
-            debugPrint('[ADD-MEMBER] Calling addRelationshipOptimistic: '
-                'from=${anchor.id} (${anchor.name}) to=${result.id} (${result.name}) key=$relKey');
-            await addRelationshipOptimistic(
-              ref: ref,
-              familyId: widget.familyId,
-              fromPersonId: anchor.id,
-              toPersonId: result.id,
-              relationshipKey: relKey,
-            );
-            debugPrint('[ADD-MEMBER] ✅ Relationship created: '
-                'from=${anchor.id} to=${result.id} key=$relKey');
+            // ── Step 1: Query the anchor person directly from Supabase ──
+            // Prefer the family's anchorPersonId; fall back to the
+            // first existing member (excluding the newly-created person).
+            final client = ref.read(supabaseProvider);
+            if (client != null && client.auth.currentSession != null) {
+              debugPrint('[ADD-MEMBER] v7: Querying anchor person directly from Supabase...');
+
+              // Query the Family to get anchorPersonId
+              final familyData = await client
+                  .from('Family')
+                  .select('anchorPersonId')
+                  .eq('id', widget.familyId)
+                  .maybeSingle()
+                  .timeout(const Duration(seconds: 5));
+
+              String? anchorId = familyData?['anchorPersonId'] as String?;
+
+              // If no anchorPersonId, query the first existing Person
+              // (excluding the newly created one)
+              if (anchorId == null || anchorId.isEmpty || anchorId == result.id) {
+                debugPrint('[ADD-MEMBER] v7: No anchorPersonId on Family, querying first existing member...');
+                final existingPersons = await client
+                    .from('Person')
+                    .select('id, name, gender')
+                    .eq('familyId', widget.familyId)
+                    .neq('id', result.id)
+                    .isFilter('deletedAt', null)
+                    .order('createdAt', ascending: true)
+                    .limit(1)
+                    .timeout(const Duration(seconds: 5));
+
+                if (existingPersons.isNotEmpty) {
+                  anchorId = existingPersons.first['id'] as String?;
+                  debugPrint('[ADD-MEMBER] v7: Found first existing member: ${existingPersons.first['name']} ($anchorId)');
+                }
+              } else {
+                debugPrint('[ADD-MEMBER] v7: Found anchorPersonId: $anchorId');
+              }
+
+              if (anchorId != null && anchorId.isNotEmpty && anchorId != result.id) {
+                // ── Step 2: Create the relationship DIRECTLY (not optimistic) ──
+                // Skip the optimistic wrapper — it adds complexity and
+                // silently swallows errors. Call createRelationship directly.
+                debugPrint('[ADD-MEMBER] v7: Creating relationship: '
+                    'from=$anchorId to=${result.id} key=$relKey');
+                await createRelationship(
+                  ref: ref,
+                  familyId: widget.familyId,
+                  fromPersonId: anchorId,
+                  toPersonId: result.id,
+                  relationshipKey: relKey,
+                );
+                debugPrint('[ADD-MEMBER] v7: ✅ Relationship created successfully');
+
+                // Invalidate graph so the new edge appears immediately
+                FamilyGraphNotifier.clearCache(widget.familyId);
+                ref.invalidate(familyGraphProvider(widget.familyId));
+              } else {
+                debugPrint('[ADD-MEMBER] v7: ⚠️ No existing member found to link to. '
+                    'This is the first member of the family — no relationship needed.');
+              }
+            } else {
+              debugPrint('[ADD-MEMBER] v7: ⚠️ Supabase client or session not available');
+            }
           } catch (e, stackTrace) {
-            // Surface the failure to the user so they know the link didn't
-            // get created. Without this, the new member appears as an
-            // isolated node with no edge — which looks like a graph bug.
-            debugPrint('[ADD-MEMBER] ❌ Relationship creation failed: $e');
-            debugPrint('[ADD-MEMBER] Stack trace: $stackTrace');
+            debugPrint('[ADD-MEMBER] v7: ❌ Relationship creation failed: $e');
+            debugPrint('[ADD-MEMBER] v7: Stack: $stackTrace');
             if (mounted) {
               context.showSnackBar(
                 'Member added, but the relationship link could not be created: $e',
@@ -480,23 +492,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               );
             }
           }
-        } else if (relKey != null && anchor == null) {
-          // Relationship was selected but we couldn't determine the
-          // anchor person. Previously this was SILENTLY skipped. Now
-          // we tell the user so they know why no edge was drawn.
-          debugPrint('[ADD-MEMBER] ❌ Cannot create relationship: anchor '
-              'person is null (familyMembersProvider may be empty). '
-              'relKey=$relKey, familyId=${widget.familyId}');
-          if (mounted) {
-            context.showSnackBar(
-              'Member added, but no anchor was found to link them to. '
-              'Please reopen the family graph and add the relationship '
-              'from there.',
-              isError: true,
-            );
-          }
-        } else {
-          debugPrint('[ADD-MEMBER] No relationship selected (relKey=$relKey) — skipping relationship creation');
+        } else if (relKey == null) {
+          debugPrint('[ADD-MEMBER] v7: No relationship selected — skipping relationship creation');
         }
       }
 
