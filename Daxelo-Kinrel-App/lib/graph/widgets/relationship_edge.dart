@@ -484,45 +484,62 @@ class RelationshipEdge extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     // ── Draw line path ─────────────────────────────────────────────
+    // v17: Unified dashed orange glow style for ALL edge types.
+    // Matches the reference design — all edges use the same warm orange
+    // color with dashed pattern and glow effect.
+
+    // Glow paint (soft blur behind the dashed line)
+    final glowPaint = Paint()
+      ..color = edgeColor.withValues(alpha: isSelected ? 0.35 : 0.20)
+      ..strokeWidth = strokeWidth + 6
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
 
     if (category == EdgeCategory.sibling) {
-      // v10 Fix #2a: Sibling edges render as DASHED arcs.
-      // Full siblings use siblingDash [6.0, 4.0].
-      // Half-siblings use halfSiblingDash [2.0, 4.0].
+      // Sibling: dashed curved arc
       final List<double> dashArray = isHalfSibling
           ? EdgeStyleResolver.halfSiblingDash
           : EdgeStyleResolver.siblingDash;
+      // Draw glow (solid arc for halo)
+      _drawSiblingArc(canvas, start, end, glowPaint);
+      // Draw dashed arc
       _drawSiblingArc(canvas, start, end, paint, dashArray: dashArray);
     } else if (category == EdgeCategory.spouse ||
         category == EdgeCategory.inLaw) {
-      // Spouse/In-law: horizontal connector
-      canvas.drawLine(start, end, paint);
+      // Spouse/In-law: straight dashed line with glow
+      _drawDashedLine(canvas, start, end, glowPaint,
+          dashArray: EdgeStyleResolver.siblingDash);
+      _drawDashedLine(canvas, start, end, paint,
+          dashArray: EdgeStyleResolver.siblingDash);
     } else if (category == EdgeCategory.indirect) {
       // Indirect: dashed gray line
+      _drawDashedLine(canvas, start, end, glowPaint,
+          dashArray: EdgeStyleResolver.defaultDash);
       _drawDashedLine(canvas, start, end, paint,
           dashArray: EdgeStyleResolver.defaultDash);
     } else if (isHalfSibling) {
       // Half-sibling fallback: dotted line
+      _drawDashedLine(canvas, start, end, glowPaint,
+          dashArray: EdgeStyleResolver.halfSiblingDash);
       _drawDashedLine(canvas, start, end, paint,
           dashArray: EdgeStyleResolver.halfSiblingDash);
     } else if (category == EdgeCategory.parent ||
         category == EdgeCategory.child ||
         category == EdgeCategory.grandparent) {
-      // Parent/child/grandparent: bezier curve
+      // Parent/child/grandparent: bezier curve with glow
+      _drawBezierCurve(canvas, start, end, glowPaint);
       _drawBezierCurve(canvas, start, end, paint);
     } else if (category == EdgeCategory.cousin) {
-      // Cousin: curved extended bezier
+      // Cousin: curved extended bezier with glow
+      _drawExtendedBezier(canvas, start, end, glowPaint);
       _drawExtendedBezier(canvas, start, end, paint);
     } else {
-      // Default: dashed or solid depending on category
-      if (isDashed && !isSelected) {
-        _drawDashedLine(canvas, start, end, paint);
-      } else if (isHalfSibling && !isSelected) {
-        _drawDashedLine(canvas, start, end, paint,
-            dashArray: EdgeStyleResolver.halfSiblingDash);
-      } else {
-        canvas.drawLine(start, end, paint);
-      }
+      // Default: dashed with glow
+      _drawDashedLine(canvas, start, end, glowPaint,
+          dashArray: EdgeStyleResolver.siblingDash);
+      _drawDashedLine(canvas, start, end, paint,
+          dashArray: EdgeStyleResolver.siblingDash);
     }
 
     // ── Draw midpoint indicator (skip in minimal LOD) ────────────

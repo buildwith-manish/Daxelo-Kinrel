@@ -950,7 +950,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             // ═══════════════════════════════════════════════════════════════
             ClipRect(
               child: Listener(
-                behavior: HitTestBehavior.opaque,
+                behavior: HitTestBehavior.translucent,
                 onPointerDown: _onPointerDown,
                 onPointerMove: _onPointerMove,
                 onPointerUp: _onPointerUp,
