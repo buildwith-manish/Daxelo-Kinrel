@@ -34,6 +34,7 @@
 //   Indirect connection (blocked): dashed line, gray, "indirect" label
 
 import 'dart:math' as math;
+import 'dart:ui' show PathMetric;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
