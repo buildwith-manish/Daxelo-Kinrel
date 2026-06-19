@@ -216,14 +216,14 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
         // This ensures the ScaleGestureRecognizer's hit-test region
         // covers the entire visible area, not just the child canvas.
         //
-        // HitTestBehavior.translucent (NOT opaque) is critical here:
-        //   - opaque: would block all taps from reaching child nodes,
-        //             making node selection impossible.
-        //   - translucent: lets the gesture detector receive the
-        //             pointer events AND lets child widgets (like the
-        //             node's GestureDetector) receive them too. The
-        //             gesture arena then decides who wins based on the
-        //             gesture type: taps → child node, scale → this widget.
+        // v7 FIX: Use HitTestBehavior.opaque (NOT translucent).
+        // With translucent, the gesture detector might not claim the
+        // gesture arena aggressively enough for multi-touch (pinch)
+        // gestures. With opaque, the parent claims ALL pointer events
+        // in the viewport, but child GestureDetectors (like node taps)
+        // still win the arena for their specific gestures because
+        // TapGestureRecognizer is more specific than
+        // ScaleGestureRecognizer.
         //
         // v4.1 FIX: Removed onDoubleTap from this parent GestureDetector.
         // The child GraphNode widgets also have onDoubleTap (for focus-
@@ -239,7 +239,7 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
           height: constraints.maxHeight,
           child: ClipRect(
             child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
+              behavior: HitTestBehavior.opaque,
               // Scale gestures (pinch-to-zoom, two-finger pan, one-finger
               // pan on empty space) are always handled here.
               onScaleStart: _onScaleStart,
