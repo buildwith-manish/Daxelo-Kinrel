@@ -1242,53 +1242,102 @@ Future<Family> createFamily({
     throw Exception('You must be signed in to create a family.');
   }
 
-  // Use NestJS API to atomically create Family + FamilyMember (admin)
-  // This avoids the RLS chicken-and-egg problem with direct Supabase inserts.
-  final dio = ref.read(dioProvider);
+  // ════════════════════════════════════════════════════════════════════
+  // v18 (2026-06-19): SUPABASE DIRECT INSERT — skip NestJS API entirely.
+  // ════════════════════════════════════════════════════════════════════
+  // The previous implementation used the NestJS API which:
+  //   1. Cold-starts on Render free tier (30-60s timeout)
+  //   2. Creates FamilyMember with role='admin' (should be 'owner')
+  //   3. Bypasses the _fn_after_family_insert trigger (Prisma doesn't
+  //      fire DB triggers)
+  //
+  // Direct Supabase insert:
+  //   1. Is fast (<500ms)
+  //   2. Fires the _fn_after_family_insert trigger which creates
+  //      FamilyMember with role='owner' automatically
+  //   3. The 'owner' role passes the Person INSERT RLS policy
+  // ════════════════════════════════════════════════════════════════════
 
-  // Retry on familyCode/username uniqueness conflict
-  Response? response;
-  String effectiveUsername = username ?? '';
-  for (int attempt = 0; attempt < 3; attempt++) {
-    try {
-      final random = Random();
-      final suffix = attempt == 0 ? '' : '-${List.generate(4, (_) => random.nextInt(36).toRadixString(36)).join()}';
-      final usernameWithSuffix = effectiveUsername.isNotEmpty ? '$effectiveUsername$suffix' : null;
+  // Generate a CUID-style ID for the Family
+  final familyId = _generateId();
 
-      response = await withRetry(
-        () => dio.post('/api/families', data: {
-          'name': name,
-          if (description != null) 'description': description,
-          'primaryLanguage': primaryLanguage ?? 'en',
-          if (gotra != null) 'gotra': gotra,
-          if (originVillage != null) 'originVillage': originVillage,
-          if (region != null) 'region': region,
-          'privacyMode': privacyMode ?? 'private',
-          if (usernameWithSuffix != null) 'username': usernameWithSuffix,
-          if (photoUrl != null) 'avatarUrl': photoUrl,
-        }),
-        operationName: 'Create family via NestJS',
+  // Build the insert payload
+  final insertData = <String, dynamic>{
+    'id': familyId,
+    'name': name,
+    'primaryLanguage': primaryLanguage ?? 'en',
+    'privacyMode': privacyMode ?? 'private',
+    'createdBy': userId,
+    'memberCount': 0,
+    'lastActivityAt': DateTime.now().toUtc().toIso8601String(),
+  };
+  if (description != null) insertData['description'] = description;
+  if (gotra != null) insertData['gotra'] = gotra;
+  if (originVillage != null) insertData['originVillage'] = originVillage;
+  if (region != null) insertData['region'] = region;
+  if (username != null) insertData['username'] = username;
+  if (photoUrl != null) insertData['avatarUrl'] = photoUrl;
+
+  // Step 1: INSERT the Family row
+  // The _fn_after_family_insert trigger will automatically create a
+  // FamilyMember row with role='owner' for the creator.
+  late final Map<String, dynamic> response;
+  try {
+    response = await client
+        .from('Family')
+        .insert(insertData)
+        .select()
+        .single()
+        .timeout(const Duration(seconds: 15));
+  } on PostgrestException catch (e) {
+    debugPrint('[createFamily] Supabase INSERT failed: ${e.message}');
+    if (e.code == '42501') {
+      throw Exception(
+        'Permission denied. You must be signed in to create a family.',
       );
-      break; // success
-    } on DioException catch (e) {
-      final status = e.response?.statusCode;
-      final errStr = (e.response?.data?.toString() ?? e.toString()).toLowerCase();
-      // 409 Conflict or 23505 uniqueness violation — retry with new suffix
-      if ((status == 409 || errStr.contains('23505') || errStr.contains('duplicate') || errStr.contains('unique') || errStr.contains('conflict'))
-          && attempt < 2) {
-        continue;
-      }
-      // For other errors, try to extract a useful message
-      final serverMsg = _extractDioErrorMessage(e);
-      throw Exception(serverMsg);
+    } else if (e.code == '23505') {
+      throw Exception('A family with this username already exists. Please try a different username.');
     }
+    throw Exception('Could not create the family: ${e.message}');
+  } on TimeoutException {
+    throw Exception(
+      'The database is taking too long to respond. Please check your '
+      'internet connection and try again.',
+    );
+  } catch (e) {
+    debugPrint('[createFamily] Unexpected error: $e');
+    throw Exception('Could not create the family. Please try again. ($e)');
   }
 
-  if (response == null || response.data == null) {
-    throw Exception('Failed to create family — no data returned from server.');
-  }
+  final family = Family.fromJson(response);
+  debugPrint('[createFamily] Family created: ${family.id} (${family.name})');
 
-  final family = Family.fromJson(response.data as Map<String, dynamic>);
+  // Step 2: Verify the FamilyMember was created by the trigger
+  // (best-effort — if it wasn't, create it manually)
+  try {
+    final memberCheck = await client
+        .from('FamilyMember')
+        .select('id')
+        .eq('familyId', family.id)
+        .eq('userId', userId)
+        .timeout(const Duration(seconds: 5));
+
+    if (memberCheck.isEmpty) {
+      debugPrint('[createFamily] Trigger did not create FamilyMember — creating manually');
+      await client
+          .from('FamilyMember')
+          .insert({
+            'id': _generateId(),
+            'familyId': family.id,
+            'userId': userId,
+            'role': 'owner',
+            'joinedAt': DateTime.now().toUtc().toIso8601String(),
+          })
+          .timeout(const Duration(seconds: 5));
+    }
+  } catch (e) {
+    debugPrint('[createFamily] FamilyMember verification/creation failed (non-fatal): $e');
+  }
 
   ref.invalidate(familyListProvider);
 
@@ -1299,12 +1348,11 @@ Future<Family> createFamily({
     } catch (_) {}
   }
 
-  // ✅ FIX: Refresh profile stats after family creation
+  // Refresh profile stats
   try {
     await ref.read(profileProvider.notifier).loadStats();
   } catch (_) {}
 
-  // P5-F1: Track family creation
   AnalyticsService.instance.logFamilyCreated();
 
   return family;
