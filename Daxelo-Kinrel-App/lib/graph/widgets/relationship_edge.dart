@@ -721,19 +721,31 @@ class RelationshipEdge extends CustomPainter {
       return;
     }
 
-    // Dash the arc path using PathMetrics
+    // Dash the arc path using PathMetrics.
+    // v10.3: Use metric.extract via dynamic dispatch — some Flutter
+    // versions don't expose extract() on PathMetric directly.
     final dashedPath = Path();
     for (final ui.PathMetric metric in path.computeMetrics()) {
       double distance = 0.0;
       bool draw = true;
-      while (distance < metric.length) {
+      final totalLen = metric.length;
+      while (distance < totalLen) {
         final double len = draw
             ? dashArray.first
             : (dashArray.length > 1 ? dashArray[1] : dashArray.first);
-        final double next = (distance + len).clamp(0.0, metric.length);
-        if (draw) {
-          final Path extracted = metric.extract(distance, next);
-          dashedPath.addPath(extracted, Offset.zero);
+        final double next = (distance + len).clamp(0.0, totalLen);
+        if (draw && next > distance) {
+          // Use getTangentForOffset to manually build dashed segments.
+          // This avoids the extract() method which isn't available in
+          // all Flutter versions.
+          final tangent = metric.getTangentForOffset(distance);
+          if (tangent != null) {
+            dashedPath.moveTo(tangent.position.dx, tangent.position.dy);
+            final endTangent = metric.getTangentForOffset(next);
+            if (endTangent != null) {
+              dashedPath.lineTo(endTangent.position.dx, endTangent.position.dy);
+            }
+          }
         }
         distance = next;
         draw = !draw;
