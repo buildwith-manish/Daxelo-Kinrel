@@ -181,6 +181,13 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   bool _transformationControllerChangeFromExternal = false;
   bool _cameraControllerChangeFromInternal = false;
 
+  // v14: Custom gesture state for pinch-to-zoom + pan.
+  // Replaces InteractiveViewer which had persistent gesture conflicts.
+  double _gestureStartScale = 1.0;
+  Offset _gestureStartTranslation = Offset.zero;
+  Offset _gestureStartFocalPoint = Offset.zero;
+  bool _isGesturing = false;
+
   // ── Constants ──────────────────────────────────────────────────────
 
   static const double _nodeWidth = 72.0;
@@ -361,6 +368,50 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   }
 
   // ── Gesture Handlers ───────────────────────────────────────────────
+
+  // v14: Custom pinch-to-zoom + pan handlers (replaces InteractiveViewer).
+  // Uses focal-point-anchored zoom math:
+  //   newTranslation = focalNow + (startTranslation - startFocal) * scaleRatio
+  // This handles pinch, pan, and combined gestures with zero conflicts
+  // because there's only ONE ScaleGestureRecognizer in the arena (this one).
+  void _onScaleStart(ScaleStartDetails details) {
+    _isGesturing = true;
+    final matrix = _transformationController.value;
+    _gestureStartScale = matrix.getMaxScaleOnAxis();
+    _gestureStartTranslation = Offset(
+      matrix.getTranslation().x,
+      matrix.getTranslation().y,
+    );
+    _gestureStartFocalPoint = details.localFocalPoint;
+  }
+
+  void _onScaleUpdate(ScaleUpdateDetails details) {
+    if (!_isGesturing) return;
+
+    final newScale = (_gestureStartScale * details.scale).clamp(0.1, 5.0);
+    final focalNow = details.localFocalPoint;
+    final scaleRatio =
+        _gestureStartScale == 0 ? 1.0 : newScale / _gestureStartScale;
+
+    final newTranslation = Offset(
+      focalNow.dx +
+          (_gestureStartTranslation.dx - _gestureStartFocalPoint.dx) *
+              scaleRatio,
+      focalNow.dy +
+          (_gestureStartTranslation.dy - _gestureStartFocalPoint.dy) *
+              scaleRatio,
+    );
+
+    final newMatrix = Matrix4.identity()
+      ..translate(newTranslation.dx, newTranslation.dy)
+      ..scale(newScale);
+
+    _transformationController.value = newMatrix;
+  }
+
+  void _onScaleEnd(ScaleEndDetails details) {
+    _isGesturing = false;
+  }
 
   void _onNodeTap(String personId) {
     final tracker = ref.read(analyticsTrackerProvider);
@@ -607,52 +658,16 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     }
 
     // ── SYNTHETIC EDGE FALLBACK ──────────────────────────────────────
-    // If we have 2+ persons but ZERO real relationships, the graph
-    // renders as floating disconnected nodes (E:0 in the debug badge).
-    // This happens when Relationship INSERTs failed silently (RLS,
-    // schema drift, anchor-not-found in add_person_sheet), or when
-    // members were added without picking a relationship type.
-    //
-    // v10 Fix #2b: Synthesize an 'extended' edge for EVERY orphan node.
-    // The old code only ran when newEdges.isEmpty, so as soon as one
-    // real edge existed, any other person with no relationship stayed
-    // isolated forever (e.g., Shravan in the screenshot).
-    //
-    // New approach: after building newEdges from real relationships,
-    // iterate every person and synthesize an edge for any person that
-    // has no incident edge. Use 'extended' (not 'related') so the
-    // synthetic edge uses the muted slate color and 0.45 alpha per
-    // EdgeStyleResolver — visually clear that it's a fallback line.
-    if (persons.length >= 2) {
-      final Set<String> connectedIds = <String>{};
-      for (final e in newEdges) {
-        connectedIds.add(e.sourceId);
-        connectedIds.add(e.targetId);
-      }
-
-      final anchor = persons.firstWhere(
-        (p) => p.isAnchor,
-        orElse: () => persons.first,
-      );
-
-      for (final person in persons) {
-        if (connectedIds.contains(person.id)) continue;
-        if (person.id.isEmpty) continue;
-        if (person.id == anchor.id) continue; // anchor is always connected
-
-        // Connect the orphan to the anchor via a low-emphasis 'extended'
-        // edge so it visually attaches to the tree.
-        newEdges.add(GraphEdgeData(
-          id: 'synthetic_${anchor.id}_${person.id}',
-          sourceId: anchor.id,
-          targetId: person.id,
-          relationshipKey: 'extended',
-        ));
-        connectedIds.add(person.id);
-        debugPrint('[EDGE-DEBUG] v10: Synthetic extended edge for orphan: '
-            '${anchor.id} → ${person.id}');
-      }
-    }
+    // v14 Fix #2: REMOVED synthetic edge fallback entirely.
+    // The synthetic 'extended' edges were causing:
+    //   1. Nodes stacked in a vertical line (layout engine treated
+    //      'extended' as same-generation = gen 0, stacking all orphans
+    //      directly below the anchor)
+    //   2. "Extended" label visible on node chips (confusing to users)
+    //   3. Fake connections between members with no real relationship
+    // Orphan nodes now sit at their proper generationIndex position
+    // with no fake edge. If a user wants to connect them, they use
+    // the Add Relative flow.
 
     _edges = newEdges;
 
@@ -846,74 +861,77 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             // PRODUCTION-READY PINCH-TO-ZOOM (CUSTOM IMPLEMENTATION)
             // ----------------------------------------------------------
             // ═══════════════════════════════════════════════════════════════
-            // v8 (2026-06-19): USE FLUTTER'S INTERACTIVEVIEWER
+            // v14: CUSTOM GESTURE DETECTOR (replaces InteractiveViewer)
             // ═══════════════════════════════════════════════════════════════
-            // The custom GraphPanZoom had persistent issues with
-            // pinch-to-zoom and panning across multiple iterations.
-            // Flutter's InteractiveViewer is battle-tested, handles
-            // all gesture types correctly (pinch, pan, double-tap),
-            // and works reliably on all platforms.
+            // InteractiveViewer's internal RawGestureDetector competed
+            // with every GraphNode's GestureDetector, losing pinch events
+            // unpredictably. Replaced with a single GestureDetector with
+            // onScaleStart/Update/End using correct focal-point math.
             //
-            // Key settings:
-            //   - constrained: false → child can be any size (canvas-sized)
-            //   - boundaryMargin: Infinity → user can pan freely
-            //   - clipBehavior: Clip.none → gestures work on empty space
-            //   - transformationController: shared with existing code
+            // Only ONE ScaleGestureRecognizer in the arena = zero conflicts.
+            // Node taps pass through via HitTestBehavior.translucent on
+            // GraphNode (set in v13).
             // ═══════════════════════════════════════════════════════════════
-            InteractiveViewer(
-              // FIX: No alignment override — default (null) keeps the
-              // transform origin at top-left, which is correct for our
-              // canvas-based layout. alignment: Alignment.center shifts
-              // the origin to center and breaks focal-point zoom math,
-              // causing the canvas to jump during pinch gestures.
-              transformationController: _transformationController,
-              constrained: false,
-              boundaryMargin: const EdgeInsets.all(double.infinity),
-              minScale: 0.1,
-              maxScale: 5.0,
-              // FIX: Clip.hardEdge (not Clip.none) so InteractiveViewer's
-              // internal RawGestureDetector is clipped to viewport bounds.
-              // Clip.none makes the gesture region unbounded, causing
-              // mis-routing of multi-touch events on some devices.
-              clipBehavior: Clip.hardEdge,
-              panEnabled: true,
-              scaleEnabled: true,
-              child: SizedBox(
-                width: canvasWidth,
-                height: canvasHeight,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // FIX: Removed the empty GestureDetector that was here.
-                    // Even with no callbacks, HitTestBehavior.opaque blocks
-                    // InteractiveViewer from seeing pointer-down events on
-                    // empty canvas areas, breaking two-finger pinch when
-                    // fingers start over empty space.
-                    // ── Edge Layer ────────────────────────────────
-                    Positioned.fill(
-                      child: CustomPaint(
-                        size: Size(canvasWidth, canvasHeight),
-                        painter: RelationshipEdge(
-                          positions: positions,
-                          edges: _edges,
-                          selectedEdgeId: _selectedEdgeId,
-                          zoomLevel: zoomLevel,
-                          nodeWidth: _nodeWidth,
-                          nodeHeight: _nodeHeight,
-                          generationMap: {
-                            for (final p in _personMap.values)
-                              p.id: p.generationIndex,
-                          },
-                          highlightedGeneration: _highlightedGeneration,
-                          anonymousNodeIds: _anonymousNodeIds,
-                          blockedNodeIds: _blockedNodeIds,
-                        ),
-                      ),
-                    ),
+            ClipRect(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onScaleStart: _onScaleStart,
+                onScaleUpdate: _onScaleUpdate,
+                onScaleEnd: _onScaleEnd,
+                child: AnimatedBuilder(
+                  animation: _transformationController,
+                  builder: (context, _) {
+                    final matrix = _transformationController.value;
+                    final scale = matrix.getMaxScaleOnAxis();
+                    final tx = matrix.getTranslation().x;
+                    final ty = matrix.getTranslation().y;
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned(
+                          left: tx,
+                          top: ty,
+                          child: Transform.scale(
+                            scale: scale,
+                            alignment: Alignment.topLeft,
+                            child: SizedBox(
+                              width: canvasWidth,
+                              height: canvasHeight,
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  // ── Edge Layer ────────────────────
+                                  Positioned.fill(
+                                    child: CustomPaint(
+                                      size: Size(canvasWidth, canvasHeight),
+                                      painter: RelationshipEdge(
+                                        positions: positions,
+                                        edges: _edges,
+                                        selectedEdgeId: _selectedEdgeId,
+                                        zoomLevel: zoomLevel,
+                                        nodeWidth: _nodeWidth,
+                                        nodeHeight: _nodeHeight,
+                                        generationMap: {
+                                          for (final p in _personMap.values)
+                                            p.id: p.generationIndex,
+                                        },
+                                        highlightedGeneration: _highlightedGeneration,
+                                        anonymousNodeIds: _anonymousNodeIds,
+                                        blockedNodeIds: _blockedNodeIds,
+                                      ),
+                                    ),
+                                  ),
 
-                    // ── Node Layer ────────────────────────────────
-                    ..._buildVisibleNodes(positions, zoomLevel, effectiveVisibleIds),
-                  ],
+                                  // ── Node Layer ────────────────────
+                                  ..._buildVisibleNodes(positions, zoomLevel, effectiveVisibleIds),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -1063,7 +1081,9 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
               nodeSize: _resolveNodeSize(zoomLevel),
               onTap: () => _onNodeTap(person.id),
               onLongPress: () => _onNodeLongPress(person.id),
-              onDoubleTap: () => _onNodeDoubleTap(person.id),
+              // v14: onDoubleTap set to null to prevent DoubleTapGestureRecognizer
+              // on each node from competing with the custom ScaleGestureRecognizer.
+              onDoubleTap: null,
             ),
           ),
         ),
