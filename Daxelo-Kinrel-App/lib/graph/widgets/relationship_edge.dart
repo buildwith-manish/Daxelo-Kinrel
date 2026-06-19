@@ -485,8 +485,13 @@ class RelationshipEdge extends CustomPainter {
     // ── Draw line path ─────────────────────────────────────────────
 
     if (category == EdgeCategory.sibling) {
-      // Sibling: curved arc above
-      _drawSiblingArc(canvas, start, end, paint);
+      // v10 Fix #2a: Sibling edges render as DASHED arcs.
+      // Full siblings use siblingDash [6.0, 4.0].
+      // Half-siblings use halfSiblingDash [2.0, 4.0].
+      final List<double> dashArray = isHalfSibling
+          ? EdgeStyleResolver.halfSiblingDash
+          : EdgeStyleResolver.siblingDash;
+      _drawSiblingArc(canvas, start, end, paint, dashArray: dashArray);
     } else if (category == EdgeCategory.spouse ||
         category == EdgeCategory.inLaw) {
       // Spouse/In-law: horizontal connector
@@ -496,7 +501,7 @@ class RelationshipEdge extends CustomPainter {
       _drawDashedLine(canvas, start, end, paint,
           dashArray: EdgeStyleResolver.defaultDash);
     } else if (isHalfSibling) {
-      // Half-sibling: dotted line
+      // Half-sibling fallback: dotted line
       _drawDashedLine(canvas, start, end, paint,
           dashArray: EdgeStyleResolver.halfSiblingDash);
     } else if (category == EdgeCategory.parent ||
@@ -548,10 +553,21 @@ class RelationshipEdge extends CustomPainter {
       // label was invisible at the default zoom — users thought the
       // graph was broken because edges had no labels.
       //
-      // We still skip when zoomed extremely far out (< 0.3) to avoid
-      // clutter, and skip when an indirect label was already drawn.
-      if (!isIndirect && zoomLevel >= 0.3) {
-        _drawRelationshipLabel(canvas, midpoint, edgeColor, relationshipKey);
+      // v10 Fix #3a: Lower threshold to 0.15 and add a fade-in alpha ramp
+      // from 0.15 → 0.35 so labels gracefully appear instead of popping in.
+      // Previously the hard cutoff at 0.3 made labels vanish for large
+      // graphs zoomed out, making the graph look broken.
+      final double labelOpacity =
+          ((zoomLevel - 0.15) / (0.35 - 0.15)).clamp(0.0, 1.0);
+
+      if (!isIndirect && zoomLevel >= 0.15) {
+        _drawRelationshipLabel(
+          canvas,
+          midpoint,
+          edgeColor,
+          relationshipKey,
+          opacity: labelOpacity,
+        );
       }
     }
   }
@@ -561,13 +577,18 @@ class RelationshipEdge extends CustomPainter {
   /// Examples: 'father' -> 'Father', 'father_in_law' -> 'Father In Law',
   /// 'elder_brother' -> 'Elder Brother', 'paternal_grandfather' ->
   /// 'Paternal Grandfather'.
+  ///
+  /// v10 Fix #3a: Accepts an optional opacity parameter (default 1.0)
+  /// for fade-in behavior at low zoom levels.
   void _drawRelationshipLabel(
     Canvas canvas,
     Offset center,
     Color edgeColor,
-    String relationshipKey,
-  ) {
+    String relationshipKey, {
+    double opacity = 1.0,
+  }) {
     if (relationshipKey.isEmpty || relationshipKey == 'unknown') return;
+    if (opacity <= 0.0) return;
 
     // Title-case each underscore-separated word.
     final formatted = relationshipKey
@@ -583,10 +604,10 @@ class RelationshipEdge extends CustomPainter {
 
     final textSpan = TextSpan(
       text: formatted,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: fontSize,
         fontWeight: FontWeight.w700,
-        color: Colors.white,
+        color: Colors.white.withValues(alpha: opacity),
       ),
     );
     final textPainter = TextPainter(
@@ -609,14 +630,15 @@ class RelationshipEdge extends CustomPainter {
     // v6: Solid background (alpha 0.95) so the label is fully readable
     // over any edge color or node. Tinted with the edge color so the
     // label visually associates with its edge category.
+    // v10 Fix #3a: Multiply alpha by opacity for fade-in.
     final bgPaint = Paint()
-      ..color = edgeColor.withValues(alpha: 0.95)
+      ..color = edgeColor.withValues(alpha: 0.95 * opacity)
       ..style = PaintingStyle.fill;
     canvas.drawRRect(pillRect, bgPaint);
 
     // Subtle white border for extra contrast on light backgrounds.
     final borderPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.25)
+      ..color = Colors.white.withValues(alpha: 0.25 * opacity)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.5;
     canvas.drawRRect(pillRect, borderPaint);
@@ -669,12 +691,15 @@ class RelationshipEdge extends CustomPainter {
   // ── Sibling Arc ────────────────────────────────────────────────────
 
   /// Draws a curved arc above sibling nodes.
+  /// v10 Fix #2a: Accepts optional dashArray to render dashed arcs
+  /// for full siblings (siblingDash) and half-siblings (halfSiblingDash).
   void _drawSiblingArc(
     Canvas canvas,
     Offset start,
     Offset end,
-    Paint paint,
-  ) {
+    Paint paint, {
+    List<double>? dashArray,
+  }) {
     final midX = (start.dx + end.dx) / 2;
     final arcHeight = (end.dx - start.dx).abs() * 0.25 + 30.0;
 
@@ -690,7 +715,30 @@ class RelationshipEdge extends CustomPainter {
         end.dy,
       );
 
-    canvas.drawPath(path, paint);
+    if (dashArray == null || dashArray.isEmpty) {
+      canvas.drawPath(path, paint);
+      return;
+    }
+
+    // Dash the arc path using PathMetrics
+    final dashedPath = Path();
+    for (final PathMetric metric in path.computeMetrics()) {
+      double distance = 0.0;
+      bool draw = true;
+      while (distance < metric.length) {
+        final double len = draw
+            ? dashArray.first
+            : (dashArray.length > 1 ? dashArray[1] : dashArray.first);
+        final double next = (distance + len).clamp(0.0, metric.length);
+        if (draw) {
+          final Path extracted = metric.extract(distance, next);
+          dashedPath.addPath(extracted, Offset.zero);
+        }
+        distance = next;
+        draw = !draw;
+      }
+    }
+    canvas.drawPath(dashedPath, paint);
   }
 
   // ── Bezier Curve ───────────────────────────────────────────────────
