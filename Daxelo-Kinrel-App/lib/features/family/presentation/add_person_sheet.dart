@@ -304,7 +304,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       setState(() {
         _selectedRelationshipKey = result;
         _selectedRelationshipLabel = result.snakeToTitle;
-        _selectedRelType = null; // clear simple type
+        _selectedRelType = null;   // ← clears simple card so no confusion
         _selectedSubType = null;
       });
     }
