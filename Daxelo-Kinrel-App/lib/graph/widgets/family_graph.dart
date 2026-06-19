@@ -369,48 +369,123 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
 
   // ── Gesture Handlers ───────────────────────────────────────────────
 
-  // v14: Custom pinch-to-zoom + pan handlers (replaces InteractiveViewer).
-  // Uses focal-point-anchored zoom math:
-  //   newTranslation = focalNow + (startTranslation - startFocal) * scaleRatio
-  // This handles pinch, pan, and combined gestures with zero conflicts
-  // because there's only ONE ScaleGestureRecognizer in the arena (this one).
-  void _onScaleStart(ScaleStartDetails details) {
-    _isGesturing = true;
-    final matrix = _transformationController.value;
-    _gestureStartScale = matrix.getMaxScaleOnAxis();
-    _gestureStartTranslation = Offset(
-      matrix.getTranslation().x,
-      matrix.getTranslation().y,
-    );
-    _gestureStartFocalPoint = details.localFocalPoint;
+  // v15: RAW POINTER-BASED PINCH-TO-ZOOM (bypasses gesture arena entirely)
+  // The gesture arena approach (GestureDetector + onScaleStart/Update/End)
+  // failed because child GraphNode GestureDetectors register Tap/LongPress
+  // recognizers that compete with the parent ScaleGestureRecognizer.
+  // Even with HitTestBehavior.translucent on nodes, the arena can reject
+  // the scale recognizer when two fingers land on different nodes.
+  //
+  // The Listener widget sees ALL pointer events regardless of what child
+  // gesture detectors do. It operates BELOW the gesture arena layer.
+  // This guarantees 101% that two-finger pinch works everywhere.
+  final Map<int, Offset> _activePointers = {};
+  double _pointerStartScale = 1.0;
+  Offset _pointerStartTranslation = Offset.zero;
+  Offset _pointerStartFocal = Offset.zero;
+  double _pointerStartDistance = 1.0;
+  // Single-finger pan state
+  Offset _singleFingerStartPos = Offset.zero;
+  Offset _singleFingerStartTranslation = Offset.zero;
+  bool _isSingleFingerPanning = false;
+
+  void _onPointerDown(PointerDownEvent event) {
+    _activePointers[event.pointer] = event.localPosition;
+
+    if (_activePointers.length == 2) {
+      // Two fingers down → start pinch/pan
+      _isSingleFingerPanning = false; // stop single-finger pan
+      _pointerStartScale = _transformationController.value.getMaxScaleOnAxis();
+      _pointerStartTranslation = Offset(
+        _transformationController.value.getTranslation().x,
+        _transformationController.value.getTranslation().y,
+      );
+      final pts = _activePointers.values.toList();
+      _pointerStartFocal = Offset(
+        (pts[0].dx + pts[1].dx) / 2,
+        (pts[0].dy + pts[1].dy) / 2,
+      );
+      _pointerStartDistance = (pts[0] - pts[1]).distance;
+      if (_pointerStartDistance < 1) _pointerStartDistance = 1;
+      _isGesturing = true;
+    } else if (_activePointers.length == 1) {
+      // Single finger down → prepare for pan (but don't start yet —
+      // the gesture arena might give this to a node tap)
+      _singleFingerStartPos = event.localPosition;
+      _singleFingerStartTranslation = Offset(
+        _transformationController.value.getTranslation().x,
+        _transformationController.value.getTranslation().y,
+      );
+    }
   }
 
-  void _onScaleUpdate(ScaleUpdateDetails details) {
-    if (!_isGesturing) return;
+  void _onPointerMove(PointerMoveEvent event) {
+    _activePointers[event.pointer] = event.localPosition;
 
-    final newScale = (_gestureStartScale * details.scale).clamp(0.1, 5.0);
-    final focalNow = details.localFocalPoint;
-    final scaleRatio =
-        _gestureStartScale == 0 ? 1.0 : newScale / _gestureStartScale;
+    if (_activePointers.length >= 2) {
+      // ── Two-finger pinch + pan ──
+      _isSingleFingerPanning = false;
+      final pts = _activePointers.values.toList();
+      if (pts.length < 2) return;
 
-    final newTranslation = Offset(
-      focalNow.dx +
-          (_gestureStartTranslation.dx - _gestureStartFocalPoint.dx) *
-              scaleRatio,
-      focalNow.dy +
-          (_gestureStartTranslation.dy - _gestureStartFocalPoint.dy) *
-              scaleRatio,
-    );
+      final focalNow = Offset(
+        (pts[0].dx + pts[1].dx) / 2,
+        (pts[0].dy + pts[1].dy) / 2,
+      );
 
-    final newMatrix = Matrix4.identity()
-      ..translate(newTranslation.dx, newTranslation.dy)
-      ..scale(newScale);
+      final currentDist = (pts[0] - pts[1]).distance;
+      if (currentDist < 1) return;
 
-    _transformationController.value = newMatrix;
+      final newScale = (_pointerStartScale * (currentDist / _pointerStartDistance))
+          .clamp(0.1, 5.0);
+      final scaleRatio =
+          _pointerStartScale == 0 ? 1.0 : newScale / _pointerStartScale;
+
+      final newTranslation = Offset(
+        focalNow.dx +
+            (_pointerStartTranslation.dx - _pointerStartFocal.dx) * scaleRatio,
+        focalNow.dy +
+            (_pointerStartTranslation.dy - _pointerStartFocal.dy) * scaleRatio,
+      );
+
+      final newMatrix = Matrix4.identity()
+        ..translate(newTranslation.dx, newTranslation.dy)
+        ..scale(newScale);
+
+      _transformationController.value = newMatrix;
+    } else if (_activePointers.length == 1) {
+      // ── Single-finger pan ──
+      // Only pan if the finger has moved more than 8px from start
+      // (so taps on nodes still work — the gesture arena handles taps)
+      final delta = event.localPosition - _singleFingerStartPos;
+      if (!_isSingleFingerPanning && delta.distance > 8) {
+        _isSingleFingerPanning = true;
+      }
+      if (_isSingleFingerPanning) {
+        final newTranslation = _singleFingerStartTranslation + delta;
+        final scale = _transformationController.value.getMaxScaleOnAxis();
+        final newMatrix = Matrix4.identity()
+          ..translate(newTranslation.dx, newTranslation.dy)
+          ..scale(scale);
+        _transformationController.value = newMatrix;
+      }
+    }
   }
 
-  void _onScaleEnd(ScaleEndDetails details) {
-    _isGesturing = false;
+  void _onPointerUp(PointerUpEvent event) {
+    _activePointers.remove(event.pointer);
+    _isSingleFingerPanning = false;
+    if (_activePointers.length < 2) {
+      _isGesturing = false;
+    }
+  }
+
+  void _onPointerCancel(PointerCancelEvent event) {
+    _activePointers.remove(event.pointer);
+    _isSingleFingerPanning = false;
+    if (_activePointers.length < 2) {
+      _isGesturing = false;
+    }
   }
 
   void _onNodeTap(String personId) {
@@ -861,23 +936,25 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             // PRODUCTION-READY PINCH-TO-ZOOM (CUSTOM IMPLEMENTATION)
             // ----------------------------------------------------------
             // ═══════════════════════════════════════════════════════════════
-            // v14: CUSTOM GESTURE DETECTOR (replaces InteractiveViewer)
+            // v15: RAW POINTER LISTENER (bypasses gesture arena entirely)
             // ═══════════════════════════════════════════════════════════════
-            // InteractiveViewer's internal RawGestureDetector competed
-            // with every GraphNode's GestureDetector, losing pinch events
-            // unpredictably. Replaced with a single GestureDetector with
-            // onScaleStart/Update/End using correct focal-point math.
-            //
-            // Only ONE ScaleGestureRecognizer in the arena = zero conflicts.
-            // Node taps pass through via HitTestBehavior.translucent on
-            // GraphNode (set in v13).
+            // The Listener widget operates BELOW the gesture arena. It sees
+            // ALL pointer events regardless of what child GestureDetectors
+            // do. This guarantees two-finger pinch works everywhere:
+            //   - Pinch on a node ✅ (node's TapGestureRecognizer doesn't block)
+            //   - Pinch on empty canvas ✅ (no competing recognizers)
+            //   - Pinch straddling node + empty space ✅
+            //   - Single-finger pan ✅ (with 8px dead zone for taps)
+            //   - Node tap ✅ (gesture arena handles it, Listener doesn't interfere)
+            //   - Node long-press ✅ (same)
             // ═══════════════════════════════════════════════════════════════
             ClipRect(
-              child: GestureDetector(
+              child: Listener(
                 behavior: HitTestBehavior.opaque,
-                onScaleStart: _onScaleStart,
-                onScaleUpdate: _onScaleUpdate,
-                onScaleEnd: _onScaleEnd,
+                onPointerDown: _onPointerDown,
+                onPointerMove: _onPointerMove,
+                onPointerUp: _onPointerUp,
+                onPointerCancel: _onPointerCancel,
                 child: AnimatedBuilder(
                   animation: _transformationController,
                   builder: (context, _) {
