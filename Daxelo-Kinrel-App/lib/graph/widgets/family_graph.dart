@@ -33,6 +33,7 @@ import '../data/family_graph_repository.dart' show GraphData, GraphEdgeData;
 import '../data/position_memory.dart';
 import '../interaction/camera_controller.dart';
 import '../rendering/viewport_culler.dart';
+import 'edge_midpoint_layer.dart';
 import 'empty_state.dart';
 import 'filter_panel.dart';
 import 'graph_legend.dart';
@@ -40,6 +41,7 @@ import 'graph_node.dart';
 // v8: GraphPanZoom import removed — now using Flutter's built-in InteractiveViewer
 import 'onboarding_flow.dart';
 import 'relationship_edge.dart';
+import 'relationship_info_sheet.dart';
 import 'search_bar.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -529,6 +531,44 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     });
   }
 
+  /// Called when the user taps the midpoint dot on a connection line.
+  /// Highlights the edge and shows the relationship info bottom sheet.
+  void _onEdgeMidpointTap(String edgeId) {
+    final edge = _edges.firstWhere(
+      (e) => e.id == edgeId,
+      orElse: () => const GraphEdgeData(
+        id: '', sourceId: '', targetId: '', relationshipKey: '',
+      ),
+    );
+    if (edge.id.isEmpty) return;
+
+    final source = _personMap[edge.sourceId];
+    final target = _personMap[edge.targetId];
+    if (source == null || target == null) return;
+
+    // Highlight the edge visually while the sheet is open
+    setState(() {
+      _selectedEdgeId = edgeId;
+      _selectedNodeId = null;
+    });
+
+    RelationshipInfoSheet.show(
+      context,
+      sourceId: edge.sourceId,
+      sourceName: source.name,
+      sourceGender: source.gender,
+      targetId: edge.targetId,
+      targetName: target.name,
+      targetGender: target.gender,
+      relationshipKey: edge.relationshipKey,
+    ).then((_) {
+      // Clear selection when sheet is dismissed
+      if (mounted) {
+        setState(() => _selectedEdgeId = null);
+      }
+    });
+  }
+
   // ── Quick Actions Bottom Sheet ─────────────────────────────────────
 
   void _showQuickActions(String personId) {
@@ -996,6 +1036,22 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
                                         anonymousNodeIds: _anonymousNodeIds,
                                         blockedNodeIds: _blockedNodeIds,
                                       ),
+                                    ),
+                                  ),
+
+                                  // ── Midpoint Hit Layer ────────────
+                                  // Transparent tap targets placed at
+                                  // every connection midpoint. Fires
+                                  // _onEdgeMidpointTap when tapped,
+                                  // showing the relationship info sheet.
+                                  Positioned.fill(
+                                    child: EdgeMidpointHitLayer(
+                                      edges: _edges,
+                                      positions: positions,
+                                      onMidpointTap: _onEdgeMidpointTap,
+                                      nodeWidth: _nodeWidth,
+                                      nodeHeight: _nodeHeight,
+                                      blockedNodeIds: _blockedNodeIds,
                                     ),
                                   ),
 
