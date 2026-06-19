@@ -861,6 +861,14 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             //   - transformationController: shared with existing code
             // ═══════════════════════════════════════════════════════════════
             InteractiveViewer(
+              alignment: Alignment.center,   // v11 Fix: flips internal RawGestureDetector
+                                              //   behavior from deferToChild → translucent,
+                                              //   so the entire viewport hit-tests to
+                                              //   InteractiveViewer's recognizers (no dead
+                                              //   zones when pinching across the canvas edge
+                                              //   on small graphs). Does not change visual
+                                              //   layout — initial centering matrix still
+                                              //   controls where the canvas appears.
               transformationController: _transformationController,
               constrained: false,
               boundaryMargin: const EdgeInsets.all(double.infinity),
@@ -875,17 +883,22 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    // v10 Fix #1D: Explicit hit-test layer to ensure empty
-                    // canvas area hit-tests to the InteractiveViewer. Without
-                    // this, pinches that begin over empty space (between nodes)
-                    // can fall through to whatever is behind the graph.
+                    // v11 Fix: Explicit hit-test layer to ensure empty canvas area
+                    // hit-tests to the InteractiveViewer. CRITICAL: this GestureDetector
+                    // must have NO callbacks — any non-null onScale*/onTap*/onPan* callback
+                    // would register a competing gesture recognizer that wins the arena
+                    // over InteractiveViewer's own ScaleGestureRecognizer and silently
+                    // swallows every two-finger pinch.
+                    //
+                    // A GestureDetector with HitTestBehavior.opaque and zero callbacks
+                    // still hit-tests (its render object's hitTestSelf returns true when
+                    // behavior != deferToChild), so touches on empty canvas are routed up
+                    // to InteractiveViewer's RawGestureDetector — but it adds ZERO
+                    // competing recognizers, so InteractiveViewer wins the arena.
                     Positioned.fill(
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onScaleStart: (_) {},
-                        onScaleUpdate: (_) {},
-                        // Do NOT handle tap here — let it bubble to
-                        // InteractiveViewer's pan/zoom.
+                        // Intentionally no callbacks.
                       ),
                     ),
                     // ── Edge Layer ────────────────────────────────
