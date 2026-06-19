@@ -34,7 +34,7 @@
 //   Indirect connection (blocked): dashed line, gray, "indirect" label
 
 import 'dart:math' as math;
-import 'dart:ui' show PathMetric;
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -723,7 +723,7 @@ class RelationshipEdge extends CustomPainter {
 
     // Dash the arc path using PathMetrics
     final dashedPath = Path();
-    for (final PathMetric metric in path.computeMetrics()) {
+    for (final ui.PathMetric metric in path.computeMetrics()) {
       double distance = 0.0;
       bool draw = true;
       while (distance < metric.length) {
