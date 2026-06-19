@@ -989,23 +989,14 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
   }
 
   try {
-    // Use offline-first repository if Isar is initialized
-    if (IsarDatabase.isInitialized) {
-      try {
-        final repo = ref.read(offlineFamilyRepositoryProvider);
-        return repo.getFamilyMembers(familyId);
-      } catch (e) {
-        debugPrint('⚠️ Offline repo getFamilyMembers failed, falling back: $e');
-        // Fall through to Supabase direct query
-      }
-    }
-
-    // Fallback to direct Supabase query (original behavior)
+    // v12 FIX: Query Supabase FIRST, not the offline cache.
+    // Same bug as familyRelationshipsProvider — the offline cache
+    // could return stale/empty data without throwing, preventing
+    // the provider from ever querying Supabase for fresh data.
     final client = ref.read(supabaseProvider);
     if (client == null) return [];
 
     // Guard against no valid session — RLS will deny queries
-    // When kAuthDisabled, allow access even without a session
     if (client.auth.currentSession == null && !kAuthDisabled) return [];
 
     final response = await client
@@ -1017,12 +1008,20 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
         .timeout(const Duration(seconds: 15));
 
     final list = response as List;
-    if (list.length > 20) {
-      return compute(_parsePersonList, list);
+    final persons = list.length > 20
+        ? await compute(_parsePersonList, list)
+        : list
+            .map((json) => Person.fromJson(json as Map<String, dynamic>))
+            .toList();
+
+    // v12: Update offline cache with fresh data (best-effort)
+    if (persons.isNotEmpty && IsarDatabase.isInitialized) {
+      try {
+        await CacheInvalidation.invalidateFamily(familyId);
+      } catch (_) {}
     }
-    return list
-        .map((json) => Person.fromJson(json as Map<String, dynamic>))
-        .toList();
+
+    return persons;
   } catch (e) {
     debugPrint('⚠️ familyMembersProvider error: $e');
 
@@ -1061,45 +1060,49 @@ final familyRelationshipsProvider =
         return [];
       }
 
+      // v12 FIX: Query Supabase FIRST, not the offline cache.
+      // The previous code tried the offline Isar cache first and only
+      // fell back to Supabase if the cache threw an exception. But if
+      // the cache returned an empty/stale list (no exception), the
+      // provider returned that stale data — never querying Supabase.
+      // This meant newly created relationships never appeared.
       try {
-        // Use offline-first repository if Isar is initialized
-        if (IsarDatabase.isInitialized) {
-          try {
-            final repo = ref.read(offlineFamilyRepositoryProvider);
-            return repo.getFamilyRelationships(familyId);
-          } catch (e) {
-            debugPrint('⚠️ Offline repo getFamilyRelationships failed, falling back: $e');
-            // Fall through to Supabase direct query
-          }
-        }
-
-        // Fallback to direct Supabase query (original behavior)
         final client = ref.read(supabaseProvider);
         if (client == null) return [];
 
         // Guard against no valid session — RLS will deny queries
-        // When kAuthDisabled, allow access even without a session
         if (client.auth.currentSession == null && !kAuthDisabled) return [];
 
-        // ✅ FIX: Filter by isActive = true to match NestJS backend behavior
-        // The backend's RelationshipsService.findAll() filters by isActive: true
         final response = await client
             .from(_kRelationshipTable)
             .select()
             .eq('familyId', familyId)
             .eq('isActive', true)
-            .order('createdAt', ascending: true);
+            .order('createdAt', ascending: true)
+            .timeout(const Duration(seconds: 15));
 
         final list = response as List;
         if (list.length > 20) {
           return compute(_parseRelationshipList, list);
         }
-        return list
+        final relationships = list
             .map(
               (json) =>
                   FamilyRelationship.fromJson(json as Map<String, dynamic>),
             )
             .toList();
+
+        // v12: If Supabase returned data, update the offline cache
+        // (best-effort — the cache will also be updated by background sync)
+        if (relationships.isNotEmpty && IsarDatabase.isInitialized) {
+          try {
+            // Cache invalidation triggers a background refresh of the
+            // offline cache, so we don't need to manually upsert here.
+            await CacheInvalidation.invalidateFamily(familyId);
+          } catch (_) {}
+        }
+
+        return relationships;
       } catch (e) {
         debugPrint('⚠️ familyRelationshipsProvider error: $e');
 
