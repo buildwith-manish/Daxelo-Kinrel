@@ -178,10 +178,10 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document);
 
-  const port = configService.get<number>('PORT', 5000);
-  await app.listen(port, '0.0.0.0');
+  const port = configService.get<number>('PORT', 3000);
+  await app.listen(port);
   loggerService.log(
-    `🚀 DAXELO KINREL Server running on http://0.0.0.0:${port}/${apiPrefix}`,
+    `🚀 DAXELO KINREL Server running on http://localhost:${port}/${apiPrefix}`,
     'Bootstrap',
   );
   loggerService.log(
