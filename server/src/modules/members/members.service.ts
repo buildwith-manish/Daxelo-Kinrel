@@ -3,11 +3,15 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { KinrelGateway, MinimalPayload } from '../gateway/kinrel.gateway';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
+import { getInverseKey } from '../relationships/relationships.service';
+import { GraphService } from '../graph/graph.service';
 
 const ROLE_HIERARCHY: Record<string, number> = {
   viewer: 1,
@@ -16,14 +20,26 @@ const ROLE_HIERARCHY: Record<string, number> = {
   admin: 4,
 };
 
+const CORE_RELATIONSHIP_KEYS = new Set([
+  'father', 'mother', 'son', 'daughter',
+  'brother', 'sister', 'husband', 'wife',
+]);
+
 @Injectable()
 export class MembersService {
   constructor(
     private prisma: PrismaService,
     private gateway: KinrelGateway,
+    @Inject(forwardRef(() => GraphService))
+    private graphService: GraphService,
   ) {}
 
-  /** Creates a new person in the family and increments the member count. */
+  /** Creates a new person in the family and increments the member count.
+   *
+   * When relativePersonId + initialRelationshipKey are provided, also creates
+   * a bidirectional relationship linking the new member to the existing person,
+   * and auto-computes the new member's generationIndex from the hierarchy.
+   */
   async create(userId: string, familyId: string, dto: CreateMemberDto) {
     await this.requireFamilyRole(userId, familyId, 'member');
 
@@ -31,7 +47,48 @@ export class MembersService {
       throw new BadRequestException('Person name is required');
     }
 
+    // Validate kinship linking params up-front
+    if (dto.relativePersonId && !dto.initialRelationshipKey) {
+      throw new BadRequestException('initialRelationshipKey is required when relativePersonId is provided');
+    }
+    if (dto.initialRelationshipKey && !dto.relativePersonId) {
+      throw new BadRequestException('relativePersonId is required when initialRelationshipKey is provided');
+    }
+    if (dto.initialRelationshipKey && !CORE_RELATIONSHIP_KEYS.has(dto.initialRelationshipKey)) {
+      throw new BadRequestException(
+        `Only core relationship types are allowed: ${[...CORE_RELATIONSHIP_KEYS].join(', ')}`,
+      );
+    }
+
     const person = await this.prisma.$transaction(async (tx) => {
+      // Resolve relative if kinship linking is requested
+      let relativeRecord: { id: string; gender: string | null; generationIndex: number } | null = null;
+      if (dto.relativePersonId && dto.initialRelationshipKey) {
+        relativeRecord = await tx.person.findFirst({
+          where: { id: dto.relativePersonId, familyId, deletedAt: null },
+          select: { id: true, gender: true, generationIndex: true },
+        });
+        if (!relativeRecord) {
+          throw new BadRequestException('Relative person not found in this family');
+        }
+      }
+
+      // Compute generationIndex from relationship if not explicitly provided
+      let computedGenIndex = dto.generationIndex ?? 0;
+      if (relativeRecord && dto.initialRelationshipKey && (dto.generationIndex === undefined || dto.generationIndex === 0)) {
+        const key = dto.initialRelationshipKey;
+        if (key === 'father' || key === 'mother') {
+          // New member IS parent → relative is the child → new member is one gen ABOVE relative
+          computedGenIndex = Math.max(0, relativeRecord.generationIndex - 1);
+        } else if (key === 'son' || key === 'daughter') {
+          // New member IS child → relative is the parent → new member is one gen BELOW relative
+          computedGenIndex = relativeRecord.generationIndex + 1;
+        } else {
+          // Sibling, spouse — same generation as relative
+          computedGenIndex = relativeRecord.generationIndex;
+        }
+      }
+
       const created = await tx.person.create({
         data: {
           familyId,
@@ -43,7 +100,7 @@ export class MembersService {
           birthYear: dto.birthYear || null,
           isAnchor: dto.isAnchor ?? false,
           sideOfFamily: dto.sideOfFamily || null,
-          generationIndex: dto.generationIndex ?? 0,
+          generationIndex: computedGenIndex,
           privacyLevel: 'family',
         },
       });
@@ -63,16 +120,73 @@ export class MembersService {
         });
       }
 
+      // Create bidirectional kinship relationship if requested
+      if (relativeRecord && dto.initialRelationshipKey) {
+        // Check for duplicate relationship
+        const existing = await tx.relationship.findFirst({
+          where: {
+            familyId,
+            fromPersonId: created.id,
+            toPersonId: relativeRecord.id,
+            relationshipKey: dto.initialRelationshipKey,
+          },
+        });
+
+        if (!existing) {
+          const inverseKey = getInverseKey(dto.initialRelationshipKey, relativeRecord.gender);
+
+          await tx.relationship.create({
+            data: {
+              familyId,
+              fromPersonId: created.id,
+              toPersonId: relativeRecord.id,
+              relationshipKey: dto.initialRelationshipKey,
+              direction: 'from',
+              isActive: true,
+            },
+          });
+
+          await tx.relationship.create({
+            data: {
+              familyId,
+              fromPersonId: relativeRecord.id,
+              toPersonId: created.id,
+              relationshipKey: inverseKey,
+              direction: 'from',
+              isActive: true,
+            },
+          });
+        }
+      }
+
       return created;
     });
 
-    // Emit MINIMAL payload — Flutter fetches full data from Isar/API if needed
+    // Emit person:created event
     this.gateway.emitToFamily(familyId, 'person:created', {
       id: person.id,
       updatedAt: (person.updatedAt ?? new Date()).toISOString(),
       type: 'person:created',
       familyId,
     });
+
+    // If relationship was created, emit graph:updated and invalidate caches
+    if (dto.relativePersonId && dto.initialRelationshipKey) {
+      this.gateway.emitToFamily(familyId, 'relationship:created', {
+        id: person.id,
+        updatedAt: new Date().toISOString(),
+        type: 'relationship:created',
+        familyId,
+      });
+      this.gateway.emitToFamily(familyId, 'graph:updated', {
+        id: familyId,
+        updatedAt: new Date().toISOString(),
+        type: 'graph:updated',
+        familyId,
+      });
+      // Invalidate both Redis and in-memory caches
+      await this.graphService.invalidateFlatGraphCache(familyId);
+    }
 
     return this.formatPerson(person);
   }

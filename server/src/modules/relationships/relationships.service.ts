@@ -29,8 +29,9 @@ const ALLOWED_CORE_KEYS = new Set([
 const INVERSE_RELATIONSHIP_MAP: Record<string, (toGender?: string | null) => string> = {
   father: (toGender) => toGender === 'female' ? 'daughter' : 'son',
   mother: (toGender) => toGender === 'female' ? 'daughter' : 'son',
-  son: () => 'father',
-  daughter: () => 'mother',
+  // son/daughter inverse depends on the PARENT's gender (toGender = the person being linked to)
+  son: (toGender) => toGender === 'female' ? 'mother' : 'father',
+  daughter: (toGender) => toGender === 'female' ? 'mother' : 'father',
   husband: () => 'wife',
   wife: () => 'husband',
   brother: (toGender) => toGender === 'female' ? 'sister' : 'brother',
@@ -156,6 +157,49 @@ export class RelationshipsService {
         where: { id: familyId },
         data: { lastActivityAt: new Date() },
       });
+
+      // Auto-update generationIndex to maintain consistent hierarchy
+      const key = dto.relationshipKey;
+      if (key === 'father' || key === 'mother') {
+        // fromPerson IS the parent → toPerson is the child (one generation down)
+        await tx.person.update({
+          where: { id: dto.toPersonId },
+          data: { generationIndex: fromPerson.generationIndex + 1 },
+        });
+      } else if (key === 'son' || key === 'daughter') {
+        // fromPerson IS the child → toPerson is the parent (one generation up)
+        // child gets parent's generationIndex + 1
+        await tx.person.update({
+          where: { id: dto.fromPersonId },
+          data: { generationIndex: toPerson.generationIndex + 1 },
+        });
+      } else if (key === 'brother' || key === 'sister') {
+        // Sync sibling to same generation if they have no explicit generationIndex set
+        if (toPerson.generationIndex === 0 && fromPerson.generationIndex !== 0) {
+          await tx.person.update({
+            where: { id: dto.toPersonId },
+            data: { generationIndex: fromPerson.generationIndex },
+          });
+        } else if (fromPerson.generationIndex === 0 && toPerson.generationIndex !== 0) {
+          await tx.person.update({
+            where: { id: dto.fromPersonId },
+            data: { generationIndex: toPerson.generationIndex },
+          });
+        }
+      } else if (key === 'husband' || key === 'wife') {
+        // Sync spouse to same generation if unset
+        if (toPerson.generationIndex === 0 && fromPerson.generationIndex !== 0) {
+          await tx.person.update({
+            where: { id: dto.toPersonId },
+            data: { generationIndex: fromPerson.generationIndex },
+          });
+        } else if (fromPerson.generationIndex === 0 && toPerson.generationIndex !== 0) {
+          await tx.person.update({
+            where: { id: dto.fromPersonId },
+            data: { generationIndex: toPerson.generationIndex },
+          });
+        }
+      }
 
       return forward;
     });

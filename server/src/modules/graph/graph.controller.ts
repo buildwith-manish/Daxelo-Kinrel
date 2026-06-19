@@ -43,8 +43,7 @@ export class GraphController {
     @Param('familyId') familyId: string,
     @Query('algorithm') algorithm: 'hierarchical' | 'radial' | 'force' = 'hierarchical',
   ): Promise<Record<string, { x: number; y: number }>> {
-    await this.graphService.resolveRootPersonId(userId, familyId);
-    return this.graphService.computeLayout(familyId, algorithm);
+    return this.graphService.computeLayout(userId, familyId, algorithm);
   }
 
   @Get(':familyId/member/:memberId')
@@ -54,8 +53,7 @@ export class GraphController {
     @Param('familyId') familyId: string,
     @Param('memberId') memberId: string,
   ) {
-    await this.graphService.resolveRootPersonId(userId, familyId);
-    return this.graphService.getMemberDetails(familyId, memberId);
+    return this.graphService.getMemberDetails(userId, familyId, memberId);
   }
 
   @Get(':familyId/generation/:gen')
@@ -65,8 +63,7 @@ export class GraphController {
     @Param('familyId') familyId: string,
     @Param('gen', new ParseIntPipe()) generation: number,
   ) {
-    await this.graphService.resolveRootPersonId(userId, familyId);
-    return this.graphService.getMembersByGeneration(familyId, generation);
+    return this.graphService.getMembersByGeneration(userId, familyId, generation);
   }
 
   @Get(':familyId')

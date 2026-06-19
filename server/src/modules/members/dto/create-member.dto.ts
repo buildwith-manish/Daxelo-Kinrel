@@ -52,4 +52,25 @@ export class CreateMemberDto {
   @Transform(({ value }) => (value !== undefined ? parseInt(value, 10) : 0))
   @IsInt()
   generationIndex?: number;
+
+  /**
+   * If provided, automatically creates a bidirectional relationship between
+   * the newly added member and this existing person in the family.
+   * Must be used together with initialRelationshipKey.
+   */
+  @IsOptional()
+  @IsString()
+  relativePersonId?: string;
+
+  /**
+   * The core relationship key describing how the new member relates TO the
+   * relativePersonId. Only core types are allowed:
+   * father, mother, son, daughter, brother, sister, husband, wife
+   *
+   * Example: if the new member is the SON of relativePersonId,
+   * set initialRelationshipKey = 'son'.
+   */
+  @IsOptional()
+  @IsIn(['father', 'mother', 'son', 'daughter', 'brother', 'sister', 'husband', 'wife'])
+  initialRelationshipKey?: string;
 }

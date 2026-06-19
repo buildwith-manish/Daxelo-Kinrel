@@ -130,57 +130,64 @@ export class GraphEngineService {
   // "sideways" = same generation or lateral (sibling, spouse)
 
   private static readonly DIRECTION_MAP: Record<string, 'up' | 'down' | 'sideways'> = {
-    // Core types
-    father: 'up',
-    mother: 'up',
-    son: 'down',
-    daughter: 'down',
+    // Core types — data model: A→B 'father' means "A IS the father of B"
+    // 'down' = following this edge goes to a YOUNGER generation (parent→child)
+    // 'up'   = following this edge goes to an OLDER generation (child→parent)
+    father: 'down',       // A IS father → B is A's child (younger) → edge goes DOWN
+    mother: 'down',
+    son: 'up',            // A IS son → B is A's parent (older) → edge goes UP
+    daughter: 'up',
     brother: 'sideways',
     sister: 'sideways',
     husband: 'sideways',
     wife: 'sideways',
-    // Extended types (stored in DB despite core-only design)
-    grandfather: 'up',
-    grandmother: 'up',
-    paternal_grandfather: 'up',
-    paternal_grandmother: 'up',
-    maternal_grandfather: 'up',
-    maternal_grandmother: 'up',
-    grandson: 'down',
-    granddaughter: 'down',
-    uncle: 'up',
-    aunt: 'up',
-    nephew: 'down',
-    niece: 'down',
+    // Grandparents: A IS grandparent → B is grandchild (younger) → DOWN
+    grandfather: 'down',
+    grandmother: 'down',
+    paternal_grandfather: 'down',
+    paternal_grandmother: 'down',
+    maternal_grandfather: 'down',
+    maternal_grandmother: 'down',
+    // Grandchildren: A IS grandchild → B is grandparent (older) → UP
+    grandson: 'up',
+    granddaughter: 'up',
+    // Great-grandparents / great-grandchildren
+    great_grandfather: 'down',
+    great_grandmother: 'down',
+    great_grandson: 'up',
+    great_granddaughter: 'up',
+    // Step-parents/children (same directional logic)
+    stepfather: 'down',
+    stepmother: 'down',
+    stepson: 'up',
+    stepdaughter: 'up',
+    // Lateral relationships (uncle/aunt, nephew/niece are sideways for ancestor/descendant traversal)
+    uncle: 'sideways',
+    aunt: 'sideways',
+    nephew: 'sideways',
+    niece: 'sideways',
     cousin: 'sideways',
-    husbands_father: 'up',
-    husbands_mother: 'up',
-    wives_father: 'up',
-    wives_mother: 'up',
-    sons_wife: 'down',
-    daughters_husband: 'down',
-    father_in_law: 'up',
-    mother_in_law: 'up',
-    son_in_law: 'down',
-    daughter_in_law: 'down',
+    // In-laws (lateral)
+    husbands_father: 'sideways',
+    husbands_mother: 'sideways',
+    wives_father: 'sideways',
+    wives_mother: 'sideways',
+    sons_wife: 'sideways',
+    daughters_husband: 'sideways',
+    father_in_law: 'sideways',
+    mother_in_law: 'sideways',
+    son_in_law: 'sideways',
+    daughter_in_law: 'sideways',
     brother_in_law: 'sideways',
     sister_in_law: 'sideways',
     elder_brother: 'sideways',
     younger_brother: 'sideways',
     elder_sister: 'sideways',
     younger_sister: 'sideways',
-    great_grandfather: 'up',
-    great_grandmother: 'up',
-    great_grandson: 'down',
-    great_granddaughter: 'down',
-    stepfather: 'up',
-    stepmother: 'up',
-    stepson: 'down',
-    stepdaughter: 'down',
-    fathers_brother: 'up',
-    fathers_sister: 'up',
-    mothers_brother: 'up',
-    mothers_sister: 'up',
+    fathers_brother: 'sideways',
+    fathers_sister: 'sideways',
+    mothers_brother: 'sideways',
+    mothers_sister: 'sideways',
   };
 
   // ── Kinship Composition Rules ────────────────────────────────────────
@@ -786,7 +793,16 @@ export class GraphEngineService {
       if (!adjacency.has(fromId)) {
         adjacency.set(fromId, []);
       }
-      adjacency.get(fromId)!.push({ neighborId: toId, relationshipKey: relKey, direction });
+
+      // Deduplication: since relationships are stored bidirectionally in the DB
+      // AND we compute inverse edges on top, skip if the exact same edge already exists
+      const existingEdges = adjacency.get(fromId)!;
+      const isDuplicate = existingEdges.some(
+        (e) => e.neighborId === toId && e.relationshipKey === relKey,
+      );
+      if (isDuplicate) return;
+
+      existingEdges.push({ neighborId: toId, relationshipKey: relKey, direction });
     };
 
     for (const rel of relationships) {

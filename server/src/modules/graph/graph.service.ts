@@ -603,7 +603,7 @@ export class GraphService {
     return { path: pathPersons, relationships: pathRelationships };
   }
 
-  /** Invalidate the Redis cache for a family's flat graph. */
+  /** Invalidate both the Redis flat-graph cache and the GraphEngine in-memory cache for a family. */
   async invalidateFlatGraphCache(familyId: string): Promise<void> {
     const cacheKey = `graph:flat:${familyId}`;
     try {
@@ -614,6 +614,9 @@ export class GraphService {
     } catch (err) {
       this.logger.warn(`Redis cache invalidation failed for ${cacheKey}`, err);
     }
+
+    // Also invalidate the GraphEngine in-memory cache so BFS/kinship results refresh
+    this.graphEngine.invalidateCache(familyId);
   }
 
   /** Returns the relationship path between two persons after verifying family membership. */
@@ -728,7 +731,8 @@ export class GraphService {
   }
 
   /** Compute layout positions for graph nodes based on the specified algorithm. */
-  async computeLayout(familyId: string, algorithm: string): Promise<Record<string, { x: number; y: number }>> {
+  async computeLayout(userId: string, familyId: string, algorithm: string): Promise<Record<string, { x: number; y: number }>> {
+    await this.requireFamilyMember(userId, familyId);
     const { persons } = await this.getFlatGraph(familyId);
 
     switch (algorithm) {
@@ -744,7 +748,8 @@ export class GraphService {
   }
 
   /** Get detailed member info for the info card popup. */
-  async getMemberDetails(familyId: string, memberId: string) {
+  async getMemberDetails(userId: string, familyId: string, memberId: string) {
+    await this.requireFamilyMember(userId, familyId);
     const person = await this.prisma.person.findFirst({
       where: { id: memberId, familyId, deletedAt: null },
       select: {
@@ -800,7 +805,8 @@ export class GraphService {
   }
 
   /** Get all members belonging to a specific generation within a family. */
-  async getMembersByGeneration(familyId: string, generation: number) {
+  async getMembersByGeneration(userId: string, familyId: string, generation: number) {
+    await this.requireFamilyMember(userId, familyId);
     const persons = await this.prisma.person.findMany({
       where: {
         familyId,
