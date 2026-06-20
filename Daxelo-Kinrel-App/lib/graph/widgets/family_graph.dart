@@ -21,6 +21,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/brand_colors.dart';
@@ -101,7 +102,8 @@ class FamilyGraphWidget extends ConsumerStatefulWidget {
   ConsumerState<FamilyGraphWidget> createState() => _FamilyGraphWidgetState();
 }
 
-class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
+class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
+    with SingleTickerProviderStateMixin {
   // ── Controllers ────────────────────────────────────────────────────
 
   late final CameraController _cameraController;
@@ -183,6 +185,18 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   bool _transformationControllerChangeFromExternal = false;
   bool _cameraControllerChangeFromInternal = false;
 
+  // ── Gesture state (ScaleGestureRecognizer-based pinch/pan) ─────────
+
+  double _gestureStartScale = 1.0;
+  Offset _gestureStartTranslation = Offset.zero;
+  Offset _gestureStartFocalPoint = Offset.zero;
+
+  // Fling / momentum state
+  late final AnimationController _flingController;
+  FrictionSimulation? _flingSimX;
+  FrictionSimulation? _flingSimY;
+  double _flingScale = 1.0;
+
   // ── Constants ──────────────────────────────────────────────────────
 
   static const double _nodeWidth = 72.0;
@@ -199,6 +213,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         widget.externalTransformController ?? TransformationController();
     _transformationController.addListener(_onTransformChanged);
     _openStopwatch.start();
+
+    // Fling / momentum animation controller (unbounded — the fling
+    // simulation drives it from 0→1 with a friction curve).
+    _flingController = AnimationController(vsync: this)
+      ..addListener(_onFlingTick);
 
     // v10 Fix #3c: Bridge CameraController output to TransformationController.
     // When CameraController.focusOnNode animates, it calls notifyListeners(),
@@ -257,6 +276,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   void dispose() {
     _cameraSaveDebounce?.cancel();
     _openStopwatch.stop();
+    _flingController.dispose();
     _transformationController.removeListener(_onTransformChanged);
     // Only dispose the transformation controller if we created it
     if (widget.externalTransformController == null) {
@@ -363,10 +383,105 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   }
 
   // ── Gesture Handlers ───────────────────────────────────────────────
-  // Gesture handling is now delegated to Flutter's InteractiveViewer,
-  // which provides smooth, map-like pinch-to-zoom and pan out of the
-  // box. The TransformationController bridges user gestures to the
-  // CameraController for programmatic animations (focus-on-node, etc.).
+  //
+  // Uses a GestureDetector with ScaleGestureRecognizer for pinch-to-zoom
+  // and one-finger pan. Child nodes use HitTestBehavior.translucent, so
+  // both the node's TapGestureRecognizer and our ScaleGestureRecognizer
+  // compete in the same arena:
+  //   • Single-finger tap → TapGestureRecognizer wins ✓
+  //   • Two-finger pinch → ScaleGestureRecognizer wins (2 pointers) ✓
+  //   • One-finger drag → ScaleGestureRecognizer (1-pointer pan) ✓
+  // The parent GestureDetector has NO onDoubleTap — this is critical.
+  // Having DoubleTapGestureRecognizer on the parent delays tap resolution
+  // and interferes with ScaleGestureRecognizer (confirmed GraphPanZoom v4.1).
+
+  void _onScaleStart(ScaleStartDetails details) {
+    // Stop any in-progress fling
+    _flingController.stop();
+    _flingSimX = null;
+    _flingSimY = null;
+
+    final matrix = _transformationController.value;
+    _gestureStartScale = matrix.getMaxScaleOnAxis();
+    _gestureStartTranslation = Offset(
+      matrix.getTranslation().x,
+      matrix.getTranslation().y,
+    );
+    // Use localFocalPoint (GestureDetector-local coords), NOT focalPoint
+    // (screen-global). Mixing coordinate spaces causes jumps.
+    _gestureStartFocalPoint = details.localFocalPoint;
+  }
+
+  void _onScaleUpdate(ScaleUpdateDetails details) {
+    final newScale = (_gestureStartScale * details.scale)
+        .clamp(0.05, 5.0);
+
+    final focalNow = details.localFocalPoint;
+    final scaleRatio =
+        _gestureStartScale == 0 ? 1.0 : newScale / _gestureStartScale;
+
+    // Focal-point-anchored zoom + pan (single formula handles all cases):
+    //   1. Pinch in place: focalNow ≈ focalStart → canvas zooms around focal ✓
+    //   2. Two-finger pan: scaleRatio ≈ 1 → canvas tracks focal movement ✓
+    //   3. Combined: both terms contribute ✓
+    final newTranslation = Offset(
+      focalNow.dx +
+          (_gestureStartTranslation.dx - _gestureStartFocalPoint.dx) *
+              scaleRatio,
+      focalNow.dy +
+          (_gestureStartTranslation.dy - _gestureStartFocalPoint.dy) *
+              scaleRatio,
+    );
+
+    _transformationController.value = Matrix4.identity()
+      ..translate(newTranslation.dx, newTranslation.dy)
+      ..scale(newScale);
+  }
+
+  void _onScaleEnd(ScaleEndDetails details) {
+    // ── Momentum / fling ──────────────────────────────────────────────
+    // If the user lifted their finger(s) while panning quickly, apply a
+    // decelerating fling so the graph glides to a stop — map-app feel.
+    final velocity = details.velocity.pixelsPerSecond;
+    final speed = velocity.distance;
+    if (speed < 50) return; // Too slow — skip fling
+
+    final matrix = _transformationController.value;
+    _flingScale = matrix.getMaxScaleOnAxis();
+    final startTx = matrix.getTranslation().x;
+    final startTy = matrix.getTranslation().y;
+
+    // FrictionSimulation: drag=0.015 → ~1–2 second glide (Google Maps feel).
+    // x(t) = position at time t (seconds); finalX = settled position.
+    _flingSimX = FrictionSimulation(0.015, startTx, velocity.dx);
+    _flingSimY = FrictionSimulation(0.015, startTy, velocity.dy);
+
+    // Compute how long until both axes settle, capped at 2.5 s.
+    final endTime = [
+      _flingSimX!.timeAtX(_flingSimX!.finalX),
+      _flingSimY!.timeAtX(_flingSimY!.finalX),
+    ].reduce((a, b) => a > b ? a : b).clamp(0.0, 2.5);
+
+    if (endTime <= 0) return;
+
+    _flingController.duration = Duration(
+      milliseconds: (endTime * 1000).round(),
+    );
+    // forward(from:0) → controller goes 0→1 over `duration` seconds.
+    // _onFlingTick maps controller.value * endTime → simulation seconds.
+    _flingController.forward(from: 0.0);
+  }
+
+  void _onFlingTick() {
+    if (_flingSimX == null || !mounted) return;
+    // Map normalized controller value (0→1) to real time in seconds.
+    final durationSecs =
+        (_flingController.duration?.inMilliseconds ?? 0) / 1000.0;
+    final t = _flingController.value * durationSecs;
+    _transformationController.value = Matrix4.identity()
+      ..translate(_flingSimX!.x(t), _flingSimY!.x(t))
+      ..scale(_flingScale);
+  }
 
   void _onNodeTap(String personId) {
     final tracker = ref.read(analyticsTrackerProvider);
@@ -851,71 +966,97 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
           children: [
             // ── Camera Transform Layer ───────────────────────────────
             //
-            // Uses Flutter's built-in InteractiveViewer for smooth,
-            // map-like pinch-to-zoom and one-finger pan. It uses the
-            // same TransformationController that the CameraController
-            // drives for programmatic animations (focus-on-node, fit).
+            // GestureDetector (ScaleGestureRecognizer) drives pinch-to-
+            // zoom, two-finger pan, and one-finger pan. The canvas is
+            // rendered via AnimatedBuilder → Positioned → Transform.scale,
+            // exactly matching the TransformationController matrix.
             //
-            // Why InteractiveViewer works here:
-            //   - Its ScaleGestureRecognizer handles pinch natively and
-            //     does NOT conflict with child TapGestureRecognizers.
-            //   - It has no DoubleTapGestureRecognizer of its own, so
-            //     child node double-tap (focus camera) works cleanly.
-            //   - boundaryMargin: infinite → free pan beyond canvas edges.
-            //   - constrained: false → canvas can be larger than viewport.
+            // Child nodes use HitTestBehavior.translucent + onDoubleTap:null
+            // so both the node TapGestureRecognizer and our parent
+            // ScaleGestureRecognizer compete fairly in the arena:
+            //   • Tap on node  → TapGestureRecognizer wins ✓
+            //   • Pinch/pan    → ScaleGestureRecognizer wins ✓
+            // The parent has NO onDoubleTap — adding one would create a
+            // DoubleTapGestureRecognizer that delays tap resolution and
+            // breaks the scale gesture (confirmed GraphPanZoom v4.1).
             ClipRect(
-              child: InteractiveViewer(
-                transformationController: _transformationController,
-                boundaryMargin: const EdgeInsets.all(double.infinity),
-                minScale: 0.05,
-                maxScale: 5.0,
-                constrained: false,
-                child: SizedBox(
-                  width: canvasWidth,
-                  height: canvasHeight,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      // ── Edge Layer ────────────────────────────────
-                      Positioned.fill(
-                        child: CustomPaint(
-                          size: Size(canvasWidth, canvasHeight),
-                          painter: RelationshipEdge(
-                            positions: positions,
-                            edges: _edges,
-                            selectedEdgeId: _selectedEdgeId,
-                            zoomLevel: zoomLevel,
-                            nodeWidth: _nodeWidth,
-                            nodeHeight: _nodeHeight,
-                            generationMap: {
-                              for (final p in _personMap.values)
-                                p.id: p.generationIndex,
-                            },
-                            highlightedGeneration: _highlightedGeneration,
-                            anonymousNodeIds: _anonymousNodeIds,
-                            blockedNodeIds: _blockedNodeIds,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onScaleStart: _onScaleStart,
+                onScaleUpdate: _onScaleUpdate,
+                onScaleEnd: _onScaleEnd,
+                // NO onDoubleTap — would break pinch (see comment above).
+                child: AnimatedBuilder(
+                  animation: _transformationController,
+                  builder: (context, _) {
+                    final matrix = _transformationController.value;
+                    final scale = matrix.getMaxScaleOnAxis();
+                    final tx = matrix.getTranslation().x;
+                    final ty = matrix.getTranslation().y;
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned(
+                          left: tx,
+                          top: ty,
+                          child: Transform.scale(
+                            scale: scale,
+                            alignment: Alignment.topLeft,
+                            child: SizedBox(
+                              width: canvasWidth,
+                              height: canvasHeight,
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  // ── Edge Layer ────────────────
+                                  Positioned.fill(
+                                    child: CustomPaint(
+                                      size: Size(canvasWidth, canvasHeight),
+                                      painter: RelationshipEdge(
+                                        positions: positions,
+                                        edges: _edges,
+                                        selectedEdgeId: _selectedEdgeId,
+                                        zoomLevel: zoomLevel,
+                                        nodeWidth: _nodeWidth,
+                                        nodeHeight: _nodeHeight,
+                                        generationMap: {
+                                          for (final p in _personMap.values)
+                                            p.id: p.generationIndex,
+                                        },
+                                        highlightedGeneration:
+                                            _highlightedGeneration,
+                                        anonymousNodeIds: _anonymousNodeIds,
+                                        blockedNodeIds: _blockedNodeIds,
+                                      ),
+                                    ),
+                                  ),
+
+                                  // ── Midpoint Hit Layer ────────
+                                  Positioned.fill(
+                                    child: EdgeMidpointHitLayer(
+                                      edges: _edges,
+                                      positions: positions,
+                                      onMidpointTap: _onEdgeMidpointTap,
+                                      nodeWidth: _nodeWidth,
+                                      nodeHeight: _nodeHeight,
+                                      blockedNodeIds: _blockedNodeIds,
+                                    ),
+                                  ),
+
+                                  // ── Node Layer ────────────────
+                                  ..._buildVisibleNodes(
+                                    positions,
+                                    zoomLevel,
+                                    effectiveVisibleIds,
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-
-                      // ── Midpoint Hit Layer ────────────────────────
-                      // Transparent tap targets at every edge midpoint.
-                      // Tapping shows the relationship info bottom sheet.
-                      Positioned.fill(
-                        child: EdgeMidpointHitLayer(
-                          edges: _edges,
-                          positions: positions,
-                          onMidpointTap: _onEdgeMidpointTap,
-                          nodeWidth: _nodeWidth,
-                          nodeHeight: _nodeHeight,
-                          blockedNodeIds: _blockedNodeIds,
-                        ),
-                      ),
-
-                      // ── Node Layer ────────────────────────────────
-                      ..._buildVisibleNodes(positions, zoomLevel, effectiveVisibleIds),
-                    ],
-                  ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -952,7 +1093,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             // of IgnorePointer wrapping a hidden widget. This guarantees
             // NO widget in the upper Stack layer participates in hit
             // testing when the panel is hidden, so all touches fall
-            // through to the InteractiveViewer below.
+            // through to the GestureDetector canvas layer below.
             if (_filterVisible)
               GraphFilterPanel(
                 isVisible: _filterVisible,
@@ -1334,3 +1475,4 @@ class _GraphPersonData {
         name: '',
       );
 }
+
