@@ -20,6 +20,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,8 +38,14 @@ import '../rendering/viewport_culler.dart';
 import 'edge_midpoint_layer.dart';
 import 'empty_state.dart';
 import 'filter_panel.dart';
+import 'graph_error_state.dart';
+import 'graph_gesture_math.dart';
 import 'graph_legend.dart';
 import 'graph_node.dart';
+import 'graph_node_state.dart';
+import 'graph_quick_actions.dart';
+import 'graph_relationship_labels.dart';
+import 'graph_web_gestures.dart';
 // v8: GraphPanZoom import removed — now using Flutter's built-in InteractiveViewer
 import 'onboarding_flow.dart';
 import 'relationship_edge.dart';
@@ -117,7 +124,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
   GraphLayoutResult? _layoutResult;
 
   /// Map of person ID → PersonData for quick lookups.
-  final Map<String, _GraphPersonData> _personMap = {};
+  final Map<String, GraphPersonData> _personMap = {};
 
   /// List of relationship edge data.
   /// NOT final — must be reassigned as a new list each build so that
@@ -331,7 +338,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
       final totalNodeCount = _layoutResult!.positions.length;
       if (totalNodeCount <= 30) {
         final allIds = Set<String>.from(_layoutResult!.positions.keys);
-        if (!_setsEqual(allIds, _visibleNodeIds)) {
+        if (!GraphRelationshipLabels.setsEqual(allIds, _visibleNodeIds)) {
           setState(() {
             _visibleNodeIds = allIds;
           });
@@ -365,11 +372,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
 
         // Always force-include the anchor node so it's never culled
         final anchorId = _personMap.values
-            .firstWhere((p) => p.isAnchor, orElse: () => _GraphPersonData.empty())
+            .firstWhere((p) => p.isAnchor, orElse: () => GraphPersonData.empty())
             .id;
         if (anchorId.isNotEmpty) newVisible.add(anchorId);
 
-        if (!_setsEqual(newVisible, _visibleNodeIds)) {
+        if (!GraphRelationshipLabels.setsEqual(newVisible, _visibleNodeIds)) {
           setState(() {
             _visibleNodeIds = newVisible;
           });
@@ -522,7 +529,10 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
   }
 
   void _onNodeLongPress(String personId) {
-    _showQuickActions(personId);
+    final person = _personMap[personId];
+    if (person != null) {
+      GraphQuickActions.show(context, person);
+    }
   }
 
   void _onNodeDoubleTap(String personId) {
@@ -584,81 +594,8 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
   }
 
   // ── Quick Actions Bottom Sheet ─────────────────────────────────────
-
-  void _showQuickActions(String personId) {
-    final person = _personMap[personId];
-    if (person == null) return;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: KinrelColors.darkCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
-      ),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
-              child: Container(
-                width: 40.0,
-                height: 4.0,
-                decoration: BoxDecoration(
-                  color: KinrelColors.textDim,
-                  borderRadius: BorderRadius.circular(2.0),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20.0,
-                vertical: 12.0,
-              ),
-              child: Text(
-                person.name,
-                style: const TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 18.0,
-                  fontWeight: FontWeight.w700,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-            ),
-            const Divider(color: Color(0x1AFFFFFF), height: 1.0),
-            ListTile(
-              leading:
-                  const Icon(Icons.person, color: KinrelColors.tealAccent),
-              title: const Text(
-                'View Profile',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit, color: KinrelColors.amber),
-              title: const Text(
-                'Edit',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-            const SizedBox(height: 8.0),
-          ],
-        ),
-      ),
-    );
-  }
+  // v31: _showQuickActions extracted to GraphQuickActions.show().
+  // The _onNodeLongPress handler now calls GraphQuickActions.show directly.
 
   // ── Add Member Sheet Handler ──────────────────────────────────────
 
@@ -700,7 +637,10 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
       loading: () => const Center(
         child: CircularProgressIndicator(color: KinrelColors.orange),
       ),
-      error: (error, stack) => _buildErrorState(error),
+      error: (error, stack) => GraphErrorState(
+        familyId: widget.familyId,
+        error: error,
+      ),
       data: (graphData) => _buildFromGraphData(graphData, reduceMotion),
     );
   }
@@ -733,7 +673,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
         );
       }
 
-      return _buildEmptyStack(
+      return GraphEmptyStack(
         child: EmptyState(
           familyId: widget.familyId,
           memberCount: 0,
@@ -764,7 +704,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
     final newEdges = <GraphEdgeData>[];
 
     for (final p in persons) {
-      _personMap[p.id] = _GraphPersonData(
+      _personMap[p.id] = GraphPersonData(
         id: p.id,
         name: p.name,
         gender: p.gender,
@@ -813,7 +753,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
     );
 
     if (_layoutResult == null || _layoutResult!.positions.isEmpty) {
-      return _buildEmptyStack(
+      return GraphEmptyStack(
         child: EmptyState(
           familyId: widget.familyId,
           memberCount: persons.length,
@@ -911,27 +851,26 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
               // triggers _onTransformChanged → setState() during build,
               // which Flutter silently discards. The matrix never takes
               // effect and the graph stays at identity (0,0) → blank.
+              //
+              // v31: The fit-transform math is now in
+              // GraphGestureMath.computeFitTransform — extracted for
+              // testability and reuse by the web gesture handler.
               final sw = screenW;
               final sh = screenH;
               final cw = canvasWidth;
               final ch = canvasHeight;
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!mounted) return;
-                const margin = 32.0;
-                final fitScaleX = (sw - margin * 2) / cw;
-                final fitScaleY = (sh - margin * 2) / ch;
-                var fitScale = fitScaleX < fitScaleY ? fitScaleX : fitScaleY;
-                final double fitCeiling = positions.length <= 12 ? 2.0 : 1.0;
-                if (fitScale > fitCeiling) fitScale = fitCeiling;
-                if (fitScale < 0.1) fitScale = 0.1;
-
-                final translateX = (sw / 2) - ((cw / 2) * fitScale);
-                final translateY = (sh / 2) - ((ch / 2) * fitScale);
-
-                final matrix = Matrix4.identity()
-                  ..translate(translateX, translateY)
-                  ..scale(fitScale);
-                _transformationController.value = matrix;
+                final matrix = GraphGestureMath.computeFitTransform(
+                  screenW: sw,
+                  screenH: sh,
+                  canvasW: cw,
+                  canvasH: ch,
+                  nodeCount: positions.length,
+                );
+                if (matrix != null) {
+                  _transformationController.value = matrix;
+                }
               });
             }
           }
@@ -982,7 +921,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
           // FIX C: Always force-include the anchor node in culling
           final anchorId = _personMap.values
               .firstWhere((p) => p.isAnchor,
-                  orElse: () => _GraphPersonData.empty())
+                  orElse: () => GraphPersonData.empty())
               .id;
           if (anchorId.isNotEmpty && !culled.contains(anchorId)) {
             culled.add(anchorId);
@@ -993,8 +932,14 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
 
         final effectiveVisibleIds = _visibleNodeIds;
 
-        return Stack(
-          children: [
+        // v31: Wrap the graph stack with GraphWebGestures for desktop
+        // mouse-wheel zoom + mouse-drag pan. On mobile (kIsWeb == false),
+        // GraphWebGestures is a no-op pass-through — touch gestures are
+        // handled by the GestureDetector inside the Stack below.
+        return GraphWebGestures(
+          transformationController: _transformationController,
+          child: Stack(
+            children: [
             // ── Camera Transform Layer ───────────────────────────────
             //
             // CRITICAL: Positioned.fill ensures the GestureDetector fills
@@ -1234,12 +1179,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
             // Developers who need to inspect graph state can use the
             // Flutter DevTools inspector or add print statements.
           ],
+          ),
         );
       },
     );
   }
-
-  // ── Visible Nodes Builder ──────────────────────────────────────────
 
   List<Widget> _buildVisibleNodes(
     Map<String, Offset> positions,
@@ -1270,15 +1214,16 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
       }
 
       // Determine node state
-      final nodeState = _resolveNodeState(
-        person.id,
-        isSelected,
-        isFocused,
-        isAnonymous,
+      final nodeState = GraphNodeStateResolver.resolve(
+        isSelected: isSelected,
+        isFocused: isFocused,
+        isAnonymous: isAnonymous,
       );
 
       // Resolve relationship label
-      final relationLabel = _getRelationLabel(person);
+      final relationLabel = GraphRelationshipLabels.getRelationLabel(
+        person, _personMap, _edges,
+      );
 
       nodes.add(
         Positioned(
@@ -1295,11 +1240,16 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
               photoUrl: isAnonymous ? null : person.photoUrl,
               isDeceased: person.isDeceased,
               isAnonymous: isAnonymous,
-              relationshipKey: _getRelationshipKey(person.id),
+              relationshipKey: GraphRelationshipLabels.getRelationshipKey(
+                person.id, _personMap, _edges,
+              ),
               relationLabel: relationLabel,
               nodeState: nodeState,
               opacity: nodeOpacity,
-              nodeSize: _resolveNodeSize(zoomLevel),
+              nodeSize: GraphNodeStateResolver.resolveSize(
+                viewportWidth: _viewportSize.width,
+                zoomLevel: zoomLevel,
+              ),
               onTap: () => _onNodeTap(person.id),
               onLongPress: () => _onNodeLongPress(person.id),
               // v14: onDoubleTap set to null to prevent DoubleTapGestureRecognizer
@@ -1314,264 +1264,20 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
     return nodes;
   }
 
-  // ── Node State Resolution ──────────────────────────────────────────
-
-  NodeState _resolveNodeState(
-    String personId,
-    bool isSelected,
-    bool isFocused,
-    bool isAnonymous,
-  ) {
-    if (isAnonymous) return NodeState.normal;
-    if (isFocused) return NodeState.focused;
-    if (isSelected) return NodeState.selected;
-    return NodeState.normal;
-  }
-
-  /// Resolves responsive node size based on screen width breakpoints
-  /// per V2.1 Blueprint §20, combined with zoom level.
-  double _resolveNodeSize(double zoomLevel) {
-    // Screen-width breakpoints take priority
-    final screenWidth = _viewportSize.width;
-    double baseSize;
-    if (screenWidth < 400) {
-      baseSize = 48.0; // Compact: iPhone SE
-    } else if (screenWidth < 720) {
-      baseSize = 56.0; // Standard: iPhone 15, Pixel 8
-    } else if (screenWidth < 1024) {
-      baseSize = 60.0; // Expanded: large phones, small tablets
-    } else {
-      baseSize = 64.0; // Large: iPad Air and above
-    }
-
-    // Zoom-level scaling on top of base
-    if (zoomLevel < 0.5) return baseSize * 0.85; // compact at zoom
-    if (zoomLevel < 0.8) return baseSize * 0.95; // standard at zoom
-    if (zoomLevel < 1.5) return baseSize; // expanded at zoom
-    return baseSize * 1.05; // large at zoom
-  }
-
-  // ── Relationship Label ─────────────────────────────────────────────
-
-  /// Returns the relationship label for [person] relative to the anchor.
-  String _getRelationLabel(_GraphPersonData person) {
-    if (person.isAnchor) return 'You';
-
-    // Find a true anchor — if none exists, no relation labels can be shown
-    final anchors = _personMap.values.where((p) => p.isAnchor).toList();
-    if (anchors.isEmpty) return '';
-    final anchor = anchors.first;
-    if (anchor.id == person.id) return 'You'; // shouldn't happen since person.isAnchor checked above
-
-    // Search for an edge connecting this person to the anchor
-    for (final edge in _edges) {
-      if (edge.sourceId == anchor.id && edge.targetId == person.id) {
-        return _formatKey(edge.relationshipKey);
-      }
-      if (edge.sourceId == person.id && edge.targetId == anchor.id) {
-        return _formatKey(_getInverseKey(edge.relationshipKey));
-      }
-    }
-
-    return '';
-  }
-
-  /// Returns the relationship key for a person from the anchor.
-  String? _getRelationshipKey(String personId) {
-    final anchor = _personMap.values.firstWhere(
-      (p) => p.isAnchor,
-      orElse: () => _GraphPersonData.empty(),
-    );
-
-    for (final edge in _edges) {
-      if (edge.sourceId == anchor.id && edge.targetId == personId) {
-        return edge.relationshipKey;
-      }
-      if (edge.sourceId == personId && edge.targetId == anchor.id) {
-        return _getInverseKey(edge.relationshipKey);
-      }
-    }
-    return null;
-  }
-
-  /// Formats a relationship key like 'father_in_law' → 'Father In Law'.
-  static String _formatKey(String key) {
-    return key
-        .replaceAll('_', ' ')
-        .split(' ')
-        .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
-        .join(' ');
-  }
-
-  /// Returns the inverse relationship key.
-  static String _getInverseKey(String key) {
-    const inverseMap = <String, String>{
-      // Core parent/child
-      'father': 'son',
-      'mother': 'daughter',
-      'son': 'father',
-      'daughter': 'mother',
-      'parent': 'child',
-      'child': 'parent',
-      // Sibling
-      'brother': 'brother',
-      'sister': 'sister',
-      'sibling': 'sibling',
-      'elder_brother': 'younger_brother',
-      'younger_brother': 'elder_brother',
-      'elder_sister': 'younger_sister',
-      'younger_sister': 'elder_sister',
-      'half_brother': 'half_brother',
-      'half_sister': 'half_sister',
-      // Spouse
-      'husband': 'wife',
-      'wife': 'husband',
-      'spouse': 'spouse',
-      'partner': 'partner',
-      // Grandparent / grandchild
-      'grandfather': 'grandson',
-      'grandmother': 'granddaughter',
-      'grandson': 'grandfather',
-      'granddaughter': 'grandmother',
-      'grandparent': 'grandchild',
-      'grandchild': 'grandparent',
-      'paternal_grandfather': 'grandson',
-      'paternal_grandmother': 'granddaughter',
-      'maternal_grandfather': 'grandson',
-      'maternal_grandmother': 'granddaughter',
-      // Uncle / aunt / nephew / niece
-      'uncle': 'nephew',
-      'aunt': 'niece',
-      'nephew': 'uncle',
-      'niece': 'aunt',
-      'paternal_uncle': 'nephew',
-      'paternal_aunt': 'niece',
-      'maternal_uncle': 'nephew',
-      'maternal_aunt': 'niece',
-      // Cousin
-      'cousin': 'cousin',
-      'cousin_brother': 'cousin_sister',
-      'cousin_sister': 'cousin_brother',
-      // In-law
-      'father_in_law': 'son_in_law',
-      'mother_in_law': 'daughter_in_law',
-      'son_in_law': 'father_in_law',
-      'daughter_in_law': 'mother_in_law',
-      'brother_in_law': 'sister_in_law',
-      'sister_in_law': 'brother_in_law',
-      // Step
-      'stepfather': 'stepson',
-      'stepmother': 'stepdaughter',
-      'stepson': 'stepfather',
-      'stepdaughter': 'stepmother',
-      'stepbrother': 'stepbrother',
-      'stepsister': 'stepsister',
-    };
-    return inverseMap[key] ?? key;
-  }
-
-  /// Compares two Sets by value (not reference).
-  static bool _setsEqual(Set<String> a, Set<String> b) {
-    if (a.length != b.length) return false;
-    for (final item in a) {
-      if (!b.contains(item)) return false;
-    }
-    return true;
-  }
-
-  // ── Error State ────────────────────────────────────────────────────
-
-  Widget _buildErrorState(Object error) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.error_outline,
-            size: 48.0,
-            color: KinrelColors.error,
-          ),
-          const SizedBox(height: 16.0),
-          Text(
-            'Failed to load graph',
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 18.0,
-              fontWeight: FontWeight.w600,
-              color: KinrelColors.textWhite,
-            ),
-          ),
-          const SizedBox(height: 8.0),
-          Text(
-            error.toString(),
-            style: const TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 13.0,
-              color: KinrelColors.textSilver,
-            ),
-            textAlign: TextAlign.center,
-            maxLines: 3,
-          ),
-          const SizedBox(height: 16.0),
-          ElevatedButton(
-            onPressed: () {
-              ref.invalidate(familyGraphProvider(widget.familyId));
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: KinrelColors.orange,
-            ),
-            child: const Text('Retry'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Empty Stack Wrapper ────────────────────────────────────────────
-
-  Widget _buildEmptyStack({required Widget child}) {
-    // EmptyState handles the zero-member UI.
-    return Stack(
-      children: [
-        child,
-      ],
-    );
-  }
+  // v31: The following methods have been extracted to separate files:
+  //   - _resolveNodeState        → GraphNodeStateResolver.resolve()
+  //   - _resolveNodeSize         → GraphNodeStateResolver.resolveSize()
+  //   - _getRelationLabel        → GraphRelationshipLabels.getRelationLabel()
+  //   - _getRelationshipKey      → GraphRelationshipLabels.getRelationshipKey()
+  //   - _formatKey               → GraphRelationshipLabels.formatKey()
+  //   - _getInverseKey           → GraphRelationshipLabels.getInverseKey()
+  //   - _setsEqual               → GraphRelationshipLabels.setsEqual()
+  //   - _buildErrorState         → GraphErrorState widget
+  //   - _buildEmptyStack         → GraphEmptyStack widget
+  //   - _showQuickActions         → GraphQuickActions.show()
+  //   - _GraphPersonData class   → GraphPersonData (in graph_relationship_labels.dart)
+  // See the imports at the top of this file for the new locations.
 }
-
-// ═══════════════════════════════════════════════════════════════════════
-// INTERNAL DATA MODELS
-// ═══════════════════════════════════════════════════════════════════════
-
-class _GraphPersonData {
-  final String id;
-  final String name;
-  final String? gender;
-  final int generationIndex;
-  final bool isAnchor;
-  final String? photoUrl;
-  final bool isDeceased;
-  final String? relationshipKey;
-  final int disclosureLevel;
-
-  const _GraphPersonData({
-    required this.id,
-    required this.name,
-    this.gender,
-    this.generationIndex = 0,
-    this.isAnchor = false,
-    this.photoUrl,
-    this.isDeceased = false,
-    this.relationshipKey,
-    this.disclosureLevel = 1,
-  });
-
-  factory _GraphPersonData.empty() => const _GraphPersonData(
-        id: '',
-        name: '',
-      );
-}
-
 // ═══════════════════════════════════════════════════════════════════════
 // GRAPH TOOL BUTTON
 // Small circular icon button used for the fit-to-view / zoom controls.
