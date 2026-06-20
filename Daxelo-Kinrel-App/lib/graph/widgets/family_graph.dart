@@ -175,6 +175,20 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
   /// Whether the initial camera centering on the anchor node has been done.
   bool _initialCenterDone = false;
 
+  /// v26 BUG-FIX (blank screen):
+  /// Fingerprint of the last graph layout we successfully rendered with
+  /// auto-center applied. When the graph data changes (members added/
+  /// removed, relationships changed), the fingerprint changes and we
+  /// force `_initialCenterDone = false` so the next build re-applies the
+  /// auto-centering transform.
+  ///
+  /// Without this, a stale transform restored from SharedPreferences
+  /// (or a transform left over from a previous layout with different
+  /// canvas dimensions) would be honored via the
+  /// `hasExistingTransform` branch in `_buildGraphStack`, leaving the
+  /// canvas rendered at coordinates outside the viewport → blank screen.
+  String _previousGraphFingerprint = '';
+
   /// Whether onboarding has been permanently dismissed for this family.
   /// This is a local cache so we don't need to check the async provider
   /// on every build, preventing onboarding flashes.
@@ -808,6 +822,40 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
           },
         ),
       );
+    }
+
+    // v26 BUG-FIX (blank screen):
+    // Compute a fingerprint of the current graph layout. If it differs
+    // from the last one we rendered, force re-centering by clearing
+    // `_initialCenterDone`. This ensures that when the graph data
+    // changes (members added/removed, relationships changed), the
+    // auto-center transform is recomputed for the new canvas dimensions
+    // instead of reusing a stale transform that may now point outside
+    // the viewport.
+    //
+    // The fingerprint includes the sorted person IDs and the canvas
+    // dimensions. Including canvas dimensions catches the case where
+    // the same set of persons produces a different layout (e.g., after
+    // a relationship is added/removed, the BFS generation assignment
+    // changes and the radial rings shift).
+    final sortedPersonIds = (persons.map((p) => p.id).toList()..sort()).join(',');
+    final fingerprint =
+        '${sortedPersonIds}|${_layoutResult!.canvasWidth.toStringAsFixed(0)}x'
+        '${_layoutResult!.canvasHeight.toStringAsFixed(0)}|'
+        '${relationships.length}';
+    if (fingerprint != _previousGraphFingerprint) {
+      // Graph layout changed — discard any stale saved transform and
+      // force the auto-center block in _buildGraphStack to run.
+      _initialCenterDone = false;
+      _previousGraphFingerprint = fingerprint;
+      // Clear any external transform that was restored from
+      // SharedPreferences in the parent screen's initState. Without
+      // this, the `hasExistingTransform` branch below would honor the
+      // stale transform and skip auto-center, reproducing the blank
+      // screen even after we've decided to re-center.
+      if (widget.externalTransformController != null) {
+        widget.externalTransformController!.value = Matrix4.identity();
+      }
     }
 
     // Track graph open time on first render

@@ -1451,16 +1451,70 @@ Future<Person> createPerson({
   }
 
   // ── Step 3: If this person is the anchor, update Family.anchorPersonId ──
-  if (isAnchor) {
-    try {
+  // v26 BUG-FIX: Always check if Family.anchorPersonId is null when adding
+  // a new person. If it is, set it to the FIRST person in the family
+  // (preferring this new person if isAnchor=true, otherwise the oldest
+  // existing person). This prevents the data-inconsistency state where
+  // Person.isAnchor=true but Family.anchorPersonId stays null, which
+  // caused the blank-graph bug in Example Manish and 15 other families
+  // found in the production DB.
+  try {
+    final familyRow = await client
+        .from('Family')
+        .select('anchorPersonId')
+        .eq('id', familyId)
+        .maybeSingle()
+        .timeout(const Duration(seconds: 5));
+
+    final currentAnchorId = familyRow?['anchorPersonId'] as String?;
+
+    if (currentAnchorId == null || currentAnchorId.isEmpty) {
+      // Family has no anchor — pick the right person to become the anchor.
+      String newAnchorId;
+      if (isAnchor) {
+        // This new person is the anchor (e.g., family creator) — use them.
+        newAnchorId = person.id;
+      } else {
+        // Fall back: use the oldest existing non-deleted Person in the family.
+        final existing = await client
+            .from('Person')
+            .select('id')
+            .eq('familyId', familyId)
+            .isFilter('deletedAt', null)
+            .order('createdAt', ascending: true)
+            .limit(1)
+            .timeout(const Duration(seconds: 5));
+        if (existing is List && existing.isNotEmpty) {
+          newAnchorId = existing.first['id'] as String;
+          // Also mark them as isAnchor=true so Person and Family stay consistent.
+          await client
+              .from('Person')
+              .update({'isAnchor': true})
+              .eq('id', newAnchorId)
+              .timeout(const Duration(seconds: 5));
+        } else {
+          newAnchorId = person.id;
+        }
+      }
+
+      await client
+          .from('Family')
+          .update({'anchorPersonId': newAnchorId})
+          .eq('id', familyId)
+          .timeout(const Duration(seconds: 5));
+      debugPrint('[createPerson] Backfilled Family.anchorPersonId = $newAnchorId');
+    } else if (isAnchor) {
+      // Family already has an anchor but the caller marked this new person
+      // as anchor (e.g., family creator re-claiming anchor). Update it.
       await client
           .from('Family')
           .update({'anchorPersonId': person.id})
           .eq('id', familyId)
           .timeout(const Duration(seconds: 5));
-    } catch (e) {
-      debugPrint('[createPerson] anchorPersonId update failed (non-fatal): $e');
+      debugPrint('[createPerson] Updated Family.anchorPersonId = ${person.id}');
     }
+  } catch (e) {
+    debugPrint('[createPerson] anchorPersonId update failed (non-fatal): $e');
   }
 
   // ── Step 4: Invalidate all providers so the UI refreshes immediately ──
