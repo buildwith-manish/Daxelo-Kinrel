@@ -114,23 +114,16 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     }
   }
 
-  /// Restores the transform matrix from SharedPreferences.
+  /// v21 FIX: Do NOT restore saved transform from SharedPreferences.
+  /// The saved transform was computed for a DIFFERENT family's canvas
+  /// dimensions. Restoring it positions the new family's canvas at
+  /// wrong coordinates → nodes appear off-screen → blank graph.
+  /// Instead, always start with identity so the FamilyGraphWidget's
+  /// auto-centering logic can compute the correct matrix for the
+  /// current family's canvas dimensions.
   Future<void> _restoreTransformState() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final stored = prefs.getStringList(
-        '$_transformPrefsPrefix${widget.familyId}',
-      );
-      if (stored != null && stored.length == 16) {
-        final values = stored.map((v) => double.tryParse(v) ?? 0.0).toList();
-        final m = Matrix4.fromList(values);
-        if (mounted) {
-          _graphTransformController.value = m;
-        }
-      }
-    } catch (e) {
-      debugPrint('Failed to restore transform state: $e');
-    }
+    // Explicitly reset to identity — no saved transform
+    _graphTransformController.value = Matrix4.identity();
   }
 
   // ── Zoom helpers ───────────────────────────────────────────────────

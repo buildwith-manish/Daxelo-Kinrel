@@ -257,10 +257,17 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
   @override
   void didUpdateWidget(covariant FamilyGraphWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // v21 FIX: Reset centering when familyId changes OR when graphData
+    // changes (new members added). The old code only reset on familyId
+    // change, so adding a member to the same family didn't re-center.
     if (oldWidget.familyId != widget.familyId) {
       _initialCenterDone = false;
       _viewportCuller = null;
       _onboardingLocallyDismissed = false;
+    }
+    // v21: Also reset centering if graphData changed (new members added)
+    if (oldWidget.graphData != widget.graphData && widget.graphData != null) {
+      _initialCenterDone = false;
     }
     // Detect when the external transform controller is reset to identity
     // (e.g., user tapped "Center on Root" in the parent screen) and
