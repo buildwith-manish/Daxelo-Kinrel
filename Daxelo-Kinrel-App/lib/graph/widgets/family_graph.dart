@@ -183,13 +183,6 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   bool _transformationControllerChangeFromExternal = false;
   bool _cameraControllerChangeFromInternal = false;
 
-  // v14: Custom gesture state for pinch-to-zoom + pan.
-  // Replaces InteractiveViewer which had persistent gesture conflicts.
-  double _gestureStartScale = 1.0;
-  Offset _gestureStartTranslation = Offset.zero;
-  Offset _gestureStartFocalPoint = Offset.zero;
-  bool _isGesturing = false;
-
   // ── Constants ──────────────────────────────────────────────────────
 
   static const double _nodeWidth = 72.0;
@@ -370,125 +363,10 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   }
 
   // ── Gesture Handlers ───────────────────────────────────────────────
-
-  // v15: RAW POINTER-BASED PINCH-TO-ZOOM (bypasses gesture arena entirely)
-  // The gesture arena approach (GestureDetector + onScaleStart/Update/End)
-  // failed because child GraphNode GestureDetectors register Tap/LongPress
-  // recognizers that compete with the parent ScaleGestureRecognizer.
-  // Even with HitTestBehavior.translucent on nodes, the arena can reject
-  // the scale recognizer when two fingers land on different nodes.
-  //
-  // The Listener widget sees ALL pointer events regardless of what child
-  // gesture detectors do. It operates BELOW the gesture arena layer.
-  // This guarantees 101% that two-finger pinch works everywhere.
-  final Map<int, Offset> _activePointers = {};
-  double _pointerStartScale = 1.0;
-  Offset _pointerStartTranslation = Offset.zero;
-  Offset _pointerStartFocal = Offset.zero;
-  double _pointerStartDistance = 1.0;
-  // Single-finger pan state
-  Offset _singleFingerStartPos = Offset.zero;
-  Offset _singleFingerStartTranslation = Offset.zero;
-  bool _isSingleFingerPanning = false;
-
-  void _onPointerDown(PointerDownEvent event) {
-    _activePointers[event.pointer] = event.localPosition;
-
-    if (_activePointers.length == 2) {
-      // Two fingers down → start pinch/pan
-      _isSingleFingerPanning = false; // stop single-finger pan
-      _pointerStartScale = _transformationController.value.getMaxScaleOnAxis();
-      _pointerStartTranslation = Offset(
-        _transformationController.value.getTranslation().x,
-        _transformationController.value.getTranslation().y,
-      );
-      final pts = _activePointers.values.toList();
-      _pointerStartFocal = Offset(
-        (pts[0].dx + pts[1].dx) / 2,
-        (pts[0].dy + pts[1].dy) / 2,
-      );
-      _pointerStartDistance = (pts[0] - pts[1]).distance;
-      if (_pointerStartDistance < 1) _pointerStartDistance = 1;
-      _isGesturing = true;
-    } else if (_activePointers.length == 1) {
-      // Single finger down → prepare for pan (but don't start yet —
-      // the gesture arena might give this to a node tap)
-      _singleFingerStartPos = event.localPosition;
-      _singleFingerStartTranslation = Offset(
-        _transformationController.value.getTranslation().x,
-        _transformationController.value.getTranslation().y,
-      );
-    }
-  }
-
-  void _onPointerMove(PointerMoveEvent event) {
-    _activePointers[event.pointer] = event.localPosition;
-
-    if (_activePointers.length >= 2) {
-      // ── Two-finger pinch + pan ──
-      _isSingleFingerPanning = false;
-      final pts = _activePointers.values.toList();
-      if (pts.length < 2) return;
-
-      final focalNow = Offset(
-        (pts[0].dx + pts[1].dx) / 2,
-        (pts[0].dy + pts[1].dy) / 2,
-      );
-
-      final currentDist = (pts[0] - pts[1]).distance;
-      if (currentDist < 1) return;
-
-      final newScale = (_pointerStartScale * (currentDist / _pointerStartDistance))
-          .clamp(0.1, 5.0);
-      final scaleRatio =
-          _pointerStartScale == 0 ? 1.0 : newScale / _pointerStartScale;
-
-      final newTranslation = Offset(
-        focalNow.dx +
-            (_pointerStartTranslation.dx - _pointerStartFocal.dx) * scaleRatio,
-        focalNow.dy +
-            (_pointerStartTranslation.dy - _pointerStartFocal.dy) * scaleRatio,
-      );
-
-      final newMatrix = Matrix4.identity()
-        ..translate(newTranslation.dx, newTranslation.dy)
-        ..scale(newScale);
-
-      _transformationController.value = newMatrix;
-    } else if (_activePointers.length == 1) {
-      // ── Single-finger pan ──
-      // Only pan if the finger has moved more than 8px from start
-      // (so taps on nodes still work — the gesture arena handles taps)
-      final delta = event.localPosition - _singleFingerStartPos;
-      if (!_isSingleFingerPanning && delta.distance > 8) {
-        _isSingleFingerPanning = true;
-      }
-      if (_isSingleFingerPanning) {
-        final newTranslation = _singleFingerStartTranslation + delta;
-        final scale = _transformationController.value.getMaxScaleOnAxis();
-        final newMatrix = Matrix4.identity()
-          ..translate(newTranslation.dx, newTranslation.dy)
-          ..scale(scale);
-        _transformationController.value = newMatrix;
-      }
-    }
-  }
-
-  void _onPointerUp(PointerUpEvent event) {
-    _activePointers.remove(event.pointer);
-    _isSingleFingerPanning = false;
-    if (_activePointers.length < 2) {
-      _isGesturing = false;
-    }
-  }
-
-  void _onPointerCancel(PointerCancelEvent event) {
-    _activePointers.remove(event.pointer);
-    _isSingleFingerPanning = false;
-    if (_activePointers.length < 2) {
-      _isGesturing = false;
-    }
-  }
+  // Gesture handling is now delegated to Flutter's InteractiveViewer,
+  // which provides smooth, map-like pinch-to-zoom and pan out of the
+  // box. The TransformationController bridges user gestures to the
+  // CameraController for programmatic animations (focus-on-node, etc.).
 
   void _onNodeTap(String personId) {
     final tracker = ref.read(analyticsTrackerProvider);
@@ -973,98 +851,71 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
           children: [
             // ── Camera Transform Layer ───────────────────────────────
             //
-            // PRODUCTION-READY PINCH-TO-ZOOM (CUSTOM IMPLEMENTATION)
-            // ----------------------------------------------------------
-            // ═══════════════════════════════════════════════════════════════
-            // v15: RAW POINTER LISTENER (bypasses gesture arena entirely)
-            // ═══════════════════════════════════════════════════════════════
-            // The Listener widget operates BELOW the gesture arena. It sees
-            // ALL pointer events regardless of what child GestureDetectors
-            // do. This guarantees two-finger pinch works everywhere:
-            //   - Pinch on a node ✅ (node's TapGestureRecognizer doesn't block)
-            //   - Pinch on empty canvas ✅ (no competing recognizers)
-            //   - Pinch straddling node + empty space ✅
-            //   - Single-finger pan ✅ (with 8px dead zone for taps)
-            //   - Node tap ✅ (gesture arena handles it, Listener doesn't interfere)
-            //   - Node long-press ✅ (same)
-            // ═══════════════════════════════════════════════════════════════
+            // Uses Flutter's built-in InteractiveViewer for smooth,
+            // map-like pinch-to-zoom and one-finger pan. It uses the
+            // same TransformationController that the CameraController
+            // drives for programmatic animations (focus-on-node, fit).
+            //
+            // Why InteractiveViewer works here:
+            //   - Its ScaleGestureRecognizer handles pinch natively and
+            //     does NOT conflict with child TapGestureRecognizers.
+            //   - It has no DoubleTapGestureRecognizer of its own, so
+            //     child node double-tap (focus camera) works cleanly.
+            //   - boundaryMargin: infinite → free pan beyond canvas edges.
+            //   - constrained: false → canvas can be larger than viewport.
             ClipRect(
-              child: Listener(
-                behavior: HitTestBehavior.translucent,
-                onPointerDown: _onPointerDown,
-                onPointerMove: _onPointerMove,
-                onPointerUp: _onPointerUp,
-                onPointerCancel: _onPointerCancel,
-                child: AnimatedBuilder(
-                  animation: _transformationController,
-                  builder: (context, _) {
-                    final matrix = _transformationController.value;
-                    final scale = matrix.getMaxScaleOnAxis();
-                    final tx = matrix.getTranslation().x;
-                    final ty = matrix.getTranslation().y;
-                    return Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Positioned(
-                          left: tx,
-                          top: ty,
-                          child: Transform.scale(
-                            scale: scale,
-                            alignment: Alignment.topLeft,
-                            child: SizedBox(
-                              width: canvasWidth,
-                              height: canvasHeight,
-                              child: Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  // ── Edge Layer ────────────────────
-                                  Positioned.fill(
-                                    child: CustomPaint(
-                                      size: Size(canvasWidth, canvasHeight),
-                                      painter: RelationshipEdge(
-                                        positions: positions,
-                                        edges: _edges,
-                                        selectedEdgeId: _selectedEdgeId,
-                                        zoomLevel: zoomLevel,
-                                        nodeWidth: _nodeWidth,
-                                        nodeHeight: _nodeHeight,
-                                        generationMap: {
-                                          for (final p in _personMap.values)
-                                            p.id: p.generationIndex,
-                                        },
-                                        highlightedGeneration: _highlightedGeneration,
-                                        anonymousNodeIds: _anonymousNodeIds,
-                                        blockedNodeIds: _blockedNodeIds,
-                                      ),
-                                    ),
-                                  ),
-
-                                  // ── Midpoint Hit Layer ────────────
-                                  // Transparent tap targets placed at
-                                  // every connection midpoint. Fires
-                                  // _onEdgeMidpointTap when tapped,
-                                  // showing the relationship info sheet.
-                                  Positioned.fill(
-                                    child: EdgeMidpointHitLayer(
-                                      edges: _edges,
-                                      positions: positions,
-                                      onMidpointTap: _onEdgeMidpointTap,
-                                      nodeWidth: _nodeWidth,
-                                      nodeHeight: _nodeHeight,
-                                      blockedNodeIds: _blockedNodeIds,
-                                    ),
-                                  ),
-
-                                  // ── Node Layer ────────────────────
-                                  ..._buildVisibleNodes(positions, zoomLevel, effectiveVisibleIds),
-                                ],
-                              ),
-                            ),
+              child: InteractiveViewer(
+                transformationController: _transformationController,
+                boundaryMargin: const EdgeInsets.all(double.infinity),
+                minScale: 0.05,
+                maxScale: 5.0,
+                constrained: false,
+                child: SizedBox(
+                  width: canvasWidth,
+                  height: canvasHeight,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      // ── Edge Layer ────────────────────────────────
+                      Positioned.fill(
+                        child: CustomPaint(
+                          size: Size(canvasWidth, canvasHeight),
+                          painter: RelationshipEdge(
+                            positions: positions,
+                            edges: _edges,
+                            selectedEdgeId: _selectedEdgeId,
+                            zoomLevel: zoomLevel,
+                            nodeWidth: _nodeWidth,
+                            nodeHeight: _nodeHeight,
+                            generationMap: {
+                              for (final p in _personMap.values)
+                                p.id: p.generationIndex,
+                            },
+                            highlightedGeneration: _highlightedGeneration,
+                            anonymousNodeIds: _anonymousNodeIds,
+                            blockedNodeIds: _blockedNodeIds,
                           ),
                         ),
-                      ],
-                    );
-                  },
+                      ),
+
+                      // ── Midpoint Hit Layer ────────────────────────
+                      // Transparent tap targets at every edge midpoint.
+                      // Tapping shows the relationship info bottom sheet.
+                      Positioned.fill(
+                        child: EdgeMidpointHitLayer(
+                          edges: _edges,
+                          positions: positions,
+                          onMidpointTap: _onEdgeMidpointTap,
+                          nodeWidth: _nodeWidth,
+                          nodeHeight: _nodeHeight,
+                          blockedNodeIds: _blockedNodeIds,
+                        ),
+                      ),
+
+                      // ── Node Layer ────────────────────────────────
+                      ..._buildVisibleNodes(positions, zoomLevel, effectiveVisibleIds),
+                    ],
+                  ),
                 ),
               ),
             ),
