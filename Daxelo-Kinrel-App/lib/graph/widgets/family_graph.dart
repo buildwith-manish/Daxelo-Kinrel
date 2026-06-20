@@ -857,41 +857,34 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
             final screenH = constraints.maxHeight;
 
             if (screenW > 0 && screenH > 0 && canvasWidth > 0 && canvasHeight > 0) {
-              _initialCenterDone = true; // ← MOVED INSIDE the valid-constraints check
-              // Compute a scale that fits the entire canvas in the
-              // viewport with a small margin. Use the min of the
-              // horizontal and vertical fit ratios so the whole canvas
-              // is visible.
-              const margin = 32.0; // 16px margin on each side
-              final fitScaleX = (screenW - margin * 2) / canvasWidth;
-              final fitScaleY = (screenH - margin * 2) / canvasHeight;
-              var fitScale = fitScaleX < fitScaleY ? fitScaleX : fitScaleY;
-              // v10 Fix #3b: Allow small graphs (≤12 nodes) to scale up
-              // to 2.0x so they fill the viewport. Large graphs stay at
-              // 1.0 max to avoid pixelation. Previously the hard clamp
-              // at 1.0 left small graphs tiny in the center of the screen.
-              final double fitCeiling = positions.length <= 12 ? 2.0 : 1.0;
-              if (fitScale > fitCeiling) fitScale = fitCeiling;
-              // Don't go below the min scale.
-              if (fitScale < 0.1) fitScale = 0.1;
+              _initialCenterDone = true;
+              // v22 FIX: Use post-frame callback to set the matrix.
+              // Setting _transformationController.value during build
+              // triggers _onTransformChanged → setState() during build,
+              // which Flutter silently discards. The matrix never takes
+              // effect and the graph stays at identity (0,0) → blank.
+              final sw = screenW;
+              final sh = screenH;
+              final cw = canvasWidth;
+              final ch = canvasHeight;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                const margin = 32.0;
+                final fitScaleX = (sw - margin * 2) / cw;
+                final fitScaleY = (sh - margin * 2) / ch;
+                var fitScale = fitScaleX < fitScaleY ? fitScaleX : fitScaleY;
+                final double fitCeiling = positions.length <= 12 ? 2.0 : 1.0;
+                if (fitScale > fitCeiling) fitScale = fitCeiling;
+                if (fitScale < 0.1) fitScale = 0.1;
 
-              // Center the canvas in the viewport:
-              //   translate = (viewport_center) - (canvas_center * scale)
-              final canvasCenterX = canvasWidth / 2;
-              final canvasCenterY = canvasHeight / 2;
-              final translateX = (screenW / 2) - (canvasCenterX * fitScale);
-              final translateY = (screenH / 2) - (canvasCenterY * fitScale);
+                final translateX = (sw / 2) - ((cw / 2) * fitScale);
+                final translateY = (sh / 2) - ((ch / 2) * fitScale);
 
-              final matrix = Matrix4.identity()
-                ..translate(translateX, translateY)
-                ..scale(fitScale);
-              // Set the matrix directly. Setting TransformationController
-              // value during build is safe — it calls notifyListeners()
-              // which schedules (not immediately invokes) listener
-              // callbacks. The AnimatedBuilder inside GraphPanZoom
-              // listens to the controller and will rebuild with the new
-              // transform on the next frame.
-              _transformationController.value = matrix;
+                final matrix = Matrix4.identity()
+                  ..translate(translateX, translateY)
+                  ..scale(fitScale);
+                _transformationController.value = matrix;
+              });
             }
           }
         }
