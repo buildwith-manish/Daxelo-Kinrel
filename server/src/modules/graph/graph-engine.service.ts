@@ -130,37 +130,38 @@ export class GraphEngineService {
   // "sideways" = same generation or lateral (sibling, spouse)
 
   private static readonly DIRECTION_MAP: Record<string, 'up' | 'down' | 'sideways'> = {
-    // Core types — data model: A→B 'father' means "A IS the father of B"
-    // 'down' = following this edge goes to a YOUNGER generation (parent→child)
+    // Core types — data model: A→B 'father' means "A's father IS B"
+    // (A is the child, B is the parent)
     // 'up'   = following this edge goes to an OLDER generation (child→parent)
-    father: 'down',       // A IS father → B is A's child (younger) → edge goes DOWN
-    mother: 'down',
-    son: 'up',            // A IS son → B is A's parent (older) → edge goes UP
-    daughter: 'up',
+    // 'down' = following this edge goes to a YOUNGER generation (parent→child)
+    father: 'up',         // A's father is B → edge goes UP (older generation)
+    mother: 'up',
+    son: 'down',          // A's son is B → edge goes DOWN (younger generation)
+    daughter: 'down',
     brother: 'sideways',
     sister: 'sideways',
     husband: 'sideways',
     wife: 'sideways',
-    // Grandparents: A IS grandparent → B is grandchild (younger) → DOWN
-    grandfather: 'down',
-    grandmother: 'down',
-    paternal_grandfather: 'down',
-    paternal_grandmother: 'down',
-    maternal_grandfather: 'down',
-    maternal_grandmother: 'down',
-    // Grandchildren: A IS grandchild → B is grandparent (older) → UP
-    grandson: 'up',
-    granddaughter: 'up',
+    // Grandparents: A's grandparent is B → edge goes UP (older generation)
+    grandfather: 'up',
+    grandmother: 'up',
+    paternal_grandfather: 'up',
+    paternal_grandmother: 'up',
+    maternal_grandfather: 'up',
+    maternal_grandmother: 'up',
+    // Grandchildren: A's grandchild is B → edge goes DOWN (younger generation)
+    grandson: 'down',
+    granddaughter: 'down',
     // Great-grandparents / great-grandchildren
-    great_grandfather: 'down',
-    great_grandmother: 'down',
-    great_grandson: 'up',
-    great_granddaughter: 'up',
+    great_grandfather: 'up',
+    great_grandmother: 'up',
+    great_grandson: 'down',
+    great_granddaughter: 'down',
     // Step-parents/children (same directional logic)
-    stepfather: 'down',
-    stepmother: 'down',
-    stepson: 'up',
-    stepdaughter: 'up',
+    stepfather: 'up',
+    stepmother: 'up',
+    stepson: 'down',
+    stepdaughter: 'down',
     // Lateral relationships (uncle/aunt, nephew/niece are sideways for ancestor/descendant traversal)
     uncle: 'sideways',
     aunt: 'sideways',
@@ -289,23 +290,26 @@ export class GraphEngineService {
     },
 
     // ── Nephew / Niece (sibling → child) ─────────────────────────────
+    // The target person's gender (targetGender param) determines nephew vs niece.
+    // The path key's last segment (son/daughter) is only the edge label and may
+    // differ from the target's actual gender — targetGender takes precedence.
     'brother→son': {
       male: { term: 'nephew', termHindi: 'भतीजा', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'nephew', termHindi: 'भतीजा', genderSpecific: true, confidence: 1.0 },
+      female: { term: 'niece', termHindi: 'भतीजी', genderSpecific: true, confidence: 1.0 },
       neutral: { term: 'nephew', termHindi: 'भतीजा', genderSpecific: false, confidence: 0.95 },
     },
     'brother→daughter': {
-      male: { term: 'niece', termHindi: 'भतीजी', genderSpecific: true, confidence: 1.0 },
+      male: { term: 'nephew', termHindi: 'भतीजा', genderSpecific: true, confidence: 1.0 },
       female: { term: 'niece', termHindi: 'भतीजी', genderSpecific: true, confidence: 1.0 },
       neutral: { term: 'niece', termHindi: 'भतीजी', genderSpecific: false, confidence: 0.95 },
     },
     'sister→son': {
       male: { term: 'nephew', termHindi: 'भांजा', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'nephew', termHindi: 'भांजा', genderSpecific: true, confidence: 1.0 },
+      female: { term: 'niece', termHindi: 'भांजी', genderSpecific: true, confidence: 1.0 },
       neutral: { term: 'nephew', termHindi: 'भांजा', genderSpecific: false, confidence: 0.95 },
     },
     'sister→daughter': {
-      male: { term: 'niece', termHindi: 'भांजी', genderSpecific: true, confidence: 1.0 },
+      male: { term: 'nephew', termHindi: 'भांजा', genderSpecific: true, confidence: 1.0 },
       female: { term: 'niece', termHindi: 'भांजी', genderSpecific: true, confidence: 1.0 },
       neutral: { term: 'niece', termHindi: 'भांजी', genderSpecific: false, confidence: 0.95 },
     },
@@ -818,10 +822,10 @@ export class GraphEngineService {
       addEdge(fromId, toId, key, forwardDir);
 
       // Inverse edge: toPerson --[inverseKey]--> fromPerson
-      // Bug #10 fix: Use toId gender (not fromId) for inverse key computation
-      // The inverse of "Ravi (male) --father--> Arjun" is "Arjun is Ravi's son/daughter"
-      // which depends on Arjun's gender (toId), not Ravi's gender (fromId)
-      const inverseKey = this.computeInverseKey(key, personMap.get(toId)?.gender ?? null);
+      // Data model: A→B 'father' means "A's father is B" (A is child, B is parent).
+      // Inverse: "B's son/daughter is A" — depends on A's gender (fromId),
+      // since A is the child whose son/daughter label is being assigned.
+      const inverseKey = this.computeInverseKey(key, personMap.get(fromId)?.gender ?? null);
       const inverseDir = this.invertDirection(forwardDir);
       addEdge(toId, fromId, inverseKey, inverseDir);
     }
@@ -1043,7 +1047,17 @@ export class GraphEngineService {
 
     const results: ComputedRelationship[] = [];
 
-    // BFS to find all reachable persons within maxDepth
+    // BFS to find all reachable persons within maxDepth.
+    //
+    // Mark-when-enqueue pattern: a node is added to `visited` as soon as it is
+    // placed on the queue. This guarantees each node is enqueued at most once,
+    // even when multiple edges connect to the same neighbor.
+    //
+    // Do NOT re-check `visited` at pop time — every dequeued node is unprocessed
+    // by construction (it was added to `visited` only when first enqueued, and
+    // we never re-enqueue visited nodes). Re-checking at pop time would silently
+    // drop all seeded level-1 neighbors because they were already marked during
+    // the seed loop, causing every reachable node to be skipped.
     const visited = new Set<string>([personId]);
     const queue: Array<{
       currentId: string;
@@ -1051,13 +1065,11 @@ export class GraphEngineService {
       depth: number;
     }> = [];
 
-    // Seed queue with immediate neighbors
-    // BUG-082 FIX: Mark neighbors as visited in the seed loop to prevent
-    // double-enqueuing when multiple edges connect to the same neighbor
+    // Seed queue with immediate neighbors (depth 1)
     const neighbors = adjacency.get(personId) ?? [];
     for (const neighbor of neighbors) {
       if (visited.has(neighbor.neighborId)) continue;
-      visited.add(neighbor.neighborId);  // ← FIX: mark as visited immediately
+      visited.add(neighbor.neighborId);
 
       const personRecord = personMap.get(neighbor.neighborId);
       const step: RelationshipStep = {
@@ -1072,9 +1084,6 @@ export class GraphEngineService {
 
     while (queue.length > 0) {
       const current = queue.shift()!;
-
-      if (visited.has(current.currentId)) continue;
-      visited.add(current.currentId);
 
       // Resolve kinship term for this path
       const targetGender = personMap.get(current.currentId)?.gender ?? null;
@@ -1096,6 +1105,7 @@ export class GraphEngineService {
         const nextNeighbors = adjacency.get(current.currentId) ?? [];
         for (const neighbor of nextNeighbors) {
           if (visited.has(neighbor.neighborId)) continue;
+          visited.add(neighbor.neighborId);
 
           const nextRecord = personMap.get(neighbor.neighborId);
           const nextStep: RelationshipStep = {
