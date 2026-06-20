@@ -966,97 +966,100 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
           children: [
             // ── Camera Transform Layer ───────────────────────────────
             //
-            // GestureDetector (ScaleGestureRecognizer) drives pinch-to-
-            // zoom, two-finger pan, and one-finger pan. The canvas is
-            // rendered via AnimatedBuilder → Positioned → Transform.scale,
-            // exactly matching the TransformationController matrix.
+            // CRITICAL: Positioned.fill ensures the GestureDetector fills
+            // the entire viewport. Without it, the outer Stack passes
+            // LOOSE constraints to ClipRect → GestureDetector's inner
+            // Stack (only Positioned children) sizes to 0×0 → no gesture
+            // events ever fire. Positioned.fill gives TIGHT constraints
+            // = full viewport, so every pixel is hit-testable.
             //
+            // ScaleGestureRecognizer handles pinch-to-zoom + pan.
             // Child nodes use HitTestBehavior.translucent + onDoubleTap:null
-            // so both the node TapGestureRecognizer and our parent
-            // ScaleGestureRecognizer compete fairly in the arena:
-            //   • Tap on node  → TapGestureRecognizer wins ✓
-            //   • Pinch/pan    → ScaleGestureRecognizer wins ✓
-            // The parent has NO onDoubleTap — adding one would create a
-            // DoubleTapGestureRecognizer that delays tap resolution and
-            // breaks the scale gesture (confirmed GraphPanZoom v4.1).
-            ClipRect(
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onScaleStart: _onScaleStart,
-                onScaleUpdate: _onScaleUpdate,
-                onScaleEnd: _onScaleEnd,
-                // NO onDoubleTap — would break pinch (see comment above).
-                child: AnimatedBuilder(
-                  animation: _transformationController,
-                  builder: (context, _) {
-                    final matrix = _transformationController.value;
-                    final scale = matrix.getMaxScaleOnAxis();
-                    final tx = matrix.getTranslation().x;
-                    final ty = matrix.getTranslation().y;
-                    return Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Positioned(
-                          left: tx,
-                          top: ty,
-                          child: Transform.scale(
-                            scale: scale,
-                            alignment: Alignment.topLeft,
-                            child: SizedBox(
-                              width: canvasWidth,
-                              height: canvasHeight,
-                              child: Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  // ── Edge Layer ────────────────
-                                  Positioned.fill(
-                                    child: CustomPaint(
-                                      size: Size(canvasWidth, canvasHeight),
-                                      painter: RelationshipEdge(
-                                        positions: positions,
+            // so both TapGestureRecognizer (node) and ScaleGestureRecognizer
+            // (parent) compete fairly — taps win on lift, pinch wins with 2pts.
+            // NO onDoubleTap on parent — would break ScaleGestureRecognizer.
+            Positioned.fill(
+              child: ClipRect(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onScaleStart: _onScaleStart,
+                  onScaleUpdate: _onScaleUpdate,
+                  onScaleEnd: _onScaleEnd,
+                  child: AnimatedBuilder(
+                    animation: _transformationController,
+                    builder: (context, _) {
+                      final matrix = _transformationController.value;
+                      final scale = matrix.getMaxScaleOnAxis();
+                      final tx = matrix.getTranslation().x;
+                      final ty = matrix.getTranslation().y;
+                      // StackFit.expand ensures this Stack also fills the
+                      // full viewport (belt-and-suspenders for hit testing).
+                      return Stack(
+                        fit: StackFit.expand,
+                        clipBehavior: Clip.none,
+                        children: [
+                          Positioned(
+                            left: tx,
+                            top: ty,
+                            child: Transform.scale(
+                              scale: scale,
+                              alignment: Alignment.topLeft,
+                              child: SizedBox(
+                                width: canvasWidth,
+                                height: canvasHeight,
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    // ── Edge Layer ──────────────
+                                    Positioned.fill(
+                                      child: CustomPaint(
+                                        size: Size(canvasWidth, canvasHeight),
+                                        painter: RelationshipEdge(
+                                          positions: positions,
+                                          edges: _edges,
+                                          selectedEdgeId: _selectedEdgeId,
+                                          zoomLevel: zoomLevel,
+                                          nodeWidth: _nodeWidth,
+                                          nodeHeight: _nodeHeight,
+                                          generationMap: {
+                                            for (final p in _personMap.values)
+                                              p.id: p.generationIndex,
+                                          },
+                                          highlightedGeneration:
+                                              _highlightedGeneration,
+                                          anonymousNodeIds: _anonymousNodeIds,
+                                          blockedNodeIds: _blockedNodeIds,
+                                        ),
+                                      ),
+                                    ),
+
+                                    // ── Midpoint Hit Layer ───────
+                                    Positioned.fill(
+                                      child: EdgeMidpointHitLayer(
                                         edges: _edges,
-                                        selectedEdgeId: _selectedEdgeId,
-                                        zoomLevel: zoomLevel,
+                                        positions: positions,
+                                        onMidpointTap: _onEdgeMidpointTap,
                                         nodeWidth: _nodeWidth,
                                         nodeHeight: _nodeHeight,
-                                        generationMap: {
-                                          for (final p in _personMap.values)
-                                            p.id: p.generationIndex,
-                                        },
-                                        highlightedGeneration:
-                                            _highlightedGeneration,
-                                        anonymousNodeIds: _anonymousNodeIds,
                                         blockedNodeIds: _blockedNodeIds,
                                       ),
                                     ),
-                                  ),
 
-                                  // ── Midpoint Hit Layer ────────
-                                  Positioned.fill(
-                                    child: EdgeMidpointHitLayer(
-                                      edges: _edges,
-                                      positions: positions,
-                                      onMidpointTap: _onEdgeMidpointTap,
-                                      nodeWidth: _nodeWidth,
-                                      nodeHeight: _nodeHeight,
-                                      blockedNodeIds: _blockedNodeIds,
+                                    // ── Node Layer ───────────────
+                                    ..._buildVisibleNodes(
+                                      positions,
+                                      zoomLevel,
+                                      effectiveVisibleIds,
                                     ),
-                                  ),
-
-                                  // ── Node Layer ────────────────
-                                  ..._buildVisibleNodes(
-                                    positions,
-                                    zoomLevel,
-                                    effectiveVisibleIds,
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
-                    );
-                  },
+                        ],
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
@@ -1114,10 +1117,72 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
             else
               const SizedBox.shrink(),
 
-            // Control Bar is NO LONGER rendered inside FamilyGraphWidget.
-            // It has been replaced by the bottom toolbar in FamilyGraphScreen
-            // which contains: Center, Filter, Help (zoom in AppBar).
-            // This eliminates duplicate zoom controls and gesture conflicts.
+            // ── Fit-to-View + Zoom Controls ──────────────────────────
+            Positioned(
+              right: 12,
+              bottom: 90,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Fit all nodes into view
+                  _GraphToolButton(
+                    icon: Icons.fit_screen_rounded,
+                    tooltip: 'Fit to view',
+                    onTap: () {
+                      final pos = _layoutResult?.positions;
+                      if (pos != null && _viewportSize != Size.zero) {
+                        _cameraController.fitToView(pos, _viewportSize);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  // Zoom in
+                  _GraphToolButton(
+                    icon: Icons.add_rounded,
+                    tooltip: 'Zoom in',
+                    onTap: () {
+                      final matrix = _transformationController.value;
+                      final scale =
+                          (matrix.getMaxScaleOnAxis() * 1.3).clamp(0.05, 5.0);
+                      final tx = matrix.getTranslation().x;
+                      final ty = matrix.getTranslation().y;
+                      // Zoom toward center of viewport
+                      final cx = _viewportSize.width / 2;
+                      final cy = _viewportSize.height / 2;
+                      final oldScale = matrix.getMaxScaleOnAxis();
+                      final ratio = scale / oldScale;
+                      final newTx = cx + (tx - cx) * ratio;
+                      final newTy = cy + (ty - cy) * ratio;
+                      _transformationController.value = Matrix4.identity()
+                        ..translate(newTx, newTy)
+                        ..scale(scale);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  // Zoom out
+                  _GraphToolButton(
+                    icon: Icons.remove_rounded,
+                    tooltip: 'Zoom out',
+                    onTap: () {
+                      final matrix = _transformationController.value;
+                      final scale =
+                          (matrix.getMaxScaleOnAxis() / 1.3).clamp(0.05, 5.0);
+                      final tx = matrix.getTranslation().x;
+                      final ty = matrix.getTranslation().y;
+                      final cx = _viewportSize.width / 2;
+                      final cy = _viewportSize.height / 2;
+                      final oldScale = matrix.getMaxScaleOnAxis();
+                      final ratio = scale / oldScale;
+                      final newTx = cx + (tx - cx) * ratio;
+                      final newTy = cy + (ty - cy) * ratio;
+                      _transformationController.value = Matrix4.identity()
+                        ..translate(newTx, newTy)
+                        ..scale(scale);
+                    },
+                  ),
+                ],
+              ),
+            ),
 
             // ── "No Relationships" Banner — REMOVED in v4 ────────────
             // The banner was removed per user request 2026-06-18:
@@ -1474,5 +1539,53 @@ class _GraphPersonData {
         id: '',
         name: '',
       );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// GRAPH TOOL BUTTON
+// Small circular icon button used for the fit-to-view / zoom controls.
+// ═══════════════════════════════════════════════════════════════════════
+
+class _GraphToolButton extends StatelessWidget {
+  const _GraphToolButton({
+    required this.icon,
+    required this.onTap,
+    this.tooltip = '',
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFF334155),
+                width: 1,
+              ),
+            ),
+            child: Icon(
+              icon,
+              size: 20,
+              color: const Color(0xFFCBD5E1),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
