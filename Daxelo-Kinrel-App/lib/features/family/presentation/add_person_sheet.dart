@@ -385,6 +385,12 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           isDeceased: _isDeceased,
         );
       } else {
+        // v20 FIX: If this is the first member of the family, set isAnchor=true
+        // so the graph layout has an anchor to center on. Without an anchor,
+        // the graph may render blank because the layout doesn't know where
+        // to position nodes.
+        final isFirstMember = !_familyHasExistingMembers;
+
         result = await createPersonOptimistic(
           ref: ref,
           familyId: widget.familyId,
@@ -400,6 +406,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               ? null
               : _gotraController.text.trim(),
           isDeceased: _isDeceased,
+          isAnchor: isFirstMember, // ← v20: First member is always the anchor
         );
 
         // ═══════════════════════════════════════════════════════════════
