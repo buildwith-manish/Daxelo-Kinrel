@@ -841,33 +841,16 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
             // External controller already has a saved position — skip auto-center
             _initialCenterDone = true;
           } else {
-            // RELEASE-READY FIX: Apply the initial centering transform
-            // SYNCHRONOUSLY in the build (not in a post-frame callback).
-            //
-            // The previous post-frame-callback approach caused a race:
-            // the first frame rendered the canvas at the identity matrix
-            // (canvas top-left at viewport top-left), then the callback
-            // fired after the frame and set the matrix. If the canvas
-            // was smaller than the viewport, the first frame showed
-            // nodes in the top-left corner; then the callback moved
-            // them to center. This worked but caused a visible flash.
-            //
-            // WORSE: if the post-frame callback's setState triggered a
-            // rebuild that reset _initialCenterDone (e.g., because the
-            // widget was still mounting), the centering never applied
-            // and the canvas stayed at identity — visible but in the
-            // top-left corner, not centered. For a 500x360 canvas in a
-            // 384x693 viewport, the right 116px of the canvas was
-            // clipped, and the bottom 333px of the viewport was empty.
-            //
-            // The new approach: compute the "fit" transform here and
-            // set it on the controller BEFORE the build returns. The
-            // first frame will already show the centered, fitted canvas.
-            _initialCenterDone = true;
+            // v20 FIX: Only set _initialCenterDone = true AFTER the matrix
+            // is successfully computed. The previous code set it to true
+            // BEFORE checking screen dimensions, so if the LayoutBuilder
+            // fired with 0 constraints on first build, the centering was
+            // skipped forever and nodes stayed at (0,0) off-screen.
             final screenW = constraints.maxWidth;
             final screenH = constraints.maxHeight;
 
             if (screenW > 0 && screenH > 0 && canvasWidth > 0 && canvasHeight > 0) {
+              _initialCenterDone = true; // ← MOVED INSIDE the valid-constraints check
               // Compute a scale that fits the entire canvas in the
               // viewport with a small margin. Use the min of the
               // horizontal and vertical fit ratios so the whole canvas
