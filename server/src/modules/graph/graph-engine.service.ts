@@ -291,23 +291,23 @@ export class GraphEngineService {
     // ── Nephew / Niece (sibling → child) ─────────────────────────────
     'brother→son': {
       male: { term: 'nephew', termHindi: 'भतीजा', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'niece', termHindi: 'भतीजी', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'nibling', termHindi: 'भतीजा/भतीजी', genderSpecific: false, confidence: 0.9 },
+      female: { term: 'nephew', termHindi: 'भतीजा', genderSpecific: true, confidence: 1.0 },
+      neutral: { term: 'nephew', termHindi: 'भतीजा', genderSpecific: false, confidence: 0.95 },
     },
     'brother→daughter': {
-      male: { term: 'nephew', termHindi: 'भतीजा', genderSpecific: true, confidence: 1.0 },
+      male: { term: 'niece', termHindi: 'भतीजी', genderSpecific: true, confidence: 1.0 },
       female: { term: 'niece', termHindi: 'भतीजी', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'nibling', termHindi: 'भतीजा/भतीजी', genderSpecific: false, confidence: 0.9 },
+      neutral: { term: 'niece', termHindi: 'भतीजी', genderSpecific: false, confidence: 0.95 },
     },
     'sister→son': {
       male: { term: 'nephew', termHindi: 'भांजा', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'niece', termHindi: 'भांजी', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'nibling', termHindi: 'भांजा/भांजी', genderSpecific: false, confidence: 0.9 },
+      female: { term: 'nephew', termHindi: 'भांजा', genderSpecific: true, confidence: 1.0 },
+      neutral: { term: 'nephew', termHindi: 'भांजा', genderSpecific: false, confidence: 0.95 },
     },
     'sister→daughter': {
-      male: { term: 'nephew', termHindi: 'भांजा', genderSpecific: true, confidence: 1.0 },
+      male: { term: 'niece', termHindi: 'भांजी', genderSpecific: true, confidence: 1.0 },
       female: { term: 'niece', termHindi: 'भांजी', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'nibling', termHindi: 'भांजा/भांजी', genderSpecific: false, confidence: 0.9 },
+      neutral: { term: 'niece', termHindi: 'भांजी', genderSpecific: false, confidence: 0.95 },
     },
 
     // ── Great Grandparents (3 steps up) ──────────────────────────────
@@ -1052,9 +1052,12 @@ export class GraphEngineService {
     }> = [];
 
     // Seed queue with immediate neighbors
+    // BUG-082 FIX: Mark neighbors as visited in the seed loop to prevent
+    // double-enqueuing when multiple edges connect to the same neighbor
     const neighbors = adjacency.get(personId) ?? [];
     for (const neighbor of neighbors) {
       if (visited.has(neighbor.neighborId)) continue;
+      visited.add(neighbor.neighborId);  // ← FIX: mark as visited immediately
 
       const personRecord = personMap.get(neighbor.neighborId);
       const step: RelationshipStep = {

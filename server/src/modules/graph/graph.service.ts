@@ -1077,6 +1077,13 @@ export class GraphService {
 
   /** Format a kinship term from snake_case to Title Case (English only). */
   private formatKinshipTerm(term: string): string {
+    // BUG-093 FIX: Use hyphen for in-law terms (Father-in-Law, not Father In Law)
+    if (term.includes('in_law')) {
+      const parts = term.split('_in_law');
+      const main = parts[0];
+      const mainFormatted = main.charAt(0).toUpperCase() + main.slice(1).toLowerCase();
+      return `${mainFormatted}-in-Law`;
+    }
     return term
       .split('_')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())

@@ -162,10 +162,24 @@ export class RelationshipsService {
       const key = dto.relationshipKey;
       if (key === 'father' || key === 'mother') {
         // fromPerson IS the parent → toPerson is the child (one generation down)
-        await tx.person.update({
-          where: { id: dto.toPersonId },
-          data: { generationIndex: fromPerson.generationIndex + 1 },
-        });
+        // BUG-009 FIX: Also update parent's generationIndex if it's at default 0
+        // and we're adding a child — the parent should be at gen -1 (above child)
+        if (fromPerson.generationIndex === 0 && toPerson.generationIndex === 0) {
+          // Both at default — set parent to -1, child to 0
+          await tx.person.update({
+            where: { id: dto.fromPersonId },
+            data: { generationIndex: -1 },
+          });
+          await tx.person.update({
+            where: { id: dto.toPersonId },
+            data: { generationIndex: 0 },
+          });
+        } else {
+          await tx.person.update({
+            where: { id: dto.toPersonId },
+            data: { generationIndex: fromPerson.generationIndex + 1 },
+          });
+        }
       } else if (key === 'son' || key === 'daughter') {
         // fromPerson IS the child → toPerson is the parent (one generation up)
         // child gets parent's generationIndex + 1
@@ -290,7 +304,12 @@ export class RelationshipsService {
       throw new NotFoundException('Relationship not found');
     }
 
-    const inverseKey = getInverseKey(relationship.relationshipKey);
+    // BUG-010 FIX: Pass toPerson's gender to getInverseKey for correct inverse lookup
+    const toPerson = await this.prisma.person.findUnique({
+      where: { id: relationship.toPersonId },
+      select: { gender: true },
+    });
+    const inverseKey = getInverseKey(relationship.relationshipKey, toPerson?.gender ?? null);
     const inverse = await this.prisma.relationship.findFirst({
       where: {
         familyId,
