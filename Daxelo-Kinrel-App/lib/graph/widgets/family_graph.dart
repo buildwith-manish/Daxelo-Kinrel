@@ -20,7 +20,7 @@
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -796,6 +796,9 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
       if (widget.externalTransformController != null) {
         widget.externalTransformController!.value = Matrix4.identity();
       }
+      debugPrint('[FamilyGraph] Layout changed — forcing re-center. '
+          'persons=${persons.length} canvas=${_layoutResult!.canvasWidth.toStringAsFixed(0)}x${_layoutResult!.canvasHeight.toStringAsFixed(0)} '
+          'positions=${_layoutResult!.positions.length} edges=${_edges.length}');
     }
 
     // Track graph open time on first render
@@ -836,42 +839,49 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
             // External controller already has a saved position — skip auto-center
             _initialCenterDone = true;
           } else {
-            // v20 FIX: Only set _initialCenterDone = true AFTER the matrix
-            // is successfully computed. The previous code set it to true
-            // BEFORE checking screen dimensions, so if the LayoutBuilder
-            // fired with 0 constraints on first build, the centering was
-            // skipped forever and nodes stayed at (0,0) off-screen.
             final screenW = constraints.maxWidth;
             final screenH = constraints.maxHeight;
 
             if (screenW > 0 && screenH > 0 && canvasWidth > 0 && canvasHeight > 0) {
               _initialCenterDone = true;
-              // v22 FIX: Use post-frame callback to set the matrix.
-              // Setting _transformationController.value during build
-              // triggers _onTransformChanged → setState() during build,
-              // which Flutter silently discards. The matrix never takes
-              // effect and the graph stays at identity (0,0) → blank.
+
+              // v32 FIX (blank screen): Apply the fit transform SYNCHRONOUSLY
+              // during build, NOT in a post-frame callback.
               //
-              // v31: The fit-transform math is now in
-              // GraphGestureMath.computeFitTransform — extracted for
-              // testability and reuse by the web gesture handler.
-              final sw = screenW;
-              final sh = screenH;
-              final cw = canvasWidth;
-              final ch = canvasHeight;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                final matrix = GraphGestureMath.computeFitTransform(
-                  screenW: sw,
-                  screenH: sh,
-                  canvasW: cw,
-                  canvasH: ch,
-                  nodeCount: positions.length,
-                );
-                if (matrix != null) {
-                  _transformationController.value = matrix;
-                }
-              });
+              // The previous post-frame callback approach (v22-v31) had a
+              // critical flaw: the first frame rendered at identity matrix
+              // (canvas at 0,0 — top-left corner). If the canvas was smaller
+              // than the viewport, nodes appeared in the top-left and were
+              // often off-screen or invisible. The post-frame callback was
+              // supposed to center the canvas, but:
+              //   1. If the widget was unmounted by the time the callback
+              //      fired, the centering was skipped entirely.
+              //   2. If the callback's setState triggered a rebuild that
+              //      reset _initialCenterDone, the centering never applied.
+              //   3. On some devices, the post-frame callback fired but
+              //      the AnimatedBuilder didn't pick up the new value
+              //      because the build phase had already completed.
+              //
+              // Setting _transformationController.value during build is
+              // SAFE here because:
+              //   - The _onTransformChanged listener only calls setState()
+              //     when the visible node IDs change. For the initial
+              //     auto-center, the IDs are already set to all nodes,
+              //     so setsEqual() returns true and setState() is NOT called.
+              //   - The AnimatedBuilder reads _transformationController.value
+              //     in its builder function, which runs AFTER this code block.
+              //     So it will see the new matrix and render the canvas
+              //     at the correct position on the VERY FIRST frame.
+              final matrix = GraphGestureMath.computeFitTransform(
+                screenW: screenW,
+                screenH: screenH,
+                canvasW: canvasWidth,
+                canvasH: canvasHeight,
+                nodeCount: positions.length,
+              );
+              if (matrix != null) {
+                _transformationController.value = matrix;
+              }
             }
           }
         }
