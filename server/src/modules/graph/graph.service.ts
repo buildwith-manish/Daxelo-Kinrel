@@ -89,7 +89,7 @@ const SPOUSE_KEYS = new Set(['husband', 'wife']);
 export class GraphService {
   private redis: Redis | null = null;
   private readonly logger = new Logger(GraphService.name);
-  private readonly CACHE_TTL = 300; // 5 minutes for large families
+  private readonly CACHE_TTL = 1800; // BUG-015 FIX: 30 minutes (was 5) — large families take 2-5s to rebuild
 
   constructor(
     private prisma: PrismaService,
@@ -101,15 +101,30 @@ export class GraphService {
   ) {
     const redisUrl = this.config.get<string>('REDIS_URL', '');
     if (redisUrl && redisUrl !== 'redis://localhost:6379') {
+      // BUG-006 FIX: Use a strict 2-second startup connect timeout so a
+      // missing Redis can never block NestJS module initialization for 30+
+      // seconds. The previous connectTimeout: 5000 + retryStrategy(times > 3)
+      // combo could stall the app for ~20s on DNS resolution failures.
+      // BUG-044 FIX: retryStrategy no longer permanently disables caching
+      // after 3 retries — it stops immediate retries but schedules a
+      // background reconnect every 60s so a temporary Redis outage doesn't
+      // permanently disable the cache for the lifetime of the process.
       this.redis = new Redis(redisUrl, {
         lazyConnect: true,
         maxRetriesPerRequest: 1,
-        connectTimeout: 5000,
+        connectTimeout: 2000,
+        enableReadyCheck: false,
         retryStrategy: (times) => {
-          if (times > 3) {
-            this.logger.warn('Redis connection failed after 3 retries — graph caching disabled');
-            this.redis = null;
-            return null; // Stop retrying
+          if (times > 2) {
+            this.logger.warn(
+              'Redis connection failed after 2 retries during startup. ' +
+              'Graph caching disabled. Background reconnect scheduled in 60s.',
+            );
+            // Schedule a single background reconnect attempt — do NOT return
+            // a number, which would keep the ioredis internal retry loop
+            // running and stall the constructor.
+            setTimeout(() => this.attemptRedisReconnect(redisUrl), 60_000);
+            return null;
           }
           return Math.min(times * 200, 1000);
         },
@@ -126,13 +141,71 @@ export class GraphService {
         }
       });
 
-      this.redis.connect().catch(() => {
-        this.logger.verbose('Redis connection failed — graph caching disabled');
-        this.redis = null;
-      });
+      // BUG-006 FIX: Race connect() against a 2s timeout so the constructor
+      // can never block NestJS bootstrap for more than 2s, even on slow DNS.
+      Promise.race([
+        this.redis.connect(),
+        new Promise<void>((_, reject) =>
+          setTimeout(() => reject(new Error('Redis startup connect timeout')), 2000),
+        ),
+      ])
+        .then(() => {
+          this.logger.log('Redis connected successfully for graph caching');
+        })
+        .catch(() => {
+          this.logger.verbose(
+            'Redis connection failed during startup. ' +
+            'Graph caching disabled, will retry in background.',
+          );
+          // Mark as null so getFlatGraph/invalidate skip the redis code path;
+          // the retryStrategy will schedule a background reconnect.
+          if (this.redis) {
+            try { this.redis.disconnect(); } catch { /* ignore */ }
+            this.redis = null;
+          }
+        });
     } else {
       this.logger.verbose('REDIS_URL not configured — graph caching disabled');
     }
+  }
+
+  /**
+   * BUG-044 FIX: Background Redis reconnection.
+   *
+   * Called by retryStrategy after immediate retries are exhausted. Tries a
+   * fresh connection with a 2s timeout; on success, swaps it into `this.redis`
+   * so caching resumes. On failure, schedules another attempt in 120s.
+   */
+  private attemptRedisReconnect(redisUrl: string): void {
+    if (this.redis !== null) {
+      return; // Already reconnected
+    }
+
+    this.logger.verbose('Attempting background Redis reconnection...');
+
+    const tempRedis = new Redis(redisUrl, {
+      lazyConnect: true,
+      maxRetriesPerRequest: 1,
+      connectTimeout: 2000,
+      enableReadyCheck: false,
+      retryStrategy: () => null, // No internal retries for background attempt
+    });
+
+    Promise.race([
+      tempRedis.connect(),
+      new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error('Background reconnect timeout')), 2000),
+      ),
+    ])
+      .then(() => {
+        this.redis = tempRedis;
+        this.logger.log('Redis reconnected successfully in background');
+      })
+      .catch(() => {
+        try { tempRedis.disconnect(); } catch { /* ignore */ }
+        this.logger.verbose('Background Redis reconnection failed, will retry in 120s');
+        setTimeout(() => this.attemptRedisReconnect(redisUrl), 120_000);
+      });
   }
 
   // ════════════════════════════════════════════════════════════════════
@@ -158,16 +231,49 @@ export class GraphService {
     // Get base graph data
     const { persons, relationships } = await this.getFlatGraph(familyId);
 
-    // Determine the "self" person (whose perspective we show relationships from)
-    const resolvedSelfId = selfPersonId
-      ?? await this.findSelfPersonId(userId, familyId)
-      ?? await this.findAnchorPersonId(familyId)
-      ?? persons[0]?.id;
+    // Determine the "self" person (whose perspective we show relationships from).
+    // Cascade: explicit selfPersonId → user's anchor → family's anchorPersonId →
+    // oldest person by (generationIndex, birthYear) → first person in the list.
+    //
+    // BUG-001 FIX: Previously, if no self/anchor could be resolved, the endpoint
+    // returned the persons array with `computedKinship: null` for every row.
+    // The Flutter frontend treated null kinship as "no data" and rendered a
+    // blank graph even though the family had members. We now ALWAYS pick a
+    // fallback self person (the oldest by generation/birthYear) so kinship can
+    // be computed from someone's perspective. If the family is genuinely empty,
+    // we return empty arrays rather than a populated-but-null structure.
+    let resolvedSelfId: string | undefined =
+      selfPersonId
+      ?? (await this.findSelfPersonId(userId, familyId))
+      ?? (await this.findAnchorPersonId(familyId))
+      ?? undefined;
+
+    if (!resolvedSelfId && persons.length > 0) {
+      // Pick the oldest person: lowest generationIndex (oldest generation),
+      // then earliest birthYear, then earliest createdAt as final tiebreaker.
+      const oldest = persons.reduce((best, current) => {
+        if (!best) return current;
+        const bestGen = best.generationIndex ?? 999;
+        const curGen = current.generationIndex ?? 999;
+        if (curGen !== bestGen) return curGen < bestGen ? current : best;
+        const bestYear = best.birthYear ?? 9999;
+        const curYear = current.birthYear ?? 9999;
+        if (curYear !== bestYear) return curYear < bestYear ? current : best;
+        return best;
+      }, persons[0]);
+      resolvedSelfId = oldest.id;
+      this.logger.warn(
+        `No self/anchor person found for family ${familyId}, ` +
+        `using oldest person "${oldest.name}" (${oldest.id}) as fallback self`,
+      );
+    }
 
     if (!resolvedSelfId) {
+      // Empty family — return empty graph rather than null-kinship rows.
+      this.logger.warn(`Family ${familyId} has no persons, returning empty graph`);
       return {
-        persons: persons.map(p => ({ ...p, computedKinship: null, kinshipCategory: null, isSelf: false })) as EnrichedGraphResult['persons'],
-        relationships: relationships.map(r => ({ ...r, displayLabel: this.formatKey(r.relationshipKey) })) as EnrichedGraphResult['relationships'],
+        persons: [],
+        relationships: [],
         selfPersonId: null,
       };
     }
@@ -306,9 +412,18 @@ export class GraphService {
       return family.anchorPersonId;
     }
 
+    // BUG-008 FIX: Order by birthYear ASC first (oldest by birth is the most
+    // reliable signal of "root" generation), then generationIndex ASC, then
+    // createdAt ASC as a deterministic tiebreaker. Previously we ordered by
+    // generationIndex alone, which is manually set and frequently wrong on
+    // imported or backfilled data, causing the tree to render upside-down.
     const persons = await this.prisma.person.findMany({
       where: { familyId, deletedAt: null },
-      orderBy: [{ generationIndex: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [
+        { birthYear: 'asc' },
+        { generationIndex: 'asc' },
+        { createdAt: 'asc' },
+      ],
       take: 1,
     });
 
@@ -606,17 +721,36 @@ export class GraphService {
   /** Invalidate both the Redis flat-graph cache and the GraphEngine in-memory cache for a family. */
   async invalidateFlatGraphCache(familyId: string): Promise<void> {
     const cacheKey = `graph:flat:${familyId}`;
-    try {
-      if (this.redis) {
-        await this.redis.del(cacheKey);
-        this.logger.debug(`Invalidated Redis cache for ${cacheKey}`);
-      }
-    } catch (err) {
-      this.logger.warn(`Redis cache invalidation failed for ${cacheKey}`, err);
-    }
 
-    // Also invalidate the GraphEngine in-memory cache so BFS/kinship results refresh
+    // BUG-002 FIX: Invalidate the in-memory GraphEngine cache FIRST, then
+    // attempt Redis. If Redis is unreachable, the in-memory cache is already
+    // fresh, so the next request will rebuild the graph from the DB and
+    // re-populate Redis. Previously, Redis was invalidated first — a Redis
+    // failure left both caches stale because the (now-stale) in-memory
+    // GraphEngine cache would still serve the request without rebuilding.
     this.graphEngine.invalidateCache(familyId);
+    this.logger.debug(`Invalidated in-memory graph cache for family ${familyId}`);
+
+    if (this.redis) {
+      try {
+        // Race the DEL against a 2s timeout so a slow Redis can't block the
+        // caller (e.g. a relationship-creation transaction) indefinitely.
+        await Promise.race([
+          this.redis.del(cacheKey),
+          new Promise<void>((_, reject) =>
+            setTimeout(() => reject(new Error('Redis DEL timeout')), 2000),
+          ),
+        ]);
+        this.logger.debug(`Invalidated Redis cache for ${cacheKey}`);
+      } catch (err: any) {
+        // In-memory cache is already invalidated, so the next read will
+        // rebuild from DB and re-populate Redis. Log and move on.
+        this.logger.warn(
+          `Redis cache invalidation failed for ${cacheKey}: ${err?.message ?? err}. ` +
+          `In-memory cache invalidated successfully; new data will be computed on next request.`,
+        );
+      }
+    }
   }
 
   /** Returns the relationship path between two persons after verifying family membership. */
@@ -731,19 +865,32 @@ export class GraphService {
   }
 
   /** Compute layout positions for graph nodes based on the specified algorithm. */
-  async computeLayout(userId: string, familyId: string, algorithm: string): Promise<Record<string, { x: number; y: number }>> {
+  async computeLayout(
+    userId: string,
+    familyId: string,
+    algorithm: string,
+    viewportWidth: number = 1400,
+    viewportHeight: number = 920,
+  ): Promise<Record<string, { x: number; y: number }>> {
     await this.requireFamilyMember(userId, familyId);
     const { persons } = await this.getFlatGraph(familyId);
 
+    // Clamp viewport to sensible bounds — the Flutter frontend sends actual
+    // device pixel dimensions, which can range from 360 (small phone) to
+    // 4096 (4K monitor). Hard-coded 1400×920 made the graph unusable on
+    // anything smaller than a desktop (BUG-012).
+    const w = Math.max(320, Math.min(4096, viewportWidth));
+    const h = Math.max(240, Math.min(4096, viewportHeight));
+
     switch (algorithm) {
       case 'hierarchical':
-        return this.hierarchicalLayout(persons);
+        return this.hierarchicalLayout(persons, w, h);
       case 'radial':
-        return this.radialLayout(persons);
+        return this.radialLayout(persons, w, h);
       case 'force':
-        return this.forceDirectedLayout(persons);
+        return this.forceDirectedLayout(persons, w, h);
       default:
-        return this.hierarchicalLayout(persons);
+        return this.hierarchicalLayout(persons, w, h);
     }
   }
 
@@ -859,16 +1006,19 @@ export class GraphService {
     };
   }
 
-  private hierarchicalLayout(persons: Array<Record<string, any>>): Record<string, { x: number; y: number }> {
+  /**
+   * BUG-012 / BUG-028 FIX: Hierarchical layout now accepts viewport dimensions
+   * and enforces a minimum per-node spacing of 100px. If a generation has more
+   * nodes than the viewport can fit at min spacing, the effective canvas width
+   * is expanded so nodes never overlap (the Flutter frontend pans/zooms).
+   */
+  private hierarchicalLayout(
+    persons: Array<Record<string, any>>,
+    canvasWidth: number = 1400,
+    canvasHeight: number = 920,
+  ): Record<string, { x: number; y: number }> {
     const positions: Record<string, { x: number; y: number }> = {};
-    const canvasWidth = 1400;
-
-    const genYPositions: Record<number, number> = {
-      0: 140,   // Grandparents
-      1: 350,   // Parents
-      2: 580,   // Self & siblings
-      3: 780,   // Children
-    };
+    const MIN_SPACING = 100;
 
     // Group by generation
     const genGroups = new Map<number, Array<Record<string, any>>>();
@@ -879,10 +1029,13 @@ export class GraphService {
       genGroups.set(gen, group);
     }
 
-    // Layout each generation
+    const maxGen = Math.max(...[...genGroups.keys()], 3);
+    const genSpacing = canvasHeight / (maxGen + 2);
+
     for (const [gen, group] of genGroups) {
-      const y = genYPositions[gen] ?? (140 + gen * 200);
-      const spacing = canvasWidth / (group.length + 1);
+      const y = genSpacing * (gen + 1);
+      const calculated = canvasWidth / (group.length + 1);
+      const spacing = Math.max(MIN_SPACING, calculated);
 
       group.forEach((person, idx) => {
         positions[person.id] = {
@@ -895,13 +1048,17 @@ export class GraphService {
     return positions;
   }
 
-  private radialLayout(persons: Array<Record<string, any>>): Record<string, { x: number; y: number }> {
+  /** BUG-029 FIX: Radial layout now centers on actual viewport dimensions. */
+  private radialLayout(
+    persons: Array<Record<string, any>>,
+    canvasWidth: number = 1400,
+    canvasHeight: number = 920,
+  ): Record<string, { x: number; y: number }> {
     const positions: Record<string, { x: number; y: number }> = {};
-    const centerX = 700;
-    const centerY = 460;
-    const baseRadius = 150;
+    const centerX = canvasWidth / 2;
+    const centerY = canvasHeight / 2;
+    const baseRadius = Math.min(canvasWidth, canvasHeight) * 0.15;
 
-    // Group by generation
     const genGroups = new Map<number, Array<Record<string, any>>>();
     for (const person of persons) {
       const gen = person.generationIndex ?? 0;
@@ -911,8 +1068,8 @@ export class GraphService {
     }
 
     for (const [gen, group] of genGroups) {
-      const radius = baseRadius + gen * 130;
-      const angleStep = (2 * Math.PI) / group.length;
+      const radius = baseRadius + gen * (Math.min(canvasWidth, canvasHeight) * 0.12);
+      const angleStep = (2 * Math.PI) / Math.max(group.length, 1);
 
       group.forEach((person, idx) => {
         const angle = angleStep * idx - Math.PI / 2;
@@ -926,11 +1083,15 @@ export class GraphService {
     return positions;
   }
 
-  private forceDirectedLayout(persons: Array<Record<string, any>>): Record<string, { x: number; y: number }> {
+  /** BUG-030 FIX: Force-directed layout accepts viewport dimensions. */
+  private forceDirectedLayout(
+    persons: Array<Record<string, any>>,
+    canvasWidth: number = 1400,
+    canvasHeight: number = 920,
+  ): Record<string, { x: number; y: number }> {
     // Simple force-directed: start with hierarchical then add jitter
-    const positions = this.hierarchicalLayout(persons);
+    const positions = this.hierarchicalLayout(persons, canvasWidth, canvasHeight);
 
-    // Add small random offsets for natural look
     const rng = (seed: number) => {
       let x = Math.sin(seed) * 10000;
       return x - Math.floor(x);
@@ -984,17 +1145,22 @@ export class GraphService {
     return !!membership;
   }
 
-  /** Strip contact details from graph results for non-member (read-only) access */
+  /** BUG-031 FIX: Strip contact details for non-member (read-only) access.
+   *  Returns a shallow-cloned result so the caller's original object is not
+   *  mutated (prevents accidental data leak through cached references). */
   private stripContactDetails(result: any): any {
     const contactFields = ['email', 'phone', 'address', 'bloodGroup', 'anniversaryDate'];
     if (result && result.persons && Array.isArray(result.persons)) {
-      result.persons = result.persons.map((p: any) => {
-        const stripped = { ...p };
-        for (const field of contactFields) {
-          if (field in stripped) stripped[field] = null;
-        }
-        return stripped;
-      });
+      return {
+        ...result,
+        persons: result.persons.map((p: any) => {
+          const stripped = { ...p };
+          for (const field of contactFields) {
+            if (field in stripped) stripped[field] = null;
+          }
+          return stripped;
+        }),
+      };
     }
     return result;
   }
@@ -1090,12 +1256,48 @@ export class GraphService {
       .join(' ');
   }
 
-  /** Format a raw key to Title Case. */
+  /**
+   * Format a raw key to Title Case.
+   * BUG-027 FIX: For compound kinship keys (e.g. `fathers_brother`),
+   * produce the possessive form "Father's Brother" instead of "Fathers Brother".
+   * Handles both `fathers_brother` (segment already has trailing 's') and
+   * `wife_father` (segment without trailing 's') conventions.
+   */
   private formatKey(key: string): string {
-    return key
-      .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ');
+    const parts = key.split('_').filter(Boolean);
+    if (parts.length <= 1) {
+      return key
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+    }
+    // Possessive: "Father's Brother", "Mother's Sister", "Wife's Father"
+    // The kinship vocabulary uses a small set of singular/plural possessive
+    // prefixes — handle them explicitly to avoid the "wives" → "wive's"
+    // problem that a generic trailing-'s' strip would cause.
+    const POSSESSIVE_SINGULAR: Record<string, string> = {
+      fathers: "Father's",
+      mothers: "Mother's",
+      wives: "Wife's",
+      husbands: "Husband's",
+      sons: "Son's",
+      daughters: "Daughter's",
+      parents: "Parent's",
+      brother: "Brother's",
+      sister: "Sister's",
+      wife: "Wife's",
+      husband: "Husband's",
+      father: "Father's",
+      mother: "Mother's",
+      son: "Son's",
+      daughter: "Daughter's",
+      parent: "Parent's",
+    };
+    const firstLower = parts[0].toLowerCase();
+    const firstFormatted = POSSESSIVE_SINGULAR[firstLower]
+      ?? `${parts[0].charAt(0).toUpperCase()}${parts[0].slice(1).toLowerCase()}'s`;
+    const rest = parts.slice(1).map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+    return [firstFormatted, ...rest].join(' ');
   }
 
   /** Categorize a kinship term for node coloring. */

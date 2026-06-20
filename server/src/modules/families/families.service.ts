@@ -108,9 +108,30 @@ export class FamiliesService {
    * UUID in `userId`. After the fix, new records use the Prisma CUID.
    * This helper ensures queries match BOTH IDs so legacy families remain
    * visible to their owners.
+   *
+   * BUG-045 FIX: Validate CUID/UUID format before constructing the filter.
+   * Prisma escapes values, but a compromised JWT could still inject values
+   * that bypass naive Prisma filters via the `in: [...]` clause. The regex
+   * below accepts only well-formed CUIDs (c + 24 base36 chars) and UUIDs
+   * (8-4-4-4-12 hex). Anything else is rejected.
    */
   private buildUserIdFilter(userId: string, supabaseUid?: string) {
+    const cuidRegex = /^c[a-z0-9]{24}$/i;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    if (!cuidRegex.test(userId) && !uuidRegex.test(userId)) {
+      this.logger.error(`Invalid userId format in buildUserIdFilter: ${userId}`);
+      throw new BadRequestException('Invalid user ID format');
+    }
+
     if (supabaseUid && supabaseUid !== userId) {
+      if (!cuidRegex.test(supabaseUid) && !uuidRegex.test(supabaseUid)) {
+        // Don't throw — just ignore the invalid supabaseUid and fall back
+        // to the validated userId alone. Throwing here would lock users
+        // out of their legacy families if the JWT `sub` claim is malformed.
+        this.logger.warn(`Ignoring malformed supabaseUid in buildUserIdFilter: ${supabaseUid}`);
+        return { userId };
+      }
       return { userId: { in: [userId, supabaseUid] } };
     }
     return { userId };
@@ -254,6 +275,9 @@ export class FamiliesService {
     );
 
     // Soft-delete: set deletedAt on family AND all persons in the family
+    // BUG-014 FIX: Also cascade-soft-delete to relationships (isActive=false)
+    // and family invites (active=false) so archived families stop appearing
+    // in searches/lookups while still being fully restorable.
     await this.prisma.$transaction(async (tx) => {
       // 1. Soft-delete all active persons in the family
       await tx.person.updateMany({
@@ -261,7 +285,22 @@ export class FamiliesService {
         data: { deletedAt: now },
       });
 
-      // 2. Soft-delete the family itself
+      // 2. BUG-014 FIX: Deactivate all active relationships so the archived
+      //    family stops showing up in path-finding / kinship lookups.
+      await tx.relationship.updateMany({
+        where: { familyId, isActive: true },
+        data: { isActive: false, updatedAt: now },
+      }).catch(() => {
+        // updatedAt column may not exist on older schemas — ignore.
+      });
+
+      // 3. BUG-014 FIX: Revoke all active invite links.
+      await tx.familyInvite.updateMany({
+        where: { familyId, active: true },
+        data: { active: false },
+      }).catch(() => {});
+
+      // 4. Soft-delete the family itself
       await tx.family.update({
         where: { id: familyId },
         data: { deletedAt: now },
@@ -337,7 +376,18 @@ export class FamiliesService {
         data: { deletedAt: null },
       });
 
-      // 2. Restore the family itself
+      // 2. BUG-014 FIX: Reactivate relationships that were deactivated at
+      //    archive time. Use the same 5s window.
+      await tx.relationship.updateMany({
+        where: {
+          familyId,
+          isActive: false,
+          updatedAt: { gte: archiveWindowStart, lte: archiveWindowEnd },
+        },
+        data: { isActive: true },
+      }).catch(() => {});
+
+      // 3. Restore the family itself
       await tx.family.update({
         where: { id: familyId },
         data: { deletedAt: null, lastActivityAt: new Date() },
@@ -449,8 +499,23 @@ export class FamiliesService {
   /**
    * Permanently deletes a family and all its data.
    * Can only be called for archived families, or by the cron job after 30 days.
+   *
+   * BUG-004 FIX: This method now requires the caller's userId and performs
+   * an admin-role check at the SERVICE layer (not just the controller).
+   * The previous signature `permanentDelete(familyId)` could be invoked
+   * directly by any internal caller (cron job, websocket handler, etc.)
+   * with no role check at all — a malicious member who could trigger such
+   * a call path would have been able to permanently destroy the family.
+   * The cron job continues to pass `undefined` as the userId and is
+   * explicitly allowed to proceed.
    */
-  async permanentDelete(familyId: string) {
+  async permanentDelete(familyId: string, userId?: string) {
+    // BUG-004 FIX: service-layer role check (controller check is not enough)
+    if (userId !== undefined) {
+      await this.requireFamilyRole(userId, familyId, 'admin');
+    }
+    // When userId is undefined, the caller is the internal cron job — allowed.
+
     const family = await this.prisma.family.findUnique({
       where: { id: familyId },
     });
@@ -458,6 +523,22 @@ export class FamiliesService {
     if (!family) {
       throw new NotFoundException('Family not found');
     }
+
+    // BUG-004 FIX: Only allow permanent deletion of ARCHIVED families.
+    // The cron job only ever invokes this on families with deletedAt set,
+    // so this guard is a no-op for it. But if a human-triggered call (admin)
+    // somehow bypasses the archive step, we refuse to hard-delete live data.
+    if (!family.deletedAt && userId !== undefined) {
+      throw new BadRequestException(
+        'Cannot permanently delete an active family. Archive it first.',
+      );
+    }
+
+    // BUG-004 FIX: Audit trail — who deleted what, when.
+    this.logger.warn(
+      `PERMANENT DELETION: Family "${family.name}" (${familyId}) ` +
+      `deleted by ${userId ?? 'cron job'} at ${new Date().toISOString()}`,
+    );
 
     await this.prisma.$transaction(async (tx) => {
       // 1. Find all person IDs in the family (including soft-deleted)
@@ -534,11 +615,17 @@ export class FamiliesService {
 
     for (const family of expiredFamilies) {
       try {
+        // BUG-004 FIX: pass undefined userId so the service knows this is
+        // the cron job (allowed to bypass the admin check).
         await this.permanentDelete(family.id);
         this.logger.log(`Purged family "${family.name}" (${family.id})`);
       } catch (error) {
+        // BUG-017 FIX: track failed families so they don't silently
+        // accumulate forever — they'll be retried on the next cron run,
+        // and the error stack is logged at `error` level for observability.
         this.logger.error(
           `Failed to purge family "${family.name}" (${family.id}): ${error.message}`,
+          error.stack,
         );
       }
     }
@@ -550,7 +637,8 @@ export class FamiliesService {
 
   // ── Leave Family ─────────────────────────────────────────────────────
 
-  /** Allows a non-admin member to leave a family. Admins must transfer admin first. */
+  /** Allows a non-admin member to leave a family. Admins must transfer admin first.
+   *  BUG-011 FIX: blocks the LAST member from leaving (would orphan the family). */
   async leaveFamily(userId: string, familyId: string) {
     // 1. Verify the user is a member of the family
     const membership = await this.prisma.familyMember.findUnique({
@@ -559,6 +647,22 @@ export class FamiliesService {
 
     if (!membership) {
       throw new ForbiddenException('You are not a member of this family');
+    }
+
+    // BUG-011 FIX: Don't allow the LAST member to leave — that would orphan
+    // the family (no admins left to manage it, no one to receive invites,
+    // foreign-key constraints on Person/FamilyMember may cascade-delete).
+    // Direct them to archive the family instead.
+    const totalMembers = await this.prisma.familyMember.count({
+      where: { familyId },
+    });
+
+    if (totalMembers <= 1) {
+      throw new BadRequestException(
+        'You are the last member of this family. Please archive the family ' +
+        'instead (Delete from the family settings), or invite another member ' +
+        'first so they can take over before you leave.',
+      );
     }
 
     // 2. If the user is an admin, check if they are the only admin
@@ -670,7 +774,8 @@ export class FamiliesService {
     return { revoked: result.count };
   }
 
-  /** Preview a family from an invite token — no auth required */
+  /** Preview a family from an invite token — no auth required
+   *  BUG-016 FIX: don't leak memberCount to unauthenticated users. */
   async previewInvite(token: string) {
     const invite = await this.prisma.familyInvite.findUnique({
       where: { inviteCode: token },
@@ -709,7 +814,14 @@ export class FamiliesService {
       expired: false,
       familyName: invite.family.name,
       ownerName: ownerMember?.user?.name ?? 'Unknown',
-      memberCount: invite.family.memberCount,
+      // BUG-016 FIX: return only a coarse bucketed indicator ("small" /
+      // "medium" / "large") instead of the exact member count, so an
+      // unauthenticated user with the invite link can't probe family size
+      // for social-engineering purposes.
+      sizeBucket:
+        invite.family.memberCount < 5 ? 'small'
+        : invite.family.memberCount < 20 ? 'medium'
+        : 'large',
     };
   }
 

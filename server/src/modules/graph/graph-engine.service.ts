@@ -905,7 +905,12 @@ export class GraphEngineService {
       throw new NotFoundException(`Person ${toPersonId} not found in family ${familyId}`);
     }
 
-    // BFS with path tracking
+    // BFS with path tracking.
+    // BUG-018 FIX: cap traversal depth at 15 hops. For a healthy family graph,
+    // any two living relatives are within 8-10 hops of each other; 15 gives
+    // generous headroom for blended/step families while preventing a corrupt
+    // cyclic graph from causing 30s+ API timeouts.
+    const MAX_PATH_DEPTH = 15;
     const visited = new Set<string>();
     const queue: Array<{
       personId: string;
@@ -921,9 +926,15 @@ export class GraphEngineService {
     while (queue.length > 0) {
       const current = queue.shift()!;
 
+      // Don't expand beyond MAX_PATH_DEPTH — nodes already enqueued at this
+      // depth will still be checked for `=== toPersonId` below, but we won't
+      // enqueue their neighbors.
+      const atDepthLimit = current.steps.length >= MAX_PATH_DEPTH;
+
       const neighbors = adjacency.get(current.personId) ?? [];
       for (const neighbor of neighbors) {
         if (visited.has(neighbor.neighborId)) continue;
+        if (atDepthLimit) continue; // BUG-018 FIX: depth cap
 
         visited.add(neighbor.neighborId);
 

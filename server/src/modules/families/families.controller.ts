@@ -169,10 +169,11 @@ export class FamiliesController {
     @CurrentUser('id') userId: string,
     @Param('familyId') familyId: string,
   ) {
-    // FIXED: Require admin role — any member could previously permanently
-    // delete all family data. Now only admins can perform this destructive action.
-    await this.familiesService.requireFamilyRole(userId, familyId, 'admin');
-    return this.familiesService.permanentDelete(familyId);
+    // BUG-004 FIX: pass userId into the service so the role check happens
+    // at the SERVICE layer (not just the controller). The service refuses
+    // to hard-delete any family that isn't already archived, and logs an
+    // audit entry naming the admin who triggered the deletion.
+    return this.familiesService.permanentDelete(familyId, userId);
   }
 
   @Delete(':familyId/leave')
