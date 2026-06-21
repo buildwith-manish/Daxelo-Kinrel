@@ -724,13 +724,14 @@ class _PersonNodeCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Opacity(
       opacity: person.isDeceased ? 0.4 * opacity : opacity,
-      child: Semantics(
-        label: '${person.name}, $relationLabel',
-        button: true,
-        child: GestureDetector(
-          onTap: () => context.push('/family/$familyId/person/${person.id}'),
-          onLongPress: () => _showQuickActions(context, ref),
-          child: Column(
+      // v43 FIX: Removed Semantics(button: true) wrapper — same fix as
+      // graph_node.dart. Semantics creates an Android accessibility touch
+      // target that competes with GestureDetector in the gesture arena.
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => context.push('/family/$familyId/person/${person.id}'),
+        onLongPress: () => _showQuickActions(context, ref),
+        child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               // ── Circle Node ───────────────────────────────────────
@@ -769,7 +770,6 @@ class _PersonNodeCard extends ConsumerWidget {
             ],
           ),
         ),
-      ),
     );
   }
 

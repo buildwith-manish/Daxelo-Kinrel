@@ -23,6 +23,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/graph/graph_service.dart';
 import '../../../core/graph/graph_provider.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../graph/widgets/graph_pan_zoom.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // LAYOUT CONSTANTS
@@ -328,17 +329,18 @@ class _FamilyTreeWidgetState extends ConsumerState<FamilyTreeWidget>
       child: Stack(
         children: [
           // ── Interactive tree canvas ────────────────────────────
-          InteractiveViewer(
+          // v43 FIX: Replace InteractiveViewer with GraphPanZoom.
+          GraphPanZoom(
             transformationController: _transformationController,
             minScale: 0.3,
             maxScale: 3.0,
-            boundaryMargin: const EdgeInsets.all(2000),
-            onInteractionUpdate: (details) {
+            onTransformChanged: () {
               setState(() {
-                _scale = details.scale;
+                _scale = _transformationController.value.getMaxScaleOnAxis();
               });
             },
             child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
               onTapUp: (details) {
                 final hit = _hitTest(details.localPosition);
                 if (hit != null) {

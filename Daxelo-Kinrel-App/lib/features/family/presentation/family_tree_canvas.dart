@@ -12,6 +12,7 @@ import '../../../core/graph/graph_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/utils/smart_preloader.dart';
 import '../../../core/services/analytics_service.dart';
+import '../../../graph/widgets/graph_pan_zoom.dart';
 import '../../../shared/widgets/dk_components.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -397,39 +398,33 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
       child: Stack(
         children: [
           // ── Interactive graph canvas ─────────────────────────────
-          // v9: Map-like zoom/pan — constrained:false + infinite boundary
-          // margin removes all pan snap/rubber-banding. Users can freely
-          // pan like Google Maps.
-          InteractiveViewer(
+          // v43 FIX: Replace InteractiveViewer with GraphPanZoom (v5.0
+          // raw Listener pointers). InteractiveViewer's ScaleGestureRecognizer
+          // loses the gesture arena on Android when child nodes have their
+          // own GestureDetectors — making pinch-to-zoom freeze. GraphPanZoom
+          // uses raw Listener which fires unconditionally, bypassing the arena.
+          GraphPanZoom(
             transformationController: _transformationController,
             minScale: 0.2,
             maxScale: 4.0,
-            boundaryMargin: const EdgeInsets.all(double.infinity),
-            constrained: false,
-            panEnabled: true,
-            scaleEnabled: true,
-            onInteractionUpdate: (details) {
-              // P5-F1: Track zoom changes (only for pinch zoom, not pan)
-              if (details.scale != 1.0 && details.scale != _currentScale) {
-                AnalyticsService.instance.logGraphZoomed(details.scale);
+            onTransformChanged: () {
+              final newScale = _transformationController.value.getMaxScaleOnAxis();
+              if (newScale != _currentScale) {
+                AnalyticsService.instance.logGraphZoomed(newScale);
               }
               setState(() {
-                _currentScale = _transformationController.value.getMaxScaleOnAxis();
+                _currentScale = newScale;
               });
             },
-            child: Semantics(
-              label:
-                  'Family relationship graph with ${activeMembers.length} members',
-              hint: 'Pinch to zoom, drag to pan, tap a node to view member',
-              child: GestureDetector(
-                onTapUp: (details) =>
-                    _handleTap(details.localPosition, layout),
-                onLongPressStart: (details) =>
-                    _handleLongPress(details.localPosition, layout),
-                onDoubleTap: () {}, // Required for onDoubleTapDown to work
-                onDoubleTapDown: (details) =>
-                    _handleDoubleTap(details.localPosition, layout),
-                child: SizedBox(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTapUp: (details) =>
+                  _handleTap(details.localPosition, layout),
+              onLongPressStart: (details) =>
+                  _handleLongPress(details.localPosition, layout),
+              onDoubleTapDown: (details) =>
+                  _handleDoubleTap(details.localPosition, layout),
+              child: SizedBox(
                   width: canvasSize,
                   height: canvasSize,
                   child: KinrelAnimatedBuilder(
@@ -465,7 +460,6 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
                 ),
               ),
             ),
-          ),
 
           // Change 2: Removed _LanguageSelectorButton and _FilterBar from top
           // Change 5: Replaced _GraphControls, _AddNodeFab, _Minimap with single pill
