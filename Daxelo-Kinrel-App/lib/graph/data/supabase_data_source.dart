@@ -66,9 +66,13 @@ class SupabaseDataSource implements FamilyGraphRepository {
       final response = await _client.rpc(
         'get_family_graph',
         params: <String, dynamic>{
-          'member_id': memberId,
-          'max_degree': maxDegree,
-          'include_hidden': includeHidden,
+          // v39 BUG-2 FIX: Parameter names must match the SQL function
+          // signature exactly. The RPC function defines:
+          //   get_family_graph(p_member_id text, p_max_degree int, p_include_hidden boolean)
+          // PostgREST matches by name, so 'member_id' → NULL → empty result.
+          'p_member_id': memberId,
+          'p_max_degree': maxDegree,
+          'p_include_hidden': includeHidden,
         },
       ).timeout(_rpcTimeout);
 
@@ -97,9 +101,10 @@ class SupabaseDataSource implements FamilyGraphRepository {
       final response = await _client.rpc(
         'get_member_branch',
         params: <String, dynamic>{
-          'member_id': memberId,
-          'branch_type': branchType.name,
-          'depth': depth,
+          // v39 BUG-2 FIX: Match SQL function parameter names exactly.
+          'p_member_id': memberId,
+          'p_branch_type': branchType.name,
+          'p_depth': depth,
         },
       ).timeout(_rpcTimeout);
 

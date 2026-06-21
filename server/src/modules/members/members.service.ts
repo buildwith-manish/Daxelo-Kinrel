@@ -170,7 +170,20 @@ export class MembersService {
       familyId,
     });
 
-    // If relationship was created, emit graph:updated and invalidate caches
+    // v39 BUG-1 FIX: ALWAYS invalidate graph cache when a member is added,
+    // not just when a relationship is created. Previously, adding a
+    // standalone member (no relationship) left the stale empty graph
+    // cached in Redis for 30 minutes — every subsequent API call returned
+    // the empty cached data, so the new member was invisible.
+    this.gateway.emitToFamily(familyId, 'graph:updated', {
+      id: familyId,
+      updatedAt: new Date().toISOString(),
+      type: 'graph:updated',
+      familyId,
+    });
+    await this.graphService.invalidateFlatGraphCache(familyId);
+
+    // If relationship was also created, emit the relationship:created event
     if (dto.relativePersonId && dto.initialRelationshipKey) {
       this.gateway.emitToFamily(familyId, 'relationship:created', {
         id: person.id,
@@ -178,14 +191,6 @@ export class MembersService {
         type: 'relationship:created',
         familyId,
       });
-      this.gateway.emitToFamily(familyId, 'graph:updated', {
-        id: familyId,
-        updatedAt: new Date().toISOString(),
-        type: 'graph:updated',
-        familyId,
-      });
-      // Invalidate both Redis and in-memory caches
-      await this.graphService.invalidateFlatGraphCache(familyId);
     }
 
     return this.formatPerson(person);
