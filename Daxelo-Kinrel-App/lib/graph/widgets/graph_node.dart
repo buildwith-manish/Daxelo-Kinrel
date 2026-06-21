@@ -544,23 +544,18 @@ class _GraphNodeState extends ConsumerState<GraphNode>
 
     return Opacity(
       opacity: effectiveOpacity,
-      child: Semantics(
-        label: _buildSemanticLabel(),
-        button: true,
-        child: GestureDetector(
-          // translucent: InteractiveViewer's ScaleGestureRecognizer wins
-          // the arena for two-finger pinch even when fingers start on a node.
-          behavior: HitTestBehavior.translucent,
-          onTap: widget.onTap,
-          onLongPress: widget.onLongPress,
-          // FIX: onDoubleTap REMOVED. A DoubleTapGestureRecognizer on each
-          // node competes with InteractiveViewer's ScaleGestureRecognizer.
-          // Flutter's gesture arena resolves DoubleTap before Scale, so
-          // every two-finger pinch that starts on a node gets swallowed
-          // — killing pinch-to-zoom. Camera focus is now via long-press.
-          onDoubleTap: null,
-          child: _buildAnimatedNode(reduceMotion: reduceMotion),
-        ),
+      // v42 FIX: Removed Semantics wrapper. Semantics(button: true) creates
+      // an Android accessibility touch target that competes with
+      // GestureDetector in the gesture arena, blocking pinch-to-zoom on
+      // devices where accessibility services are active.
+      child: GestureDetector(
+        // translucent: GraphPanZoom's ScaleGestureRecognizer wins
+        // the arena for two-finger pinch even when fingers start on a node.
+        behavior: HitTestBehavior.translucent,
+        onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
+        onDoubleTap: null,
+        child: _buildAnimatedNode(reduceMotion: reduceMotion),
       ),
     );
   }

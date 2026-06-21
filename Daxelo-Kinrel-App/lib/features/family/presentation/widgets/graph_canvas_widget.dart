@@ -33,6 +33,7 @@ import '../providers/family_graph_provider.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/services/graph_layout_service.dart';
+import '../../../../graph/widgets/graph_pan_zoom.dart';
 import '../../../../shared/painters/family_tree_painter.dart';
 import '../../../../shared/utils/node_colors.dart';
 import 'edge_dot_widget.dart';
@@ -314,46 +315,49 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
     final effectiveWidth = canvasWidth > 0 ? canvasWidth : 3000.0;
     final effectiveHeight = canvasHeight > 0 ? canvasHeight : 3000.0;
 
-    return ClipRect(
-      child: InteractiveViewer(
-        transformationController: _transformationController,
-        minScale: 0.1,
-        maxScale: 4.0,
-        constrained: false,
-        child: SizedBox(
-          width: effectiveWidth,
-          height: effectiveHeight,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              // ── Layer 1: Edges (CustomPaint) ───────────────────────
-              Positioned.fill(
-                child: CustomPaint(
-                  size: Size(effectiveWidth, effectiveHeight),
-                  painter: FamilyTreePainter(
-                    positions: positions,
-                    relationships: widget.relationships
-                        .map((r) => r.toEdgeData())
-                        .toList(),
-                    selectedEdgeId: _selectedEdgeId,
-                    zoomLevel: zoomLevel,
-                    nodeWidth: _nodeWidth,
-                    nodeHeight: _nodeHeight,
-                  ),
+    // v42 FIX: Replace ClipRect+InteractiveViewer with GraphPanZoom.
+    // InteractiveViewer loses the gesture arena on Android when child
+    // nodes have their own GestureDetectors. GraphPanZoom uses
+    // GestureDetector(opaque) with onScaleStart/Update/End which is
+    // proven to work on Android native touch.
+    return GraphPanZoom(
+      transformationController: _transformationController,
+      minScale: 0.05,
+      maxScale: 8.0,
+      onTransformChanged: () => setState(() {}),
+      child: SizedBox(
+        width: effectiveWidth,
+        height: effectiveHeight,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // ── Layer 1: Edges (CustomPaint) ───────────────────────
+            Positioned.fill(
+              child: CustomPaint(
+                size: Size(effectiveWidth, effectiveHeight),
+                painter: FamilyTreePainter(
+                  positions: positions,
+                  relationships: widget.relationships
+                      .map((r) => r.toEdgeData())
+                      .toList(),
+                  selectedEdgeId: _selectedEdgeId,
+                  zoomLevel: zoomLevel,
+                  nodeWidth: _nodeWidth,
+                  nodeHeight: _nodeHeight,
                 ),
               ),
+            ),
 
-              // ── Layer 2: Edge Dots ──────────────────────────────────
-              ..._buildEdgeDots(positions),
+            // ── Layer 2: Edge Dots ──────────────────────────────────
+            ..._buildEdgeDots(positions),
 
-              // ── Layer 3: Person Node Cards ──────────────────────────
-              ..._buildPersonNodes(positions, zoomLevel),
+            // ── Layer 3: Person Node Cards ──────────────────────────
+            ..._buildPersonNodes(positions, zoomLevel),
 
-              // ── Layer 4: Relationship Popup ─────────────────────────
-              if (_showPopup && _selectedEdgeData != null)
-                _buildRelationshipPopup(positions, canvasWidth, canvasHeight),
-            ],
-          ),
+            // ── Layer 4: Relationship Popup ─────────────────────────
+            if (_showPopup && _selectedEdgeData != null)
+              _buildRelationshipPopup(positions, canvasWidth, canvasHeight),
+          ],
         ),
       ),
     );
