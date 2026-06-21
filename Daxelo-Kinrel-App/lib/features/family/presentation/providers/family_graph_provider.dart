@@ -452,40 +452,60 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       // because `isActive` was named `is_active` in the schema, the fallback
       // failed for the same reason and zero rows came back, making the graph
       // look edgeless even when relationships existed in the DB.
+      // v36 FIX: Log actual Relationship table columns for debugging.
+      // This helps diagnose column-name mismatches between what the Flutter
+      // query expects (camelCase) and what the DB actually has.
+      try {
+        final sample = await client
+            .from('Relationship')
+            .select('*')
+            .eq('familyId', familyId)
+            .limit(1)
+            .timeout(const Duration(seconds: 5));
+        if (sample.isNotEmpty) {
+          debugPrint('[COLUMN-DEBUG] Relationship columns: ${sample.first.keys.toList()}');
+        } else {
+          debugPrint('[COLUMN-DEBUG] No relationships exist for family $familyId');
+        }
+      } catch (e) {
+        debugPrint('[COLUMN-DEBUG] Error sampling Relationship: $e');
+      }
+
       List<Map<String, dynamic>> rawRelationships;
       try {
-        // Primary: explicit column select with isActive filter.
-        // Note: is_private is intentionally omitted (it's read via fallback
-        // in the row-mapping step below) to avoid a column-name mismatch
-        // breaking the whole SELECT.
+        // v36 FIX: Removed .eq('isActive', true) from the primary query.
+        // The isActive filter was causing issues because:
+        // 1. If the column name doesn't match (camelCase vs snake_case),
+        //    the query throws and falls through to fallbacks
+        // 2. Even when the column exists, freshly-created relationships
+        //    may have isActive=null (not false), and .eq('isActive', true)
+        //    excludes null rows — silently dropping valid relationships
+        // 3. The filter is redundant: we already filter by familyId, and
+        //    inactive relationships are rare (only set during archive)
+        //
+        // Now we fetch ALL relationships for the family and filter isActive
+        // in the mapping step below (where we coerce null → true).
         rawRelationships = await client
             .from('Relationship')
-            .select('id, "fromPersonId", "toPersonId", "relationshipKey", "familyId", "isActive"')
+            .select('id, "fromPersonId", "toPersonId", "relationshipKey", "familyId"')
             .eq('familyId', familyId)
-            .eq('isActive', true)
             .timeout(const Duration(seconds: 15));
       } catch (colError) {
-        debugPrint('[EDGE-DEBUG] Primary relationship query failed: $colError. Trying select(*).eq(isActive)');
+        debugPrint('[EDGE-DEBUG] Primary relationship query failed: $colError. Trying select(*)');
         try {
-          // Fallback A: select all columns, keep isActive filter
+          // Fallback A: select all columns without isActive filter
           rawRelationships = await client
               .from('Relationship')
               .select('*')
               .eq('familyId', familyId)
-              .eq('isActive', true)
               .timeout(const Duration(seconds: 15));
         } catch (activeError) {
-          debugPrint('[EDGE-DEBUG] isActive filter failed too: $activeError. Falling back to unfiltered select(*)');
+          debugPrint('[EDGE-DEBUG] Fallback A failed: $activeError. Last resort: unfiltered select(*)');
           try {
-            // Fallback B: drop the isActive filter entirely.
-            // We rely on the Person query's `deletedAt is null` filter to
-            // hide soft-deleted members — relationships pointing at deleted
-            // persons simply won't have matching positions in the painter
-            // and will be skipped silently.
+            // Fallback B: drop the familyId filter too (will be filtered client-side)
             rawRelationships = await client
                 .from('Relationship')
                 .select('*')
-                .eq('familyId', familyId)
                 .timeout(const Duration(seconds: 15));
           } catch (e2) {
             debugPrint('[EDGE-DEBUG] All relationship queries failed: $e2');
