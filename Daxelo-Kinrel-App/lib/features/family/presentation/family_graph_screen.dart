@@ -544,44 +544,28 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ),
 
         // V2.1 Stats panel (bottom-left, above bottom toolbar)
-        // v41 FIX: Wrap in IgnorePointer(ignoring:false) to ensure the
-        // stats panel receives hit-tests even though the InteractiveViewer
-        // below it uses HitTestBehavior.opaque internally.
         Positioned(
           left: 16,
           bottom: fabBottomOffset,
-          child: IgnorePointer(
-            ignoring: false,
-            child: StatsPanel(
-              totalMembers: graph.persons.length,
-              totalConnections: graph.relationships.length,
-              totalGenerations: presentGenerations.length,
-              isTruncated: graph.isTruncated,
-            ),
+          child: StatsPanel(
+            totalMembers: graph.persons.length,
+            totalConnections: graph.relationships.length,
+            totalGenerations: presentGenerations.length,
+            isTruncated: graph.isTruncated,
           ),
         ),
 
-        // Bottom toolbar — Center, Add Member, Filter, Help (NO zoom buttons)
-        // v41 FIX: Use PhysicalModel instead of Material(transparent, elevation)
-        // because Material with transparent color + elevation renders NO visible
-        // surface on Android — the toolbar was invisible in the debug APK.
-        // PhysicalModel paints an actual shadow even with transparent color.
-        // Also wrap in IgnorePointer(ignoring:false) to ensure taps reach the
-        // toolbar buttons instead of being eaten by the InteractiveViewer.
+        // Bottom toolbar — Center, Add Member, Filter, Help
+        // v42 FIX: Removed PhysicalModel(transparent) and IgnorePointer
+        // which caused the toolbar to be invisible/untappable on Android.
+        // _buildBottomToolbar() already returns a Container with its own
+        // BoxShadow, so no wrapper is needed.
         Positioned(
           bottom: bottomPadding + 24,
           left: 0,
           right: 0,
-          child: IgnorePointer(
-            ignoring: false,
-            child: Center(
-              child: PhysicalModel(
-                color: Colors.transparent,
-                elevation: 8,
-                borderRadius: BorderRadius.circular(24),
-                child: _buildBottomToolbar(),
-              ),
-            ),
+          child: Center(
+            child: _buildBottomToolbar(),
           ),
         ),
       ],

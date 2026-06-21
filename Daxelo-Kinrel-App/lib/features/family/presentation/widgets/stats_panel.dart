@@ -56,29 +56,38 @@ class StatsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // v42 FIX: Removed Material(color: Colors.transparent) wrapper.
+    // Material with transparent color creates a broken compositing layer
+    // on Android that can hide the child. The Container already has an
+    // explicit opaque color (KinrelColors.darkCard) and its own decoration,
+    // so no Material wrapper is needed.
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _StatRow(label: 'MEMBERS', value: '$totalMembers'),
-            const SizedBox(height: 6),
-            _StatRow(label: 'LINKS', value: '$totalConnections'),
-            const SizedBox(height: 6),
-            _StatRow(label: 'GENS', value: '$totalGenerations'),
-            if (isTruncated) ...[
-              const SizedBox(height: 8),
-              _TruncatedWarning(),
-            ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _StatRow(label: 'MEMBERS', value: '$totalMembers'),
+          const SizedBox(height: 6),
+          _StatRow(label: 'LINKS', value: '$totalConnections'),
+          const SizedBox(height: 6),
+          _StatRow(label: 'GENS', value: '$totalGenerations'),
+          if (isTruncated) ...[
+            const SizedBox(height: 8),
+            _TruncatedWarning(),
           ],
-        ),
+        ],
       ),
     );
   }

@@ -32,6 +32,7 @@ import 'empty_state.dart';
 import 'graph_error_state.dart';
 import 'graph_node.dart';
 import 'graph_node_state.dart';
+import 'graph_pan_zoom.dart';
 import 'graph_quick_actions.dart';
 import 'graph_relationship_labels.dart';
 import 'onboarding_flow.dart';
@@ -258,20 +259,18 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     final canvasHeight = layout.canvasHeight;
     final highlightedGen = widget.highlightedGeneration;
 
-    // v41 FIX: Wrap InteractiveViewer in Listener(translucent) so pointer
-    // events pass through to sibling widgets (toolbar, stats panel) that are
-    // positioned ABOVE the graph in the parent Stack. Without this, the
-    // InteractiveViewer's internal Listener uses HitTestBehavior.opaque and
-    // eats all pointer events — toolbar buttons become untappable on Android.
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      child: InteractiveViewer(
-        transformationController: _transformationController,
-        minScale: 0.1,
-        maxScale: 5.0,
-        boundaryMargin: const EdgeInsets.all(double.infinity),
-        constrained: false,
-        child: SizedBox(
+    // v42 FIX: Replace InteractiveViewer with GraphPanZoom (v4.1 battle-tested).
+    // InteractiveViewer's gesture model conflicts with nested node
+    // GestureDetectors on Android — the node's TapGestureRecognizer wins
+    // the arena and blocks the parent's ScaleGestureRecognizer, making
+    // pinch-to-zoom feel frozen. GraphPanZoom uses HitTestBehavior.opaque
+    // + ClipRect so the parent claims the viewport for scale gestures,
+    // while child node taps still win for single taps.
+    return GraphPanZoom(
+      transformationController: _transformationController,
+      minScale: 0.1,
+      maxScale: 5.0,
+      child: SizedBox(
         width: canvasWidth > 0 ? canvasWidth : 400,
         height: canvasHeight > 0 ? canvasHeight : 400,
         child: Stack(
@@ -306,7 +305,6 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             ..._buildNodes(positions, personMap, edges, highlightedGen),
           ],
         ),
-      ),
       ),
     );
   }
@@ -350,50 +348,41 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         Positioned(
           left: pos.dx - 36,  // center the 72px node
           top: pos.dy - 36,
-          child: GestureDetector(
-            // v41 FIX: deferToChild lets the InteractiveViewer's scale
-            // gesture win when the user pinches on/near a node. Without
-            // this, the node's tap recognizer wins the gesture arena on
-            // Android and blocks the pinch-to-zoom.
-            behavior: HitTestBehavior.deferToChild,
+          // v42 FIX: Removed the outer GestureDetector wrapper.
+          // GraphNode has its OWN internal GestureDetector with
+          // HitTestBehavior.translucent. The outer GestureDetector was
+          // competing with GraphPanZoom's ScaleGestureRecognizer on
+          // Android, blocking pinch-to-zoom. GraphPanZoom's
+          // HitTestBehavior.opaque + GraphNode's translucent is the
+          // correct combination: parent claims scale, child wins tap.
+          child: GraphNode(
+            personId: person.id,
+            name: person.name,
+            gender: person.gender,
+            generationIndex: person.generationIndex,
+            isAnchor: person.isAnchor,
+            photoUrl: person.photoUrl,
+            isDeceased: person.isDeceased,
+            isAnonymous: false,
+            relationshipKey: relKey,
+            relationLabel: relationLabel,
+            nodeState: nodeState,
+            opacity: nodeOpacity,
+            nodeSize: GraphNodeStateResolver.resolveSize(
+              viewportWidth: MediaQuery.of(context).size.width,
+              zoomLevel: zoomLevel,
+            ),
             onTap: () {
               setState(() {
-                _selectedNodeId = _selectedNodeId == person.id ? null : person.id;
+                _selectedNodeId =
+                    _selectedNodeId == person.id ? null : person.id;
                 _selectedEdgeId = null;
               });
             },
             onLongPress: () {
               GraphQuickActions.show(context, person);
             },
-            child: GraphNode(
-              personId: person.id,
-              name: person.name,
-              gender: person.gender,
-              generationIndex: person.generationIndex,
-              isAnchor: person.isAnchor,
-              photoUrl: person.photoUrl,
-              isDeceased: person.isDeceased,
-              isAnonymous: false,
-              relationshipKey: relKey,
-              relationLabel: relationLabel,
-              nodeState: nodeState,
-              opacity: nodeOpacity,
-              nodeSize: GraphNodeStateResolver.resolveSize(
-                viewportWidth: MediaQuery.of(context).size.width,
-                zoomLevel: zoomLevel,
-              ),
-              onTap: () {
-                setState(() {
-                  _selectedNodeId =
-                      _selectedNodeId == person.id ? null : person.id;
-                  _selectedEdgeId = null;
-                });
-              },
-              onLongPress: () {
-                GraphQuickActions.show(context, person);
-              },
-              onDoubleTap: null,
-            ),
+            onDoubleTap: null,
           ),
         ),
       );
