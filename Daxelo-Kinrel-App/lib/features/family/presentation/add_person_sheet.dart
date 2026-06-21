@@ -389,7 +389,45 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         // so the graph layout has an anchor to center on. Without an anchor,
         // the graph may render blank because the layout doesn't know where
         // to position nodes.
-        final isFirstMember = !_familyHasExistingMembers;
+        //
+        // v38 BUG-11 FIX: AWAIT the familyMembersProvider before deciding
+        // isFirstMember. Previously, _familyHasExistingMembers returned true
+        // while the provider was still loading — causing the first member
+        // to be created with isAnchor=false. The graph then had no anchor
+        // to center on → blank/displaced graph.
+        bool isFirstMember = !_familyHasExistingMembers;
+        if (!isFirstMember) {
+          // The provider might still be loading — wait for it to settle
+          // before making the final decision.
+          try {
+            final members = await ref
+                .read(familyMembersProvider(widget.familyId).future);
+            isFirstMember = members.isEmpty;
+          } catch (e) {
+            debugPrint('[ADD-MEMBER] Could not await familyMembersProvider: $e');
+            // Fall back to the synchronous check — if it said "has members",
+            // we trust it. If it said "no members", we also trust it.
+          }
+        }
+        // Double-check by querying Person count directly from Supabase
+        // (authoritative — the provider may have stale cached data)
+        if (!isFirstMember) {
+          try {
+            final client = ref.read(supabaseProvider);
+            if (client != null) {
+              final count = await client
+                  .from('Person')
+                  .select('id')
+                  .eq('familyId', widget.familyId)
+                  .isFilter('deletedAt', null)
+                  .count();
+              isFirstMember = count == 0;
+              debugPrint('[ADD-MEMBER] Direct Person count: $count → isFirstMember=$isFirstMember');
+            }
+          } catch (e) {
+            debugPrint('[ADD-MEMBER] Direct Person count failed: $e');
+          }
+        }
 
         result = await createPersonOptimistic(
           ref: ref,
@@ -406,7 +444,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               ? null
               : _gotraController.text.trim(),
           isDeceased: _isDeceased,
-          isAnchor: isFirstMember, // ← v20: First member is always the anchor
+          isAnchor: isFirstMember, // ← v20/v38: First member is always the anchor
         );
 
         // ═══════════════════════════════════════════════════════════════

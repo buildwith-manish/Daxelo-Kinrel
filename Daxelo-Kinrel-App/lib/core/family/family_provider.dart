@@ -1893,6 +1893,25 @@ Future<void> deletePerson({
     operationName: 'Delete person',
   );
 
+  // v38 BUG-4 FIX: Deactivate all relationships involving this person.
+  // Previously, deletePerson only set Person.deletedAt but left the
+  // Relationship rows with isActive=true. The graph query would then
+  // return those orphaned edges, the painter would look up the deleted
+  // person's position (null), and silently skip the edge — but the
+  // edge count in the stats panel was still inflated.
+  try {
+    await withRetry(
+      () => client
+          .from('Relationship')
+          .update({'isActive': false, 'updatedAt': now})
+          .or('fromPersonId.eq.$personId,toPersonId.eq.$personId'),
+      operationName: 'Deactivate deleted person relationships',
+    );
+    debugPrint('[deletePerson] Deactivated relationships for $personId');
+  } catch (e) {
+    debugPrint('[deletePerson] Could not deactivate relationships (non-fatal): $e');
+  }
+
   ref.invalidate(familyMembersProvider(familyId));
   // familyDetailProvider auto-rebuilds via ref.watch on familyMembersProvider
 

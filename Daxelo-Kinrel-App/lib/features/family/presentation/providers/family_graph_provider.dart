@@ -21,6 +21,7 @@
 //     don't have relationships connecting them to the anchor yet.
 
 import 'dart:async';
+import 'dart:convert' show jsonEncode;
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
@@ -295,7 +296,10 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
           id: Value(p['id'] as String? ?? ''),
           familyId: Value(familyId),
           name: Value(p['name'] as String? ?? ''),
-          data: Value(p.toString()),
+          // v38 BUG-8 FIX: Use jsonEncode instead of toString().
+          // Map.toString() produces Dart literal syntax ({id: abc, name: John})
+          // which is NOT valid JSON and cannot be parsed by json.decode.
+          data: Value(jsonEncode(p)),
           cachedAt: Value(DateTime.now()),
         );
       }).toList();
@@ -312,7 +316,8 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
           fromId: Value(r['fromPersonId'] as String? ?? ''),
           toId: Value(r['toPersonId'] as String? ?? ''),
           relationshipType: Value(r['relationshipKey'] as String? ?? ''),
-          data: Value(r.toString()),
+          // v38 BUG-8 FIX: Use jsonEncode instead of toString().
+          data: Value(jsonEncode(r)),
           cachedAt: Value(DateTime.now()),
         );
       }).toList();
@@ -371,38 +376,39 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
           if (data != null) {
             final rpcResult = FlatGraphResult.fromRpc(data);
 
-            // Use RPC result ONLY if it returns all (or more) persons
-            // than the direct query. If it returns fewer, it means the
-            // RPC is missing disconnected members — use direct query instead.
-            if (rpcResult.persons.length >= directResult.persons.length) {
+            // v38 BUG-5 FIX: Use RPC result ONLY if it returns ≥ persons AND
+            // ≥ relationships than the direct query. Previously, the RPC could
+            // return the same persons but FEWER relationships (e.g., the RPC's
+            // BFS didn't traverse all edges), and the code would accept it —
+            // silently dropping edges that the direct query found.
+            final rpcBetterOrEqual =
+                rpcResult.persons.length >= directResult.persons.length &&
+                rpcResult.relationships.length >= directResult.relationships.length;
+
+            if (rpcBetterOrEqual) {
               _cache[familyId] = rpcResult;
               debugPrint(
                 '[FamilyGraphNotifier] RPC: Loaded ${rpcResult.persons.length} persons, '
                 '${rpcResult.relationships.length} relationships for $familyId',
               );
-              // ── EDGE DEBUG: Log RPC edge data ──
               debugPrint('[EDGE-DEBUG] RPC data being used. '
                   'RPC relationships: ${rpcResult.relationships.length}');
-              if (rpcResult.relationships.isNotEmpty) {
-                debugPrint('[EDGE-DEBUG] RPC first edge: ${rpcResult.relationships.first}');
-              } else {
-                debugPrint('[EDGE-DEBUG] WARNING: RPC returned ZERO relationships! '
-                    'Falling back to direct query which has ${directResult.relationships.length}');
-                // Prefer direct query when RPC has no relationships but direct does
-                if (directResult.relationships.isNotEmpty) {
-                  _cache[familyId] = directResult;
-                  return directResult;
-                }
-              }
               return rpcResult;
             }
 
-            // RPC returned fewer persons — log and use direct query
-            debugPrint(
-              '[FamilyGraphNotifier] RPC returned ${rpcResult.persons.length} persons '
-              'but direct query found ${directResult.persons.length}. '
-              'Using direct query for completeness.',
-            );
+            // RPC returned fewer persons OR fewer relationships than direct
+            // query — use direct query for completeness.
+            if (rpcResult.relationships.length < directResult.relationships.length) {
+              debugPrint('[EDGE-DEBUG] RPC had ${rpcResult.relationships.length} edges '
+                  'but direct query had ${directResult.relationships.length}. '
+                  'Using direct query to preserve all edges.');
+            } else {
+              debugPrint(
+                '[FamilyGraphNotifier] RPC returned ${rpcResult.persons.length} persons '
+                'but direct query found ${directResult.persons.length}. '
+                'Using direct query for completeness.',
+              );
+            }
           }
         }
       } catch (rpcError) {
@@ -608,12 +614,43 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
           '${relationships.length} valid relationships '
           '(from ${rawRelationships.length} raw rows)');
 
+      // v38 BUG-3 FIX: Deduplicate edges.
+      // createRelationship inserts BOTH forward (A→B "father") AND inverse
+      // (B→A "son") rows. Without dedup, every edge is drawn twice
+      // (overlapping), the edge count is 2× the real count, and
+      // deleteRelationship leaves phantom edges behind.
+      //
+      // Strategy: canonicalize each edge as (min(from,to), max(from,to))
+      // and keep only ONE row per pair. We prefer the forward direction
+      // (the one whose relationshipKey is the "natural" label, e.g.
+      // "father" rather than "son") — but either works for rendering.
+      final seenPairs = <String>{};
+      final dedupedRelationships = <Map<String, dynamic>>[];
+      for (final r in relationships) {
+        final from = r['fromPersonId']?.toString() ?? '';
+        final to = r['toPersonId']?.toString() ?? '';
+        if (from.isEmpty || to.isEmpty) continue;
+        // Canonical key: sorted pair so A→B and B→A map to the same key
+        final pairKey = [from, to]..sort();
+        final canonical = '${pairKey[0]}|${pairKey[1]}';
+        if (seenPairs.contains(canonical)) {
+          // Already have an edge for this pair — skip the duplicate
+          continue;
+        }
+        seenPairs.add(canonical);
+        dedupedRelationships.add(r);
+      }
+      if (dedupedRelationships.length < relationships.length) {
+        debugPrint('[EDGE-DEBUG] Deduped: ${relationships.length} → ${dedupedRelationships.length} '
+            '(removed ${relationships.length - dedupedRelationships.length} duplicate inverse edges)');
+      }
+      var finalRelationships = dedupedRelationships;
+
       // v9: Safety net — if we got persons but zero relationships, retry
       // without the isActive filter. This handles race conditions where
       // isActive hasn't been set yet by DB triggers on freshly-created
       // relationship rows.
-      List<Map<String, dynamic>> finalRelationships = relationships;
-      if (relationships.isEmpty && rawPersons.length > 1) {
+      if (finalRelationships.isEmpty && rawPersons.length > 1) {
         debugPrint('[EDGE-DEBUG] v9: Got ${rawPersons.length} persons but 0 relationships. '
             'Retrying without isActive filter...');
         try {
@@ -648,7 +685,20 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
 
           if (retryMapped.isNotEmpty) {
             debugPrint('[EDGE-DEBUG] v9: Retry without isActive got ${retryMapped.length} relationships');
-            finalRelationships = retryMapped;
+            // Also dedupe the retry results
+            final retrySeen = <String>{};
+            final retryDeduped = <Map<String, dynamic>>[];
+            for (final r in retryMapped) {
+              final from = r['fromPersonId']?.toString() ?? '';
+              final to = r['toPersonId']?.toString() ?? '';
+              if (from.isEmpty || to.isEmpty) continue;
+              final pairKey = [from, to]..sort();
+              final canonical = '${pairKey[0]}|${pairKey[1]}';
+              if (retrySeen.contains(canonical)) continue;
+              retrySeen.add(canonical);
+              retryDeduped.add(r);
+            }
+            finalRelationships = retryDeduped;
           }
         } catch (retryError) {
           debugPrint('[EDGE-DEBUG] v9: Retry query failed: $retryError');

@@ -299,8 +299,29 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
       _viewportCuller = null;
       _onboardingLocallyDismissed = false;
     }
-    // v21: Also reset centering if graphData changed (new members added)
-    if (oldWidget.graphData != widget.graphData && widget.graphData != null) {
+    // v38 BUG-7 FIX: Only reset centering when the graphData CONTENT
+    // actually changes, not on every rebuild. FlatGraphResult has no ==
+    // override, so != uses identity — every rebuild creates a new instance
+    // and triggers a re-center, causing the graph to jump.
+    // Instead, compare a content fingerprint (person IDs + relationship count).
+    if (oldWidget.graphData != widget.graphData &&
+        widget.graphData != null &&
+        oldWidget.graphData != null) {
+      final oldFp = (oldWidget.graphData!.persons
+              .map((p) => p['id']?.toString() ?? '')
+              .join(',')) +
+          '|${oldWidget.graphData!.relationships.length}';
+      final newFp = (widget.graphData!.persons
+              .map((p) => p['id']?.toString() ?? '')
+              .join(',')) +
+          '|${widget.graphData!.relationships.length}';
+      if (oldFp != newFp) {
+        _initialCenterDone = false;
+      }
+    } else if (oldWidget.graphData != widget.graphData &&
+        widget.graphData != null &&
+        oldWidget.graphData == null) {
+      // Going from null → non-null: definitely reset
       _initialCenterDone = false;
     }
     // Detect when the external transform controller is reset to identity
