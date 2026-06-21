@@ -55,8 +55,15 @@ class GraphPanZoom extends StatefulWidget {
 }
 
 class _GraphPanZoomState extends State<GraphPanZoom> {
-  // pointer id -> current LOCAL position
+  // pointer id -> current LOCAL position (updated on every move)
   final Map<int, Offset> _pointers = {};
+
+  // v44 FIX: pointer id -> position at the moment each finger went DOWN.
+  // When a second finger lands, _resetBaseline() must use the DOWN positions
+  // (not the moved positions) for both fingers — otherwise _baseFocalPoint
+  // and _baseSpan are wrong, causing a scale jump or freeze on the first
+  // pinch frame on Android.
+  final Map<int, Offset> _downPositions = {};
 
   // Baseline, recalculated whenever the active-pointer COUNT changes.
   double _baseScale = 1.0;
@@ -88,6 +95,28 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
     return avg < 1.0 ? 1.0 : avg;
   }
 
+  /// Compute focal point from a specific map (either _pointers or _downPositions).
+  Offset _focalPointFrom(Map<int, Offset> map) {
+    if (map.isEmpty) return Offset.zero;
+    double dx = 0, dy = 0;
+    for (final p in map.values) {
+      dx += p.dx;
+      dy += p.dy;
+    }
+    return Offset(dx / map.length, dy / map.length);
+  }
+
+  /// Compute average span from a specific map.
+  double _averageSpanFrom(Map<int, Offset> map, Offset focal) {
+    if (map.isEmpty) return 1.0;
+    double total = 0;
+    for (final p in map.values) {
+      total += (p - focal).distance;
+    }
+    final avg = total / map.length;
+    return avg < 1.0 ? 1.0 : avg;
+  }
+
   void _resetBaseline() {
     final matrix = widget.transformationController.value;
     _baseScale = matrix.getMaxScaleOnAxis();
@@ -97,13 +126,36 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
     _baseSpan = _currentAverageSpan(_baseFocalPoint);
   }
 
+  /// v44 FIX: Reset baseline using DOWN positions instead of current
+  /// (moved) positions. This prevents the scale jump when a second
+  /// finger lands — the first finger has already moved by the time
+  /// the second finger goes down, so using its current position would
+  /// give a wrong focal/span baseline.
+  void _resetBaselineFromDown() {
+    final matrix = widget.transformationController.value;
+    _baseScale = matrix.getMaxScaleOnAxis();
+    _baseTranslation =
+        Offset(matrix.getTranslation().x, matrix.getTranslation().y);
+    _baseFocalPoint = _focalPointFrom(_downPositions);
+    _baseSpan = _averageSpanFrom(_downPositions, _baseFocalPoint);
+  }
+
   void _onPointerDown(PointerDownEvent event) {
+    // v44 FIX: Add to BOTH maps. _downPositions captures the exact
+    // position where the finger landed — this is the correct baseline
+    // for pinch math. _pointers tracks the live (moved) position.
     _pointers[event.pointer] = event.localPosition;
+    _downPositions[event.pointer] = event.localPosition;
+
     if (_pointers.length == 1) {
       _singleDownPosition = event.localPosition;
       _singlePanActive = false;
+      _resetBaseline();
+    } else {
+      // Going from 1→2 (or 2→3, etc.) fingers: use DOWN positions
+      // for the baseline so the first pinch frame doesn't jump.
+      _resetBaselineFromDown();
     }
-    _resetBaseline();
   }
 
   void _onPointerMove(PointerMoveEvent event) {
@@ -154,9 +206,21 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
   }
 
   void _endPointer(int pointer) {
+    // v44 FIX: Remove from BOTH maps, THEN reset baseline so the
+    // remaining finger's CURRENT position becomes the new pan anchor.
+    // If we reset before removing, the lifted finger's stale position
+    // would be included in the focal/span calculation, causing a jump.
     _pointers.remove(pointer);
+    _downPositions.remove(pointer);
     if (_pointers.isEmpty) {
       _singleDownPosition = null;
+      _singlePanActive = false;
+    } else if (_pointers.length == 1) {
+      // Going from 2→1 finger: the remaining finger becomes a fresh
+      // pan anchor. Reset _singleDownPosition so the slop check starts
+      // from the current position (no accidental pan jump).
+      final remaining = _pointers.values.first;
+      _singleDownPosition = remaining;
       _singlePanActive = false;
     }
     _resetBaseline();
