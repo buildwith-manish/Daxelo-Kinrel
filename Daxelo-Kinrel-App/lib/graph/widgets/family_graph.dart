@@ -683,6 +683,23 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
   Widget _buildFromGraphData(FlatGraphResult graphData, bool reduceMotion) {
     final persons = graphData.toPersonDataList();
 
+    // v37 DEBUG: Log exactly what data we received so the user can
+    // see it in `adb logcat | grep FamilyGraph` and identify the issue.
+    debugPrint('[FamilyGraph] _buildFromGraphData: '
+        'persons=${persons.length} '
+        'relationships=${graphData.relationships.length} '
+        'isTruncated=${graphData.isTruncated}');
+    if (persons.isNotEmpty) {
+      debugPrint('[FamilyGraph] First person: id=${persons.first.id} '
+          'name=${persons.first.name} isAnchor=${persons.first.isAnchor} '
+          'genIndex=${persons.first.generationIndex}');
+    }
+    if (graphData.relationships.isNotEmpty) {
+      final r = graphData.relationships.first;
+      debugPrint('[FamilyGraph] First relationship: from=${r['fromPersonId']} '
+          'to=${r['toPersonId']} key=${r['relationshipKey']}');
+    }
+
     if (persons.isEmpty) {
       // ── Onboarding for 0-member families ──
       // ONLY show onboarding for brand-new families that have never
@@ -801,6 +818,16 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
       anchorPersonId: anchorId,
     );
 
+    // v37 DEBUG: Log layout result
+    debugPrint('[FamilyGraph] Layout computed: '
+        'positions=${_layoutResult?.positions.length ?? 0} '
+        'canvas=${_layoutResult?.canvasWidth.toStringAsFixed(0) ?? "0"}x'
+        '${_layoutResult?.canvasHeight.toStringAsFixed(0) ?? "0"}');
+    if (_layoutResult != null && _layoutResult!.positions.isNotEmpty) {
+      final firstPos = _layoutResult!.positions.values.first;
+      debugPrint('[FamilyGraph] First position: (${firstPos.dx.toStringAsFixed(1)}, ${firstPos.dy.toStringAsFixed(1)})');
+    }
+
     if (_layoutResult == null || _layoutResult!.positions.isEmpty) {
       return GraphEmptyStack(
         child: EmptyState(
@@ -874,6 +901,14 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
     return LayoutBuilder(
       builder: (context, constraints) {
         _viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
+
+        // v37 DEBUG: Log viewport + canvas dimensions on every build
+        debugPrint('[FamilyGraph] _buildGraphStack: '
+            'viewport=${constraints.maxWidth.toStringAsFixed(0)}x${constraints.maxHeight.toStringAsFixed(0)} '
+            'canvas=${canvasWidth.toStringAsFixed(0)}x${canvasHeight.toStringAsFixed(0)} '
+            'positions=${positions.length} '
+            'initialCenterDone=$_initialCenterDone '
+            'visibleNodeIds=${_visibleNodeIds.length}');
 
         // Auto-center on anchor node on first load (moved inside LayoutBuilder
         // so _viewportSize is guaranteed to be set before postFrameCallback fires).
