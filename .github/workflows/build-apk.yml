@@ -100,6 +100,12 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      - name: Cache debug keystore
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-v1
+
       - name: Build debug APK
         run: cd Daxelo-Kinrel-App && flutter build apk --debug --build-number=$GITHUB_RUN_NUMBER
 
