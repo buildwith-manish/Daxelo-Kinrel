@@ -31,6 +31,7 @@
 -- Step 1: Create the SECURITY DEFINER helper function
 -- This function checks if a user is a member of a family WITHOUT
 -- triggering RLS on FamilyMember (because it runs as SECURITY DEFINER).
+-- NOTE: FamilyMember table has NO deletedAt column — rows are hard-deleted.
 CREATE OR REPLACE FUNCTION public.check_user_family_access(
   p_family_id text,
   p_user_id text
@@ -46,7 +47,6 @@ AS $$
     FROM public."FamilyMember"
     WHERE "familyId" = p_family_id
       AND "userId" = p_user_id
-      AND "deletedAt" IS NULL
   );
 $$;
 
@@ -60,20 +60,14 @@ DROP POLICY IF EXISTS "person_select" ON public."Person";
 CREATE POLICY "person_select"
   ON public."Person" FOR SELECT
   USING (
-    (
-      -- Use SECURITY DEFINER function — bypasses RLS, no recursion
-      public.check_user_family_access("familyId", auth.uid()::text)
-      OR
-      -- Fallback: family creator always has access
-      "familyId" IN (
-        SELECT "id" FROM public."Family"
-        WHERE "createdBy" = auth.uid()::text
-        AND "deletedAt" IS NULL
-      )
-    )
-    AND (
-      "deletedAt" IS NULL
-      OR "deletedAt" IS NOT NULL
+    -- Use SECURITY DEFINER function — bypasses RLS, no recursion
+    public.check_user_family_access("familyId", auth.uid()::text)
+    OR
+    -- Fallback: family creator always has access
+    "familyId" IN (
+      SELECT "id" FROM public."Family"
+      WHERE "createdBy" = auth.uid()::text
+      AND "deletedAt" IS NULL
     )
   );
 
