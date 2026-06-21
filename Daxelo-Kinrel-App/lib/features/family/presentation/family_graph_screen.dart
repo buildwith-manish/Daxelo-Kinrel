@@ -489,6 +489,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
                 familyName: widget.familyName ?? 'Family Tree',
                 externalTransformController: _graphTransformController,
                 graphData: graph,
+                highlightedGeneration: _highlightedGeneration,
               ),
             ),
           ],

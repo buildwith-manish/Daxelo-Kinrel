@@ -86,6 +86,7 @@ class FamilyGraphWidget extends ConsumerStatefulWidget {
     required this.familyName,
     this.externalTransformController,
     this.graphData,
+    this.highlightedGeneration,
   });
 
   /// The family ID for data fetching and permission checks.
@@ -104,6 +105,13 @@ class FamilyGraphWidget extends ConsumerStatefulWidget {
   /// the familyGraphProvider, avoiding double-fetching and ensuring
   /// data consistency between the parent screen and the graph widget.
   final FlatGraphResult? graphData;
+
+  /// v33 FIX: The highlighted generation from the parent screen's
+  /// GenerationFilterBar. When non-null, nodes NOT in this generation
+  /// are rendered at reduced opacity. Previously this was an internal
+  /// state that never received the value from the screen → filter bar
+  /// was cosmetic-only.
+  final int? highlightedGeneration;
 
   @override
   ConsumerState<FamilyGraphWidget> createState() => _FamilyGraphWidgetState();
@@ -143,7 +151,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
   String? _focusedNodeId;
 
   /// Currently highlighted generation index.
-  int? _highlightedGeneration;
+  /// v33: Falls back to widget.highlightedGeneration (passed from the
+  /// parent screen's GenerationFilterBar) when the internal value is null.
+  int? get _highlightedGeneration =>
+      _internalHighlightedGeneration ?? widget.highlightedGeneration;
+  int? _internalHighlightedGeneration;
 
   /// Set of visible node IDs (viewport culling).
   Set<String> _visibleNodeIds = {};
@@ -740,6 +752,20 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
 
     _edges = newEdges;
 
+    // v33 FIX (blank screen): Resolve the anchor person BEFORE computing
+    // the layout and pass it explicitly. Without this, the layout service
+    // falls back to `persons.first` which may not be the isAnchor person,
+    // and in edge cases (empty persons list, all-isAnchor-false) the
+    // anchor resolution fails and positions end up collapsed at (0,0).
+    String? anchorId;
+    if (persons.isNotEmpty) {
+      final anchor = persons.firstWhere(
+        (p) => p.isAnchor,
+        orElse: () => persons.first,
+      );
+      anchorId = anchor.id;
+    }
+
     // Compute layout
     final graphPersons =
         persons.map((p) => p.toGraphPerson()).toList();
@@ -750,6 +776,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
     _layoutResult = service.computeLayout(
       persons: graphPersons,
       relationships: graphRelationships,
+      anchorPersonId: anchorId,
     );
 
     if (_layoutResult == null || _layoutResult!.positions.isEmpty) {
