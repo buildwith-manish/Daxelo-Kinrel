@@ -23,6 +23,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/brand_colors.dart';
@@ -331,6 +332,27 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
 
   void _onTransformChanged() {
     if (!mounted) return;
+
+    // v34 FIX (blank screen): Guard against setState() being called during
+    // the build phase. This can happen when _transformationController.value
+    // is set synchronously inside LayoutBuilder (the auto-center block in
+    // _buildGraphStack). ValueNotifier fires listeners inline, so
+    // _onTransformChanged runs immediately during build. If it calls
+    // setState(), Flutter's frame is corrupted and the widget renders blank.
+    //
+    // When we detect we're in the persistent callbacks phase (i.e., build),
+    // defer the entire _onTransformChanged body to a post-frame callback.
+    // This is a defensive backstop — Change 1 (pre-populating
+    // _visibleNodeIds) should prevent setState from being needed, but this
+    // guard ensures any future code path that sets the transform during
+    // build won't break the frame.
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _onTransformChanged();
+      });
+      return;
+    }
 
     // v10 Fix #3c: Set flag so the CameraController listener doesn't
     // fire when the change came from the user manually panning/zooming
@@ -872,33 +894,32 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
             if (screenW > 0 && screenH > 0 && canvasWidth > 0 && canvasHeight > 0) {
               _initialCenterDone = true;
 
-              // v32 FIX (blank screen): Apply the fit transform SYNCHRONOUSLY
-              // during build, NOT in a post-frame callback.
+              // v34 FIX (blank screen): Pre-populate _visibleNodeIds BEFORE
+              // setting the transform so that _onTransformChanged() sees
+              // setsEqual() == true and does NOT call setState() during the
+              // build phase.
               //
-              // The previous post-frame callback approach (v22-v31) had a
-              // critical flaw: the first frame rendered at identity matrix
-              // (canvas at 0,0 — top-left corner). If the canvas was smaller
-              // than the viewport, nodes appeared in the top-left and were
-              // often off-screen or invisible. The post-frame callback was
-              // supposed to center the canvas, but:
-              //   1. If the widget was unmounted by the time the callback
-              //      fired, the centering was skipped entirely.
-              //   2. If the callback's setState triggered a rebuild that
-              //      reset _initialCenterDone, the centering never applied.
-              //   3. On some devices, the post-frame callback fired but
-              //      the AnimatedBuilder didn't pick up the new value
-              //      because the build phase had already completed.
+              // ROOT CAUSE of the persistent blank screen (v20-v33):
+              // _visibleNodeIds starts as {} (empty set) on the first build.
+              // When _transformationController.value = matrix is set
+              // synchronously during build, _onTransformChanged fires
+              // immediately (ValueNotifier fires listeners inline). Inside
+              // _onTransformChanged, the code checks:
+              //   if (!setsEqual(allIds, _visibleNodeIds)) → setState()
+              // Since allIds = {anchorId, ...} but _visibleNodeIds = {},
+              // setsEqual returns false → setState() IS called during build.
               //
-              // Setting _transformationController.value during build is
-              // SAFE here because:
-              //   - The _onTransformChanged listener only calls setState()
-              //     when the visible node IDs change. For the initial
-              //     auto-center, the IDs are already set to all nodes,
-              //     so setsEqual() returns true and setState() is NOT called.
-              //   - The AnimatedBuilder reads _transformationController.value
-              //     in its builder function, which runs AFTER this code block.
-              //     So it will see the new matrix and render the canvas
-              //     at the correct position on the VERY FIRST frame.
+              // setState() during build corrupts Flutter's frame: the widget
+              // rebuilds with broken/incomplete state and renders a
+              // completely BLANK/BLACK screen. This is why the graph appeared
+              // empty even though data was loaded and positions were computed.
+              //
+              // The fix: set _visibleNodeIds = all positions BEFORE the
+              // transform assignment. Now when _onTransformChanged fires,
+              // setsEqual(allIds, _visibleNodeIds) returns true → no
+              // setState() → no frame corruption → graph renders correctly.
+              _visibleNodeIds = Set<String>.from(positions.keys);
+
               final matrix = GraphGestureMath.computeFitTransform(
                 screenW: screenW,
                 screenH: screenH,
@@ -907,6 +928,9 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget>
                 nodeCount: positions.length,
               );
               if (matrix != null) {
+                // Safe now: _onTransformChanged fires but setsEqual()
+                // returns true (we just set _visibleNodeIds above) so no
+                // setState() is triggered during build.
                 _transformationController.value = matrix;
               }
             }
