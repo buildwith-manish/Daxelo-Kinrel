@@ -258,13 +258,20 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     final canvasHeight = layout.canvasHeight;
     final highlightedGen = widget.highlightedGeneration;
 
-    return InteractiveViewer(
-      transformationController: _transformationController,
-      minScale: 0.1,
-      maxScale: 5.0,
-      boundaryMargin: const EdgeInsets.all(double.infinity),
-      constrained: false,
-      child: SizedBox(
+    // v41 FIX: Wrap InteractiveViewer in Listener(translucent) so pointer
+    // events pass through to sibling widgets (toolbar, stats panel) that are
+    // positioned ABOVE the graph in the parent Stack. Without this, the
+    // InteractiveViewer's internal Listener uses HitTestBehavior.opaque and
+    // eats all pointer events — toolbar buttons become untappable on Android.
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      child: InteractiveViewer(
+        transformationController: _transformationController,
+        minScale: 0.1,
+        maxScale: 5.0,
+        boundaryMargin: const EdgeInsets.all(double.infinity),
+        constrained: false,
+        child: SizedBox(
         width: canvasWidth > 0 ? canvasWidth : 400,
         height: canvasHeight > 0 ? canvasHeight : 400,
         child: Stack(
@@ -299,6 +306,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             ..._buildNodes(positions, personMap, edges, highlightedGen),
           ],
         ),
+      ),
       ),
     );
   }
@@ -343,6 +351,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
           left: pos.dx - 36,  // center the 72px node
           top: pos.dy - 36,
           child: GestureDetector(
+            // v41 FIX: deferToChild lets the InteractiveViewer's scale
+            // gesture win when the user pinches on/near a node. Without
+            // this, the node's tap recognizer wins the gesture arena on
+            // Android and blocks the pinch-to-zoom.
+            behavior: HitTestBehavior.deferToChild,
             onTap: () {
               setState(() {
                 _selectedNodeId = _selectedNodeId == person.id ? null : person.id;

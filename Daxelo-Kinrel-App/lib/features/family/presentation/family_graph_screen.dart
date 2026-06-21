@@ -544,35 +544,44 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ),
 
         // V2.1 Stats panel (bottom-left, above bottom toolbar)
+        // v41 FIX: Wrap in IgnorePointer(ignoring:false) to ensure the
+        // stats panel receives hit-tests even though the InteractiveViewer
+        // below it uses HitTestBehavior.opaque internally.
         Positioned(
           left: 16,
           bottom: fabBottomOffset,
-          child: StatsPanel(
-            totalMembers: graph.persons.length,
-            totalConnections: graph.relationships.length,
-            totalGenerations: presentGenerations.length,
-            isTruncated: graph.isTruncated,
+          child: IgnorePointer(
+            ignoring: false,
+            child: StatsPanel(
+              totalMembers: graph.persons.length,
+              totalConnections: graph.relationships.length,
+              totalGenerations: presentGenerations.length,
+              isTruncated: graph.isTruncated,
+            ),
           ),
         ),
 
         // Bottom toolbar — Center, Add Member, Filter, Help (NO zoom buttons)
-        // Zoom In/Out are in the AppBar per reference design
-        // Add Member button is in the toolbar for guaranteed visibility.
-        //
-        // RELEASE-READY FIX: Use a larger bottom offset (bottomPadding + 24)
-        // to ensure the toolbar is always visible above the system
-        // navigation bar. Wrap in Material with elevation to ensure it
-        // renders ABOVE the graph canvas (which uses GestureDetector
-        // with HitTestBehavior.opaque that could otherwise intercept
-        // touches meant for the toolbar).
+        // v41 FIX: Use PhysicalModel instead of Material(transparent, elevation)
+        // because Material with transparent color + elevation renders NO visible
+        // surface on Android — the toolbar was invisible in the debug APK.
+        // PhysicalModel paints an actual shadow even with transparent color.
+        // Also wrap in IgnorePointer(ignoring:false) to ensure taps reach the
+        // toolbar buttons instead of being eaten by the InteractiveViewer.
         Positioned(
           bottom: bottomPadding + 24,
           left: 0,
           right: 0,
-          child: Material(
-            color: Colors.transparent,
-            elevation: 8,
-            child: Center(child: _buildBottomToolbar()),
+          child: IgnorePointer(
+            ignoring: false,
+            child: Center(
+              child: PhysicalModel(
+                color: Colors.transparent,
+                elevation: 8,
+                borderRadius: BorderRadius.circular(24),
+                child: _buildBottomToolbar(),
+              ),
+            ),
           ),
         ),
       ],
