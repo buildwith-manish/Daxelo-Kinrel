@@ -1,41 +1,33 @@
 // lib/graph/widgets/graph_pan_zoom.dart
 //
-// DAXELO KINREL — Production-Quality Pan/Zoom Container (v4.1)
+// DAXELO KINREL — Production-Quality Pan/Zoom Container (v5.0)
 //
-// v4.1 changes (2026-06-18, fixing pinch-to-zoom + panning):
-//   - REMOVED onDoubleTap from the parent GestureDetector. It was
-//     conflicting with the child GraphNode's onDoubleTap (which
-//     focuses the camera on the tapped node). When both parent and
-//     child have DoubleTapGestureRecognizers, they compete in the
-//     gesture arena and INTERFERE with the parent's
-//     ScaleGestureRecognizer — causing pinch-to-zoom to fail.
-//   - REMOVED the focalPointDelta addition in _onScaleUpdate that was
-//     double-counting pan movement and causing the canvas to drift.
-//     The correct math is just:
-//       newTranslation = focalNow + (startTranslation - focalStart) * scaleRatio
-//     This single formula handles pinch, pan, and combined gestures.
-//   - Removed AnimationController, TickerProviderStateMixin, and all
-//     animation-related code (only user was double-tap, now gone).
-//
-// v4 changes (earlier in 2026-06-18):
-//   - Removed min/max scale clamping — graph can be freely moved
-//   - Removed momentum fling (was causing "flyaway" graph)
-//   - Simplified gesture handling: only onScaleStart/Update/End
-//   - HitTestBehavior.translucent so child node taps pass through
-//
-// Architecture:
-//   - Uses a TransformationController for the transform state
-//   - Applies the transform via Positioned + Transform.scale
+// v5.0 changes (2026-06-21, fixing pinch-still-stuck-on-Android):
+//   - REPLACED GestureDetector.onScale* with raw Listener pointer
+//     tracking. The previous approach required the parent's
+//     ScaleGestureRecognizer to WIN the gesture arena against every
+//     node's Tap/LongPress recognizer. On real Android touchscreens
+//     this resolution can stall long enough that pinch reads as
+//     completely frozen — invisible on Flutter Web because browser
+//     pointer-event delivery doesn't route through the same arena.
+//   - Listener.onPointerDown/Move/Up fire unconditionally regardless
+//     of arena outcome, so node taps can never block or delay pinch
+//     again. Pan/zoom math is unchanged (same focal-anchored formula
+//     as v4.1) — only the EVENT SOURCE changed.
+//   - Single-finger movement under kPanSlop is ignored so ordinary
+//     taps on nodes don't cause a tiny accidental pan/jitter.
+//   - Multi-finger baseline (scale/translation/focal/span) is
+//     recalculated every time a finger is added or removed, so
+//     transitions between 1-finger-pan and 2-finger-pinch never jump.
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 /// A production-quality pan/zoom container.
 ///
-/// Wraps [child] in a viewport-sized [GestureDetector] with
-/// [HitTestBehavior.translucent], so:
-///   - Pinch-to-zoom and pan work anywhere on the visible area
-///   - Single taps pass through to child nodes (for selection)
-///   - Two-finger gestures always win the arena over child taps
+/// Tracks raw pointers via [Listener] instead of GestureDetector's
+/// scale recognizer, so it never has to win a gesture-arena race
+/// against child node taps/long-presses.
 class GraphPanZoom extends StatefulWidget {
   const GraphPanZoom({
     super.key,
@@ -48,30 +40,14 @@ class GraphPanZoom extends StatefulWidget {
     this.enableMomentum = false,
   });
 
-  /// The controller that holds the current 2D transform.
   final TransformationController transformationController;
-
-  /// The content to be panned/zoomed.
   final Widget child;
-
-  /// Minimum scale factor (default 0.05 = 5% — very lenient to allow
-  /// the user to zoom way out and see the whole graph).
   final double minScale;
-
-  /// Maximum scale factor (default 8.0 = 800% — generous zoom-in for
-  /// reading details on small nodes).
   final double maxScale;
-
-  /// Optional callback fired whenever the transform changes.
   final VoidCallback? onTransformChanged;
-
-  /// Optional callback fired on double-tap. If null, double-tap
-  /// toggles between scale=1.0 and scale=2.5 around the tap point.
   final VoidCallback? onDoubleTap;
 
-  /// Kept for API compatibility — momentum is now disabled by default
-  /// and the field is ignored. The fling behavior caused more issues
-  /// than it solved (graph would drift after the user released).
+  /// Kept for API compatibility — unused.
   final bool enableMomentum;
 
   @override
@@ -79,175 +55,128 @@ class GraphPanZoom extends StatefulWidget {
 }
 
 class _GraphPanZoomState extends State<GraphPanZoom> {
-  // ── Gesture state ───────────────────────────────────────────────────
-  double _gestureStartScale = 1.0;
-  Offset _gestureStartTranslation = Offset.zero;
-  Offset _gestureStartFocalPoint = Offset.zero;
-  bool _isGesturing = false;
+  // pointer id -> current LOCAL position
+  final Map<int, Offset> _pointers = {};
 
-  // v4.1: Animation controller, double-tap tracking, and momentum fling
-  // all removed. The only user was double-tap-to-zoom, which was removed
-  // to fix the gesture arena conflict with node double-tap (focus camera).
+  // Baseline, recalculated whenever the active-pointer COUNT changes.
+  double _baseScale = 1.0;
+  Offset _baseTranslation = Offset.zero;
+  Offset _baseFocalPoint = Offset.zero;
+  double _baseSpan = 1.0;
 
-  // ── Gesture Handlers ────────────────────────────────────────────────
+  // Tap-vs-pan disambiguation for the single-finger case.
+  Offset? _singleDownPosition;
+  bool _singlePanActive = false;
 
-  void _onScaleStart(ScaleStartDetails details) {
-    _isGesturing = true;
-    final matrix = widget.transformationController.value;
-    _gestureStartScale = matrix.getMaxScaleOnAxis();
-    _gestureStartTranslation = Offset(
-      matrix.getTranslation().x,
-      matrix.getTranslation().y,
-    );
-    // CRITICAL: use localFocalPoint (GestureDetector-local coords),
-    // NOT details.focalPoint (screen-global). The translation in the
-    // matrix is in local coords; mixing coordinate spaces causes the
-    // canvas to jump off-screen by the widget's screen offset.
-    _gestureStartFocalPoint = details.localFocalPoint;
+  Offset _currentFocalPoint() {
+    if (_pointers.isEmpty) return Offset.zero;
+    double dx = 0, dy = 0;
+    for (final p in _pointers.values) {
+      dx += p.dx;
+      dy += p.dy;
+    }
+    return Offset(dx / _pointers.length, dy / _pointers.length);
   }
 
-  void _onScaleUpdate(ScaleUpdateDetails details) {
-    if (!_isGesturing) return;
+  double _currentAverageSpan(Offset focal) {
+    if (_pointers.isEmpty) return 1.0;
+    double total = 0;
+    for (final p in _pointers.values) {
+      total += (p - focal).distance;
+    }
+    final avg = total / _pointers.length;
+    return avg < 1.0 ? 1.0 : avg;
+  }
 
-    // Compute new scale (clamped to min/max, but with very lenient bounds).
-    final newScale = (_gestureStartScale * details.scale)
-        .clamp(widget.minScale, widget.maxScale);
+  void _resetBaseline() {
+    final matrix = widget.transformationController.value;
+    _baseScale = matrix.getMaxScaleOnAxis();
+    _baseTranslation =
+        Offset(matrix.getTranslation().x, matrix.getTranslation().y);
+    _baseFocalPoint = _currentFocalPoint();
+    _baseSpan = _currentAverageSpan(_baseFocalPoint);
+  }
 
-    // ── v4.1 FIX: Correct focal-point-anchored zoom + pan math ──────
-    //
-    // The previous version had a bug: it added `details.focalPointDelta`
-    // to the base translation, which double-counted the pan movement
-    // and caused the canvas to drift/jump during pinch-zoom.
-    //
-    // The correct math is just:
-    //   newTranslation = focalNow + (startTranslation - focalStart) * scaleRatio
-    //
-    // This single formula handles ALL three gesture types correctly:
-    //   1. Pinch in place (fingers move toward/away from each other):
-    //      focalNow ≈ focalStart, so the translation only changes due
-    //      to scaleRatio — the focal point stays anchored under the
-    //      fingers. ✅
-    //   2. Two-finger pan (both fingers move in the same direction):
-    //      focalNow moves with the fingers, scaleRatio ≈ 1, so the
-    //      translation tracks the focal point. ✅
-    //   3. Combined pinch + pan (real-world pinch gestures):
-    //      Both terms contribute — the canvas zooms toward the focal
-    //      point AND moves with it. ✅
-    //
-    // No need for a separate focalPointDelta term — it's already
-    // encoded in the (focalNow - focalStart) difference.
-    final focalNow = details.localFocalPoint;
-    final scaleRatio =
-        _gestureStartScale == 0 ? 1.0 : newScale / _gestureStartScale;
+  void _onPointerDown(PointerDownEvent event) {
+    _pointers[event.pointer] = event.localPosition;
+    if (_pointers.length == 1) {
+      _singleDownPosition = event.localPosition;
+      _singlePanActive = false;
+    }
+    _resetBaseline();
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    if (!_pointers.containsKey(event.pointer)) return;
+    _pointers[event.pointer] = event.localPosition;
+
+    if (_pointers.length == 1) {
+      // Single finger — ignore tiny movement so taps on nodes stay
+      // taps (don't nudge the canvas during a deliberate tap).
+      if (!_singlePanActive) {
+        final moved =
+            (event.localPosition - (_singleDownPosition ?? event.localPosition))
+                .distance;
+        if (moved < kPanSlop) return;
+        _singlePanActive = true;
+      }
+      final matrix = widget.transformationController.value;
+      final scale = matrix.getMaxScaleOnAxis();
+      final tx = matrix.getTranslation().x + event.delta.dx;
+      final ty = matrix.getTranslation().y + event.delta.dy;
+      widget.transformationController.value = Matrix4.identity()
+        ..translate(tx, ty)
+        ..scale(scale);
+      widget.onTransformChanged?.call();
+      return;
+    }
+
+    // Two or more fingers — pinch-to-zoom anchored at the shared
+    // focal point. Same math as the previous v4.1 GestureDetector
+    // version; only the event source changed.
+    final focal = _currentFocalPoint();
+    final span = _currentAverageSpan(focal);
+    final scaleFactor = _baseSpan <= 0 ? 1.0 : span / _baseSpan;
+
+    final newScale =
+        (_baseScale * scaleFactor).clamp(widget.minScale, widget.maxScale);
+    final scaleRatio = _baseScale == 0 ? 1.0 : newScale / _baseScale;
 
     final newTranslation = Offset(
-      focalNow.dx +
-          (_gestureStartTranslation.dx - _gestureStartFocalPoint.dx) *
-              scaleRatio,
-      focalNow.dy +
-          (_gestureStartTranslation.dy - _gestureStartFocalPoint.dy) *
-              scaleRatio,
+      focal.dx + (_baseTranslation.dx - _baseFocalPoint.dx) * scaleRatio,
+      focal.dy + (_baseTranslation.dy - _baseFocalPoint.dy) * scaleRatio,
     );
 
-    final newMatrix = Matrix4.identity()
+    widget.transformationController.value = Matrix4.identity()
       ..translate(newTranslation.dx, newTranslation.dy)
       ..scale(newScale);
-
-    widget.transformationController.value = newMatrix;
     widget.onTransformChanged?.call();
   }
 
-  void _onScaleEnd(ScaleEndDetails details) {
-    _isGesturing = false;
+  void _endPointer(int pointer) {
+    _pointers.remove(pointer);
+    if (_pointers.isEmpty) {
+      _singleDownPosition = null;
+      _singlePanActive = false;
+    }
+    _resetBaseline();
     widget.onTransformChanged?.call();
-
-    // v4: No momentum fling. The previous implementation used a
-    // FrictionSimulation with a very low drag coefficient (0.005)
-    // which caused the graph to "fly away" after the user released
-    // a pan gesture. Removed for stability.
   }
-
-  // ── Double-Tap — REMOVED in v4.1 ───────────────────────────────────
-  // The double-tap-to-zoom feature was removed because it conflicts
-  // with the child GraphNode's onDoubleTap (which focuses the camera
-  // on the tapped node). When both parent and child have
-  // DoubleTapGestureRecognizers, they compete in the gesture arena
-  // and interfere with the parent's ScaleGestureRecognizer, breaking
-  // pinch-to-zoom.
-  //
-  // Users now zoom exclusively via pinch gestures. The "Center on Root"
-  // button in the bottom toolbar can be used to reset the view.
-  //
-  // The _onDoubleTap and _onDoubleTapDown methods and the
-  // _doubleTapPosition field are kept below (commented out) for
-  // reference in case we want to re-add the feature with a different
-  // approach (e.g., using a RawGestureDetector that only claims
-  // double-taps on empty space).
-
-  // void _onDoubleTapDown(TapDownDetails details) {
-  //   _doubleTapPosition = details.localPosition;
-  // }
-  //
-  // void _onDoubleTap() {
-  //   if (_animController.isAnimating) return;
-  //   final matrix = widget.transformationController.value;
-  //   final currentScale = matrix.getMaxScaleOnAxis();
-  //   final targetScale = currentScale < 1.5 ? 2.5 : 1.0;
-  //   final focal = _doubleTapPosition ?? Offset.zero;
-  //   final scaleRatio = targetScale / currentScale;
-  //   final tx = matrix.getTranslation().x;
-  //   final ty = matrix.getTranslation().y;
-  //   final newTx = focal.dx + (tx - focal.dx) * scaleRatio;
-  //   final newTy = focal.dy + (ty - focal.dy) * scaleRatio;
-  //   final newMatrix = Matrix4.identity()
-  //     ..translate(newTx, newTy)
-  //     ..scale(targetScale);
-  //   _animateTo(newMatrix, duration: const Duration(milliseconds: 250));
-  //   widget.onDoubleTap?.call();
-  // }
-
-  // ── Build ───────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Force the gesture detector to be exactly viewport-sized.
-        // This ensures the ScaleGestureRecognizer's hit-test region
-        // covers the entire visible area, not just the child canvas.
-        //
-        // v7 FIX: Use HitTestBehavior.opaque (NOT translucent).
-        // With translucent, the gesture detector might not claim the
-        // gesture arena aggressively enough for multi-touch (pinch)
-        // gestures. With opaque, the parent claims ALL pointer events
-        // in the viewport, but child GestureDetectors (like node taps)
-        // still win the arena for their specific gestures because
-        // TapGestureRecognizer is more specific than
-        // ScaleGestureRecognizer.
-        //
-        // v4.1 FIX: Removed onDoubleTap from this parent GestureDetector.
-        // The child GraphNode widgets also have onDoubleTap (for focus-
-        // camera-on-node). When both parent and child have
-        // DoubleTapGestureRecognizers, they compete in the gesture arena
-        // and INTERFERE with the parent's ScaleGestureRecognizer —
-        // causing pinch-to-zoom to fail. The node's double-tap (focus)
-        // is more important than the parent's double-tap (zoom toggle),
-        // so we keep the node's and remove the parent's. Users zoom
-        // via pinch gestures only.
         return SizedBox(
           width: constraints.maxWidth,
           height: constraints.maxHeight,
           child: ClipRect(
-            child: GestureDetector(
+            child: Listener(
               behavior: HitTestBehavior.opaque,
-              // Scale gestures (pinch-to-zoom, two-finger pan, one-finger
-              // pan on empty space) are always handled here.
-              onScaleStart: _onScaleStart,
-              onScaleUpdate: _onScaleUpdate,
-              onScaleEnd: _onScaleEnd,
-              // NO onDoubleTap here — it conflicts with node double-tap.
-              // NO onLongPress here — child nodes handle their own long-press.
-              // NO onTap here — child nodes handle their own taps.
+              onPointerDown: _onPointerDown,
+              onPointerMove: _onPointerMove,
+              onPointerUp: (e) => _endPointer(e.pointer),
+              onPointerCancel: (e) => _endPointer(e.pointer),
               child: AnimatedBuilder(
                 animation: widget.transformationController,
                 builder: (context, _) {
@@ -255,12 +184,6 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
                   final scale = matrix.getMaxScaleOnAxis();
                   final tx = matrix.getTranslation().x;
                   final ty = matrix.getTranslation().y;
-                  // Apply the transform via Positioned + Transform.scale.
-                  // This is unambiguous: translation is via Positioned
-                  // (origin = top-left of viewport), scale is via
-                  // Transform.scale (origin = top-left of canvas).
-                  // A canvas point (cx, cy) ends up at screen position
-                  // (tx + cx*scale, ty + cy*scale). Correct.
                   return Stack(
                     clipBehavior: Clip.none,
                     children: [
