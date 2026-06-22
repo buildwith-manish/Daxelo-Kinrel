@@ -23,6 +23,7 @@
 //   - Tap → navigate to person profile; Long-press → bottom sheet
 //   - Accessibility semantics
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -724,13 +725,25 @@ class _PersonNodeCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Opacity(
       opacity: person.isDeceased ? 0.4 * opacity : opacity,
-      // v43 FIX: Removed Semantics(button: true) wrapper — same fix as
-      // graph_node.dart. Semantics creates an Android accessibility touch
-      // target that competes with GestureDetector in the gesture arena.
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTap: () => context.push('/family/$familyId/person/${person.id}'),
-        onLongPress: () => _showQuickActions(context, ref),
+      // v47 FIX: Use RawGestureDetector with eager TapGestureRecognizer.
+      child: RawGestureDetector(
+        gestures: {
+          TapGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+            () => TapGestureRecognizer(),
+            (instance) {
+              instance.onTap = () => context.push('/family/$familyId/person/${person.id}');
+            },
+          ),
+          LongPressGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+            () => LongPressGestureRecognizer(),
+            (instance) {
+              instance.onLongPress = () => _showQuickActions(context, ref);
+            },
+          ),
+        },
+        behavior: HitTestBehavior.opaque,
         child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

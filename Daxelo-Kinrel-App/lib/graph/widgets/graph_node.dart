@@ -26,6 +26,7 @@
 //   In-Law: Amber #F59E0B
 //   Extended: Slate #64748B
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -544,17 +545,33 @@ class _GraphNodeState extends ConsumerState<GraphNode>
 
     return Opacity(
       opacity: effectiveOpacity,
-      // v42 FIX: Removed Semantics wrapper. Semantics(button: true) creates
-      // an Android accessibility touch target that competes with
-      // GestureDetector in the gesture arena, blocking pinch-to-zoom on
-      // devices where accessibility services are active.
-      child: GestureDetector(
-        // translucent: GraphPanZoom's ScaleGestureRecognizer wins
-        // the arena for two-finger pinch even when fingers start on a node.
-        behavior: HitTestBehavior.translucent,
-        onTap: widget.onTap,
-        onLongPress: widget.onLongPress,
-        onDoubleTap: null,
+      // v47 FIX: Use RawGestureDetector with eager TapGestureRecognizer.
+      // On Android, a regular GestureDetector(translucent) competes with
+      // the parent ScaleGestureRecognizer in the gesture arena — when you
+      // pinch with 2 fingers starting on a node, the tap recognizer delays
+      // the scale recognizer from winning, causing zoom to freeze.
+      //
+      // RawGestureDetector with eager TapGestureRecognizer resolves the
+      // arena instantly: 1 finger = tap (wins immediately), 2 fingers =
+      // tap rejects itself (only 1 pointer) → scale wins immediately.
+      child: RawGestureDetector(
+        gestures: {
+          TapGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+            () => TapGestureRecognizer(),
+            (instance) {
+              instance.onTap = widget.onTap;
+            },
+          ),
+          LongPressGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+            () => LongPressGestureRecognizer(),
+            (instance) {
+              instance.onLongPress = widget.onLongPress;
+            },
+          ),
+        },
+        behavior: HitTestBehavior.opaque,
         child: _buildAnimatedNode(reduceMotion: reduceMotion),
       ),
     );
