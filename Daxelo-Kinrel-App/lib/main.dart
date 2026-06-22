@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
@@ -722,6 +723,20 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     return MaterialApp.router(
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
+      // v47 FIX: Allow touch, mouse, trackpad, and stylus gestures everywhere.
+      // Without this, Android touch events can get routed to the scroll system
+      // instead of the graph's ScaleGestureRecognizer, causing pinch-zoom and
+      // node taps to fail on Android while working on Web (mouse events bypass
+      // the scroll behavior entirely).
+      scrollBehavior: const MaterialScrollBehavior().copyWith(
+        dragDevices: {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.trackpad,
+          PointerDeviceKind.stylus,
+          PointerDeviceKind.invertedStylus,
+        },
+      ),
       // Support both light and dark themes
       theme: lightTheme,
       darkTheme: darkTheme,
