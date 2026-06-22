@@ -88,7 +88,12 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
   int? _tapPointerId;
   Timer? _longPressTimer;
   static const Duration _longPressDelay = Duration(milliseconds: 500);
-  static const double _tapSlop = 18.0;
+  // v46 FIX: Use 12.0 instead of kPanSlop (18.0).
+  // On real Android screens, finger tremble during a tap often exceeds
+  // 18px, causing every tap to be treated as a pan (and thus cancelled).
+  // 12.0 is tight enough to not cause accidental pans but loose enough
+  // to tolerate normal finger tremble.
+  static const double _panSlop = 12.0;
 
   Offset _currentFocalPoint() {
     if (_pointers.isEmpty) return Offset.zero;
@@ -198,7 +203,7 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
         final moved =
             (event.localPosition - (_singleDownPosition ?? event.localPosition))
                 .distance;
-        if (moved < kPanSlop) return;
+        if (moved < _panSlop) return;
         _singlePanActive = true;
         // v45: Cancel tap/long-press when pan starts
         _cancelTapDetection();
@@ -237,14 +242,19 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
   }
 
   void _endPointer(int pointer, [Offset? upPosition]) {
+    // v46 FIX: Capture the DOWN position BEFORE removing from map,
+    // so we pass the stable tap position (not the possibly-jittered UP pos).
+    final downPos = _downPositions[pointer];
+
     _pointers.remove(pointer);
     _downPositions.remove(pointer);
 
-    // v45: Check for tap on pointer up
     if (_pointers.isEmpty && _tapPointerId == pointer && !_singlePanActive) {
       _cancelTapDetection();
-      if (upPosition != null) {
-        widget.onTap?.call(upPosition);
+      // v46 FIX: Use downPos (stable) instead of upPosition (may have micro-jitter)
+      final tapPos = downPos ?? upPosition;
+      if (tapPos != null) {
+        widget.onTap?.call(tapPos);
       }
     } else {
       _cancelTapDetection();
@@ -280,7 +290,10 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
           height: constraints.maxHeight,
           child: ClipRect(
             child: Listener(
-              behavior: HitTestBehavior.translucent,
+              // v46 FIX: opaque instead of translucent so the Listener
+              // claims ALL pointer events immediately on Android,
+              // preventing other widgets from stealing events mid-gesture.
+              behavior: HitTestBehavior.opaque,
               onPointerDown: _onPointerDown,
               onPointerMove: _onPointerMove,
               onPointerUp: (e) => _endPointer(e.pointer, e.localPosition),
