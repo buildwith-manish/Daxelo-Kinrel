@@ -1,29 +1,28 @@
 // lib/features/family/presentation/widgets/graph_canvas_widget.dart
 //
-// DAXELO KINREL — Graph Canvas Widget
+// DAXELO KINREL — Graph Canvas Widget (v49 — Android pinch-zoom fix)
 //
-// The main graph canvas widget that combines the painter, edge dots,
-// person nodes, and relationship popups into a zoomable, pannable
-// family graph visualization.
+// ══════════════════════════════════════════════════════════════════════
+// v49 (2026-06-22): CRITICAL FIX — removed RawGestureDetector from
+// _PersonNodeCard. On Android, having TapGestureRecognizer +
+// LongPressGestureRecognizer on every node widget competed with
+// GraphPanZoom's ScaleGestureRecognizer in the gesture arena, causing
+// pinch-zoom to stall or fail entirely on the real APK.
+//
+// FIX (mirrors family_graph.dart v48 pattern exactly):
+//   - _PersonNodeCard is now a pure visual widget (NO gesture detectors).
+//   - GraphPanZoom.onTap / onLongPress are wired to _hitTestPersonId(),
+//     which does geometric hit-testing to find which node was tapped.
+//   - Result: one ScaleGestureRecognizer in the arena, no competition —
+//     both pinch-zoom AND node taps work correctly on Android APK.
+// ══════════════════════════════════════════════════════════════════════
 //
 // Stack structure:
 //   Layer 1: CustomPaint with FamilyTreePainter (edges)
 //   Layer 2: EdgeDotWidget for each relationship (positioned at midpoint)
 //   Layer 3: Person node cards (Positioned widgets — circular avatar nodes)
 //   Layer 4: RelationshipPopupWidget (when an edge dot is tapped)
-//
-// Features:
-//   - InteractiveViewer with TransformationController for zoom/pan
-//   - Min scale: 0.1, Max scale: 4.0, constrained: false
-//   - Circular avatar nodes (72dp) with generation-colored rings
-//   - Anchor person double-ring highlight
-//   - Name + relation label below circle
-//   - highlightedGeneration state: dims persons outside that generation
-//   - Deceased person: opacity 0.4
-//   - Tap → navigate to person profile; Long-press → bottom sheet
-//   - Accessibility semantics
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -135,7 +134,7 @@ const Set<String> _spouseKeys = <String>{
 
 /// The main graph canvas widget that renders the family tree graph.
 ///
-/// Uses InteractiveViewer for zoom/pan, and a Stack to layer edges,
+/// Uses GraphPanZoom for zoom/pan, and a Stack to layer edges,
 /// edge dots, person nodes, and popups.
 ///
 /// Usage:
@@ -188,7 +187,7 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
   GraphLayoutResult? _layoutResult;
 
   /// Map of person ID → PersonData for quick lookups.
-  late final Map<String, PersonData> _personMap;
+  late Map<String, PersonData> _personMap;
 
   /// When set, persons NOT in this generation get opacity 0.25.
   int? highlightedGeneration;
@@ -198,6 +197,9 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
   static const double _nodeWidth = 72.0;
   static const double _nodeHeight = 72.0;
 
+  /// Hit radius for tap detection (larger than visual node for easy tapping).
+  static const double _hitRadius = 44.0;
+
   // ── Lifecycle ──────────────────────────────────────────────────────
 
   @override
@@ -205,8 +207,6 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
     super.initState();
     _personMap = {for (final p in widget.persons) p.id: p};
     _computeLayout();
-
-    // Listen for zoom changes
     _transformationController.addListener(_onTransformChanged);
   }
 
@@ -236,23 +236,64 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
         widget.relationships.map((r) => r.toGraphRelationship()).toList();
 
     final service = GraphLayoutService();
-    _layoutResult = service.computeLayout(
-      persons: graphPersons,
-      relationships: graphRelationships,
-    );
+    setState(() {
+      _layoutResult = service.computeLayout(
+        persons: graphPersons,
+        relationships: graphRelationships,
+      );
+    });
   }
 
   // ── Transform Change Handler ───────────────────────────────────────
 
   void _onTransformChanged() {
-    // Trigger rebuild for LOD-dependent rendering
     setState(() {});
   }
 
   /// Gets the current zoom level from the transformation matrix.
   double get _currentZoom {
+    return _transformationController.value.getMaxScaleOnAxis();
+  }
+
+  // ── Hit Testing ────────────────────────────────────────────────────
+
+  /// Converts a tap position in GraphPanZoom's local coordinate space to
+  /// canvas space and returns the ID of the person node under the tap,
+  /// or null if no node was hit.
+  ///
+  /// GraphPanZoom renders the child canvas at:
+  ///   left: tx,  top: ty,  scale: scale (Transform.scale, Alignment.topLeft)
+  /// So:  canvas_pos = (widget_pos - Offset(tx, ty)) / scale
+  ///
+  /// Each node center is at positions[id] in canvas space.
+  /// We use _hitRadius (44px) for finger-size tolerance.
+  String? _hitTestPersonId(
+    Offset localPosition,
+    Map<String, Offset> positions,
+  ) {
     final matrix = _transformationController.value;
-    return matrix.getMaxScaleOnAxis();
+    final scale = matrix.getMaxScaleOnAxis();
+    if (scale == 0) return null;
+
+    final tx = matrix.getTranslation().x;
+    final ty = matrix.getTranslation().y;
+
+    final canvasX = (localPosition.dx - tx) / scale;
+    final canvasY = (localPosition.dy - ty) / scale;
+    final canvasPos = Offset(canvasX, canvasY);
+
+    String? bestId;
+    double bestDist = double.infinity;
+
+    for (final entry in positions.entries) {
+      final dist = (entry.value - canvasPos).distance;
+      if (dist < _hitRadius && dist < bestDist) {
+        bestDist = dist;
+        bestId = entry.key;
+      }
+    }
+
+    return bestId;
   }
 
   // ── Edge Dot Tap Handler ───────────────────────────────────────────
@@ -265,7 +306,6 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
 
     setState(() {
       if (_selectedEdgeId == edgeId) {
-        // Toggle off
         _selectedEdgeId = null;
         _selectedEdgeData = null;
         _showPopup = false;
@@ -311,21 +351,34 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
     final canvasHeight = _layoutResult!.canvasHeight;
     final zoomLevel = _currentZoom;
 
-    // Guard: ensure canvas has non-zero dimensions to prevent
-    // CustomPaint from having zero size and rendering nothing
     final effectiveWidth = canvasWidth > 0 ? canvasWidth : 3000.0;
     final effectiveHeight = canvasHeight > 0 ? canvasHeight : 3000.0;
 
-    // v42 FIX: Replace ClipRect+InteractiveViewer with GraphPanZoom.
-    // InteractiveViewer loses the gesture arena on Android when child
-    // nodes have their own GestureDetectors. GraphPanZoom uses
-    // GestureDetector(opaque) with onScaleStart/Update/End which is
-    // proven to work on Android native touch.
+    // v49 FIX: Tap and long-press are now handled here via canvas-level
+    // geometric hit testing (see _hitTestPersonId). _PersonNodeCard has
+    // NO gesture detectors. This removes the ScaleGestureRecognizer vs
+    // TapGestureRecognizer arena competition that broke pinch-zoom on
+    // Android APK (mirrors family_graph.dart v48 fix exactly).
     return GraphPanZoom(
       transformationController: _transformationController,
       minScale: 0.05,
       maxScale: 8.0,
       onTransformChanged: () => setState(() {}),
+      onTap: (localPosition) {
+        final hitId = _hitTestPersonId(localPosition, positions);
+        if (hitId != null) {
+          context.push('/family/${widget.familyId}/person/$hitId');
+        }
+      },
+      onLongPress: (localPosition) {
+        final hitId = _hitTestPersonId(localPosition, positions);
+        if (hitId != null) {
+          final person = _personMap[hitId];
+          if (person != null) {
+            _showQuickActions(context, person);
+          }
+        }
+      },
       child: SizedBox(
         width: effectiveWidth,
         height: effectiveHeight,
@@ -410,7 +463,6 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
       final pos = positions[person.id];
       if (pos == null) continue;
 
-      // Compute opacity based on highlightedGeneration
       final double nodeOpacity;
       if (highlightedGeneration != null &&
           person.generationIndex != highlightedGeneration) {
@@ -419,13 +471,14 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
         nodeOpacity = 1.0;
       }
 
-      // Resolve relation label relative to anchor
       final relationLabel = _getRelationLabel(person);
 
       nodes.add(
         Positioned(
           left: pos.dx - _nodeWidth / 2,
           top: pos.dy - _nodeHeight / 2,
+          // v49: No gesture detectors here — taps are routed from
+          // GraphPanZoom.onTap/onLongPress via _hitTestPersonId.
           child: _PersonNodeCard(
             person: person,
             nodeWidth: _nodeWidth,
@@ -433,9 +486,6 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
             zoomLevel: zoomLevel,
             opacity: nodeOpacity,
             relationLabel: relationLabel,
-            familyId: widget.familyId,
-            relationships: widget.relationships,
-            personMap: _personMap,
           ),
         ),
       );
@@ -444,444 +494,18 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
     return nodes;
   }
 
-  // ── Relation Label Resolution ──────────────────────────────────────
-
-  /// Returns the relationship label for [person] relative to the anchor.
-  ///
-  /// Looks up the edge connecting this person to the anchor, then
-  /// formats the relationship key. Returns "You" for the anchor.
-  String _getRelationLabel(PersonData person) {
-    // Prefer server-computed kinship term (e.g., "Uncle", "Cousin")
-    if (person.computedKinship != null && person.computedKinship!.isNotEmpty) {
-      return person.computedKinship!;
-    }
-
-    if (person.isAnchor) return 'You';
-
-    final anchor = _anchorPerson;
-    if (anchor == null) return '';
-
-    // Search for an edge connecting this person to the anchor
-    for (final edge in widget.relationships) {
-      // Case 1: anchor → person (relationshipKey describes person's
-      //         relationship TO the anchor, i.e. person is the "to" end)
-      if (edge.fromPersonId == anchor.id && edge.toPersonId == person.id) {
-        return _formatKey(edge.relationshipKey);
-      }
-      // Case 2: person → anchor (relationshipKey describes anchor's
-      //         relationship TO person, so we need the inverse)
-      if (edge.fromPersonId == person.id && edge.toPersonId == anchor.id) {
-        return _formatKey(_getInverseKey(edge.relationshipKey));
-      }
-    }
-
-    return '';
-  }
-
-  /// Formats a relationship key like 'father_in_law' → 'Father In Law'.
-  static String _formatKey(String key) {
-    return key
-        .replaceAll('_', ' ')
-        .split(' ')
-        .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
-        .join(' ');
-  }
-
-  // ── Layer 4: Relationship Popup ────────────────────────────────────
-
-  Widget _buildRelationshipPopup(
-    Map<String, Offset> positions,
-    double canvasWidth,
-    double canvasHeight,
-  ) {
-    final edge = _selectedEdgeData!;
-    final fromPerson = _personMap[edge.fromPersonId];
-    final toPerson = _personMap[edge.toPersonId];
-
-    if (fromPerson == null || toPerson == null) return const SizedBox.shrink();
-
-    final fromPos = positions[edge.fromPersonId];
-    final toPos = positions[edge.toPersonId];
-    if (fromPos == null || toPos == null) return const SizedBox.shrink();
-
-    final midpoint = Offset(
-      (fromPos.dx + toPos.dx) / 2,
-      (fromPos.dy + toPos.dy) / 2,
-    );
-
-    // Gender-aware inverse resolution
-    final inverseKey = _getInverseKey(
-      edge.relationshipKey,
-      personAGender: fromPerson.gender,
-      personBGender: toPerson.gender,
-    );
-
-    return RelationshipPopupWidget(
-      personAName: fromPerson.name,
-      personBName: toPerson.name,
-      personAGender: fromPerson.gender,
-      personBGender: toPerson.gender,
-      forwardKey: edge.relationshipKey,
-      inverseKey: inverseKey,
-      forwardNative: null,
-      inverseNative: null,
-      dotPosition: midpoint,
-      canvasSize: Size(canvasWidth, canvasHeight),
-      onClose: _onPopupClose,
-    );
-  }
-
-  /// Returns the inverse relationship key for a given key.
-  ///
-  /// Uses a comprehensive map of 30+ relationship keys. When
-  /// [personAGender] and [personBGender] are provided, gender-aware
-  /// inverse resolution is used (e.g., son→father if B is male,
-  /// son→mother if B is female).
-  String _getInverseKey(
-    String key, {
-    String? personAGender,
-    String? personBGender,
-  }) {
-    // Gender-aware overrides: the inverse of a relationship depends on
-    // the gender of the person being described. For example, "son" from
-    // A's perspective means A is the parent; the inverse describes A
-    // from B's perspective, and whether A is "father" or "mother"
-    // depends on A's gender.
-    if (personAGender != null) {
-      final aIsMale = personAGender.toLowerCase() == 'male';
-      final aIsFemale = personAGender.toLowerCase() == 'female';
-
-      switch (key) {
-        case 'son':
-        case 'daughter':
-          return aIsMale ? 'father' : (aIsFemale ? 'mother' : 'parent');
-        case 'grandson':
-        case 'granddaughter':
-          return aIsMale ? 'grandfather' : (aIsFemale ? 'grandmother' : 'grandparent');
-        case 'nephew':
-        case 'niece':
-          return aIsMale ? 'uncle' : (aIsFemale ? 'aunt' : 'uncle/aunt');
-        case 'brother':
-        case 'sister':
-          return aIsMale ? 'brother' : (aIsFemale ? 'sister' : 'sibling');
-        case 'husband':
-        case 'wife':
-        case 'spouse':
-        case 'partner':
-          return aIsMale ? 'husband' : (aIsFemale ? 'wife' : 'spouse');
-      }
-    }
-
-    if (personBGender != null) {
-      final bIsMale = personBGender.toLowerCase() == 'male';
-      final bIsFemale = personBGender.toLowerCase() == 'female';
-
-      switch (key) {
-        case 'father':
-        case 'mother':
-          return bIsMale ? 'son' : (bIsFemale ? 'daughter' : 'child');
-        case 'grandfather':
-        case 'grandmother':
-          return bIsMale ? 'grandson' : (bIsFemale ? 'granddaughter' : 'grandchild');
-        case 'uncle':
-        case 'aunt':
-          return bIsMale ? 'nephew' : (bIsFemale ? 'niece' : 'nephew/niece');
-      }
-    }
-
-    // Fallback: comprehensive static inverse map (30+ keys)
-    const inverseMap = <String, String>{
-      // Immediate family
-      'father': 'son',
-      'mother': 'daughter',
-      'son': 'father',
-      'daughter': 'mother',
-      'brother': 'brother',
-      'sister': 'sister',
-      'husband': 'wife',
-      'wife': 'husband',
-      'spouse': 'spouse',
-      'partner': 'partner',
-      // Grandparents / grandchildren
-      'grandfather': 'grandson',
-      'grandmother': 'granddaughter',
-      'grandson': 'grandfather',
-      'granddaughter': 'grandmother',
-      // Uncles / aunts / nephews / nieces
-      'uncle': 'nephew',
-      'aunt': 'niece',
-      'nephew': 'uncle',
-      'niece': 'aunt',
-      // Cousins
-      'cousin': 'cousin',
-      'cousin_brother': 'cousin_brother',
-      'cousin_sister': 'cousin_sister',
-      // In-laws
-      'father_in_law': 'son_in_law',
-      'mother_in_law': 'daughter_in_law',
-      'son_in_law': 'father_in_law',
-      'daughter_in_law': 'mother_in_law',
-      'brother_in_law': 'sister_in_law',
-      'sister_in_law': 'brother_in_law',
-      // Paternal
-      'paternal_uncle': 'nephew',
-      'paternal_aunt': 'niece',
-      // Maternal
-      'maternal_uncle': 'nephew',
-      'maternal_aunt': 'niece',
-      // Step
-      'stepfather': 'stepson',
-      'stepmother': 'stepdaughter',
-      'stepson': 'stepfather',
-      'stepdaughter': 'stepmother',
-      'stepbrother': 'stepbrother',
-      'stepsister': 'stepsister',
-      // Half-siblings
-      'half_brother': 'half_brother',
-      'half_sister': 'half_sister',
-    };
-    return inverseMap[key] ?? key;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// PERSON NODE CARD — Circular Avatar Node
-// ═══════════════════════════════════════════════════════════════════════
-
-/// A circular avatar node card for a person in the graph canvas.
-///
-/// Layout:
-///   - 72dp diameter circle with generation-colored border ring
-///   - Anchor person: double-ring (outer 88dp teal at 25% alpha,
-///     inner 72dp teal solid 3dp)
-///   - Content: 2-letter initials or ClipOval photo
-///   - Deceased: Opacity(0.4)
-///   - Name + relation label below the circle (2 lines, centered)
-///   - Tap: navigate to person profile
-///   - Long-press: bottom sheet with quick actions
-///   - Semantics for accessibility
-class _PersonNodeCard extends ConsumerWidget {
-  const _PersonNodeCard({
-    required this.person,
-    required this.nodeWidth,
-    required this.nodeHeight,
-    required this.zoomLevel,
-    required this.opacity,
-    required this.relationLabel,
-    required this.familyId,
-    required this.relationships,
-    required this.personMap,
-  });
-
-  final PersonData person;
-  final double nodeWidth;
-  final double nodeHeight;
-  final double zoomLevel;
-  final double opacity;
-  final String relationLabel;
-  final String familyId;
-  final List<RelationshipData> relationships;
-  final Map<String, PersonData> personMap;
-
-  // ── Generation Ring Color ──────────────────────────────────────────
-
-  Color get _ringColor {
-    // Prefer server-computed kinshipCategory for color resolution
-    if (person.kinshipCategory != null && person.kinshipCategory!.isNotEmpty) {
-      return getNodeColorsFromCategory(person.kinshipCategory).ring;
-    }
-    // Fallback to generation-based color
-    if (person.generationIndex < 0) {
-      // Parents
-      return KinrelColors.blue.withValues(alpha: 0.6);
-    } else if (person.generationIndex == 0) {
-      // Self / siblings
-      return KinrelColors.tealAccent;
-    } else {
-      // Children
-      return KinrelColors.coral.withValues(alpha: 0.6);
-    }
-  }
-
-  // ── Initials ───────────────────────────────────────────────────────
-
-  String get _initials {
-    final parts = person.name.trim().split(RegExp(r'\s+'));
-    if (parts.length >= 2) {
-      // First letter of first name + first letter of last name
-      return (parts.first[0] + parts.last[0]).toUpperCase();
-    } else if (parts.isNotEmpty && parts.first.isNotEmpty) {
-      // First two letters of single name
-      return parts.first.length >= 2
-          ? parts.first.substring(0, 2).toUpperCase()
-          : parts.first[0].toUpperCase();
-    }
-    return '?';
-  }
-
-  // ── Build ──────────────────────────────────────────────────────────
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Opacity(
-      opacity: person.isDeceased ? 0.4 * opacity : opacity,
-      // v47 FIX: Use RawGestureDetector with eager TapGestureRecognizer.
-      child: RawGestureDetector(
-        gestures: {
-          TapGestureRecognizer:
-              GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
-            () => TapGestureRecognizer(),
-            (instance) {
-              instance.onTap = () => context.push('/family/$familyId/person/${person.id}');
-            },
-          ),
-          LongPressGestureRecognizer:
-              GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
-            () => LongPressGestureRecognizer(),
-            (instance) {
-              instance.onLongPress = () => _showQuickActions(context, ref);
-            },
-          ),
-        },
-        behavior: HitTestBehavior.opaque,
-        child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ── Circle Node ───────────────────────────────────────
-              _buildCircleNode(),
-
-              const SizedBox(height: 6.0),
-
-              // ── Name below circle ─────────────────────────────────
-              Text(
-                person.name,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 14.0,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.textWhite,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-
-              // ── Relation label below name ─────────────────────────
-              if (relationLabel.isNotEmpty)
-                Text(
-                  relationLabel,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 11.0,
-                    fontWeight: FontWeight.w500,
-                    color: _ringColor,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-            ],
-          ),
-        ),
-    );
-  }
-
-  // ── Circle Node Builder ────────────────────────────────────────────
-
-  Widget _buildCircleNode() {
-    const double diameter = 72.0;
-
-    // Anchor double-ring: outer glow ring behind, inner solid ring
-    if (person.isAnchor) {
-      return SizedBox(
-        width: 88.0,
-        height: 88.0,
-        child: Center(
-          child: Container(
-            width: diameter,
-            height: diameter,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: KinrelColors.darkCard,
-              border: Border.all(
-                color: KinrelColors.tealAccent,
-                width: 3.0,
-              ),
-              boxShadow: [
-                // Outer ring effect via box shadow
-                BoxShadow(
-                  color: KinrelColors.tealAccent.withValues(alpha: 0.25),
-                  blurRadius: 0.0,
-                  spreadRadius: 8.0,
-                ),
-              ],
-            ),
-            child: _buildCircleContent(diameter),
-          ),
-        ),
-      );
-    }
-
-    // Standard node with generation-colored ring
-    return Container(
-      width: diameter,
-      height: diameter,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: KinrelColors.darkCard,
-        border: Border.all(
-          color: _ringColor,
-          width: 2.5,
-        ),
-      ),
-      child: _buildCircleContent(diameter),
-    );
-  }
-
-  // ── Circle Content (initials or photo) ─────────────────────────────
-
-  Widget _buildCircleContent(double diameter) {
-    // If photo URL is available, show photo in ClipOval
-    if (person.photoUrl != null && person.photoUrl!.isNotEmpty) {
-      return ClipOval(
-        child: Image.network(
-          person.photoUrl!,
-          width: diameter,
-          height: diameter,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => _buildInitialsContent(),
-        ),
-      );
-    }
-
-    // Fallback: initials
-    return _buildInitialsContent();
-  }
-
-  Widget _buildInitialsContent() {
-    return Center(
-      child: Text(
-        _initials,
-        style: TextStyle(
-          fontFamily: KinrelTypography.displayFont,
-          fontSize: 20.0,
-          fontWeight: FontWeight.bold,
-          color: KinrelColors.textWhite,
-        ),
-      ),
-    );
-  }
-
   // ── Quick Actions Bottom Sheet ─────────────────────────────────────
 
-  void _showQuickActions(BuildContext context, WidgetRef ref) {
+  /// Shows the quick-actions bottom sheet for [person].
+  /// Called from GraphPanZoom.onLongPress via _hitTestPersonId.
+  void _showQuickActions(BuildContext context, PersonData person) {
     showModalBottomSheet(
       context: context,
       backgroundColor: KinrelColors.darkCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
       ),
-      builder: (context) => SafeArea(
+      builder: (sheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -930,8 +554,8 @@ class _PersonNodeCard extends ConsumerWidget {
                 ),
               ),
               onTap: () {
-                Navigator.pop(context);
-                context.push('/family/$familyId/person/${person.id}');
+                Navigator.pop(sheetContext);
+                context.push('/family/${widget.familyId}/person/${person.id}');
               },
             ),
             ListTile(
@@ -944,7 +568,7 @@ class _PersonNodeCard extends ConsumerWidget {
                 ),
               ),
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 context.push('/member/${person.id}');
               },
             ),
@@ -958,21 +582,21 @@ class _PersonNodeCard extends ConsumerWidget {
                 ),
               ),
               onTap: () async {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 final client = Supabase.instance.client;
                 await client
                     .from('Person')
-                    .update({'isAnchor': true})
-                    .eq('id', person.id);
+                    .update({'isAnchor': true}).eq('id', person.id);
                 await client
                     .from('Family')
-                    .update({'anchorPersonId': person.id})
-                    .eq('id', familyId);
-                ref.invalidate(familyGraphProvider(familyId));
+                    .update({'anchorPersonId': person.id}).eq(
+                        'id', widget.familyId);
+                ref.invalidate(familyGraphProvider(widget.familyId));
               },
             ),
             ListTile(
-              leading: const Icon(Icons.delete_outline, color: KinrelColors.coral),
+              leading:
+                  const Icon(Icons.delete_outline, color: KinrelColors.coral),
               title: Text(
                 'Remove',
                 style: TextStyle(
@@ -981,36 +605,408 @@ class _PersonNodeCard extends ConsumerWidget {
                 ),
               ),
               onTap: () async {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 final confirmed = await showDialog<bool>(
                   context: context,
                   builder: (_) => AlertDialog(
                     backgroundColor: const Color(0xFF191B2C),
                     title: Text('Remove ${person.name}?',
                         style: const TextStyle(color: Color(0xFFF5F0EE))),
-                    content: const Text('This will soft-delete them from the family.',
+                    content: const Text(
+                        'This will soft-delete them from the family.',
                         style: TextStyle(color: Color(0xFF8A7A72))),
                     actions: [
-                      TextButton(onPressed: () => Navigator.pop(context, false),
+                      TextButton(
+                          onPressed: () => Navigator.pop(context, false),
                           child: const Text('Cancel')),
-                      TextButton(onPressed: () => Navigator.pop(context, true),
+                      TextButton(
+                          onPressed: () => Navigator.pop(context, true),
                           child: const Text('Remove',
-                              style: TextStyle(color: Color(0xFFE8612A)))),
+                              style:
+                                  TextStyle(color: Color(0xFFE8612A)))),
                     ],
                   ),
                 );
                 if (confirmed == true) {
                   await Supabase.instance.client
                       .from('Person')
-                      .update({'deletedAt': DateTime.now().toIso8601String()})
+                      .update(
+                          {'deletedAt': DateTime.now().toIso8601String()})
                       .eq('id', person.id);
-                  ref.invalidate(familyGraphProvider(familyId));
+                  ref.invalidate(familyGraphProvider(widget.familyId));
                 }
               },
             ),
 
             const SizedBox(height: 8.0),
           ],
+        ),
+      ),
+    );
+  }
+
+  // ── Relation Label Resolution ──────────────────────────────────────
+
+  String _getRelationLabel(PersonData person) {
+    if (person.computedKinship != null && person.computedKinship!.isNotEmpty) {
+      return person.computedKinship!;
+    }
+
+    if (person.isAnchor) return 'You';
+
+    final anchor = _anchorPerson;
+    if (anchor == null) return '';
+
+    for (final edge in widget.relationships) {
+      if (edge.fromPersonId == anchor.id && edge.toPersonId == person.id) {
+        return _formatKey(edge.relationshipKey);
+      }
+      if (edge.fromPersonId == person.id && edge.toPersonId == anchor.id) {
+        return _formatKey(_getInverseKey(edge.relationshipKey));
+      }
+    }
+
+    return '';
+  }
+
+  static String _formatKey(String key) {
+    return key
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
+        .join(' ');
+  }
+
+  // ── Layer 4: Relationship Popup ────────────────────────────────────
+
+  Widget _buildRelationshipPopup(
+    Map<String, Offset> positions,
+    double canvasWidth,
+    double canvasHeight,
+  ) {
+    final edge = _selectedEdgeData!;
+    final fromPerson = _personMap[edge.fromPersonId];
+    final toPerson = _personMap[edge.toPersonId];
+
+    if (fromPerson == null || toPerson == null) return const SizedBox.shrink();
+
+    final fromPos = positions[edge.fromPersonId];
+    final toPos = positions[edge.toPersonId];
+    if (fromPos == null || toPos == null) return const SizedBox.shrink();
+
+    final midpoint = Offset(
+      (fromPos.dx + toPos.dx) / 2,
+      (fromPos.dy + toPos.dy) / 2,
+    );
+
+    final inverseKey = _getInverseKey(
+      edge.relationshipKey,
+      personAGender: fromPerson.gender,
+      personBGender: toPerson.gender,
+    );
+
+    return RelationshipPopupWidget(
+      personAName: fromPerson.name,
+      personBName: toPerson.name,
+      personAGender: fromPerson.gender,
+      personBGender: toPerson.gender,
+      forwardKey: edge.relationshipKey,
+      inverseKey: inverseKey,
+      forwardNative: null,
+      inverseNative: null,
+      dotPosition: midpoint,
+      canvasSize: Size(canvasWidth, canvasHeight),
+      onClose: _onPopupClose,
+    );
+  }
+
+  String _getInverseKey(
+    String key, {
+    String? personAGender,
+    String? personBGender,
+  }) {
+    if (personAGender != null) {
+      final aIsMale = personAGender.toLowerCase() == 'male';
+      final aIsFemale = personAGender.toLowerCase() == 'female';
+
+      switch (key) {
+        case 'son':
+        case 'daughter':
+          return aIsMale ? 'father' : (aIsFemale ? 'mother' : 'parent');
+        case 'grandson':
+        case 'granddaughter':
+          return aIsMale
+              ? 'grandfather'
+              : (aIsFemale ? 'grandmother' : 'grandparent');
+        case 'nephew':
+        case 'niece':
+          return aIsMale ? 'uncle' : (aIsFemale ? 'aunt' : 'uncle/aunt');
+        case 'brother':
+        case 'sister':
+          return aIsMale ? 'brother' : (aIsFemale ? 'sister' : 'sibling');
+        case 'husband':
+        case 'wife':
+        case 'spouse':
+        case 'partner':
+          return aIsMale ? 'husband' : (aIsFemale ? 'wife' : 'spouse');
+      }
+    }
+
+    if (personBGender != null) {
+      final bIsMale = personBGender.toLowerCase() == 'male';
+      final bIsFemale = personBGender.toLowerCase() == 'female';
+
+      switch (key) {
+        case 'father':
+        case 'mother':
+          return bIsMale ? 'son' : (bIsFemale ? 'daughter' : 'child');
+        case 'grandfather':
+        case 'grandmother':
+          return bIsMale
+              ? 'grandson'
+              : (bIsFemale ? 'granddaughter' : 'grandchild');
+        case 'uncle':
+        case 'aunt':
+          return bIsMale ? 'nephew' : (bIsFemale ? 'niece' : 'nephew/niece');
+      }
+    }
+
+    const inverseMap = <String, String>{
+      'father': 'son',
+      'mother': 'daughter',
+      'son': 'father',
+      'daughter': 'mother',
+      'brother': 'brother',
+      'sister': 'sister',
+      'husband': 'wife',
+      'wife': 'husband',
+      'spouse': 'spouse',
+      'partner': 'partner',
+      'grandfather': 'grandson',
+      'grandmother': 'granddaughter',
+      'grandson': 'grandfather',
+      'granddaughter': 'grandmother',
+      'uncle': 'nephew',
+      'aunt': 'niece',
+      'nephew': 'uncle',
+      'niece': 'aunt',
+      'cousin': 'cousin',
+      'cousin_brother': 'cousin_brother',
+      'cousin_sister': 'cousin_sister',
+      'father_in_law': 'son_in_law',
+      'mother_in_law': 'daughter_in_law',
+      'son_in_law': 'father_in_law',
+      'daughter_in_law': 'mother_in_law',
+      'brother_in_law': 'sister_in_law',
+      'sister_in_law': 'brother_in_law',
+      'paternal_uncle': 'nephew',
+      'paternal_aunt': 'niece',
+      'maternal_uncle': 'nephew',
+      'maternal_aunt': 'niece',
+      'stepfather': 'stepson',
+      'stepmother': 'stepdaughter',
+      'stepson': 'stepfather',
+      'stepdaughter': 'stepmother',
+      'stepbrother': 'stepbrother',
+      'stepsister': 'stepsister',
+      'half_brother': 'half_brother',
+      'half_sister': 'half_sister',
+    };
+    return inverseMap[key] ?? key;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PERSON NODE CARD — Pure Visual Widget (NO gesture detectors)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// A circular avatar node card for a person in the graph canvas.
+///
+/// v49: This is now a PURE VISUAL widget — it has NO GestureDetector,
+/// no RawGestureDetector, no TapGestureRecognizer. Taps and long-presses
+/// are handled at the GraphPanZoom level via geometric hit-testing in
+/// _GraphCanvasWidgetState._hitTestPersonId(). This is the key fix for
+/// pinch-zoom not working on Android APK.
+///
+/// Layout:
+///   - 72dp diameter circle with generation-colored border ring
+///   - Anchor person: double-ring (outer 88dp teal at 25% alpha,
+///     inner 72dp teal solid 3dp)
+///   - Content: 2-letter initials or ClipOval photo
+///   - Deceased: Opacity(0.4)
+///   - Name + relation label below the circle (2 lines, centered)
+class _PersonNodeCard extends StatelessWidget {
+  const _PersonNodeCard({
+    required this.person,
+    required this.nodeWidth,
+    required this.nodeHeight,
+    required this.zoomLevel,
+    required this.opacity,
+    required this.relationLabel,
+  });
+
+  final PersonData person;
+  final double nodeWidth;
+  final double nodeHeight;
+  final double zoomLevel;
+  final double opacity;
+  final String relationLabel;
+
+  // ── Generation Ring Color ──────────────────────────────────────────
+
+  Color get _ringColor {
+    if (person.kinshipCategory != null && person.kinshipCategory!.isNotEmpty) {
+      return getNodeColorsFromCategory(person.kinshipCategory).ring;
+    }
+    if (person.generationIndex < 0) {
+      return KinrelColors.blue.withValues(alpha: 0.6);
+    } else if (person.generationIndex == 0) {
+      return KinrelColors.tealAccent;
+    } else {
+      return KinrelColors.coral.withValues(alpha: 0.6);
+    }
+  }
+
+  // ── Initials ───────────────────────────────────────────────────────
+
+  String get _initials {
+    final parts = person.name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      return (parts.first[0] + parts.last[0]).toUpperCase();
+    } else if (parts.isNotEmpty && parts.first.isNotEmpty) {
+      return parts.first.length >= 2
+          ? parts.first.substring(0, 2).toUpperCase()
+          : parts.first[0].toUpperCase();
+    }
+    return '?';
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    // v49: NO gesture detectors here. Taps/long-presses are routed from
+    // GraphPanZoom.onTap / onLongPress via _hitTestPersonId.
+    return Opacity(
+      opacity: person.isDeceased ? 0.4 * opacity : opacity,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ── Circle Node ───────────────────────────────────────
+          _buildCircleNode(),
+
+          const SizedBox(height: 6.0),
+
+          // ── Name below circle ─────────────────────────────────
+          Text(
+            person.name,
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 14.0,
+              fontWeight: FontWeight.w600,
+              color: KinrelColors.textWhite,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+
+          // ── Relation label below name ─────────────────────────
+          if (relationLabel.isNotEmpty)
+            Text(
+              relationLabel,
+              style: TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 11.0,
+                fontWeight: FontWeight.w500,
+                color: _ringColor,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ── Circle Node Builder ────────────────────────────────────────────
+
+  Widget _buildCircleNode() {
+    const double diameter = 72.0;
+
+    if (person.isAnchor) {
+      return SizedBox(
+        width: 88.0,
+        height: 88.0,
+        child: Center(
+          child: Container(
+            width: diameter,
+            height: diameter,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: KinrelColors.darkCard,
+              border: Border.all(
+                color: KinrelColors.tealAccent,
+                width: 3.0,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: KinrelColors.tealAccent.withValues(alpha: 0.25),
+                  blurRadius: 0.0,
+                  spreadRadius: 8.0,
+                ),
+              ],
+            ),
+            child: _buildCircleContent(diameter),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: diameter,
+      height: diameter,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: KinrelColors.darkCard,
+        border: Border.all(
+          color: _ringColor,
+          width: 2.5,
+        ),
+      ),
+      child: _buildCircleContent(diameter),
+    );
+  }
+
+  // ── Circle Content (initials or photo) ─────────────────────────────
+
+  Widget _buildCircleContent(double diameter) {
+    if (person.photoUrl != null && person.photoUrl!.isNotEmpty) {
+      return ClipOval(
+        child: Image.network(
+          person.photoUrl!,
+          width: diameter,
+          height: diameter,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) =>
+              _buildInitialsContent(),
+        ),
+      );
+    }
+
+    return _buildInitialsContent();
+  }
+
+  Widget _buildInitialsContent() {
+    return Center(
+      child: Text(
+        _initials,
+        style: TextStyle(
+          fontFamily: KinrelTypography.displayFont,
+          fontSize: 20.0,
+          fontWeight: FontWeight.bold,
+          color: KinrelColors.textWhite,
         ),
       ),
     );
