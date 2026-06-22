@@ -20,6 +20,7 @@
 //     recalculated every time a finger is added or removed, so
 //     transitions between 1-finger-pan and 2-finger-pinch never jump.
 
+import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
@@ -38,6 +39,8 @@ class GraphPanZoom extends StatefulWidget {
     this.onTransformChanged,
     this.onDoubleTap,
     this.enableMomentum = false,
+    this.onTap,
+    this.onLongPress,
   });
 
   final TransformationController transformationController;
@@ -49,6 +52,12 @@ class GraphPanZoom extends StatefulWidget {
 
   /// Kept for API compatibility — unused.
   final bool enableMomentum;
+
+  /// Called when the user taps (single finger, no significant movement).
+  final void Function(Offset localPosition)? onTap;
+
+  /// Called when the user long-presses (single finger, held 500ms).
+  final void Function(Offset localPosition)? onLongPress;
 
   @override
   State<GraphPanZoom> createState() => _GraphPanZoomState();
@@ -74,6 +83,12 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
   // Tap-vs-pan disambiguation for the single-finger case.
   Offset? _singleDownPosition;
   bool _singlePanActive = false;
+
+  // v45: Tap/long-press detection via Timer (no GestureDetector needed).
+  int? _tapPointerId;
+  Timer? _longPressTimer;
+  static const Duration _longPressDelay = Duration(milliseconds: 500);
+  static const double _tapSlop = 18.0;
 
   Offset _currentFocalPoint() {
     if (_pointers.isEmpty) return Offset.zero;
@@ -141,9 +156,6 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
   }
 
   void _onPointerDown(PointerDownEvent event) {
-    // v44 FIX: Add to BOTH maps. _downPositions captures the exact
-    // position where the finger landed — this is the correct baseline
-    // for pinch math. _pointers tracks the live (moved) position.
     _pointers[event.pointer] = event.localPosition;
     _downPositions[event.pointer] = event.localPosition;
 
@@ -151,11 +163,30 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
       _singleDownPosition = event.localPosition;
       _singlePanActive = false;
       _resetBaseline();
+      // v45: Start tap/long-press detection
+      _startTapDetection(event.pointer, event.localPosition);
     } else {
-      // Going from 1→2 (or 2→3, etc.) fingers: use DOWN positions
-      // for the baseline so the first pinch frame doesn't jump.
+      // Second finger → cancel tap/long-press, switch to pinch
+      _cancelTapDetection();
       _resetBaselineFromDown();
     }
+  }
+
+  void _startTapDetection(int pointerId, Offset position) {
+    _tapPointerId = pointerId;
+    _longPressTimer?.cancel();
+    _longPressTimer = Timer(_longPressDelay, () {
+      if (_tapPointerId == pointerId && !_singlePanActive && _pointers.length == 1) {
+        widget.onLongPress?.call(position);
+        _tapPointerId = null; // Consume — don't also fire tap on release
+      }
+    });
+  }
+
+  void _cancelTapDetection() {
+    _longPressTimer?.cancel();
+    _longPressTimer = null;
+    _tapPointerId = null;
   }
 
   void _onPointerMove(PointerMoveEvent event) {
@@ -163,14 +194,14 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
     _pointers[event.pointer] = event.localPosition;
 
     if (_pointers.length == 1) {
-      // Single finger — ignore tiny movement so taps on nodes stay
-      // taps (don't nudge the canvas during a deliberate tap).
       if (!_singlePanActive) {
         final moved =
             (event.localPosition - (_singleDownPosition ?? event.localPosition))
                 .distance;
         if (moved < kPanSlop) return;
         _singlePanActive = true;
+        // v45: Cancel tap/long-press when pan starts
+        _cancelTapDetection();
       }
       final matrix = widget.transformationController.value;
       final scale = matrix.getMaxScaleOnAxis();
@@ -205,13 +236,20 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
     widget.onTransformChanged?.call();
   }
 
-  void _endPointer(int pointer) {
-    // v44 FIX: Remove from BOTH maps, THEN reset baseline so the
-    // remaining finger's CURRENT position becomes the new pan anchor.
-    // If we reset before removing, the lifted finger's stale position
-    // would be included in the focal/span calculation, causing a jump.
+  void _endPointer(int pointer, [Offset? upPosition]) {
     _pointers.remove(pointer);
     _downPositions.remove(pointer);
+
+    // v45: Check for tap on pointer up
+    if (_pointers.isEmpty && _tapPointerId == pointer && !_singlePanActive) {
+      _cancelTapDetection();
+      if (upPosition != null) {
+        widget.onTap?.call(upPosition);
+      }
+    } else {
+      _cancelTapDetection();
+    }
+
     if (_pointers.isEmpty) {
       _singleDownPosition = null;
       _singlePanActive = false;
@@ -228,6 +266,12 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
   }
 
   @override
+  void dispose() {
+    _longPressTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -236,10 +280,10 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
           height: constraints.maxHeight,
           child: ClipRect(
             child: Listener(
-              behavior: HitTestBehavior.opaque,
+              behavior: HitTestBehavior.translucent,
               onPointerDown: _onPointerDown,
               onPointerMove: _onPointerMove,
-              onPointerUp: (e) => _endPointer(e.pointer),
+              onPointerUp: (e) => _endPointer(e.pointer, e.localPosition),
               onPointerCancel: (e) => _endPointer(e.pointer),
               child: AnimatedBuilder(
                 animation: widget.transformationController,

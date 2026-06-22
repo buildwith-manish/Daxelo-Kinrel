@@ -398,11 +398,12 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
       child: Stack(
         children: [
           // ── Interactive graph canvas ─────────────────────────────
-          // v43 FIX: Replace InteractiveViewer with GraphPanZoom (v5.0
-          // raw Listener pointers). InteractiveViewer's ScaleGestureRecognizer
-          // loses the gesture arena on Android when child nodes have their
-          // own GestureDetectors — making pinch-to-zoom freeze. GraphPanZoom
-          // uses raw Listener which fires unconditionally, bypassing the arena.
+          // v45 FIX: Remove GestureDetector wrapper around GraphPanZoom child.
+          // The GestureDetector was creating an arena entry that competed with
+          // GraphPanZoom's Listener on Android, causing pinch-to-zoom to freeze.
+          // GraphPanZoom v5.0+ handles all gestures via raw Listener — no
+          // GestureDetector needed. Tap/long-press/double-tap are handled
+          // by GraphPanZoom's onTap/onLongPress callbacks.
           GraphPanZoom(
             transformationController: _transformationController,
             minScale: 0.2,
@@ -416,15 +417,9 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
                 _currentScale = newScale;
               });
             },
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTapUp: (details) =>
-                  _handleTap(details.localPosition, layout),
-              onLongPressStart: (details) =>
-                  _handleLongPress(details.localPosition, layout),
-              onDoubleTapDown: (details) =>
-                  _handleDoubleTap(details.localPosition, layout),
-              child: SizedBox(
+            onTap: (localPosition) => _handleTap(localPosition, layout),
+            onLongPress: (localPosition) => _handleLongPress(localPosition, layout),
+            child: SizedBox(
                   width: canvasSize,
                   height: canvasSize,
                   child: KinrelAnimatedBuilder(
@@ -459,7 +454,6 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
                   ),
                 ),
               ),
-            ),
 
           // Change 2: Removed _LanguageSelectorButton and _FilterBar from top
           // Change 5: Replaced _GraphControls, _AddNodeFab, _Minimap with single pill

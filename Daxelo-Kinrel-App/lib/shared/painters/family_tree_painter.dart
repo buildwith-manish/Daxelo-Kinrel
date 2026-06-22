@@ -209,10 +209,8 @@ class FamilyTreePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Debug: log painter invocation to help diagnose invisible nodes
-    debugPrint('[FamilyTreePainter] paint() called: '
-        '${relationships.length} edges, ${positions.length} positions, size=$size');
-
+    // v45 FIX: Removed debugPrint — it was called 60fps during zoom/pan
+    // and caused jank on Android (logcat flush blocks render thread).
     for (final edge in relationships) {
       final fromPos = positions[edge.fromPersonId];
       final toPos = positions[edge.toPersonId];

@@ -1396,7 +1396,10 @@ class _MapGraphEdgePainter extends CustomPainter {
   /// Returns true if both points are off-screen on the same side by
   /// more than 200 pixels.
   bool _isBothOffscreen(Offset a, Offset b, Size size) {
-    const margin = 200.0;
+    // v45 FIX: Use relative margin (30% of longest dimension) instead of
+    // hardcoded 200dp. On small phones (360dp width), 200dp is 55% of the
+    // screen — culling edges that are partially visible.
+    final margin = size.width > size.height ? size.width * 0.3 : size.height * 0.3;
     // Both left of screen
     if (a.dx < -margin && b.dx < -margin) return true;
     // Both right of screen
@@ -1440,6 +1443,7 @@ class _MapGraphOverlayLayer extends StatefulWidget {
 
 class _MapGraphOverlayLayerState extends State<_MapGraphOverlayLayer> {
   _MapGraphEdgePainter? _lastPainter;
+  int _activePointers = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -1451,18 +1455,28 @@ class _MapGraphOverlayLayerState extends State<_MapGraphOverlayLayer> {
     );
     _lastPainter = painter;
 
+    // v45 FIX: Replace GestureDetector with Listener to avoid gesture arena
+    // conflicts with the parent InteractiveViewer/GraphPanZoom on Android.
+    // Listener fires unconditionally without participating in the arena.
     return RepaintBoundary(
-      child: GestureDetector(
+      child: Listener(
         behavior: HitTestBehavior.translucent,
-        onTapUp: (details) {
+        onPointerDown: (_) => _activePointers++,
+        onPointerUp: (event) {
+          _activePointers = (_activePointers - 1).clamp(0, 99);
+          // Only handle single-finger tap-ups (not pinch end)
+          if (_activePointers > 0) return;
           if (_lastPainter == null) return;
-          final tapPos = details.localPosition;
+          final tapPos = event.localPosition;
           for (final target in _lastPainter!.dotHitTargets) {
             if ((tapPos - target.dotPos).distance < 18) {
               widget.onDotTapped(target.edge);
               return;
             }
           }
+        },
+        onPointerCancel: (_) {
+          _activePointers = (_activePointers - 1).clamp(0, 99);
         },
         child: SizedBox.expand(
           child: CustomPaint(painter: painter),
