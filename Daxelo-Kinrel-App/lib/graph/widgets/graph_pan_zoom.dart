@@ -65,10 +65,11 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
 
   // Tap detection
   Offset? _tapDownPosition;
+  Offset? _pointerDownPosition; // v47: true pointer-down position captured by Listener
   bool _isPanning = false;
   Timer? _longPressTimer;
-  static const double _tapMaxMovement = 10.0;
-  static const Duration _longPressDelay = Duration(milliseconds: 500);
+  static const double _tapMaxMovement = 18.0; // v47: was 10.0, too tight for Android finger tremble
+  static const Duration _longPressDelay = Duration(milliseconds: 550); // v47: was 500ms, borderline with kLongPressTimeout
 
   void _onScaleStart(ScaleStartDetails details) {
     final matrix = widget.transformationController.value;
@@ -80,7 +81,10 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
     _startFocalPoint = details.localFocalPoint;
 
     if (details.pointerCount == 1) {
-      _tapDownPosition = details.localFocalPoint;
+      // v47: Prefer the true pointer-down position captured by Listener;
+      // ScaleGestureRecognizer.onStart fires AFTER the arena resolves, by
+      // which point the finger has often moved several pixels.
+      _tapDownPosition = _pointerDownPosition ?? details.localFocalPoint;
       _isPanning = false;
 
       _longPressTimer?.cancel();
@@ -147,6 +151,7 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
     }
 
     _tapDownPosition = null;
+    _pointerDownPosition = null;
     _isPanning = false;
   }
 
@@ -164,42 +169,58 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
           width: constraints.maxWidth,
           height: constraints.maxHeight,
           child: ClipRect(
-            child: RawGestureDetector(
-              gestures: {
-                ScaleGestureRecognizer:
-                    GestureRecognizerFactoryWithHandlers<ScaleGestureRecognizer>(
-                  () => ScaleGestureRecognizer(),
-                  (instance) {
-                    instance
-                      ..onStart = _onScaleStart
-                      ..onUpdate = _onScaleUpdate
-                      ..onEnd = _onScaleEnd;
+            child: Listener(
+              // v47: Capture the true pointer-down position BEFORE the
+              // gesture arena resolves. ScaleGestureRecognizer.onStart
+              // fires after arena resolution, by which point the finger
+              // has moved — causing inaccurate tap hit-testing.
+              behavior: HitTestBehavior.opaque,
+              onPointerDown: (event) {
+                _pointerDownPosition = event.localPosition;
+              },
+              onPointerCancel: (_) {
+                _pointerDownPosition = null;
+              },
+              child: RawGestureDetector(
+                gestures: {
+                  ScaleGestureRecognizer:
+                      GestureRecognizerFactoryWithHandlers<ScaleGestureRecognizer>(
+                    () => ScaleGestureRecognizer(),
+                    (instance) {
+                      instance
+                        ..onStart = _onScaleStart
+                        ..onUpdate = _onScaleUpdate
+                        ..onEnd = _onScaleEnd;
+                    },
+                  ),
+                },
+                // v47: opaque — with translucent, Android routes the 2nd
+                // pointer of a pinch to system UI, so ScaleGestureRecognizer
+                // only sees 1 pointer and pinch never fires.
+                behavior: HitTestBehavior.opaque,
+                child: AnimatedBuilder(
+                  animation: widget.transformationController,
+                  builder: (context, _) {
+                    final matrix = widget.transformationController.value;
+                    final scale = matrix.getMaxScaleOnAxis();
+                    final tx = matrix.getTranslation().x;
+                    final ty = matrix.getTranslation().y;
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned(
+                          left: tx,
+                          top: ty,
+                          child: Transform.scale(
+                            scale: scale,
+                            alignment: Alignment.topLeft,
+                            child: widget.child,
+                          ),
+                        ),
+                      ],
+                    );
                   },
                 ),
-              },
-              behavior: HitTestBehavior.translucent,
-              child: AnimatedBuilder(
-                animation: widget.transformationController,
-                builder: (context, _) {
-                  final matrix = widget.transformationController.value;
-                  final scale = matrix.getMaxScaleOnAxis();
-                  final tx = matrix.getTranslation().x;
-                  final ty = matrix.getTranslation().y;
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Positioned(
-                        left: tx,
-                        top: ty,
-                        child: Transform.scale(
-                          scale: scale,
-                          alignment: Alignment.topLeft,
-                          child: widget.child,
-                        ),
-                      ),
-                    ],
-                  );
-                },
               ),
             ),
           ),

@@ -259,13 +259,10 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     final canvasHeight = layout.canvasHeight;
     final highlightedGen = widget.highlightedGeneration;
 
-    // v42 FIX: Replace InteractiveViewer with GraphPanZoom (v4.1 battle-tested).
-    // InteractiveViewer's gesture model conflicts with nested node
-    // GestureDetectors on Android — the node's TapGestureRecognizer wins
-    // the arena and blocks the parent's ScaleGestureRecognizer, making
-    // pinch-to-zoom feel frozen. GraphPanZoom uses HitTestBehavior.opaque
-    // + ClipRect so the parent claims the viewport for scale gestures,
-    // while child node taps still win for single taps.
+    // v47 FIX: GraphPanZoom uses HitTestBehavior.opaque + a parent Listener
+    // that captures the true pointer-down position. The parent owns the
+    // viewport for scale gestures (so pinch-zoom works on Android), while
+    // child GraphNode taps still win single-tap gestures in the arena.
     return GraphPanZoom(
       transformationController: _transformationController,
       minScale: 0.1,
