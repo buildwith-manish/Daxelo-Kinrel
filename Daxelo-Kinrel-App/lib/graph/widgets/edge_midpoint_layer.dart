@@ -20,6 +20,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/kinship/kinship_edge_style.dart';
 import '../data/family_graph_repository.dart' show GraphEdgeData;
+// Needed for the GraphEdgeDataExt.isIndirectConnection extension used below.
+import 'relationship_edge.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // EDGE MIDPOINT HIT LAYER
