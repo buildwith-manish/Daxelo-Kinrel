@@ -1,0 +1,107 @@
+# .github/workflows/deploy-gh-pages.yml
+#
+# Build the Flutter web app and push the output to the gh-pages branch.
+# Vercel deploys from gh-pages, so this ensures the production URL always
+# serves the latest build.
+#
+# Triggers on every push to main that touches the Flutter app.
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Daxelo-Kinrel-App/lib/**'
+      - 'Daxelo-Kinrel-App/web/**'
+      - 'Daxelo-Kinrel-App/pubspec.yaml'
+      - 'Daxelo-Kinrel-App/vercel*.sh'
+      - 'Daxelo-Kinrel-App/vercel.json'
+      - '.github/workflows/deploy-gh-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-gh-pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    name: Build Flutter Web & Push to gh-pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.44.2'
+          cache: true
+
+      - name: Create .env file
+        run: |
+          cat > Daxelo-Kinrel-App/.env <<'EOF'
+          SUPABASE_URL=https://promxswvsnvilplmrtsj.supabase.co
+          SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY
+          API_BASE_URL=https://daxelo-kinrel-server.onrender.com
+          EOF
+          sed -i 's/^[[:space:]]*//' Daxelo-Kinrel-App/.env
+
+      - name: Install dependencies
+        run: cd Daxelo-Kinrel-App && flutter pub get
+
+      - name: Generate Drift code
+        run: cd Daxelo-Kinrel-App && dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build Flutter Web
+        run: cd Daxelo-Kinrel-App && flutter build web --release --base-href "/"
+
+      - name: Verify build output
+        run: |
+          if [ ! -f Daxelo-Kinrel-App/build/web/index.html ]; then
+            echo "FATAL: build/web/index.html not found!"
+            exit 1
+          fi
+          echo "Build output verified:"
+          ls -la Daxelo-Kinrel-App/build/web/ | head -20
+
+      - name: Deploy to gh-pages branch
+        run: |
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Save the build output to a temp directory
+          rm -rf /tmp/gh-pages-build
+          cp -r Daxelo-Kinrel-App/build/web /tmp/gh-pages-build
+
+          # Checkout gh-pages branch (create if it doesn't exist)
+          git checkout --orphan gh-pages || git checkout gh-pages
+          git rm -rf . || true
+
+          # Copy the build output to the root of gh-pages
+          # The gh-pages branch should contain ONLY the build/web contents
+          # so Vercel can deploy from it directly.
+          cp -r /tmp/gh-pages-build/. .
+          cp -r /tmp/gh-pages-build/Daxelo-Kinrel-App/build/web/. . 2>/dev/null || true
+
+          # Ensure index.html exists at root
+          if [ ! -f index.html ]; then
+            echo "ERROR: index.html not found at root. Listing contents:"
+            ls -la
+            exit 1
+          fi
+
+          # Add all files
+          git add -A
+          git commit -m "gh-pages: auto-deploy from commit ${{ github.sha }}" || \
+            echo "No changes to commit"
+
+          # Push to gh-pages
+          git push origin gh-pages --force
