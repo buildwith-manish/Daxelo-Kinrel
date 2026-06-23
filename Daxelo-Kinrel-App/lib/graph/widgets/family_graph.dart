@@ -281,22 +281,35 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     final canvasHeight = layout.canvasHeight;
     final highlightedGen = widget.highlightedGeneration;
 
-    // v47 FIX: GraphPanZoom uses HitTestBehavior.opaque + a parent Listener
-    // that captures the true pointer-down position. The parent owns the
-    // viewport for scale gestures (so pinch-zoom works on Android), while
-    // child GraphNode taps still win single-tap gestures in the arena.
-    return GraphPanZoom(
+    // v52.5 FIX: Replace the custom GraphPanZoom with Flutter's built-in
+    // InteractiveViewer. The custom GraphPanZoom had complex gesture handling
+    // that could silently fail on some devices, leaving the canvas blank.
+    // InteractiveViewer is battle-tested and handles pan/zoom natively.
+    //
+    // We set:
+    //   - constrained: false  → child can be larger than the viewport
+    //   - boundaryMargin: Infinity → allow free panning
+    //   - minScale: 0.05 → zoom out to see the whole graph
+    //   - maxScale: 5.0 → zoom in for detail
+    //   - initial alignment: center via TransformationController
+    final cw = canvasWidth > 0 ? canvasWidth : 400.0;
+    final ch = canvasHeight > 0 ? canvasHeight : 400.0;
+
+    return InteractiveViewer(
       transformationController: _transformationController,
-      minScale: 0.1,
+      constrained: false,
+      boundaryMargin: const EdgeInsets.all(double.infinity),
+      minScale: 0.05,
       maxScale: 5.0,
       child: SizedBox(
-        width: canvasWidth > 0 ? canvasWidth : 400,
-        height: canvasHeight > 0 ? canvasHeight : 400,
+        width: cw,
+        height: ch,
         child: DecoratedBox(
           // v52.3 DEBUG: visible border so we can see if the canvas is
           // rendering at all. Remove after the blank-screen bug is fixed.
           decoration: BoxDecoration(
-            border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.3), width: 2),
+            border: Border.all(
+                color: KinrelColors.orange.withValues(alpha: 0.3), width: 2),
             color: KinrelColors.darkBackground,
           ),
           child: Stack(
@@ -305,15 +318,13 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
               // ── Edge Layer ────────────────────────────────────────────
               Positioned.fill(
                 child: CustomPaint(
-                  size: Size(
-                    canvasWidth > 0 ? canvasWidth : 400,
-                    canvasHeight > 0 ? canvasHeight : 400,
-                  ),
+                  size: Size(cw, ch),
                   painter: RelationshipEdge(
                     positions: positions,
                     edges: edges,
                     selectedEdgeId: _selectedEdgeId,
-                    zoomLevel: _transformationController.value.getMaxScaleOnAxis(),
+                    zoomLevel:
+                        _transformationController.value.getMaxScaleOnAxis(),
                     nodeWidth: 72.0,
                     nodeHeight: 72.0,
                     generationMap: {
@@ -342,19 +353,8 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
 
   /// Centers the graph so the anchor node appears at the viewport center.
   ///
-  /// This runs ONCE after the first layout. Without it, the canvas renders
-  /// at (0,0) in widget space — on small viewports the anchor (also near
-  /// 0,0 after normalization) may appear in the top-left corner, and on
-  /// large viewports the graph sits in the corner with empty space.
-  ///
-  /// The auto-center computes:
-  ///   scale = min(viewportW / canvasW, viewportH / canvasH, 1.0)
-  ///   tx = (viewportW - canvasW * scale) / 2
-  ///   ty = (viewportH - canvasH * scale) / 2
-  ///
-  /// This places the canvas centered in the viewport. If the canvas is
-  /// smaller than the viewport, scale stays at 1.0 and the canvas is
-  /// centered. If larger, it's scaled down to fit.
+  /// This runs ONCE after the first layout. It computes the transform
+  /// needed to fit the entire canvas in the viewport and center it.
   void _autoCenterOnAnchor(GraphLayoutResult layout, String anchorId) {
     if (_autoCenterDone) return;
     _autoCenterDone = true;
@@ -368,16 +368,16 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     final viewportH = viewport.height;
     if (viewportW <= 0 || viewportH <= 0) return;
 
-    // Scale to fit the entire canvas in the viewport, but don't zoom in
-    // beyond 1.0 (the natural size). Add a small margin so nodes near
-    // the edge aren't cut off.
-    final margin = 80.0;
+    // Scale to fit the entire canvas in the viewport with margin.
+    final margin = 40.0;
     final scaleX = (viewportW - margin * 2) / canvasW;
     final scaleY = (viewportH - margin * 2) / canvasH;
     final scale = [scaleX, scaleY, 1.0].reduce((a, b) => a < b ? a : b)
         .clamp(0.05, 1.0);
 
     // Center the canvas in the viewport.
+    // InteractiveViewer's matrix maps child coordinates to parent coordinates.
+    // To center: tx = (viewportW - canvasW * scale) / 2
     final tx = (viewportW - canvasW * scale) / 2;
     final ty = (viewportH - canvasH * scale) / 2;
 
