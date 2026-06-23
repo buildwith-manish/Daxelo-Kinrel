@@ -18,7 +18,6 @@
 //
 // This is deliberately simple. Every line here is easy to debug.
 
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -142,9 +141,6 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   Widget _buildFromGraphData(FlatGraphResult graphData, bool reduceMotion) {
     final persons = graphData.toPersonDataList();
 
-    debugPrint('[FamilyGraph] persons=${persons.length} '
-        'relationships=${graphData.relationships.length}');
-
     if (persons.isEmpty) {
       final dismissedAsync = ref.watch(onboardingDismissedProvider);
       final isDismissed =
@@ -231,17 +227,6 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       anchorPersonId: anchorPerson.id,
     );
 
-    debugPrint('[FamilyGraph] Layout: positions=${layout.positions.length} '
-        'canvas=${layout.canvasWidth.toStringAsFixed(0)}x${layout.canvasHeight.toStringAsFixed(0)}');
-
-    // v52.3 DEBUG: log first 3 positions to verify layout is producing
-    // visible coordinates (not all at 0,0 or negative).
-    if (layout.positions.isNotEmpty) {
-      final sample = layout.positions.entries.take(3).map((e) =>
-          '${e.key}=(${e.value.dx.toStringAsFixed(0)},${e.value.dy.toStringAsFixed(0)})').join(' ');
-      debugPrint('[FamilyGraph] sample positions: $sample');
-    }
-
     if (layout.positions.isEmpty) {
       return GraphEmptyStack(
         child: EmptyState(
@@ -254,11 +239,9 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       );
     }
 
-    // v52.4 FIX: Auto-center the graph on the anchor node after the first
-    // frame. Without this, the canvas renders at (0,0) which may be
-    // off-screen if the viewport is smaller than the canvas. The
-    // auto-center calculates the transform needed to place the anchor
-    // node at the center of the viewport.
+    // Auto-center the graph on the anchor node after the first frame.
+    // Runs once via _autoCenterDone flag so the user's manual pan/zoom
+    // is preserved after the initial centering.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _autoCenterOnAnchor(layout, anchorPerson.id);
@@ -281,17 +264,15 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     final canvasHeight = layout.canvasHeight;
     final highlightedGen = widget.highlightedGeneration;
 
-    // v52.5 FIX: Replace the custom GraphPanZoom with Flutter's built-in
-    // InteractiveViewer. The custom GraphPanZoom had complex gesture handling
-    // that could silently fail on some devices, leaving the canvas blank.
-    // InteractiveViewer is battle-tested and handles pan/zoom natively.
+    // v53: Infinite canvas — no borders, no background box, no visible
+    // boundary. The graph floats on the app's natural background, like a
+    // map. InteractiveViewer provides smooth pan/zoom with no clamping.
     //
-    // We set:
-    //   - constrained: false  → child can be larger than the viewport
-    //   - boundaryMargin: Infinity → allow free panning
+    //   - constrained: false  → child can be larger (or smaller) than viewport
+    //   - boundaryMargin: Infinity → free panning in all directions
     //   - minScale: 0.05 → zoom out to see the whole graph
     //   - maxScale: 5.0 → zoom in for detail
-    //   - initial alignment: center via TransformationController
+    //   - auto-center runs once after layout to fit the graph on screen
     final cw = canvasWidth > 0 ? canvasWidth : 400.0;
     final ch = canvasHeight > 0 ? canvasHeight : 400.0;
 
@@ -304,44 +285,35 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       child: SizedBox(
         width: cw,
         height: ch,
-        child: DecoratedBox(
-          // v52.3 DEBUG: visible border so we can see if the canvas is
-          // rendering at all. Remove after the blank-screen bug is fixed.
-          decoration: BoxDecoration(
-            border: Border.all(
-                color: KinrelColors.orange.withValues(alpha: 0.3), width: 2),
-            color: KinrelColors.darkBackground,
-          ),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              // ── Edge Layer ────────────────────────────────────────────
-              Positioned.fill(
-                child: CustomPaint(
-                  size: Size(cw, ch),
-                  painter: RelationshipEdge(
-                    positions: positions,
-                    edges: edges,
-                    selectedEdgeId: _selectedEdgeId,
-                    zoomLevel:
-                        _transformationController.value.getMaxScaleOnAxis(),
-                    nodeWidth: 72.0,
-                    nodeHeight: 72.0,
-                    generationMap: {
-                      for (final p in personMap.values)
-                        p.id: p.generationIndex,
-                    },
-                    highlightedGeneration: highlightedGen,
-                    anonymousNodeIds: const {},
-                    blockedNodeIds: const {},
-                  ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // ── Edge Layer ────────────────────────────────────────────
+            Positioned.fill(
+              child: CustomPaint(
+                size: Size(cw, ch),
+                painter: RelationshipEdge(
+                  positions: positions,
+                  edges: edges,
+                  selectedEdgeId: _selectedEdgeId,
+                  zoomLevel:
+                      _transformationController.value.getMaxScaleOnAxis(),
+                  nodeWidth: 72.0,
+                  nodeHeight: 72.0,
+                  generationMap: {
+                    for (final p in personMap.values)
+                      p.id: p.generationIndex,
+                  },
+                  highlightedGeneration: highlightedGen,
+                  anonymousNodeIds: const {},
+                  blockedNodeIds: const {},
                 ),
               ),
+            ),
 
-              // ── Node Layer ────────────────────────────────────────────
-              ..._buildNodes(positions, personMap, edges, highlightedGen),
-            ],
-          ),
+            // ── Node Layer ────────────────────────────────────────────
+            ..._buildNodes(positions, personMap, edges, highlightedGen),
+          ],
         ),
       ),
     );
@@ -380,10 +352,6 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     // To center: tx = (viewportW - canvasW * scale) / 2
     final tx = (viewportW - canvasW * scale) / 2;
     final ty = (viewportH - canvasH * scale) / 2;
-
-    debugPrint('[FamilyGraph] auto-center: scale=$scale tx=$tx ty=$ty '
-        'viewport=${viewportW.toStringAsFixed(0)}x${viewportH.toStringAsFixed(0)} '
-        'canvas=${canvasW.toStringAsFixed(0)}x${canvasH.toStringAsFixed(0)}');
 
     _transformationController.value = Matrix4.identity()
       ..translate(tx, ty)

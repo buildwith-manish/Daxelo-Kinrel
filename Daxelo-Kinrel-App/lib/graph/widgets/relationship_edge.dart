@@ -59,7 +59,6 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/brand_colors.dart';
@@ -185,26 +184,10 @@ class RelationshipEdge extends CustomPainter {
   static const double _lodMinimalZoom = 0.4;
   bool get _isMinimal => zoomLevel < _lodMinimalZoom;
 
-  // v52.3 DEBUG: throttle paint logging to once per instance.
-  DateTime? _lastDebugLog;
-
   // ── Paint ──────────────────────────────────────────────────────────
 
   @override
   void paint(Canvas canvas, Size size) {
-    // v52.3 DEBUG: log paint invocation to help diagnose blank-screen bug.
-    // Remove after the bug is fixed.
-    if (edges.isNotEmpty && _lastDebugLog == null) {
-      _lastDebugLog = DateTime.now();
-      debugPrint('[RelationshipEdge.paint] edges=${edges.length} '
-          'positions=${positions.length} size=${size.width.toStringAsFixed(0)}x'
-          '${size.height.toStringAsFixed(0)} zoom=$zoomLevel');
-      if (positions.isNotEmpty) {
-        final firstPos = positions.values.first;
-        debugPrint('[RelationshipEdge.paint] firstPos=(${firstPos.dx.toStringAsFixed(0)},'
-            '${firstPos.dy.toStringAsFixed(0)})');
-      }
-    }
     for (final edge in edges) {
       if (blockedNodeIds.contains(edge.sourceId) ||
           blockedNodeIds.contains(edge.targetId)) {

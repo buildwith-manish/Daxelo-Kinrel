@@ -34,7 +34,6 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/kinship/kinship_edge_style.dart';
 import '../../../../core/services/graph_layout_service.dart';
-import '../../../../graph/widgets/graph_pan_zoom.dart';
 import '../../../../shared/painters/family_tree_painter.dart';
 import '../../../../shared/utils/node_colors.dart';
 import 'edge_dot_widget.dart';
@@ -378,24 +377,20 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
     final effectiveWidth = canvasWidth > 0 ? canvasWidth : 3000.0;
     final effectiveHeight = canvasHeight > 0 ? canvasHeight : 3000.0;
 
-    // v49 FIX: Tap and long-press are now handled here via canvas-level
-    // geometric hit testing (see _hitTestPersonId). _PersonNodeCard has
-    // NO gesture detectors. This removes the ScaleGestureRecognizer vs
-    // TapGestureRecognizer arena competition that broke pinch-zoom on
-    // Android APK (mirrors family_graph.dart v48 fix exactly).
-    return GraphPanZoom(
-      transformationController: _transformationController,
-      minScale: 0.05,
-      maxScale: 8.0,
-      onTransformChanged: () => setState(() {}),
-      onTap: (localPosition) {
-        final hitId = _hitTestPersonId(localPosition, positions);
+    // v53: Infinite canvas using InteractiveViewer — no borders, no
+    // background box, no visible boundary. The graph floats on the app's
+    // natural background like a map. Tap and long-press are handled via
+    // a GestureDetector that converts screen coordinates to canvas
+    // coordinates and does geometric hit testing (_hitTestPersonId).
+    return GestureDetector(
+      onTapDown: (details) {
+        final hitId = _hitTestPersonId(details.localPosition, positions);
         if (hitId != null) {
           context.push('/family/${widget.familyId}/person/$hitId');
         }
       },
-      onLongPress: (localPosition) {
-        final hitId = _hitTestPersonId(localPosition, positions);
+      onLongPressStart: (details) {
+        final hitId = _hitTestPersonId(details.localPosition, positions);
         if (hitId != null) {
           final person = _personMap[hitId];
           if (person != null) {
@@ -403,39 +398,46 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
           }
         }
       },
-      child: SizedBox(
-        width: effectiveWidth,
-        height: effectiveHeight,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            // ── Layer 1: Edges (CustomPaint) ───────────────────────
-            Positioned.fill(
-              child: CustomPaint(
-                size: Size(effectiveWidth, effectiveHeight),
-                painter: FamilyTreePainter(
-                  positions: positions,
-                  relationships: widget.relationships
-                      .map((r) => r.toEdgeData())
-                      .toList(),
-                  selectedEdgeId: _selectedEdgeId,
-                  zoomLevel: zoomLevel,
-                  nodeWidth: _nodeWidth,
-                  nodeHeight: _nodeHeight,
+      child: InteractiveViewer(
+        transformationController: _transformationController,
+        constrained: false,
+        boundaryMargin: const EdgeInsets.all(double.infinity),
+        minScale: 0.05,
+        maxScale: 8.0,
+        child: SizedBox(
+          width: effectiveWidth,
+          height: effectiveHeight,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // ── Layer 1: Edges (CustomPaint) ───────────────────────
+              Positioned.fill(
+                child: CustomPaint(
+                  size: Size(effectiveWidth, effectiveHeight),
+                  painter: FamilyTreePainter(
+                    positions: positions,
+                    relationships: widget.relationships
+                        .map((r) => r.toEdgeData())
+                        .toList(),
+                    selectedEdgeId: _selectedEdgeId,
+                    zoomLevel: zoomLevel,
+                    nodeWidth: _nodeWidth,
+                    nodeHeight: _nodeHeight,
+                  ),
                 ),
               ),
-            ),
 
-            // ── Layer 2: Edge Dots ──────────────────────────────────
-            ..._buildEdgeDots(positions),
+              // ── Layer 2: Edge Dots ──────────────────────────────────
+              ..._buildEdgeDots(positions),
 
-            // ── Layer 3: Person Node Cards ──────────────────────────
-            ..._buildPersonNodes(positions, zoomLevel),
+              // ── Layer 3: Person Node Cards ──────────────────────────
+              ..._buildPersonNodes(positions, zoomLevel),
 
-            // ── Layer 4: Relationship Popup ─────────────────────────
-            if (_showPopup && _selectedEdgeData != null)
-              _buildRelationshipPopup(positions, canvasWidth, canvasHeight),
-          ],
+              // ── Layer 4: Relationship Popup ─────────────────────────
+              if (_showPopup && _selectedEdgeData != null)
+                _buildRelationshipPopup(positions, canvasWidth, canvasHeight),
+            ],
+          ),
         ),
       ),
     );
