@@ -230,6 +230,14 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     debugPrint('[FamilyGraph] Layout: positions=${layout.positions.length} '
         'canvas=${layout.canvasWidth.toStringAsFixed(0)}x${layout.canvasHeight.toStringAsFixed(0)}');
 
+    // v52.3 DEBUG: log first 3 positions to verify layout is producing
+    // visible coordinates (not all at 0,0 or negative).
+    if (layout.positions.isNotEmpty) {
+      final sample = layout.positions.entries.take(3).map((e) =>
+          '${e.key}=(${e.value.dx.toStringAsFixed(0)},${e.value.dy.toStringAsFixed(0)})').join(' ');
+      debugPrint('[FamilyGraph] sample positions: $sample');
+    }
+
     if (layout.positions.isEmpty) {
       return GraphEmptyStack(
         child: EmptyState(
@@ -270,37 +278,45 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       child: SizedBox(
         width: canvasWidth > 0 ? canvasWidth : 400,
         height: canvasHeight > 0 ? canvasHeight : 400,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            // ── Edge Layer ────────────────────────────────────────────
-            Positioned.fill(
-              child: CustomPaint(
-                size: Size(
-                  canvasWidth > 0 ? canvasWidth : 400,
-                  canvasHeight > 0 ? canvasHeight : 400,
-                ),
-                painter: RelationshipEdge(
-                  positions: positions,
-                  edges: edges,
-                  selectedEdgeId: _selectedEdgeId,
-                  zoomLevel: _transformationController.value.getMaxScaleOnAxis(),
-                  nodeWidth: 72.0,
-                  nodeHeight: 72.0,
-                  generationMap: {
-                    for (final p in personMap.values)
-                      p.id: p.generationIndex,
-                  },
-                  highlightedGeneration: highlightedGen,
-                  anonymousNodeIds: const {},
-                  blockedNodeIds: const {},
+        child: DecoratedBox(
+          // v52.3 DEBUG: visible border so we can see if the canvas is
+          // rendering at all. Remove after the blank-screen bug is fixed.
+          decoration: BoxDecoration(
+            border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.3), width: 2),
+            color: KinrelColors.darkBackground,
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // ── Edge Layer ────────────────────────────────────────────
+              Positioned.fill(
+                child: CustomPaint(
+                  size: Size(
+                    canvasWidth > 0 ? canvasWidth : 400,
+                    canvasHeight > 0 ? canvasHeight : 400,
+                  ),
+                  painter: RelationshipEdge(
+                    positions: positions,
+                    edges: edges,
+                    selectedEdgeId: _selectedEdgeId,
+                    zoomLevel: _transformationController.value.getMaxScaleOnAxis(),
+                    nodeWidth: 72.0,
+                    nodeHeight: 72.0,
+                    generationMap: {
+                      for (final p in personMap.values)
+                        p.id: p.generationIndex,
+                    },
+                    highlightedGeneration: highlightedGen,
+                    anonymousNodeIds: const {},
+                    blockedNodeIds: const {},
+                  ),
                 ),
               ),
-            ),
 
-            // ── Node Layer ────────────────────────────────────────────
-            ..._buildNodes(positions, personMap, edges, highlightedGen),
-          ],
+              // ── Node Layer ────────────────────────────────────────────
+              ..._buildNodes(positions, personMap, edges, highlightedGen),
+            ],
+          ),
         ),
       ),
     );
