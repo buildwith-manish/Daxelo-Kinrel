@@ -56,6 +56,9 @@ jobs:
       - name: Install dependencies
         run: cd Daxelo-Kinrel-App && flutter pub get
 
+      - name: Clean previous build
+        run: cd Daxelo-Kinrel-App && flutter clean
+
       - name: Generate Drift code
         run: cd Daxelo-Kinrel-App && dart run build_runner build --delete-conflicting-outputs
 
