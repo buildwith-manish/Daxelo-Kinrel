@@ -16,6 +16,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/config/app_config.dart';
 import 'core/config/app_environment.dart';
 import 'core/config/auth_config.dart';
+import 'core/kinship/kinship_edge_style.dart' show kinshipEdgeStyleRegistryCheck;
 import 'core/routing/app_router.dart';
 import 'core/services/crashlytics_service.dart';
 import 'core/services/deep_link_service.dart';
@@ -56,6 +57,12 @@ ProviderContainer? _globalContainer;
 void main() async {
   // ── CRITICAL: Ensure Flutter binding BEFORE any async work ────────
   WidgetsFlutterBinding.ensureInitialized();
+
+  // v52.7: Anti-tree-shake — force dart2js to retain all kinship edge
+  // colors and the style resolver. Without this, dart2js strips the
+  // color constants from the release build, causing edges to render
+  // with no color (invisible) on Flutter Web.
+  kinshipEdgeStyleRegistryCheck();
 
   // ── 1. Initialize environment ────────────────────────────────────
   try {

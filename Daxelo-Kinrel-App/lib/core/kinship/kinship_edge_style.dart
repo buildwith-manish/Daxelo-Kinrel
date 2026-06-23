@@ -611,3 +611,57 @@ const Set<String> kinshipSpouseKeys = <String>{
   'spouse',
   'partner',
 };
+
+// ═══════════════════════════════════════════════════════════════════════
+// ANTI-TREE-SHAKE REGISTRY
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Forces dart2js to retain all color constants and the resolver methods.
+///
+/// dart2js aggressively tree-shakes `const` fields and static methods that
+/// it determines are never read at runtime. In rare cases (especially with
+/// complex delegation chains like classifier → resolver → style → color),
+/// dart2js incorrectly determines that the color constants are unreachable
+/// and strips them from the build — causing edges to render with wrong
+/// colors or no colors.
+///
+/// This registry is a list of all 10 category colors, referenced from a
+/// top-level `final` variable (which dart2js cannot tree-shake). Calling
+/// [kinshipEdgeColorRegistry] from anywhere in the app forces all 10
+/// colors to be retained in the build.
+final List<Color> kinshipEdgeColorRegistry = <Color>[
+  KinshipEdgeColors.self,
+  KinshipEdgeColors.parent,
+  KinshipEdgeColors.child,
+  KinshipEdgeColors.sibling,
+  KinshipEdgeColors.spouseEdge,
+  KinshipEdgeColors.spouseHeart,
+  KinshipEdgeColors.grandparent,
+  KinshipEdgeColors.auntUncle,
+  KinshipEdgeColors.cousin,
+  KinshipEdgeColors.inLaw,
+  KinshipEdgeColors.extended,
+  KinshipEdgeColors.indirect,
+];
+
+/// Forces dart2js to retain the resolver methods by calling each one.
+/// Returns the number of styles resolved (always 11).
+int kinshipEdgeStyleRegistryCheck() {
+  int count = 0;
+  for (final cat in KinshipEdgeCategory.values) {
+    final style = KinshipEdgeStyleResolver.styleForCategory(cat);
+    // Access every field to prevent field-level tree-shaking.
+    style.color;
+    style.defaultAlpha;
+    style.lineShape;
+    style.dashPattern;
+    style.midpointSymbol;
+    style.midpointColor;
+    style.strokeWidth;
+    count++;
+  }
+  // Access the registry to prevent the list from being tree-shook.
+  kinshipEdgeColorRegistry.length;
+  return count;
+}
+
