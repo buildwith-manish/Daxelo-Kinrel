@@ -254,6 +254,70 @@ class RelationshipEdge extends CustomPainter {
 
   // ── Edge Drawing ───────────────────────────────────────────────────
 
+  /// Returns the color for a category as an INLINE Color literal.
+  ///
+  /// v52.8: This method exists because dart2js tree-shakes the
+  /// KinshipEdgeColors constants in release builds. By inlining the
+  /// Color(0xFF...) literals directly in a switch statement, dart2js
+  /// is forced to retain every color value in the build output.
+  Color _colorForCategory(KinshipEdgeCategory category) {
+    switch (category) {
+      case KinshipEdgeCategory.self:
+        return const Color(0xFF0D9488); // teal
+      case KinshipEdgeCategory.parent:
+        return const Color(0xFF3B82F6); // blue
+      case KinshipEdgeCategory.child:
+        return const Color(0xFFEC4899); // pink
+      case KinshipEdgeCategory.sibling:
+        return const Color(0xFF8B5CF6); // purple
+      case KinshipEdgeCategory.spouse:
+        return const Color(0xFFF97316); // orange (edge)
+      case KinshipEdgeCategory.grandparent:
+        return const Color(0xFF6366F1); // indigo
+      case KinshipEdgeCategory.auntUncle:
+        return const Color(0xFF06B6D4); // cyan
+      case KinshipEdgeCategory.cousin:
+        return const Color(0xFF10B981); // emerald
+      case KinshipEdgeCategory.inLaw:
+        return const Color(0xFFF59E0B); // amber
+      case KinshipEdgeCategory.extended:
+        return const Color(0xFF64748B); // slate
+      case KinshipEdgeCategory.indirect:
+        return const Color(0xFF8A7A72); // gray
+    }
+  }
+
+  /// Returns the midpoint color for a category (spouse = pink heart).
+  Color _midpointColorForCategory(KinshipEdgeCategory category) {
+    if (category == KinshipEdgeCategory.spouse) {
+      return const Color(0xFFEC4899); // PINK heart — always pink
+    }
+    return _colorForCategory(category);
+  }
+
+  /// Returns the default alpha for a category.
+  double _alphaForCategory(KinshipEdgeCategory category) {
+    switch (category) {
+      case KinshipEdgeCategory.self:
+        return 1.0;
+      case KinshipEdgeCategory.parent:
+      case KinshipEdgeCategory.child:
+      case KinshipEdgeCategory.spouse:
+        return 0.85;
+      case KinshipEdgeCategory.sibling:
+      case KinshipEdgeCategory.grandparent:
+        return 0.75;
+      case KinshipEdgeCategory.auntUncle:
+      case KinshipEdgeCategory.cousin:
+      case KinshipEdgeCategory.inLaw:
+        return 0.7;
+      case KinshipEdgeCategory.extended:
+        return 0.45;
+      case KinshipEdgeCategory.indirect:
+        return 0.5;
+    }
+  }
+
   void _drawEdge({
     required Canvas canvas,
     required Offset fromPos,
@@ -268,17 +332,24 @@ class RelationshipEdge extends CustomPainter {
     required String sourceId,
     required String targetId,
   }) {
+    // v52.8: Use INLINE color literals to defeat dart2js tree-shaking.
+    // The KinshipEdgeStyleResolver is still used for lineShape and
+    // dashPattern, but colors are inlined here to guarantee they
+    // survive into the release build.
     final style = KinshipEdgeStyleResolver.styleForCategory(category);
+    final baseColor = _colorForCategory(category);
+    final midpointColor = _midpointColorForCategory(category);
+    final defaultAlpha = _alphaForCategory(category);
     final (start, end) = _computeEndpoints(fromPos, toPos, category);
 
     // Resolve final color and stroke width.
     Color edgeColor;
     double strokeWidth;
     if (isSelected) {
-      edgeColor = style.color;
+      edgeColor = baseColor;
       strokeWidth = _selectedStrokeWidth;
     } else {
-      edgeColor = style.color.withValues(alpha: style.defaultAlpha);
+      edgeColor = baseColor.withValues(alpha: defaultAlpha);
       strokeWidth = _defaultStrokeWidth;
     }
 
@@ -329,10 +400,10 @@ class RelationshipEdge extends CustomPainter {
         switch (style.midpointSymbol) {
           case KinshipMidpointSymbol.heart:
             // Spouse: ALWAYS pink, even though the edge is orange.
-            _drawHeart(canvas, midpoint, style.midpointColor);
+            _drawHeart(canvas, midpoint, midpointColor);
             break;
           case KinshipMidpointSymbol.dot:
-            _drawDot(canvas, midpoint, style.midpointColor);
+            _drawDot(canvas, midpoint, midpointColor);
             break;
           case KinshipMidpointSymbol.none:
             // Indirect: no dot — only a text label below.

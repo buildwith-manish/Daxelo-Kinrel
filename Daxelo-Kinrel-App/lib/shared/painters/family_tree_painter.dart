@@ -148,6 +148,56 @@ class FamilyTreePainter extends CustomPainter {
 
   // ── Edge Drawing ───────────────────────────────────────────────────
 
+  /// v52.8: Inline color literals to defeat dart2js tree-shaking.
+  Color _colorForCategory(KinshipEdgeCategory category) {
+    switch (category) {
+      case KinshipEdgeCategory.self:
+        return const Color(0xFF0D9488);
+      case KinshipEdgeCategory.parent:
+        return const Color(0xFF3B82F6);
+      case KinshipEdgeCategory.child:
+        return const Color(0xFFEC4899);
+      case KinshipEdgeCategory.sibling:
+        return const Color(0xFF8B5CF6);
+      case KinshipEdgeCategory.spouse:
+        return const Color(0xFFF97316);
+      case KinshipEdgeCategory.grandparent:
+        return const Color(0xFF6366F1);
+      case KinshipEdgeCategory.auntUncle:
+        return const Color(0xFF06B6D4);
+      case KinshipEdgeCategory.cousin:
+        return const Color(0xFF10B981);
+      case KinshipEdgeCategory.inLaw:
+        return const Color(0xFFF59E0B);
+      case KinshipEdgeCategory.extended:
+        return const Color(0xFF64748B);
+      case KinshipEdgeCategory.indirect:
+        return const Color(0xFF8A7A72);
+    }
+  }
+
+  double _alphaForCategory(KinshipEdgeCategory category) {
+    switch (category) {
+      case KinshipEdgeCategory.self:
+        return 1.0;
+      case KinshipEdgeCategory.parent:
+      case KinshipEdgeCategory.child:
+      case KinshipEdgeCategory.spouse:
+        return 0.85;
+      case KinshipEdgeCategory.sibling:
+      case KinshipEdgeCategory.grandparent:
+        return 0.75;
+      case KinshipEdgeCategory.auntUncle:
+      case KinshipEdgeCategory.cousin:
+      case KinshipEdgeCategory.inLaw:
+        return 0.7;
+      case KinshipEdgeCategory.extended:
+        return 0.45;
+      case KinshipEdgeCategory.indirect:
+        return 0.5;
+    }
+  }
+
   void _drawEdge({
     required Canvas canvas,
     required EdgeData edge,
@@ -159,6 +209,12 @@ class FamilyTreePainter extends CustomPainter {
     required bool isConnectedToHovered,
   }) {
     final style = KinshipEdgeStyleResolver.styleForCategory(category);
+    // v52.8: Inline color literals to defeat dart2js tree-shaking.
+    final baseColor = _colorForCategory(category);
+    final midpointColor = category == KinshipEdgeCategory.spouse
+        ? const Color(0xFFEC4899) // PINK heart
+        : baseColor;
+    final defaultAlpha = _alphaForCategory(category);
     final (start, end) = _computeEndpoints(fromPos, toPos, category);
 
     // Resolve final color & stroke width.
@@ -167,20 +223,20 @@ class FamilyTreePainter extends CustomPainter {
     bool isSolid;
 
     if (isSelected) {
-      edgeColor = style.color;
+      edgeColor = baseColor;
       strokeWidth = _selectedStrokeWidth;
       isSolid = true;
     } else if (hoveredNodeId != null && isConnectedToHovered) {
-      edgeColor = style.color;
+      edgeColor = baseColor;
       strokeWidth = _hoveredConnectedStrokeWidth;
       isSolid = true;
       edgeColor = edgeColor.withValues(alpha: _hoveredConnectedAlpha);
     } else if (hoveredNodeId != null && !isConnectedToHovered) {
-      edgeColor = style.color.withValues(alpha: _hoveredDimmedAlpha);
+      edgeColor = baseColor.withValues(alpha: _hoveredDimmedAlpha);
       strokeWidth = _defaultStrokeWidth;
       isSolid = false;
     } else {
-      edgeColor = style.color.withValues(alpha: style.defaultAlpha);
+      edgeColor = baseColor.withValues(alpha: defaultAlpha);
       strokeWidth = _defaultStrokeWidth;
       isSolid = !style.isDashed;
     }
@@ -223,10 +279,10 @@ class FamilyTreePainter extends CustomPainter {
       final midpoint = _computeMidpoint(start, end, style.lineShape);
       switch (style.midpointSymbol) {
         case KinshipMidpointSymbol.heart:
-          _drawHeart(canvas, midpoint, style.midpointColor);
+          _drawHeart(canvas, midpoint, midpointColor);
           break;
         case KinshipMidpointSymbol.dot:
-          _drawDot(canvas, midpoint, style.midpointColor);
+          _drawDot(canvas, midpoint, midpointColor);
           break;
         case KinshipMidpointSymbol.none:
           break;
