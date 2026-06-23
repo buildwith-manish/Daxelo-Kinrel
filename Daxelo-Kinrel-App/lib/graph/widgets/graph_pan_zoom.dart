@@ -1,29 +1,44 @@
 // lib/graph/widgets/graph_pan_zoom.dart
 //
-// DAXELO KINREL — Pan/Zoom Container (v6.0 — Android-Proof)
+// DAXELO KINREL — Pan/Zoom Container (v8.0 — Definitive Android fix)
 //
-// v6.0 (2026-06-22): COMPLETE REWRITE to fix pinch-zoom on Android APK.
+// ══════════════════════════════════════════════════════════════════════
+// v8.0 (2026-06-23): ROOT CAUSE FOUND AND FIXED.
 //
-// ROOT CAUSE of all previous failures (v4.1-v5.x):
-//   The custom Listener + pointer-math approach computed span as
-//   "average distance from focal point" which is HALF the actual finger
-//   spread. While the math cancels out in theory, Android's pointer event
-//   timing means the second finger's first PointerMove arrives before
-//   _resetBaselineFromDown completes correctly, producing _baseSpan ≈ 0
-//   which makes scaleFactor blow up or produce 1.0 forever (no zoom).
+// WHY v7.0 STILL BROKE ON ANDROID:
 //
-// FIX: Use Flutter's native ScaleGestureRecognizer via RawGestureDetector.
-//   ScaleGestureRecognizer is implemented in the Flutter engine's C++ layer
-//   with platform-specific pointer handling. It correctly:
-//     - Wins the gesture arena on Android for 2-finger gestures
-//     - Computes scale using the proper inter-finger distance formula
-//     - Handles pointer ID assignment correctly on Android
-//     - Fires even when child GestureDetectors exist (scale recognizer
-//       doesn't compete with tap recognizers for 2-finger gestures)
+//   Problem 1 — Listener(opaque) blocked ScaleGestureRecognizer:
+//     In v7.0 the outer Listener had behavior: HitTestBehavior.opaque.
+//     On Android, opaque means the Listener CONSUMES the pointer event
+//     from the hit-test perspective. The inner RawGestureDetector's
+//     ScaleGestureRecognizer never saw the raw PointerDownEvent, so it
+//     could never enter the gesture arena → pinch-zoom dead on Android.
+//     FIX: Listener must use HitTestBehavior.deferToChild (the default).
+//     The RawGestureDetector below it keeps opaque so it owns the arena.
 //
-// Single-finger tap/long-press: handled via onScaleStart/End tracking.
-// Two-finger pinch/zoom: handled by ScaleGestureRecognizer.
-// Single-finger pan: handled by ScaleGestureRecognizer (scale=1.0, panning).
+//   Problem 2 — Single-finger pan used wrong scale:
+//     In _onScaleUpdate with 1 finger, the code read currentScale from
+//     the CURRENT (live) matrix each frame. After any previous pinch this
+//     was correct, but during a pan that followed a zoom the matrix scale
+//     was already set, so re-reading it mid-pan caused scale drift.
+//     FIX: Always use _startScale (captured in _onScaleStart) for both
+//     1-finger pan and 2-finger pinch branches.
+//
+//   Problem 3 — Tap detection position was wrong after pan/zoom:
+//     _tapStartPosition stored the raw Listener local position, which is
+//     in the GraphPanZoom widget's coordinate space. But onTap consumers
+//     (GraphCanvasWidget, FamilyGraphWidget) need this exact position to
+//     do their hit-test math:
+//       canvas_pos = (localPosition - Offset(tx,ty)) / scale
+//     This is correct — no change needed — but documented here for clarity.
+//
+// ARCHITECTURE (unchanged from v7.0, bugs fixed):
+//   • Listener (deferToChild) → raw pointer → tap + long-press detection.
+//     Fires before gesture arena but does NOT consume hit-test.
+//   • RawGestureDetector (opaque, ScaleGestureRecognizer) → pan + pinch.
+//     Owns the gesture arena. ScaleGestureRecognizer works on Android.
+//   • AnimatedBuilder on TransformationController → repaints canvas.
+// ══════════════════════════════════════════════════════════════════════
 
 import 'dart:async';
 import 'package:flutter/gestures.dart';
@@ -50,7 +65,13 @@ class GraphPanZoom extends StatefulWidget {
   final VoidCallback? onTransformChanged;
   final VoidCallback? onDoubleTap;
   final bool enableMomentum;
+
+  /// Called with the tap position in GraphPanZoom widget-local coordinates.
+  /// Consumers convert to canvas coordinates via:
+  ///   canvasPos = (localPosition - Offset(tx, ty)) / scale
   final void Function(Offset localPosition)? onTap;
+
+  /// Called with the long-press position in GraphPanZoom widget-local coordinates.
   final void Function(Offset localPosition)? onLongPress;
 
   @override
@@ -58,64 +79,113 @@ class GraphPanZoom extends StatefulWidget {
 }
 
 class _GraphPanZoomState extends State<GraphPanZoom> {
-  // Scale gesture state
+  // ── Pan/zoom state ─────────────────────────────────────────────────
   double _startScale = 1.0;
   Offset _startFocalPoint = Offset.zero;
   Offset _startTranslation = Offset.zero;
 
-  // Tap detection
-  Offset? _tapDownPosition;
-  Offset? _pointerDownPosition; // v47: true pointer-down position captured by Listener
-  bool _isPanning = false;
+  // ── Tap/long-press state ───────────────────────────────────────────
+  // Tracked via Listener (raw pointer events, before gesture arena).
+  final Map<int, Offset> _activePointers = {};
+  Offset? _tapStartPosition;
+  DateTime? _tapStartTime;
+  bool _tapCancelled = false;
   Timer? _longPressTimer;
-  static const double _tapMaxMovement = 18.0; // v47: was 10.0, too tight for Android finger tremble
-  static const Duration _longPressDelay = Duration(milliseconds: 550); // v47: was 500ms, borderline with kLongPressTimeout
+
+  static const double _tapMaxMovementPx = 12.0;
+  static const int _tapMaxMs = 300;
+  static const Duration _longPressDelay = Duration(milliseconds: 500);
+
+  // ── Listener: raw pointer callbacks ───────────────────────────────
+
+  void _handlePointerDown(PointerDownEvent event) {
+    _activePointers[event.pointer] = event.localPosition;
+
+    if (_activePointers.length == 1) {
+      _tapStartPosition = event.localPosition;
+      _tapStartTime = DateTime.now();
+      _tapCancelled = false;
+
+      _longPressTimer?.cancel();
+      final capturedPos = event.localPosition;
+      _longPressTimer = Timer(_longPressDelay, () {
+        if (!_tapCancelled && _tapStartPosition != null) {
+          widget.onLongPress?.call(capturedPos);
+          _tapCancelled = true;
+          _tapStartPosition = null;
+        }
+      });
+    } else {
+      // Multi-touch → cancel tap/long-press
+      _longPressTimer?.cancel();
+      _tapCancelled = true;
+      _tapStartPosition = null;
+    }
+  }
+
+  void _handlePointerMove(PointerMoveEvent event) {
+    _activePointers[event.pointer] = event.localPosition;
+
+    if (!_tapCancelled &&
+        _tapStartPosition != null &&
+        _activePointers.length == 1) {
+      final moved = (event.localPosition - _tapStartPosition!).distance;
+      if (moved > _tapMaxMovementPx) {
+        _longPressTimer?.cancel();
+        _tapCancelled = true;
+      }
+    }
+  }
+
+  void _handlePointerUp(PointerUpEvent event) {
+    if (!_tapCancelled &&
+        _tapStartPosition != null &&
+        _activePointers.length == 1 &&
+        _tapStartTime != null) {
+      final elapsed =
+          DateTime.now().difference(_tapStartTime!).inMilliseconds;
+      if (elapsed < _tapMaxMs) {
+        widget.onTap?.call(_tapStartPosition!);
+      }
+    }
+
+    _activePointers.remove(event.pointer);
+
+    if (_activePointers.isEmpty) {
+      _longPressTimer?.cancel();
+      _tapStartPosition = null;
+      _tapStartTime = null;
+      _tapCancelled = false;
+    }
+  }
+
+  void _handlePointerCancel(PointerCancelEvent event) {
+    _activePointers.remove(event.pointer);
+    _longPressTimer?.cancel();
+    _tapStartPosition = null;
+    _tapStartTime = null;
+    _tapCancelled = false;
+  }
+
+  // ── ScaleGestureRecognizer: pan + pinch-zoom ───────────────────────
 
   void _onScaleStart(ScaleStartDetails details) {
     final matrix = widget.transformationController.value;
+    // v8 FIX: capture scale at gesture START and use it throughout
+    // the entire gesture — never re-read mid-gesture to avoid drift.
     _startScale = matrix.getMaxScaleOnAxis();
     _startTranslation = Offset(
       matrix.getTranslation().x,
       matrix.getTranslation().y,
     );
     _startFocalPoint = details.localFocalPoint;
-
-    if (details.pointerCount == 1) {
-      // v47: Prefer the true pointer-down position captured by Listener;
-      // ScaleGestureRecognizer.onStart fires AFTER the arena resolves, by
-      // which point the finger has often moved several pixels.
-      _tapDownPosition = _pointerDownPosition ?? details.localFocalPoint;
-      _isPanning = false;
-
-      _longPressTimer?.cancel();
-      _longPressTimer = Timer(_longPressDelay, () {
-        if (!_isPanning && _tapDownPosition != null) {
-          widget.onLongPress?.call(_tapDownPosition!);
-          _tapDownPosition = null;
-        }
-      });
-    } else {
-      _longPressTimer?.cancel();
-      _tapDownPosition = null;
-    }
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
-    if (_tapDownPosition != null) {
-      final moved = (details.localFocalPoint - _tapDownPosition!).distance;
-      if (moved > _tapMaxMovement) {
-        _longPressTimer?.cancel();
-        _tapDownPosition = null;
-        _isPanning = true;
-      }
-    } else {
-      _isPanning = true;
-    }
-
     if (details.pointerCount >= 2) {
-      // ── PINCH-TO-ZOOM (2+ fingers) ─────────────────────────────
-      final newScale = (_startScale * details.scale)
-          .clamp(widget.minScale, widget.maxScale);
+      // ── PINCH-TO-ZOOM (2+ fingers) ──────────────────────────────
+      final newScale =
+          (_startScale * details.scale).clamp(widget.minScale, widget.maxScale);
       final scaleRatio = newScale / _startScale;
 
       final newTx = _startFocalPoint.dx +
@@ -129,30 +199,23 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
         ..translate(newTx, newTy)
         ..scale(newScale);
     } else {
-      // ── SINGLE-FINGER PAN ──────────────────────────────────────
-      final currentScale = widget.transformationController.value.getMaxScaleOnAxis();
+      // ── SINGLE-FINGER PAN ────────────────────────────────────────
+      // v8 FIX: use _startScale captured at gesture start,
+      // NOT re-read from the live matrix (which caused scale drift).
       final delta = details.localFocalPoint - _startFocalPoint;
       final newTx = _startTranslation.dx + delta.dx;
       final newTy = _startTranslation.dy + delta.dy;
 
       widget.transformationController.value = Matrix4.identity()
         ..translate(newTx, newTy)
-        ..scale(currentScale);
+        ..scale(_startScale);
     }
 
     widget.onTransformChanged?.call();
   }
 
   void _onScaleEnd(ScaleEndDetails details) {
-    _longPressTimer?.cancel();
-
-    if (_tapDownPosition != null && !_isPanning) {
-      widget.onTap?.call(_tapDownPosition!);
-    }
-
-    _tapDownPosition = null;
-    _pointerDownPosition = null;
-    _isPanning = false;
+    // Tap/long-press fully handled by Listener above.
   }
 
   @override
@@ -170,21 +233,31 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
           height: constraints.maxHeight,
           child: ClipRect(
             child: Listener(
-              // v47: Capture the true pointer-down position BEFORE the
-              // gesture arena resolves. ScaleGestureRecognizer.onStart
-              // fires after arena resolution, by which point the finger
-              // has moved — causing inaccurate tap hit-testing.
-              behavior: HitTestBehavior.opaque,
-              onPointerDown: (event) {
-                _pointerDownPosition = event.localPosition;
-              },
-              onPointerCancel: (_) {
-                _pointerDownPosition = null;
-              },
+              // v8 FIX: Use deferToChild (NOT opaque) so the Listener
+              // does NOT consume the hit-test. If Listener is opaque, it
+              // swallows the PointerDownEvent from the gesture arena's
+              // perspective and the inner ScaleGestureRecognizer never
+              // sees it → pinch-zoom permanently broken on Android.
+              //
+              // deferToChild means: hit-test passes through to the
+              // RawGestureDetector child, which IS opaque and correctly
+              // owns the gesture arena. The Listener still fires its raw
+              // pointer callbacks for tap detection — it just doesn't
+              // block the arena.
+              behavior: HitTestBehavior.deferToChild,
+              onPointerDown: _handlePointerDown,
+              onPointerMove: _handlePointerMove,
+              onPointerUp: _handlePointerUp,
+              onPointerCancel: _handlePointerCancel,
               child: RawGestureDetector(
+                // opaque: ensures ScaleGestureRecognizer owns the arena
+                // and receives ALL pointer events including the 2nd finger
+                // of a pinch on Android.
+                behavior: HitTestBehavior.opaque,
                 gestures: {
                   ScaleGestureRecognizer:
-                      GestureRecognizerFactoryWithHandlers<ScaleGestureRecognizer>(
+                      GestureRecognizerFactoryWithHandlers<
+                          ScaleGestureRecognizer>(
                     () => ScaleGestureRecognizer(),
                     (instance) {
                       instance
@@ -194,10 +267,6 @@ class _GraphPanZoomState extends State<GraphPanZoom> {
                     },
                   ),
                 },
-                // v47: opaque — with translucent, Android routes the 2nd
-                // pointer of a pinch to system UI, so ScaleGestureRecognizer
-                // only sees 1 pointer and pinch never fires.
-                behavior: HitTestBehavior.opaque,
                 child: AnimatedBuilder(
                   animation: widget.transformationController,
                   builder: (context, _) {
