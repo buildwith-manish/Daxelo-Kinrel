@@ -2511,10 +2511,13 @@ class _ConstellationPainter extends CustomPainter {
 
   void _drawHeartAtMidpoint(Canvas canvas, Offset start, Offset end) {
     final mid = Offset((start.dx + end.dx) / 2, (start.dy + end.dy) / 2);
+    // v2 (2026-06-23): Spouse heart is now PINK #EC4899 per the
+    // central edge color & midpoint spec. Previously it was orange
+    // which made it indistinguishable from every other edge dot.
     final heartPainter = TextPainter(
       text: const TextSpan(
         text: '\u2764',
-        style: TextStyle(fontSize: 10, color: Color(0xFFE8612A)),
+        style: TextStyle(fontSize: 12, color: Color(0xFFEC4899)),
       ),
       textDirection: TextDirection.ltr,
     );

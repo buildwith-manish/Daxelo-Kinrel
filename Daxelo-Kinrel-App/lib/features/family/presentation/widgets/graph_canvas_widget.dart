@@ -32,6 +32,7 @@ import '../providers/family_graph_provider.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/kinship/kinship_edge_style.dart';
 import '../../../../core/services/graph_layout_service.dart';
 import '../../../../graph/widgets/graph_pan_zoom.dart';
 import '../../../../shared/painters/family_tree_painter.dart';
@@ -115,18 +116,6 @@ class RelationshipData {
         relationshipKey: relationshipKey,
       );
 }
-
-// ═══════════════════════════════════════════════════════════════════════
-// SPOUSE KEY SET
-// ═══════════════════════════════════════════════════════════════════════
-
-/// Relationship keys that represent spouse/partner connections.
-const Set<String> _spouseKeys = <String>{
-  'husband',
-  'wife',
-  'spouse',
-  'partner',
-};
 
 // ═══════════════════════════════════════════════════════════════════════
 // GRAPH CANVAS WIDGET
@@ -427,12 +416,21 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
       final toPos = positions[edge.toPersonId];
       if (fromPos == null || toPos == null) continue;
 
-      final midpoint = Offset(
-        (fromPos.dx + toPos.dx) / 2,
-        (fromPos.dy + toPos.dy) / 2,
-      );
+      final category =
+          KinshipEdgeClassifier.classify(edge.relationshipKey);
+      final style = KinshipEdgeStyleResolver.styleForCategory(category);
 
-      final isSpouse = _spouseKeys.contains(edge.relationshipKey);
+      // Compute the TRUE midpoint of the edge — for curves (sibling arc,
+      // extended bezier, wide-arc, shallow-S) this is the t=0.5 point
+      // on the bezier, not the linear midpoint. Must match what the
+      // FamilyTreePainter draws so the dot sits on top of the visible
+      // curve, not floating beside it.
+      final midpoint = _computeEdgeMidpoint(
+        fromPos,
+        toPos,
+        category,
+        style.lineShape,
+      );
 
       dots.add(
         Positioned(
@@ -441,7 +439,7 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
           child: EdgeDotWidget(
             dotPosition: midpoint,
             isSelected: _selectedEdgeId == edge.id,
-            isSpouse: isSpouse,
+            category: category,
             onTap: () => _onEdgeDotTapped(edge.id),
           ),
         ),
@@ -449,6 +447,110 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
     }
 
     return dots;
+  }
+
+  /// Compute the visual midpoint of an edge — same formula the painter
+  /// uses. For straight edges this is the linear midpoint; for curved
+  /// edges (sibling arc, cousin wide-arc, aunt/uncle shallow-S,
+  /// grandparent extended bezier) this is the t=0.5 point on the bezier.
+  ///
+  /// Keeping this in sync with the painter is what makes the dot sit
+  /// ON the visible line instead of floating beside it.
+  Offset _computeEdgeMidpoint(
+    Offset fromPos,
+    Offset toPos,
+    KinshipEdgeCategory category,
+    KinshipLineShape shape,
+  ) {
+    // Replicate _computeEndpoints logic.
+    final Offset start;
+    final Offset end;
+    if (category == KinshipEdgeCategory.spouse ||
+        category == KinshipEdgeCategory.inLaw) {
+      if (fromPos.dx <= toPos.dx) {
+        start = Offset(fromPos.dx + _nodeWidth / 2, fromPos.dy);
+        end = Offset(toPos.dx - _nodeWidth / 2, toPos.dy);
+      } else {
+        start = Offset(fromPos.dx - _nodeWidth / 2, fromPos.dy);
+        end = Offset(toPos.dx + _nodeWidth / 2, toPos.dy);
+      }
+    } else {
+      if (fromPos.dy <= toPos.dy) {
+        start = Offset(fromPos.dx, fromPos.dy + _nodeHeight / 2);
+        end = Offset(toPos.dx, toPos.dy - _nodeHeight / 2);
+      } else {
+        start = Offset(fromPos.dx, fromPos.dy - _nodeHeight / 2);
+        end = Offset(toPos.dx, toPos.dy + _nodeHeight / 2);
+      }
+    }
+
+    switch (shape) {
+      case KinshipLineShape.dashedArc:
+        final arcHeight = (end.dx - start.dx).abs() * 0.25 + 30.0;
+        final midX = (start.dx + end.dx) / 2;
+        final cpY = start.dy - arcHeight;
+        return Offset(
+          midX,
+          0.25 * start.dy + 0.5 * cpY + 0.25 * end.dy,
+        );
+
+      case KinshipLineShape.solidExtendedBezier:
+        final dy = end.dy - start.dy;
+        final cp1 = Offset(start.dx, start.dy + dy * 0.4);
+        final cp2 = Offset(end.dx, start.dy + dy * 0.6);
+        return Offset(
+          0.125 * start.dx +
+              0.375 * cp1.dx +
+              0.375 * cp2.dx +
+              0.125 * end.dx,
+          0.125 * start.dy +
+              0.375 * cp1.dy +
+              0.375 * cp2.dy +
+              0.125 * end.dy,
+        );
+
+      case KinshipLineShape.wideArcBezier:
+        final dx = end.dx - start.dx;
+        final dy = end.dy - start.dy;
+        final offset = dx.abs() * 0.3 + 40.0;
+        final sign = dx >= 0 ? 1.0 : -1.0;
+        final cp1 = Offset(start.dx + offset * sign, start.dy + dy * 0.33);
+        final cp2 = Offset(end.dx - offset * sign, start.dy + dy * 0.67);
+        return Offset(
+          0.125 * start.dx +
+              0.375 * cp1.dx +
+              0.375 * cp2.dx +
+              0.125 * end.dx,
+          0.125 * start.dy +
+              0.375 * cp1.dy +
+              0.375 * cp2.dy +
+              0.125 * end.dy,
+        );
+
+      case KinshipLineShape.dashedShallowS:
+        final midY = (start.dy + end.dy) / 2;
+        final dxOffset = (end.dx - start.dx) * 0.2;
+        final cp1 = Offset(start.dx + dxOffset, midY - 15);
+        final cp2 = Offset(end.dx - dxOffset, midY + 15);
+        return Offset(
+          0.125 * start.dx +
+              0.375 * cp1.dx +
+              0.375 * cp2.dx +
+              0.125 * end.dx,
+          0.125 * start.dy +
+              0.375 * cp1.dy +
+              0.375 * cp2.dy +
+              0.125 * end.dy,
+        );
+
+      case KinshipLineShape.solidBezier:
+      case KinshipLineShape.dashedStraight:
+      case KinshipLineShape.dashedDefault:
+        return Offset(
+          (start.dx + end.dx) / 2,
+          (start.dy + end.dy) / 2,
+        );
+    }
   }
 
   // ── Layer 3: Person Node Cards ─────────────────────────────────────
@@ -694,9 +796,16 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
     final toPos = positions[edge.toPersonId];
     if (fromPos == null || toPos == null) return const SizedBox.shrink();
 
-    final midpoint = Offset(
-      (fromPos.dx + toPos.dx) / 2,
-      (fromPos.dy + toPos.dy) / 2,
+    // Compute the TRUE midpoint (same as the dot layer) so the popup
+    // opens next to the visible dot, not at the linear midpoint.
+    final category =
+        KinshipEdgeClassifier.classify(edge.relationshipKey);
+    final style = KinshipEdgeStyleResolver.styleForCategory(category);
+    final midpoint = _computeEdgeMidpoint(
+      fromPos,
+      toPos,
+      category,
+      style.lineShape,
     );
 
     final inverseKey = _getInverseKey(

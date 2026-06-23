@@ -9,6 +9,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../../core/kinship/kinship_edge_style.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // RELATIONSHIP LEGEND
@@ -175,64 +176,88 @@ class RelationshipLegend extends StatelessWidget {
   List<_LegendEntry> _groupedEntries() {
     final entries = <_LegendEntry>[];
 
-    // Define groups in display order
+    // Define groups in display order — colors now flow from the
+    // central KinshipEdgeColors palette so the legend always matches
+    // what's painted on the canvas.
     final groups = <_LegendGroup>[
       _LegendGroup(
         label: 'Self',
-        keys: {'self'},
-        color: KinrelColors.nodeSelf,
+        keys: {'self', 'ego'},
+        color: KinshipEdgeColors.self,
       ),
       _LegendGroup(
         label: 'Parent',
         keys: {'father', 'mother', 'parent'},
-        color: KinrelColors.nodeParent,
-      ),
-      _LegendGroup(
-        label: 'Spouse',
-        keys: {'husband', 'wife', 'spouse'},
-        color: KinrelColors.nodeSpouse,
-      ),
-      _LegendGroup(
-        label: 'Sibling',
-        keys: {'brother', 'sister', 'sibling'},
-        color: KinrelColors.nodeSibling,
+        color: KinshipEdgeColors.parent,
       ),
       _LegendGroup(
         label: 'Child',
-        keys: {'son', 'daughter', 'child'},
-        color: KinrelColors.nodeChild,
+        keys: {'son', 'daughter', 'child',
+               'sons_wife', 'sons_husband',
+               'daughters_husband', 'daughters_wife'},
+        color: KinshipEdgeColors.child,
+      ),
+      _LegendGroup(
+        label: 'Spouse',
+        keys: {'husband', 'wife', 'spouse', 'partner'},
+        // Orange edge — but the heart is pink. We show the edge color
+        // here so the swatch matches what users see on the line.
+        color: KinshipEdgeColors.spouseEdge,
+      ),
+      _LegendGroup(
+        label: 'Sibling',
+        keys: {'brother', 'sister', 'sibling',
+               'elder_brother', 'elder_sister',
+               'younger_brother', 'younger_sister',
+               'half_brother', 'half_sister'},
+        color: KinshipEdgeColors.sibling,
       ),
       _LegendGroup(
         label: 'Grandparent',
-        keys: {'grandfather', 'grandmother', 'grandparent'},
-        color: KinrelColors.nodeGrandparent,
+        keys: {'grandfather', 'grandmother', 'grandparent',
+               'grandson', 'granddaughter',
+               'paternal_grandfather', 'paternal_grandmother',
+               'maternal_grandfather', 'maternal_grandmother'},
+        color: KinshipEdgeColors.grandparent,
       ),
       _LegendGroup(
         label: 'Aunt / Uncle',
-        keys: {'uncle', 'aunt'},
-        color: KinrelColors.nodeAuntUncle,
+        keys: {'uncle', 'aunt', 'nephew', 'niece',
+               'paternal_uncle', 'paternal_aunt',
+               'maternal_uncle', 'maternal_aunt',
+               'fathers_elder_brother', 'fathers_younger_brother',
+               'fathers_sister', 'mothers_brother', 'mothers_sister'},
+        color: KinshipEdgeColors.auntUncle,
       ),
       _LegendGroup(
         label: 'Cousin',
-        keys: {'cousin'},
-        color: KinrelColors.nodeCousin,
+        keys: {'cousin', 'cousin_brother', 'cousin_sister',
+               'brothers_son', 'brothers_daughter',
+               'sisters_son', 'sisters_daughter'},
+        color: KinshipEdgeColors.cousin,
       ),
       _LegendGroup(
         label: 'In-Law',
-        // v10 Fix #2c: Use underscored keys to match EdgeStyleResolver._categoryMap
-        // in relationship_edge.dart (father_in_law, mother_in_law, etc.)
-        keys: {
-          'father_in_law', 'mother_in_law',
-          'son_in_law', 'daughter_in_law',
-          'brother_in_law', 'sister_in_law',
-          'in_law',
-        },
-        color: KinrelColors.nodeInLaw,
+        keys: {'father_in_law', 'mother_in_law',
+               'son_in_law', 'daughter_in_law',
+               'brother_in_law', 'sister_in_law',
+               'husbands_father', 'husbands_mother',
+               'wifes_brother', 'wifes_sister',
+               'in_law'},
+        color: KinshipEdgeColors.inLaw,
       ),
       _LegendGroup(
         label: 'Extended',
-        keys: {'other'},
-        color: KinrelColors.nodeExtended,
+        keys: {'stepfather', 'stepmother', 'stepson', 'stepdaughter',
+               'stepbrother', 'stepsister',
+               'godfather', 'godmother', 'guru',
+               'other', 'related', 'unknown'},
+        color: KinshipEdgeColors.extended,
+      ),
+      _LegendGroup(
+        label: 'Indirect',
+        keys: {'indirect_connection'},
+        color: KinshipEdgeColors.indirect,
       ),
     ];
 

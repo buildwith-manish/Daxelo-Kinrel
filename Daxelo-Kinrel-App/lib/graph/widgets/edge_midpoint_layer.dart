@@ -1,24 +1,25 @@
 // lib/graph/widgets/edge_midpoint_layer.dart
 //
-// DAXELO KINREL — Edge Midpoint Hit Layer
+// DAXELO KINREL — Edge Midpoint Hit Layer (v2)
 //
-// Transparent GestureDetector circles placed at every connection
-// midpoint in canvas-space. Lives INSIDE the zoom/pan transform so
-// tap positions always match the visible dots regardless of zoom.
+// v2 (2026-06-23): Midpoint computation now uses the central
+// [KinshipEdgeStyleResolver] + [KinshipLineShape] so hit zones line up
+// with whatever curve the painter actually drew (sibling arc, cousin
+// wide-arc, aunt/uncle shallow-S, grandparent extended bezier, etc.).
 //
 // Architecture:
-//   • EdgeMidpointHitLayer sits between the edge CustomPaint layer
-//     and the node layer in the canvas Stack.
-//   • Hit circles are 44×44 dp (Material minimum touch target), but
-//     rendered fully transparent so the CustomPainter dots show through.
-//   • The outer Listener-based panning is unaffected because a quick
-//     tap (< 8 px movement) is dispatched through the GestureDetector
-//     arena while a dragging finger never resolves onTap.
+//   • EdgeMidpointHitLayer sits between the edge CustomPaint layer and
+//     the node layer in the canvas Stack.
+//   • Hit circles are 44×44 dp (Material minimum touch target), rendered
+//     fully transparent so the CustomPainter dots show through.
+//   • The outer Listener-based panning is unaffected — a quick tap
+//     (< 8 px movement) is dispatched through the GestureDetector arena
+//     while a dragging finger never resolves onTap.
 
 import 'package:flutter/material.dart';
 
+import '../../core/kinship/kinship_edge_style.dart';
 import '../data/family_graph_repository.dart' show GraphEdgeData;
-import 'relationship_edge.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // EDGE MIDPOINT HIT LAYER
@@ -36,25 +37,12 @@ class EdgeMidpointHitLayer extends StatelessWidget {
     this.blockedNodeIds = const {},
   });
 
-  /// All relationship edges in the current graph.
   final List<GraphEdgeData> edges;
-
-  /// Canvas-space positions for every person node.
   final Map<String, Offset> positions;
-
-  /// Called when a midpoint dot is tapped. Receives the edge id.
   final void Function(String edgeId) onMidpointTap;
-
-  /// Width of a node card in canvas dp (must match RelationshipEdge).
   final double nodeWidth;
-
-  /// Height of a node card in canvas dp (must match RelationshipEdge).
   final double nodeHeight;
-
-  /// Touch-target radius around each midpoint (dp).
   final double hitRadius;
-
-  /// Blocked node ids — skip their edges (same as the painter).
   final Set<String> blockedNodeIds;
 
   @override
@@ -70,10 +58,11 @@ class EdgeMidpointHitLayer extends StatelessWidget {
       if (fromPos == null || toPos == null) continue;
 
       final category = edge.isIndirectConnection
-          ? EdgeCategory.indirect
-          : EdgeStyleResolver.categoryFor(edge.relationshipKey);
+          ? KinshipEdgeCategory.indirect
+          : KinshipEdgeClassifier.classify(edge.relationshipKey);
+      final style = KinshipEdgeStyleResolver.styleForCategory(category);
 
-      final mid = _computeMidpoint(fromPos, toPos, category);
+      final mid = _computeMidpoint(fromPos, toPos, category, style.lineShape);
 
       hits.add(
         Positioned(
@@ -96,21 +85,19 @@ class EdgeMidpointHitLayer extends StatelessWidget {
     );
   }
 
-  // ── Midpoint computation ───────────────────────────────────────────
-
-  /// Replicates RelationshipEdge._computeEndpoints + midpoint formula.
-  /// For bezier / sibling-arc edges we compute the TRUE t=0.5 point
-  /// so the hit zone lines up with the visible label / dot.
+  /// Replicates the painter's endpoint + midpoint computation so the
+  /// hit zone lines up with the visible dot / heart / label.
   Offset _computeMidpoint(
     Offset fromPos,
     Offset toPos,
-    EdgeCategory category,
+    KinshipEdgeCategory category,
+    KinshipLineShape shape,
   ) {
     final Offset start;
     final Offset end;
 
-    if (category == EdgeCategory.spouse || category == EdgeCategory.inLaw) {
-      // Horizontal spouse connector
+    if (category == KinshipEdgeCategory.spouse ||
+        category == KinshipEdgeCategory.inLaw) {
       if (fromPos.dx <= toPos.dx) {
         start = Offset(fromPos.dx + nodeWidth / 2, fromPos.dy);
         end = Offset(toPos.dx - nodeWidth / 2, toPos.dy);
@@ -118,40 +105,85 @@ class EdgeMidpointHitLayer extends StatelessWidget {
         start = Offset(fromPos.dx - nodeWidth / 2, fromPos.dy);
         end = Offset(toPos.dx + nodeWidth / 2, toPos.dy);
       }
-      // Straight line → linear midpoint
-      return Offset((start.dx + end.dx) / 2, (start.dy + end.dy) / 2);
-    }
-
-    // Vertical-ish edges
-    if (fromPos.dy <= toPos.dy) {
-      start = Offset(fromPos.dx, fromPos.dy + nodeHeight / 2);
-      end = Offset(toPos.dx, toPos.dy - nodeHeight / 2);
     } else {
-      start = Offset(fromPos.dx, fromPos.dy - nodeHeight / 2);
-      end = Offset(toPos.dx, toPos.dy + nodeHeight / 2);
+      if (fromPos.dy <= toPos.dy) {
+        start = Offset(fromPos.dx, fromPos.dy + nodeHeight / 2);
+        end = Offset(toPos.dx, toPos.dy - nodeHeight / 2);
+      } else {
+        start = Offset(fromPos.dx, fromPos.dy - nodeHeight / 2);
+        end = Offset(toPos.dx, toPos.dy + nodeHeight / 2);
+      }
     }
 
-    if (category == EdgeCategory.sibling) {
-      // Quadratic bezier arc above siblings.
-      // controlPoint = (midX, start.dy - arcHeight)
-      // t=0.5 on a quadratic: (1/4)*P0 + (1/2)*P1 + (1/4)*P2
-      final arcHeight = (end.dx - start.dx).abs() * 0.25 + 30.0;
-      final midX = (start.dx + end.dx) / 2;
-      final cpY = start.dy - arcHeight;
-      return Offset(
-        midX,
-        0.25 * start.dy + 0.5 * cpY + 0.25 * end.dy,
-      );
-    }
+    switch (shape) {
+      case KinshipLineShape.dashedArc:
+        final arcHeight = (end.dx - start.dx).abs() * 0.25 + 30.0;
+        final midX = (start.dx + end.dx) / 2;
+        final cpY = start.dy - arcHeight;
+        return Offset(
+          midX,
+          0.25 * start.dy + 0.5 * cpY + 0.25 * end.dy,
+        );
 
-    // Cubic bezier with control points at midY:
-    // At t=0.5 the x-midpoint is always the linear midX,
-    // and y-midpoint is always midY — same as linear midpoint.
-    return Offset((start.dx + end.dx) / 2, (start.dy + end.dy) / 2);
+      case KinshipLineShape.solidExtendedBezier:
+        final dy = end.dy - start.dy;
+        final cp1 = Offset(start.dx, start.dy + dy * 0.4);
+        final cp2 = Offset(end.dx, start.dy + dy * 0.6);
+        return Offset(
+          0.125 * start.dx +
+              0.375 * cp1.dx +
+              0.375 * cp2.dx +
+              0.125 * end.dx,
+          0.125 * start.dy +
+              0.375 * cp1.dy +
+              0.375 * cp2.dy +
+              0.125 * end.dy,
+        );
+
+      case KinshipLineShape.wideArcBezier:
+        final dx = end.dx - start.dx;
+        final dy = end.dy - start.dy;
+        final offset = dx.abs() * 0.3 + 40.0;
+        final sign = dx >= 0 ? 1.0 : -1.0;
+        final cp1 = Offset(start.dx + offset * sign, start.dy + dy * 0.33);
+        final cp2 = Offset(end.dx - offset * sign, start.dy + dy * 0.67);
+        return Offset(
+          0.125 * start.dx +
+              0.375 * cp1.dx +
+              0.375 * cp2.dx +
+              0.125 * end.dx,
+          0.125 * start.dy +
+              0.375 * cp1.dy +
+              0.375 * cp2.dy +
+              0.125 * end.dy,
+        );
+
+      case KinshipLineShape.dashedShallowS:
+        final midY = (start.dy + end.dy) / 2;
+        final dxOffset = (end.dx - start.dx) * 0.2;
+        final cp1 = Offset(start.dx + dxOffset, midY - 15);
+        final cp2 = Offset(end.dx - dxOffset, midY + 15);
+        return Offset(
+          0.125 * start.dx +
+              0.375 * cp1.dx +
+              0.375 * cp2.dx +
+              0.125 * end.dx,
+          0.125 * start.dy +
+              0.375 * cp1.dy +
+              0.375 * cp2.dy +
+              0.125 * end.dy,
+        );
+
+      case KinshipLineShape.solidBezier:
+      case KinshipLineShape.dashedStraight:
+      case KinshipLineShape.dashedDefault:
+        return Offset(
+          (start.dx + end.dx) / 2,
+          (start.dy + end.dy) / 2,
+        );
+    }
   }
 }
-
-// ── Small invisible circle used as the tappable hit area ──────────────
 
 class _HitCircle extends StatelessWidget {
   const _HitCircle();

@@ -1,54 +1,43 @@
 // lib/features/family/presentation/widgets/edge_dot_widget.dart
 //
-// DAXELO KINREL — Edge Dot Widget
+// DAXELO KINREL — Edge Dot Widget (v2)
 //
-// An animated dot widget that appears at the midpoint of each graph edge.
-// Tapping the dot reveals the relationship popup.
+// v2 (2026-06-23): Now takes a [KinshipEdgeCategory] and renders the
+// correct color + symbol per the central spec:
+//   • spouse → PINK heart (always pink, regardless of edge color)
+//   • every other category (except indirect) → filled dot in the
+//     category color, with a glow halo and a subtle white center
+//     highlight
 //
-// States:
-//   Default  : Outer glow circle (alpha 0.2, r9) + inner solid circle (r5),
-//              border 2px KinrelColors.darkCard
-//   Selected : Same but radius scales to 7 with pulsing glow animation
-//              (1.2s repeat, scale 1.0↔1.3)
-//   Spouse   : Infinity symbol (∞) drawn with vector paths, orange #F97316
-//              instead of circle dot
+// The dot/heart is now drawn in the CATEGORY color, not always orange.
+// Parent=blue, Child=pink, Sibling=purple, Grandparent=indigo,
+// Aunt/Uncle=cyan, Cousin=emerald, In-Law=amber, Extended=slate.
 //
-// The outer 32×32 tap target remains for touch accessibility.
+// Public API: const EdgeDotWidget({ ..., required category }).
+// The legacy [isSpouse] flag is still accepted but ignored if
+// [category] is also supplied (so old call sites keep working).
 
 import 'package:flutter/material.dart';
+
 import '../../../../core/constants/brand_colors.dart';
+import '../../../../core/kinship/kinship_edge_style.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // EDGE DOT WIDGET
 // ═══════════════════════════════════════════════════════════════════════
 
-/// An animated edge dot widget that appears at the midpoint of a graph edge.
-///
-/// When [isSpouse] is true, shows an infinity symbol instead of a circle dot.
-///
-/// Usage:
-/// ```dart
-/// Positioned(
-///   left: dotPosition.dx - 16,
-///   top: dotPosition.dy - 16,
-///   child: EdgeDotWidget(
-///     dotPosition: dotPosition,
-///     isSelected: selectedEdgeId == edge.id,
-///     isSpouse: _spouseKeys.contains(edge.relationshipKey),
-///     onTap: () => onEdgeTapped(edge.id),
-///   ),
-/// )
-/// ```
 class EdgeDotWidget extends StatefulWidget {
   const EdgeDotWidget({
     super.key,
     required this.dotPosition,
     required this.isSelected,
     required this.onTap,
+    this.category,
     this.isSpouse = false,
+    this.relationshipKey,
   });
 
-  /// The midpoint position of the edge.
+  /// The midpoint position of the edge (canvas-space).
   final Offset dotPosition;
 
   /// Whether this dot is currently selected.
@@ -57,8 +46,17 @@ class EdgeDotWidget extends StatefulWidget {
   /// Callback when the dot is tapped.
   final VoidCallback onTap;
 
-  /// When true, shows an infinity symbol instead of a circle dot.
+  /// Edge category — drives the color + symbol choice. When null, the
+  /// widget falls back to [relationshipKey] (and then [isSpouse]).
+  final KinshipEdgeCategory? category;
+
+  /// Legacy flag (kept for backward compatibility). Ignored if
+  /// [category] is non-null.
   final bool isSpouse;
+
+  /// Relationship key — used as a fallback when [category] is null so
+  /// the widget can still classify via [KinshipEdgeClassifier].
+  final String? relationshipKey;
 
   @override
   State<EdgeDotWidget> createState() => _EdgeDotWidgetState();
@@ -66,8 +64,6 @@ class EdgeDotWidget extends StatefulWidget {
 
 class _EdgeDotWidgetState extends State<EdgeDotWidget>
     with SingleTickerProviderStateMixin {
-  // ── Animation Controller ───────────────────────────────────────────
-
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnimation;
 
@@ -78,14 +74,12 @@ class _EdgeDotWidgetState extends State<EdgeDotWidget>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
-
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.3).animate(
       CurvedAnimation(
         parent: _pulseController,
         curve: Curves.easeInOut,
       ),
     );
-
     if (widget.isSelected) {
       _pulseController.repeat(reverse: true);
     }
@@ -108,15 +102,38 @@ class _EdgeDotWidgetState extends State<EdgeDotWidget>
     super.dispose();
   }
 
-  // ── Build ──────────────────────────────────────────────────────────
+  /// Resolves the effective category — falls back through the legacy
+  /// flags so any existing call site works.
+  KinshipEdgeCategory get _effectiveCategory {
+    if (widget.category != null) return widget.category!;
+    if (widget.relationshipKey != null && widget.relationshipKey!.isNotEmpty) {
+      return KinshipEdgeClassifier.classify(widget.relationshipKey!);
+    }
+    return widget.isSpouse
+        ? KinshipEdgeCategory.spouse
+        : KinshipEdgeCategory.extended;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final Widget dotChild = widget.isSpouse
-        ? _buildSpouseInfinityDot()
-        : _buildCircleDot();
+    final category = _effectiveCategory;
+    final style = KinshipEdgeStyleResolver.styleForCategory(category);
 
-    // The outer 32×32 tap target centered on the dot
+    final Widget dotChild;
+    switch (style.midpointSymbol) {
+      case KinshipMidpointSymbol.heart:
+        dotChild = _buildHeart(style.midpointColor);
+        break;
+      case KinshipMidpointSymbol.dot:
+        dotChild = _buildCircleDot(style.midpointColor);
+        break;
+      case KinshipMidpointSymbol.none:
+        // Indirect connections get no visible dot — just a transparent
+        // tap target so the user can still open the popup.
+        dotChild = const SizedBox(width: 16, height: 16);
+        break;
+    }
+
     return GestureDetector(
       onTap: widget.onTap,
       behavior: HitTestBehavior.opaque,
@@ -141,14 +158,9 @@ class _EdgeDotWidgetState extends State<EdgeDotWidget>
     );
   }
 
-  // ── Circle Dot (parent-child / sibling) ────────────────────────────
+  // ── Circle Dot (parent/child/sibling/grandparent/aunt-uncle/cousin/in-law/extended) ──
 
-  /// Builds the default circle dot with outer glow and inner solid fill.
-  ///
-  /// Default: outer glow (alpha 0.2, radius 9) + inner solid (radius 5),
-  ///          border 2px KinrelColors.darkCard
-  /// Selected: same but radius scales to 7 (animated by parent)
-  Widget _buildCircleDot() {
+  Widget _buildCircleDot(Color color) {
     final double innerRadius = widget.isSelected ? 7.0 : 5.0;
     final double outerRadius = widget.isSelected ? 11.0 : 9.0;
     final double glowAlpha = widget.isSelected ? 0.4 : 0.2;
@@ -159,17 +171,17 @@ class _EdgeDotWidgetState extends State<EdgeDotWidget>
         innerRadius: innerRadius,
         outerRadius: outerRadius,
         glowAlpha: glowAlpha,
+        color: color,
       ),
     );
   }
 
-  // ── Infinity Dot (spouse) ────────────────────────────────────────────
+  // ── Heart (spouse) ──────────────────────────────────────────────────
 
-  /// Builds an infinity symbol (∞) for spouse edges using vector paths.
-  Widget _buildSpouseInfinityDot() {
+  Widget _buildHeart(Color color) {
     return CustomPaint(
       size: const Size(32, 32),
-      painter: _SpouseInfinityPainter(),
+      painter: _HeartPainter(color: color),
     );
   }
 }
@@ -178,17 +190,18 @@ class _EdgeDotWidgetState extends State<EdgeDotWidget>
 // CIRCLE DOT PAINTER
 // ═══════════════════════════════════════════════════════════════════════
 
-/// CustomPainter for the circle dot: outer glow + inner solid + border.
 class _CircleDotPainter extends CustomPainter {
   _CircleDotPainter({
     required this.innerRadius,
     required this.outerRadius,
     required this.glowAlpha,
+    required this.color,
   });
 
   final double innerRadius;
   final double outerRadius;
   final double glowAlpha;
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -196,17 +209,17 @@ class _CircleDotPainter extends CustomPainter {
 
     // Outer glow halo
     final glowPaint = Paint()
-      ..color = KinrelColors.orange.withValues(alpha: glowAlpha)
+      ..color = color.withValues(alpha: glowAlpha)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, outerRadius, glowPaint);
 
     // Inner solid circle
     final fillPaint = Paint()
-      ..color = KinrelColors.orange
+      ..color = color
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, innerRadius, fillPaint);
 
-    // Border ring
+    // Border ring (uses darkCard for contrast against any edge color)
     final borderPaint = Paint()
       ..color = KinrelColors.darkCard
       ..style = PaintingStyle.stroke
@@ -218,63 +231,79 @@ class _CircleDotPainter extends CustomPainter {
   bool shouldRepaint(covariant _CircleDotPainter oldDelegate) {
     return oldDelegate.innerRadius != innerRadius ||
         oldDelegate.outerRadius != outerRadius ||
-        oldDelegate.glowAlpha != glowAlpha;
+        oldDelegate.glowAlpha != glowAlpha ||
+        oldDelegate.color != color;
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// SPOUSE INFINITY PAINTER
+// HEART PAINTER (spouse midpoint)
 // ═══════════════════════════════════════════════════════════════════════
 
-/// CustomPainter for a small infinity symbol (∞) at spouse edge midpoints.
-/// Vector graphics only — no emoji.
-class _SpouseInfinityPainter extends CustomPainter {
+class _HeartPainter extends CustomPainter {
+  const _HeartPainter({required this.color});
+
+  final Color color;
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
 
-    // Outer glow
-    canvas.drawCircle(center, 10,
-        Paint()..color = const Color(0xFFF97316).withValues(alpha: 0.10));
+    // Soft glow behind the heart (slightly larger, low alpha).
+    final glowPaint = Paint()
+      ..color = color.withValues(alpha: 0.18)
+      ..style = PaintingStyle.fill
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+    canvas.drawCircle(center, 12.0, glowPaint);
 
-    // Middle glow
-    canvas.drawCircle(center, 6,
-        Paint()..color = const Color(0xFFF97316).withValues(alpha: 0.18));
+    // Solid heart fill.
+    final heartPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
 
-    // Infinity symbol path
-    final paint = Paint()
-      ..color = const Color(0xFFF97316)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
+    const double s = 16.0;
+    final circleRadius = s / 4;
 
-    final path = Path();
-    const double w = 5.5;
-    const double h = 3.0;
-
-    // Left loop of infinity
-    path.moveTo(center.dx, center.dy);
-    path.cubicTo(
-      center.dx - w * 0.8, center.dy - h,
-      center.dx - w, center.dy + h * 0.3,
-      center.dx, center.dy,
+    final leftCircleCenter = Offset(
+      center.dx - circleRadius * 0.7,
+      center.dy - circleRadius * 0.4,
+    );
+    final rightCircleCenter = Offset(
+      center.dx + circleRadius * 0.7,
+      center.dy - circleRadius * 0.4,
     );
 
-    // Right loop of infinity
-    path.cubicTo(
-      center.dx + w * 0.8, center.dy - h,
-      center.dx + w, center.dy + h * 0.3,
-      center.dx, center.dy,
+    canvas.drawCircle(leftCircleCenter, circleRadius, heartPaint);
+    canvas.drawCircle(rightCircleCenter, circleRadius, heartPaint);
+
+    final halfS = s / 2;
+    final path = Path()
+      ..moveTo(
+        leftCircleCenter.dx - circleRadius * 0.7,
+        leftCircleCenter.dy + circleRadius * 0.2,
+      )
+      ..lineTo(
+        rightCircleCenter.dx + circleRadius * 0.7,
+        rightCircleCenter.dy + circleRadius * 0.2,
+      )
+      ..lineTo(center.dx, center.dy + halfS * 0.75)
+      ..close();
+    canvas.drawPath(path, heartPaint);
+
+    // Subtle white highlight on the upper-left to give the heart depth.
+    final highlightPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.35)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(
+      Offset(
+        leftCircleCenter.dx - circleRadius * 0.3,
+        leftCircleCenter.dy - circleRadius * 0.3,
+      ),
+      circleRadius * 0.35,
+      highlightPaint,
     );
-
-    canvas.drawPath(path, paint);
-
-    // Center dot
-    canvas.drawCircle(center, 1.5,
-        Paint()..color = const Color(0xFFF97316)..style = PaintingStyle.fill);
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter old) => false;
+  bool shouldRepaint(covariant _HeartPainter old) => old.color != color;
 }
