@@ -231,6 +231,41 @@ class _GraphCanvasWidgetState extends ConsumerState<GraphCanvasWidget> {
         relationships: graphRelationships,
       );
     });
+
+    // v52.4 FIX: Auto-center the graph after layout so nodes are always
+    // visible regardless of viewport size. Without this, the canvas
+    // renders at (0,0) which may leave the graph off-screen on small
+    // viewports or in the corner on large ones.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _layoutResult == null) return;
+      _autoCenterGraph();
+    });
+  }
+
+  /// Centers the graph canvas in the viewport after layout.
+  void _autoCenterGraph() {
+    final layout = _layoutResult!;
+    final canvasW = layout.canvasWidth;
+    final canvasH = layout.canvasHeight;
+    if (canvasW <= 0 || canvasH <= 0) return;
+
+    final viewport = MediaQuery.of(context).size;
+    final viewportW = viewport.width;
+    final viewportH = viewport.height;
+    if (viewportW <= 0 || viewportH <= 0) return;
+
+    final margin = 80.0;
+    final scaleX = (viewportW - margin * 2) / canvasW;
+    final scaleY = (viewportH - margin * 2) / canvasH;
+    final scale = [scaleX, scaleY, 1.0].reduce((a, b) => a < b ? a : b)
+        .clamp(0.05, 1.0);
+
+    final tx = (viewportW - canvasW * scale) / 2;
+    final ty = (viewportH - canvasH * scale) / 2;
+
+    _transformationController.value = Matrix4.identity()
+      ..translate(tx, ty)
+      ..scale(scale);
   }
 
   // ── Transform Change Handler ───────────────────────────────────────

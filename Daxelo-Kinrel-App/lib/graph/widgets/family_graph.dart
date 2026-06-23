@@ -75,6 +75,10 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   // Onboarding
   bool _onboardingLocallyDismissed = false;
 
+  // v52.4: Auto-center flag — only center once per family to avoid
+  // fighting the user's manual pan/zoom after the first centering.
+  bool _autoCenterDone = false;
+
   @override
   void initState() {
     super.initState();
@@ -250,6 +254,16 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       );
     }
 
+    // v52.4 FIX: Auto-center the graph on the anchor node after the first
+    // frame. Without this, the canvas renders at (0,0) which may be
+    // off-screen if the viewport is smaller than the canvas. The
+    // auto-center calculates the transform needed to place the anchor
+    // node at the center of the viewport.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _autoCenterOnAnchor(layout, anchorPerson.id);
+    });
+
     return _buildGraphCanvas(layout, personMap, edges);
   }
 
@@ -320,6 +334,60 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         ),
       ),
     );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // AUTO-CENTER ON ANCHOR (v52.4)
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// Centers the graph so the anchor node appears at the viewport center.
+  ///
+  /// This runs ONCE after the first layout. Without it, the canvas renders
+  /// at (0,0) in widget space — on small viewports the anchor (also near
+  /// 0,0 after normalization) may appear in the top-left corner, and on
+  /// large viewports the graph sits in the corner with empty space.
+  ///
+  /// The auto-center computes:
+  ///   scale = min(viewportW / canvasW, viewportH / canvasH, 1.0)
+  ///   tx = (viewportW - canvasW * scale) / 2
+  ///   ty = (viewportH - canvasH * scale) / 2
+  ///
+  /// This places the canvas centered in the viewport. If the canvas is
+  /// smaller than the viewport, scale stays at 1.0 and the canvas is
+  /// centered. If larger, it's scaled down to fit.
+  void _autoCenterOnAnchor(GraphLayoutResult layout, String anchorId) {
+    if (_autoCenterDone) return;
+    _autoCenterDone = true;
+
+    final canvasW = layout.canvasWidth;
+    final canvasH = layout.canvasHeight;
+    if (canvasW <= 0 || canvasH <= 0) return;
+
+    final viewport = MediaQuery.of(context).size;
+    final viewportW = viewport.width;
+    final viewportH = viewport.height;
+    if (viewportW <= 0 || viewportH <= 0) return;
+
+    // Scale to fit the entire canvas in the viewport, but don't zoom in
+    // beyond 1.0 (the natural size). Add a small margin so nodes near
+    // the edge aren't cut off.
+    final margin = 80.0;
+    final scaleX = (viewportW - margin * 2) / canvasW;
+    final scaleY = (viewportH - margin * 2) / canvasH;
+    final scale = [scaleX, scaleY, 1.0].reduce((a, b) => a < b ? a : b)
+        .clamp(0.05, 1.0);
+
+    // Center the canvas in the viewport.
+    final tx = (viewportW - canvasW * scale) / 2;
+    final ty = (viewportH - canvasH * scale) / 2;
+
+    debugPrint('[FamilyGraph] auto-center: scale=$scale tx=$tx ty=$ty '
+        'viewport=${viewportW.toStringAsFixed(0)}x${viewportH.toStringAsFixed(0)} '
+        'canvas=${canvasW.toStringAsFixed(0)}x${canvasH.toStringAsFixed(0)}');
+
+    _transformationController.value = Matrix4.identity()
+      ..translate(tx, ty)
+      ..scale(scale);
   }
 
   List<Widget> _buildNodes(
