@@ -281,10 +281,8 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     // Runs once via _autoCenterDone flag so the user's manual pan/zoom
     // is preserved after the initial centering.
     if (!_autoCenterDone) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _autoCenterOnAnchor(layout, anchorPerson.id);
-      });
+      _autoCenterDone = true;
+      _autoCenterOnAnchor(layout, anchorPerson.id);
     }
 
     return _buildGraphCanvas(layout, personMap, edges);
