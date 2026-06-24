@@ -279,15 +279,17 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     final canvasHeight = layout.canvasHeight;
     final highlightedGen = widget.highlightedGeneration;
 
-    // v53: Infinite canvas — no borders, no background box, no visible
-    // boundary. The graph floats on the app's natural background, like a
-    // map. InteractiveViewer provides smooth pan/zoom with no clamping.
-    //
-    //   - constrained: false  → child can be larger (or smaller) than viewport
-    //   - boundaryMargin: Infinity → free panning in all directions
-    //   - minScale: 0.05 → zoom out to see the whole graph
-    //   - maxScale: 5.0 → zoom in for detail
-    //   - auto-center runs once after layout to fit the graph on screen
+    // v55 FIX: Compute the ACTUAL node size here so the painter and the
+    // node widgets use the SAME size. Previously the painter used a
+    // hardcoded 72.0 while nodes used 48-64px from resolveSize(),
+    // causing edges to stop at the wrong distance from node centers.
+    final viewportWidth = MediaQuery.of(context).size.width;
+    final zoomLevel = _transformationController.value.getMaxScaleOnAxis();
+    final actualNodeSize = GraphNodeStateResolver.resolveSize(
+      viewportWidth: viewportWidth,
+      zoomLevel: zoomLevel,
+    );
+
     final cw = canvasWidth > 0 ? canvasWidth : 400.0;
     final ch = canvasHeight > 0 ? canvasHeight : 400.0;
 
@@ -311,10 +313,9 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
                   positions: positions,
                   edges: edges,
                   selectedEdgeId: _selectedEdgeId,
-                  zoomLevel:
-                      _transformationController.value.getMaxScaleOnAxis(),
-                  nodeWidth: 72.0,
-                  nodeHeight: 72.0,
+                  zoomLevel: zoomLevel,
+                  nodeWidth: actualNodeSize,
+                  nodeHeight: actualNodeSize,
                   generationMap: {
                     for (final p in personMap.values)
                       p.id: p.generationIndex,
@@ -381,6 +382,14 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   ) {
     final nodes = <Widget>[];
     final zoomLevel = _transformationController.value.getMaxScaleOnAxis();
+    // v55 FIX: Use the SAME node size as the painter — previously this
+    // used hardcoded 36 (half of 72) but the node was actually 48-64px,
+    // causing the visual center to be offset from the stored position.
+    final nodeSize = GraphNodeStateResolver.resolveSize(
+      viewportWidth: MediaQuery.of(context).size.width,
+      zoomLevel: zoomLevel,
+    );
+    final halfNode = nodeSize / 2;
 
     for (final person in personMap.values) {
       final pos = positions[person.id];
@@ -410,15 +419,8 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
 
       nodes.add(
         Positioned(
-          left: pos.dx - 36,  // center the 72px node
-          top: pos.dy - 36,
-          // v42 FIX: Removed the outer GestureDetector wrapper.
-          // GraphNode has its OWN internal GestureDetector with
-          // HitTestBehavior.translucent. The outer GestureDetector was
-          // competing with GraphPanZoom's ScaleGestureRecognizer on
-          // Android, blocking pinch-to-zoom. GraphPanZoom's
-          // HitTestBehavior.opaque + GraphNode's translucent is the
-          // correct combination: parent claims scale, child wins tap.
+          left: pos.dx - halfNode,
+          top: pos.dy - halfNode,
           child: GraphNode(
             personId: person.id,
             name: person.name,
@@ -432,10 +434,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             relationLabel: relationLabel,
             nodeState: nodeState,
             opacity: nodeOpacity,
-            nodeSize: GraphNodeStateResolver.resolveSize(
-              viewportWidth: MediaQuery.of(context).size.width,
-              zoomLevel: zoomLevel,
-            ),
+            nodeSize: nodeSize,
             onTap: () {
               setState(() {
                 _selectedNodeId =

@@ -862,41 +862,54 @@ class RelationshipEdge extends CustomPainter {
 
   // ── Endpoint Computation ───────────────────────────────────────────
 
-  /// Computes the visual start and end points for an edge, adjusting
-  /// for the node boundaries.
+  /// Computes the visual start and end points for an edge, stopping
+  /// exactly at the node boundary (not at the center).
+  ///
+  /// v55 FIX: Uses the DIRECTION VECTOR between the two node centers
+  /// to offset both endpoints by nodeRadius along that direction.
+  /// This ensures the line starts and ends exactly at the visible
+  /// circle edge, regardless of whether nodes are positioned
+  /// vertically, horizontally, or diagonally.
+  ///
+  /// Previous code only offset in ONE axis (X for spouse, Y for
+  /// parent/child), which caused lines to miss the node boundary
+  /// when nodes were positioned diagonally.
   (Offset, Offset) _computeEndpoints(
     Offset fromPos,
     Offset toPos,
     EdgeCategory category,
   ) {
-    if (category == EdgeCategory.spouse || category == EdgeCategory.inLaw) {
-      // Spouse/in-law: horizontal line between side edges of nodes.
-      if (fromPos.dx <= toPos.dx) {
-        return (
-          Offset(fromPos.dx + nodeWidth / 2, fromPos.dy),
-          Offset(toPos.dx - nodeWidth / 2, toPos.dy),
-        );
-      } else {
-        return (
-          Offset(fromPos.dx - nodeWidth / 2, fromPos.dy),
-          Offset(toPos.dx + nodeWidth / 2, toPos.dy),
-        );
-      }
+    // Node radius = half the node size. Add 2px padding so the line
+    // meets the OUTER edge of the border ring, not the inner fill.
+    final nodeRadius = nodeWidth / 2 + 2.0;
+
+    // Direction vector from center A to center B.
+    final dx = toPos.dx - fromPos.dx;
+    final dy = toPos.dy - fromPos.dy;
+    final distance = math.sqrt(dx * dx + dy * dy);
+
+    // If nodes overlap (distance == 0), fall back to a vertical offset.
+    if (distance == 0) {
+      return (fromPos, toPos);
     }
 
-    // Parent/child/sibling/cousin/auntUncle: vertical connection
-    // (bottom of upper → top of lower).
-    if (fromPos.dy <= toPos.dy) {
-      return (
-        Offset(fromPos.dx, fromPos.dy + nodeHeight / 2),
-        Offset(toPos.dx, toPos.dy - nodeHeight / 2),
-      );
-    } else {
-      return (
-        Offset(fromPos.dx, fromPos.dy - nodeHeight / 2),
-        Offset(toPos.dx, toPos.dy + nodeHeight / 2),
-      );
-    }
+    // Unit vector along the direction.
+    final ux = dx / distance;
+    final uy = dy / distance;
+
+    // drawStart: A's center moved toward B by nodeRadius.
+    final drawStart = Offset(
+      fromPos.dx + ux * nodeRadius,
+      fromPos.dy + uy * nodeRadius,
+    );
+
+    // drawEnd: B's center moved toward A by nodeRadius.
+    final drawEnd = Offset(
+      toPos.dx - ux * nodeRadius,
+      toPos.dy - uy * nodeRadius,
+    );
+
+    return (drawStart, drawEnd);
   }
 
   // ── Midpoint Drawing ───────────────────────────────────────────────
