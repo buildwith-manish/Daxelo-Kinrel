@@ -562,6 +562,10 @@ class RelationshipEdge extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
 
+    // v60: Skip glow at low zoom for performance (blur is GPU-expensive).
+    // Only draw glow when zoomed in enough to see it, or when selected.
+    final drawGlow = isSelected || zoomLevel > 0.3;
+
     // ── Compute the Path AND the t=0.5 midpoint in one place ──────
     // v60: Pass positions + sourceId + targetId for collision avoidance
     // in the parent/child bezier (steers around intermediate nodes).
@@ -570,7 +574,9 @@ class RelationshipEdge extends CustomPainter {
     );
 
     // ── Draw glow first (solid, no dash) then the main line ──────
-    canvas.drawPath(path, glowPaint);
+    if (drawGlow) {
+      canvas.drawPath(path, glowPaint);
+    }
 
     // For dashed categories, we need to dash the path.
     final isDashed = category == EdgeCategory.sibling ||
@@ -1200,6 +1206,10 @@ class RelationshipEdge extends CustomPainter {
         !identical(positions, oldDelegate.positions) ||
         selectedEdgeId != oldDelegate.selectedEdgeId ||
         zoomLevel != oldDelegate.zoomLevel ||
-        highlightedGeneration != oldDelegate.highlightedGeneration;
+        highlightedGeneration != oldDelegate.highlightedGeneration ||
+        nodeWidth != oldDelegate.nodeWidth ||
+        nodeHeight != oldDelegate.nodeHeight ||
+        !identical(anonymousNodeIds, oldDelegate.anonymousNodeIds) ||
+        !identical(blockedNodeIds, oldDelegate.blockedNodeIds);
   }
 }

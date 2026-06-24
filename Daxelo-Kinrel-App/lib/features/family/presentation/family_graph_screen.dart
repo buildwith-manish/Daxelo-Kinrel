@@ -78,8 +78,10 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   /// Whether the filter panel is visible in the bottom toolbar context.
   bool _filterVisible = false;
 
-  /// SharedPreferences key for persisting transform state per family.
-  static const String _transformPrefsPrefix = 'kinrel_graph_transform_';
+  /// v60: Incremented to trigger re-centering in FamilyGraphWidget.
+  int _recenterKey = 0;
+
+  // v60: Removed _transformPrefsPrefix — no longer saving transform state.
 
   @override
   void initState() {
@@ -89,40 +91,17 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
   @override
   void dispose() {
-    _saveTransformState();
+    // v60: Removed _saveTransformState() — it was a dead write since
+    // _restoreTransformState() never reads the saved values (it always
+    // resets to identity). Wasted I/O on every screen exit.
     _graphTransformController.dispose();
     super.dispose();
   }
 
-  /// Saves the current transform matrix to SharedPreferences.
-  Future<void> _saveTransformState() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final m = _graphTransformController.value;
-      final values = <double>[
-        m.entry(0, 0), m.entry(0, 1), m.entry(0, 2), m.entry(0, 3),
-        m.entry(1, 0), m.entry(1, 1), m.entry(1, 2), m.entry(1, 3),
-        m.entry(2, 0), m.entry(2, 1), m.entry(2, 2), m.entry(2, 3),
-        m.entry(3, 0), m.entry(3, 1), m.entry(3, 2), m.entry(3, 3),
-      ];
-      await prefs.setStringList(
-        '$_transformPrefsPrefix${widget.familyId}',
-        values.map((v) => v.toString()).toList(),
-      );
-    } catch (e) {
-      debugPrint('Failed to save transform state: $e');
-    }
-  }
-
-  /// v21 FIX: Do NOT restore saved transform from SharedPreferences.
-  /// The saved transform was computed for a DIFFERENT family's canvas
-  /// dimensions. Restoring it positions the new family's canvas at
-  /// wrong coordinates → nodes appear off-screen → blank graph.
-  /// Instead, always start with identity so the FamilyGraphWidget's
-  /// auto-centering logic can compute the correct matrix for the
-  /// current family's canvas dimensions.
+  /// v60: Reset transform to identity on screen load. The
+  /// FamilyGraphWidget's auto-center logic will compute the correct
+  /// matrix for the current family's canvas dimensions.
   Future<void> _restoreTransformState() async {
-    // Explicitly reset to identity — no saved transform
     _graphTransformController.value = Matrix4.identity();
   }
 
@@ -133,38 +112,27 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   // Double-tap-to-zoom (toggle 1x ↔ 2.5x) is also handled by
   // GraphPanZoom, so users have a one-finger zoom option too.
 
-  /// Centers the graph on the root/anchor user by resetting transform
-  /// to identity, which triggers the FamilyGraphWidget to auto-center
-  /// on the anchor node via its _initialCenterDone logic.
+  /// Centers the graph on the root/anchor user by triggering re-centering
+  /// in the FamilyGraphWidget via recenterKey.
   void _centerOnRootUser() {
-    _graphTransformController.value = Matrix4.identity();
     setState(() {
+      _recenterKey++;
       _highlightedGeneration = null;
       _hoveredRelationshipKey = null;
     });
   }
 
   /// Opens the Add Member sheet and refreshes graph data when it closes.
-  // v9: Clear in-memory cache before invalidating so the notifier is
-  // forced to do a fresh Supabase fetch. Without clearCache, the
-  // notifier may return stale cached data (missing the new relationship).
   Future<void> _openAddMember() async {
     await AddPersonSheet.show(context, familyId: widget.familyId);
 
     if (mounted) {
-      // Clear in-memory cache so the invalidation forces a fresh Supabase fetch
+      // v60: Single cache clear + invalidation. Removed the 1500ms
+      // double-refresh — it caused a visible double-reload flicker and
+      // wasted bandwidth. Supabase Realtime (graphRealtimeProvider)
+      // handles delayed propagation automatically.
       FamilyGraphNotifier.clearCache(widget.familyId);
-
-      // First immediate refresh
       ref.invalidate(familyGraphProvider(widget.familyId));
-
-      // Safety net: second refresh after DB propagation delay
-      Future.delayed(const Duration(milliseconds: 1500), () {
-        if (mounted) {
-          FamilyGraphNotifier.clearCache(widget.familyId);
-          ref.invalidate(familyGraphProvider(widget.familyId));
-        }
-      });
     }
   }
 
@@ -490,6 +458,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
                 externalTransformController: _graphTransformController,
                 graphData: graph,
                 highlightedGeneration: _highlightedGeneration,
+                recenterKey: _recenterKey,
               ),
             ),
           ],

@@ -409,6 +409,9 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   late final Animation<double> _errorPulseAnimation;
 
   /// Whether high contrast mode is active (updated on build).
+  // v60: _highContrast is set in build() from MediaQuery. Using a local
+  // in build would require passing it to every helper, so we keep the
+  // field but set it at the START of build (not mid-build).
   bool _highContrast = false;
 
   // ── Lifecycle ──────────────────────────────────────────────────────
@@ -497,13 +500,15 @@ class _GraphNodeState extends ConsumerState<GraphNode>
 
   String get _initials {
     if (widget.isAnonymous) return '?';
-    final parts = widget.name.trim().split(RegExp(r'\s+'));
-    if (parts.length >= 2) {
-      return (parts.first[0] + parts.last[0]).toUpperCase();
-    } else if (parts.isNotEmpty && parts.first.isNotEmpty) {
-      return parts.first.length >= 2
-          ? parts.first.substring(0, 2).toUpperCase()
-          : parts.first[0].toUpperCase();
+    final trimmed = widget.name.trim();
+    if (trimmed.isEmpty) return '?';
+    final parts = trimmed.split(RegExp(r'\s+'));
+    if (parts.length >= 2 && parts[0].isNotEmpty && parts[1].isNotEmpty) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    } else if (parts.isNotEmpty && parts[0].isNotEmpty) {
+      return parts[0].length >= 2
+          ? parts[0].substring(0, 2).toUpperCase()
+          : parts[0][0].toUpperCase();
     }
     return '?';
   }
@@ -530,7 +535,10 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   Widget build(BuildContext context) {
     // Accessibility: reduced motion & high contrast
     final reduceMotion = MediaQuery.of(context).disableAnimations;
-    _highContrast = MediaQuery.of(context).highContrast;
+    // v60: Use local variable for build, but also set the field for
+    // helper getters that reference _highContrast.
+    final highContrast = MediaQuery.of(context).highContrast;
+    _highContrast = highContrast;
 
     // Update animation durations for reduced motion
     if (reduceMotion) {

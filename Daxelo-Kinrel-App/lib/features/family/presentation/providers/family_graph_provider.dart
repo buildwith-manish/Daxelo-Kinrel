@@ -242,18 +242,23 @@ Future<String?> _resolveAnchorMemberId(
 ///   - Supports refresh via [refreshGraph]
 class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
   /// In-memory cache keyed by familyId so we can fallback on error.
+  /// v60: Bounded to 5 entries (LRU) to prevent unbounded memory growth
+  /// on long sessions with many family visits.
   static final Map<String, FlatGraphResult> _cache = {};
+  static const int _maxCacheSize = 5;
+
+  /// v60: Add to cache with LRU eviction — removes oldest entry if
+  /// the cache exceeds _maxCacheSize.
+  static void _addToCache(String familyId, FlatGraphResult result) {
+    if (_cache.length >= _maxCacheSize && !_cache.containsKey(familyId)) {
+      _cache.remove(_cache.keys.first);
+    }
+    _addToCache(familyId, result);
+  }
 
   /// Clear the in-memory cache for a specific family (or all families
   /// if [familyId] is null). This forces the next read of
   /// [familyGraphProvider] to do a fresh Supabase round-trip.
-  ///
-  /// Call this whenever the underlying data changes outside the
-  /// notifier's own write path — e.g. after `createRelationship`,
-  /// `deleteRelationship`, `createPerson`, `updatePerson`,
-  /// `deletePerson`. Without this, the notifier will keep returning
-  /// the stale cached [FlatGraphResult] until something else
-  /// invalidates the provider.
   static void clearCache([String? familyId]) {
     if (familyId == null) {
       _cache.clear();
@@ -386,7 +391,7 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
                 rpcResult.relationships.length >= directResult.relationships.length;
 
             if (rpcBetterOrEqual) {
-              _cache[familyId] = rpcResult;
+              _addToCache(familyId, rpcResult);
               debugPrint(
                 '[FamilyGraphNotifier] RPC: Loaded ${rpcResult.persons.length} persons, '
                 '${rpcResult.relationships.length} relationships for $familyId',
@@ -417,7 +422,7 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
 
       // ── Step 3: Return direct query result ──
       // This is always the fallback and the primary source.
-      _cache[familyId] = directResult;
+      _addToCache(familyId, directResult);
       return directResult;
     } on PostgrestException catch (e) {
       debugPrint('[FamilyGraphNotifier] Supabase error: ${e.message}');
@@ -712,7 +717,7 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
         totalCount: persons.length,
       );
 
-      _cache[familyId] = result;
+      _addToCache(familyId, result);
 
       debugPrint(
         '[FamilyGraphNotifier] Direct query: Loaded ${result.persons.length} persons, '

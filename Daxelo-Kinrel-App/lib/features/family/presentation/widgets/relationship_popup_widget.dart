@@ -80,11 +80,15 @@ String formatRelationshipKey(String key) {
 
 /// Returns 2-letter initials from a name.
 String _getInitials(String name) {
-  final parts = name.trim().split(RegExp(r'\s+'));
-  if (parts.length >= 2) {
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) return '?';
+  final parts = trimmed.split(RegExp(r'\s+'));
+  if (parts.length >= 2 && parts[0].isNotEmpty && parts[1].isNotEmpty) {
     return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
   }
-  return name.length >= 2 ? name.substring(0, 2).toUpperCase() : name.toUpperCase();
+  return trimmed.length >= 2
+      ? trimmed.substring(0, 2).toUpperCase()
+      : trimmed.toUpperCase();
 }
 
 // ═══════════════════════════════════════════════════════════════════════

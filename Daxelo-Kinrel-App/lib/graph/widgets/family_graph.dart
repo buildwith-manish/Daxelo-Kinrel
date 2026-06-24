@@ -50,6 +50,7 @@ class FamilyGraphWidget extends ConsumerStatefulWidget {
     this.externalTransformController,
     this.graphData,
     this.highlightedGeneration,
+    this.recenterKey,
   });
 
   final String familyId;
@@ -57,6 +58,9 @@ class FamilyGraphWidget extends ConsumerStatefulWidget {
   final TransformationController? externalTransformController;
   final FlatGraphResult? graphData;
   final int? highlightedGeneration;
+  /// v60: When this value changes, the graph re-runs auto-centering.
+  /// Used by the parent screen's "Center on Root" button.
+  final int? recenterKey;
 
   @override
   ConsumerState<FamilyGraphWidget> createState() => _FamilyGraphWidgetState();
@@ -74,9 +78,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   // Onboarding
   bool _onboardingLocallyDismissed = false;
 
-  // v52.4: Auto-center flag — only center once per family to avoid
-  // fighting the user's manual pan/zoom after the first centering.
+  // v60: Auto-center flag — resets when familyId changes so the new
+  // family gets centered on first load. Previously stayed true forever
+  // after the first centering, breaking "Center on Root" button.
   bool _autoCenterDone = false;
+  String? _lastFamilyId;
 
   @override
   void initState() {
@@ -88,11 +94,32 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       _transformationController = TransformationController();
       _ownsController = true;
     }
+    // v60: Listen to transform changes so the painter's zoomLevel
+    // stays current during pan/zoom gestures. Without this, dots and
+    // labels used stale zoom values until another setState happened.
+    _transformationController.addListener(_onTransformChanged);
+    _lastFamilyId = widget.familyId;
     _autoDismissOnboarding();
   }
 
   @override
+  void didUpdateWidget(covariant FamilyGraphWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // v60: Reset auto-center when family changes or recenterKey changes.
+    if (widget.familyId != _lastFamilyId ||
+        widget.recenterKey != oldWidget.recenterKey) {
+      _autoCenterDone = false;
+      _lastFamilyId = widget.familyId;
+    }
+  }
+
+  void _onTransformChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    _transformationController.removeListener(_onTransformChanged);
     if (_ownsController) {
       _transformationController.dispose();
     }
