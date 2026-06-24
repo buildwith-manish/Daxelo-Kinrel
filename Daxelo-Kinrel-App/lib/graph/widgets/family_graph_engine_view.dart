@@ -200,14 +200,19 @@ class _FamilyGraphEngineViewState
               const Positioned(
                   left: 0, right: 0, top: 0, child: _OfflineBanner()),
             if (kEnableGraphShareExport)
-              Positioned(
-                right: 16,
-                bottom: 16,
-                child: FloatingActionButton.small(
-                  heroTag: 'graph_share_export',
-                  onPressed: _shareGraph,
-                  tooltip: 'Share graph',
-                  child: const Icon(Icons.ios_share),
+              // Directional alignment so the FAB sits at the bottom-end
+              // edge (bottom-right in LTR, bottom-left in RTL) instead of
+              // always at the physical right.
+              Align(
+                alignment: AlignmentDirectional.bottomEnd,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: FloatingActionButton.small(
+                    heroTag: 'graph_share_export',
+                    onPressed: _shareGraph,
+                    tooltip: 'Share graph',
+                    child: const Icon(Icons.ios_share),
+                  ),
                 ),
               ),
           ],
@@ -646,22 +651,26 @@ class _OfflineBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.orange.shade800,
-      child: const SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.cloud_off, size: 16, color: Colors.white),
-              SizedBox(width: 8),
-              Text(
-                'Offline — showing cached graph',
-                style: TextStyle(color: Colors.white, fontSize: 13),
-              ),
-            ],
+    return Semantics(
+      label: 'Offline. Showing cached graph.',
+      liveRegion: true,
+      child: Material(
+        color: Colors.orange.shade800,
+        child: const SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.cloud_off, size: 16, color: Colors.white),
+                SizedBox(width: 8),
+                Text(
+                  'Offline — showing cached graph',
+                  style: TextStyle(color: Colors.white, fontSize: 13),
+                ),
+              ],
+            ),
           ),
         ),
       ),

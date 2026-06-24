@@ -407,7 +407,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
         children: [
           // Search icon
           Padding(
-            padding: const EdgeInsets.only(left: 14.0),
+            padding: const EdgeInsetsDirectional.only(start: 14.0),
             child: Icon(
               Icons.search,
               size: 20.0,
@@ -449,6 +449,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
                 _filtersExpanded = !_filtersExpanded;
               });
             },
+            tooltip: 'Toggle filters',
             icon: Icon(
               _filtersExpanded
                   ? Icons.filter_list
@@ -470,6 +471,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
                   _results = [];
                 });
               },
+              tooltip: 'Clear search',
               icon: const Icon(
                 Icons.close,
                 size: 18.0,
@@ -480,6 +482,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
           else
             IconButton(
               onPressed: widget.onClose,
+              tooltip: 'Close search',
               icon: const Icon(
                 Icons.close,
                 size: 18.0,

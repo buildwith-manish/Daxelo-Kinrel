@@ -211,10 +211,9 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       backgroundColor: KinrelColors.darkCard,
       foregroundColor: KinrelColors.textWhite,
       elevation: 0,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back, size: 22),
-        onPressed: () => Navigator.of(context).pop(),
-      ),
+      // BackButton is RTL-aware — it renders an arrow_back in LTR and an
+      // arrow_forward in RTL automatically, and pops via Navigator.
+      leading: const BackButton(),
       title: Text(
         widget.familyName ?? 'Family Graph',
         style: TextStyle(
@@ -226,7 +225,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       actions: [
         // Add Member button — primary action, always visible
         Padding(
-          padding: const EdgeInsets.only(right: 8),
+          padding: const EdgeInsetsDirectional.only(end: 8),
           child: TextButton.icon(
             onPressed: _openAddMember,
             icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
@@ -470,12 +469,15 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ],
         ),
 
-        // Legend (?) button (top-right, below filter bar)
+        // Legend (?) button (top-end, below filter bar)
         // Only the help/legend button — no Add Member pill here
         // (Add Member is in the AppBar and bottom toolbar).
+        // Directional positioning: hugs the trailing edge in both LTR (right)
+        // and RTL (left) so the legend doesn't overlap the back button.
         if (presentRelationshipKeys.isNotEmpty)
           Positioned(
-            right: 16,
+            right: Directionality.of(context) == TextDirection.rtl ? null : 16,
+            left: Directionality.of(context) == TextDirection.rtl ? 16 : null,
             top: filterBarTopOffset,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -518,9 +520,12 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             ),
           ),
 
-        // V2.1 Stats panel (bottom-left, above bottom toolbar)
+        // V2.1 Stats panel (bottom-start, above bottom toolbar)
+        // Directional positioning: bottom-left in LTR, bottom-right in RTL
+        // so the stats panel mirrors to the leading edge of the layout.
         Positioned(
-          left: 16,
+          right: Directionality.of(context) == TextDirection.rtl ? 16 : null,
+          left: Directionality.of(context) == TextDirection.rtl ? null : 16,
           bottom: fabBottomOffset,
           child: StatsPanel(
             totalMembers: graph.persons.length,
@@ -559,8 +564,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           onAddMember: _openAddMember,
         ),
         // Add Member FAB — visible even in empty state
+        // Directional positioning: bottom-end (bottom-right in LTR,
+        // bottom-left in RTL).
         Positioned(
-          right: 20,
+          right: Directionality.of(context) == TextDirection.rtl ? null : 20,
+          left: Directionality.of(context) == TextDirection.rtl ? 20 : null,
           bottom: bottomPadding + 20,
           child: FloatingActionButton(
             heroTag: 'empty_add_member_fab',

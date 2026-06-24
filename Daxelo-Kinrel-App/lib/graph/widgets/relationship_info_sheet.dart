@@ -561,7 +561,17 @@ class _RelationRow extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 4),
-                Icon(Icons.arrow_forward_rounded, color: arrowColor, size: 14),
+                // RTL: flip the arrow so the visual flow matches the
+                // text direction. In LTR the arrow points forward (→),
+                // in RTL it points the other way (←).
+                Transform.flip(
+                  flipX: Directionality.of(context) == TextDirection.rtl,
+                  child: Icon(
+                    Icons.arrow_forward_rounded,
+                    color: arrowColor,
+                    size: 14,
+                  ),
+                ),
               ],
             ),
           ),

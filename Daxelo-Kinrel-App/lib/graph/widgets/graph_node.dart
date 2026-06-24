@@ -551,36 +551,43 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     final effectiveOpacity =
         widget.isDeceased ? 0.4 * widget.opacity : widget.opacity;
 
-    return Opacity(
-      opacity: effectiveOpacity,
-      // v47 FIX: Use RawGestureDetector with eager TapGestureRecognizer.
-      // On Android, a regular GestureDetector(translucent) competes with
-      // the parent ScaleGestureRecognizer in the gesture arena — when you
-      // pinch with 2 fingers starting on a node, the tap recognizer delays
-      // the scale recognizer from winning, causing zoom to freeze.
-      //
-      // RawGestureDetector with eager TapGestureRecognizer resolves the
-      // arena instantly: 1 finger = tap (wins immediately), 2 fingers =
-      // tap rejects itself (only 1 pointer) → scale wins immediately.
-      child: RawGestureDetector(
-        gestures: {
-          TapGestureRecognizer:
-              GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
-            () => TapGestureRecognizer(),
-            (instance) {
-              instance.onTap = widget.onTap;
-            },
-          ),
-          LongPressGestureRecognizer:
-              GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
-            () => LongPressGestureRecognizer(),
-            (instance) {
-              instance.onLongPress = widget.onLongPress;
-            },
-          ),
-        },
-        behavior: HitTestBehavior.opaque,
-        child: _buildAnimatedNode(reduceMotion: reduceMotion),
+    // Accessibility: Expose the node as a single semantic button with a
+    // descriptive label. Screen-reader users hear "[Name], [Relation],
+    // Generation N." instead of "button, button, text, text".
+    return Semantics(
+      label: _buildSemanticLabel(),
+      button: true,
+      child: Opacity(
+        opacity: effectiveOpacity,
+        // v47 FIX: Use RawGestureDetector with eager TapGestureRecognizer.
+        // On Android, a regular GestureDetector(translucent) competes with
+        // the parent ScaleGestureRecognizer in the gesture arena — when you
+        // pinch with 2 fingers starting on a node, the tap recognizer delays
+        // the scale recognizer from winning, causing zoom to freeze.
+        //
+        // RawGestureDetector with eager TapGestureRecognizer resolves the
+        // arena instantly: 1 finger = tap (wins immediately), 2 fingers =
+        // tap rejects itself (only 1 pointer) → scale wins immediately.
+        child: RawGestureDetector(
+          gestures: {
+            TapGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+              () => TapGestureRecognizer(),
+              (instance) {
+                instance.onTap = widget.onTap;
+              },
+            ),
+            LongPressGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+              () => LongPressGestureRecognizer(),
+              (instance) {
+                instance.onLongPress = widget.onLongPress;
+              },
+            ),
+          },
+          behavior: HitTestBehavior.opaque,
+          child: _buildAnimatedNode(reduceMotion: reduceMotion),
+        ),
       ),
     );
   }
@@ -589,11 +596,13 @@ class _GraphNodeState extends ConsumerState<GraphNode>
 
   String _buildSemanticLabel() {
     if (widget.isAnonymous) {
-      return 'Anonymous, Generation ${widget.generationIndex}';
+      return 'Anonymous family member';
     }
 
+    final name = widget.isDeceased ? 'Late ${widget.name}' : widget.name;
+
     final parts = <String>[
-      widget.name,
+      name,
       widget.relationLabel,
       'Generation ${widget.generationIndex}',
     ];
@@ -659,33 +668,44 @@ class _GraphNodeState extends ConsumerState<GraphNode>
         const SizedBox(height: 6.0),
 
         // ── Name below circle ─────────────────────────────────────
+        // Wrap in FittedBox(scaleDown) so long names shrink to fit instead
+        // of clipping. maxLines:1 + ellipsis remains as the final fallback
+        // when scaling would make the text unreadably small.
         if (!widget.isAnonymous)
-          Text(
-            widget.name,
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 14.0,
-              fontWeight: FontWeight.w600,
-              color: KinrelColors.textWhite,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              widget.name,
+              style: TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 14.0,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.textWhite,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
 
         // ── Relation label below name ─────────────────────────────
+        // Same FittedBox treatment for the relationship label so localized
+        // strings (Arabic, Hindi, etc.) don't clip in narrow nodes.
         if (!widget.isAnonymous && widget.relationLabel.isNotEmpty)
-          Text(
-            widget.relationLabel,
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 11.0,
-              fontWeight: FontWeight.w500,
-              color: _borderColor,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              widget.relationLabel,
+              style: TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 11.0,
+                fontWeight: FontWeight.w500,
+                color: _borderColor,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
       ],
     );

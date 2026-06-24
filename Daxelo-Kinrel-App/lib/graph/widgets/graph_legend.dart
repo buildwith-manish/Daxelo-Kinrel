@@ -46,36 +46,50 @@ class _GraphLegendState extends ConsumerState<GraphLegend> {
 
   @override
   Widget build(BuildContext context) {
-    // Must be a direct child of Stack — Positioned only works as an
-    // immediate child. Wrapping it in RepaintBoundary breaks positioning.
+    // Directional positioning so the legend hugs the leading edge in LTR
+    // (left:16) and the trailing edge in RTL (right:16). Must stay a direct
+    // child of Stack — Positioned only works as an immediate child.
+    final bool isRtl = Directionality.of(context) == TextDirection.rtl;
     return Positioned(
       bottom: 80,
-      left: 16,
+      left: isRtl ? null : 16,
+      right: isRtl ? 16 : null,
       child: RepaintBoundary(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             // Toggle button (? icon)
+            // Accessibility: 48×48 tap target (WCAG 2.5.5) wrapped in a
+            // Semantics button so screen readers announce "Toggle legend".
             if (!widget.isVisible)
-              GestureDetector(
-                onTap: widget.onToggle,
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: KinrelColors.darkCard.withValues(alpha: 0.9),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: KinrelColors.border),
-                  ),
-                  child: const Center(
-                    child: Text(
-                      '?',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.displayFont,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: KinrelColors.textSilver,
+              Semantics(
+                label: 'Toggle legend',
+                button: true,
+                child: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: GestureDetector(
+                    onTap: widget.onToggle,
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: KinrelColors.darkCard.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: KinrelColors.border),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          '?',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.displayFont,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: KinrelColors.textSilver,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -104,8 +118,14 @@ class _GraphLegendState extends ConsumerState<GraphLegend> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Header
+                    // Directional padding so RTL layouts mirror correctly.
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 12, 8, 8),
+                      padding: const EdgeInsetsDirectional.fromSTBE(
+                        start: 14,
+                        top: 12,
+                        end: 8,
+                        bottom: 8,
+                      ),
                       child: Row(
                         children: [
                           const Icon(
@@ -133,9 +153,10 @@ class _GraphLegendState extends ConsumerState<GraphLegend> {
                             ),
                             onPressed: widget.onToggle,
                             padding: EdgeInsets.zero,
+                            // 48×48 minimum tap target (WCAG 2.5.5).
                             constraints: const BoxConstraints(
-                              minWidth: 28,
-                              minHeight: 28,
+                              minWidth: 48,
+                              minHeight: 48,
                             ),
                           ),
                         ],
