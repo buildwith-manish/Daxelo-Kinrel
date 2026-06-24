@@ -280,10 +280,12 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     // Auto-center the graph on the anchor node after the first frame.
     // Runs once via _autoCenterDone flag so the user's manual pan/zoom
     // is preserved after the initial centering.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _autoCenterOnAnchor(layout, anchorPerson.id);
-    });
+    if (!_autoCenterDone) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _autoCenterOnAnchor(layout, anchorPerson.id);
+      });
+    }
 
     return _buildGraphCanvas(layout, personMap, edges);
   }
