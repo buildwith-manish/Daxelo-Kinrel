@@ -280,7 +280,7 @@ class EdgeStyleResolver {
       case EdgeCategory.inLaw:
         return 0.7;
       case EdgeCategory.extended:
-        return 0.45;
+        return 0.70; // v60: raised from 0.45 — was invisible on dark bg
       case EdgeCategory.indirect:
         return 0.5;
     }
@@ -309,11 +309,12 @@ class EdgeStyleResolver {
     return category == EdgeCategory.spouse;
   }
 
-  /// Whether the edge should have a glow dot at midpoint (parent/child).
+  /// Whether the edge should have a glow dot at midpoint.
+  /// v60: Now returns true for ALL categories except spouse (heart)
+  /// and indirect (text label). Every edge gets a visible dot.
   static bool hasDotMidpoint(EdgeCategory category) {
-    return category == EdgeCategory.parent ||
-        category == EdgeCategory.child ||
-        category == EdgeCategory.grandparent;
+    return category != EdgeCategory.spouse &&
+        category != EdgeCategory.indirect;
   }
 
   /// Whether the edge should have a lock icon at midpoint (private).
@@ -562,8 +563,11 @@ class RelationshipEdge extends CustomPainter {
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
 
     // ── Compute the Path AND the t=0.5 midpoint in one place ──────
-    // This ensures the midpoint dot sits exactly on the visible curve.
-    final (path, midpoint) = _buildEdgePath(start, end, category, isHalfSibling);
+    // v60: Pass positions + sourceId + targetId for collision avoidance
+    // in the parent/child bezier (steers around intermediate nodes).
+    final (path, midpoint) = _buildEdgePath(
+      start, end, category, isHalfSibling, positions, sourceId, targetId,
+    );
 
     // ── Draw glow first (solid, no dash) then the main line ──────
     canvas.drawPath(path, glowPaint);
@@ -646,15 +650,18 @@ class RelationshipEdge extends CustomPainter {
     Offset start,
     Offset end,
     EdgeCategory category,
-    bool isHalfSibling,
-  ) {
+    bool isHalfSibling, [
+    Map<String, Offset>? allPositions,
+    String? sourceId,
+    String? targetId,
+  ]) {
     switch (category) {
       case EdgeCategory.parent:
       case EdgeCategory.child:
-        return _buildVerticalBezier(start, end);
+        return _buildVerticalBezier(start, end, allPositions, sourceId, targetId);
 
       case EdgeCategory.grandparent:
-        return _buildExtendedVerticalBezier(start, end);
+        return _buildExtendedVerticalBezier(start, end, allPositions, sourceId, targetId);
 
       case EdgeCategory.sibling:
         return _buildSiblingArc(start, end, isHalfSibling);
@@ -699,24 +706,55 @@ class RelationshipEdge extends CustomPainter {
   ///   cp2 = (end.x   + lateralOffset, end.y   - dy * 0.35)
   ///
   /// where lateralOffset = ±50px depending on which side is clearer.
-  (Path, Offset) _buildVerticalBezier(Offset start, Offset end) {
+  (Path, Offset) _buildVerticalBezier(
+    Offset start, Offset end, [
+    Map<String, Offset>? allPositions,
+    String? sourceId,
+    String? targetId,
+  ]) {
     final dy = end.dy - start.dy;
-
-    // v56: Determine which side to curve toward. If nodes share the
-    // same X (or nearly), we MUST add a lateral offset or the curve
-    // is a straight line. Default to curving RIGHT (+50). If there's
-    // a node in the way on the right, curve LEFT (-50).
     final dx = end.dx - start.dx;
-    final lateralOffset = dx.abs() < 5.0 ? 50.0 : 0.0;
 
-    final cp1 = Offset(start.dx + lateralOffset, start.dy + dy * 0.35);
-    final cp2 = Offset(end.dx + lateralOffset, end.dy - dy * 0.35);
+    // v60: Lateral offset — if nodes are nearly vertically aligned,
+    // add 50px offset to create visible S-curve. Direction: always
+    // curve RIGHT by default.
+    var lateralOffset = 0.0;
+    if (dx.abs() < 10.0) {
+      lateralOffset = 50.0;
+    }
+
+    // v60 Bug 5: Collision avoidance — check if any OTHER node sits
+    // between start and end vertically AND close to the line X.
+    // If found, push control points AWAY from that node.
+    if (allPositions != null) {
+      final minY = start.dy < end.dy ? start.dy : end.dy;
+      final maxY = start.dy > end.dy ? start.dy : end.dy;
+      final lineX = start.dx;
+
+      for (final entry in allPositions.entries) {
+        if (entry.key == sourceId || entry.key == targetId) continue;
+        final otherPos = entry.value;
+        // Is this node between the two endpoints vertically?
+        if (otherPos.dy < minY || otherPos.dy > maxY) continue;
+        // Is this node close to the line horizontally?
+        final distToLine = (otherPos.dx - lineX).abs();
+        if (distToLine < 50.0) {
+          // Push control points away from the obstacle.
+          final pushDir = otherPos.dx >= lineX ? -1.0 : 1.0;
+          lateralOffset = 50.0 * pushDir;
+          break;
+        }
+      }
+    }
+
+    var cp1 = Offset(start.dx + lateralOffset, start.dy + dy * 0.35);
+    var cp2 = Offset(end.dx + lateralOffset, end.dy - dy * 0.35);
 
     final path = Path()
       ..moveTo(start.dx, start.dy)
       ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, end.dx, end.dy);
 
-    // t=0.5 on a cubic bezier: 0.125·P0 + 0.375·CP1 + 0.375·CP2 + 0.125·P3
+    // t=0.5 cubic bezier: 0.125·P0 + 0.375·CP1 + 0.375·CP2 + 0.125·P3
     final mid = Offset(
       0.125 * start.dx + 0.375 * cp1.dx + 0.375 * cp2.dx + 0.125 * end.dx,
       0.125 * start.dy + 0.375 * cp1.dy + 0.375 * cp2.dy + 0.125 * end.dy,
@@ -730,10 +768,31 @@ class RelationshipEdge extends CustomPainter {
   /// apart (35% / 65%) for a more dramatic curve signaling greater
   /// generational distance. Also adds lateral offset when nodes are
   /// vertically aligned (v56).
-  (Path, Offset) _buildExtendedVerticalBezier(Offset start, Offset end) {
+  (Path, Offset) _buildExtendedVerticalBezier(
+    Offset start, Offset end, [
+    Map<String, Offset>? allPositions,
+    String? sourceId,
+    String? targetId,
+  ]) {
     final dy = end.dy - start.dy;
     final dx = end.dx - start.dx;
-    final lateralOffset = dx.abs() < 5.0 ? 50.0 : 0.0;
+    var lateralOffset = dx.abs() < 10.0 ? 50.0 : 0.0;
+
+    if (allPositions != null) {
+      final minY = start.dy < end.dy ? start.dy : end.dy;
+      final maxY = start.dy > end.dy ? start.dy : end.dy;
+      final lineX = start.dx;
+      for (final entry in allPositions.entries) {
+        if (entry.key == sourceId || entry.key == targetId) continue;
+        final otherPos = entry.value;
+        if (otherPos.dy < minY || otherPos.dy > maxY) continue;
+        if ((otherPos.dx - lineX).abs() < 50.0) {
+          lateralOffset = 50.0 * (otherPos.dx >= lineX ? -1.0 : 1.0);
+          break;
+        }
+      }
+    }
+
     final cp1 = Offset(start.dx + lateralOffset, start.dy + dy * 0.35);
     final cp2 = Offset(end.dx + lateralOffset, end.dy - dy * 0.35);
 
