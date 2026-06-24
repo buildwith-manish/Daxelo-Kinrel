@@ -423,9 +423,14 @@ class RelationshipEdge extends CustomPainter {
   static const double _lockSize = 12.0;
 
   // ── LOD Thresholds ─────────────────────────────────────────────────
-
-  /// Below this zoom level, skip dots/hearts and draw simplified lines.
-  static const double _lodMinimalZoom = 0.4;
+  //
+  // v59: Lowered thresholds so dots and labels are ALWAYS visible.
+  // Previously _lodMinimalZoom was 0.4, which caused ALL midpoint dots
+  // to disappear when the auto-center zoomed out to fit the graph
+  // (often scale 0.2-0.3 for larger families). Now dots are always
+  // drawn and labels appear at very low zoom.
+  static const double _lodMinimalZoom = 0.05;
+  static const double _lodLabelZoom = 0.15;
 
   bool get _isMinimal => zoomLevel < _lodMinimalZoom;
 
@@ -598,11 +603,11 @@ class RelationshipEdge extends CustomPainter {
       }
 
       // ── Relationship label — offset PERPENDICULAR to the edge ──
-      // v54 Problem 3: No filled background. Plain text floating BESIDE
-      // the line, not on top of it. Only visible at zoom >= 0.4.
+      // v59: Labels now visible at all zoom levels (threshold lowered
+      // from 0.4 to 0.05). Fade-in from 0.05 → 0.15.
       if (!isIndirect && zoomLevel >= _lodMinimalZoom) {
         final double labelOpacity =
-            ((zoomLevel - 0.4) / 0.2).clamp(0.0, 1.0);
+            ((zoomLevel - 0.05) / 0.10).clamp(0.0, 1.0);
         if (labelOpacity > 0) {
           _drawRelationshipLabelOffset(
             canvas,
@@ -747,17 +752,9 @@ class RelationshipEdge extends CustomPainter {
 
   /// Builds a cubic bezier arc that bows ABOVE both nodes.
   ///
-  /// v56 FIX: Uses a CUBIC bezier (two control points) instead of a
-  /// quadratic (one control point). Both control points are placed
-  /// ABOVE the topmost node, guaranteeing the arc curves UP and OVER.
-  ///
-  /// Control points:
-  ///   topY = min(startY, endY)
-  ///   arcHeight = max(70, distance * 0.4)
-  ///   cp1 = (startX + 25% of horizontal span, topY - arcHeight)
-  ///   cp2 = (endX - 25% of horizontal span,   topY - arcHeight)
-  ///
-  /// This ensures the arc NEVER dips below either node.
+  /// v59: Minimum arc height raised to 80px (was 70px). Multiplier
+  /// raised to 0.5 (was 0.4). This ensures even short-distance arcs
+  /// clear all intermediate nodes.
   (Path, Offset) _buildSiblingArc(
     Offset start,
     Offset end,
@@ -768,8 +765,8 @@ class RelationshipEdge extends CustomPainter {
     final dy = end.dy - start.dy;
     final distance = math.sqrt(dx * dx + dy * dy);
 
-    // Arc height — at least 70px, scales with distance.
-    final arcHeight = math.max(70.0, distance * 0.4);
+    // v59: Arc height — minimum 80px, scales with distance.
+    final arcHeight = math.max(80.0, distance * 0.5);
 
     // topY = the higher (smaller Y) of the two endpoints.
     final topY = start.dy < end.dy ? start.dy : end.dy;
