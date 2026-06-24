@@ -3,27 +3,32 @@
 // DAXELO KINREL — Family Graph (V2.1 Engine view)
 //
 // The scalable, engine-backed alternative to the v40 `InteractiveViewer`
-// widget (`family_graph.dart`). It wires the previously-orphaned engine
-// layers back into the live providers:
+// widget (`family_graph.dart`). Gated behind `kUseV21Engine`
+// (feature_flags.dart) so it cannot affect production until verified.
 //
-//   • Viewport culling  — ViewportCuller builds only on-screen nodes/edges,
-//                         so the graph scales to 500/1000/2000+ nodes.
-//   • Initial fit        — CameraController.initialFitOnce() frames the graph
-//                         on first load (THE blank-screen fix). See
-//                         docs/graph/BLANK_SCREEN_DIAGNOSIS.md.
-//   • Position memory    — CameraController persists pan/zoom per family via
-//                         PositionMemory; restored on next open.
-//   • Realtime sync      — graphRealtimeProvider invalidates the graph on
-//                         Supabase Realtime events while this view is mounted.
-//   • Offline            — isOnlineProvider drives an offline banner; the
-//                         provider's Drift cache already serves graph data
-//                         offline. (OfflineManager's write-queue is a follow-up.)
-//   • Expand / collapse  — ExpandCollapseController filters which subtrees are
-//                         rendered; long-press a node to toggle its descendants.
+// Performance design (Steps 3/4 of Path B — see docs/graph/PATH_B_REWIRE.md):
 //
-// This widget is gated behind `kUseV21Engine` (feature_flags.dart) and is NOT
-// in the live path until that flag is flipped, so it cannot affect production
-// until verified with `flutter analyze` + `flutter test test/graph/`.
+//   • Viewport culling      — ViewportCuller builds only on-screen nodes/edges.
+//   • Edge path caching      — EdgePathCache memoises bezier Paths keyed by
+//                             quantized endpoints. Graph-space positions don't
+//                             change during pan/zoom, so paths are pure cache
+//                             hits across frames (no per-frame recompute, and
+//                             NO per-edge O(N) collision scan).
+//   • Level of detail (LOD)  — zoomed in: full GraphNode; mid: lightweight name
+//                             chips; zoomed out: a SINGLE CustomPainter draws
+//                             every node as a dot (no per-node widgets), which
+//                             is what keeps 1000–2000 nodes smooth.
+//   • Cheap pan/zoom         — content is built once per cull/LOD change and
+//                             wrapped in a RepaintBoundary; an AnimatedBuilder
+//                             re-applies only the camera Transform on each
+//                             frame, so panning reuses the cached raster.
+//
+// Also wired to the live providers:
+//   • Initial fit   — CameraController.initialFitOnce() (blank-screen fix).
+//   • Position memory — CameraController persists/restores pan+zoom per family.
+//   • Realtime       — graphRealtimeProvider invalidation while mounted.
+//   • Offline        — isOnlineProvider banner; Drift cache serves data offline.
+//   • Expand/collapse — long-press a node to toggle its descendants.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,9 +48,21 @@ import '../data/position_memory.dart' show PositionMemory;
 import '../interaction/camera_controller.dart' show CameraController;
 import '../interaction/expand_collapse.dart'
     show ExpandCollapseController, ExpandCollapseState;
+import '../rendering/edge_path_cache.dart' show EdgePathCache;
 import '../rendering/viewport_culler.dart' show ViewportCuller;
 import 'graph_node.dart' show GraphNode;
-import 'relationship_edge.dart' show RelationshipEdge;
+
+/// LOD tiers, chosen by camera zoom.
+enum _Lod {
+  /// Full interactive node cards.
+  full,
+
+  /// Lightweight name-only chips.
+  chip,
+
+  /// Single painter draws every node as a dot (max scale).
+  dot,
+}
 
 /// Engine-backed family graph view (see file header).
 class FamilyGraphEngineView extends ConsumerStatefulWidget {
@@ -64,13 +81,22 @@ class _FamilyGraphEngineViewState
   /// Bounding box used for culling + node placement (circle + label).
   static const Size _kNodeSize = Size(96, 120);
 
+  /// Zoom thresholds for LOD tiers.
+  static const double _kChipZoom = 0.55;
+  static const double _kDotZoom = 0.3;
+
   late final PositionMemory _positionMemory;
   late final CameraController _camera;
   late final ViewportCuller _culler;
   late final ExpandCollapseController _expandCollapse;
+  final EdgePathCache _edgePathCache = EdgePathCache();
 
   Size _viewportSize = Size.zero;
   bool _framed = false; // one-time initial framing per family
+
+  // Repaint/recull throttling.
+  Rect _lastCullViewport = Rect.zero;
+  _Lod _lastLod = _Lod.full;
 
   // Gesture bookkeeping for pan + pinch-zoom.
   Offset _lastFocal = Offset.zero;
@@ -101,6 +127,7 @@ class _FamilyGraphEngineViewState
         ..resetInitialFit()
         ..setFamilyId(widget.familyId);
       _culler.invalidate();
+      _edgePathCache.clear();
       _expandCollapse.updateVisibleNodes(<String>{});
     }
   }
@@ -115,8 +142,21 @@ class _FamilyGraphEngineViewState
     super.dispose();
   }
 
+  /// Rebuild content ONLY when the visible set or LOD tier would change.
+  /// Otherwise the AnimatedBuilder pans/zooms the Transform layer for free.
   void _onCameraChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final Rect vp = _graphSpaceViewport();
+    final _Lod lod = _lodFor(_camera.zoomLevel);
+    if (lod != _lastLod || _culler.shouldRebuild(_lastCullViewport, vp)) {
+      setState(() {});
+    }
+  }
+
+  _Lod _lodFor(double zoom) {
+    if (zoom >= _kChipZoom) return _Lod.full;
+    if (zoom >= _kDotZoom) return _Lod.chip;
+    return _Lod.dot;
   }
 
   // ── Build ──────────────────────────────────────────────────────────────
@@ -126,7 +166,7 @@ class _FamilyGraphEngineViewState
     // Keep Supabase Realtime invalidation alive while this view is mounted.
     ref.watch(graphRealtimeProvider(widget.familyId));
 
-    final isOnline = ref.watch(isOnlineProvider).valueOrNull ?? true;
+    final bool isOnline = ref.watch(isOnlineProvider).valueOrNull ?? true;
     final layoutAsync = ref.watch(graphLayoutProvider(widget.familyId));
     final flat = ref.watch(familyGraphProvider(widget.familyId)).valueOrNull;
     // Watched here (in build), not inside LayoutBuilder, per Riverpod rules.
@@ -147,7 +187,8 @@ class _FamilyGraphEngineViewState
             Positioned.fill(
                 child: _buildCanvas(layout, flat, selectedEdgeId)),
             if (!isOnline)
-              const Positioned(left: 0, right: 0, top: 0, child: _OfflineBanner()),
+              const Positioned(
+                  left: 0, right: 0, top: 0, child: _OfflineBanner()),
           ],
         );
       },
@@ -181,10 +222,14 @@ class _FamilyGraphEngineViewState
         final nodeSizes = <String, Size>{
           for (final String id in layout.positions.keys) id: _kNodeSize,
         };
+        final Rect vp = _graphSpaceViewport();
         final Set<String> culled =
-            _culler.cull(layout.positions, nodeSizes, _graphSpaceViewport());
-        final Set<String> visible =
-            culled.where(allowed.contains).toSet();
+            _culler.cull(layout.positions, nodeSizes, vp);
+        final Set<String> visible = culled.where(allowed.contains).toSet();
+
+        // Record throttling baselines for _onCameraChanged.
+        _lastCullViewport = vp;
+        _lastLod = _lodFor(_camera.zoomLevel);
 
         // Edges: only when BOTH endpoints are visible.
         final edges = <GraphEdgeData>[];
@@ -202,49 +247,48 @@ class _FamilyGraphEngineViewState
           ));
         }
 
+        // Build the (transform-independent) content once. The AnimatedBuilder
+        // below re-applies only the camera Transform per frame, so the cached
+        // raster is reused while panning/zooming.
+        final Widget content = RepaintBoundary(
+          child: SizedBox(
+            width: layout.canvasWidth,
+            height: layout.canvasHeight,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Edge layer — single cached painter over the full canvas.
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _EngineEdgePainter(
+                      positions: layout.positions,
+                      edges: edges,
+                      cache: _edgePathCache,
+                      selectedEdgeId: selectedEdgeId,
+                    ),
+                  ),
+                ),
+                // Node layer — LOD-dependent.
+                ..._buildNodeLayer(
+                    layout, visible, personById, relationLabelById),
+              ],
+            ),
+          ),
+        );
+
         return GestureDetector(
           onScaleStart: _onScaleStart,
           onScaleUpdate: _onScaleUpdate,
           child: ClipRect(
-            child: Transform(
-              transform: _camera.transformMatrix,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // Edge layer — single CustomPaint over the full canvas,
-                  // fed only the culled-visible edges.
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    width: layout.canvasWidth,
-                    height: layout.canvasHeight,
-                    child: CustomPaint(
-                      size: Size(layout.canvasWidth, layout.canvasHeight),
-                      painter: RelationshipEdge(
-                        positions: layout.positions,
-                        edges: edges,
-                        zoomLevel: _camera.zoomLevel,
-                        selectedEdgeId: selectedEdgeId,
-                      ),
-                    ),
-                  ),
-                  // Node layer — only culled-visible nodes, each isolated in
-                  // a RepaintBoundary so pan/zoom doesn't repaint them.
-                  for (final String id in visible)
-                    if (layout.positions[id] != null &&
-                        personById[id] != null)
-                      Positioned(
-                        left: layout.positions[id]!.dx - _kNodeSize.width / 2,
-                        top: layout.positions[id]!.dy - _kNodeSize.height / 2,
-                        width: _kNodeSize.width,
-                        height: _kNodeSize.height,
-                        child: RepaintBoundary(
-                          child: _buildNode(
-                              id, personById[id]!, relationLabelById),
-                        ),
-                      ),
-                ],
-              ),
+            child: AnimatedBuilder(
+              animation: _camera,
+              child: content,
+              builder: (BuildContext context, Widget? child) {
+                return Transform(
+                  transform: _camera.transformMatrix,
+                  child: child,
+                );
+              },
             ),
           ),
         );
@@ -252,7 +296,53 @@ class _FamilyGraphEngineViewState
     );
   }
 
-  Widget _buildNode(
+  /// Builds the node layer for the current LOD tier.
+  List<Widget> _buildNodeLayer(
+    GraphLayoutResult layout,
+    Set<String> visible,
+    Map<String, Map<String, dynamic>> personById,
+    Map<String, String> relationLabelById,
+  ) {
+    final _Lod lod = _lodFor(_camera.zoomLevel);
+
+    // Dot tier: one painter for ALL visible nodes — no per-node widgets.
+    if (lod == _Lod.dot) {
+      final dots = <_Dot>[];
+      for (final String id in visible) {
+        final pos = layout.positions[id];
+        final p = personById[id];
+        if (pos == null || p == null) continue;
+        dots.add(_Dot(
+          pos,
+          _dotColor(p['gender'] as String?, (p['isAnchor'] as bool?) ?? false),
+        ));
+      }
+      return <Widget>[
+        Positioned.fill(child: CustomPaint(painter: _NodeDotPainter(dots))),
+      ];
+    }
+
+    // Full / chip tiers: individual widgets (culling keeps the count small).
+    final widgets = <Widget>[];
+    for (final String id in visible) {
+      final pos = layout.positions[id];
+      final p = personById[id];
+      if (pos == null || p == null) continue;
+      final Widget node = lod == _Lod.full
+          ? _buildFullNode(id, p, relationLabelById)
+          : _buildChipNode(p);
+      widgets.add(Positioned(
+        left: pos.dx - _kNodeSize.width / 2,
+        top: pos.dy - _kNodeSize.height / 2,
+        width: _kNodeSize.width,
+        height: _kNodeSize.height,
+        child: RepaintBoundary(child: node),
+      ));
+    }
+    return widgets;
+  }
+
+  Widget _buildFullNode(
     String id,
     Map<String, dynamic> p,
     Map<String, String> labels,
@@ -266,9 +356,34 @@ class _FamilyGraphEngineViewState
       photoUrl: p['photoUrl'] as String?,
       isDeceased: (p['isDeceased'] as bool?) ?? false,
       relationLabel: labels[id] ?? '',
-      onTap: () =>
-          ref.read(selectedNodeProvider.notifier).state = id,
+      onTap: () => ref.read(selectedNodeProvider.notifier).state = id,
       onLongPress: () => _toggleSubtree(id),
+    );
+  }
+
+  /// Lightweight mid-zoom node: a coloured dot + the name, no avatar/animations.
+  Widget _buildChipNode(Map<String, dynamic> p) {
+    final color =
+        _dotColor(p['gender'] as String?, (p['isAnchor'] as bool?) ?? false);
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 18,
+          height: 18,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(height: 4),
+        Flexible(
+          child: Text(
+            (p['name'] as String?) ?? '',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 11),
+          ),
+        ),
+      ],
     );
   }
 
@@ -379,6 +494,115 @@ class _FamilyGraphEngineViewState
     }
     return labels;
   }
+
+  Color _dotColor(String? gender, bool isAnchor) {
+    if (isAnchor) return Colors.orange;
+    switch (gender) {
+      case 'male':
+        return Colors.blue;
+      case 'female':
+        return Colors.pink;
+      default:
+        return Colors.grey;
+    }
+  }
+}
+
+// ── Painters ────────────────────────────────────────────────────────────────
+
+/// Draws relationship edges using cached bezier paths.
+///
+/// Paths are memoised in [EdgePathCache] keyed by quantized endpoint
+/// positions. Because graph-space positions are constant during pan/zoom,
+/// repeated frames hit the cache and skip path construction entirely. The
+/// factory is O(1) (no per-edge node-collision scan).
+class _EngineEdgePainter extends CustomPainter {
+  _EngineEdgePainter({
+    required this.positions,
+    required this.edges,
+    required this.cache,
+    this.selectedEdgeId,
+  });
+
+  final Map<String, Offset> positions;
+  final List<GraphEdgeData> edges;
+  final EdgePathCache cache;
+  final String? selectedEdgeId;
+
+  static Path _bezier(Offset s, Offset t) {
+    final double dy = t.dy - s.dy;
+    final double dx = t.dx - s.dx;
+    final double lateral = dx.abs() < 10.0 ? 50.0 : 0.0;
+    final cp1 = Offset(s.dx + lateral, s.dy + dy * 0.35);
+    final cp2 = Offset(t.dx + lateral, t.dy - dy * 0.35);
+    return Path()
+      ..moveTo(s.dx, s.dy)
+      ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, t.dx, t.dy);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final base = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = const Color(0x66FFFFFF)
+      ..isAntiAlias = true;
+    final selected = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..color = Colors.orange
+      ..isAntiAlias = true;
+
+    for (final GraphEdgeData e in edges) {
+      final Offset? s = positions[e.sourceId];
+      final Offset? t = positions[e.targetId];
+      if (s == null || t == null) continue;
+      final Path path = cache.getOrCreate(
+        edgeId: e.id,
+        sourceId: e.sourceId,
+        targetId: e.targetId,
+        sourcePos: s,
+        targetPos: t,
+        pathFactory: _bezier,
+      );
+      canvas.drawPath(path, e.id == selectedEdgeId ? selected : base);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _EngineEdgePainter old) {
+    return old.edges.length != edges.length ||
+        old.selectedEdgeId != selectedEdgeId ||
+        !identical(old.edges, edges);
+  }
+}
+
+/// A single node rendered as a coloured dot at the lowest LOD tier.
+class _Dot {
+  const _Dot(this.pos, this.color);
+  final Offset pos;
+  final Color color;
+}
+
+/// Draws every visible node as a dot in ONE painter — avoids thousands of
+/// widgets when fully zoomed out (the 2000-node case).
+class _NodeDotPainter extends CustomPainter {
+  _NodeDotPainter(this.dots);
+
+  final List<_Dot> dots;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..isAntiAlias = true;
+    for (final _Dot d in dots) {
+      paint.color = d.color;
+      canvas.drawCircle(d.pos, 6, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _NodeDotPainter old) =>
+      old.dots.length != dots.length || !identical(old.dots, dots);
 }
 
 // ── Small presentational helpers ───────────────────────────────────────────
