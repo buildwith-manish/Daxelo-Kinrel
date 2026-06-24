@@ -17,9 +17,10 @@ import '../../../core/kinship/kinship_models.dart';
 // ────────────────────────────────────────────────────────────────
 
 class PathFinderScreen extends ConsumerStatefulWidget {
-  PathFinderScreen({super.key, required this.familyId});
+  PathFinderScreen({super.key, required this.familyId, this.startPersonId});
 
   final String familyId;
+  final String? startPersonId;
 
   @override
   ConsumerState<PathFinderScreen> createState() => _PathFinderScreenState();
@@ -40,6 +41,8 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen>
   @override
   void initState() {
     super.initState();
+    // Pre-select the "from" person if startPersonId was provided.
+    _fromPersonId = widget.startPersonId;
     _dotPulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),

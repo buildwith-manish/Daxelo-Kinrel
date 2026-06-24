@@ -3,13 +3,18 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/family/family_provider.dart' show Person;
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/member_detail_provider.dart';
 import '../../../core/services/image_cache_manager.dart';
+import 'add_person_sheet.dart';
+import 'path_finder_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────
 // Person Detail Screen — Full-Screen Member Profile
@@ -135,7 +140,31 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
           tooltip: 'Edit Profile',
           onTap: () {
             HapticFeedback.lightImpact();
-            _showSnackBar('Edit profile coming soon');
+            // 1A: Edit Profile — gated behind kEnableProfileEditing
+            if (kEnableProfileEditing) {
+              final detailAsync = ref.read(memberDetailProvider(widget.memberId));
+              detailAsync.whenData((detail) {
+                AddPersonSheet.show(
+                  context,
+                  familyId: detail.familyId,
+                  existingPerson: Person(
+                    id: detail.memberId,
+                    familyId: detail.familyId,
+                    name: detail.name,
+                    gender: detail.gender,
+                    dateOfBirth: detail.dateOfBirth,
+                    city: detail.currentCity,
+                    occupation: detail.occupation,
+                    photoUrl: detail.photoUrl,
+                    isDeceased: detail.isDeceased,
+                    notes: detail.bio,
+                  ),
+                  isEditMode: true,
+                );
+              });
+            } else {
+              _showSnackBar('Edit profile coming soon');
+            }
           },
         ),
         _ActionIconButton(
@@ -143,7 +172,25 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
           tooltip: 'Add Relative',
           onTap: () {
             HapticFeedback.lightImpact();
-            _showSnackBar('Add relative coming soon');
+            // 1B: Add Relative — gated behind kEnableProfileEditing
+            if (kEnableProfileEditing) {
+              final detailAsync = ref.read(memberDetailProvider(widget.memberId));
+              detailAsync.whenData((detail) {
+                AddPersonSheet.show(
+                  context,
+                  familyId: detail.familyId,
+                  anchorPerson: Person(
+                    id: detail.memberId,
+                    familyId: detail.familyId,
+                    name: detail.name,
+                    gender: detail.gender,
+                    isAnchor: false,
+                  ),
+                );
+              });
+            } else {
+              _showSnackBar('Add relative coming soon');
+            }
           },
         ),
         _ActionIconButton(
@@ -151,7 +198,22 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
           tooltip: 'Find Path',
           onTap: () {
             HapticFeedback.lightImpact();
-            _showSnackBar('Find path coming soon');
+            // 1C: Find Path — gated behind kEnableProfileEditing
+            if (kEnableProfileEditing) {
+              final detailAsync = ref.read(memberDetailProvider(widget.memberId));
+              detailAsync.whenData((detail) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PathFinderScreen(
+                      familyId: detail.familyId,
+                      startPersonId: detail.memberId,
+                    ),
+                  ),
+                );
+              });
+            } else {
+              _showSnackBar('Find path coming soon');
+            }
           },
         ),
         PopupMenuButton<String>(
@@ -1269,7 +1331,19 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
     switch (action) {
       case 'share':
         HapticFeedback.lightImpact();
-        _showSnackBar('Share profile coming soon');
+        // 1D: Share Profile — gated behind kEnableProfileEditing
+        if (kEnableProfileEditing) {
+          final detailAsync = ref.read(memberDetailProvider(widget.memberId));
+          detailAsync.whenData((detail) {
+            final link = 'https://daxelo-kinrel.vercel.app/family/${detail.familyId}/person/${detail.memberId}';
+            Share.share(
+              'Check out ${detail.name}\'s profile on Kinrel! $link',
+              subject: '${detail.name} on Kinrel',
+            );
+          });
+        } else {
+          _showSnackBar('Share profile coming soon');
+        }
         break;
       case 'deceased':
         _confirmMarkDeceased();

@@ -23,9 +23,11 @@ class MemberDetailModel {
   const MemberDetailModel({
     required this.memberId,
     required this.name,
+    required this.familyId,
     this.nickname,
     this.gender,
     this.dateOfBirth,
+    this.dateOfDeath,
     this.birthplace,
     this.currentCity,
     this.phone,
@@ -45,9 +47,11 @@ class MemberDetailModel {
 
   final String memberId;
   final String name;
+  final String familyId;
   final String? nickname;
   final String? gender;
   final String? dateOfBirth;
+  final String? dateOfDeath;
   final String? birthplace;
   final String? currentCity;
   final String? phone;
@@ -91,9 +95,11 @@ class MemberDetailModel {
   Map<String, dynamic> toJson() => {
         'memberId': memberId,
         'name': name,
+        'familyId': familyId,
         'nickname': nickname,
         'gender': gender,
         'dateOfBirth': dateOfBirth,
+        'dateOfDeath': dateOfDeath,
         'birthplace': birthplace,
         'currentCity': currentCity,
         'phone': phone,
@@ -116,9 +122,11 @@ class MemberDetailModel {
     return MemberDetailModel(
       memberId: json['memberId'] as String? ?? '',
       name: json['name'] as String? ?? 'Unknown',
+      familyId: json['familyId'] as String? ?? '',
       nickname: json['nickname'] as String?,
       gender: json['gender'] as String?,
       dateOfBirth: json['dateOfBirth'] as String?,
+      dateOfDeath: json['dateOfDeath'] as String?,
       birthplace: json['birthplace'] as String?,
       currentCity: json['currentCity'] as String?,
       phone: json['phone'] as String?,
@@ -320,6 +328,7 @@ void _refreshInBackground(Ref ref, String personId) {
     return MemberDetailModel(
       memberId: personId,
       name: 'Unknown',
+      familyId: '',
     );
   });
 }
@@ -466,9 +475,11 @@ Future<MemberDetailModel> _fetchFromSupabase(
   final detail = MemberDetailModel(
     memberId: personId,
     name: name,
+    familyId: familyId,
     nickname: personData['username'] as String?,
     gender: personData['gender'] as String?,
     dateOfBirth: dateOfBirth,
+    dateOfDeath: personData['dateOfDeath']?.toString(),
     birthplace: null, // Not in Person schema
     currentCity: personData['city'] as String?,
     phone: null, // Not directly in Person schema

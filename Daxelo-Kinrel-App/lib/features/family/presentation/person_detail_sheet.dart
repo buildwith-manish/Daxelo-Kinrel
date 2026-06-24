@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
@@ -12,6 +14,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
 import '../../../core/kinship/kinship_service.dart';
 import 'add_person_sheet.dart';
+import 'path_finder_screen.dart';
 import '../../../core/services/image_cache_manager.dart';
 
 // ─────────────────────────────────────────────────────────────────────
@@ -695,34 +698,186 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
 
   // ── Timeline tab ───────────────────────────────────────────────
 
+  /// 1E: Timeline — vertical timeline showing dateOfBirth, dateOfDeath,
+  /// and life events. Gated behind kEnableProfileEditing.
   Widget _buildTimelineTab() {
-    // Placeholder — timeline events not yet in data model
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.timeline, size: 48, color: KinrelColors.textDim),
-          SizedBox(height: 12),
-          Text(
-            'Timeline coming soon',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 15,
-              color: KinrelColors.textDim,
+    if (!kEnableProfileEditing) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.timeline, size: 48, color: KinrelColors.textDim),
+            SizedBox(height: 12),
+            Text(
+              'Timeline coming soon',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 15,
+                color: KinrelColors.textDim,
+              ),
             ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Events, photos, and milestones\nwill appear here',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 13,
-              color: KinrelColors.textDim,
+            SizedBox(height: 8),
+            Text(
+              'Events, photos, and milestones\nwill appear here',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 13,
+                color: KinrelColors.textDim,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
+          ],
+        ),
+      );
+    }
+
+    // Build timeline events from person data
+    final events = <_TimelineEntry>[];
+
+    if (widget.person.dateOfBirth != null &&
+        widget.person.dateOfBirth!.isNotEmpty) {
+      events.add(_TimelineEntry(
+        date: widget.person.dateOfBirth!,
+        title: 'Born',
+        icon: Icons.cake_outlined,
+        color: KinrelColors.orange,
+      ));
+    }
+
+    if (widget.person.occupation != null &&
+        widget.person.occupation!.isNotEmpty) {
+      events.add(_TimelineEntry(
+        date: '',
+        title: 'Occupation: ${widget.person.occupation}',
+        icon: Icons.work_outline,
+        color: KinrelColors.blue,
+      ));
+    }
+
+    if (widget.person.city != null && widget.person.city!.isNotEmpty) {
+      events.add(_TimelineEntry(
+        date: '',
+        title: 'Lives in ${widget.person.city}',
+        icon: Icons.location_on_outlined,
+        color: KinrelColors.tealAccent,
+      ));
+    }
+
+    if (widget.person.anniversaryDate != null &&
+        widget.person.anniversaryDate!.isNotEmpty) {
+      events.add(_TimelineEntry(
+        date: widget.person.anniversaryDate!,
+        title: 'Anniversary',
+        icon: Icons.favorite_outline,
+        color: KinrelColors.coral,
+      ));
+    }
+
+    if (widget.person.isDeceased) {
+      events.add(_TimelineEntry(
+        date: '',
+        title: 'Passed away',
+        icon: Icons.star_outline,
+        color: KinrelColors.textDim,
+      ));
+    }
+
+    if (widget.person.createdAt != null) {
+      events.add(_TimelineEntry(
+        date: widget.person.createdAt!.toIso8601String().split('T').first,
+        title: 'Added to family tree',
+        icon: Icons.family_restroom,
+        color: KinrelColors.amber,
+      ));
+    }
+
+    if (events.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.timeline, size: 48, color: KinrelColors.textDim),
+            SizedBox(height: 12),
+            Text(
+              'No timeline events yet',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 15,
+                color: KinrelColors.textDim,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      itemCount: events.length,
+      itemBuilder: (context, index) {
+        final event = events[index];
+        final isLast = index == events.length - 1;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Timeline line + dot
+            SizedBox(
+              width: 40,
+              child: Column(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: event.color.withValues(alpha: 0.15),
+                      border: Border.all(color: event.color, width: 2),
+                    ),
+                    child: Icon(event.icon, size: 16, color: event.color),
+                  ),
+                  if (!isLast)
+                    Container(
+                      width: 2,
+                      height: 48,
+                      color: KinrelColors.textDim.withValues(alpha: 0.3),
+                    ),
+                ],
+              ),
+            ),
+            SizedBox(width: 12),
+            // Event content
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(top: 4, bottom: isLast ? 0 : 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (event.date.isNotEmpty)
+                      Text(
+                        event.date,
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.monoFont,
+                          fontSize: 11,
+                          color: KinrelColors.textDim,
+                        ),
+                      ),
+                    SizedBox(height: 2),
+                    Text(
+                      event.title,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -850,9 +1005,20 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
               width: 38,
               child: IconButton(
                 onPressed: () {
-                  // TODO: Implement find path navigation
                   HapticFeedback.lightImpact();
-                  context.showSnackBar('Find path coming soon');
+                  // 1C: Find Path — gated behind kEnableProfileEditing
+                  if (kEnableProfileEditing) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => PathFinderScreen(
+                          familyId: widget.familyId,
+                          startPersonId: widget.person.id,
+                        ),
+                      ),
+                    );
+                  } else {
+                    context.showSnackBar('Find path coming soon');
+                  }
                 },
                 icon: Icon(Icons.route_outlined, size: 18),
                 color: KinrelColors.orange,
@@ -875,9 +1041,17 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
               width: 38,
               child: IconButton(
                 onPressed: () {
-                  // TODO: Implement share profile
                   HapticFeedback.lightImpact();
-                  context.showSnackBar('Share coming soon');
+                  // 1D: Share Profile — gated behind kEnableProfileEditing
+                  if (kEnableProfileEditing) {
+                    final link = 'https://daxelo-kinrel.vercel.app/family/${widget.familyId}/person/${widget.person.id}';
+                    Share.share(
+                      'Check out ${widget.person.name}\'s profile on Kinrel! $link',
+                      subject: '${widget.person.name} on Kinrel',
+                    );
+                  } else {
+                    context.showSnackBar('Share coming soon');
+                  }
                 },
                 icon: Icon(Icons.share_outlined, size: 18),
                 color: KinrelColors.textSilver,
@@ -1365,4 +1539,22 @@ class _RelationTile extends StatelessWidget {
       ),
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// TIMELINE ENTRY — private model for timeline events (1E)
+// ═══════════════════════════════════════════════════════════════════════
+
+class _TimelineEntry {
+  const _TimelineEntry({
+    required this.date,
+    required this.title,
+    required this.icon,
+    required this.color,
+  });
+
+  final String date;
+  final String title;
+  final IconData icon;
+  final Color color;
 }
