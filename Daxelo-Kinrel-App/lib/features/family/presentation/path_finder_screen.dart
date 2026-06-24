@@ -1118,9 +1118,9 @@ class _HeroResultCard extends ConsumerWidget {
                 label: 'Listen',
                 onTap: () {
                   // 1I: Audio pronunciation — gated behind kEnableAudioPronunciation
-                  if (kEnableAudioPronunciation && result.steps.isNotEmpty) {
-                    final firstStep = result.steps.first;
-                    _pronounceTerm(firstStep.kinshipTerm ?? firstStep.relationshipKey);
+                  if (kEnableAudioPronunciation && result.path.isNotEmpty) {
+                    final firstStep = result.path.first;
+                    _pronounceTerm(firstStep.type);
                   }
                 },
                 isButton: true,
