@@ -214,21 +214,39 @@ class EdgeRouter {
   EdgeRouterConfig get config => _config;
 
   // ── Relationship key mappings ─────────────────────────────────────
+  //
+  // v58 Fix 3: Expanded ALL key sets to include every variant that the
+  // Add Member flow can produce. Previously, keys like 'elder_brother'
+  // and 'younger_sister' fell through to the 'extended' category at
+  // 35% opacity — making them invisible on the dark background. Now
+  // every Indian kinship variant the app can generate is included.
 
   static const Set<String> _parentKeys = {
     'parent', 'father', 'mother',
+    'step_father', 'step_mother',
+    'foster_father', 'foster_mother',
+    'adoptive_father', 'adoptive_mother',
+    'biological_father', 'biological_mother',
   };
 
   static const Set<String> _childKeys = {
     'child', 'son', 'daughter',
+    'step_son', 'step_daughter',
+    'foster_son', 'foster_daughter',
+    'adoptive_son', 'adoptive_daughter',
   };
 
   static const Set<String> _siblingKeys = {
     'sibling', 'brother', 'sister',
+    'elder_brother', 'elder_sister',
+    'younger_brother', 'younger_sister',
+    'twin_brother', 'twin_sister',
   };
 
   static const Set<String> _halfSiblingKeys = {
     'half_sibling', 'half_brother', 'half_sister',
+    'half_elder_brother', 'half_elder_sister',
+    'half_younger_brother', 'half_younger_sister',
   };
 
   static const Set<String> _spouseKeys = {
@@ -241,18 +259,34 @@ class EdgeRouter {
 
   static const Set<String> _grandparentKeys = {
     'grandparent', 'grandfather', 'grandmother',
+    'paternal_grandfather', 'paternal_grandmother',
+    'maternal_grandfather', 'maternal_grandmother',
+    'great_grandfather', 'great_grandmother',
   };
 
   static const Set<String> _grandchildKeys = {
     'grandchild', 'grandson', 'granddaughter',
+    'great_grandson', 'great_granddaughter',
   };
 
   static const Set<String> _auntUncleKeys = {
     'aunt', 'uncle', 'great_aunt', 'great_uncle',
+    'paternal_aunt', 'paternal_uncle',
+    'maternal_aunt', 'maternal_uncle',
+    'niece', 'nephew',
+    'fathers_elder_brother', 'fathers_younger_brother',
+    'fathers_sister', 'mothers_brother', 'mothers_sister',
+    'fathers_elder_brothers_wife', 'fathers_younger_brothers_wife',
+    'fathers_sisters_husband', 'mothers_brothers_wife',
+    'mothers_sisters_husband',
   };
 
   static const Set<String> _cousinKeys = {
     'cousin', 'first_cousin', 'second_cousin',
+    'cousin_brother', 'cousin_sister',
+    'brothers_son', 'brothers_daughter',
+    'sisters_son', 'sisters_daughter',
+    'parallel_cousin', 'cross_cousin',
   };
 
   static const Set<String> _inLawKeys = {
@@ -315,24 +349,30 @@ class EdgeRouter {
 
       final path = switch (category) {
         RelationshipCategory.parent => _routeParentChildEdge(
-            parentPos: posTo, // toPerson is the parent
-            childPos: posFrom, // fromPerson is the child
-            halfNode: halfNode,
-            childIndex: _getChildIndex(r.toPersonId, tempIndex, parentChildCount),
-            totalChildren: parentChildCount[r.toPersonId] ?? 1,
-            allPositions: positions, // v57 Bug 5: pass for collision avoidance
-            parentPosId: r.toPersonId,
-            childPosId: r.fromPersonId,
-          ),
-        RelationshipCategory.child => _routeParentChildEdge(
+            // v58 Fix 1: 'parent'/'father'/'mother' key means
+            // fromPerson IS the parent of toPerson. Previously this
+            // was INVERTED — it treated toPerson as the parent, which
+            // caused lines to connect to the wrong node.
             parentPos: posFrom, // fromPerson is the parent
-            childPos: posTo, // toPerson is the child
+            childPos: posTo,   // toPerson is the child
             halfNode: halfNode,
             childIndex: _getChildIndex(r.fromPersonId, tempIndex, parentChildCount),
             totalChildren: parentChildCount[r.fromPersonId] ?? 1,
-            allPositions: positions, // v57 Bug 5: pass for collision avoidance
+            allPositions: positions,
             parentPosId: r.fromPersonId,
             childPosId: r.toPersonId,
+          ),
+        RelationshipCategory.child => _routeParentChildEdge(
+            // 'child'/'son'/'daughter' key means fromPerson IS the
+            // child of toPerson. So toPerson is the parent.
+            parentPos: posTo,   // toPerson is the parent
+            childPos: posFrom,  // fromPerson is the child
+            halfNode: halfNode,
+            childIndex: _getChildIndex(r.toPersonId, tempIndex, parentChildCount),
+            totalChildren: parentChildCount[r.toPersonId] ?? 1,
+            allPositions: positions,
+            parentPosId: r.toPersonId,
+            childPosId: r.fromPersonId,
           ),
         RelationshipCategory.sibling => _routeSiblingArc(
             posA: posFrom,
@@ -707,11 +747,14 @@ class EdgeRouter {
     final start = Offset(posA.dx, posA.dy - halfNode);
     final end = Offset(posB.dx, posB.dy - halfNode);
 
-    // v57 Bug 3: Arc height based on pair distance, not sibling count.
+    // v58 Fix 4: Arc height based on pair distance with minimum 80px.
+    // Previous minimum was 60px which was too low — short-distance arcs
+    // passed through intermediate nodes. 80px minimum + 0.5 multiplier
+    // ensures every arc clears all nodes between the two siblings.
     final dx = end.dx - start.dx;
     final dy = end.dy - start.dy;
     final pairDistance = sqrt(dx * dx + dy * dy);
-    final arcHeight = max(60.0, pairDistance * 0.45);
+    final arcHeight = max(80.0, pairDistance * 0.5);
 
     // Peak must be above BOTH nodes
     final topY = min(start.dy, end.dy);
@@ -830,9 +873,17 @@ class EdgeRouter {
   // ── Private: Utility methods ──────────────────────────────────────
 
   /// Categorize a relationship key into a [RelationshipCategory].
+  ///
+  /// v58 Fix 3: Added prefix-matching fallback for compound Indian
+  /// kinship keys. If a key isn't in any exact set, check if it
+  /// STARTS WITH a known prefix (e.g., 'fathers_elder_brothers_son'
+  /// starts with 'fathers_' → check sibling/cousin patterns).
+  /// This prevents compound keys from falling to 'extended' at 35%
+  /// opacity where they'd be invisible.
   RelationshipCategory _categorizeKey(String key) {
     final lower = key.toLowerCase();
 
+    // Exact match first (fast path).
     if (_parentKeys.contains(lower)) return RelationshipCategory.parent;
     if (_childKeys.contains(lower)) return RelationshipCategory.child;
     if (_halfSiblingKeys.contains(lower)) return RelationshipCategory.halfSibling;
@@ -844,6 +895,75 @@ class EdgeRouter {
     if (_auntUncleKeys.contains(lower)) return RelationshipCategory.auntUncle;
     if (_cousinKeys.contains(lower)) return RelationshipCategory.cousin;
     if (_inLawKeys.contains(lower)) return RelationshipCategory.inLaw;
+
+    // v58: Prefix matching for compound keys.
+    // Indian kinship compound keys follow predictable patterns:
+    //   - Contains 'in_law' or 'in-law' → inLaw
+    //   - Starts with 'grand' → grandparent
+    //   - Starts with 'great_grand' → grandparent
+    //   - Contains 'step' → extended (step relationships)
+    //   - Contains 'half_' → halfSibling
+    //   - Starts with 'fathers_' or 'mothers_' → auntUncle or cousin
+    //   - Starts with 'brothers_' or 'sisters_' → cousin
+    //   - Contains 'cousin' → cousin
+    //   - Contains 'uncle' or 'aunt' → auntUncle
+    //   - Contains 'nephew' or 'niece' → auntUncle
+    //   - Contains 'son' or 'daughter' at end → child or cousin
+
+    if (lower.contains('in_law') || lower.contains('in-law')) {
+      return RelationshipCategory.inLaw;
+    }
+    if (lower.startsWith('great_grand') || lower.startsWith('grand')) {
+      return RelationshipCategory.grandparent;
+    }
+    if (lower.startsWith('half_') || lower.contains('half_brother') ||
+        lower.contains('half_sister')) {
+      return RelationshipCategory.halfSibling;
+    }
+    if (lower.startsWith('step')) {
+      return RelationshipCategory.extended;
+    }
+    if (lower.contains('cousin')) {
+      return RelationshipCategory.cousin;
+    }
+    if (lower.contains('uncle') || lower.contains('aunt') ||
+        lower.contains('nephew') || lower.contains('niece')) {
+      return RelationshipCategory.auntUncle;
+    }
+    // Compound keys starting with fathers_/mothers_/brothers_/sisters_
+    // that end in _son or _daughter are cousins (siblings' children).
+    if ((lower.startsWith('brothers_') || lower.startsWith('sisters_')) &&
+        (lower.endsWith('_son') || lower.endsWith('_daughter'))) {
+      return RelationshipCategory.cousin;
+    }
+    // Compound keys starting with fathers_/mothers_ that end in
+    // _son/_daughter are parallel cousins (treated as siblings in
+    // Indian kinship).
+    if ((lower.startsWith('fathers_') || lower.startsWith('mothers_')) &&
+        (lower.endsWith('_son') || lower.endsWith('_daughter'))) {
+      return RelationshipCategory.sibling;
+    }
+    // Compound keys starting with fathers_/mothers_ (aunts/uncles).
+    if (lower.startsWith('fathers_') || lower.startsWith('mothers_')) {
+      return RelationshipCategory.auntUncle;
+    }
+    // Keys containing 'brother' or 'sister' → sibling.
+    if (lower.contains('brother') || lower.contains('sister')) {
+      return RelationshipCategory.sibling;
+    }
+    // Keys containing 'father' or 'mother' → parent.
+    if (lower.contains('father') || lower.contains('mother')) {
+      return RelationshipCategory.parent;
+    }
+    // Keys containing 'son' or 'daughter' → child.
+    if (lower.contains('son') || lower.contains('daughter')) {
+      return RelationshipCategory.child;
+    }
+    // Keys containing 'husband' or 'wife' or 'spouse' → spouse.
+    if (lower.contains('husband') || lower.contains('wife') ||
+        lower.contains('spouse') || lower.contains('partner')) {
+      return RelationshipCategory.spouse;
+    }
 
     return RelationshipCategory.extended;
   }

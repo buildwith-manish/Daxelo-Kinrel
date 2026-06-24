@@ -169,8 +169,70 @@ class EdgeStyleResolver {
   };
 
   /// Returns the edge category for a given relationship key.
+  ///
+  /// v58 Fix 3: Added prefix-matching fallback for compound Indian
+  /// kinship keys that aren't in the exact map. Prevents keys like
+  /// 'fathers_elder_brother' from falling to 'extended' (35% opacity,
+  /// nearly invisible on dark background).
   static EdgeCategory categoryFor(String relationshipKey) {
-    return _categoryMap[relationshipKey] ?? EdgeCategory.extended;
+    // Exact match first (fast path).
+    final exact = _categoryMap[relationshipKey];
+    if (exact != null) return exact;
+
+    // Prefix matching for compound keys.
+    final lower = relationshipKey.toLowerCase();
+    if (lower.contains('in_law') || lower.contains('in-law')) {
+      return EdgeCategory.inLaw;
+    }
+    if (lower.startsWith('grand') || lower.startsWith('great_grand')) {
+      return EdgeCategory.grandparent;
+    }
+    if (lower.startsWith('half_')) {
+      return EdgeCategory.sibling;
+    }
+    if (lower.startsWith('step')) {
+      return EdgeCategory.extended;
+    }
+    if (lower.contains('cousin')) {
+      return EdgeCategory.cousin;
+    }
+    if (lower.contains('uncle') || lower.contains('aunt') ||
+        lower.contains('nephew') || lower.contains('niece')) {
+      return EdgeCategory.auntUncle;
+    }
+    // Compound keys ending in _son/_daughter starting with brothers_/sisters_ → cousin.
+    if ((lower.startsWith('brothers_') || lower.startsWith('sisters_')) &&
+        (lower.endsWith('_son') || lower.endsWith('_daughter'))) {
+      return EdgeCategory.cousin;
+    }
+    // Compound keys ending in _son/_daughter starting with fathers_/mothers_ → sibling (parallel cousin).
+    if ((lower.startsWith('fathers_') || lower.startsWith('mothers_')) &&
+        (lower.endsWith('_son') || lower.endsWith('_daughter'))) {
+      return EdgeCategory.sibling;
+    }
+    // Other fathers_/mothers_ compounds → auntUncle.
+    if (lower.startsWith('fathers_') || lower.startsWith('mothers_')) {
+      return EdgeCategory.auntUncle;
+    }
+    // Contains 'brother' or 'sister' → sibling.
+    if (lower.contains('brother') || lower.contains('sister')) {
+      return EdgeCategory.sibling;
+    }
+    // Contains 'father' or 'mother' → parent.
+    if (lower.contains('father') || lower.contains('mother')) {
+      return EdgeCategory.parent;
+    }
+    // Contains 'son' or 'daughter' → child.
+    if (lower.contains('son') || lower.contains('daughter')) {
+      return EdgeCategory.child;
+    }
+    // Contains 'husband'/'wife'/'spouse' → spouse.
+    if (lower.contains('husband') || lower.contains('wife') ||
+        lower.contains('spouse') || lower.contains('partner')) {
+      return EdgeCategory.spouse;
+    }
+
+    return EdgeCategory.extended;
   }
 
   /// Returns the primary color for an edge category.
@@ -859,21 +921,36 @@ class RelationshipEdge extends CustomPainter {
         .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
         .join(' ');
 
-    // For sibling arcs, the label should sit above the arc peak.
-    // For vertical edges, the label sits to the right of the midpoint.
-    // For horizontal edges (spouse), the label sits above the midpoint.
+    // v58 Fix 6: Calculate PERPENDICULAR offset using the edge direction
+    // vector. Rotate the direction 90° to get the perpendicular, then
+    // place the label 18px along that perpendicular from the midpoint.
+    // This works for ALL edge orientations — vertical, horizontal,
+    // diagonal — the label always floats beside the line.
+    final dx = end.dx - start.dx;
+    final dy = end.dy - start.dy;
+    final dist = math.sqrt(dx * dx + dy * dy);
     Offset labelCenter;
-    if (category == EdgeCategory.sibling) {
-      // Sibling arc — label above the arc peak (midpoint is already at
-      // the arc peak from the quadratic bezier t=0.5 computation).
-      labelCenter = Offset(midpoint.dx, midpoint.dy - 16);
-    } else if (category == EdgeCategory.spouse ||
-        category == EdgeCategory.inLaw) {
-      // Horizontal edge — label above the line.
-      labelCenter = Offset(midpoint.dx, midpoint.dy - 16);
+    if (dist > 0) {
+      // Unit direction vector.
+      final ux = dx / dist;
+      final uy = dy / dist;
+      // Perpendicular vector (rotate 90° counter-clockwise).
+      final perpX = -uy;
+      final perpY = ux;
+      // Offset 18px along the perpendicular.
+      // For sibling arcs, we want the label ABOVE (negative Y), so if
+      // the perpendicular points downward, flip it.
+      var offsetX = perpX * 18;
+      var offsetY = perpY * 18;
+      // For sibling arcs, always offset upward (label above the arc).
+      if (category == EdgeCategory.sibling) {
+        if (offsetY > 0) offsetY = -offsetY.abs();
+        offsetX = 0; // Center the label horizontally above the arc peak.
+      }
+      labelCenter = Offset(midpoint.dx + offsetX, midpoint.dy + offsetY);
     } else {
-      // Vertical-ish edge — label to the RIGHT of the midpoint.
-      labelCenter = Offset(midpoint.dx + 20, midpoint.dy);
+      // Fallback if start == end.
+      labelCenter = Offset(midpoint.dx, midpoint.dy - 16);
     }
 
     final textSpan = TextSpan(
