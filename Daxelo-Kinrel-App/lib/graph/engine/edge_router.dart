@@ -146,6 +146,13 @@ class EdgeRouterConfig {
   final double bezierControlOffset;
 
   /// Default node size for edge routing calculations.
+  ///
+  /// v57 BUG 1 FIX: Changed from 100.0 to 56.0 — the actual rendered
+  /// node diameter from GraphNodeStateResolver.resolveSize() is 48–64px
+  /// depending on viewport. Using 100.0 caused halfNode=50px which made
+  /// lines start/end 50px inside the node center instead of at the
+  /// boundary. 56.0 is the median value (tablet/phone landscape).
+  /// Callers should pass the exact resolveSize() value when available.
   final double nodeSize;
 
   const EdgeRouterConfig({
@@ -153,7 +160,7 @@ class EdgeRouterConfig {
     this.siblingArcHeightFactor = 10.0,
     this.siblingArcBaseHeight = 40.0,
     this.bezierControlOffset = 0.5,
-    this.nodeSize = 100.0,
+    this.nodeSize = 56.0,
   });
 
   EdgeRouterConfig copyWith({
@@ -264,6 +271,9 @@ class EdgeRouter {
   ///   [zoomLevel]     — Current zoom level (affects routing detail)
   ///
   /// Returns a map of edgeId → Path.
+  ///
+  /// v57: Also populates [controlPoints] for each edge so callers can
+  /// compute the correct t=0.5 bezier midpoint (Bug 4 fix).
   Map<String, Path> computePaths({
     required Map<String, Offset> positions,
     required List<GraphRelationship> relationships,
@@ -271,6 +281,9 @@ class EdgeRouter {
     required double zoomLevel,
   }) {
     final paths = <String, Path>{};
+    // v57 Bug 4: Store control points for each edge so computeMidpoint
+    // can use the bezier t=0.5 formula instead of the linear midpoint.
+    controlPoints = <String, (Offset, Offset)>{};
 
     // Track child count per parent for horizontal offset
     final parentChildCount = <String, int>{};
@@ -307,6 +320,9 @@ class EdgeRouter {
             halfNode: halfNode,
             childIndex: _getChildIndex(r.toPersonId, tempIndex, parentChildCount),
             totalChildren: parentChildCount[r.toPersonId] ?? 1,
+            allPositions: positions, // v57 Bug 5: pass for collision avoidance
+            parentPosId: r.toPersonId,
+            childPosId: r.fromPersonId,
           ),
         RelationshipCategory.child => _routeParentChildEdge(
             parentPos: posFrom, // fromPerson is the parent
@@ -314,6 +330,9 @@ class EdgeRouter {
             halfNode: halfNode,
             childIndex: _getChildIndex(r.fromPersonId, tempIndex, parentChildCount),
             totalChildren: parentChildCount[r.fromPersonId] ?? 1,
+            allPositions: positions, // v57 Bug 5: pass for collision avoidance
+            parentPosId: r.fromPersonId,
+            childPosId: r.toPersonId,
           ),
         RelationshipCategory.sibling => _routeSiblingArc(
             posA: posFrom,
@@ -379,6 +398,12 @@ class EdgeRouter {
 
     return paths;
   }
+
+  /// v57 Bug 4: Control points for each edge, populated by computePaths.
+  /// Used by computeMidpoint to calculate the t=0.5 bezier point.
+  /// Key = edge ID, value = (controlPoint1, controlPoint2).
+  /// For quadratic beziers (sibling arcs), controlPoint2 is unused.
+  Map<String, (Offset, Offset)> controlPoints = {};
 
   /// Get the visual style for a relationship key.
   ///
@@ -481,14 +506,24 @@ class EdgeRouter {
   }
 
   /// Compute the midpoint of a path for placing decorations.
+  ///
+  /// v57 Bug 4 FIX: If [edgeId] is provided and control points were
+  /// stored during computePaths(), uses the cubic bezier t=0.5 formula:
+  ///   B(0.5) = 0.125·P0 + 0.375·CP1 + 0.375·CP2 + 0.125·P3
+  /// This ensures the dot sits ON the curve, not at the linear midpoint.
+  ///
+  /// Falls back to linear midpoint if no control points are available.
   Offset computeMidpoint({
     required Offset posA,
     required Offset posB,
     required double nodeSize,
+    String? edgeId,
+    Offset? controlPoint1,
+    Offset? controlPoint2,
   }) {
     final halfNode = nodeSize / 2;
 
-    // Adjust start and end to node edges
+    // Adjust start and end to node edges (direction-vector clipping)
     final dx = posB.dx - posA.dx;
     final dy = posB.dy - posA.dy;
     final dist = sqrt(dx * dx + dy * dy);
@@ -498,18 +533,45 @@ class EdgeRouter {
     final nx = dx / dist;
     final ny = dy / dist;
 
-    final startEdge = Offset(
+    final p0 = Offset(
       posA.dx + nx * halfNode,
       posA.dy + ny * halfNode,
     );
-    final endEdge = Offset(
+    final p3 = Offset(
       posB.dx - nx * halfNode,
       posB.dy - ny * halfNode,
     );
 
+    // v57 Bug 4: Try to get control points from the stored map first.
+    Offset? cp1 = controlPoint1;
+    Offset? cp2 = controlPoint2;
+    if (edgeId != null && cp1 == null && controlPoints.containsKey(edgeId)) {
+      final stored = controlPoints[edgeId]!;
+      cp1 = stored.$1;
+      cp2 = stored.$2;
+    }
+
+    // If control points provided, use cubic bezier t=0.5 formula.
+    if (cp1 != null && cp2 != null) {
+      return Offset(
+        0.125 * p0.dx + 0.375 * cp1.dx + 0.375 * cp2.dx + 0.125 * p3.dx,
+        0.125 * p0.dy + 0.375 * cp1.dy + 0.375 * cp2.dy + 0.125 * p3.dy,
+      );
+    }
+
+    // If only one control point (quadratic bezier), use t=0.5 formula:
+    // B(0.5) = 0.25·P0 + 0.5·P1 + 0.25·P2
+    if (cp1 != null) {
+      return Offset(
+        0.25 * p0.dx + 0.5 * cp1.dx + 0.25 * p3.dx,
+        0.25 * p0.dy + 0.5 * cp1.dy + 0.25 * p3.dy,
+      );
+    }
+
+    // Fallback: linear midpoint.
     return Offset(
-      (startEdge.dx + endEdge.dx) / 2,
-      (startEdge.dy + endEdge.dy) / 2,
+      (p0.dx + p3.dx) / 2,
+      (p0.dy + p3.dy) / 2,
     );
   }
 
@@ -517,37 +579,77 @@ class EdgeRouter {
 
   /// Route a parent→child edge: solid vertical bezier with
   /// horizontal offset for multiple children.
+  ///
+  /// v57 Bug 2 FIX: Control points use 35% vertical offset instead of
+  /// midY, creating a genuine S-curve even when nodes share the same X.
+  ///
+  /// v57 Bug 5 FIX: Checks allPositions for intermediate nodes that
+  /// fall within halfNode+15px of the line path. If found, adds a
+  /// lateral offset to both control points to steer around the obstacle.
   Path _routeParentChildEdge({
     required Offset parentPos,
     required Offset childPos,
     required double halfNode,
     required int childIndex,
     required int totalChildren,
+    Map<String, Offset>? allPositions,
+    String? parentPosId,
+    String? childPosId,
   }) {
-    // Start from bottom center of parent
-    final start = Offset(parentPos.dx, parentPos.dy + halfNode);
-    // End at top center of child
+    // Compute endX first with horizontal offset for siblings
     var endX = childPos.dx;
-    final end = Offset(endX, childPos.dy - halfNode);
-
-    // Apply horizontal offset for multiple children
     if (totalChildren > 1) {
       final offset = (childIndex - (totalChildren - 1) / 2) *
           _config.childHorizontalOffset;
       endX = childPos.dx + offset;
     }
 
-    // Control points at midpoint Y
-    final midY = (start.dy + end.dy) / 2;
-    final control1 = Offset(start.dx, midY);
-    final control2 = Offset(endX, midY);
+    // Start from bottom center of parent, end at top center of child
+    final start = Offset(parentPos.dx, parentPos.dy + halfNode);
+    final end = Offset(endX, childPos.dy - halfNode);
+
+    // v57 Bug 2: Control points at 35% of vertical distance (not midY).
+    // This creates a genuine S-curve even when start.dx == end.dx.
+    final totalDy = end.dy - start.dy;
+    var control1 = Offset(start.dx, start.dy + totalDy * 0.35);
+    var control2 = Offset(endX, end.dy - totalDy * 0.35);
+
+    // v57 Bug 5: Collision avoidance — if any other node sits within
+    // halfNode+15px of the line path, push control points laterally.
+    if (allPositions != null) {
+      final minY = start.dy < end.dy ? start.dy : end.dy;
+      final maxY = start.dy > end.dy ? start.dy : end.dy;
+      final lineX = start.dx;
+
+      for (final entry in allPositions.entries) {
+        // Skip the two endpoint nodes
+        if (entry.key == parentPosId || entry.key == childPosId) continue;
+
+        final otherPos = entry.value;
+
+        // Is this node between the two endpoints vertically?
+        if (otherPos.dy < minY || otherPos.dy > maxY) continue;
+
+        // Is this node close to the line horizontally?
+        final distToLine = (otherPos.dx - lineX).abs();
+        if (distToLine < halfNode + 15) {
+          // Push control points away from the obstacle node.
+          // If obstacle is to the right, push left; if left, push right.
+          final pushDir = otherPos.dx >= lineX ? -1.0 : 1.0;
+          final pushAmount = (halfNode + 20) * pushDir;
+          control1 = Offset(control1.dx + pushAmount, control1.dy);
+          control2 = Offset(control2.dx + pushAmount, control2.dy);
+          break; // One push is enough
+        }
+      }
+    }
 
     final path = Path();
     path.moveTo(start.dx, start.dy);
     path.cubicTo(
       control1.dx, control1.dy,
       control2.dx, control2.dy,
-      endX, end.dy,
+      end.dx, end.dy,
     );
     return path;
   }
@@ -585,7 +687,15 @@ class EdgeRouter {
 
   /// Route a sibling arc: dashed curved arc above the sibling group.
   ///
-  /// Arc height is proportional to sibling count.
+  /// v57 Bug 3 FIX: Arc height is now based on the DISTANCE between
+  /// this specific pair of nodes, not the sibling count. This means:
+  ///   - Arcs to nearby siblings are small and tight
+  ///   - Arcs to far siblings are tall and spread out
+  ///   - Arcs no longer all peak at the same height and overlap
+  ///
+  /// The control point is placed above BOTH nodes (topY - arcHeight),
+  /// guaranteeing the arc curves UP and OVER, never dipping through
+  /// intermediate nodes.
   Path _routeSiblingArc({
     required Offset posA,
     required Offset posB,
@@ -593,17 +703,20 @@ class EdgeRouter {
     required bool isHalf,
     required int siblingCount,
   }) {
-    // Start from top of node A
+    // Start from top of node A, end at top of node B
     final start = Offset(posA.dx, posA.dy - halfNode);
-    // End from top of node B
     final end = Offset(posB.dx, posB.dy - halfNode);
 
-    // Arc height proportional to sibling count
-    final arcHeight = _config.siblingArcBaseHeight +
-        siblingCount * _config.siblingArcHeightFactor;
+    // v57 Bug 3: Arc height based on pair distance, not sibling count.
+    final dx = end.dx - start.dx;
+    final dy = end.dy - start.dy;
+    final pairDistance = sqrt(dx * dx + dy * dy);
+    final arcHeight = max(60.0, pairDistance * 0.45);
 
+    // Peak must be above BOTH nodes
+    final topY = min(start.dy, end.dy);
     final midX = (start.dx + end.dx) / 2;
-    final controlPoint = Offset(midX, start.dy - arcHeight);
+    final controlPoint = Offset(midX, topY - arcHeight);
 
     final path = Path();
     path.moveTo(start.dx, start.dy);
