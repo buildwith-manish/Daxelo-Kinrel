@@ -10,7 +10,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [m[m[main, feat/step5.3-step6-remaining]
+    branches: [main, feat/step5.3-step6-remaining]
     paths:
       - 'Daxelo-Kinrel-App/lib/**'
       - 'Daxelo-Kinrel-App/web/**'
