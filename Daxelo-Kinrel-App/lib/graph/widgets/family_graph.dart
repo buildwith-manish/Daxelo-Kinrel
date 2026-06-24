@@ -193,13 +193,28 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       );
     }
 
-    // Build edges
+    // Build edges — deduplicate by sorted node-pair key so each pair of
+    // nodes gets exactly ONE edge drawn, regardless of how many
+    // relationship rows exist in the database (the DB stores both
+    // directions: A→B and B→A). Without this, every pair would render
+    // as a doubled/thickened line.
     final edges = <GraphEdgeData>[];
+    final drawnPairs = <String>{};
     for (final r in graphData.relationships) {
+      final sourceId = r['fromPersonId'] as String? ?? '';
+      final targetId = r['toPersonId'] as String? ?? '';
+      if (sourceId.isEmpty || targetId.isEmpty) continue;
+
+      // Build a sorted pair key so A→B and B→A produce the same key.
+      final ids = [sourceId, targetId]..sort();
+      final pairKey = '${ids[0]}_${ids[1]}';
+      if (drawnPairs.contains(pairKey)) continue;
+      drawnPairs.add(pairKey);
+
       edges.add(GraphEdgeData(
         id: r['id'] as String? ?? '',
-        sourceId: r['fromPersonId'] as String? ?? '',
-        targetId: r['toPersonId'] as String? ?? '',
+        sourceId: sourceId,
+        targetId: targetId,
         relationshipKey: r['relationshipKey'] as String? ?? '',
       ));
     }

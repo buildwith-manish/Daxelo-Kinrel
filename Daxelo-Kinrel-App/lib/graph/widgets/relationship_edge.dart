@@ -1,125 +1,258 @@
 // lib/graph/widgets/relationship_edge.dart
 //
-// DAXELO KINREL — Relationship Edge CustomPainter (v2)
+// DAXELO KINREL — Relationship Edge CustomPainter
 //
-// v2 (2026-06-23): Delegates all color / line-shape / midpoint decisions
-// to the central KinshipEdgeStyleResolver in lib/core/kinship/. This
-// painter is now purely a RENDERER — no per-painter color tables, no
-// per-painter dash patterns, no per-category midpoint logic. Every
-// visual decision flows through one classifier so the entire app stays
-// consistent.
+// Renders all relationship edge types in the family graph:
+//   Parent→Child: Solid vertical bezier, horizontal offset for multiple children
+//   Spouse→Spouse: Marriage connector (horizontal + ring icon at midpoint)
+//   Sibling→Sibling: Dashed curved arc above sibling group
+//   Extended Family: Curved bezier avoiding parent-child line crossings
 //
-// What changed visually:
-//   • Parent edges now render BLUE (#3B82F6) instead of orange.
-//   • Child edges now render PINK (#EC4899).
-//   • Sibling edges stay PURPLE, dashed arc above.
-//   • Spouse edges: ORANGE dashed line + PINK heart (heart color no
-//     longer matches the edge color — it's always pink per spec §4).
-//   • Grandparent edges: INDIGO solid extended bezier.
-//   • Aunt/Uncle edges: CYAN dashed shallow S-curve.
-//   • Cousin edges: EMERALD wide-arc bezier.
-//   • In-Law edges: AMBER dashed straight.
-//   • Extended edges: SLATE dashed at 0.45 alpha.
-//   • Indirect edges: GRAY dashed, NO dot (text label only).
+// Visual specs:
+//   Default: dashed [4,4], orange 45% alpha, stroke 1.5
+//   Selected: solid, full orange, stroke 2.5
+//   Spouse: heart icon at midpoint
+//   Parent/child: glow dot at midpoint
+//   LOD: skip dots at zoom < 0.4
+//   Generation dimming: both endpoints NOT highlighted → 0.15 alpha
 //
-// EVERY edge category (except indirect) now has a midpoint dot — this
-// is the central spec change. Previously only parent/child/grandparent
-// got dots; now sibling, aunt/uncle, cousin, in-law, and extended all
-// get dots too, matching spec §"The Midpoint Dot — Why Every Edge
-// Needs One".
+// Edge category styling:
+//   Parent (~45): Solid, top-to-bottom bezier, orange
+//   Child (~45): Solid, bottom-to-top bezier, orange
+//   Sibling (~120): Dashed, curved arc, purple
+//   Spouse (~25): Marriage connector, horizontal, orange with heart
+//   Grandparent (~80): Solid, extended bezier, indigo
+//   Aunt/Uncle (~150): Dashed, curved, cyan
+//   Cousin (~800): Curved, extended, emerald
+//   In-Law (~200): Marriage variant, amber
+//   Extended (~3835): Curved, low-opacity, slate
 //
-// Public API (preserved for backward compatibility):
-//   • enum EdgeCategory                 — alias of KinshipEdgeCategory
-//   • class EdgeStyleResolver           — delegates to KinshipEdgeStyleResolver
-//   • class RelationshipEdge            — CustomPainter (unchanged signature)
-//   • extension GraphEdgeDataExt        — isIndirectConnection getter
-//
-// Architecture:
-//   GraphEdgeData (from repo)
-//     → relationshipKey
-//       → KinshipEdgeClassifier.classify(key)
-//         → KinshipEdgeCategory
-//           → KinshipEdgeStyleResolver.styleForCategory(cat)
-//             → KinshipEdgeStyle (color, alpha, lineShape, dashPattern,
-//                                  midpointSymbol, midpointColor)
-//               → RelationshipEdge.paint() reads style and draws
-//
-// LOD (level of detail):
-//   • zoom < 0.4  : minimal mode — straight lines only, no dots / hearts
-//   • zoom >= 0.4 : full mode — curves with midpoint indicators
-//
-// Generation dimming:
-//   When [highlightedGeneration] is set, edges where BOTH endpoints are
-//   NOT in that generation are drawn at 0.30 alpha.
-//
-// Relationship label:
-//   Always rendered at the midpoint (fade-in from zoom 0.15 → 0.35).
-//   Background is the edge color at 95% alpha, white text, rounded pill.
+// Special edge types:
+//   Divorced spouse: dashed connector with split ring
+//   Half-sibling: dotted line with different dash pattern
+//   Private relationship: lock icon at midpoint (if user is participant)
+//   Indirect connection (blocked): dashed line, gray, "indirect" label
 
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
 import '../../core/constants/brand_colors.dart';
-import '../../core/kinship/kinship_edge_style.dart';
 import '../data/family_graph_repository.dart' show GraphEdgeData;
 import 'graph_node.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
-// EDGE EXTENSION (preserved API)
+// EDGE EXTENSION
 // ═══════════════════════════════════════════════════════════════════════
 
+/// Extension on GraphEdgeData to add indirect connection tracking.
 extension GraphEdgeDataExt on GraphEdgeData {
   /// Whether this is an indirect connection (through a blocked member).
+  /// Stored in the relationshipKey as a prefix convention.
   bool get isIndirectConnection => relationshipKey.startsWith('indirect_');
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// EDGE CATEGORY (preserved alias)
+// EDGE CATEGORY
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Preserved alias so existing call sites keep compiling.
-/// New code should use [KinshipEdgeCategory] directly.
-typedef EdgeCategory = KinshipEdgeCategory;
+/// Categorizes relationship edges for styling.
+enum EdgeCategory {
+  /// Parent → child (solid vertical bezier, orange).
+  parent,
+
+  /// Child → parent (solid vertical bezier, orange).
+  child,
+
+  /// Sibling connections (dashed curved arc, purple).
+  sibling,
+
+  /// Spouse/partner connections (marriage connector, orange with heart).
+  spouse,
+
+  /// Grandparent connections (solid extended bezier, indigo).
+  grandparent,
+
+  /// Aunt/uncle connections (dashed curved, cyan).
+  auntUncle,
+
+  /// Cousin connections (curved extended, emerald).
+  cousin,
+
+  /// In-law connections (marriage variant, amber).
+  inLaw,
+
+  /// Extended family (curved low-opacity, slate).
+  extended,
+
+  /// Indirect connection through blocked member (dashed gray).
+  indirect,
+}
 
 // ═══════════════════════════════════════════════════════════════════════
-// EDGE STYLE RESOLVER (preserved delegating shim)
+// EDGE STYLE RESOLVER
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Thin shim that delegates every call to [KinshipEdgeStyleResolver] /
-/// [KinshipEdgeClassifier]. Existing call sites that use
-/// `EdgeStyleResolver.colorFor(category)` etc. keep working unchanged.
+/// Resolves edge category and styling from a relationship key.
 class EdgeStyleResolver {
   EdgeStyleResolver._();
 
   /// Maps relationship keys to their edge category.
-  static KinshipEdgeCategory categoryFor(String relationshipKey) =>
-      KinshipEdgeClassifier.classify(relationshipKey);
+  static const Map<String, EdgeCategory> _categoryMap = {
+    // Parent
+    'parent': EdgeCategory.parent,
+    'father': EdgeCategory.parent,
+    'mother': EdgeCategory.parent,
+    // Child
+    'child': EdgeCategory.child,
+    'son': EdgeCategory.child,
+    'daughter': EdgeCategory.child,
+    // Sibling
+    'sibling': EdgeCategory.sibling,
+    'brother': EdgeCategory.sibling,
+    'sister': EdgeCategory.sibling,
+    'half_brother': EdgeCategory.sibling,
+    'half_sister': EdgeCategory.sibling,
+    'elder_brother': EdgeCategory.sibling,
+    'elder_sister': EdgeCategory.sibling,
+    'younger_brother': EdgeCategory.sibling,
+    'younger_sister': EdgeCategory.sibling,
+    // Spouse
+    'spouse': EdgeCategory.spouse,
+    'husband': EdgeCategory.spouse,
+    'wife': EdgeCategory.spouse,
+    'partner': EdgeCategory.spouse,
+    // Grandparent
+    'grandparent': EdgeCategory.grandparent,
+    'grandfather': EdgeCategory.grandparent,
+    'grandmother': EdgeCategory.grandparent,
+    'paternal_grandfather': EdgeCategory.grandparent,
+    'paternal_grandmother': EdgeCategory.grandparent,
+    'maternal_grandfather': EdgeCategory.grandparent,
+    'maternal_grandmother': EdgeCategory.grandparent,
+    'grandson': EdgeCategory.grandparent,
+    'granddaughter': EdgeCategory.grandparent,
+    // Aunt/Uncle
+    'aunt': EdgeCategory.auntUncle,
+    'uncle': EdgeCategory.auntUncle,
+    'paternal_uncle': EdgeCategory.auntUncle,
+    'paternal_aunt': EdgeCategory.auntUncle,
+    'maternal_uncle': EdgeCategory.auntUncle,
+    'maternal_aunt': EdgeCategory.auntUncle,
+    'niece': EdgeCategory.auntUncle,
+    'nephew': EdgeCategory.auntUncle,
+    // Cousin
+    'cousin': EdgeCategory.cousin,
+    'cousin_brother': EdgeCategory.cousin,
+    'cousin_sister': EdgeCategory.cousin,
+    // In-Law
+    'father_in_law': EdgeCategory.inLaw,
+    'mother_in_law': EdgeCategory.inLaw,
+    'son_in_law': EdgeCategory.inLaw,
+    'daughter_in_law': EdgeCategory.inLaw,
+    'brother_in_law': EdgeCategory.inLaw,
+    'sister_in_law': EdgeCategory.inLaw,
+    // Extended
+    'stepfather': EdgeCategory.extended,
+    'stepmother': EdgeCategory.extended,
+    'stepson': EdgeCategory.extended,
+    'stepdaughter': EdgeCategory.extended,
+    'stepbrother': EdgeCategory.extended,
+    'stepsister': EdgeCategory.extended,
+    // Synthetic fallback (used when no real relationships exist in DB
+    // but 2+ persons are visible — see family_graph.dart synthetic
+    // edge fallback). Renders as a visible extended edge so the graph
+    // doesn't look broken.
+    'related': EdgeCategory.extended,
+    // Indirect
+    'indirect_connection': EdgeCategory.indirect,
+  };
+
+  /// Returns the edge category for a given relationship key.
+  static EdgeCategory categoryFor(String relationshipKey) {
+    return _categoryMap[relationshipKey] ?? EdgeCategory.extended;
+  }
 
   /// Returns the primary color for an edge category.
-  static Color colorFor(KinshipEdgeCategory category) =>
-      KinshipEdgeStyleResolver.styleForCategory(category).color;
+  static Color colorFor(EdgeCategory category) {
+    switch (category) {
+      case EdgeCategory.parent:
+        return RelationshipColors.parent;
+      case EdgeCategory.child:
+        return RelationshipColors.child;
+      case EdgeCategory.sibling:
+        return RelationshipColors.sibling;
+      case EdgeCategory.spouse:
+        return RelationshipColors.spouse;
+      case EdgeCategory.grandparent:
+        return RelationshipColors.grandparent;
+      case EdgeCategory.auntUncle:
+        return RelationshipColors.auntUncle;
+      case EdgeCategory.cousin:
+        return RelationshipColors.cousin;
+      case EdgeCategory.inLaw:
+        return RelationshipColors.inLaw;
+      case EdgeCategory.extended:
+        return RelationshipColors.extended;
+      case EdgeCategory.indirect:
+        return KinrelColors.textDim;
+    }
+  }
 
   /// Returns the default alpha for an edge category.
-  static double defaultAlphaFor(KinshipEdgeCategory category) =>
-      KinshipEdgeStyleResolver.styleForCategory(category).defaultAlpha;
+  static double defaultAlphaFor(EdgeCategory category) {
+    switch (category) {
+      case EdgeCategory.parent:
+      case EdgeCategory.child:
+        return 0.85;
+      case EdgeCategory.spouse:
+        return 0.85;
+      case EdgeCategory.sibling:
+        return 0.75;
+      case EdgeCategory.grandparent:
+        return 0.75;
+      case EdgeCategory.auntUncle:
+        return 0.7;
+      case EdgeCategory.cousin:
+        return 0.6;
+      case EdgeCategory.inLaw:
+        return 0.7;
+      case EdgeCategory.extended:
+        return 0.45;
+      case EdgeCategory.indirect:
+        return 0.5;
+    }
+  }
 
   /// Whether the edge should be drawn as a dashed line.
-  static bool isDashed(KinshipEdgeCategory category) =>
-      KinshipEdgeStyleResolver.styleForCategory(category).isDashed;
+  static bool isDashed(EdgeCategory category) {
+    switch (category) {
+      case EdgeCategory.sibling:
+      case EdgeCategory.auntUncle:
+      case EdgeCategory.indirect:
+        return true;
+      case EdgeCategory.parent:
+      case EdgeCategory.child:
+      case EdgeCategory.spouse:
+      case EdgeCategory.grandparent:
+      case EdgeCategory.cousin:
+      case EdgeCategory.inLaw:
+      case EdgeCategory.extended:
+        return false;
+    }
+  }
 
   /// Whether the edge should have a heart icon at midpoint (spouse).
-  static bool hasHeartMidpoint(KinshipEdgeCategory category) =>
-      KinshipEdgeStyleResolver.styleForCategory(category).midpointSymbol ==
-      KinshipMidpointSymbol.heart;
+  static bool hasHeartMidpoint(EdgeCategory category) {
+    return category == EdgeCategory.spouse;
+  }
 
-  /// Whether the edge should have a glow dot at midpoint.
-  ///
-  /// Per spec: every category except indirect gets a dot.
-  static bool hasDotMidpoint(KinshipEdgeCategory category) =>
-      KinshipEdgeStyleResolver.styleForCategory(category).midpointSymbol ==
-      KinshipMidpointSymbol.dot;
+  /// Whether the edge should have a glow dot at midpoint (parent/child).
+  static bool hasDotMidpoint(EdgeCategory category) {
+    return category == EdgeCategory.parent ||
+        category == EdgeCategory.child ||
+        category == EdgeCategory.grandparent;
+  }
 
   /// Whether the edge should have a lock icon at midpoint (private).
   static bool hasLockMidpoint(bool isPrivate) => isPrivate;
@@ -140,10 +273,23 @@ class EdgeStyleResolver {
 
 /// CustomPainter that renders relationship edges between person nodes.
 ///
-/// All visual decisions (color, line shape, dash pattern, midpoint
-/// symbol, midpoint color) flow from [KinshipEdgeStyleResolver]. This
-/// painter is responsible ONLY for translating those decisions into
-/// canvas draw calls.
+/// Supports all edge types with proper styling, LOD rendering,
+/// generation dimming, and special midpoint indicators.
+///
+/// Usage:
+/// ```dart
+/// CustomPaint(
+///   size: Size(canvasWidth, canvasHeight),
+///   painter: RelationshipEdge(
+///     positions: layoutResult.positions,
+///     edges: edgeDataList,
+///     selectedEdgeId: selectedEdgeId,
+///     zoomLevel: currentZoom,
+///     generationMap: personIdToGenerationIndex,
+///     highlightedGeneration: 1,
+///   ),
+/// )
+/// ```
 class RelationshipEdge extends CustomPainter {
   RelationshipEdge({
     required this.positions,
@@ -158,30 +304,67 @@ class RelationshipEdge extends CustomPainter {
     this.blockedNodeIds = const {},
   });
 
+  /// Map of personId → center Offset (from layout computation).
   final Map<String, Offset> positions;
+
+  /// List of relationship edges to draw.
   final List<GraphEdgeData> edges;
+
+  /// Currently selected edge ID (highlighted).
   final String? selectedEdgeId;
+
+  /// Current zoom level from InteractiveViewer.
   final double zoomLevel;
+
+  /// Width of each person node card (dp).
   final double nodeWidth;
+
+  /// Height of each person node card (dp).
   final double nodeHeight;
+
+  /// Map of personId → generation index (for dimming).
   final Map<String, int>? generationMap;
+
+  /// When set, edges where BOTH endpoints are NOT in this generation
+  /// are drawn at 0.15 alpha. Null = no filtering.
   final int? highlightedGeneration;
+
+  /// IDs of anonymous (hidden) nodes — their edges get reduced opacity.
   final Set<String> anonymousNodeIds;
+
+  /// IDs of blocked nodes — their edges are skipped entirely.
   final Set<String> blockedNodeIds;
 
   // ── Paint Constants ────────────────────────────────────────────────
+
+  /// Default stroke width.
   static const double _defaultStrokeWidth = 2.0;
+
+  /// Selected edge stroke width.
   static const double _selectedStrokeWidth = 2.5;
+
+  /// Dimmed alpha for edges outside highlighted generation.
   static const double _dimmedAlpha = 0.30;
 
   // ── Midpoint Indicator Constants ──────────────────────────────────
+
+  /// Radius of the filled dot at parent-child midpoints.
   static const double _dotRadius = 5.0;
+
+  /// Radius of the glow halo around the dot.
   static const double _dotGlowRadius = 9.0;
+
+  /// Total size of the heart shape for spouse midpoints.
   static const double _heartSize = 14.0;
+
+  /// Size of the lock icon for private relationship midpoints.
   static const double _lockSize = 12.0;
 
   // ── LOD Thresholds ─────────────────────────────────────────────────
+
+  /// Below this zoom level, skip dots/hearts and draw simplified lines.
   static const double _lodMinimalZoom = 0.4;
+
   bool get _isMinimal => zoomLevel < _lodMinimalZoom;
 
   // ── Paint ──────────────────────────────────────────────────────────
@@ -189,6 +372,7 @@ class RelationshipEdge extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     for (final edge in edges) {
+      // Skip edges with blocked endpoints
       if (blockedNodeIds.contains(edge.sourceId) ||
           blockedNodeIds.contains(edge.targetId)) {
         continue;
@@ -196,12 +380,14 @@ class RelationshipEdge extends CustomPainter {
 
       final fromPos = positions[edge.sourceId];
       final toPos = positions[edge.targetId];
-      if (fromPos == null || toPos == null) continue;
+      if (fromPos == null || toPos == null) {
+        continue;
+      }
 
       final isSelected = edge.id == selectedEdgeId;
       final category = edge.isIndirectConnection
-          ? KinshipEdgeCategory.indirect
-          : KinshipEdgeClassifier.classify(edge.relationshipKey);
+          ? EdgeCategory.indirect
+          : EdgeStyleResolver.categoryFor(edge.relationshipKey);
       final isDimmed = _shouldDimEdge(edge);
       final isHalfSibling =
           edge.relationshipKey == 'half_brother' ||
@@ -226,87 +412,37 @@ class RelationshipEdge extends CustomPainter {
 
   // ── Dimming Check ──────────────────────────────────────────────────
 
+  /// Returns true if this edge should be drawn dimmed based on
+  /// the highlightedGeneration filter.
   bool _shouldDimEdge(GraphEdgeData edge) {
     if (highlightedGeneration == null || generationMap == null) return false;
+
     final fromGen = generationMap![edge.sourceId];
     final toGen = generationMap![edge.targetId];
+
     if (fromGen == null || toGen == null) return false;
+
+    // Dim if NEITHER endpoint is in the highlighted generation
     return fromGen != highlightedGeneration &&
         toGen != highlightedGeneration;
   }
 
   // ── Edge Drawing ───────────────────────────────────────────────────
 
-  /// Returns the color for a category as an INLINE Color literal.
+  /// Draws a single edge between two person positions.
   ///
-  /// v52.8: This method exists because dart2js tree-shakes the
-  /// KinshipEdgeColors constants in release builds. By inlining the
-  /// Color(0xFF...) literals directly in a switch statement, dart2js
-  /// is forced to retain every color value in the build output.
-  Color _colorForCategory(KinshipEdgeCategory category) {
-    switch (category) {
-      case KinshipEdgeCategory.self:
-        return const Color(0xFF0D9488); // teal
-      case KinshipEdgeCategory.parent:
-        return const Color(0xFF3B82F6); // blue
-      case KinshipEdgeCategory.child:
-        return const Color(0xFFEC4899); // pink
-      case KinshipEdgeCategory.sibling:
-        return const Color(0xFF8B5CF6); // purple
-      case KinshipEdgeCategory.spouse:
-        return const Color(0xFFF97316); // orange (edge)
-      case KinshipEdgeCategory.grandparent:
-        return const Color(0xFF6366F1); // indigo
-      case KinshipEdgeCategory.auntUncle:
-        return const Color(0xFF06B6D4); // cyan
-      case KinshipEdgeCategory.cousin:
-        return const Color(0xFF10B981); // emerald
-      case KinshipEdgeCategory.inLaw:
-        return const Color(0xFFF59E0B); // amber
-      case KinshipEdgeCategory.extended:
-        return const Color(0xFF64748B); // slate
-      case KinshipEdgeCategory.indirect:
-        return const Color(0xFF8A7A72); // gray
-    }
-  }
-
-  /// Returns the midpoint color for a category (spouse = pink heart).
-  Color _midpointColorForCategory(KinshipEdgeCategory category) {
-    if (category == KinshipEdgeCategory.spouse) {
-      return const Color(0xFFEC4899); // PINK heart — always pink
-    }
-    return _colorForCategory(category);
-  }
-
-  /// Returns the default alpha for a category.
-  double _alphaForCategory(KinshipEdgeCategory category) {
-    switch (category) {
-      case KinshipEdgeCategory.self:
-        return 1.0;
-      case KinshipEdgeCategory.parent:
-      case KinshipEdgeCategory.child:
-      case KinshipEdgeCategory.spouse:
-        return 0.85;
-      case KinshipEdgeCategory.sibling:
-      case KinshipEdgeCategory.grandparent:
-        return 0.75;
-      case KinshipEdgeCategory.auntUncle:
-      case KinshipEdgeCategory.cousin:
-      case KinshipEdgeCategory.inLaw:
-        return 0.7;
-      case KinshipEdgeCategory.extended:
-        return 0.45;
-      case KinshipEdgeCategory.indirect:
-        return 0.5;
-    }
-  }
-
+  /// v54: Complete rewrite fixing all 5 edge rendering bugs:
+  ///   1. Bezier curves instead of straight lines (proper control points)
+  ///   2. Midpoint dot at t=0.5 on the bezier (not linear midpoint)
+  ///   3. Labels offset perpendicular to the edge (no filled background)
+  ///   4. Dedup handled in family_graph.dart (sorted pair key)
+  ///   5. Sibling arcs above nodes + fan offset for same-source edges
   void _drawEdge({
     required Canvas canvas,
     required Offset fromPos,
     required Offset toPos,
     required bool isSelected,
-    required KinshipEdgeCategory category,
+    required EdgeCategory category,
     required bool isDimmed,
     required bool isHalfSibling,
     required bool isPrivate,
@@ -315,17 +451,14 @@ class RelationshipEdge extends CustomPainter {
     required String sourceId,
     required String targetId,
   }) {
-    // v52.8: Use INLINE color literals to defeat dart2js tree-shaking.
-    // The KinshipEdgeStyleResolver is still used for lineShape and
-    // dashPattern, but colors are inlined here to guarantee they
-    // survive into the release build.
-    final style = KinshipEdgeStyleResolver.styleForCategory(category);
-    final baseColor = _colorForCategory(category);
-    final midpointColor = _midpointColorForCategory(category);
-    final defaultAlpha = _alphaForCategory(category);
+    // Compute edge endpoints (adjusted for node boundaries).
     final (start, end) = _computeEndpoints(fromPos, toPos, category);
 
-    // Resolve final color and stroke width.
+    // Resolve color and style.
+    final baseColor = EdgeStyleResolver.colorFor(category);
+    final defaultAlpha = EdgeStyleResolver.defaultAlphaFor(category);
+
+    // Determine final color.
     Color edgeColor;
     double strokeWidth;
     if (isSelected) {
@@ -342,7 +475,7 @@ class RelationshipEdge extends CustomPainter {
       edgeColor = edgeColor.withValues(alpha: edgeColor.a * 0.5);
     }
 
-    // Generation dimming.
+    // Apply dimmed alpha override.
     if (isDimmed) {
       edgeColor = edgeColor.withValues(alpha: _dimmedAlpha);
     }
@@ -353,7 +486,7 @@ class RelationshipEdge extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
-    // Glow paint (soft halo behind every edge — keeps the Kinrel look).
+    // Glow paint (soft halo behind every edge).
     final glowPaint = Paint()
       ..color = edgeColor.withValues(alpha: isSelected ? 0.35 : 0.20)
       ..strokeWidth = strokeWidth + 6
@@ -361,428 +494,272 @@ class RelationshipEdge extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
 
-    // ── Draw line path based on resolved line shape ───────────────
-    _drawLineForShape(
-      canvas: canvas,
-      start: start,
-      end: end,
-      style: style,
-      paint: paint,
-      glowPaint: glowPaint,
-      isHalfSibling: isHalfSibling,
-    );
+    // ── Compute the Path AND the t=0.5 midpoint in one place ──────
+    // This ensures the midpoint dot sits exactly on the visible curve.
+    final (path, midpoint) = _buildEdgePath(start, end, category, isHalfSibling);
 
-    // ── Draw midpoint indicator (skip in minimal LOD or when dimmed) ─
+    // ── Draw glow first (solid, no dash) then the main line ──────
+    canvas.drawPath(path, glowPaint);
+
+    // For dashed categories, we need to dash the path.
+    final isDashed = category == EdgeCategory.sibling ||
+        category == EdgeCategory.auntUncle ||
+        category == EdgeCategory.inLaw ||
+        category == EdgeCategory.extended ||
+        category == EdgeCategory.indirect ||
+        isHalfSibling;
+
+    if (isDashed) {
+      final dashArray = _dashArrayFor(category, isHalfSibling);
+      _drawDashedPath(canvas, path, paint, dashArray);
+    } else {
+      canvas.drawPath(path, paint);
+    }
+
+    // ── Draw midpoint indicator (skip in minimal LOD or when dimmed) ──
     if (!_isMinimal && !isDimmed) {
-      final midpoint = _computeMidpoint(start, end, style.lineShape);
-
-      // Lock icon takes priority over dot/heart (private relationship).
+      // Lock icon takes priority (private relationship).
       if (EdgeStyleResolver.hasLockMidpoint(isPrivate)) {
         _drawLock(canvas, midpoint, edgeColor);
-      } else {
-        switch (style.midpointSymbol) {
-          case KinshipMidpointSymbol.heart:
-            // Spouse: ALWAYS pink, even though the edge is orange.
-            _drawHeart(canvas, midpoint, midpointColor);
-            break;
-          case KinshipMidpointSymbol.dot:
-            _drawDot(canvas, midpoint, midpointColor);
-            break;
-          case KinshipMidpointSymbol.none:
-            // Indirect: no dot — only a text label below.
-            break;
-        }
+      } else if (category == EdgeCategory.spouse) {
+        // Spouse: ALWAYS pink heart, even though the edge is orange.
+        _drawHeart(canvas, midpoint, const Color(0xFFEC4899));
+      } else if (category != EdgeCategory.indirect) {
+        // v54 Problem 2: Every category except spouse and indirect gets
+        // a dot. The dot sits at the t=0.5 point on the bezier curve.
+        _drawDot(canvas, midpoint, baseColor);
       }
 
+      // Indirect connection text label.
       if (isIndirect) {
         _drawIndirectLabel(canvas, midpoint, edgeColor);
       }
 
-      // ── Relationship label on the edge midpoint ──────────────────
-      // Fade in from zoom 0.15 → 0.35 so labels gracefully appear.
-      final double labelOpacity =
-          ((zoomLevel - 0.15) / (0.35 - 0.15)).clamp(0.0, 1.0);
-      if (!isIndirect && zoomLevel >= 0.15) {
-        _drawRelationshipLabel(
-          canvas,
-          midpoint,
-          edgeColor,
-          relationshipKey,
-          opacity: labelOpacity,
-        );
+      // ── Relationship label — offset PERPENDICULAR to the edge ──
+      // v54 Problem 3: No filled background. Plain text floating BESIDE
+      // the line, not on top of it. Only visible at zoom >= 0.4.
+      if (!isIndirect && zoomLevel >= _lodMinimalZoom) {
+        final double labelOpacity =
+            ((zoomLevel - 0.4) / 0.2).clamp(0.0, 1.0);
+        if (labelOpacity > 0) {
+          _drawRelationshipLabelOffset(
+            canvas,
+            start,
+            end,
+            midpoint,
+            category,
+            baseColor,
+            relationshipKey,
+            opacity: labelOpacity,
+          );
+        }
       }
     }
   }
 
-  // ── Line-shape dispatch ────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════
+  // v54: PATH BUILDER — returns the Path AND the t=0.5 midpoint together
+  // so the dot always sits exactly on the visible curve.
+  // ═══════════════════════════════════════════════════════════════════════
 
-  void _drawLineForShape({
-    required Canvas canvas,
-    required Offset start,
-    required Offset end,
-    required KinshipEdgeStyle style,
-    required Paint paint,
-    required Paint glowPaint,
-    required bool isHalfSibling,
-  }) {
-    switch (style.lineShape) {
-      case KinshipLineShape.dashedArc:
-        // Sibling: dashed arc that bows ABOVE the nodes.
-        final dash = isHalfSibling
-            ? EdgeStyleResolver.halfSiblingDash
-            : (style.dashPattern.isEmpty
-                ? EdgeStyleResolver.siblingDash
-                : style.dashPattern);
-        _drawSiblingArc(canvas, start, end, glowPaint);
-        _drawSiblingArc(canvas, start, end, paint, dashArray: dash);
-        break;
-
-      case KinshipLineShape.solidBezier:
-        // Parent / child: solid smooth S-curve.
-        _drawBezierCurve(canvas, start, end, glowPaint);
-        _drawBezierCurve(canvas, start, end, paint);
-        break;
-
-      case KinshipLineShape.solidExtendedBezier:
-        // Grandparent: solid extended bezier with longer control spread.
-        _drawExtendedBezier(canvas, start, end, glowPaint);
-        _drawExtendedBezier(canvas, start, end, paint);
-        break;
-
-      case KinshipLineShape.wideArcBezier:
-        // Cousin: wide-arc cubic bezier (control points pushed far apart).
-        _drawWideArcBezier(canvas, start, end, glowPaint);
-        _drawWideArcBezier(canvas, start, end, paint);
-        break;
-
-      case KinshipLineShape.dashedShallowS:
-        // Aunt/Uncle: dashed shallow S-curve.
-        final dash = style.dashPattern.isEmpty
-            ? EdgeStyleResolver.defaultDash
-            : style.dashPattern;
-        _drawShallowSBezier(canvas, start, end, glowPaint);
-        _drawShallowSBezier(canvas, start, end, paint, dashArray: dash);
-        break;
-
-      case KinshipLineShape.dashedStraight:
-        // Spouse / In-Law: dashed straight horizontal line.
-        final dash = style.dashPattern.isEmpty
-            ? EdgeStyleResolver.siblingDash
-            : style.dashPattern;
-        _drawDashedLine(canvas, start, end, glowPaint, dashArray: dash);
-        _drawDashedLine(canvas, start, end, paint, dashArray: dash);
-        break;
-
-      case KinshipLineShape.dashedDefault:
-        // Extended / Indirect: dashed default line.
-        final dash = isHalfSibling
-            ? EdgeStyleResolver.halfSiblingDash
-            : (style.dashPattern.isEmpty
-                ? EdgeStyleResolver.defaultDash
-                : style.dashPattern);
-        _drawDashedLine(canvas, start, end, glowPaint, dashArray: dash);
-        _drawDashedLine(canvas, start, end, paint, dashArray: dash);
-        break;
-    }
-  }
-
-  // ── Endpoint Computation ───────────────────────────────────────────
-
-  (Offset, Offset) _computeEndpoints(
-    Offset fromPos,
-    Offset toPos,
-    KinshipEdgeCategory category,
-  ) {
-    if (category == KinshipEdgeCategory.spouse ||
-        category == KinshipEdgeCategory.inLaw) {
-      // Horizontal connector between side edges of nodes.
-      if (fromPos.dx <= toPos.dx) {
-        return (
-          Offset(fromPos.dx + nodeWidth / 2, fromPos.dy),
-          Offset(toPos.dx - nodeWidth / 2, toPos.dy),
-        );
-      } else {
-        return (
-          Offset(fromPos.dx - nodeWidth / 2, fromPos.dy),
-          Offset(toPos.dx + nodeWidth / 2, toPos.dy),
-        );
-      }
-    }
-
-    // Vertical-ish edges: bottom of upper → top of lower.
-    if (fromPos.dy <= toPos.dy) {
-      return (
-        Offset(fromPos.dx, fromPos.dy + nodeHeight / 2),
-        Offset(toPos.dx, toPos.dy - nodeHeight / 2),
-      );
-    } else {
-      return (
-        Offset(fromPos.dx, fromPos.dy - nodeHeight / 2),
-        Offset(toPos.dx, toPos.dy + nodeHeight / 2),
-      );
-    }
-  }
-
-  // ── Midpoint Computation ───────────────────────────────────────────
-
-  /// Computes the t=0.5 point of an edge so the midpoint indicator
-  /// (dot / heart / label) lines up with the visible curve.
-  Offset _computeMidpoint(
+  /// Builds the edge path and computes the t=0.5 midpoint simultaneously.
+  ///
+  /// Category-specific geometry:
+  ///   - parent/child/grandparent: vertical S-curve bezier with control
+  ///     points at 40% and 60% of the vertical distance. Even when nodes
+  ///     are directly above each other, this creates a visible S-curve
+  ///     because the control points are at different Y offsets (not the
+  ///     same midY), giving the curve natural bending.
+  ///   - sibling: arc ABOVE both nodes (control point Y = min(startY,endY) - 60)
+  ///   - cousin: wide-arc bezier
+  ///   - auntUncle: shallow S-curve
+  ///   - spouse/inLaw: straight horizontal dashed line
+  ///   - extended/indirect: straight dashed line
+  (Path, Offset) _buildEdgePath(
     Offset start,
     Offset end,
-    KinshipLineShape shape,
+    EdgeCategory category,
+    bool isHalfSibling,
   ) {
-    switch (shape) {
-      case KinshipLineShape.dashedArc:
-        // Sibling quadratic bezier: B(0.5) = 0.25·P0 + 0.5·P1 + 0.25·P2
-        final arcHeight = (end.dx - start.dx).abs() * 0.25 + 30.0;
-        final midX = (start.dx + end.dx) / 2;
-        final cpY = start.dy - arcHeight;
-        return Offset(
-          midX,
-          0.25 * start.dy + 0.5 * cpY + 0.25 * end.dy,
-        );
+    switch (category) {
+      case EdgeCategory.parent:
+      case EdgeCategory.child:
+        return _buildVerticalBezier(start, end);
 
-      case KinshipLineShape.solidExtendedBezier:
-        // Extended cubic bezier — control points pushed further apart.
-        final dy = end.dy - start.dy;
-        final cp1 = Offset(start.dx, start.dy + dy * 0.4);
-        final cp2 = Offset(end.dx, start.dy + dy * 0.6);
-        return Offset(
-          0.125 * start.dx +
-              0.375 * cp1.dx +
-              0.375 * cp2.dx +
-              0.125 * end.dx,
-          0.125 * start.dy +
-              0.375 * cp1.dy +
-              0.375 * cp2.dy +
-              0.125 * end.dy,
-        );
+      case EdgeCategory.grandparent:
+        return _buildExtendedVerticalBezier(start, end);
 
-      case KinshipLineShape.wideArcBezier:
-        // Wide-arc cubic bezier with offset control points.
-        final dx = end.dx - start.dx;
-        final dy = end.dy - start.dy;
-        final offset = dx.abs() * 0.3 + 40.0;
-        final sign = dx >= 0 ? 1.0 : -1.0;
-        final cp1 = Offset(start.dx + offset * sign, start.dy + dy * 0.33);
-        final cp2 = Offset(end.dx - offset * sign, start.dy + dy * 0.67);
-        return Offset(
-          0.125 * start.dx +
-              0.375 * cp1.dx +
-              0.375 * cp2.dx +
-              0.125 * end.dx,
-          0.125 * start.dy +
-              0.375 * cp1.dy +
-              0.375 * cp2.dy +
-              0.125 * end.dy,
-        );
+      case EdgeCategory.sibling:
+        return _buildSiblingArc(start, end, isHalfSibling);
 
-      case KinshipLineShape.dashedShallowS:
-        // Shallow S-curve — cubic with small vertical offset on controls.
-        final midY = (start.dy + end.dy) / 2;
-        final dxOffset = (end.dx - start.dx) * 0.2;
-        final cp1 = Offset(start.dx + dxOffset, midY - 15);
-        final cp2 = Offset(end.dx - dxOffset, midY + 15);
-        return Offset(
-          0.125 * start.dx +
-              0.375 * cp1.dx +
-              0.375 * cp2.dx +
-              0.125 * end.dx,
-          0.125 * start.dy +
-              0.375 * cp1.dy +
-              0.375 * cp2.dy +
-              0.125 * end.dy,
-        );
+      case EdgeCategory.cousin:
+        return _buildWideArcBezier(start, end);
 
-      case KinshipLineShape.solidBezier:
-      case KinshipLineShape.dashedStraight:
-      case KinshipLineShape.dashedDefault:
-        // For solid bezier (control points at midY) and straight lines,
-        // the t=0.5 point is the linear midpoint.
-        return Offset(
+      case EdgeCategory.auntUncle:
+        return _buildShallowSBezier(start, end);
+
+      case EdgeCategory.spouse:
+      case EdgeCategory.inLaw:
+      case EdgeCategory.extended:
+      case EdgeCategory.indirect:
+      case EdgeCategory.self:
+        // Straight line — midpoint is the linear midpoint.
+        final mid = Offset(
           (start.dx + end.dx) / 2,
           (start.dy + end.dy) / 2,
         );
+        final path = Path()
+          ..moveTo(start.dx, start.dy)
+          ..lineTo(end.dx, end.dy);
+        return (path, mid);
     }
   }
 
-  // ── Sibling Arc ────────────────────────────────────────────────────
+  // ── Vertical S-curve for parent/child ───────────────────────────────
 
-  void _drawSiblingArc(
-    Canvas canvas,
-    Offset start,
-    Offset end,
-    Paint paint, {
-    List<double>? dashArray,
-  }) {
-    final midX = (start.dx + end.dx) / 2;
-    final arcHeight = (end.dx - start.dx).abs() * 0.25 + 30.0;
-    final controlPoint = Offset(midX, start.dy - arcHeight);
-
-    final path = Path()
-      ..moveTo(start.dx, start.dy)
-      ..quadraticBezierTo(
-        controlPoint.dx,
-        controlPoint.dy,
-        end.dx,
-        end.dy,
-      );
-
-    if (dashArray == null || dashArray.isEmpty) {
-      canvas.drawPath(path, paint);
-      return;
-    }
-
-    // Manual dash along the path (PathMetric.extractPath is available
-    // in all current Flutter versions; we use tangent-based fallback
-    // for ancient versions).
-    final dashedPath = Path();
-    for (final ui.PathMetric metric in path.computeMetrics()) {
-      double distance = 0.0;
-      bool draw = true;
-      final totalLen = metric.length;
-      while (distance < totalLen) {
-        final double len = draw
-            ? dashArray.first
-            : (dashArray.length > 1 ? dashArray[1] : dashArray.first);
-        final double next = (distance + len).clamp(0.0, totalLen);
-        if (draw && next > distance) {
-          final tangent = metric.getTangentForOffset(distance);
-          if (tangent != null) {
-            dashedPath.moveTo(tangent.position.dx, tangent.position.dy);
-            final endTangent = metric.getTangentForOffset(next);
-            if (endTangent != null) {
-              dashedPath.lineTo(endTangent.position.dx, endTangent.position.dy);
-            }
-          }
-        }
-        distance = next;
-        draw = !draw;
-      }
-    }
-    canvas.drawPath(dashedPath, paint);
-  }
-
-  // ── Bezier Curve (parent / child) ──────────────────────────────────
-
-  void _drawBezierCurve(
-    Canvas canvas,
-    Offset start,
-    Offset end,
-    Paint paint,
-  ) {
-    final midY = (start.dy + end.dy) / 2;
-    final cp1 = Offset(start.dx, midY);
-    final cp2 = Offset(end.dx, midY);
-    final path = Path()
-      ..moveTo(start.dx, start.dy)
-      ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, end.dx, end.dy);
-    canvas.drawPath(path, paint);
-  }
-
-  // ── Extended Bezier (grandparent) ──────────────────────────────────
-
-  void _drawExtendedBezier(
-    Canvas canvas,
-    Offset start,
-    Offset end,
-    Paint paint,
-  ) {
+  /// Builds a vertical S-curve bezier for parent→child edges.
+  ///
+  /// Control points:
+  ///   cp1 = (start.x, start.y + dy * 0.4)   — 40% down from start
+  ///   cp2 = (end.x,   end.y   - dy * 0.4)   — 40% up from end
+  ///
+  /// Even when start.x == end.x (nodes directly above each other), this
+  /// creates a natural S-curve because the control points are at
+  /// DIFFERENT Y positions (not the same midY), giving the curve a
+  /// visible vertical bend instead of a straight line.
+  (Path, Offset) _buildVerticalBezier(Offset start, Offset end) {
     final dy = end.dy - start.dy;
     final cp1 = Offset(start.dx, start.dy + dy * 0.4);
-    final cp2 = Offset(end.dx, start.dy + dy * 0.6);
+    final cp2 = Offset(end.dx, end.dy - dy * 0.4);
+
     final path = Path()
       ..moveTo(start.dx, start.dy)
       ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, end.dx, end.dy);
-    canvas.drawPath(path, paint);
+
+    // t=0.5 on a cubic bezier: 0.125·P0 + 0.375·CP1 + 0.375·CP2 + 0.125·P3
+    final mid = Offset(
+      0.125 * start.dx + 0.375 * cp1.dx + 0.375 * cp2.dx + 0.125 * end.dx,
+      0.125 * start.dy + 0.375 * cp1.dy + 0.375 * cp2.dy + 0.125 * end.dy,
+    );
+    return (path, mid);
   }
 
-  // ── Wide-Arc Bezier (cousin) ───────────────────────────────────────
+  // ── Extended vertical bezier for grandparent ────────────────────────
 
-  void _drawWideArcBezier(
-    Canvas canvas,
+  /// Like _buildVerticalBezier but with control points pushed further
+  /// apart (35% / 65%) for a more dramatic curve signaling greater
+  /// generational distance.
+  (Path, Offset) _buildExtendedVerticalBezier(Offset start, Offset end) {
+    final dy = end.dy - start.dy;
+    final cp1 = Offset(start.dx, start.dy + dy * 0.35);
+    final cp2 = Offset(end.dx, end.dy - dy * 0.35);
+
+    final path = Path()
+      ..moveTo(start.dx, start.dy)
+      ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, end.dx, end.dy);
+
+    final mid = Offset(
+      0.125 * start.dx + 0.375 * cp1.dx + 0.375 * cp2.dx + 0.125 * end.dx,
+      0.125 * start.dy + 0.375 * cp1.dy + 0.375 * cp2.dy + 0.125 * end.dy,
+    );
+    return (path, mid);
+  }
+
+  // ── Sibling arc ABOVE nodes ─────────────────────────────────────────
+
+  /// Builds a quadratic bezier arc that bows ABOVE both nodes.
+  ///
+  /// v54 Problem 5: Control point Y is set to min(startY, endY) - 60,
+  /// ensuring the arc always curves UP and over, never dipping down
+  /// through intermediate nodes.
+  (Path, Offset) _buildSiblingArc(
     Offset start,
     Offset end,
-    Paint paint,
+    bool isHalfSibling,
   ) {
+    final midX = (start.dx + end.dx) / 2;
+    // Arc above BOTH nodes — use the higher (smaller Y) of the two,
+    // then subtract 60px to ensure the arc clears any intermediate nodes.
+    final topY = start.dy < end.dy ? start.dy : end.dy;
+    final arcHeight = ((end.dx - start.dx).abs() * 0.2 + 60.0);
+    final cpY = topY - arcHeight;
+    final cp = Offset(midX, cpY);
+
+    final path = Path()
+      ..moveTo(start.dx, start.dy)
+      ..quadraticBezierTo(cp.dx, cp.dy, end.dx, end.dy);
+
+    // t=0.5 on a quadratic bezier: 0.25·P0 + 0.5·P1 + 0.25·P2
+    final mid = Offset(
+      0.25 * start.dx + 0.5 * cp.dx + 0.25 * end.dx,
+      0.25 * start.dy + 0.5 * cp.dy + 0.25 * end.dy,
+    );
+    return (path, mid);
+  }
+
+  // ── Wide-arc bezier for cousin ──────────────────────────────────────
+
+  /// Wide-arc cubic bezier — control points pushed far apart for a
+  /// sweeping curve that spans large horizontal distances.
+  (Path, Offset) _buildWideArcBezier(Offset start, Offset end) {
     final dx = end.dx - start.dx;
     final dy = end.dy - start.dy;
     final offset = dx.abs() * 0.3 + 40.0;
     final sign = dx >= 0 ? 1.0 : -1.0;
     final cp1 = Offset(start.dx + offset * sign, start.dy + dy * 0.33);
     final cp2 = Offset(end.dx - offset * sign, start.dy + dy * 0.67);
+
     final path = Path()
       ..moveTo(start.dx, start.dy)
       ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, end.dx, end.dy);
-    canvas.drawPath(path, paint);
+
+    final mid = Offset(
+      0.125 * start.dx + 0.375 * cp1.dx + 0.375 * cp2.dx + 0.125 * end.dx,
+      0.125 * start.dy + 0.375 * cp1.dy + 0.375 * cp2.dy + 0.125 * end.dy,
+    );
+    return (path, mid);
   }
 
-  // ── Shallow S-Curve (aunt/uncle) ───────────────────────────────────
+  // ── Shallow S-curve for aunt/uncle ──────────────────────────────────
 
-  void _drawShallowSBezier(
-    Canvas canvas,
-    Offset start,
-    Offset end,
-    Paint paint, {
-    List<double>? dashArray,
-  }) {
+  /// Shallow S-curve — small vertical offset on control points for a
+  /// gentle wave.
+  (Path, Offset) _buildShallowSBezier(Offset start, Offset end) {
     final midY = (start.dy + end.dy) / 2;
     final dxOffset = (end.dx - start.dx) * 0.2;
     final cp1 = Offset(start.dx + dxOffset, midY - 15);
     final cp2 = Offset(end.dx - dxOffset, midY + 15);
+
     final path = Path()
       ..moveTo(start.dx, start.dy)
       ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, end.dx, end.dy);
 
-    if (dashArray == null || dashArray.isEmpty) {
-      canvas.drawPath(path, paint);
-      return;
-    }
-    _drawDashedPath(canvas, path, paint, dashArray);
+    final mid = Offset(
+      0.125 * start.dx + 0.375 * cp1.dx + 0.375 * cp2.dx + 0.125 * end.dx,
+      0.125 * start.dy + 0.375 * cp1.dy + 0.375 * cp2.dy + 0.125 * end.dy,
+    );
+    return (path, mid);
   }
 
-  // ── Dashed Line (straight) ─────────────────────────────────────────
+  // ── Dash array resolver ─────────────────────────────────────────────
 
-  void _drawDashedLine(
-    Canvas canvas,
-    Offset start,
-    Offset end,
-    Paint paint, {
-    List<double> dashArray = EdgeStyleResolver.defaultDash,
-  }) {
-    final dx = end.dx - start.dx;
-    final dy = end.dy - start.dy;
-    final length = math.sqrt(dx * dx + dy * dy);
-    if (length == 0) return;
-
-    final unitDx = dx / length;
-    final unitDy = dy / length;
-
-    final dashWidth = dashArray[0];
-    final dashGap = dashArray.length > 1 ? dashArray[1] : dashArray[0];
-
-    double covered = 0;
-    bool draw = true;
-    while (covered < length) {
-      final segmentLength = draw ? dashWidth : dashGap;
-      final endCovered = (covered + segmentLength).clamp(0.0, length);
-
-      if (draw) {
-        canvas.drawLine(
-          Offset(start.dx + unitDx * covered, start.dy + unitDy * covered),
-          Offset(start.dx + unitDx * endCovered,
-              start.dy + unitDy * endCovered),
-          paint,
-        );
-      }
-
-      covered = endCovered;
-      draw = !draw;
+  List<double> _dashArrayFor(EdgeCategory category, bool isHalfSibling) {
+    if (isHalfSibling) return EdgeStyleResolver.halfSiblingDash;
+    switch (category) {
+      case EdgeCategory.sibling:
+        return EdgeStyleResolver.siblingDash;
+      case EdgeCategory.auntUncle:
+      case EdgeCategory.inLaw:
+        return const [5.0, 4.0];
+      case EdgeCategory.extended:
+      case EdgeCategory.indirect:
+        return EdgeStyleResolver.defaultDash;
+      default:
+        return EdgeStyleResolver.defaultDash;
     }
   }
 
-  // ── Dashed Path (along arbitrary Path) ─────────────────────────────
+  // ── Dashed path along arbitrary Path ────────────────────────────────
 
   void _drawDashedPath(
     Canvas canvas,
@@ -819,8 +796,113 @@ class RelationshipEdge extends CustomPainter {
     }
   }
 
+  // ── Relationship label — offset PERPENDICULAR to the edge ───────────
+
+  /// v54 Problem 3: Draws the relationship label as PLAIN TEXT (no
+  /// filled background, no pill, no chip) offset 20px perpendicular
+  /// to the edge direction so it floats BESIDE the line, not on top
+  /// of it. The dot stays AT the midpoint on the line.
+  void _drawRelationshipLabelOffset(
+    Canvas canvas,
+    Offset start,
+    Offset end,
+    Offset midpoint,
+    EdgeCategory category,
+    Color baseColor,
+    String relationshipKey, {
+    double opacity = 1.0,
+  }) {
+    if (relationshipKey.isEmpty || relationshipKey == 'unknown') return;
+    if (opacity <= 0.0) return;
+
+    // Format the label: 'father' → 'Father', 'father_in_law' → 'Father In Law'
+    final formatted = relationshipKey
+        .split('_')
+        .where((w) => w.isNotEmpty)
+        .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
+        .join(' ');
+
+    // For sibling arcs, the label should sit above the arc peak.
+    // For vertical edges, the label sits to the right of the midpoint.
+    // For horizontal edges (spouse), the label sits above the midpoint.
+    Offset labelCenter;
+    if (category == EdgeCategory.sibling) {
+      // Sibling arc — label above the arc peak (midpoint is already at
+      // the arc peak from the quadratic bezier t=0.5 computation).
+      labelCenter = Offset(midpoint.dx, midpoint.dy - 16);
+    } else if (category == EdgeCategory.spouse ||
+        category == EdgeCategory.inLaw) {
+      // Horizontal edge — label above the line.
+      labelCenter = Offset(midpoint.dx, midpoint.dy - 16);
+    } else {
+      // Vertical-ish edge — label to the RIGHT of the midpoint.
+      labelCenter = Offset(midpoint.dx + 20, midpoint.dy);
+    }
+
+    final textSpan = TextSpan(
+      text: formatted,
+      style: TextStyle(
+        fontSize: 10.0,
+        fontWeight: FontWeight.w400,
+        color: baseColor.withValues(alpha: 0.85 * opacity),
+        decoration: TextDecoration.none,
+      ),
+    );
+    final textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout();
+
+    final textOffset = Offset(
+      labelCenter.dx - textPainter.width / 2,
+      labelCenter.dy - textPainter.height / 2,
+    );
+    textPainter.paint(canvas, textOffset);
+  }
+
+  // ── Endpoint Computation ───────────────────────────────────────────
+
+  /// Computes the visual start and end points for an edge, adjusting
+  /// for the node boundaries.
+  (Offset, Offset) _computeEndpoints(
+    Offset fromPos,
+    Offset toPos,
+    EdgeCategory category,
+  ) {
+    if (category == EdgeCategory.spouse || category == EdgeCategory.inLaw) {
+      // Spouse/in-law: horizontal line between side edges of nodes.
+      if (fromPos.dx <= toPos.dx) {
+        return (
+          Offset(fromPos.dx + nodeWidth / 2, fromPos.dy),
+          Offset(toPos.dx - nodeWidth / 2, toPos.dy),
+        );
+      } else {
+        return (
+          Offset(fromPos.dx - nodeWidth / 2, fromPos.dy),
+          Offset(toPos.dx + nodeWidth / 2, toPos.dy),
+        );
+      }
+    }
+
+    // Parent/child/sibling/cousin/auntUncle: vertical connection
+    // (bottom of upper → top of lower).
+    if (fromPos.dy <= toPos.dy) {
+      return (
+        Offset(fromPos.dx, fromPos.dy + nodeHeight / 2),
+        Offset(toPos.dx, toPos.dy - nodeHeight / 2),
+      );
+    } else {
+      return (
+        Offset(fromPos.dx, fromPos.dy - nodeHeight / 2),
+        Offset(toPos.dx, toPos.dy + nodeHeight / 2),
+      );
+    }
+  }
+
   // ── Midpoint Drawing ───────────────────────────────────────────────
 
+  /// Draws a small filled dot with glow halo at the midpoint.
   void _drawDot(Canvas canvas, Offset center, Color color) {
     // Glow halo
     final glowPaint = Paint()
@@ -835,6 +917,7 @@ class RelationshipEdge extends CustomPainter {
     canvas.drawCircle(center, _dotRadius, dotPaint);
   }
 
+  /// Draws a small heart shape at the midpoint for spouse edges.
   void _drawHeart(Canvas canvas, Offset center, Color color) {
     final heartPaint = Paint()
       ..color = color
@@ -843,10 +926,10 @@ class RelationshipEdge extends CustomPainter {
     final s = _heartSize;
     final circleRadius = s / 4;
 
-    final leftCircleCenter = Offset(
-        center.dx - circleRadius * 0.7, center.dy - circleRadius * 0.4);
-    final rightCircleCenter = Offset(
-        center.dx + circleRadius * 0.7, center.dy - circleRadius * 0.4);
+    final leftCircleCenter =
+        Offset(center.dx - circleRadius * 0.7, center.dy - circleRadius * 0.4);
+    final rightCircleCenter =
+        Offset(center.dx + circleRadius * 0.7, center.dy - circleRadius * 0.4);
 
     canvas.drawCircle(leftCircleCenter, circleRadius, heartPaint);
     canvas.drawCircle(rightCircleCenter, circleRadius, heartPaint);
@@ -863,6 +946,7 @@ class RelationshipEdge extends CustomPainter {
     canvas.drawPath(path, heartPaint);
   }
 
+  /// Draws a lock icon at the midpoint for private relationships.
   void _drawLock(Canvas canvas, Offset center, Color color) {
     final lockPaint = Paint()
       ..color = color
@@ -873,107 +957,56 @@ class RelationshipEdge extends CustomPainter {
       ..color = color.withValues(alpha: 0.3)
       ..style = PaintingStyle.fill;
 
+    // Lock body (rounded rectangle)
     final bodyRect = Rect.fromCenter(
       center: Offset(center.dx, center.dy + 2),
       width: _lockSize * 0.7,
       height: _lockSize * 0.5,
     );
     canvas.drawRRect(
-      RRect.fromRectAndRadius(bodyRect, const Radius.circular(2.0)),
+      RRect.fromRectAndRadius(bodyRect, Radius.circular(2.0)),
       fillPaint,
     );
     canvas.drawRRect(
-      RRect.fromRectAndRadius(bodyRect, const Radius.circular(2.0)),
+      RRect.fromRectAndRadius(bodyRect, Radius.circular(2.0)),
       lockPaint,
     );
 
+    // Lock shackle (arc)
     final shackleRect = Rect.fromCenter(
       center: Offset(center.dx, center.dy - 1),
       width: _lockSize * 0.4,
       height: _lockSize * 0.35,
     );
-    canvas.drawArc(shackleRect, math.pi, math.pi, false, lockPaint);
+    canvas.drawArc(
+      shackleRect,
+      math.pi,
+      math.pi,
+      false,
+      lockPaint,
+    );
   }
 
+  /// Draws "indirect" label at the midpoint for indirect connections.
   void _drawIndirectLabel(Canvas canvas, Offset center, Color color) {
     const textStyle = TextStyle(
       fontSize: 8.0,
       fontWeight: FontWeight.w500,
       color: KinrelColors.textDim,
     );
+
     final textSpan = TextSpan(text: 'indirect', style: textStyle);
     final textPainter = TextPainter(
       text: textSpan,
       textDirection: TextDirection.ltr,
     )..layout();
+
     final offset = Offset(
       center.dx - textPainter.width / 2,
       center.dy + 8.0,
     );
+
     textPainter.paint(canvas, offset);
-  }
-
-  void _drawRelationshipLabel(
-    Canvas canvas,
-    Offset center,
-    Color edgeColor,
-    String relationshipKey, {
-    double opacity = 1.0,
-  }) {
-    if (relationshipKey.isEmpty || relationshipKey == 'unknown') return;
-    if (opacity <= 0.0) return;
-
-    final formatted = relationshipKey
-        .split('_')
-        .where((w) => w.isNotEmpty)
-        .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
-        .join(' ');
-
-    const fontSize = 11.0;
-    const horizontalPadding = 6.0;
-    const verticalPadding = 3.0;
-
-    final textSpan = TextSpan(
-      text: formatted,
-      style: TextStyle(
-        fontSize: fontSize,
-        fontWeight: FontWeight.w700,
-        color: Colors.white.withValues(alpha: opacity),
-      ),
-    );
-    final textPainter = TextPainter(
-      text: textSpan,
-      textDirection: TextDirection.ltr,
-      textAlign: TextAlign.center,
-    )..layout();
-
-    final pillWidth = textPainter.width + horizontalPadding * 2;
-    final pillHeight = textPainter.height + verticalPadding * 2;
-    final pillRect = RRect.fromRectAndRadius(
-      Rect.fromCenter(
-        center: center,
-        width: pillWidth,
-        height: pillHeight,
-      ),
-      const Radius.circular(8.0),
-    );
-
-    final bgPaint = Paint()
-      ..color = edgeColor.withValues(alpha: 0.95 * opacity)
-      ..style = PaintingStyle.fill;
-    canvas.drawRRect(pillRect, bgPaint);
-
-    final borderPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.25 * opacity)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.5;
-    canvas.drawRRect(pillRect, borderPaint);
-
-    final textOffset = Offset(
-      center.dx - textPainter.width / 2,
-      center.dy - textPainter.height / 2,
-    );
-    textPainter.paint(canvas, textOffset);
   }
 
   // ── Repaint ────────────────────────────────────────────────────────
