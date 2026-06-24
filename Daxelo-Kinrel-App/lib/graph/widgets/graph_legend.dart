@@ -120,7 +120,7 @@ class _GraphLegendState extends ConsumerState<GraphLegend> {
                     // Header
                     // Directional padding so RTL layouts mirror correctly.
                     Padding(
-                      padding: const EdgeInsetsDirectional.fromSTBE(
+                      padding: const EdgeInsetsDirectional.only(
                         start: 14,
                         top: 12,
                         end: 8,

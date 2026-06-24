@@ -3030,8 +3030,8 @@ class _NodeDetailPopupState extends ConsumerState<_NodeDetailPopup> {
                                 icon: Icons.person_rounded,
                                 onPressed: () {
                                   // 1F: View Profile — gated behind kEnableProfileEditing
-                                  if (kEnableProfileEditing && _selectedPerson != null) {
-                                    context.push('/member/${_selectedPerson!.id}');
+                                  if (kEnableProfileEditing) {
+                                    context.push('/member/${widget.person.id}');
                                   }
                                 },
                               ),
@@ -3045,12 +3045,12 @@ class _NodeDetailPopupState extends ConsumerState<_NodeDetailPopup> {
                                 icon: Icons.route_rounded,
                                 onPressed: () {
                                   // 1F: Find Path — gated behind kEnableProfileEditing
-                                  if (kEnableProfileEditing && _selectedPerson != null) {
+                                  if (kEnableProfileEditing) {
                                     Navigator.of(context).push(
                                       MaterialPageRoute(
                                         builder: (_) => PathFinderScreen(
                                           familyId: widget.familyId,
-                                          startPersonId: _selectedPerson!.id,
+                                          startPersonId: widget.person.id,
                                         ),
                                       ),
                                     );
@@ -3067,11 +3067,11 @@ class _NodeDetailPopupState extends ConsumerState<_NodeDetailPopup> {
                                 icon: Icons.add_circle_outline_rounded,
                                 onPressed: () {
                                   // 1F: Add Relative — gated behind kEnableProfileEditing
-                                  if (kEnableProfileEditing && _selectedPerson != null) {
+                                  if (kEnableProfileEditing) {
                                     AddPersonSheet.show(
                                       context,
                                       familyId: widget.familyId,
-                                      anchorPerson: _selectedPerson,
+                                      anchorPerson: widget.person,
                                     );
                                   }
                                 },

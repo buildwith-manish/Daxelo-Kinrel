@@ -929,6 +929,16 @@ class _HeroResultCard extends ConsumerWidget {
   final Map<String, Person> personMap;
   final String fromPersonId;
 
+  // 1I: Static TTS for audio pronunciation
+  static FlutterTts? _tts;
+  static bool _ttsInit = false;
+  static Future<void> _pronounceTerm(String term) async {
+    if (!kEnableAudioPronunciation) return;
+    if (!_ttsInit) { _ttsInit = true; try { _tts = FlutterTts(); await _tts?.setLanguage('hi-IN'); } catch (_) { _tts = null; } }
+    if (_tts == null) return;
+    try { await _tts!.speak(term); } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Try to resolve a compound kinship key from the path

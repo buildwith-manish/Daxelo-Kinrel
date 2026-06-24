@@ -14,6 +14,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/graph/widgets/graph_node.dart';
 import 'package:kinrel/graph/widgets/graph_node_state.dart';
 
+String? _getSemanticsLabel(WidgetTester tester, Finder finder) {
+  final element = tester.element(finder);
+  final renderObject = element.findRenderObject();
+  if (renderObject == null) return null;
+  return renderObject.debugSemantics?.label;
+}
+
 void main() {
   group('GraphNode Accessibility', () {
     testWidgets(
@@ -52,10 +59,10 @@ void main() {
         );
 
         // Get all semantics labels in the tree
-        final SemanticsNode? node = tester.getSemantics(find.byType(GraphNode));
-        expect(node, isNotNull);
-        expect(node!.label, contains('Rajesh Kumar'));
-        expect(node.label, contains('Father'));
+        final label = _getSemanticsLabel(tester, find.byType(GraphNode));
+        expect(label, isNotNull);
+        expect(label, contains('Rajesh Kumar'));
+        expect(label, contains('Father'));
       },
     );
 
@@ -85,10 +92,10 @@ void main() {
           ),
         );
 
-        final SemanticsNode? node = tester.getSemantics(find.byType(GraphNode));
-        expect(node, isNotNull);
-        expect(node!.label, contains('Late'));
-        expect(node.label, contains('Sita Devi'));
+        final label = _getSemanticsLabel(tester, find.byType(GraphNode));
+        expect(label, isNotNull);
+        expect(label, contains('Late'));
+        expect(label, contains('Sita Devi'));
       },
     );
 
@@ -117,9 +124,9 @@ void main() {
           ),
         );
 
-        final SemanticsNode? node = tester.getSemantics(find.byType(GraphNode));
-        expect(node, isNotNull);
-        expect(node!.label, contains('Anonymous'));
+        final label = _getSemanticsLabel(tester, find.byType(GraphNode));
+        expect(label, isNotNull);
+        expect(label, contains('Anonymous'));
       },
     );
 
