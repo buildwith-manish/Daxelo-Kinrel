@@ -602,7 +602,6 @@ class RelationshipEdge extends CustomPainter {
       case EdgeCategory.inLaw:
       case EdgeCategory.extended:
       case EdgeCategory.indirect:
-      case EdgeCategory.self:
         // Straight line — midpoint is the linear midpoint.
         final mid = Offset(
           (start.dx + end.dx) / 2,
