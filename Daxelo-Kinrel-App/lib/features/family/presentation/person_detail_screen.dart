@@ -159,7 +159,6 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
                     isDeceased: detail.isDeceased,
                     notes: detail.bio,
                   ),
-                  isEditMode: true,
                 );
               });
             } else {
