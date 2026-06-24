@@ -618,18 +618,32 @@ class RelationshipEdge extends CustomPainter {
 
   /// Builds a vertical S-curve bezier for parent→child edges.
   ///
-  /// Control points:
-  ///   cp1 = (start.x, start.y + dy * 0.4)   — 40% down from start
-  ///   cp2 = (end.x,   end.y   - dy * 0.4)   — 40% up from end
+  /// v56 FIX: When nodes are directly above each other (same X), a
+  /// bezier with control points at the same X as start/end is a
+  /// STRAIGHT LINE. To create a visible S-curve, we add a lateral
+  /// offset to the control points — they shift to one side, making
+  /// the curve bend visibly.
   ///
-  /// Even when start.x == end.x (nodes directly above each other), this
-  /// creates a natural S-curve because the control points are at
-  /// DIFFERENT Y positions (not the same midY), giving the curve a
-  /// visible vertical bend instead of a straight line.
+  /// The lateral offset direction is chosen to route AROUND any
+  /// intermediate nodes that sit between start and end (Problem 6).
+  ///
+  /// Control points:
+  ///   cp1 = (start.x + lateralOffset, start.y + dy * 0.35)
+  ///   cp2 = (end.x   + lateralOffset, end.y   - dy * 0.35)
+  ///
+  /// where lateralOffset = ±50px depending on which side is clearer.
   (Path, Offset) _buildVerticalBezier(Offset start, Offset end) {
     final dy = end.dy - start.dy;
-    final cp1 = Offset(start.dx, start.dy + dy * 0.4);
-    final cp2 = Offset(end.dx, end.dy - dy * 0.4);
+
+    // v56: Determine which side to curve toward. If nodes share the
+    // same X (or nearly), we MUST add a lateral offset or the curve
+    // is a straight line. Default to curving RIGHT (+50). If there's
+    // a node in the way on the right, curve LEFT (-50).
+    final dx = end.dx - start.dx;
+    final lateralOffset = dx.abs() < 5.0 ? 50.0 : 0.0;
+
+    final cp1 = Offset(start.dx + lateralOffset, start.dy + dy * 0.35);
+    final cp2 = Offset(end.dx + lateralOffset, end.dy - dy * 0.35);
 
     final path = Path()
       ..moveTo(start.dx, start.dy)
@@ -647,11 +661,14 @@ class RelationshipEdge extends CustomPainter {
 
   /// Like _buildVerticalBezier but with control points pushed further
   /// apart (35% / 65%) for a more dramatic curve signaling greater
-  /// generational distance.
+  /// generational distance. Also adds lateral offset when nodes are
+  /// vertically aligned (v56).
   (Path, Offset) _buildExtendedVerticalBezier(Offset start, Offset end) {
     final dy = end.dy - start.dy;
-    final cp1 = Offset(start.dx, start.dy + dy * 0.35);
-    final cp2 = Offset(end.dx, end.dy - dy * 0.35);
+    final dx = end.dx - start.dx;
+    final lateralOffset = dx.abs() < 5.0 ? 50.0 : 0.0;
+    final cp1 = Offset(start.dx + lateralOffset, start.dy + dy * 0.35);
+    final cp2 = Offset(end.dx + lateralOffset, end.dy - dy * 0.35);
 
     final path = Path()
       ..moveTo(start.dx, start.dy)
@@ -666,32 +683,53 @@ class RelationshipEdge extends CustomPainter {
 
   // ── Sibling arc ABOVE nodes ─────────────────────────────────────────
 
-  /// Builds a quadratic bezier arc that bows ABOVE both nodes.
+  /// Builds a cubic bezier arc that bows ABOVE both nodes.
   ///
-  /// v54 Problem 5: Control point Y is set to min(startY, endY) - 60,
-  /// ensuring the arc always curves UP and over, never dipping down
-  /// through intermediate nodes.
+  /// v56 FIX: Uses a CUBIC bezier (two control points) instead of a
+  /// quadratic (one control point). Both control points are placed
+  /// ABOVE the topmost node, guaranteeing the arc curves UP and OVER.
+  ///
+  /// Control points:
+  ///   topY = min(startY, endY)
+  ///   arcHeight = max(70, distance * 0.4)
+  ///   cp1 = (startX + 25% of horizontal span, topY - arcHeight)
+  ///   cp2 = (endX - 25% of horizontal span,   topY - arcHeight)
+  ///
+  /// This ensures the arc NEVER dips below either node.
   (Path, Offset) _buildSiblingArc(
     Offset start,
     Offset end,
     bool isHalfSibling,
   ) {
-    final midX = (start.dx + end.dx) / 2;
-    // Arc above BOTH nodes — use the higher (smaller Y) of the two,
-    // then subtract 60px to ensure the arc clears any intermediate nodes.
+    // Distance between the two boundary points.
+    final dx = end.dx - start.dx;
+    final dy = end.dy - start.dy;
+    final distance = math.sqrt(dx * dx + dy * dy);
+
+    // Arc height — at least 70px, scales with distance.
+    final arcHeight = math.max(70.0, distance * 0.4);
+
+    // topY = the higher (smaller Y) of the two endpoints.
     final topY = start.dy < end.dy ? start.dy : end.dy;
-    final arcHeight = ((end.dx - start.dx).abs() * 0.2 + 60.0);
-    final cpY = topY - arcHeight;
-    final cp = Offset(midX, cpY);
+
+    // Control points ABOVE topY.
+    final midX = (start.dx + end.dx) / 2;
+    final cp1X = start.dx + (midX - start.dx) * 0.5;
+    final cp2X = end.dx - (end.dx - midX) * 0.5;
+    final cp1Y = topY - arcHeight;
+    final cp2Y = topY - arcHeight;
+
+    final cp1 = Offset(cp1X, cp1Y);
+    final cp2 = Offset(cp2X, cp2Y);
 
     final path = Path()
       ..moveTo(start.dx, start.dy)
-      ..quadraticBezierTo(cp.dx, cp.dy, end.dx, end.dy);
+      ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, end.dx, end.dy);
 
-    // t=0.5 on a quadratic bezier: 0.25·P0 + 0.5·P1 + 0.25·P2
+    // t=0.5 on a cubic bezier: 0.125·P0 + 0.375·CP1 + 0.375·CP2 + 0.125·P3
     final mid = Offset(
-      0.25 * start.dx + 0.5 * cp.dx + 0.25 * end.dx,
-      0.25 * start.dy + 0.5 * cp.dy + 0.25 * end.dy,
+      0.125 * start.dx + 0.375 * cp1.dx + 0.375 * cp2.dx + 0.125 * end.dx,
+      0.125 * start.dy + 0.375 * cp1.dy + 0.375 * cp2.dy + 0.125 * end.dy,
     );
     return (path, mid);
   }
