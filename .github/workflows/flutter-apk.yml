@@ -6,7 +6,7 @@ name: Build Flutter APK (path-filtered)
 
 on:
   push:
-    branches: [main]
+    branches: [m[main, feat/step5.3-step6-remaining]
     paths:
       - 'Daxelo-Kinrel-App/lib/**'
       - 'Daxelo-Kinrel-App/android/**'
@@ -14,7 +14,7 @@ on:
       - 'Daxelo-Kinrel-App/pubspec.lock'
       - '.github/workflows/flutter-apk.yml'
   pull_request:
-    branches: [main]
+    branches: [m[main, feat/step5.3-step6-remaining]
   workflow_dispatch:
 
 concurrency:
