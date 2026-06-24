@@ -96,6 +96,13 @@ dependencies:
 
   # QR Code generation
   qr_flutter: ^4.1.0
+
+  # QR Code scanning (gated behind kEnableQrJoin)
+  mobile_scanner: ^5.2.0
+
+  # Text-to-speech for kinship pronunciation (gated behind kEnableAudioPronunciation)
+  flutter_tts: ^4.2.0
+
   window_manager: ^0.4.3
 
   # Timezone support (required by flutter_local_notifications scheduling)

@@ -24,11 +24,13 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/family/family_id_provider.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/services/deep_link_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/extensions/context_extensions.dart';
+import 'qr_scanner_screen.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
 const Color _bg = Color(0xFF131416);
@@ -599,8 +601,21 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
                   size: DKButtonSize.lg,
                   icon: Icons.qr_code_scanner_rounded,
                   onPressed: () {
-                    // TODO: Navigate to QR scanner when implemented
-                    context.showSnackBar('QR scanner coming soon!');
+                    // 1J: QR Scanner — gated behind kEnableQrJoin
+                    if (kEnableQrJoin) {
+                      Navigator.of(context).push<String>(
+                        MaterialPageRoute(
+                          builder: (_) => const QrScannerScreen(),
+                        ),
+                      ).then((familyId) {
+                        if (familyId != null && familyId.isNotEmpty) {
+                          _familyIdController.text = familyId;
+                          _searchFamily();
+                        }
+                      });
+                    } else {
+                      context.showSnackBar('QR scanner coming soon!');
+                    }
                   },
                 ),
               ],

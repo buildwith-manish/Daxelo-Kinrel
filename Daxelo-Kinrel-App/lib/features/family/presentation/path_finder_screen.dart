@@ -1,10 +1,12 @@
 import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/graph/graph_service.dart';
 import '../../../core/graph/graph_provider.dart';
 import '../../../core/extensions/context_extensions.dart';
@@ -33,6 +35,9 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen>
   PathResult? _pathResult;
   bool _isSearching = false;
 
+  // 1I: Text-to-speech for kinship pronunciation
+  FlutterTts? _tts;
+
   // Animation controllers
   late AnimationController _dotPulseController;
   late AnimationController _pathRevealController;
@@ -57,10 +62,35 @@ class _PathFinderScreenState extends ConsumerState<PathFinderScreen>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
+
+    // 1I: Initialize TTS if audio pronunciation is enabled
+    if (kEnableAudioPronunciation) {
+      _initTts();
+    }
+  }
+
+  void _initTts() {
+    try {
+      _tts = FlutterTts();
+      _tts!.setLanguage('hi-IN'); // Default to Hindi
+    } catch (_) {
+      _tts = null; // Fallback gracefully if TTS unavailable
+    }
+  }
+
+  /// 1I: Pronounce a kinship term using flutter_tts.
+  Future<void> _speak(String text) async {
+    if (!kEnableAudioPronunciation || _tts == null) return;
+    try {
+      await _tts!.speak(text);
+    } catch (_) {
+      // Never crash on TTS failure
+    }
   }
 
   @override
   void dispose() {
+    _tts?.stop();
     _dotPulseController.dispose();
     _pathRevealController.dispose();
     _resultAppearController.dispose();
@@ -1077,7 +1107,14 @@ class _HeroResultCard extends ConsumerWidget {
                 icon: Icons.volume_up_outlined,
                 label: 'Listen',
                 onTap: () {
-                  // TODO: implement audio pronunciation
+                  // 1I: Audio pronunciation — gated behind kEnableAudioPronunciation
+                  if (kEnableAudioPronunciation && _pathResult != null) {
+                    // Pronounce the first relationship term in the path
+                    final firstStep = _pathResult!.steps.firstOrNull;
+                    if (firstStep != null) {
+                      _speak(firstStep.kinshipTerm ?? firstStep.relationshipKey);
+                    }
+                  }
                 },
                 isButton: true,
               ),

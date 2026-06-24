@@ -39,3 +39,9 @@ const bool kEnableQrJoin = false;
 
 /// In-app profile editing and "add relative" flows.
 const bool kEnableProfileEditing = false;
+
+/// Language picker for kinship term display (7 Indian languages).
+const bool kEnableLanguagePicker = false;
+
+/// Audio pronunciation of kinship terms via flutter_tts.
+const bool kEnableAudioPronunciation = false;

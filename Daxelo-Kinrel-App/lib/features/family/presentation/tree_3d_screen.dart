@@ -25,11 +25,15 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/graph/graph_service.dart';
+import 'add_person_sheet.dart';
 import 'family_tree_canvas.dart';
+import 'path_finder_screen.dart';
+import 'person_detail_screen.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // LAYOUT MODE ENUM
@@ -3025,7 +3029,10 @@ class _NodeDetailPopupState extends ConsumerState<_NodeDetailPopup> {
                                 size: DKButtonSize.md,
                                 icon: Icons.person_rounded,
                                 onPressed: () {
-                                  // TODO: Navigate to profile
+                                  // 1F: View Profile — gated behind kEnableProfileEditing
+                                  if (kEnableProfileEditing && _selectedPerson != null) {
+                                    context.push('/member/${_selectedPerson!.id}');
+                                  }
                                 },
                               ),
                             ),
@@ -3037,7 +3044,17 @@ class _NodeDetailPopupState extends ConsumerState<_NodeDetailPopup> {
                                 size: DKButtonSize.md,
                                 icon: Icons.route_rounded,
                                 onPressed: () {
-                                  // TODO: Navigate to path finder
+                                  // 1F: Find Path — gated behind kEnableProfileEditing
+                                  if (kEnableProfileEditing && _selectedPerson != null) {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => PathFinderScreen(
+                                          familyId: widget.familyId,
+                                          startPersonId: _selectedPerson!.id,
+                                        ),
+                                      ),
+                                    );
+                                  }
                                 },
                               ),
                             ),
@@ -3049,7 +3066,14 @@ class _NodeDetailPopupState extends ConsumerState<_NodeDetailPopup> {
                                 size: DKButtonSize.md,
                                 icon: Icons.add_circle_outline_rounded,
                                 onPressed: () {
-                                  // TODO: Navigate to add relationship
+                                  // 1F: Add Relative — gated behind kEnableProfileEditing
+                                  if (kEnableProfileEditing && _selectedPerson != null) {
+                                    AddPersonSheet.show(
+                                      context,
+                                      familyId: widget.familyId,
+                                      anchorPerson: _selectedPerson,
+                                    );
+                                  }
                                 },
                               ),
                             ),

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/constants/supported_languages.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
@@ -15,6 +16,8 @@ import '../../../core/family/pagination_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/family_list_skeleton.dart';
+import 'join_family_screen.dart';
+import 'qr_scanner_screen.dart';
 
 class FamilyListScreen extends ConsumerStatefulWidget {
   FamilyListScreen({super.key});
@@ -265,9 +268,150 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
             size: DKButtonSize.sm,
             onPressed: () {
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Join family coming soon!')),
-              );
+              // 1K: Join Family — gated behind kEnableQrJoin
+              if (kEnableQrJoin) {
+                _showJoinOptionsBottomSheet(context);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Join family coming soon!')),
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 1K: Shows a bottom sheet with "Scan QR" and "Enter ID manually" options.
+  void _showJoinOptionsBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: DKColors.cardColor(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(20),
+        ),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[600],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: Icon(Icons.qr_code_scanner_rounded,
+                  color: KinrelColors.orange, size: 28),
+              title: Text('Scan QR Code',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: KinrelColors.textWhite,
+                  )),
+              subtitle: Text('Scan a family QR code to join instantly',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: KinrelColors.textSilver,
+                  )),
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.of(context).push<String>(
+                  MaterialPageRoute(
+                    builder: (_) => const QrScannerScreen(),
+                  ),
+                ).then((familyId) {
+                  if (familyId != null && familyId.isNotEmpty) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => JoinFamilyScreen(kinFamilyId: familyId),
+                      ),
+                    );
+                  }
+                });
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.keyboard_rounded,
+                  color: KinrelColors.textSilver, size: 28),
+              title: Text('Enter Family ID',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: KinrelColors.textWhite,
+                  )),
+              subtitle: Text('Enter a family code manually',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: KinrelColors.textSilver,
+                  )),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showManualFamilyIdDialog(context);
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 1K: Dialog to enter a family ID manually.
+  void _showManualFamilyIdDialog(BuildContext context) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: KinrelColors.darkCard,
+        title: Text('Enter Family ID',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 18,
+              color: KinrelColors.textWhite,
+            )),
+        content: TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            hintText: 'e.g., kin-family-abc123',
+            hintStyle: TextStyle(color: KinrelColors.textDim),
+            filled: true,
+            fillColor: KinrelColors.darkElevated,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: KinrelColors.orange),
+            ),
+          ),
+          style: TextStyle(color: KinrelColors.textWhite),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel',
+                style: TextStyle(color: KinrelColors.textSilver)),
+          ),
+          DKButton(
+            label: 'Join',
+            variant: DKButtonVariant.primary,
+            size: DKButtonSize.sm,
+            onPressed: () {
+              final id = controller.text.trim();
+              Navigator.pop(ctx);
+              if (id.isNotEmpty) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => JoinFamilyScreen(kinFamilyId: id),
+                  ),
+                );
+              }
             },
           ),
         ],

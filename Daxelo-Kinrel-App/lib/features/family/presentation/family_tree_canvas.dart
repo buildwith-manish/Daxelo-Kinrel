@@ -8,12 +8,15 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/constants/feature_flags.dart';
+import '../../../core/constants/supported_languages.dart';
 import '../../../core/graph/graph_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/utils/smart_preloader.dart';
 import '../../../core/services/analytics_service.dart';
 import '../../../graph/widgets/graph_pan_zoom.dart';
 import '../../../shared/widgets/dk_components.dart';
+import 'services/graph_export_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // DATA MODELS
@@ -258,6 +261,12 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
   bool _showGenBands = false;
   double _currentScale = 1.0;
 
+  // 1H: GlobalKey for RepaintBoundary (graph share/export)
+  final GlobalKey _canvasBoundaryKey = GlobalKey();
+
+  // 1G: Selected language for kinship terms (default English)
+  SupportedLanguage _selectedLanguage = SupportedLanguage.english;
+
   // ── Transformation controller for InteractiveViewer ─────────────
   final TransformationController _transformationController =
       TransformationController();
@@ -430,7 +439,9 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
                     ]),
                     builder: (context, _) {
                       // F4-3: Wrap in RepaintBoundary
+                      // 1H: Use _canvasBoundaryKey for graph share/export
                       return RepaintBoundary(
+                        key: _canvasBoundaryKey,
                         child: CustomPaint(
                           painter: _ConstellationPainter(
                             layout: layout,
@@ -890,6 +901,98 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
   }
 
   // ══════════════════════════════════════════════════════════════════
+  // 1G: LANGUAGE PICKER
+  // ══════════════════════════════════════════════════════════════════
+
+  void _showLanguagePicker(BuildContext context) {
+    // Show 7 Indian languages + English
+    final languages = [
+      SupportedLanguage.hindi,
+      SupportedLanguage.bengali,
+      SupportedLanguage.tamil,
+      SupportedLanguage.telugu,
+      SupportedLanguage.marathi,
+      SupportedLanguage.gujarati,
+      SupportedLanguage.kannada,
+      SupportedLanguage.english,
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Select Language',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+            ),
+            ...languages.map((lang) {
+              final isSelected = lang == _selectedLanguage;
+              return ListTile(
+                leading: Icon(
+                  isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                  color: isSelected ? KinrelColors.orange : KinrelColors.textDim,
+                  size: 20,
+                ),
+                title: Text(
+                  lang.name,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 15,
+                    color: isSelected ? KinrelColors.orange : KinrelColors.textWhite,
+                  ),
+                ),
+                trailing: Text(
+                  lang.nativeName,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: KinrelColors.textSilver,
+                  ),
+                ),
+                onTap: () {
+                  setState(() => _selectedLanguage = lang);
+                  Navigator.pop(ctx);
+                },
+              );
+            }),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // 1H: CANVAS SHARE / EXPORT
+  // ══════════════════════════════════════════════════════════════════
+
+  Future<void> _shareGraph() async {
+    try {
+      await GraphExportService.shareGraph(
+        _canvasBoundaryKey,
+        subject: 'My Family Tree on Kinrel',
+        fileName: 'kinrel_family_tree.png',
+      );
+    } catch (e) {
+      // Never crash on share failure — fallback gracefully
+      debugPrint('Graph export failed: $e');
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
   // MENU BOTTOM SHEET (Change 2/5: moved from top bar + controls)
   // ══════════════════════════════════════════════════════════════════
 
@@ -965,7 +1068,10 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
                   label: 'Language',
                   onTap: () {
                     Navigator.pop(context);
-                    // TODO: Show language picker
+                    // 1G: Language Picker — gated behind kEnableLanguagePicker
+                    if (kEnableLanguagePicker) {
+                      _showLanguagePicker(context);
+                    }
                   },
                 ),
                 // Share
@@ -974,7 +1080,10 @@ class _FamilyTreeCanvasState extends State<FamilyTreeCanvas>
                   label: 'Share Graph',
                   onTap: () {
                     Navigator.pop(context);
-                    // TODO: Implement share/export
+                    // 1H: Canvas Share/Export — gated behind kEnableGraphShareExport
+                    if (kEnableGraphShareExport) {
+                      _shareGraph();
+                    }
                   },
                 ),
                 const SizedBox(height: 16),
