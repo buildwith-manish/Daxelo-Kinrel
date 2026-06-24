@@ -11,7 +11,13 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
+import 'dart:typed_data';
+
+import 'package:image_picker/image_picker.dart' show XFile;
+
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/services/supabase_service.dart';
+import 'services/photo_picker_service.dart';
 import 'providers/family_graph_provider.dart' show FamilyGraphNotifier, familyGraphProvider;
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
@@ -384,6 +390,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               : _gotraController.text.trim(),
           isDeceased: _isDeceased,
         );
+        if (kEnablePhotoPicker && _pickedPhoto != null) {
+          await _uploadPickedPhoto(widget.existingPerson!.id);
+        }
       } else {
         // v20 FIX: If this is the first member of the family, set isAnchor=true
         // so the graph layout has an anchor to center on. Without an anchor,
@@ -459,6 +468,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         // New approach: query the anchor person DIRECTLY from Supabase.
         // This is 100% reliable — no provider timing issues.
         // ═══════════════════════════════════════════════════════════════
+        if (kEnablePhotoPicker && _pickedPhoto != null && result != null) {
+          await _uploadPickedPhoto(result.id);
+        }
+
         final relKey = _effectiveRelationshipKey;
 
         if (relKey != null && !_isEditMode && result != null) {
@@ -937,13 +950,21 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     );
   }
 
+  /// Locally-picked avatar; uploaded on submit when kEnablePhotoPicker is on.
+  XFile? _pickedPhoto;
+
   Widget _buildPhotoPicker() {
     return GestureDetector(
-      onTap: () {
-        // TODO: Implement camera/gallery picker with crop tool
-        // Requires image_picker package
+      onTap: () async {
         HapticFeedback.lightImpact();
-        context.showSnackBar('Photo picker coming soon');
+        if (!kEnablePhotoPicker) {
+          context.showSnackBar('Photo picker coming soon');
+          return;
+        }
+        final picked = await PhotoPickerService.pickWithSheet(context);
+        if (picked != null && mounted) {
+          setState(() => _pickedPhoto = picked);
+        }
       },
       child: Container(
         width: 96,
@@ -958,30 +979,72 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             shape: BoxShape.circle,
             color: KinrelColors.darkElevated,
           ),
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.camera_alt_outlined,
-                  color: KinrelColors.textSilver,
-                  size: 24,
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Add Photo',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 10,
-                    color: KinrelColors.textDim,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          child: ClipOval(child: _buildPhotoPickerInner()),
         ),
       ),
     );
+  }
+
+  Widget _buildPhotoPickerInner() {
+    if (kEnablePhotoPicker && _pickedPhoto != null) {
+      return FutureBuilder<Uint8List>(
+        future: _pickedPhoto!.readAsBytes(),
+        builder: (context, snap) {
+          if (snap.hasData) {
+            return Image.memory(
+              snap.data!,
+              width: 96,
+              height: 96,
+              fit: BoxFit.cover,
+            );
+          }
+          return const Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        },
+      );
+    }
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.camera_alt_outlined,
+            color: KinrelColors.textSilver,
+            size: 24,
+          ),
+          SizedBox(height: 2),
+          Text(
+            'Add Photo',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 10,
+              color: KinrelColors.textDim,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Uploads the locally-picked avatar (if any) and writes its URL onto the
+  /// Person row. Uses a direct Supabase update — same pattern as relationship
+  /// creation in [_submit]. Never throws; falls back to initials on failure.
+  Future<void> _uploadPickedPhoto(String personId) async {
+    final photo = _pickedPhoto;
+    if (photo == null) return;
+    final url = await PhotoPickerService.uploadAvatar(photo);
+    if (url == null) return;
+    try {
+      final client = ref.read(supabaseProvider);
+      await client?.from('Person').update({'photoUrl': url}).eq('id', personId);
+    } catch (e) {
+      debugPrint('[ADD-MEMBER] photo url update failed: $e');
+    }
   }
 
   Widget _buildGenderCards() {

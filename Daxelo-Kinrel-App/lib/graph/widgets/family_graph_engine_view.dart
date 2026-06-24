@@ -48,6 +48,9 @@ import '../data/position_memory.dart' show PositionMemory;
 import '../interaction/camera_controller.dart' show CameraController;
 import '../interaction/expand_collapse.dart'
     show ExpandCollapseController, ExpandCollapseState;
+import '../../core/constants/feature_flags.dart' show kEnableGraphShareExport;
+import '../../features/family/presentation/services/graph_export_service.dart'
+    show GraphExportService;
 import '../rendering/edge_path_cache.dart' show EdgePathCache;
 import '../rendering/viewport_culler.dart' show ViewportCuller;
 import 'graph_node.dart' show GraphNode;
@@ -90,6 +93,9 @@ class _FamilyGraphEngineViewState
   late final ViewportCuller _culler;
   late final ExpandCollapseController _expandCollapse;
   final EdgePathCache _edgePathCache = EdgePathCache();
+
+  /// Wraps the on-screen graph so it can be captured for share/export.
+  final GlobalKey _graphBoundaryKey = GlobalKey();
 
   Size _viewportSize = Size.zero;
   bool _framed = false; // one-time initial framing per family
@@ -185,10 +191,25 @@ class _FamilyGraphEngineViewState
         return Stack(
           children: [
             Positioned.fill(
-                child: _buildCanvas(layout, flat, selectedEdgeId)),
+              child: RepaintBoundary(
+                key: _graphBoundaryKey,
+                child: _buildCanvas(layout, flat, selectedEdgeId),
+              ),
+            ),
             if (!isOnline)
               const Positioned(
                   left: 0, right: 0, top: 0, child: _OfflineBanner()),
+            if (kEnableGraphShareExport)
+              Positioned(
+                right: 16,
+                bottom: 16,
+                child: FloatingActionButton.small(
+                  heroTag: 'graph_share_export',
+                  onPressed: _shareGraph,
+                  tooltip: 'Share graph',
+                  child: const Icon(Icons.ios_share),
+                ),
+              ),
           ],
         );
       },
@@ -385,6 +406,19 @@ class _FamilyGraphEngineViewState
         ),
       ],
     );
+  }
+
+  // ── Share / export ───────────────────────────────────────────────────────
+
+  Future<void> _shareGraph() async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final bool ok =
+        await GraphExportService.shareGraph(_graphBoundaryKey);
+    if (!ok && mounted) {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Could not capture the graph to share.')),
+      );
+    }
   }
 
   // ── Camera / culling helpers ─────────────────────────────────────────────

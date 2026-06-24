@@ -21,3 +21,21 @@
 /// docs/graph/PATH_B_REWIRE.md. The v40 path remains the safe fallback, so
 /// flipping this flag is fully reversible.
 const bool kUseV21Engine = false;
+
+// ── Step 5: previously-missing screens ─────────────────────────────────────
+// Each new screen/feature is gated so it can be merged dark and enabled per
+// feature once verified locally (flutter analyze + flutter test, and a manual
+// smoke test on device). All default to false → zero change to the live app.
+
+/// Graph share/export (capture the graph to a PNG and share it).
+const bool kEnableGraphShareExport = false;
+
+/// Avatar photo picker (camera / gallery) when adding or editing a person.
+const bool kEnablePhotoPicker = false;
+
+/// Join-a-family via QR code (generate a join code + scan to join).
+/// Scanning requires the `mobile_scanner` package (see pubspec.yaml).
+const bool kEnableQrJoin = false;
+
+/// In-app profile editing and "add relative" flows.
+const bool kEnableProfileEditing = false;
