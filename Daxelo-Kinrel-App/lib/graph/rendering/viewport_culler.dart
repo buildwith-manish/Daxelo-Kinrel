@@ -130,6 +130,19 @@ class ViewportCuller extends ChangeNotifier {
       }
     }
 
+    // ── BLANK-SCREEN SAFETY NET ──────────────────────────────────────────
+    // If culling produced an empty set but there ARE nodes to show, the
+    // viewport is almost certainly mis-aligned with graph-space — e.g. the
+    // camera is still at the origin (pan 0,0 / zoom 1.0) while the
+    // center-anchored layout places every node far from (0,0) on the first
+    // frame. Rather than render a fully blank canvas (the historical v40
+    // regression), fall back to showing every node so the user ALWAYS sees
+    // content. The next cull (after the initial fit moves the camera) returns
+    // the correct, much smaller visible set.
+    if (visible.isEmpty && positions.isNotEmpty) {
+      visible.addAll(positions.keys);
+    }
+
     final changed = !_setsEqual(_currentVisibleIds, visible);
     _lastViewport = viewport;
     _currentVisibleIds = visible;

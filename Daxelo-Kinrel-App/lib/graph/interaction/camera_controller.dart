@@ -369,10 +369,49 @@ class CameraController extends ChangeNotifier {
 
   // ── Reset ────────────────────────────────────────────────────────
 
+  // ── Initial Fit (blank-screen fix) ──────────────────────────────────────
+
+  /// Guard so the one-time initial fit runs at most once per data load.
+  bool _didInitialFit = false;
+
+  /// Whether the one-time initial fit has already run for the current family.
+  bool get didInitialFit => _didInitialFit;
+
+  /// Performs a ONE-TIME fit-to-view the first time graph data is available
+  /// and the viewport size is known.
+  ///
+  /// This is a sanctioned exception to the "no auto-center" rule: it is the
+  /// initial framing of the graph, NOT an automatic re-center on every event.
+  /// Without it, the camera stays at the origin (pan 0,0 / zoom 1.0) while the
+  /// center-anchored layout places nodes far from (0,0) — so the viewport
+  /// culler sees no nodes in view and the canvas renders blank. This is the
+  /// root cause of the historical blank-screen bug that triggered the v40
+  /// rewrite.
+  ///
+  /// Safe to call on every build / post-frame callback — it no-ops after the
+  /// first successful fit and while the viewport size is still zero. Call
+  /// [resetInitialFit] when switching to a different family / dataset.
+  void initialFitOnce(Map<String, Offset> positions, Size viewportSize) {
+    if (_didInitialFit) return;
+    if (positions.isEmpty) return;
+    if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
+    fitToView(positions, viewportSize);
+    _didInitialFit = true;
+  }
+
+  /// Clears the initial-fit guard so the next [initialFitOnce] will run again.
+  /// Call when loading a different family so it re-frames the new graph.
+  void resetInitialFit() {
+    _didInitialFit = false;
+  }
+
+  // ── Reset ────────────────────────────────────────────────────────────────
+
   /// Resets the camera to the default position (origin, zoom 1.0).
   ///
-  /// This is the ONLY exception to the "no auto-center" rule — it
-  /// requires explicit user action (e.g. "Reset View" button).
+  /// Together with [initialFitOnce], this is one of only two exceptions to the
+  /// "no auto-center" rule — it requires explicit user action (e.g. a
+  /// "Reset View" button).
   void reset() {
     _cancelAnimation();
     _panX = 0.0;
