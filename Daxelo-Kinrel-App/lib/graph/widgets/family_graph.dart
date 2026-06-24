@@ -94,10 +94,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       _transformationController = TransformationController();
       _ownsController = true;
     }
-    // v60: Listen to transform changes so the painter's zoomLevel
-    // stays current during pan/zoom gestures. Without this, dots and
-    // labels used stale zoom values until another setState happened.
-    _transformationController.addListener(_onTransformChanged);
+    // v60.1 FIX: Removed _transformationController.addListener — it caused
+    // a stack overflow (setState → rebuild → InteractiveViewer re-applies
+    // transform → listener fires → setState → infinite loop).
+    // Instead, the painter reads zoomLevel during paint() which is called
+    // by AnimatedBuilder(animation: _transformationController) below.
     _lastFamilyId = widget.familyId;
     _autoDismissOnboarding();
   }
@@ -113,13 +114,8 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     }
   }
 
-  void _onTransformChanged() {
-    if (mounted) setState(() {});
-  }
-
   @override
   void dispose() {
-    _transformationController.removeListener(_onTransformChanged);
     if (_ownsController) {
       _transformationController.dispose();
     }
@@ -306,17 +302,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     final canvasHeight = layout.canvasHeight;
     final highlightedGen = widget.highlightedGeneration;
 
-    // v55 FIX: Compute the ACTUAL node size here so the painter and the
-    // node widgets use the SAME size. Previously the painter used a
-    // hardcoded 72.0 while nodes used 48-64px from resolveSize(),
-    // causing edges to stop at the wrong distance from node centers.
     final viewportWidth = MediaQuery.of(context).size.width;
-    final zoomLevel = _transformationController.value.getMaxScaleOnAxis();
-    final actualNodeSize = GraphNodeStateResolver.resolveSize(
-      viewportWidth: viewportWidth,
-      zoomLevel: zoomLevel,
-    );
-
     final cw = canvasWidth > 0 ? canvasWidth : 400.0;
     final ch = canvasHeight > 0 ? canvasHeight : 400.0;
 
@@ -333,24 +319,37 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
           clipBehavior: Clip.none,
           children: [
             // ── Edge Layer ────────────────────────────────────────────
+            // v60.1: Wrap CustomPaint in AnimatedBuilder so the painter
+            // gets the LIVE zoom level on every transform change without
+            // calling setState (which caused stack overflow).
             Positioned.fill(
-              child: CustomPaint(
-                size: Size(cw, ch),
-                painter: RelationshipEdge(
-                  positions: positions,
-                  edges: edges,
-                  selectedEdgeId: _selectedEdgeId,
-                  zoomLevel: zoomLevel,
-                  nodeWidth: actualNodeSize,
-                  nodeHeight: actualNodeSize,
-                  generationMap: {
-                    for (final p in personMap.values)
-                      p.id: p.generationIndex,
-                  },
-                  highlightedGeneration: highlightedGen,
-                  anonymousNodeIds: const {},
-                  blockedNodeIds: const {},
-                ),
+              child: AnimatedBuilder(
+                animation: _transformationController,
+                builder: (context, _) {
+                  final liveZoom = _transformationController.value.getMaxScaleOnAxis();
+                  final liveNodeSize = GraphNodeStateResolver.resolveSize(
+                    viewportWidth: viewportWidth,
+                    zoomLevel: liveZoom,
+                  );
+                  return CustomPaint(
+                    size: Size(cw, ch),
+                    painter: RelationshipEdge(
+                      positions: positions,
+                      edges: edges,
+                      selectedEdgeId: _selectedEdgeId,
+                      zoomLevel: liveZoom,
+                      nodeWidth: liveNodeSize,
+                      nodeHeight: liveNodeSize,
+                      generationMap: {
+                        for (final p in personMap.values)
+                          p.id: p.generationIndex,
+                      },
+                      highlightedGeneration: highlightedGen,
+                      anonymousNodeIds: const {},
+                      blockedNodeIds: const {},
+                    ),
+                  );
+                },
               ),
             ),
 
