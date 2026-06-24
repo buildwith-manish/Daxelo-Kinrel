@@ -34,7 +34,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../../graph/graph.dart';
+import '../../../graph/widgets/family_graph_engine_view.dart';
 import 'add_person_sheet.dart';
 import 'providers/family_graph_provider.dart'
     show FamilyGraphNotifier, FlatGraphResult, familyGraphProvider, graphRealtimeProvider;
@@ -452,14 +454,18 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             if (graph.isTruncated) _buildTruncationBanner(graph),
 
             Expanded(
-              child: FamilyGraphWidget(
-                familyId: widget.familyId,
-                familyName: widget.familyName ?? 'Family Tree',
-                externalTransformController: _graphTransformController,
-                graphData: graph,
-                highlightedGeneration: _highlightedGeneration,
-                recenterKey: _recenterKey,
-              ),
+              // kUseV21Engine (feature_flags.dart) selects the scalable
+              // culling engine; v40 InteractiveViewer remains the default.
+              child: kUseV21Engine
+                  ? FamilyGraphEngineView(familyId: widget.familyId)
+                  : FamilyGraphWidget(
+                      familyId: widget.familyId,
+                      familyName: widget.familyName ?? 'Family Tree',
+                      externalTransformController: _graphTransformController,
+                      graphData: graph,
+                      highlightedGeneration: _highlightedGeneration,
+                      recenterKey: _recenterKey,
+                    ),
             ),
           ],
         ),
