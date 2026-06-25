@@ -1,3 +1,4 @@
+import 'dart:async';
 // lib/graph/widgets/family_graph.dart
 //
 // DAXELO KINREL — Family Graph Widget (v40 COMPLETE REWRITE)
@@ -282,7 +283,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     // is preserved after the initial centering.
     if (!_autoCenterDone) {
       _autoCenterDone = true;
-      _autoCenterOnAnchor(layout, anchorPerson.id);
+      final capturedLayout = layout;
+      final capturedAnchorId = anchorPerson.id;
+      scheduleMicrotask(() {
+        if (mounted) _autoCenterOnAnchor(capturedLayout, capturedAnchorId);
+      });
     }
 
     return _buildGraphCanvas(layout, personMap, edges);
