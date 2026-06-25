@@ -253,7 +253,7 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     if (_cache.length >= _maxCacheSize && !_cache.containsKey(familyId)) {
       _cache.remove(_cache.keys.first);
     }
-    _addToCache(familyId, result);
+    _cache[familyId] = result;
   }
 
   /// Clear the in-memory cache for a specific family (or all families
