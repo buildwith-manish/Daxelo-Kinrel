@@ -1,5 +1,8 @@
 # ─────────────────────────────────────────────────────────────────
 # Build Signed Release APK — auto on push + manual dispatch
+#
+# DISABLED — project is web-only (Vercel deployment). Remove the
+# `if: false` line on the job below to re-enable signed APK builds.
 # ─────────────────────────────────────────────────────────────────
 # Produces a production-signed APK using a keystore stored in
 # GitHub Secrets. Triggers automatically on Flutter code changes
@@ -47,6 +50,9 @@ env:
 jobs:
   build:
     name: Build Signed APK (${{ github.event.inputs.release_type || 'auto' }})
+    # Web-only project — skip APK build. Remove this `if:` line to
+    # re-enable signed release builds.
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 45
 

@@ -1,5 +1,8 @@
 # ─────────────────────────────────────────────────────────────────
 # Build Flutter Debug APK — triggered on push to main + manual dispatch
+#
+# DISABLED — project is web-only (Vercel deployment). Set WEB_ONLY=false
+# on the job below (or remove the `if:` line) to re-enable APK builds.
 # ─────────────────────────────────────────────────────────────────
 
 name: Build Flutter APK
@@ -16,6 +19,9 @@ concurrency:
 jobs:
   build:
     name: Build Debug APK
+    # Web-only project — skip APK build. Flip to `true` or delete this
+    # line to re-enable mobile builds.
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
