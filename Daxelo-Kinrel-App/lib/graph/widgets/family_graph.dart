@@ -253,11 +253,33 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       ));
     }
 
-    // Compute layout
+    // ── Synthetic edges for orphan nodes ─────────────────────────────
+    // If a person has no relationship row in the DB yet (e.g., newly added),
+    // no edge would be drawn to them, leaving them floating visually
+    // disconnected. Connect every orphan to the anchor with a synthetic
+    // 'related' edge so the graph always looks complete.
+    final connectedIds = <String>{};
+    for (final e in edges) {
+      connectedIds.add(e.sourceId);
+      connectedIds.add(e.targetId);
+    }
+    // Compute the anchor first so we don't synthesize a self-loop.
     final anchorPerson = persons.firstWhere(
       (p) => p.isAnchor,
       orElse: () => persons.first,
     );
+    for (final id in personMap.keys) {
+      if (!connectedIds.contains(id) && id != anchorPerson.id) {
+        edges.add(GraphEdgeData(
+          id: 'synthetic_$id',
+          sourceId: anchorPerson.id,
+          targetId: id,
+          relationshipKey: 'related',
+        ));
+      }
+    }
+
+    // Compute layout
     final graphPersons = persons.map((p) => p.toGraphPerson()).toList();
     final graphRelationships =
         graphData.relationships.map((r) {
@@ -324,9 +346,14 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     return InteractiveViewer(
       transformationController: _transformationController,
       constrained: false,
-      boundaryMargin: const EdgeInsets.all(double.infinity),
-      minScale: 0.05,
-      maxScale: 5.0,
+      // v61 FIX: Bounded boundary margin instead of double.infinity.
+      // Previously, users could pan infinitely far from the graph and
+      // "lose" it against the empty canvas background. Now the boundary
+      // is 2× the canvas size, which gives free panning without letting
+      // the user escape to empty space.
+      boundaryMargin: const EdgeInsets.all(800.0),
+      minScale: 0.15,
+      maxScale: 4.0,
       child: SizedBox(
         width: cw,
         height: ch,
@@ -385,9 +412,9 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   /// This runs ONCE after the first layout. It computes the transform
   /// needed to fit the entire canvas in the viewport and center it.
   void _autoCenterOnAnchor(GraphLayoutResult layout, String anchorId) {
-    if (_autoCenterDone) return;
-    _autoCenterDone = true;
-
+    // Note: _autoCenterDone is set by the caller BEFORE invoking this
+    // method (see the scheduleMicrotask block in _buildFromGraphData).
+    // Do NOT re-guard here — that would short-circuit the centering.
     final canvasW = layout.canvasWidth;
     final canvasH = layout.canvasHeight;
     if (canvasW <= 0 || canvasH <= 0) return;

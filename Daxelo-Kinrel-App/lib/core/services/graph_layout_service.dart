@@ -141,7 +141,7 @@ class GraphLayoutService {
   static const double ringSpacing = 160.0;
 
   /// Horizontal offset for a spouse placed beside their partner (dp).
-  static const double spouseOffset = 90.0;
+  static const double spouseOffset = 110.0;
 
   /// Padding around the outermost ring for canvas sizing (dp).
   static const double canvasPadding = 120.0;
@@ -592,10 +592,16 @@ class GraphLayoutService {
     // 0° and 180° (left/right of anchor)
     if (siblings.isNotEmpty) {
       final radius = ringRadii[0] ?? baseRadius;
-      final totalAngle = _degToRad(360.0);
-      // We place siblings evenly around the anchor ring but avoid
-      // the angle where the spouse sits (0°).
-      // For small families (≤8), fan around 0° and 180°.
+      // v61 FIX: Cap the sibling arc instead of always using 360°.
+      // Previously, 6+ siblings would fan into a full circle (some
+      // appearing below the anchor) which broke the sibling-arc edge
+      // rendering (sibling edges arc ABOVE both nodes). Now siblings
+      // are constrained to a top-semicircle arc so edges look correct.
+      final totalAngle = siblings.length <= 2
+          ? _degToRad(120.0)
+          : siblings.length <= 5
+              ? _degToRad(180.0)
+              : _degToRad(240.0);
       final angleStep = totalAngle / (siblings.length + 1);
       // Start offset so they're centered around 180° (left of anchor)
       final startAngle = _degToRad(180.0) -
