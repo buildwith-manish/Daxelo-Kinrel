@@ -13,8 +13,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:kinrel/graph/widgets/empty_state.dart';
+import '../../helpers/native_plugin_mocks.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(setupNativePluginMocks);
+  tearDownAll(tearDownNativePluginMocks);
   group('Single node visibility (BUG-2)', () {
     Widget buildTestWidget(Widget child) {
       return ProviderScope(
@@ -34,7 +38,7 @@ void main() {
             onAddMember: () {},
           ),
         ));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
 
         expect(find.text('Add Yourself'), findsOneWidget);
       },
@@ -50,7 +54,7 @@ void main() {
             onAddMember: () {},
           ),
         ));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
 
         // The "You" label should be visible for a 1-member state
         expect(find.text('You'), findsOneWidget);
@@ -67,7 +71,7 @@ void main() {
             onAddMember: () {},
           ),
         ));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
 
         // For 4+ members, EmptyState should return SizedBox.shrink()
         expect(find.text('Add Yourself'), findsNothing);
@@ -133,7 +137,7 @@ void main() {
             onAddMember: () {},
           ),
         ));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
         expect(find.text('Add Yourself'), findsOneWidget);
 
         // Verify 1-member state shows "You" node (from EmptyState widget)
@@ -144,7 +148,7 @@ void main() {
             onAddMember: () {},
           ),
         ));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
         expect(find.text('You'), findsOneWidget);
         // The actual graph screen now renders FamilyGraphWidget for 1+ members
         // instead of overlaying EmptyState at 0.3 opacity

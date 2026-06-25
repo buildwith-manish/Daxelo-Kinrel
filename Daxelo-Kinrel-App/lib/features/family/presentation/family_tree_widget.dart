@@ -23,6 +23,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/graph/graph_service.dart';
 import '../../../core/graph/graph_provider.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/services/graph_layout_service.dart';
 import '../../../graph/widgets/graph_pan_zoom.dart';
 
 // ═══════════════════════════════════════════════════════════════════════

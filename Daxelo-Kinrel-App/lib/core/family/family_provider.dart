@@ -13,6 +13,7 @@ import '../services/supabase_service.dart';
 import '../config/auth_config.dart';
 import '../services/analytics_service.dart';
 import '../graph/graph_service.dart';
+import '../services/graph_layout_service.dart';
 import '../database/isar_database.dart';
 import '../database/app_database.dart';
 import '../database/repositories/offline_family_repository.dart';
@@ -288,10 +289,13 @@ class Person {
     return GraphPerson(
       id: id,
       name: name,
+      gender: gender,
+      generationIndex: generationIndex,
+      isAnchor: isAnchor,
+      photoUrl: photoUrl,
+      isDeceased: isDeceased,
       relationship:
           null, // Relationship is on the Relationship table, not Person
-      generation: generationIndex,
-      isDeceased: isDeceased,
       deletedAt: deletedAt,
     );
   }

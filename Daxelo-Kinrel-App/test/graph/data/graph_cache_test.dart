@@ -5,8 +5,12 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/graph/data/graph_cache.dart';
 import 'package:kinrel/graph/data/family_graph_repository.dart';
+import '../../helpers/native_plugin_mocks.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(setupNativePluginMocks);
+  tearDownAll(tearDownNativePluginMocks);
   group('GraphCache', () {
     group('graph state caching', () {
       test('storing and retrieving a GraphState round-trips correctly', () async {

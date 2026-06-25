@@ -33,6 +33,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/utils/share_helper.dart';
 import '../providers/share_provider.dart';
@@ -2399,7 +2400,11 @@ class _ShareGraphTab extends ConsumerWidget {
           const SizedBox(height: 20),
 
           // ── Export Options ────────────────────────────────────────
-          _ExportOptionsSection(
+          // Gated by kEnableGraphShareExport. When disabled, the export
+          // section is hidden and users can only share invite links /
+          // share cards, not the graph PNG.
+          if (kEnableGraphShareExport)
+            _ExportOptionsSection(
                 isExporting: shareState.isExporting,
                 onExport: () async {
                   await notifier.exportGraph();

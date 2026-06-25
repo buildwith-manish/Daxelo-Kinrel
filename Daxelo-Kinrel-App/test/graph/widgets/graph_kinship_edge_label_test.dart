@@ -20,8 +20,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kinrel/core/kinship/kinship_service.dart';
 import 'package:kinrel/core/kinship/kinship_models.dart';
+import '../../helpers/native_plugin_mocks.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(setupNativePluginMocks);
+  tearDownAll(tearDownNativePluginMocks);
   group('Kinship edge label regression (BUG-4)', () {
     late KinshipService service;
 

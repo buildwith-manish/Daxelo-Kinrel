@@ -24,6 +24,14 @@ import 'package:flutter/material.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 /// A person node in the graph layout input.
+///
+/// This is the single canonical `GraphPerson` for the entire codebase.
+/// It merges the fields previously split across `graph_service.dart`
+/// (which used `generation`, `relationship`, `deletedAt`) and the layout
+/// service (which used `generationIndex`, `gender`, `isAnchor`, `photoUrl`).
+/// All callers — tree building, path finding, force simulation, and layout —
+/// now share this one definition, eliminating the cross-module type mismatch
+/// that caused the Stack Overflow at runtime.
 class GraphPerson {
   final String id;
   final String name;
@@ -32,6 +40,8 @@ class GraphPerson {
   final bool isAnchor;
   final String? photoUrl;
   final bool isDeceased;
+  final String? relationship;
+  final String? deletedAt;
 
   const GraphPerson({
     required this.id,
@@ -41,6 +51,8 @@ class GraphPerson {
     this.isAnchor = false,
     this.photoUrl,
     this.isDeceased = false,
+    this.relationship,
+    this.deletedAt,
   });
 }
 

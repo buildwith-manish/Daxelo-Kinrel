@@ -30,6 +30,7 @@ import 'package:kinrel/graph/engine/fallback_manager.dart';
 import 'package:kinrel/core/database/sync/connectivity_service.dart';
 import 'package:kinrel/core/services/analytics_service.dart';
 import 'package:kinrel/features/family/presentation/providers/family_graph_provider.dart';
+import '../../helpers/native_plugin_mocks.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // NO-OP ANALYTICS TRACKER PROVIDER
@@ -48,6 +49,9 @@ final _noOpAnalyticsTrackerProvider = Provider<AnalyticsTracker>((ref) {
 });
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(setupNativePluginMocks);
+  tearDownAll(tearDownNativePluginMocks);
   group('Single-member graph rendering regression (BUG-2)', () {
     /// Builds a single-person FlatGraphResult for testing.
     FlatGraphResult buildSinglePersonGraph() {
@@ -119,7 +123,7 @@ void main() {
         final graphData = buildSinglePersonGraph();
 
         await tester.pumpWidget(buildTestWidget(graphData: graphData));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
 
         // The widget should NOT show a completely blank screen.
         final stackFinder = find.byType(Stack);
@@ -145,7 +149,7 @@ void main() {
         final graphData = buildSinglePersonGraph();
 
         await tester.pumpWidget(buildTestWidget(graphData: graphData));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
 
         expect(
           find.byType(GraphNode),
@@ -167,7 +171,7 @@ void main() {
         final graphData = buildSinglePersonGraph();
 
         await tester.pumpWidget(buildTestWidget(graphData: graphData));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
 
         expect(
           find.text('Add Yourself'),

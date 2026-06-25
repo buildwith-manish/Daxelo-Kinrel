@@ -9,7 +9,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/feature_flags.dart';
 import '../../../graph/widgets/family_graph.dart';
+import '../../../graph/widgets/family_graph_engine_view.dart';
 
 class RelationshipGraphScreen extends ConsumerStatefulWidget {
   const RelationshipGraphScreen({super.key, required this.familyId});
@@ -25,9 +27,13 @@ class _RelationshipGraphScreenState
     extends ConsumerState<RelationshipGraphScreen> {
   @override
   Widget build(BuildContext context) {
-    return FamilyGraphWidget(
-      familyId: widget.familyId,
-      familyName: 'Family Tree',
-    );
+    return kUseV21Engine
+        ? FamilyGraphEngineView(
+            familyId: widget.familyId,
+          )
+        : FamilyGraphWidget(
+            familyId: widget.familyId,
+            familyName: 'Family Tree',
+          );
   }
 }

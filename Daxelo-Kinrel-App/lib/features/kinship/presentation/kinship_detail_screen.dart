@@ -10,6 +10,7 @@ import '../../../core/constants/supported_languages.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../shared/widgets/dk_components.dart';
+import 'widgets/pronunciation_button.dart';
 
 class KinshipDetailScreen extends ConsumerWidget {
   KinshipDetailScreen({super.key, required this.relationshipKey});
@@ -92,19 +93,36 @@ class KinshipDetailScreen extends ConsumerWidget {
 
                       const SizedBox(height: 12),
 
-                      // Large kinship term display
-                      Text(
-                            rel?.englishTerm ?? relationshipKey.snakeToTitle,
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.displayFont,
-                              fontSize: 32,
-                              fontWeight: FontWeight.w700,
-                              color: DKColors.textPrimary(context),
-                            ),
-                          )
-                          .animate(onPlay: (c) => c.forward())
-                          .fadeIn(duration: 400.ms)
-                          .slideY(begin: 0.1, end: 0, duration: 400.ms),
+                      // Large kinship term display + pronunciation button.
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              rel?.englishTerm ??
+                                  relationshipKey.snakeToTitle,
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.displayFont,
+                                fontSize: 32,
+                                fontWeight: FontWeight.w700,
+                                color: DKColors.textPrimary(context),
+                              ),
+                            )
+                                .animate(onPlay: (c) => c.forward())
+                                .fadeIn(duration: 400.ms)
+                                .slideY(
+                                    begin: 0.1, end: 0, duration: 400.ms),
+                          ),
+                          // Pronounce button (renders nothing when
+                          // kEnableAudioPronunciation is false).
+                          PronunciationButton(
+                            text: rel?.englishTerm ??
+                                relationshipKey.snakeToTitle,
+                            languageCode: 'en',
+                            color: DKColors.textPrimary(context),
+                          ),
+                        ],
+                      ),
 
                       if (rel?.notes != null) ...[
                         const SizedBox(height: 8),
@@ -263,35 +281,50 @@ class KinshipDetailScreen extends ConsumerWidget {
                           borderColor: DKColors.brandPurple.withValues(
                             alpha: 0.08,
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          child: Stack(
                             children: [
-                              Text(
-                                lang.nativeName,
-                                style: TextStyle(
-                                  fontFamily: KinrelTypography.bodyFont,
-                                  fontSize: 10,
-                                  color: DKColors.textSecondary(context),
-                                ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    lang.nativeName,
+                                    style: TextStyle(
+                                      fontFamily: KinrelTypography.bodyFont,
+                                      fontSize: 10,
+                                      color: DKColors.textSecondary(context),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    translation.native,
+                                    style: TextStyle(
+                                      fontFamily: lang.fontFamily,
+                                      fontSize: 16,
+                                      color: DKColors.brandPurple,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  Text(
+                                    translation.latin,
+                                    style: TextStyle(
+                                      fontFamily: KinrelTypography.bodyFont,
+                                      fontSize: 11,
+                                      color: DKColors.textSecondary(context),
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                translation.native,
-                                style: TextStyle(
-                                  fontFamily: lang.fontFamily,
-                                  fontSize: 16,
+                              // Per-language pronounce button (top-right).
+                              Positioned(
+                                top: -8,
+                                right: -8,
+                                child: PronunciationButton(
+                                  text: translation.native,
+                                  languageCode: lang.code,
+                                  iconSize: 18.0,
                                   color: DKColors.brandPurple,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              Text(
-                                translation.latin,
-                                style: TextStyle(
-                                  fontFamily: KinrelTypography.bodyFont,
-                                  fontSize: 11,
-                                  color: DKColors.textSecondary(context),
-                                  fontStyle: FontStyle.italic,
                                 ),
                               ),
                             ],

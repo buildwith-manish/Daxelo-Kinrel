@@ -26,6 +26,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../core/constants/brand_colors.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/theme/theme_provider.dart' show themeModeProvider, fontScaleProvider, localeProvider;
@@ -205,13 +206,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             _buildSectionHeader('Account'),
             const SizedBox(height: 8),
             _buildSectionCard([
-              _SettingsRow(
-                icon: Icons.person_outline,
-                label: 'Profile details',
-                subtitle: 'Name, email, phone, DOB',
-                onTap: () => context.push('/profile/edit'),
-              ),
-              _divider(),
+              if (kEnableProfileEditing) ...[
+                _SettingsRow(
+                  icon: Icons.person_outline,
+                  label: 'Profile details',
+                  subtitle: 'Name, email, phone, DOB',
+                  onTap: () => context.push('/profile/edit'),
+                ),
+                _divider(),
+              ],
               _SettingsRow(
                 icon: Icons.lock_outline,
                 label: 'Change password',
@@ -1077,7 +1080,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                       );
                     }
                   : null,
-              onQR: kinId != null
+              onQR: (kinId != null && kEnableQrJoin)
                   ? () => context.push('/family-qr?familyId=${family.id}&familyName=${Uri.encodeComponent(family.name)}&kinFamilyId=$kinId')
                   : null,
               onShare: kinId != null

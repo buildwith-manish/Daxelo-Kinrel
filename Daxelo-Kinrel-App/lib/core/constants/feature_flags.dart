@@ -20,7 +20,7 @@
 /// and profiled a large family on-device (`flutter run --profile`). See
 /// docs/graph/PATH_B_REWIRE.md. The v40 path remains the safe fallback, so
 /// flipping this flag is fully reversible.
-const bool kUseV21Engine = false;
+const bool kUseV21Engine = true;
 
 // ── Step 5: previously-missing screens ─────────────────────────────────────
 // Each new screen/feature is gated so it can be merged dark and enabled per
@@ -28,20 +28,20 @@ const bool kUseV21Engine = false;
 // smoke test on device). All default to false → zero change to the live app.
 
 /// Graph share/export (capture the graph to a PNG and share it).
-const bool kEnableGraphShareExport = false;
+const bool kEnableGraphShareExport = true;
 
 /// Avatar photo picker (camera / gallery) when adding or editing a person.
-const bool kEnablePhotoPicker = false;
+const bool kEnablePhotoPicker = true;
 
 /// Join-a-family via QR code (generate a join code + scan to join).
 /// Scanning requires the `mobile_scanner` package (see pubspec.yaml).
-const bool kEnableQrJoin = false;
+const bool kEnableQrJoin = true;
 
 /// In-app profile editing and "add relative" flows.
-const bool kEnableProfileEditing = false;
+const bool kEnableProfileEditing = true;
 
 /// Language picker for kinship term display (7 Indian languages).
-const bool kEnableLanguagePicker = false;
+const bool kEnableLanguagePicker = true;
 
 /// Audio pronunciation of kinship terms via flutter_tts.
-const bool kEnableAudioPronunciation = false;
+const bool kEnableAudioPronunciation = true;

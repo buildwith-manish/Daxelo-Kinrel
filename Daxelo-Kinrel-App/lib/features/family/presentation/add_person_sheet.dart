@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
@@ -908,9 +909,11 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Photo picker
-          Center(child: _buildPhotoPicker()),
-          SizedBox(height: 24),
+          // Photo picker (gated by kEnablePhotoPicker)
+          if (kEnablePhotoPicker) ...[
+            Center(child: _buildPhotoPicker()),
+            SizedBox(height: 24),
+          ],
 
           // Full name (large, prominent)
           _SectionLabel('Full Name *'),

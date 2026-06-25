@@ -9,6 +9,7 @@ import '../../profile/data/profile_provider.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/supported_languages.dart';
 import '../../../core/theme/theme_provider.dart';
@@ -163,14 +164,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               onChanged: (v) => ref.read(themeModeProvider.notifier).state = v,
             ),
             _divider(),
-            _SettingsRow(
-              icon: Icons.translate_outlined,
-              label: 'App language',
-              subtitle:
-                  '${selectedLanguage.nativeName} (${selectedLanguage.name})',
-              onTap: () => _showLanguagePicker(context, ref, selectedLanguage),
-            ),
-            _divider(),
+              if (kEnableLanguagePicker) ...[
+                _SettingsRow(
+                  icon: Icons.translate_outlined,
+                  label: 'App language',
+                  subtitle:
+                      '${selectedLanguage.nativeName} (${selectedLanguage.name})',
+                  onTap: () => _showLanguagePicker(context, ref, selectedLanguage),
+                ),
+                _divider(),
+              ],
             _SettingsFontScaleRow(
               icon: Icons.text_fields,
               label: 'Font size',

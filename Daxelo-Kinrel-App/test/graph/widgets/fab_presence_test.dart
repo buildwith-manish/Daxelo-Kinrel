@@ -21,8 +21,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:kinrel/features/family/presentation/family_graph_screen.dart';
+import '../../helpers/native_plugin_mocks.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(setupNativePluginMocks);
+  tearDownAll(tearDownNativePluginMocks);
   group('FamilyGraphScreen AppBar actions', () {
     GoRouter _buildTestRouter() {
       return GoRouter(
@@ -54,7 +58,7 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
 
         // No FAB should be present
         expect(find.byType(FloatingActionButton), findsNothing);
@@ -71,7 +75,7 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
 
         // The person_add icon should exist (in AppBar actions)
         expect(find.byIcon(Icons.person_add_alt_1_rounded), findsOneWidget);
@@ -88,7 +92,7 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
 
         // The zoom_in icon should NOT be present — we removed it in v4
         // in favor of pinch-to-zoom gestures handled by GraphPanZoom.
@@ -106,7 +110,7 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
 
         // The zoom_out icon should NOT be present — we removed it in v4
         // in favor of pinch-to-zoom gestures handled by GraphPanZoom.

@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../graph/widgets/family_graph.dart';
+import '../../../graph/widgets/family_graph_engine_view.dart';
 
 class FamilyTreeScreen extends ConsumerStatefulWidget {
   const FamilyTreeScreen({super.key, this.familyId});
@@ -96,9 +98,13 @@ class _FamilyTreeScreenState extends ConsumerState<FamilyTreeScreen> {
   }
 
   Widget _buildTreeContent(FamilyDetail detail) {
-    return FamilyGraphWidget(
-      familyId: detail.family.id,
-      familyName: detail.family.name,
-    );
+    return kUseV21Engine
+        ? FamilyGraphEngineView(
+            familyId: detail.family.id,
+          )
+        : FamilyGraphWidget(
+            familyId: detail.family.id,
+            familyName: detail.family.name,
+          );
   }
 }

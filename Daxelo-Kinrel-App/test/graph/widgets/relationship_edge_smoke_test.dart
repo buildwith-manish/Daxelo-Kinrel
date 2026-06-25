@@ -14,8 +14,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/core/kinship/kinship_edge_style.dart';
 import 'package:kinrel/graph/data/family_graph_repository.dart' show GraphEdgeData;
 import 'package:kinrel/graph/widgets/relationship_edge.dart';
+import '../../helpers/native_plugin_mocks.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(setupNativePluginMocks);
+  tearDownAll(tearDownNativePluginMocks);
   group('RelationshipEdge v52 smoke test', () {
     test('classifies all 10 categories without throwing', () {
       final keys = <String>[
@@ -185,7 +189,12 @@ void main() {
       await tester.pump();
 
       // If we got here without an exception, the test passes.
-      expect(find.byType(CustomPaint), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is RelationshipEdge,
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('painter handles minimal LOD (zoom < 0.4) without throwing',
@@ -238,7 +247,12 @@ void main() {
       );
 
       await tester.pump();
-      expect(find.byType(CustomPaint), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is RelationshipEdge,
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('painter handles selected + dimmed edges without throwing',
@@ -289,7 +303,12 @@ void main() {
       );
 
       await tester.pump();
-      expect(find.byType(CustomPaint), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is RelationshipEdge,
+        ),
+        findsOneWidget,
+      );
     });
   });
 }

@@ -11,8 +11,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../helpers/native_plugin_mocks.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(setupNativePluginMocks);
+  tearDownAll(tearDownNativePluginMocks);
   group('OnboardingFlow removal', () {
     testWidgets(
       'BUG-1: OnboardingFlow disappears when onboardingDismissedProvider is dismissed',
@@ -26,7 +30,7 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
 
         // Onboarding cards must never appear in this minimal widget
         expect(find.text('Grow your graph'), findsNothing);
@@ -45,7 +49,7 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
 
         // Onboarding cards must never appear
         expect(find.text('Explore your family graph'), findsNothing);
@@ -66,7 +70,7 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(seconds: 1));
 
         expect(find.text('Grow your graph'), findsNothing);
         expect(find.text('Explore your family graph'), findsNothing);

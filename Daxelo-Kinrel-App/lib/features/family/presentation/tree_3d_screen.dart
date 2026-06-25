@@ -30,6 +30,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/graph/graph_service.dart';
+import '../../../core/services/graph_layout_service.dart';
 import 'add_person_sheet.dart';
 import 'family_tree_canvas.dart';
 import 'path_finder_screen.dart';

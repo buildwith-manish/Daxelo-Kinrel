@@ -11,6 +11,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../core/constants/supported_languages.dart';
 import '../../../core/graph/graph_service.dart';
+import '../../../core/services/graph_layout_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/utils/smart_preloader.dart';
 import '../../../core/services/analytics_service.dart';

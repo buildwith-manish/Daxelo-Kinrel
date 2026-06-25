@@ -4,25 +4,15 @@ import 'package:flutter/foundation.dart';
 import '../kinship/kinship_service.dart';
 import '../database/isar_database.dart';
 import '../database/app_database.dart';
+import '../services/graph_layout_service.dart';
 
-/// Person node in the family graph
-class GraphPerson {
-  const GraphPerson({
-    required this.id,
-    required this.name,
-    this.relationship,
-    required this.generation,
-    this.isDeceased = false,
-    this.deletedAt,
-  });
-
-  final String id;
-  final String name;
-  final String? relationship;
-  final int generation;
-  final bool isDeceased;
-  final String? deletedAt;
-}
+// `GraphPerson` is now defined in `lib/core/services/graph_layout_service.dart`.
+// It is imported above so all tree/path/ancestor/descendant APIs in this file
+// share the single canonical definition that is also used by the layout,
+// force-simulation, and rendering layers. This removes the previous dual-class
+// conflict (graph_service.dart's `generation` field vs. graph_layout_service.dart's
+// `generationIndex` field) that triggered a Stack Overflow when a `GraphPerson`
+// constructed by one module was consumed by another.
 
 /// Tree node for hierarchical family display
 class TreeNode {
