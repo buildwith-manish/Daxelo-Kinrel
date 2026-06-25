@@ -32,6 +32,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
+import '../../core/kinship/kinship_service.dart';
+import '../../core/widgets/cached_avatar.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // NODE STATE ENUM
@@ -137,9 +139,77 @@ class RelationshipColors {
   // ── Resolution ──────────────────────────────────────────────────────
 
   /// Returns the border color for a given relationship key.
+  ///
+  /// v62: Now consults the 5,359-entry kinship dataset's
+  /// `relationshipCategory` field to resolve the correct color for
+  /// ALL kinship terms — not just the ~35 keys in the legacy
+  /// _borderColorMap. Falls back to the hardcoded map, then to
+  /// 'extended' (slate) if the dataset isn't loaded.
   static Color borderColorFor(String? relationshipKey) {
     if (relationshipKey == null) return extended;
-    return _borderColorMap[relationshipKey] ?? extended;
+    // Try the exact map first (fast path for common keys).
+    final exact = _borderColorMap[relationshipKey];
+    if (exact != null) return exact;
+    // Fall back to kinship dataset category lookup.
+    final category = _kinshipCategoryFor(relationshipKey);
+    return _categoryBorderColor(category);
+  }
+
+  /// v62: Cached kinship dataset lookup for border color resolution.
+  static final Map<String, String?> _kinshipCatCache =
+      <String, String?>{};
+
+  /// v62: Resolves the relationshipCategory from the kinship dataset.
+  /// Returns null if the dataset isn't loaded or the key isn't found.
+  static String? _kinshipCategoryFor(String relationshipKey) {
+    if (relationshipKey.isEmpty || relationshipKey == 'unknown') {
+      return null;
+    }
+    if (_kinshipCatCache.containsKey(relationshipKey)) {
+      return _kinshipCatCache[relationshipKey];
+    }
+    String? result;
+    try {
+      final service = KinshipService.instance;
+      if (service.isLoaded) {
+        final rel = service.getRelationship(relationshipKey);
+        result = rel?.relationshipCategory;
+      }
+    } catch (_) {
+      result = null;
+    }
+    _kinshipCatCache[relationshipKey] = result;
+    return result;
+  }
+
+  /// Maps a kinship dataset category to a border color.
+  static Color _categoryBorderColor(String? datasetCategory) {
+    switch (datasetCategory) {
+      case 'spouse':
+        return spouse;
+      case 'offspring':
+        return child;
+      case 'sibling':
+        return sibling;
+      case 'grandparent':
+        return grandparent;
+      case 'in_law':
+        return inLaw;
+      case 'cousin':
+        return cousin;
+      case 'paternal':
+      case 'maternal':
+        // Could be parent or aunt/uncle — use the relationshipKey
+        // prefix to disambiguate. The caller's key isn't available
+        // here, so default to parent (most common paternal/maternal).
+        return parent;
+      case 'extended':
+      case 'step':
+      case 'ceremonial':
+        return extended;
+      default:
+        return extended;
+    }
   }
 
   /// Returns the background tint for a given relationship key.
@@ -929,18 +999,21 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   // ── Circle Content (initials or photo) ─────────────────────────────
 
   Widget _buildCircleContent(double diameter) {
-    // If photo URL is available and not anonymous, show photo in ClipOval
+    // v62: Use CachedAvatar instead of raw Image.network.
+    // CachedAvatar provides disk caching, shimmer placeholder, and
+    // memory-optimized memCacheWidth — critical for families with
+    // many photo URLs (avoids repeated network requests + flicker).
     if (widget.photoUrl != null &&
         widget.photoUrl!.isNotEmpty &&
         !widget.isAnonymous) {
       return ClipOval(
-        child: Image.network(
-          widget.photoUrl!,
-          width: diameter,
-          height: diameter,
+        child: CachedAvatar(
+          imageUrl: widget.photoUrl,
+          radius: diameter / 2,
           fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) =>
-              _buildInitialsContent(diameter),
+          backgroundColor: KinrelColors.darkCard,
+          placeholder: _buildInitialsContent(diameter),
+          errorWidget: _buildInitialsContent(diameter),
         ),
       );
     }

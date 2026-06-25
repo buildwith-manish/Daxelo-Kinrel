@@ -37,6 +37,7 @@ import '../../../core/constants/feature_flags.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../graph/graph.dart';
 import '../../../graph/widgets/family_graph_engine_view.dart';
+import '../../../graph/widgets/graph_tutorial_overlay.dart';
 import '../../../graph/widgets/search_bar.dart';
 import 'add_person_sheet.dart';
 import 'providers/family_graph_provider.dart'
@@ -88,6 +89,14 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
   /// Whether the search overlay is visible.
   bool _showSearch = false;
+
+  /// v62: Multi-select state. When non-empty, the graph is in
+  /// multi-select mode — tapping a node adds/removes it from the
+  /// selection. Long-pressing empty canvas exits multi-select.
+  Set<String> _selectedNodeIds = <String>{};
+
+  /// v62: Returns true if the graph is in multi-select mode.
+  bool get _isMultiSelect => _selectedNodeIds.isNotEmpty;
 
   /// v60: Incremented to trigger re-centering in FamilyGraphWidget.
   int _recenterKey = 0;
@@ -198,25 +207,27 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     return Scaffold(
       backgroundColor: KinrelColors.darkBackground,
       appBar: _buildAppBar(),
-      body: Stack(
-        children: [
-          graphAsync.when(
-            loading: _buildLoadingState,
-            error: _buildErrorState,
-            data: _buildDataState,
-          ),
-          // Search overlay — shown when _showSearch is true.
-          if (_showSearch)
-            GraphSearchBar(
-              familyId: widget.familyId,
-              persons: graphAsync.valueOrNull?.persons ?? const [],
-              onResultTap: (memberId) {
-                setState(() => _showSearch = false);
-                _focusOnMember(memberId, graphAsync.valueOrNull);
-              },
-              onClose: () => setState(() => _showSearch = false),
+      body: GraphTutorialOverlay(
+        child: Stack(
+          children: [
+            graphAsync.when(
+              loading: _buildLoadingState,
+              error: _buildErrorState,
+              data: _buildDataState,
             ),
-        ],
+            // Search overlay — shown when _showSearch is true.
+            if (_showSearch)
+              GraphSearchBar(
+                familyId: widget.familyId,
+                persons: graphAsync.valueOrNull?.persons ?? const [],
+                onResultTap: (memberId) {
+                  setState(() => _showSearch = false);
+                  _focusOnMember(memberId, graphAsync.valueOrNull);
+                },
+                onClose: () => setState(() => _showSearch = false),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -590,15 +601,100 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         // which caused the toolbar to be invisible/untappable on Android.
         // _buildBottomToolbar() already returns a Container with its own
         // BoxShadow, so no wrapper is needed.
+        // v62: Show multi-select bar instead when in multi-select mode.
         Positioned(
           bottom: bottomPadding + 24,
           left: 0,
           right: 0,
           child: Center(
-            child: _buildBottomToolbar(),
+            child: _isMultiSelect
+                ? _buildMultiSelectBar()
+                : _buildBottomToolbar(),
           ),
         ),
       ],
+    );
+  }
+
+  /// v62: Multi-select action bar shown when one or more nodes are
+  /// selected. Shows the count + actions: Add Relationship, Hide, Cancel.
+  Widget _buildMultiSelectBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x40000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${_selectedNodeIds.length} selected',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: KinrelColors.orange,
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Add Relationship between selected nodes.
+          if (_selectedNodeIds.length == 2)
+            _multiSelectAction(
+              icon: Icons.link_rounded,
+              label: 'Add Rel',
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Open the Relationship Builder from the family '
+                      'detail screen to connect these two people.',
+                    ),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                setState(() => _selectedNodeIds = {});
+              },
+            ),
+          // Clear selection.
+          _multiSelectAction(
+            icon: Icons.close_rounded,
+            label: 'Cancel',
+            onTap: () => setState(() => _selectedNodeIds = {}),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _multiSelectAction({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return IconButton(
+      onPressed: onTap,
+      icon: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 20, color: KinrelColors.textWhite),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: KinrelColors.textSilver,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

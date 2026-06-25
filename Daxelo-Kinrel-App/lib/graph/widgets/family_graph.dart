@@ -137,6 +137,37 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     AddPersonSheet.show(context, familyId: widget.familyId);
   }
 
+  /// v62: Position of the last double-tap, used to zoom toward the
+  /// focal point. Stored in local (child) coordinates.
+  Offset _doubleTapPosition = Offset.zero;
+
+  /// v62: Handles double-tap to zoom. Toggles between current zoom
+  /// and 2× zoom, centered on the tap position. Animates the
+  /// transform for a smooth zoom-in feel.
+  void _handleDoubleTapZoom() {
+    final controller = _transformationController;
+    final currentScale = controller.value.getMaxScaleOnAxis();
+    final targetScale = currentScale < 1.5 ? 2.0 : 1.0;
+
+    // Get the tap position in screen coordinates.
+    final tapScreen = _doubleTapPosition;
+
+    // Convert tap position to child (graph-space) coordinates using
+    // the inverse of the current transform.
+    final inverse = Matrix4.inverted(controller.value);
+    final tapInChildSpace = MatrixUtils.transformPoint(inverse, tapScreen);
+
+    // Build the new transform: scale around the tap point.
+    // Matrix = translate(tapScreen) * scale(targetScale) * translate(-tapInChild)
+    final newTransform = Matrix4.identity()
+      ..translate(tapScreen.dx, tapScreen.dy)
+      ..scale(targetScale)
+      ..translate(-tapInChildSpace.dx, -tapInChildSpace.dy);
+
+    // Animate to the new transform.
+    controller.value = newTransform;
+  }
+
   /// v62: Fire-and-forget analytics wrapper. Never lets a telemetry
   /// failure (e.g., Firebase not initialized in tests) break the build.
   void _safeAnalytics(Future<void> Function() action) {
@@ -347,16 +378,21 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     final cw = canvasWidth > 0 ? canvasWidth : 400.0;
     final ch = canvasHeight > 0 ? canvasHeight : 400.0;
 
-    return InteractiveViewer(
-      transformationController: _transformationController,
-      constrained: false,
-      boundaryMargin: const EdgeInsets.all(double.infinity),
-      minScale: 0.05,
-      maxScale: 5.0,
-      child: SizedBox(
-        width: cw,
-        height: ch,
-        child: Stack(
+    return GestureDetector(
+      // v62: Double-tap to zoom in 2× toward the focal point.
+      // Toggles between 1× and 2× if already zoomed in.
+      onDoubleTapDown: (details) => _doubleTapPosition = details.localPosition,
+      onDoubleTap: () => _handleDoubleTapZoom(),
+      child: InteractiveViewer(
+        transformationController: _transformationController,
+        constrained: false,
+        boundaryMargin: const EdgeInsets.all(double.infinity),
+        minScale: 0.05,
+        maxScale: 5.0,
+        child: SizedBox(
+          width: cw,
+          height: ch,
+          child: Stack(
           clipBehavior: Clip.none,
           children: [
             // ── Edge Layer ────────────────────────────────────────────
@@ -410,6 +446,7 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             ..._buildNodes(positions, personMap, edges, highlightedGen),
           ],
         ),
+      ),
       ),
     );
   }

@@ -11,6 +11,25 @@ import 'language_code_map.dart';
 class KinshipService {
   KinshipData? _data;
 
+  /// v62: Static singleton instance so non-Riverpod code (e.g. the
+  /// EdgeStyleResolver in relationship_edge.dart) can access the
+  /// loaded dataset without a BuildContext/Ref. The Riverpod provider
+  /// (`kinshipServiceProvider`) returns this same instance.
+  static KinshipService? _instance;
+  static KinshipService get instance {
+    _instance ??= KinshipService._();
+    return _instance!;
+  }
+
+  /// Private constructor — use [instance] or the Riverpod provider.
+  KinshipService._();
+
+  /// Public constructor for Riverpod. Internally sets the singleton.
+  factory KinshipService() {
+    _instance ??= KinshipService._();
+    return _instance!;
+  }
+
   // Indices for O(1) lookups
   final Map<String, KinshipRelationship> _byKey = {};
   final Map<String, List<KinshipRelationship>> _byCategory = {};

@@ -38,6 +38,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../core/constants/brand_colors.dart';
+import '../../core/kinship/kinship_service.dart';
 import '../data/family_graph_repository.dart' show GraphEdgeData;
 import 'graph_node.dart';
 
@@ -170,12 +171,109 @@ class EdgeStyleResolver {
 
   /// Returns the edge category for a given relationship key.
   ///
+  /// v62: Cache for kinship dataset lookups so we don't query the
+  /// KinshipService on every paint call. Keyed by relationshipKey,
+  /// valued by the EdgeCategory resolved from the dataset's
+  /// `relationshipCategory` field. Negative entries (key not found
+  /// in dataset) are stored as null to avoid repeated lookups.
+  static final Map<String, EdgeCategory?> _kinshipCache =
+      <String, EdgeCategory?>{};
+
+  /// v62: Returns true if the KinshipService has been initialized
+  /// (dataset loaded). Avoids querying an unloaded service.
+  static bool _kinshipChecked = false;
+  static KinshipService? _kinshipServiceInstance;
+
+  /// v62: Resolves the EdgeCategory from the kinship dataset's
+  /// `relationshipCategory` field. Returns null if the dataset isn't
+  /// loaded or the key isn't found.
+  static EdgeCategory? _categoryFromKinshipDataset(String relationshipKey) {
+    if (relationshipKey.isEmpty || relationshipKey == 'unknown') return null;
+
+    // Lazy-init: grab the KinshipService singleton once.
+    if (!_kinshipChecked) {
+      _kinshipChecked = true;
+      try {
+        _kinshipServiceInstance = KinshipService.instance;
+      } catch (_) {
+        _kinshipServiceInstance = null;
+      }
+    }
+    final service = _kinshipServiceInstance;
+    if (service == null || !service.isLoaded) return null;
+
+    // Check cache.
+    if (_kinshipCache.containsKey(relationshipKey)) {
+      return _kinshipCache[relationshipKey];
+    }
+
+    // Query the dataset.
+    final rel = service.getRelationship(relationshipKey);
+    if (rel == null) {
+      _kinshipCache[relationshipKey] = null;
+      return null;
+    }
+
+    // Map the dataset's relationshipCategory → EdgeCategory.
+    final category = _mapDatasetCategory(rel.relationshipCategory);
+    _kinshipCache[relationshipKey] = category;
+    return category;
+  }
+
+  /// Maps the kinship dataset's `relationshipCategory` values to the
+  /// graph layer's EdgeCategory enum.
+  ///
+  /// Dataset categories (from indian_kinship.json):
+  ///   core, spouse, offspring, sibling, grandparent, paternal,
+  ///   maternal, in_law, cousin, extended, step, ceremonial
+  static EdgeCategory? _mapDatasetCategory(String datasetCategory) {
+    switch (datasetCategory) {
+      case 'core':
+        return null; // 'self' — no edge drawn to self
+      case 'spouse':
+        return EdgeCategory.spouse;
+      case 'offspring':
+        return EdgeCategory.child;
+      case 'sibling':
+        return EdgeCategory.sibling;
+      case 'grandparent':
+        return EdgeCategory.grandparent;
+      case 'paternal':
+      case 'maternal':
+        // Could be parent, aunt/uncle, or cousin depending on the
+        // specific key. Let the prefix fallback handle it.
+        return null;
+      case 'in_law':
+        return EdgeCategory.inLaw;
+      case 'cousin':
+        return EdgeCategory.cousin;
+      case 'extended':
+        return EdgeCategory.extended;
+      case 'step':
+        return EdgeCategory.extended; // step-relationships render as extended
+      case 'ceremonial':
+        return EdgeCategory.extended;
+      default:
+        return null;
+    }
+  }
+
   /// v58 Fix 3: Added prefix-matching fallback for compound Indian
   /// kinship keys that aren't in the exact map. Prevents keys like
   /// 'fathers_elder_brother' from falling to 'extended' (35% opacity,
   /// nearly invisible on dark background).
+  ///
+  /// v62: Now consults the KinshipService dataset FIRST (5,359 keys),
+  /// falling back to the hardcoded map + prefix matching if the dataset
+  /// isn't loaded or the key isn't found. This ensures ALL kinship
+  /// terms — including compound keys like
+  /// 'fathers_elder_brothers_wife' — render with the correct category.
   static EdgeCategory categoryFor(String relationshipKey) {
-    // Exact match first (fast path).
+    // v62: Try the kinship dataset first (covers all 5,359 terms).
+    final datasetCategory = _categoryFromKinshipDataset(relationshipKey);
+    if (datasetCategory != null) return datasetCategory;
+
+    // Exact match (fast path for common keys).
     final exact = _categoryMap[relationshipKey];
     if (exact != null) return exact;
 
