@@ -24,6 +24,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
+import '../../core/services/analytics_service.dart';
 import '../../core/services/graph_layout_service.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/providers/family_graph_provider.dart';
@@ -134,6 +135,15 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
 
   void _openAddMemberSheet() {
     AddPersonSheet.show(context, familyId: widget.familyId);
+  }
+
+  /// v62: Fire-and-forget analytics wrapper. Never lets a telemetry
+  /// failure (e.g., Firebase not initialized in tests) break the build.
+  void _safeAnalytics(Future<void> Function() action) {
+    // ignore: discarded_futures
+    action().catchError((Object e) {
+      debugPrint('⚠️ Analytics (suppressed): $e');
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -269,12 +279,28 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       );
     }).toList();
 
+    // v62: Performance telemetry — measure main-thread layout time
+    // (this path is used by v40 FamilyGraphWidget; the V2.1 engine
+    // path via graphLayoutProvider has its own instrumentation).
+    final layoutStopwatch = Stopwatch()..start();
     final service = GraphLayoutService();
     final layout = service.computeLayout(
       persons: graphPersons,
       relationships: graphRelationships,
       anchorPersonId: anchorPerson.id,
     );
+    layoutStopwatch.stop();
+    // Fire-and-forget analytics — never let telemetry break the build.
+    _safeAnalytics(() => AnalyticsService.instance.logEvent(
+          'graph_layout_time',
+          {
+            'total_ms': layoutStopwatch.elapsedMilliseconds,
+            'node_count': graphPersons.length,
+            'edge_count': graphRelationships.length,
+            'compact_mode': false,
+            'render_path': 'v40_main_thread',
+          },
+        ));
 
     if (layout.positions.isEmpty) {
       return GraphEmptyStack(

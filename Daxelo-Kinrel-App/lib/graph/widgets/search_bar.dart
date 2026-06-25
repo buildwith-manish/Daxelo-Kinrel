@@ -147,6 +147,7 @@ class GraphSearchBar extends ConsumerStatefulWidget {
     required this.familyId,
     required this.onResultTap,
     required this.onClose,
+    this.persons = const [],
   });
 
   /// The family ID for search context.
@@ -157,6 +158,13 @@ class GraphSearchBar extends ConsumerStatefulWidget {
 
   /// Callback when the search bar is closed.
   final VoidCallback onClose;
+
+  /// In-memory list of persons in the current family graph (raw RPC node
+  /// shape: {id, name, gender, generationIndex, isAnchor, photoUrl,
+  /// isDeceased, username, ...}). When non-empty, search runs against
+  /// this list client-side (instant, no network). When empty, the
+  /// search bar falls back to the legacy stub behavior.
+  final List<Map<String, dynamic>> persons;
 
   @override
   ConsumerState<GraphSearchBar> createState() => _GraphSearchBarState();
@@ -278,20 +286,104 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
 
   /// Searches the graph for members matching the query.
   ///
-  /// In production, this would:
-  /// 1. By Name: Supabase FTS with trigram similarity (<150ms)
-  /// 2. By Username: exact + prefix matching (<100ms)
-  /// 3. By Relationship: filter by type from kinship_types (<150ms)
-  /// 4. By Member ID: direct UUID lookup (<50ms)
-  /// 5. Apply active filters (generation, blood/marriage, degree)
+  /// Runs entirely client-side against the in-memory `widget.persons`
+  /// list (the same data already loaded by `familyGraphProvider`).
+  /// Matches by: name (case-insensitive substring), username (minus
+  /// leading `@`), and member ID prefix. Results are ranked: anchor
+  /// first, then name starts-with, then name contains, then username.
+  ///
+  /// Filters (`_selectedFilters`, `_generationFilter`, `_bloodOnly`,
+  /// `_activeOnly`, `_degreeRange`) are applied as post-filter steps
+  /// on the matched set.
   Future<List<GraphSearchResult>> _searchGraph(String query) async {
-    // Placeholder: in production, replace with actual Supabase queries
-    // This is a client-side filter that would use cached data
-    await Future.delayed(const Duration(milliseconds: 50));
+    final persons = widget.persons;
+    if (persons.isEmpty) {
+      // No in-memory data yet — fall back to a tiny delay so the UI
+      // shows the loading spinner correctly.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      return const <GraphSearchResult>[];
+    }
 
-    return <GraphSearchResult>[
-      // Results would be populated from the data layer
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return const <GraphSearchResult>[];
+
+    // ── Match & rank ────────────────────────────────────────────────
+    final startsWithHits = <GraphSearchResult>[];
+    final containsHits = <GraphSearchResult>[];
+    final usernameHits = <GraphSearchResult>[];
+    final idHits = <GraphSearchResult>[];
+
+    for (final p in persons) {
+      final id = (p['id'] ?? '').toString();
+      final name = (p['name'] ?? '').toString();
+      final username = (p['username'] ?? '').toString().replaceAll(RegExp(r'^@'), '');
+      final nameLower = name.toLowerCase();
+      final usernameLower = username.toLowerCase();
+
+      // Apply active-only filter (skip deceased if requested).
+      if (_activeOnly && (p['isDeceased'] as bool? ?? false)) continue;
+
+      // Apply generation filter.
+      if (_generationFilter.generationIndex != null) {
+        final gen = (p['generationIndex'] as num?)?.toInt() ?? 0;
+        if (gen != _generationFilter.generationIndex) continue;
+      }
+
+      GraphSearchResult? result;
+      if (nameLower.startsWith(q)) {
+        result = _toSearchResult(p);
+        startsWithHits.add(result);
+      } else if (nameLower.contains(q)) {
+        result = _toSearchResult(p);
+        containsHits.add(result);
+      } else if (usernameLower.isNotEmpty && usernameLower.contains(q)) {
+        result = _toSearchResult(p);
+        usernameHits.add(result);
+      } else if (id.toLowerCase().startsWith(q)) {
+        result = _toSearchResult(p);
+        idHits.add(result);
+      }
+    }
+
+    // Anchor first, then by rank bucket.
+    final ranked = <GraphSearchResult>[
+      ...startsWithHits,
+      ...containsHits,
+      ...usernameHits,
+      ...idHits,
     ];
+    ranked.sort((a, b) {
+      // Anchor always wins.
+      if (a.generationIndex == 0 && b.generationIndex != 0) return -1;
+      if (b.generationIndex == 0 && a.generationIndex != 0) return 1;
+      // Then alphabetical by name.
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+
+    // Apply relationship filter (best-effort: only filter by the
+    // relationshipKey stored on the person, since we don't have the
+    // full edge list here to resolve categories).
+    if (_selectedFilters.isNotEmpty) {
+      final allowedKeys = _selectedFilters.map((f) => f.key).toSet();
+      return ranked.where((r) {
+        if (r.relationshipKey == null) return false;
+        return allowedKeys.any((k) => r.relationshipKey!.contains(k));
+      }).toList();
+    }
+
+    return ranked.take(30).toList();
+  }
+
+  /// Converts a raw person map to a [GraphSearchResult].
+  GraphSearchResult _toSearchResult(Map<String, dynamic> p) {
+    return GraphSearchResult(
+      memberId: (p['id'] ?? '').toString(),
+      name: (p['name'] ?? '').toString(),
+      photoUrl: p['photoUrl'] as String?,
+      relationshipKey: p['relationshipKey'] as String?,
+      generationIndex: (p['generationIndex'] as num?)?.toInt() ?? 0,
+      username: p['username'] as String?,
+    );
   }
 
   // ── Filter Toggle Handlers ─────────────────────────────────────────

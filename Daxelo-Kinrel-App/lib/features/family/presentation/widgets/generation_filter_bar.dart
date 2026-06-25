@@ -78,7 +78,7 @@ class GenerationFilterBar extends StatelessWidget {
 
               final gen = sortedGenerations[index - 1];
               return _buildChip(
-                label: 'Gen $gen',
+                label: _generationLabel(gen),
                 isSelected: highlightedGeneration == gen,
                 onTap: () {
                   // Toggle: if already selected, deselect to "All"
@@ -94,6 +94,31 @@ class GenerationFilterBar extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Returns a human-readable label for a generation index.
+  ///
+  /// Convention: gen 0 = anchor (self), negative = ancestors,
+  /// positive = descendants.
+  static String _generationLabel(int gen) {
+    switch (gen) {
+      case 0:
+        return 'Self';
+      case -1:
+        return 'Parents';
+      case -2:
+        return 'Grandparents';
+      case -3:
+        return 'Great-Grandparents';
+      case 1:
+        return 'Children';
+      case 2:
+        return 'Grandchildren';
+      case 3:
+        return 'Great-Grandchildren';
+      default:
+        return gen < 0 ? 'Gen $gen' : 'Gen +$gen';
+    }
   }
 
   /// Builds a single filter chip.

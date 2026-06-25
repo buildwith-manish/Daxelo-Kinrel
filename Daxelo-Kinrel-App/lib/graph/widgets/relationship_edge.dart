@@ -613,11 +613,14 @@ class RelationshipEdge extends CustomPainter {
       }
 
       // ── Relationship label — offset PERPENDICULAR to the edge ──
-      // v59: Labels now visible at all zoom levels (threshold lowered
-      // from 0.4 to 0.05). Fade-in from 0.05 → 0.15.
-      if (!isIndirect && zoomLevel >= _lodMinimalZoom) {
+      // v62: Labels only appear when zoomed in enough to read them.
+      // Fade-in from 0.8 → 1.2 (was 0.05 → 0.15, which cluttered the
+      // graph with hundreds of unreadable labels at low zoom). At
+      // zoom 0.8 the user has zoomed in on a region and wants detail;
+      // at zoom 1.2+ labels are full opacity.
+      if (!isIndirect && zoomLevel >= 0.8) {
         final double labelOpacity =
-            ((zoomLevel - 0.05) / 0.10).clamp(0.0, 1.0);
+            ((zoomLevel - 0.8) / 0.4).clamp(0.0, 1.0);
         if (labelOpacity > 0) {
           _drawRelationshipLabelOffset(
             canvas,

@@ -30,10 +30,13 @@
 //   • Offline        — isOnlineProvider banner; Drift cache serves data offline.
 //   • Expand/collapse — long-press a node to toggle its descendants.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/sync/connectivity_service.dart' show isOnlineProvider;
+import '../../core/services/analytics_service.dart';
 import '../../core/services/graph_layout_service.dart' show GraphLayoutResult;
 import '../../features/family/presentation/providers/family_graph_provider.dart'
     show
@@ -97,6 +100,11 @@ class _FamilyGraphEngineViewState
   /// Wraps the on-screen graph so it can be captured for share/export.
   final GlobalKey _graphBoundaryKey = GlobalKey();
 
+  /// v62: Periodic telemetry timer — logs edge cache hit rate + cull
+  /// stats every 30 seconds while the graph is mounted.
+  Timer? _telemetryTimer;
+  int _lastCullVisibleCount = 0;
+
   Size _viewportSize = Size.zero;
   bool _framed = false; // one-time initial framing per family
 
@@ -122,6 +130,25 @@ class _FamilyGraphEngineViewState
     );
     _expandCollapse =
         ExpandCollapseController(const ExpandCollapseState());
+
+    // v62: Start periodic telemetry — log edge cache + cull stats every
+    // 30 seconds so we can monitor production performance.
+    _telemetryTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted) return;
+      // Fire-and-forget — never let telemetry break the build.
+      AnalyticsService.instance
+          .logEvent('graph_render_stats', {
+            'edge_cache_size': _edgePathCache.size,
+            'edge_cache_hit_rate': _edgePathCache.hitRate,
+            'edge_cache_hits': _edgePathCache.hits,
+            'edge_cache_misses': _edgePathCache.misses,
+            'visible_node_count': _culler.visibleCount,
+            'zoom_level': double.parse(_camera.zoomLevel.toStringAsFixed(2)),
+          })
+          .catchError((Object e) {
+        debugPrint('⚠️ Analytics (suppressed): $e');
+      });
+    });
   }
 
   @override
@@ -140,6 +167,7 @@ class _FamilyGraphEngineViewState
 
   @override
   void dispose() {
+    _telemetryTimer?.cancel();
     _camera.removeListener(_onCameraChanged);
     _camera.dispose();
     _culler.dispose();

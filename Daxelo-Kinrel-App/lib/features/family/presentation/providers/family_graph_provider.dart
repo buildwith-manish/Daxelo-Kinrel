@@ -31,6 +31,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/isar_database.dart';
+import '../../../../core/services/analytics_service.dart';
 import '../../../../core/services/graph_layout_service.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../widgets/graph_canvas_widget.dart';
@@ -818,18 +819,45 @@ final graphLayoutProvider =
     compactMode: compactMode,
   );
 
+  // v62: Performance telemetry — measure layout computation time so we
+  // can monitor production performance and detect regressions.
+  final stopwatch = Stopwatch()..start();
+  bool isolateSuccess = true;
   try {
-    return await compute(_runLayoutInIsolate, params);
+    final result = await compute(_runLayoutInIsolate, params);
+    stopwatch.stop();
+    AnalyticsService.instance.logEvent('graph_layout_time', {
+      'total_ms': stopwatch.elapsedMilliseconds,
+      'node_count': persons.length,
+      'edge_count': graphRelationships.length,
+      'compact_mode': compactMode,
+      'isolate_success': true,
+    });
+    return result;
   } catch (e) {
+    isolateSuccess = false;
+    stopwatch.stop();
     debugPrint('[graphLayoutProvider] Isolate compute failed, '
         'falling back to main thread: $e');
+    final fallbackStopwatch = Stopwatch()..start();
     final service = GraphLayoutService();
-    return service.computeLayout(
+    final result = service.computeLayout(
       persons: graphPersons,
       relationships: graphRelationships,
       anchorPersonId: anchorPerson.id,
       compactMode: compactMode,
     );
+    fallbackStopwatch.stop();
+    AnalyticsService.instance.logEvent('graph_layout_time', {
+      'total_ms': stopwatch.elapsedMilliseconds + fallbackStopwatch.elapsedMilliseconds,
+      'fallback_ms': fallbackStopwatch.elapsedMilliseconds,
+      'node_count': persons.length,
+      'edge_count': graphRelationships.length,
+      'compact_mode': compactMode,
+      'isolate_success': false,
+      'isolate_error': e.toString().substring(0, 200),
+    });
+    return result;
   }
 });
 

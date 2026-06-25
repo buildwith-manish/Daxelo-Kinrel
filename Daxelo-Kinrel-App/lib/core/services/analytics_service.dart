@@ -90,7 +90,24 @@ class AnalyticsService {
   static final AnalyticsService _instance = AnalyticsService._();
   static AnalyticsService get instance => _instance;
 
-  final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
+  /// Lazy-initialized FirebaseAnalytics. Wrapped in try-catch so that
+  /// accessing `AnalyticsService.instance` in a headless test
+  /// environment (where FirebaseAnalytics.instance may throw) doesn't
+  /// break the build. Returns null if init fails; all log methods
+  /// no-op when _analytics is null.
+  FirebaseAnalytics? _analytics;
+  bool _analyticsInitTried = false;
+  FirebaseAnalytics? get _analyticsInstance {
+    if (_analyticsInitTried) return _analytics;
+    _analyticsInitTried = true;
+    try {
+      _analytics = FirebaseAnalytics.instance;
+    } catch (e) {
+      debugPrint('⚠️ FirebaseAnalytics init failed: $e');
+      _analytics = null;
+    }
+    return _analytics;
+  }
 
   /// Whether analytics is enabled (disabled in dev environment).
   bool _enabled = true;
@@ -100,13 +117,13 @@ class AnalyticsService {
     // Disable analytics in dev environment
     if (AppEnvironmentConfig.current.isDev) {
       _enabled = false;
-      await _analytics.setAnalyticsCollectionEnabled(false);
+      await _analyticsInstance?.setAnalyticsCollectionEnabled(false);
       debugPrint('📊 Analytics disabled in dev environment');
       return;
     }
 
     _enabled = true;
-    await _analytics.setAnalyticsCollectionEnabled(true);
+    await _analyticsInstance?.setAnalyticsCollectionEnabled(true);
     debugPrint('📊 Analytics enabled (${AppEnvironmentConfig.current.label})');
   }
 
@@ -123,8 +140,10 @@ class AnalyticsService {
 
   Future<void> _logEvent(String name, Map<String, Object>? params) async {
     if (!_enabled) return;
+    final analytics = _analyticsInstance;
+    if (analytics == null) return; // init failed (e.g., in tests)
     try {
-      await _analytics.logEvent(name: name, parameters: params);
+      await analytics.logEvent(name: name, parameters: params);
     } catch (e) {
       debugPrint('⚠️ Analytics logEvent failed: $e');
     }
@@ -299,18 +318,20 @@ class AnalyticsService {
     required bool isPremium,
   }) async {
     if (!_enabled) return;
+    final analytics = _analyticsInstance;
+    if (analytics == null) return;
     try {
-      await _analytics.setUserId(id: userId);
-      await _analytics.setUserProperty(name: 'family_id', value: familyId);
-      await _analytics.setUserProperty(
+      await analytics.setUserId(id: userId);
+      await analytics.setUserProperty(name: 'family_id', value: familyId);
+      await analytics.setUserProperty(
         name: 'member_count',
         value: memberCount.toString(),
       );
-      await _analytics.setUserProperty(
+      await analytics.setUserProperty(
         name: 'preferred_language',
         value: preferredLanguage,
       );
-      await _analytics.setUserProperty(
+      await analytics.setUserProperty(
         name: 'is_premium',
         value: isPremium.toString(),
       );
@@ -323,8 +344,10 @@ class AnalyticsService {
 
   Future<void> logScreenView(String screenName) async {
     if (!_enabled) return;
+    final analytics = _analyticsInstance;
+    if (analytics == null) return;
     try {
-      await _analytics.logScreenView(screenName: screenName);
+      await analytics.logScreenView(screenName: screenName);
     } catch (e) {
       debugPrint('⚠️ Analytics logScreenView failed: $e');
     }

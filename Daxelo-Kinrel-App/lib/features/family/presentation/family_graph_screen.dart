@@ -35,12 +35,17 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../core/services/supabase_service.dart';
-import '../../../core/constants/feature_flags.dart';
 import '../../../graph/graph.dart';
 import '../../../graph/widgets/family_graph_engine_view.dart';
+import '../../../graph/widgets/search_bar.dart';
 import 'add_person_sheet.dart';
 import 'providers/family_graph_provider.dart'
-    show FamilyGraphNotifier, FlatGraphResult, familyGraphProvider, graphRealtimeProvider;
+    show
+        FamilyGraphNotifier,
+        FlatGraphResult,
+        familyGraphProvider,
+        graphRealtimeProvider,
+        selectedNodeProvider;
 import 'widgets/generation_filter_bar.dart';
 import 'widgets/graph_canvas_widget.dart' show PersonData;
 import 'widgets/relationship_legend.dart';
@@ -80,6 +85,9 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
   /// Whether the filter panel is visible in the bottom toolbar context.
   bool _filterVisible = false;
+
+  /// Whether the search overlay is visible.
+  bool _showSearch = false;
 
   /// v60: Incremented to trigger re-centering in FamilyGraphWidget.
   int _recenterKey = 0;
@@ -190,12 +198,47 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     return Scaffold(
       backgroundColor: KinrelColors.darkBackground,
       appBar: _buildAppBar(),
-      body: graphAsync.when(
-        loading: _buildLoadingState,
-        error: _buildErrorState,
-        data: _buildDataState,
+      body: Stack(
+        children: [
+          graphAsync.when(
+            loading: _buildLoadingState,
+            error: _buildErrorState,
+            data: _buildDataState,
+          ),
+          // Search overlay — shown when _showSearch is true.
+          if (_showSearch)
+            GraphSearchBar(
+              familyId: widget.familyId,
+              persons: graphAsync.valueOrNull?.persons ?? const [],
+              onResultTap: (memberId) {
+                setState(() => _showSearch = false);
+                _focusOnMember(memberId, graphAsync.valueOrNull);
+              },
+              onClose: () => setState(() => _showSearch = false),
+            ),
+        ],
       ),
     );
+  }
+
+  /// Centers the camera on the member with [memberId] by bumping the
+  /// recenter key. The actual transform is applied by FamilyGraphWidget's
+  /// auto-center logic when it sees the recenterKey change.
+  ///
+  /// Note: this is a simplified jump-to-person — it triggers a full
+  /// re-center on the anchor. A more precise "center on this specific
+  /// node" would require access to the layout positions, which live
+  /// inside FamilyGraphWidget. For now, the search result tap selects
+  /// the node (via selectedNodeProvider) so the user can see it
+  /// highlighted.
+  void _focusOnMember(String memberId, FlatGraphResult? graphData) {
+    // Select the node so it's visually highlighted.
+    ref.read(selectedNodeProvider.notifier).state = memberId;
+    // Trigger re-centering so the graph fits in view.
+    setState(() {
+      _recenterKey++;
+      _highlightedGeneration = null;
+    });
   }
 
   // ── AppBar ────────────────────────────────────────────────────────
@@ -224,6 +267,12 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         ),
       ),
       actions: [
+        // Search button — opens the graph search overlay.
+        IconButton(
+          icon: const Icon(Icons.search_rounded, size: 22),
+          tooltip: 'Search family',
+          onPressed: () => setState(() => _showSearch = true),
+        ),
         // Add Member button — primary action, always visible
         Padding(
           padding: const EdgeInsetsDirectional.only(end: 8),
