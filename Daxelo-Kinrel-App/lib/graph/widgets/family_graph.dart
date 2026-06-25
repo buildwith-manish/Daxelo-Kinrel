@@ -146,7 +146,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     final FlatGraphResult? effectiveGraphData = widget.graphData;
 
     if (effectiveGraphData != null) {
-      return _buildFromGraphData(effectiveGraphData, reduceMotion);
+      try {
+        return _buildFromGraphData(effectiveGraphData, reduceMotion);
+      } catch (e) {
+        return GraphErrorState(familyId: widget.familyId, error: e);
+      }
     }
 
     final graphAsync = ref.watch(familyGraphProvider(widget.familyId));
@@ -158,7 +162,13 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         familyId: widget.familyId,
         error: error,
       ),
-      data: (graphData) => _buildFromGraphData(graphData, reduceMotion),
+      data: (graphData) {
+        try {
+          return _buildFromGraphData(graphData, reduceMotion);
+        } catch (e) {
+          return GraphErrorState(familyId: widget.familyId, error: e);
+        }
+      },
     );
   }
 
