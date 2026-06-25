@@ -259,17 +259,11 @@ class _FamilyGraphEngineViewState
 
         // Edges: only when BOTH endpoints are visible.
         final edges = <GraphEdgeData>[];
-        final drawnPairs = <String>{};
         for (final Map<String, dynamic> r in flat.relationships) {
           final s = r['fromPersonId'] as String?;
           final t = r['toPersonId'] as String?;
           if (s == null || t == null) continue;
           if (!_culler.isEdgeVisible(s, t, visible)) continue;
-          // Dedup by sorted pair key so A→B and B→A don't double-draw.
-          final ids = [s, t]..sort();
-          final pairKey = '${ids[0]}_${ids[1]}';
-          if (drawnPairs.contains(pairKey)) continue;
-          drawnPairs.add(pairKey);
           edges.add(GraphEdgeData(
             id: (r['id'] ?? '$s-$t').toString(),
             sourceId: s,
@@ -277,32 +271,6 @@ class _FamilyGraphEngineViewState
             relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
             isPrivate: r['isPrivate'] as bool? ?? false,
           ));
-        }
-
-        // ── Synthetic edges for orphan nodes ─────────────────────────
-        // Same fix as family_graph.dart: connect every visible orphan
-        // (no relationship row) to the anchor so the graph looks complete.
-        final connectedIds = <String>{};
-        for (final e in edges) {
-          connectedIds.add(e.sourceId);
-          connectedIds.add(e.targetId);
-        }
-        final String? anchorIdNullable = personById.entries
-            .firstWhere(
-              (e) => e.value['isAnchor'] == true,
-              orElse: () => personById.entries.first,
-            )
-            .key;
-        final String anchorId = anchorIdNullable ?? '';
-        for (final String id in visible) {
-          if (!connectedIds.contains(id) && id != anchorId) {
-            edges.add(GraphEdgeData(
-              id: 'synthetic_$id',
-              sourceId: anchorId,
-              targetId: id,
-              relationshipKey: 'related',
-            ));
-          }
         }
 
         // Build the (transform-independent) content once. The AnimatedBuilder
