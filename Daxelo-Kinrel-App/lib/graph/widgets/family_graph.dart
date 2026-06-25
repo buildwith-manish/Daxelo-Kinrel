@@ -337,6 +337,14 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             // v60.1: Wrap CustomPaint in AnimatedBuilder so the painter
             // gets the LIVE zoom level on every transform change without
             // calling setState (which caused stack overflow).
+            //
+            // v62 FIX: CustomPaint has no `behavior` parameter, and its
+            // default hit-test mode skips empty canvas areas (where there
+            // are no nodes). That made InteractiveViewer only receive
+            // pan/zoom gestures when fingers landed on a node. The fix:
+            // give CustomPaint a transparent ColoredBox as its `child` so
+            // the entire canvas claims hit-test events, letting
+            // InteractiveViewer receive gestures anywhere.
             Positioned.fill(
               child: AnimatedBuilder(
                 animation: _transformationController,
@@ -362,6 +370,10 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
                       highlightedGeneration: highlightedGen,
                       anonymousNodeIds: const {},
                       blockedNodeIds: const {},
+                    ),
+                    child: ColoredBox(
+                      color: const Color(0x00000000),
+                      child: SizedBox(width: cw, height: ch),
                     ),
                   );
                 },

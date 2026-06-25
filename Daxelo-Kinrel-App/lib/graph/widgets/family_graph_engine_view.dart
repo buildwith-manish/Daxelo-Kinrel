@@ -284,6 +284,10 @@ class _FamilyGraphEngineViewState
               clipBehavior: Clip.none,
               children: [
                 // Edge layer — single cached painter over the full canvas.
+                // v62 FIX: CustomPaint has no `behavior` parameter, so we
+                // give it a transparent ColoredBox as `child` to make the
+                // entire canvas claim hit-test events. Without this, pan/zoom
+                // gestures only register when fingers land on a node.
                 Positioned.fill(
                   child: CustomPaint(
                     painter: _EngineEdgePainter(
@@ -291,6 +295,9 @@ class _FamilyGraphEngineViewState
                       edges: edges,
                       cache: _edgePathCache,
                       selectedEdgeId: selectedEdgeId,
+                    ),
+                    child: const ColoredBox(
+                      color: Color(0x00000000),
                     ),
                   ),
                 ),
@@ -344,7 +351,14 @@ class _FamilyGraphEngineViewState
         ));
       }
       return <Widget>[
-        Positioned.fill(child: CustomPaint(painter: _NodeDotPainter(dots))),
+        Positioned.fill(
+          child: CustomPaint(
+            painter: _NodeDotPainter(dots),
+            child: const ColoredBox(
+              color: Color(0x00000000),
+            ),
+          ),
+        ),
       ];
     }
 
