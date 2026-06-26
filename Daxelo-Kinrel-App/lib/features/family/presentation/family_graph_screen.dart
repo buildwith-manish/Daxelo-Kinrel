@@ -517,7 +517,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
               // kUseV21Engine (feature_flags.dart) selects the scalable
               // culling engine; v40 InteractiveViewer remains the default.
               child: kUseV21Engine
-                  ? FamilyGraphEngineView(familyId: widget.familyId)
+                  ? FamilyGraphEngineView(
+                      familyId: widget.familyId,
+                      highlightedGeneration: _highlightedGeneration,
+                      recenterKey: _recenterKey,
+                    )
                   : FamilyGraphWidget(
                       familyId: widget.familyId,
                       familyName: widget.familyName ?? 'Family Tree',

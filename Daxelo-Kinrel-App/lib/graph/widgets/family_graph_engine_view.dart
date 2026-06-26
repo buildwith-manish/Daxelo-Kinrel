@@ -72,10 +72,25 @@ enum _Lod {
 
 /// Engine-backed family graph view (see file header).
 class FamilyGraphEngineView extends ConsumerStatefulWidget {
-  const FamilyGraphEngineView({super.key, required this.familyId});
+  const FamilyGraphEngineView({
+    super.key,
+    required this.familyId,
+    this.highlightedGeneration,
+    this.recenterKey,
+  });
 
   /// The family whose graph to render.
   final String familyId;
+
+  /// v62: Generation to highlight (null = show all). When set, nodes
+  /// NOT in this generation are dimmed to 15% opacity. Passed from
+  /// the parent screen's generation filter chip bar.
+  final int? highlightedGeneration;
+
+  /// v62: When this value changes, the camera re-centers on the
+  /// anchor node. Passed from the parent screen's "Center on Root"
+  /// button.
+  final int? recenterKey;
 
   @override
   ConsumerState<FamilyGraphEngineView> createState() =>
@@ -162,6 +177,13 @@ class _FamilyGraphEngineViewState
       _culler.invalidate();
       _edgePathCache.clear();
       _expandCollapse.updateVisibleNodes(<String>{});
+    }
+    // v62: Re-center when recenterKey changes (Center on Root button).
+    if (oldWidget.recenterKey != widget.recenterKey) {
+      _framed = false;
+      _camera.resetInitialFit();
+      _culler.invalidate();
+      setState(() {});
     }
   }
 
@@ -392,6 +414,7 @@ class _FamilyGraphEngineViewState
 
     // Full / chip tiers: individual widgets (culling keeps the count small).
     final widgets = <Widget>[];
+    final highlightedGen = widget.highlightedGeneration;
     for (final String id in visible) {
       final pos = layout.positions[id];
       final p = personById[id];
@@ -399,12 +422,24 @@ class _FamilyGraphEngineViewState
       final Widget node = lod == _Lod.full
           ? _buildFullNode(id, p, relationLabelById)
           : _buildChipNode(p);
+
+      // v62: Dim nodes not in the highlighted generation (if set).
+      final int personGen =
+          (p['generationIndex'] as num?)?.toInt() ?? 0;
+      final double opacity = (highlightedGen != null &&
+              personGen != highlightedGen)
+          ? 0.15
+          : 1.0;
+
       widgets.add(Positioned(
         left: pos.dx - _kNodeSize.width / 2,
         top: pos.dy - _kNodeSize.height / 2,
         width: _kNodeSize.width,
         height: _kNodeSize.height,
-        child: RepaintBoundary(child: node),
+        child: Opacity(
+          opacity: opacity,
+          child: RepaintBoundary(child: node),
+        ),
       ));
     }
     return widgets;
