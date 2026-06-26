@@ -578,7 +578,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         });
       }
 
-      await Future.delayed(const Duration(milliseconds: 1800));
+      // v62.5: Reduced from 1800ms to 500ms — the success animation
+      // still shows but the sheet closes much faster.
+      await Future.delayed(const Duration(milliseconds: 500));
 
       if (!mounted) return;
       context.showSnackBar(
@@ -1962,6 +1964,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       textCapitalization: textCapitalization,
       validator: validator,
       onFieldSubmitted: onFieldSubmitted,
+      // v62.5: onChanged triggers setState so the Next/Add button
+      // updates immediately as the user types — no 5s delay.
+      onChanged: (_) => setState(() {}),
       style: TextStyle(
         fontFamily: isLarge
             ? KinrelTypography.displayFont
