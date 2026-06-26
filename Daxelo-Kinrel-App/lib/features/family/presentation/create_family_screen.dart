@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_animate/flutter_animate.dart';
@@ -242,7 +243,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      await _uploadAvatarIfNeeded();
+      await _uploadAvatarIfNeeded().timeout(const Duration(seconds: 10));
 
       final family = await createFamilyOptimistic(
         ref: ref,
@@ -257,7 +258,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
             ? 'invite'
             : 'link',
         username: _usernameController.text.trim(),
-      );
+      ).timeout(const Duration(seconds: 15));
 
       final birthYear = int.tryParse(_birthYearController.text.trim());
       await createPersonOptimistic(
@@ -267,31 +268,27 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
         gender: _selectedGender?.toLowerCase(),
         birthYear: birthYear,
         isAnchor: true,
-      );
+      ).timeout(const Duration(seconds: 15));
 
       if (!mounted) return;
-      setState(() => _isSubmitting = false);
 
       context.showSnackBar(
         'Family "${family.name}" created! You\'re the anchor!',
       );
 
-      // v62.4: After creating the family with the anchor person, prompt
-      // the user to add more members. Previously the app went straight
-      // to the family detail screen, which showed only the creator —
-      // the user had no clear path to add family members.
-      //
-      // Now we navigate to the family graph screen and immediately show
-      // the AddPersonSheet so the user can add their first relative.
+      // v62.5: Navigate IMMEDIATELY — don't keep the spinner going.
+      // Reset _isSubmitting before navigation so the button doesn't
+      // stay in loading state if the user navigates back.
+      setState(() => _isSubmitting = false);
+
+      // Navigate to the family graph screen.
       context.go('/family/${family.id}');
 
       // Show the AddPersonSheet after a short delay (let the graph load)
-      if (mounted) {
-        Future.delayed(const Duration(milliseconds: 800), () {
-          if (!mounted) return;
-          AddPersonSheet.show(context, familyId: family.id);
-        });
-      }
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (!mounted) return;
+        AddPersonSheet.show(context, familyId: family.id);
+      });
     } catch (e) {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -336,7 +333,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      await _uploadAvatarIfNeeded();
+      await _uploadAvatarIfNeeded().timeout(const Duration(seconds: 10));
 
       final family = await createFamilyOptimistic(
         ref: ref,
@@ -351,7 +348,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
             ? 'invite'
             : 'link',
         username: _usernameController.text.trim(),
-      );
+      ).timeout(const Duration(seconds: 15));
 
       final birthYear = int.tryParse(_birthYearController.text.trim());
       await createPersonOptimistic(
@@ -361,14 +358,15 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
         gender: _selectedGender?.toLowerCase(),
         birthYear: birthYear,
         isAnchor: true,
-      );
+      ).timeout(const Duration(seconds: 15));
 
       if (!mounted) return;
-      setState(() => _isSubmitting = false);
 
       context.showSnackBar(
         'Family "${family.name}" created! Add members anytime.',
       );
+      // v62.5: Reset spinner BEFORE navigation.
+      setState(() => _isSubmitting = false);
       // Navigate to the graph — no AddPersonSheet popup (user chose Skip).
       context.go('/family/${family.id}');
     } catch (e) {
@@ -890,9 +888,24 @@ class _Step2PrivacySetup extends StatelessWidget {
               child: Stack(
                 children: [
                   avatarImageFile != null
-                      ? CircleAvatar(
-                          radius: 40,
-                          backgroundImage: FileImage(avatarImageFile!),
+                      ? FutureBuilder<Uint8List>(
+                          future: avatarImageFile!.readAsBytes(),
+                          builder: (context, snapshot) {
+                            if (snapshot.hasData) {
+                              return CircleAvatar(
+                                radius: 40,
+                                backgroundImage: MemoryImage(snapshot.data!),
+                              );
+                            }
+                            return DKAvatar(
+                              initials: familyName.isNotEmpty
+                                  ? familyName[0].toUpperCase()
+                                  : 'S',
+                              size: DKAvatarSize.xl,
+                              borderColor: DKColors.brandGold.withValues(alpha: 0.4),
+                              backgroundColor: DKColors.brandPurple,
+                            );
+                          },
                         )
                       : DKAvatar(
                           initials: familyName.isNotEmpty

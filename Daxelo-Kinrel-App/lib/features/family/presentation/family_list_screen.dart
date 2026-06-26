@@ -14,6 +14,7 @@ import '../../../core/family/optimistic_actions.dart';
 import '../../../core/family/drift_stream_providers.dart';
 import '../../../core/family/pagination_provider.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/widgets/cached_avatar.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/family_list_skeleton.dart';
 import 'join_family_screen.dart';
@@ -646,15 +647,25 @@ class _FamilyCard extends ConsumerWidget {
           onLongPress: () => _showFamilyQuickActions(context, ref),
           child: Row(
             children: [
-              // Purple gradient avatar with initial
-              DKAvatar(
-                initials: family.name.isNotEmpty
-                    ? family.name[0].toUpperCase()
-                    : 'F',
-                size: DKAvatarSize.lg,
-                backgroundColor: DKColors.brandPurple,
-                borderColor: DKColors.brandGold.withValues(alpha: 0.4),
-              ),
+              // v62.5: Show family avatar if available, otherwise initials.
+              family.avatarUrl != null && family.avatarUrl!.isNotEmpty
+                  ? CachedAvatar(
+                      imageUrl: family.avatarUrl,
+                      radius: 28,
+                      backgroundColor: DKColors.brandPurple,
+                      border: Border.all(
+                        color: DKColors.brandGold.withValues(alpha: 0.4),
+                        width: 2,
+                      ),
+                    )
+                  : DKAvatar(
+                      initials: family.name.isNotEmpty
+                          ? family.name[0].toUpperCase()
+                          : 'F',
+                      size: DKAvatarSize.lg,
+                      backgroundColor: DKColors.brandPurple,
+                      borderColor: DKColors.brandGold.withValues(alpha: 0.4),
+                    ),
               const SizedBox(width: 14),
 
               // Info
@@ -1010,11 +1021,9 @@ class _FamilyCard extends ConsumerWidget {
     final container = ProviderScope.containerOf(context);
 
     try {
-      // The optimistic action removes the family from Drift immediately,
-      // so the card disappears from the list before the API call finishes.
-      // No loading dialog is needed — this matches the "WhatsApp-style
-      // show first, confirm later" design of optimistic_actions.dart.
-      await deleteFamilyOptimistic(container: container, familyId: family.id);
+      // v62.5: Add timeout so delete doesn't hang indefinitely.
+      await deleteFamilyOptimistic(container: container, familyId: family.id)
+          .timeout(const Duration(seconds: 15));
       messenger.showSnackBar(
         SnackBar(
           content: Text('${family.name} moved to archive'),
