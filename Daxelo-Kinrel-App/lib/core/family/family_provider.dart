@@ -752,7 +752,65 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
     // Supabase direct query returns all columns including 'createdBy',
     // which is needed for the Creator badge on the family list screen.
     final client = ref.read(supabaseProvider);
-    if (client == null || client.auth.currentSession == null) {
+    if (client == null) {
+      // v62.3: If Supabase isn't ready yet, try offline cache before
+      // returning empty.
+      if (IsarDatabase.isInitialized) {
+        try {
+          final repo = ref.read(offlineFamilyRepositoryProvider);
+          final cached = await repo.getFamilies();
+          final filtered = cached
+              .where((f) => f.deletedAt == null && !pendingDeletes.contains(f.id))
+              .toList();
+          if (filtered.isNotEmpty) return filtered;
+        } catch (_) {}
+      }
+      return [];
+    }
+
+    // v62.3: When kAuthDisabled=true (debug mode), query ALL families
+    // instead of filtering by userId. The mock user 'debug_user' won't
+    // match any real createdBy values, so families would never appear.
+    // In production (kAuthDisabled=false), filter by the real userId.
+    if (kAuthDisabled) {
+      try {
+        final response = await client
+            .from(_kFamilyTable)
+            .select()
+            .filter('deletedAt', 'is', null)
+            .order('createdAt', ascending: false)
+            .timeout(const Duration(seconds: 15));
+        final list = response as List;
+        List<Family> result;
+        if (list.length > 20) {
+          result = await compute(_parseFamilyList, list);
+        } else {
+          result = list
+              .map((json) => Family.fromJson(json as Map<String, dynamic>))
+              .toList();
+        }
+        if (pendingDeletes.isNotEmpty) {
+          result = result.where((f) => !pendingDeletes.contains(f.id)).toList();
+        }
+        return result;
+      } catch (e) {
+        debugPrint('⚠️ familyListProvider (debug mode) error: $e');
+        // Fall through to normal flow as fallback
+      }
+    }
+
+    if (client.auth.currentSession == null) {
+      // v62.3: No session — try offline cache before giving up.
+      if (IsarDatabase.isInitialized) {
+        try {
+          final repo = ref.read(offlineFamilyRepositoryProvider);
+          final cached = await repo.getFamilies();
+          final filtered = cached
+              .where((f) => f.deletedAt == null && !pendingDeletes.contains(f.id))
+              .toList();
+          if (filtered.isNotEmpty) return filtered;
+        } catch (_) {}
+      }
       return [];
     }
     final userId = client.auth.currentUser!.id;
