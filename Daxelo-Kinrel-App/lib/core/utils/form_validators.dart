@@ -124,10 +124,15 @@ String? nameValidator(String? value) {
   if (name.length < 2) {
     return 'Name must be at least 2 characters';
   }
-  // Allow letters (Unicode), spaces, hyphens, apostrophes, dots
-  final validName = RegExp(r"^[\p{L}\s'\-\.]+$", unicode: true);
+  // v62.4: Allow letters (Unicode), spaces, hyphens, apostrophes, dots,
+  // AND numbers. Previously numbers were blocked, so names like
+  // "Example 2" or "Test 123" failed validation — only "Example 1"
+  // worked because it had no digits (the "1" was actually outside
+  // the tested name or the user mistyped). Now any reasonable name
+  // with alphanumeric characters is accepted.
+  final validName = RegExp(r"^[\p{L}\p{N}\s'\-\.]+$", unicode: true);
   if (!validName.hasMatch(name)) {
-    return 'Name can only contain letters, spaces, hyphens, and apostrophes';
+    return 'Name can only contain letters, numbers, spaces, hyphens, and apostrophes';
   }
   return null;
 }

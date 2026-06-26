@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_typography.dart';
@@ -14,6 +16,7 @@ import '../../../core/family/optimistic_actions.dart';
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
 import '../../../shared/widgets/dk_components.dart';
+import 'add_person_sheet.dart';
 
 class CreateFamilyScreen extends ConsumerStatefulWidget {
   CreateFamilyScreen({super.key});
@@ -130,6 +133,27 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
     );
     if (picked != null && mounted) {
       setState(() => _avatarImageFile = File(picked.path));
+    }
+  }
+
+  /// v62.4: Web-compatible photo picker using file_selector.
+  /// On web, ImagePicker.pickImage opens a generic file browser.
+  /// This method uses file_selector's image-only filter so the user
+  /// sees only image files (jpg, png, webp, gif), not all files.
+  Future<void> _pickAvatarImageWeb() async {
+    try {
+      const XTypeGroup typeGroup = XTypeGroup(
+        label: 'images',
+        extensions: <String>['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'],
+      );
+      final XFile? file =
+          await openFile(acceptedTypeGroups: const <XTypeGroup>[typeGroup]);
+      if (file != null && mounted) {
+        setState(() => _avatarImageFile = File(file.path));
+      }
+    } catch (e) {
+      debugPrint('⚠️ Web image picker failed: $e — falling back to ImagePicker');
+      await _pickAvatarImage();
     }
   }
 
@@ -251,7 +275,23 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
       context.showSnackBar(
         'Family "${family.name}" created! You\'re the anchor!',
       );
+
+      // v62.4: After creating the family with the anchor person, prompt
+      // the user to add more members. Previously the app went straight
+      // to the family detail screen, which showed only the creator —
+      // the user had no clear path to add family members.
+      //
+      // Now we navigate to the family graph screen and immediately show
+      // the AddPersonSheet so the user can add their first relative.
       context.go('/family/${family.id}');
+
+      // Show the AddPersonSheet after a short delay (let the graph load)
+      if (mounted) {
+        Future.delayed(const Duration(milliseconds: 800), () {
+          if (!mounted) return;
+          AddPersonSheet.show(context, familyId: family.id);
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -282,6 +322,63 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
 
           context.showSnackBar('Failed: $errorMsg', isError: true);
         }
+      }
+    }
+  }
+
+  /// v62.4: "Skip and Create" — creates the family with just the anchor
+  /// person, then navigates to the graph WITHOUT auto-opening the
+  /// AddPersonSheet. The graph shows the anchor node with the empty-state
+  /// "Add Member" option so the user can add relatives later.
+  Future<void> _submitSkip() async {
+    if (_personNameController.text.trim().isEmpty) return;
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      await _uploadAvatarIfNeeded();
+
+      final family = await createFamilyOptimistic(
+        ref: ref,
+        name: _nameController.text.trim(),
+        description: null,
+        primaryLanguage: null,
+        region: _selectedRegion,
+        photoUrl: _avatarUrl,
+        privacyMode: _privacyMode == _PrivacyMode.private
+            ? 'private'
+            : _privacyMode == _PrivacyMode.inviteOnly
+            ? 'invite'
+            : 'link',
+        username: _usernameController.text.trim(),
+      );
+
+      final birthYear = int.tryParse(_birthYearController.text.trim());
+      await createPersonOptimistic(
+        ref: ref,
+        familyId: family.id,
+        name: _personNameController.text.trim(),
+        gender: _selectedGender?.toLowerCase(),
+        birthYear: birthYear,
+        isAnchor: true,
+      );
+
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+
+      context.showSnackBar(
+        'Family "${family.name}" created! Add members anytime.',
+      );
+      // Navigate to the graph — no AddPersonSheet popup (user chose Skip).
+      context.go('/family/${family.id}');
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        String errorMsg = e.toString();
+        if (errorMsg.startsWith('Exception: ')) {
+          errorMsg = errorMsg.substring(11);
+        }
+        context.showSnackBar('Failed: $errorMsg', isError: true);
       }
     }
   }
@@ -336,7 +433,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
                       setState(() => _privacyMode = mode),
                   familyName: _nameController.text.trim(),
                   avatarImageFile: _avatarImageFile,
-                  onPickAvatar: _pickAvatarImage,
+                  onPickAvatar: kIsWeb ? _pickAvatarImageWeb : _pickAvatarImage,
                 ),
                 _Step3AddYourself(
                   nameController: _personNameController,
@@ -363,6 +460,9 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
                 ? _canProceedStep3
                 : true,
             isSubmitting: _isSubmitting,
+            // v62.4: On the last step, pass the Skip callback so the
+            // user can create the family without adding more members.
+            onSkip: _currentStep == _totalSteps - 1 ? _submitSkip : null,
           ),
         ],
       ),
@@ -1092,6 +1192,7 @@ class _BottomNav extends StatelessWidget {
     required this.onNext,
     required this.canProceed,
     required this.isSubmitting,
+    this.onSkip,
   });
 
   final int currentStep;
@@ -1100,9 +1201,15 @@ class _BottomNav extends StatelessWidget {
   final VoidCallback onNext;
   final bool canProceed;
   final bool isSubmitting;
+  /// v62.4: If non-null, a "Skip and Create" button is shown alongside
+  /// the primary "Create Family" button on the last step. Tapping it
+  /// creates the family without prompting to add more members.
+  final VoidCallback? onSkip;
 
   @override
   Widget build(BuildContext context) {
+    final bool isLastStep = currentStep == totalSteps - 1;
+
     return Container(
       padding: EdgeInsets.all(KinrelSpacing.base),
       decoration: BoxDecoration(
@@ -1113,31 +1220,47 @@ class _BottomNav extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            if (currentStep > 0)
-              Expanded(
-                child: DKButton(
-                  label: 'Back',
-                  variant: DKButtonVariant.secondary,
-                  onPressed: onBack,
-                  size: DKButtonSize.md,
+            Row(
+              children: [
+                if (currentStep > 0)
+                  Expanded(
+                    child: DKButton(
+                      label: 'Back',
+                      variant: DKButtonVariant.secondary,
+                      onPressed: onBack,
+                      size: DKButtonSize.md,
+                    ),
+                  ),
+                if (currentStep > 0) SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: DKButton(
+                    label: isLastStep ? 'Create & Add Members' : 'Next',
+                    variant: isLastStep
+                        ? DKButtonVariant.gradient
+                        : DKButtonVariant.primary,
+                    onPressed: canProceed && !isSubmitting ? onNext : null,
+                    isLoading: isSubmitting,
+                    fullWidth: true,
+                    size: DKButtonSize.lg,
+                  ),
                 ),
-              ),
-            if (currentStep > 0) SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: DKButton(
-                label: currentStep == totalSteps - 1 ? 'Create Family' : 'Next',
-                variant: currentStep == totalSteps - 1
-                    ? DKButtonVariant.gradient
-                    : DKButtonVariant.primary,
-                onPressed: canProceed && !isSubmitting ? onNext : null,
-                isLoading: isSubmitting,
-                fullWidth: true,
-                size: DKButtonSize.lg,
-              ),
+              ],
             ),
+            // v62.4: "Skip and Create" button — only on the last step.
+            if (isLastStep && onSkip != null) ...[
+              SizedBox(height: 8),
+              DKButton(
+                label: 'Skip and Create',
+                variant: DKButtonVariant.secondary,
+                onPressed: canProceed && !isSubmitting ? onSkip : null,
+                fullWidth: true,
+                size: DKButtonSize.md,
+              ),
+            ],
           ],
         ),
       ),
