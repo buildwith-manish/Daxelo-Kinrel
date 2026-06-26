@@ -31,7 +31,6 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/theme/theme_provider.dart' show themeModeProvider, fontScaleProvider, localeProvider;
 import '../../../core/services/supabase_service.dart';
-import '../../../core/config/auth_config.dart';
 import '../../../core/services/analytics_service.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../shared/widgets/dk_components.dart';
@@ -1959,16 +1958,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           side: BorderSide(color: _orange.withValues(alpha: 0.15)),
         ),
         title: Text(
-          kAuthDisabled ? 'Reset App' : 'Sign Out',
+          'Sign Out',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             color: _textPrimary,
           ),
         ),
         content: Text(
-          kAuthDisabled
-              ? 'This will clear local app data and return to the home screen.'
-              : 'Sign out of Daxelo Kinrel?',
+          'Sign out of Daxelo Kinrel?',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 14,
@@ -1981,26 +1978,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             child: Text('Cancel', style: TextStyle(color: _textDim)),
           ),
           DKButton(
-            label: kAuthDisabled ? 'Reset' : 'Sign Out',
+            label: 'Sign Out',
             variant: DKButtonVariant.gradient,
             gradient: KinrelGradients.signOutGradient,
             size: DKButtonSize.sm,
             onPressed: () async {
               Navigator.of(ctx).pop();
-              if (kAuthDisabled) {
-                // Development mode: just go home, no auth calls
-                if (context.mounted) context.go('/home');
-              } else {
-                // Production: sign out from Supabase
-                try {
-                  // P5-F1: Track logout event
-                  AnalyticsService.instance.logLogout();
-                  await ref.read(profileProvider.notifier).logout();
-                  if (context.mounted) context.go('/sign-in');
-                } catch (e) {
-                  if (context.mounted) {
-                    context.showSnackBar('Error signing out', isError: true);
-                  }
+              // Sign out from Supabase and clear local session state.
+              try {
+                // P5-F1: Track logout event
+                AnalyticsService.instance.logLogout();
+                await ref.read(profileProvider.notifier).logout();
+                if (context.mounted) context.go('/sign-in');
+              } catch (e) {
+                if (context.mounted) {
+                  context.showSnackBar('Error signing out', isError: true);
                 }
               }
             },

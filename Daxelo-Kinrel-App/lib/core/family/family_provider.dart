@@ -10,9 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import '../networking/dio_client.dart';
 import '../services/supabase_service.dart';
-import '../config/auth_config.dart';
 import '../services/analytics_service.dart';
-import '../graph/graph_service.dart';
 import '../services/graph_layout_service.dart';
 import '../database/isar_database.dart';
 import '../database/app_database.dart';
@@ -615,40 +613,8 @@ final archivedFamiliesProvider =
     final client = ref.read(supabaseProvider);
     if (client == null) return [];
 
-    // v62.5: Auto sign-in if kAuthDisabled and no session
-    if (kAuthDisabled && client.auth.currentSession == null) {
-      try {
-        await client.auth.signInWithPassword(
-          email: MockUser.email,
-          password: 'Debug@123456',
-        ).timeout(const Duration(seconds: 8));
-      } catch (e) {
-        debugPrint('⚠️ archivedFamiliesProvider: auto sign-in failed: $e');
-      }
-    }
-
-    // v62.5: When kAuthDisabled, query ALL archived families (no userId filter)
-    if (kAuthDisabled) {
-      final families = await client
-          .from(_kFamilyTable)
-          .select('*')
-          .filter('deletedAt', 'not.is', 'null')
-          .order('createdAt', ascending: false)
-          .timeout(const Duration(seconds: 10));
-
-      final now = DateTime.now();
-      final result = families.map((json) {
-        final family = Family.fromJson(json);
-        final archivedAt = family.deletedAt ?? now;
-        final permanentDeleteAt = archivedAt.add(const Duration(days: 30));
-        final daysRemaining = permanentDeleteAt.difference(now).inDays;
-        return ArchivedFamily(
-          family: family,
-          daysRemaining: daysRemaining > 0 ? daysRemaining : 0,
-        );
-      }).toList();
-      return result;
-    }
+    // v2.2: Real auth only — guard against no session.
+    if (client.auth.currentSession == null) return [];
 
     final userId = client.auth.currentUser?.id;
     if (userId == null) return [];
@@ -802,54 +768,9 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
       return [];
     }
 
-    // v62.3: When kAuthDisabled=true (debug mode), ensure we have a real
-    // Supabase session before querying. RLS policies block reads without
-    // a session, so families won't appear even though they exist.
-    if (kAuthDisabled && client.auth.currentSession == null) {
-      // Try to auto sign-in with debug credentials
-      try {
-        await client.auth.signInWithPassword(
-          email: MockUser.email,
-          password: 'Debug@123456',
-        ).timeout(const Duration(seconds: 8));
-      } catch (e) {
-        debugPrint('⚠️ familyListProvider: auto sign-in failed: $e');
-      }
-    }
-
-    // v62.3: When kAuthDisabled=true (debug mode), query ALL families
-    // instead of filtering by userId. The mock user 'debug_user' won't
-    // match any real createdBy values, so families would never appear.
-    // In production (kAuthDisabled=false), filter by the real userId.
-    if (kAuthDisabled) {
-      try {
-        final response = await client
-            .from(_kFamilyTable)
-            .select()
-            .filter('deletedAt', 'is', null)
-            .order('createdAt', ascending: false)
-            .timeout(const Duration(seconds: 15));
-        final list = response as List;
-        List<Family> result;
-        if (list.length > 20) {
-          result = await compute(_parseFamilyList, list);
-        } else {
-          result = list
-              .map((json) => Family.fromJson(json as Map<String, dynamic>))
-              .toList();
-        }
-        if (pendingDeletes.isNotEmpty) {
-          result = result.where((f) => !pendingDeletes.contains(f.id)).toList();
-        }
-        return result;
-      } catch (e) {
-        debugPrint('⚠️ familyListProvider (debug mode) error: $e');
-        // Fall through to normal flow as fallback
-      }
-    }
-
+    // v2.2: Real auth only — guard against no session.
     if (client.auth.currentSession == null) {
-      // v62.3: No session — try offline cache before giving up.
+      // No session — try offline cache before giving up.
       if (IsarDatabase.isInitialized) {
         try {
           final repo = ref.read(offlineFamilyRepositoryProvider);
@@ -971,8 +892,8 @@ final familyDetailProvider = FutureProvider.family<FamilyDetail?, String>((
   try {
     final client = ref.read(supabaseProvider);
     if (client == null) return null;
-    // When kAuthDisabled, allow access even without a session
-    if (client.auth.currentSession == null && !kAuthDisabled) return null;
+    // v2.2: Real auth only — guard against no session.
+    if (client.auth.currentSession == null) return null;
 
     // Try to get family from familyListProvider first (fast path).
     // Use ref.read to prevent cascading rebuilds — familyDetailProvider
@@ -1056,7 +977,7 @@ final familyMembersProvider = FutureProvider.family<List<Person>, String>((
     if (client == null) return [];
 
     // Guard against no valid session — RLS will deny queries
-    if (client.auth.currentSession == null && !kAuthDisabled) return [];
+    if (client.auth.currentSession == null) return [];
 
     final response = await client
         .from(_kPersonTable)
@@ -1130,7 +1051,7 @@ final familyRelationshipsProvider =
         if (client == null) return [];
 
         // Guard against no valid session — RLS will deny queries
-        if (client.auth.currentSession == null && !kAuthDisabled) return [];
+        if (client.auth.currentSession == null) return [];
 
         final response = await client
             .from(_kRelationshipTable)
@@ -1203,7 +1124,7 @@ final familyMembershipsProvider =
   try {
     final client = ref.read(supabaseProvider);
     if (client == null) return [];
-    if (client.auth.currentSession == null && !kAuthDisabled) return [];
+    if (client.auth.currentSession == null) return [];
 
     // Try NestJS API first
     try {
@@ -1295,8 +1216,8 @@ Future<Family> createFamily({
       'Database is not connected. Please restart the app and try again.',
     );
   }
-  final userId = client.auth.currentUser?.id ??
-      (kAuthDisabled ? MockUser.id : null);
+  // v2.2: Real auth only — no mock user fallback.
+  final userId = client.auth.currentUser?.id;
   if (userId == null) {
     throw Exception('You must be signed in to create a family.');
   }
@@ -1742,36 +1663,33 @@ Future<void> deleteFamily({
   required ProviderContainer container,
   required String familyId,
 }) async {
-  // v62.5: When kAuthDisabled=true, skip the NestJS API (Render free tier
-  // cold-start causes 15s+ timeout). Go straight to Supabase soft-delete.
+  // v2.2: Try NestJS API first (requires real auth token).
   bool archived = false;
 
-  if (!kAuthDisabled) {
-    // Try NestJS API first (requires auth token)
-    try {
-      final dio = container.read(dioProvider);
-      final response = await dio
-          .delete('/api/families/$familyId')
-          .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) {
-        archived = true;
-      }
-    } on DioException catch (e) {
-      final status = e.response?.statusCode;
-      if (status != null &&
-          status >= 400 &&
-          status < 500 &&
-          status != 401 &&
-          status != 403) {
-        final message =
-            e.response?.data?['message'] ?? e.message ?? 'Unknown error';
-        throw Exception('Failed to archive family: $message');
-      }
-      debugPrint(
-          '⚠️ API call failed (status=$status, type=${e.type}), falling back to Supabase for archive');
-    } catch (e) {
-      debugPrint('⚠️ API call failed, falling back to Supabase for archive: $e');
+  // Try NestJS API first (requires auth token)
+  try {
+    final dio = container.read(dioProvider);
+    final response = await dio
+        .delete('/api/families/$familyId')
+        .timeout(const Duration(seconds: 10));
+    if (response.statusCode == 200) {
+      archived = true;
     }
+  } on DioException catch (e) {
+    final status = e.response?.statusCode;
+    if (status != null &&
+        status >= 400 &&
+        status < 500 &&
+        status != 401 &&
+        status != 403) {
+      final message =
+          e.response?.data?['message'] ?? e.message ?? 'Unknown error';
+      throw Exception('Failed to archive family: $message');
+    }
+    debugPrint(
+        '⚠️ API call failed (status=$status, type=${e.type}), falling back to Supabase for archive');
+  } catch (e) {
+    debugPrint('⚠️ API call failed, falling back to Supabase for archive: $e');
   }
 
   // Fallback: Soft-delete via Supabase
@@ -1782,18 +1700,9 @@ Future<void> deleteFamily({
           'Database is not connected. Please restart the app and try again.');
     }
 
-    // v62.5: Auto sign-in if kAuthDisabled and no session (RLS needs it)
-    if (kAuthDisabled && client.auth.currentSession == null) {
-      try {
-        await client.auth
-            .signInWithPassword(
-              email: MockUser.email,
-              password: 'Debug@123456',
-            )
-            .timeout(const Duration(seconds: 8));
-      } catch (e) {
-        debugPrint('⚠️ deleteFamily: auto sign-in failed: $e');
-      }
+    // v2.2: Real auth only — guard against no session.
+    if (client.auth.currentSession == null) {
+      throw Exception('You must be signed in to delete a family.');
     }
 
     final now = DateTime.now().toIso8601String();
@@ -1958,18 +1867,9 @@ Future<void> permanentDeleteFamily({
     throw Exception('Database is not connected. Please restart the app.');
   }
 
-  // v62.5: Auto sign-in if kAuthDisabled and no session (RLS needs it)
-  if (kAuthDisabled && client.auth.currentSession == null) {
-    try {
-      await client.auth
-          .signInWithPassword(
-            email: MockUser.email,
-            password: 'Debug@123456',
-          )
-          .timeout(const Duration(seconds: 8));
-    } catch (e) {
-      debugPrint('⚠️ permanentDeleteFamily: auto sign-in failed: $e');
-    }
+  // v2.2: Real auth only — guard against no session.
+  if (client.auth.currentSession == null) {
+    throw Exception('You must be signed in to permanently delete a family.');
   }
 
   // Mark this family as "deleting" for per-card loading spinner

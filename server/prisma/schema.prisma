@@ -171,6 +171,14 @@ model User {
   sparqViews     SparqView[]
   sparqEchoes    SparqEcho[]
   createdInvites FamilyInvite[] @relation("UserCreatedInvites")
+
+  // ── v2.2 Viewer-Driven Relationship Engine ──
+  // The Person node this user has claimed / been linked to.
+  // At most one Person per User (enforced by Person.linkedUserId @unique).
+  linkedPerson Person? @relation("PersonUserLink")
+
+  // ── v2.2: Person-Link Invitations sent by this user ──
+  sentLinkInvitations PersonLinkInvitation[] @relation("PersonLinkInvitationInviter")
 }
 
 // ── Blocked Users (replaces JSON blockedUserIds anti-pattern) ────────
@@ -605,6 +613,9 @@ model Family {
   stories          Story[]
   graphStateCaches GraphStateCache[]
 
+  // ── v2.2: Person-Link Invitations for this family ──
+  personLinkInvitations PersonLinkInvitation[]
+
   // ── Social System Fields ──
   isPublic Boolean @default(false) // Family visibility: true = non-members can see tree (read-only)
 
@@ -673,6 +684,18 @@ model Person {
 
   family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
+  // ── v2.2 Viewer-Driven Relationship Engine ──
+  // Links this Person node to the authenticated User who "owns" it.
+  // One User may be linked to at most one Person (enforced by @unique).
+  // This is the foundation of the viewer system: every logged-in member
+  // sees the family graph from THEIR OWN perspective via this link.
+  linkedUserId String?   @unique
+  linkedAt     DateTime?
+  linkedUser   User?     @relation("PersonUserLink", fields: [linkedUserId], references: [id])
+
+  // ── v2.2: Person-Link Invitations targeting this Person ──
+  linkInvitations PersonLinkInvitation[] @relation("PersonLinkInvitationPerson")
+
   relationshipsFrom Relationship[] @relation("RelationshipFrom")
   relationshipsTo   Relationship[] @relation("RelationshipTo")
 
@@ -694,6 +717,7 @@ model Person {
   @@index([deletedAt])
   @@index([familyId, generationIndex])
   @@index([familyId, isAnchor])
+  @@index([linkedUserId])
   @@index([username])
   @@index([familyId])
   @@index([familyId, deletedAt])
@@ -1880,6 +1904,43 @@ model RelationshipPathCache {
   @@index([familyId])
   @@index([fromPersonId])
   @@index([toPersonId])
+  @@index([expiresAt])
+}
+
+// ── v2.2: Person-Link Invitations ─────────────────────────────────────
+// Tracks pending invitations to claim a Person node. A family admin
+// creates an invitation for a specific (familyId, personId) and sends
+// the resulting `code` to the recipient via email/phone. When the
+// recipient signs in and calls `acceptInvitation`, their userId is
+// bound to Person.linkedUserId.
+//
+// One invitation = one (personId, code). Codes are single-use and
+// expire after 7 days. See `server/src/modules/viewer/viewer.service.ts`.
+
+model PersonLinkInvitation {
+  id             String   @id @default(cuid())
+  familyId       String
+  personId       String
+  code           String   @unique
+  inviterUserId  String
+  recipientName  String?
+  recipientEmail String?
+  recipientPhone String?
+  role           String   @default("member") // role in the family
+  status         String   @default("pending") // pending | accepted | expired | revoked
+  expiresAt      DateTime @default(now())
+  acceptedAt     DateTime?
+  acceptedByUserId String?
+  createdAt      DateTime @default(now())
+
+  family  Family  @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  person  Person  @relation("PersonLinkInvitationPerson", fields: [personId], references: [id], onDelete: Cascade)
+  inviter User    @relation("PersonLinkInvitationInviter", fields: [inviterUserId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@index([personId])
+  @@index([code])
+  @@index([status])
   @@index([expiresAt])
 }
 

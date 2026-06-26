@@ -20,7 +20,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
-import '../../../core/config/auth_config.dart';
 import '../../../core/services/supabase_service.dart';
 import '../providers/stories_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
@@ -171,8 +170,8 @@ class _StoriesViewerScreenState extends ConsumerState<StoriesViewerScreen>
     if (story == null || widget.familyId.isEmpty) return;
 
     final client = ref.read(supabaseProvider);
-    final userId = client?.auth.currentUser?.id ??
-        (kAuthDisabled ? MockUser.id : null);
+    // v2.2: Real auth only — no mock user fallback.
+    final userId = client?.auth.currentUser?.id;
     if (userId == null) return;
 
     // Fire and forget — don't await

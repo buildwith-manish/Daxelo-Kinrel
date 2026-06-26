@@ -22,7 +22,6 @@ import 'family_provider.dart';
 import '../database/isar_database.dart';
 import '../database/app_database.dart';
 import '../services/supabase_service.dart';
-import '../config/auth_config.dart';
 
 // ── Table name constant (matching Prisma schema PascalCase) ──────────
 const _kPersonTable = 'Person';
@@ -143,9 +142,8 @@ class PaginatedMembersNotifier extends StateNotifier<PaginatedMembersState> {
         return;
       }
 
-      // Guard against no valid session — RLS will deny queries.
-      // When kAuthDisabled, allow access even without a session.
-      if (client.auth.currentSession == null && !kAuthDisabled) {
+      // v2.2: Real auth only — guard against no session.
+      if (client.auth.currentSession == null) {
         if (state.members.isEmpty) {
           state = state.copyWith(hasMore: false);
         }
@@ -219,7 +217,7 @@ class PaginatedMembersNotifier extends StateNotifier<PaginatedMembersState> {
         return;
       }
 
-      if (client.auth.currentSession == null && !kAuthDisabled) {
+      if (client.auth.currentSession == null) {
         state = state.copyWith(isLoadingMore: false);
         return;
       }

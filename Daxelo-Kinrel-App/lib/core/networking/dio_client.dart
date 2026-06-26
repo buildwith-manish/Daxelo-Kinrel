@@ -7,7 +7,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/app_config.dart';
 import '../config/env_config.dart';
-import '../config/auth_config.dart';
 import '../services/crashlytics_service.dart';
 import '../services/supabase_service.dart';
 import '../widgets/offline_banner.dart';
@@ -221,9 +220,8 @@ class _AuthInterceptor extends Interceptor {
     RequestInterceptorHandler handler,
   ) async {
     // ── Always inject auth token from Supabase session if available ──
-    // Even when kAuthDisabled=true, the autoSignInForDebug() creates a
-    // real Supabase session. The NestJS API needs the JWT for RLS and
-    // auth middleware, so we must inject it whenever a session exists.
+    // The NestJS API needs the JWT for RLS and auth middleware, so we
+    // inject it whenever a session exists.
     try {
       final client = _ref.read(supabaseProvider);
       if (client != null) {

@@ -10,16 +10,11 @@
 //   2. If not found → query Person where isAnchor = true AND familyId = familyId
 //   3. If not found → return null (prompt user to claim a profile)
 //
-// When kAuthDisabled=true (debug mode), the debug user is auto-linked to
-// all anchor persons they created. So step 1 finds the anchor person
-// directly (once the linkedUserId column is populated).
-//
 // Falls back to isAnchor for legacy/unclaimed profiles.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../config/auth_config.dart';
 import '../database/isar_database.dart';
 import '../services/supabase_service.dart';
 
@@ -43,23 +38,9 @@ final viewerPersonIdProvider =
       return _resolveFromCache(familyId);
     }
 
-    // v62.5: Auto sign-in if kAuthDisabled and no session
-    if (kAuthDisabled && client.auth.currentSession == null) {
-      try {
-        await client.auth
-            .signInWithPassword(
-              email: MockUser.email,
-              password: 'Debug@123456',
-            )
-            .timeout(const Duration(seconds: 8));
-      } catch (e) {
-        debugPrint('⚠️ viewerPersonIdProvider: auto sign-in failed: $e');
-      }
-    }
-
     final userId = client.auth.currentUser?.id;
     if (userId == null) {
-      // No authenticated user — fall back to anchor
+      // No authenticated user — fall back to anchor (legacy / unclaimed)
       return _resolveAnchorPerson(client, familyId);
     }
 
@@ -74,7 +55,7 @@ final viewerPersonIdProvider =
           .limit(1)
           .timeout(const Duration(seconds: 10));
 
-      if (response is List && response.isNotEmpty) {
+      if (response.isNotEmpty) {
         final viewerId = response[0]['id'] as String?;
         if (viewerId != null) {
           // Cache for offline use
@@ -95,7 +76,7 @@ final viewerPersonIdProvider =
 /// Queries the anchor person for a family.
 Future<String?> _resolveAnchorPerson(client, String familyId) async {
   try {
-    // When kAuthDisabled, query ALL families (no userId filter)
+    // Query the family's anchor person (legacy fallback).
     final response = await client
         .from('Person')
         .select('id')
@@ -105,7 +86,7 @@ Future<String?> _resolveAnchorPerson(client, String familyId) async {
         .limit(1)
         .timeout(const Duration(seconds: 10));
 
-    if (response is List && response.isNotEmpty) {
+    if (response.isNotEmpty) {
       return response[0]['id'] as String?;
     }
   } catch (e) {
@@ -122,12 +103,18 @@ final Map<String, String> _viewerCache = {};
 
 void _cacheViewerPersonId(String familyId, String viewerPersonId) {
   _viewerCache[familyId] = viewerPersonId;
+  // v2.2 (architecture §13): also persist to Drift so the cache
+  // survives app restart. Fire-and-forget — Drift write failures must
+  // not break the in-memory cache hit.
+  try {
+    final db = IsarDatabase.instance;
+    db.upsertCachedViewer(familyId, viewerPersonId).catchError((_) {});
+  } catch (_) {
+    // Drift not initialized yet — fine, in-memory cache is enough.
+  }
 }
 
 String? _resolveFromCache(String familyId) {
-  if (IsarDatabase.isInitialized) {
-    return _viewerCache[familyId];
-  }
   return _viewerCache[familyId];
 }
 
@@ -135,7 +122,16 @@ String? _resolveFromCache(String familyId) {
 void invalidateViewerCache([String? familyId]) {
   if (familyId != null) {
     _viewerCache.remove(familyId);
+    try {
+      final db = IsarDatabase.instance;
+      db.deleteCachedViewer(familyId).catchError((_) {});
+    } catch (_) {
+      // Drift not initialized — fine.
+    }
   } else {
     _viewerCache.clear();
+    // Note: we don't bulk-clear the Drift table here because the
+    // per-family delete is the safer pattern (sign-out flow only
+    // needs to clear the current family).
   }
 }

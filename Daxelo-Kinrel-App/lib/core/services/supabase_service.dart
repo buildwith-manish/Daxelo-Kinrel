@@ -28,7 +28,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import '../config/app_config.dart';
-import '../config/auth_config.dart';
 
 final _log = Logger(printer: PrettyPrinter(methodCount: 0));
 
@@ -153,64 +152,13 @@ void notifySupabaseReady(ProviderContainer container) {
   container.read(supabaseReadyStateProvider.notifier).state = _supabaseInitialized;
 }
 
-/// Auto sign-in to Supabase when kAuthDisabled=true.
-/// Creates a real session so RLS policies work for CRUD operations.
-/// Tries: anonymous auth → test email sign-in → test email sign-up.
+/// Auto sign-in helper retained as a no-op for backward compatibility.
+///
+/// v2.2: All authentication is real. This function previously attempted
+/// to silently sign in with debug credentials; it now always returns
+/// `false`. Callers should rely on [AuthService.signIn] /
+/// [AuthService.signInWithGoogle] for real authentication.
 Future<bool> autoSignInForDebug(WidgetRef ref) async {
-  if (!kAuthDisabled) return false;
-  if (!_supabaseInitialized) return false;
-
-  final client = Supabase.instance.client;
-
-  // Already have a session?
-  if (client.auth.currentSession != null) {
-    _log.i('Auto-sign-in: already have session for ${client.auth.currentUser?.email}');
-    return true;
-  }
-
-  _log.i('Auto-sign-in: attempting to create a session for debug mode...');
-
-  // 1. Try anonymous sign-in (if enabled in Supabase project)
-  try {
-    await client.auth.signInAnonymously().timeout(const Duration(seconds: 5));
-    if (client.auth.currentSession != null) {
-      _log.i('Auto-sign-in: anonymous session created successfully');
-      return true;
-    }
-  } catch (e) {
-    _log.w('Auto-sign-in: anonymous auth not available: $e');
-  }
-
-  // 2. Try email sign-in with test credentials
-  try {
-    await client.auth.signInWithPassword(
-      email: MockUser.email,
-      password: 'Debug@123456',
-    ).timeout(const Duration(seconds: 8));
-    if (client.auth.currentSession != null) {
-      _log.i('Auto-sign-in: signed in with test credentials');
-      return true;
-    }
-  } catch (e) {
-    _log.w('Auto-sign-in: email sign-in failed: $e');
-  }
-
-  // 3. Try to sign up with test credentials (create the account)
-  try {
-    final response = await client.auth.signUp(
-      email: MockUser.email,
-      password: 'Debug@123456',
-      data: MockUser.userMetadata,
-    ).timeout(const Duration(seconds: 8));
-    if (response.session != null || response.user != null) {
-      _log.i('Auto-sign-in: test account created and signed in');
-      return true;
-    }
-  } catch (e) {
-    _log.w('Auto-sign-in: email sign-up failed: $e');
-  }
-
-  _log.e('Auto-sign-in: all methods failed — CRUD operations will fail without a session');
   return false;
 }
 
@@ -227,10 +175,7 @@ final authStateProvider = StreamProvider<AuthState>((ref) {
 });
 
 final currentUserProvider = Provider<User?>((ref) {
-  // ── AUTH DISABLED: Try real session first, fallback to null ─────
-  // Supabase is now initialized even when kAuthDisabled=true.
-  // If the user has a real session (from previous login), use it.
-  // Otherwise, mockUserProvider provides the mock user data.
+  // Real session only — no mock user.
   try {
     final authState = ref.watch(authStateProvider);
     final user = authState.value?.session?.user;
@@ -249,30 +194,20 @@ final currentUserProvider = Provider<User?>((ref) {
       } catch (_) {}
     }
   }
-  return null; // No real session — screens use mockUserProvider
+  return null;
 });
 
 final isAuthenticatedProvider = Provider<bool>((ref) {
-  // ── AUTH DISABLED: Return true (skip login screen) ───────────────
-  // Even when kAuthDisabled=true, we check for a real session.
-  // The mock user makes the app think we're authenticated for
-  // navigation purposes, but API calls will only work if there's
-  // an actual Supabase session.
-  if (kAuthDisabled) return true;
   final user = ref.watch(currentUserProvider);
   return user != null;
 });
 
-/// Mock user provider for development mode.
-/// Returns a User-like object when kAuthDisabled is true.
-/// Screens that need user data should check this first.
+/// v2.2: Returns null in production (no mock user).
+/// Retained as a no-op for backward compatibility with any screen that
+/// still references it — those screens must be migrated to use
+/// [currentUserProvider] instead.
 final mockUserProvider = Provider<Map<String, dynamic>?>((ref) {
-  if (!kAuthDisabled) return null;
-  return {
-    'id': MockUser.id,
-    'email': MockUser.email,
-    'userMetadata': MockUser.userMetadata,
-  };
+  return null;
 });
 
 // ── Retry Helper ─────────────────────────────────────────────────────

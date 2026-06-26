@@ -52,6 +52,9 @@ import '../interaction/camera_controller.dart' show CameraController;
 import '../interaction/expand_collapse.dart'
     show ExpandCollapseController, ExpandCollapseState;
 import '../../core/constants/feature_flags.dart' show kEnableGraphShareExport;
+import '../../core/kinship/kinship_service.dart' show KinshipService;
+import '../../core/relationship/relationship_engine.dart' show RelationshipEngine;
+import '../../core/services/graph_layout_service.dart' show GraphPerson;
 import '../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider;
 import '../../features/family/presentation/services/graph_export_service.dart'
     show GraphExportService;
@@ -295,7 +298,9 @@ class _FamilyGraphEngineViewState
           for (final Map<String, dynamic> p in flat.persons)
             if (p['id'] != null) p['id'] as String: p,
         };
-        final relationLabelById = _relationLabels(flat);
+        // v2.2: Compute every node's relation label from the VIEWER's
+        // perspective using RelationshipEngine. No hardcoded labels.
+        final relationLabelById = _relationLabels(flat, viewerPersonId);
 
         // Expand/collapse filter — empty visible set means "show everything".
         final Set<String> allowed =
@@ -656,16 +661,104 @@ class _FamilyGraphEngineViewState
     return out;
   }
 
-  Map<String, String> _relationLabels(FlatGraphResult flat) {
+  /// v2.2: Computes a relation label for every person in the graph from
+  /// the VIEWER's perspective using [RelationshipEngine.resolveKey].
+  ///
+  /// The viewer's own node is omitted (the UI shows "You" for it).
+  ///
+  /// Falls back to the stored `relationshipKey` only when no viewer is
+  /// available (e.g., anonymous mode), preserving legacy behavior.
+  Map<String, String> _relationLabels(
+    FlatGraphResult flat,
+    String? viewerPersonId,
+  ) {
     final labels = <String, String>{};
-    for (final Map<String, dynamic> r in flat.relationships) {
-      final t = r['toPersonId'] as String?;
-      final key = r['relationshipKey'] as String?;
-      if (t != null && key != null && !labels.containsKey(t)) {
-        labels[t] = key;
+
+    // No viewer → use legacy stored relationshipKey (architecture §3
+    // invariant 7: isAnchor legacy fallback path).
+    if (viewerPersonId == null) {
+      for (final Map<String, dynamic> r in flat.relationships) {
+        final t = r['toPersonId'] as String?;
+        final key = r['relationshipKey'] as String?;
+        if (t != null && key != null && !labels.containsKey(t)) {
+          labels[t] = key;
+        }
+      }
+      return labels;
+    }
+
+    // Build typed inputs for RelationshipEngine.
+    final graphPersons = <GraphPerson>[
+      for (final Map<String, dynamic> p in flat.persons)
+        if (p['id'] != null)
+          GraphPerson(
+            id: p['id'] as String,
+            name: (p['name'] as String?) ?? '',
+            gender: p['gender'] as String?,
+            generationIndex: (p['generationIndex'] as num?)?.toInt() ?? 0,
+            isAnchor: (p['isAnchor'] as bool?) ?? false,
+            photoUrl: p['photoUrl'] as String?,
+            isDeceased: (p['isDeceased'] as bool?) ?? false,
+          ),
+    ];
+    final graphRels = <({String fromId, String toId, String type})>[
+      for (final Map<String, dynamic> r in flat.relationships)
+        if (r['fromPersonId'] != null &&
+            r['toPersonId'] != null &&
+            r['relationshipKey'] != null)
+          (
+            fromId: r['fromPersonId'] as String,
+            toId: r['toPersonId'] as String,
+            type: r['relationshipKey'] as String,
+          ),
+    ];
+
+    final engine = RelationshipEngine.instance;
+    for (final GraphPerson p in graphPersons) {
+      if (p.id == viewerPersonId) continue; // viewer's own label is "You"
+      final key = engine.resolveKey(
+        viewerPersonId: viewerPersonId,
+        targetPersonId: p.id,
+        persons: graphPersons,
+        relationships: graphRels,
+      );
+      if (key != null) {
+        // Translate the kinship key → display name via KinshipService.
+        // The engine returns keys only; localization lives in
+        // KinshipService per architecture §12.
+        final displayName = _localizeKinshipKey(key);
+        labels[p.id] = displayName;
       }
     }
     return labels;
+  }
+
+  /// Resolves a kinship key (e.g. "father", "mothers_brother") to a
+  /// human-readable display name using [KinshipService]. Returns the
+  /// pretty-printed raw key if no translation is available.
+  String _localizeKinshipKey(String key) {
+    try {
+      final kinship = KinshipService.instance;
+      if (kinship.isLoaded) {
+        // English is always available; the app's localization layer can
+        // re-translate this key per the user's preferred language later.
+        final rel = kinship.getRelationship(key);
+        final term = rel?.englishTerm;
+        if (term != null && term.isNotEmpty) {
+          return term;
+        }
+      }
+    } catch (_) {
+      // Fall through to the pretty-printed key.
+    }
+    // Pretty-print the raw key as a fallback
+    // ("mothers_brother" → "Mothers Brother").
+    final pretty = key
+        .split('_')
+        .where((s) => s.isNotEmpty)
+        .map((s) => '${s[0].toUpperCase()}${s.substring(1)}')
+        .join(' ');
+    return pretty;
   }
 
   Color _dotColor(String? gender, bool isAnchor) {

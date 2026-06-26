@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  Logger,
   Inject,
   forwardRef,
 } from '@nestjs/common';
@@ -11,6 +12,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { KinrelGateway } from '../gateway/kinrel.gateway';
 import { CreateRelationshipDto } from './dto/create-relationship.dto';
 import { GraphService } from '../graph/graph.service';
+import { GraphEngineService } from '../graph/graph-engine.service';
 
 const ROLE_HIERARCHY: Record<string, number> = {
   viewer: 1,
@@ -75,11 +77,15 @@ export function getInverseKey(forwardKey: string, toGender?: string | null): str
 
 @Injectable()
 export class RelationshipsService {
+  private readonly logger = new Logger(RelationshipsService.name);
+
   constructor(
     private prisma: PrismaService,
     private gateway: KinrelGateway,
     @Inject(forwardRef(() => GraphService))
     private graphService: GraphService,
+    @Inject(forwardRef(() => GraphEngineService))
+    private graphEngineService: GraphEngineService,
   ) {}
 
   /** Creates a bidirectional relationship between two persons in the family. */
@@ -391,6 +397,145 @@ export class RelationshipsService {
       direction: rel.direction,
       isActive: rel.isActive,
       label: rel.label ?? null,
+    };
+  }
+
+  /**
+   * GET /families/:familyId/relationship-path?from=...&to=...
+   *
+   * v2.2 — Returns the cached relationship path between two persons in a family.
+   * Uses the existing `RelationshipPathCache` table (architecture §16).
+   * Falls through to `GraphEngineService.findPath` when no cache hit,
+   * then persists the result for future reads.
+   *
+   * Privacy: hidden / private persons are represented as anonymous nodes
+   * — they are NOT skipped, as skipping would produce incorrect kinship
+   * paths (architecture §14).
+   */
+  async getRelationshipPath(
+    userId: string,
+    familyId: string,
+    fromPersonId: string,
+    toPersonId: string,
+  ): Promise<{
+    familyId: string;
+    fromPersonId: string;
+    toPersonId: string;
+    found: boolean;
+    path: Array<{
+      personId: string;
+      personName: string;
+      relationshipType: string;
+      direction: string;
+    }>;
+    distance: number;
+    kinshipTerm: string | null;
+    kinshipTermHindi: string | null;
+    cached: boolean;
+  }> {
+    await this.requireFamilyMember(userId, familyId);
+
+    if (fromPersonId === toPersonId) {
+      return {
+        familyId,
+        fromPersonId,
+        toPersonId,
+        found: true,
+        path: [],
+        distance: 0,
+        kinshipTerm: 'self',
+        kinshipTermHindi: 'स्वयं',
+        cached: false,
+      };
+    }
+
+    // 1. Try cache first.
+    const cacheTtlMs = 30 * 60 * 1000; // 30 min
+    const now = new Date();
+    const cached = await this.prisma.relationshipPathCache.findUnique({
+      where: {
+        familyId_fromPersonId_toPersonId: {
+          familyId,
+          fromPersonId,
+          toPersonId,
+        },
+      },
+    });
+
+    if (cached && cached.expiresAt && cached.expiresAt > now) {
+      let parsedPath: any[] = [];
+      try {
+        parsedPath = JSON.parse(cached.path);
+      } catch {
+        parsedPath = [];
+      }
+      return {
+        familyId,
+        fromPersonId,
+        toPersonId,
+        found: parsedPath.length > 0,
+        path: parsedPath,
+        distance: cached.distance,
+        kinshipTerm: cached.kinshipTerm,
+        kinshipTermHindi: cached.kinshipTermHi,
+        cached: true,
+      };
+    }
+
+    // 2. Compute fresh using GraphEngineService.findPath
+    const fresh = await this.graphEngineService.findPath(
+      familyId,
+      fromPersonId,
+      toPersonId,
+    );
+
+    // 3. Persist to cache (upsert). Non-fatal on failure.
+    const pathJson = JSON.stringify(fresh.path);
+    const expiresAt = new Date(now.getTime() + cacheTtlMs);
+    try {
+      await this.prisma.relationshipPathCache.upsert({
+        where: {
+          familyId_fromPersonId_toPersonId: {
+            familyId,
+            fromPersonId,
+            toPersonId,
+          },
+        },
+        create: {
+          familyId,
+          fromPersonId,
+          toPersonId,
+          path: pathJson,
+          kinshipTerm: fresh.kinshipTerm ?? null,
+          kinshipTermHi: fresh.kinshipTermHindi ?? null,
+          distance: fresh.distance,
+          expiresAt,
+        },
+        update: {
+          path: pathJson,
+          kinshipTerm: fresh.kinshipTerm ?? null,
+          kinshipTermHi: fresh.kinshipTermHindi ?? null,
+          distance: fresh.distance,
+          computedAt: now,
+          expiresAt,
+        },
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Failed to persist RelationshipPathCache: ${(err as Error).message}`,
+      );
+    }
+
+    return {
+      familyId,
+      fromPersonId,
+      toPersonId,
+      found: fresh.found,
+      path: fresh.path,
+      distance: fresh.distance,
+      kinshipTerm: fresh.kinshipTerm ?? null,
+      kinshipTermHindi: fresh.kinshipTermHindi ?? null,
+      cached: false,
     };
   }
 }

@@ -15,7 +15,6 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide MultipartFile;
 
 import '../../../core/networking/dio_client.dart';
 import '../../../core/services/supabase_service.dart';
-import '../../../core/config/auth_config.dart';
 import '../../../core/database/isar_database.dart';
 import '../../../core/database/repositories/offline_profile_repository.dart';
 
@@ -641,30 +640,8 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     try {
     state = state.copyWith(isLoading: true, clearError: true);
 
-    // ── AUTH DISABLED: Load mock profile ──────────────────────────────
-    if (kAuthDisabled) {
-      // If there's a real Supabase session, try the real API first
-      // so the user sees their actual data (profileVisibility, invitePermission, etc.)
-      final client = _ref.read(supabaseProvider);
-      if (client?.auth.currentSession != null) {
-        // Fall through to real API call below
-      } else {
-        // No real session — use mock data
-        final mockProfile = ProfileModel(
-          id: 'debug_user',
-          email: 'debug@kinrel.app',
-          name: 'Manish',
-          username: 'manish',
-          preferredLanguage: 'en',
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
-        state = state.copyWith(profile: mockProfile, isLoading: false);
-        return;
-      }
-    }
-
-    // Guard against no valid session — try offline cache, then give up
+    // v2.2: Real auth only — guard against no session. Try offline cache
+    // first, then give up gracefully.
     final client = _ref.read(supabaseProvider);
     if (client?.auth.currentSession == null) {
       // No session — try offline cache, then give up gracefully
@@ -813,35 +790,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   // ── Load Stats ─────────────────────────────────────────────────
 
   Future<void> loadStats() async {
-    // ── AUTH DISABLED: Return mock stats ──────────────────────────────
-    if (kAuthDisabled) {
-      // If there's a real Supabase session, try the real API first
-      // so the user sees their actual stats from the backend
-      final client = _ref.read(supabaseProvider);
-      if (client?.auth.currentSession != null) {
-        // Fall through to real API call below
-      } else {
-        // ✅ FIX: Even without a session when auth is disabled, try Supabase
-        // fallback to get real data. The user may have families/members from
-        // a previous session. Only return 0s if we truly have no data.
-        // When kAuthDisabled, try using MockUser.id for Supabase queries.
-        try {
-          await _loadStatsFromSupabase();
-          // If stats were loaded, don't override with zeros
-          if (state.stats != null && (state.stats!.familyTrees > 0 || state.stats!.membersAdded > 0 || state.stats!.relations > 0)) {
-            return;
-          }
-        } catch (_) {}
-
-        // No real data found — use mock zeros
-        state = state.copyWith(
-          stats: UserStatsModel(familyTrees: 0, membersAdded: 0, relations: 0),
-        );
-        return;
-      }
-    }
-
-    // Guard against no valid session — skip API calls
+    // v2.2: Real auth only — guard against no session.
     final client = _ref.read(supabaseProvider);
     if (client?.auth.currentSession == null) {
       // No session — try offline cache, then give up gracefully
@@ -934,10 +883,8 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       final client = _ref.read(supabaseProvider);
       if (client == null) return;
 
-      // ✅ FIX: When auth is disabled, use MockUser.id as fallback
-      // so stats can still be loaded for the debug user
-      final userId = client.auth.currentUser?.id ??
-          (kAuthDisabled ? MockUser.id : null);
+      // v2.2: Real auth only — no mock user fallback.
+      final userId = client.auth.currentUser?.id;
       if (userId == null) return;
 
       // Query family member count (table name must match Supabase: PascalCase)
@@ -1088,45 +1035,42 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     // Save previous state for rollback
     final previousProfile = state.profile;
 
-    // ── AUTH DISABLED: Skip API call unless real session exists ──
-    if (kAuthDisabled) {
-      final client = _ref.read(supabaseProvider);
-      if (client?.auth.currentSession == null) {
-        // No real session — apply optimistically but don't call API
-        if (state.profile != null) {
-          final optimisticProfile = ProfileModel(
-            id: state.profile!.id,
-            email: state.profile!.email,
-            name: data['name'] as String? ?? state.profile!.name,
-            phone: data['phone'] as String? ?? state.profile!.phone,
-            avatarUrl: data['avatarUrl'] as String? ?? state.profile!.avatarUrl,
-            bio: data['bio'] as String? ?? state.profile!.bio,
-            dateOfBirth: data['dateOfBirth'] != null
-                ? DateTime.tryParse(data['dateOfBirth'].toString())
-                : state.profile!.dateOfBirth,
-            gender: data['gender'] as String? ?? state.profile!.gender,
-            username: data['username'] as String? ?? state.profile!.username,
-            preferredLanguage:
-                data['preferredLanguage'] as String? ??
-                    state.profile!.preferredLanguage,
-            profileVisibility:
-                data['profileVisibility'] as String? ??
-                    state.profile!.profileVisibility,
-            invitePermission:
-                data['invitePermission'] as String? ??
-                    state.profile!.invitePermission,
-            twoFactorEnabled:
-                data['twoFactorEnabled'] as bool? ??
-                    state.profile!.twoFactorEnabled,
-            authProvider: state.profile!.authProvider,
-            createdAt: state.profile!.createdAt,
-            updatedAt: DateTime.now(),
-          );
-          state = state.copyWith(profile: optimisticProfile, clearError: true);
-        }
-        return true;
+    // v2.2: Real auth only — guard against no session.
+    final client = _ref.read(supabaseProvider);
+    if (client?.auth.currentSession == null) {
+      // No session — apply optimistically but don't call API
+      if (state.profile != null) {
+        final optimisticProfile = ProfileModel(
+          id: state.profile!.id,
+          email: state.profile!.email,
+          name: data['name'] as String? ?? state.profile!.name,
+          phone: data['phone'] as String? ?? state.profile!.phone,
+          avatarUrl: data['avatarUrl'] as String? ?? state.profile!.avatarUrl,
+          bio: data['bio'] as String? ?? state.profile!.bio,
+          dateOfBirth: data['dateOfBirth'] != null
+              ? DateTime.tryParse(data['dateOfBirth'].toString())
+              : state.profile!.dateOfBirth,
+          gender: data['gender'] as String? ?? state.profile!.gender,
+          username: data['username'] as String? ?? state.profile!.username,
+          preferredLanguage:
+              data['preferredLanguage'] as String? ??
+                  state.profile!.preferredLanguage,
+          profileVisibility:
+              data['profileVisibility'] as String? ??
+                  state.profile!.profileVisibility,
+          invitePermission:
+              data['invitePermission'] as String? ??
+                  state.profile!.invitePermission,
+          twoFactorEnabled:
+              data['twoFactorEnabled'] as bool? ??
+                  state.profile!.twoFactorEnabled,
+          authProvider: state.profile!.authProvider,
+          createdAt: state.profile!.createdAt,
+          updatedAt: DateTime.now(),
+        );
+        state = state.copyWith(profile: optimisticProfile, clearError: true);
       }
-      // Real session exists — fall through to real API call below
+      return true;
     }
 
     // ── Optimistic update: apply changes to local state immediately ──
@@ -1451,15 +1395,12 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   // ── Sessions ───────────────────────────────────────────────────
 
   Future<void> loadSessions() async {
-    // ── AUTH DISABLED: Return empty sessions unless real session exists ──
-    if (kAuthDisabled) {
-      final client = _ref.read(supabaseProvider);
-      if (client?.auth.currentSession == null) {
-        // No real session — return empty sessions
-        state = state.copyWith(sessions: []);
-        return;
-      }
-      // Fall through to real API call below
+    // v2.2: Real auth only — guard against no session.
+    final client = _ref.read(supabaseProvider);
+    if (client?.auth.currentSession == null) {
+      // No session — return empty sessions
+      state = state.copyWith(sessions: []);
+      return;
     }
 
     try {
@@ -1529,14 +1470,11 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   // ── Families ───────────────────────────────────────────────────
 
   Future<void> loadFamilies() async {
-    // ── AUTH DISABLED: Return empty families unless real session exists ──
-    if (kAuthDisabled) {
-      final client = _ref.read(supabaseProvider);
-      if (client?.auth.currentSession == null) {
-        state = state.copyWith(families: []);
-        return;
-      }
-      // Fall through to real API call below
+    // v2.2: Real auth only — guard against no session.
+    final client = _ref.read(supabaseProvider);
+    if (client?.auth.currentSession == null) {
+      state = state.copyWith(families: []);
+      return;
     }
 
     try {
@@ -1632,14 +1570,11 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   // ── Invitations ────────────────────────────────────────────────
 
   Future<void> loadInvitations() async {
-    // ── AUTH DISABLED: Return empty invitations unless real session exists ──
-    if (kAuthDisabled) {
-      final client = _ref.read(supabaseProvider);
-      if (client?.auth.currentSession == null) {
-        state = state.copyWith(invitations: []);
-        return;
-      }
-      // Fall through to real API call below
+    // v2.2: Real auth only — guard against no session.
+    final client = _ref.read(supabaseProvider);
+    if (client?.auth.currentSession == null) {
+      state = state.copyWith(invitations: []);
+      return;
     }
 
     try {
@@ -1709,14 +1644,11 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   // ── Blocked Users ──────────────────────────────────────────────
 
   Future<void> loadBlockedUsers() async {
-    // ── AUTH DISABLED: Return empty list unless real session exists ──
-    if (kAuthDisabled) {
-      final client = _ref.read(supabaseProvider);
-      if (client?.auth.currentSession == null) {
-        state = state.copyWith(blockedUsers: []);
-        return;
-      }
-      // Fall through to real API call below
+    // v2.2: Real auth only — guard against no session.
+    final client = _ref.read(supabaseProvider);
+    if (client?.auth.currentSession == null) {
+      state = state.copyWith(blockedUsers: []);
+      return;
     }
 
     try {

@@ -120,7 +120,6 @@ import '../../presentation/screens/premium/paywall_screen.dart';
 import '../../presentation/screens/debug/engagement_dashboard.dart';
 import '../config/app_environment.dart';
 import '../services/supabase_service.dart';
-import '../config/auth_config.dart';
 import '../services/crashlytics_service.dart';
 import '../services/deep_link_service.dart';
 import '../services/analytics_service.dart';
@@ -350,18 +349,6 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
 
   // ── Log navigation breadcrumb for crash context ──────────────────
   logNavigationBreadcrumb(currentLocation);
-
-  // ── AUTH DISABLED: Skip all redirects, allow navigation ──────────
-  if (kAuthDisabled) {
-    // Only redirect /sign-in and /sign-up to /home (user is always "logged in")
-    if (currentLocation == '/sign-in' || currentLocation == '/sign-up') {
-      return '/home';
-    }
-    // Allow all other routes without auth checks
-    _visitedRoutes.clear();
-    _lastRedirectTime = null;
-    return null;
-  }
 
   // Don't redirect away from splash — it handles its own navigation
   if (currentLocation == '/splash') {

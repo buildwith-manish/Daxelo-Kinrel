@@ -21,7 +21,6 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
-import '../../../core/config/auth_config.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../shared/widgets/dk_components.dart';
@@ -619,15 +618,10 @@ class _StickyHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final userName = kAuthDisabled
-        ? 'Manish'
-        : (user?.email?.split('@').first ?? 'Welcome');
-    final userUsername = kAuthDisabled
-        ? 'manish'
-        : (user?.userMetadata?['username'] as String?);
-    final isProfileIncomplete = kAuthDisabled
-        ? false
-        : (user?.userMetadata?['name'] == null);
+    // v2.2: Real authenticated user only — no mock fallback.
+    final userName = user?.email?.split('@').first ?? 'Welcome';
+    final userUsername = user?.userMetadata?['username'] as String?;
+    final isProfileIncomplete = user?.userMetadata?['name'] == null;
 
     return Container(
       height: 60,

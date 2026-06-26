@@ -220,6 +220,33 @@ class CachedMemories extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+// ── v2.2 Viewer-Driven Relationship Engine ─────────────────────────────
+// Per-family cached viewerPersonId, so the app can render the graph
+// from the user's own perspective even when offline (architecture §13).
+class CachedViewerEntries extends Table {
+  TextColumn get familyId => text()();
+  TextColumn get viewerPersonId => text()();
+  TextColumn get resolution => text().withDefault(const Constant('linked'))();
+  DateTimeColumn get cachedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {familyId};
+}
+
+// ── v2.2: Cached (viewer, target) → kinship key ────────────────────────
+// Avoids re-running BFS on every graph re-render. Survives app restart
+// (architecture §13). Invalidated when the family graph changes.
+class CachedRelationshipKeys extends Table {
+  TextColumn get familyId => text()();
+  TextColumn get viewerPersonId => text()();
+  TextColumn get targetPersonId => text()();
+  TextColumn get relationshipKey => text()();
+  DateTimeColumn get cachedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {familyId, viewerPersonId, targetPersonId};
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // DATABASE CLASS
 // ═══════════════════════════════════════════════════════════════════════
@@ -242,12 +269,15 @@ class CachedMemories extends Table {
   CachedUsernames,
   CachedFamilyIds,
   CachedMemories,
+  // v2.2: Viewer-Driven Relationship Engine
+  CachedViewerEntries,
+  CachedRelationshipKeys,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'daxelo_kinrel_db');
@@ -315,6 +345,14 @@ class AppDatabase extends _$AppDatabase {
           if (from < 5) {
             // v4 → v5: Add CachedMemories table for Memory Vault offline support
             await migrator.createTable(cachedMemories);
+          }
+          if (from < 6) {
+            // v5 → v6: v2.2 Viewer-Driven Relationship Engine
+            // - CachedViewerEntries: per-family viewerPersonId for offline reads
+            // - CachedRelationshipKeys: (viewer, target) → kinship key cache
+            //   (architecture §13)
+            await migrator.createTable(cachedViewerEntries);
+            await migrator.createTable(cachedRelationshipKeys);
           }
         },
       );
@@ -802,4 +840,79 @@ class AppDatabase extends _$AppDatabase {
     }
     return results;
   }
+
+  // ── v2.2: Cached Viewer Entries (architecture §13) ──────────────────
+
+  /// Returns the cached viewerPersonId for [familyId], or null if the
+  /// cache is cold. Used by `viewerPersonIdProvider` for offline reads.
+  Future<CachedViewerEntry?> getCachedViewer(String familyId) =>
+      (select(cachedViewerEntries)..where((t) => t.familyId.equals(familyId)))
+          .getSingleOrNull();
+
+  /// Persists the viewerPersonId for [familyId] so the next offline
+  /// launch can render the graph from the viewer's perspective without
+  /// a Supabase round-trip.
+  Future<void> upsertCachedViewer(
+    String familyId,
+    String viewerPersonId, {
+    String resolution = 'linked',
+  }) =>
+      into(cachedViewerEntries).insertOnConflictUpdate(
+        CachedViewerEntriesCompanion(
+          familyId: Value(familyId),
+          viewerPersonId: Value(viewerPersonId),
+          resolution: Value(resolution),
+          cachedAt: Value(DateTime.now()),
+        ),
+      );
+
+  /// Removes the cached viewer for [familyId]. Call when the user
+  /// unlinks their profile or signs out.
+  Future<void> deleteCachedViewer(String familyId) =>
+      (delete(cachedViewerEntries)
+            ..where((t) => t.familyId.equals(familyId)))
+          .go();
+
+  // ── v2.2: Cached Relationship Keys (architecture §13) ───────────────
+
+  /// Returns the cached kinship key for `(familyId, viewerPersonId,
+  /// targetPersonId)`, or null if cold.
+  Future<CachedRelationshipKey?> getCachedRelationshipKey(
+    String familyId,
+    String viewerPersonId,
+    String targetPersonId,
+  ) =>
+      (select(cachedRelationshipKeys)
+            ..where(
+              (t) =>
+                  t.familyId.equals(familyId) &
+                  t.viewerPersonId.equals(viewerPersonId) &
+                  t.targetPersonId.equals(targetPersonId),
+            ))
+          .getSingleOrNull();
+
+  /// Persists a (viewer, target) → key mapping. The RelationshipEngine
+  /// uses this to skip BFS on repeated renders of the same family.
+  Future<void> upsertCachedRelationshipKey(
+    String familyId,
+    String viewerPersonId,
+    String targetPersonId,
+    String relationshipKey,
+  ) =>
+      into(cachedRelationshipKeys).insertOnConflictUpdate(
+        CachedRelationshipKeysCompanion(
+          familyId: Value(familyId),
+          viewerPersonId: Value(viewerPersonId),
+          targetPersonId: Value(targetPersonId),
+          relationshipKey: Value(relationshipKey),
+          cachedAt: Value(DateTime.now()),
+        ),
+      );
+
+  /// Invalidates all cached relationship keys for [familyId]. Call when
+  /// the family graph changes (person added, relationship edited, etc.).
+  Future<void> invalidateCachedRelationshipKeys(String familyId) =>
+      (delete(cachedRelationshipKeys)
+            ..where((t) => t.familyId.equals(familyId)))
+          .go();
 }

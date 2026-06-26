@@ -34,6 +34,7 @@ import '../../../../core/database/isar_database.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/services/graph_layout_service.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../../core/viewer/viewer_provider.dart';
 import '../widgets/graph_canvas_widget.dart';
 
 /// Provider for the Drift database instance.
@@ -192,11 +193,41 @@ GraphLayoutResult _runLayoutInIsolate(_LayoutComputeParams params) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// HELPER: resolve anchor member ID for a family
+// HELPER: resolve viewer member ID for a family (v2.2)
 // ═══════════════════════════════════════════════════════════════════════
+
+/// Resolves the **viewer** Person ID for [familyId] using the v2.2
+/// `viewerPersonIdProvider`. Falls back to the legacy anchor lookup when
+/// no viewer is linked (architecture §3 invariant 7: `isAnchor` is kept
+/// only as a legacy fallback for unclaimed profiles).
+///
+/// This is used as the `p_member_id` parameter for the `get_family_graph`
+/// RPC. The RPC needs *some* member ID to seed the BFS — using the viewer
+/// (instead of always the anchor) ensures the BFS starts from the
+/// viewer's perspective whenever possible.
+Future<String?> _resolveViewerMemberId(
+  Ref ref,
+  SupabaseClient client,
+  String familyId,
+) async {
+  // 1. Try viewerPersonIdProvider first (v2.2 path).
+  try {
+    final viewerAsync = await ref.read(viewerPersonIdProvider(familyId).future);
+    if (viewerAsync != null) return viewerAsync;
+  } catch (e) {
+    debugPrint('[_resolveViewerMemberId] viewer lookup failed: $e');
+  }
+
+  // 2. Legacy fallback: anchor person → first person.
+  return _resolveAnchorMemberId(client, familyId);
+}
 
 /// Looks up the anchor person ID for [familyId] from the Person table.
 /// Falls back to the first person in the family if no anchor is set.
+///
+/// LEGACY: This is only used as a fallback for unclaimed profiles per
+/// architecture §3 invariant 7. Runtime relationship resolution must
+/// go through `viewerPersonIdProvider`, not this helper.
 Future<String?> _resolveAnchorMemberId(
   SupabaseClient client,
   String familyId,
@@ -367,7 +398,8 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       // RPC returns a complete result (same or more persons than direct
       // query), prefer it for the richer data. Otherwise, use direct query.
       try {
-        final memberId = await _resolveAnchorMemberId(client, familyId);
+        // v2.2: Resolve viewer first; fall back to anchor (legacy).
+        final memberId = await _resolveViewerMemberId(ref, client, familyId);
         if (memberId != null) {
           final response = await client.rpc(
             'get_family_graph',
@@ -805,17 +837,37 @@ final graphLayoutProvider =
   final graphRelationships =
       relationships.map((r) => r.toGraphRelationship()).toList();
 
-  final anchorPerson = persons.firstWhere(
-    (p) => p.isAnchor,
-    orElse: () => persons.first,
-  );
+  // v2.2: Center the layout on the VIEWER's node (not the legacy anchor).
+  // Falls back to the anchor → first person only when the viewer cannot
+  // be resolved (e.g., user not yet linked, offline without cache).
+  final viewerId = ref.read(viewerPersonIdProvider(familyId)).valueOrNull;
+  final PersonData centerPerson;
+  if (viewerId != null) {
+    final match = persons.where((p) => p.id == viewerId).firstOrNull;
+    if (match != null) {
+      centerPerson = match;
+    } else {
+      // Viewer ID resolved but not present in the fetched persons set
+      // (rare — could be a stale cache). Fall back to anchor.
+      centerPerson = persons.firstWhere(
+        (p) => p.isAnchor,
+        orElse: () => persons.first,
+      );
+    }
+  } else {
+    // No viewer resolved yet — use legacy anchor centering.
+    centerPerson = persons.firstWhere(
+      (p) => p.isAnchor,
+      orElse: () => persons.first,
+    );
+  }
 
   final compactMode = persons.length > 50;
 
   final params = _LayoutComputeParams(
     persons: graphPersons,
     relationships: graphRelationships,
-    anchorPersonId: anchorPerson.id,
+    anchorPersonId: centerPerson.id,
     compactMode: compactMode,
   );
 
@@ -832,6 +884,8 @@ final graphLayoutProvider =
       'edge_count': graphRelationships.length,
       'compact_mode': compactMode,
       'isolate_success': true,
+      // v2.2: track whether the layout was viewer-centered or legacy.
+      'viewer_centered': viewerId == centerPerson.id,
     });
     return result;
   } catch (e) {
@@ -844,7 +898,7 @@ final graphLayoutProvider =
     final result = service.computeLayout(
       persons: graphPersons,
       relationships: graphRelationships,
-      anchorPersonId: anchorPerson.id,
+      anchorPersonId: centerPerson.id,
       compactMode: compactMode,
     );
     fallbackStopwatch.stop();
@@ -856,6 +910,7 @@ final graphLayoutProvider =
       'compact_mode': compactMode,
       'isolate_success': false,
       'isolate_error': e.toString().substring(0, 200),
+      'viewer_centered': viewerId == centerPerson.id,
     });
     return result;
   }

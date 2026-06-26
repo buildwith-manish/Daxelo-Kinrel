@@ -16,6 +16,7 @@ import { FamiliesModule } from './modules/families/families.module';
 import { MembersModule } from './modules/members/members.module';
 import { RelationshipsModule } from './modules/relationships/relationships.module';
 import { GraphModule } from './modules/graph/graph.module';
+import { ViewerModule } from './modules/viewer/viewer.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { TimelineModule } from './modules/timeline/timeline.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -105,6 +106,8 @@ import { TwoFactorVerificationModule } from './common/services/two-factor-verifi
     MembersModule,
     RelationshipsModule,
     GraphModule,
+    // v2.2: Viewer-Driven Relationship Engine
+    ViewerModule,
     ChatModule,
     TimelineModule,
     NotificationsModule,

@@ -15,7 +15,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/app_config.dart';
 import 'core/config/app_environment.dart';
-import 'core/config/auth_config.dart';
 import 'core/kinship/kinship_edge_style.dart' show kinshipEdgeStyleRegistryCheck;
 import 'core/routing/app_router.dart';
 import 'core/services/crashlytics_service.dart';
@@ -256,15 +255,11 @@ Future<void> _initializeServices() async {
   }
 
   // ── 7. Initialize Supabase ────────────────────────────────────────
-  // IMPORTANT: Supabase MUST be initialized even when kAuthDisabled=true.
-  // The kAuthDisabled flag only bypasses the LOGIN SCREEN redirect —
-  // backend APIs (Family Tree CRUD, Chat, Profile, etc.) still need
-  // a Supabase client. If the user has a valid session from a previous
-  // login, all features will work. If not, they'll fail gracefully.
+  // v2.2: Supabase is always initialized; there is no auth-disabled path.
   bool supabaseReady = false;
   try {
     supabaseReady = await initSupabase().timeout(const Duration(seconds: 8));
-    debugPrint('🔧 Supabase initialized: $supabaseReady (kAuthDisabled=$kAuthDisabled)');
+    debugPrint('🔧 Supabase initialized: $supabaseReady');
   } catch (e) {
     debugPrint('⚠️ Supabase init failed or timed out: $e');
   }
@@ -397,8 +392,6 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     }
 
     // ── Capture auth state for crash context ───────────────────────
-    // When kAuthDisabled=true, we still initialize Supabase for backend APIs,
-    // so we set up auth listeners and crash context normally.
     try {
       final client = ref.read(supabaseProvider);
       if (client != null) {
@@ -408,14 +401,6 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
           captureRiverpodState('auth', {
             'userId': user.id,
             'email': user.email ?? 'unknown',
-          });
-        } else if (kAuthDisabled) {
-          // Use mock user ID for crash context in dev mode
-          setUserIdentifier(MockUser.id);
-          captureRiverpodState('auth', {
-            'userId': MockUser.id,
-            'email': MockUser.email,
-            'mode': 'auth_disabled',
           });
         }
 
@@ -453,9 +438,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
               try {
                 captureRiverpodState('auth', {'status': 'signed_out'});
               } catch (_) {}
-              if (!kAuthDisabled) {
-                unawaited(_handleSignOut(ref));
-              }
+              unawaited(_handleSignOut(ref));
               debugPrint('🔐 Auth listener: signedOut');
             }
           } catch (e) {
@@ -466,8 +449,6 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     } catch (_) {}
 
     // 2. Start the SyncEngine if Isar is initialized AND user has a session
-    // When kAuthDisabled, we still check for a real Supabase session
-    // since the client is now initialized even in dev mode.
     Future.delayed(const Duration(seconds: 3), () {
       if (IsarDatabase.isInitialized) {
         try {
@@ -513,7 +494,6 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     });
 
     // 4. Initialize Push Notifications if authenticated
-    // When kAuthDisabled, still init push if there's a real session
     try {
       final client = ref.read(supabaseProvider);
       if (client != null && client.auth.currentSession != null) {

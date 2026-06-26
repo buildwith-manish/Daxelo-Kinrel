@@ -19,6 +19,7 @@ import 'package:flutter/foundation.dart';
 
 import '../graph/graph_service.dart';
 import '../kinship/kinship_service.dart';
+import '../services/graph_layout_service.dart' show GraphPerson;
 
 /// Computes relationship keys from a viewer's perspective.
 ///
@@ -29,10 +30,10 @@ class RelationshipEngine {
   RelationshipEngine._();
   static final RelationshipEngine instance = RelationshipEngine._();
 
-  /// Cache: (viewerPersonId, targetPersonId) → relationshipKey
+  /// Cache: `(viewerPersonId, targetPersonId) → relationshipKey`
   final Map<String, String?> _keyCache = {};
 
-  /// Cache: (viewerPersonId, targetPersonId) → List<PathStep>
+  /// Cache: `(viewerPersonId, targetPersonId) → List<PathStep>`
   final Map<String, List<PathStep>?> _pathCache = {};
 
   /// Returns the relationship key from the viewer's perspective to the target.

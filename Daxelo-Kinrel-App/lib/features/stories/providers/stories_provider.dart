@@ -14,7 +14,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/config/auth_config.dart';
 import '../../../core/networking/dio_client.dart';
 import '../../../core/services/supabase_service.dart';
 
@@ -216,8 +215,8 @@ final myStoriesProvider =
   final client = ref.read(supabaseProvider);
   if (client == null) return [];
 
-  final userId = client.auth.currentUser?.id ??
-      (kAuthDisabled ? MockUser.id : null);
+  // v2.2: Real auth only — no mock user fallback.
+  final userId = client.auth.currentUser?.id;
   if (userId == null) return [];
 
   try {

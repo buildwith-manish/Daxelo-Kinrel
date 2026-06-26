@@ -11,7 +11,6 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/database/isar_database.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/services/supabase_service.dart';
-import '../../../core/config/auth_config.dart';
 import '../../../main.dart' show appInitCompleteProvider;
 
 // ─────────────────────────────────────────────────────────────────────
@@ -143,48 +142,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // FAST STARTUP: Check Isar cache — await to prevent race condition
     // where _hasCachedProfile is read before the async check completes.
     await _checkIsarCache();
-
-    // ── AUTH DISABLED: Skip login screen, but wait for Supabase init ──
-    // Supabase is now initialized even when kAuthDisabled=true.
-    // We skip the login screen but MUST wait for Supabase to initialize
-    // so the client is available for CRUD operations.
-    if (kAuthDisabled) {
-      // Wait for background initialization to complete (Supabase, etc.)
-      try {
-        await ref.read(appInitCompleteProvider.future).timeout(
-          const Duration(seconds: 12),
-          onTimeout: () {
-            debugPrint('⚠️ Splash: background init timed out — proceeding anyway (auth disabled)');
-          },
-        );
-        debugPrint('📦 Splash: background initialization complete (auth disabled)');
-      } catch (e) {
-        debugPrint('⚠️ Splash: error waiting for init: $e');
-      }
-
-      // Try to auto sign-in for debug mode to get a real Supabase session
-      try {
-        final signInResult = await autoSignInForDebug(ref).timeout(
-          const Duration(seconds: 15),
-          onTimeout: () {
-            debugPrint('⚠️ Splash: auto sign-in timed out');
-            return false;
-          },
-        );
-        debugPrint('🔧 Auto sign-in result: $signInResult (Supabase initialized: $isSupabaseInitialized)');
-      } catch (e) {
-        debugPrint('⚠️ Auto sign-in failed: $e');
-      }
-
-      _initComplete = true;
-      _breathingController.stop();
-      await _fadeOutController.forward();
-      if (!mounted || _navigated) return;
-      _navigated = true;
-      debugPrint('🧭 Splash → /home (auth disabled — development mode, Supabase initialized: $isSupabaseInitialized)');
-      context.go('/home');
-      return;
-    }
 
     // Preload kinship data in the background (5 300+ terms, ~15 MB JSON)
     // Delay kinship loading by 5 seconds so it doesn't compete
