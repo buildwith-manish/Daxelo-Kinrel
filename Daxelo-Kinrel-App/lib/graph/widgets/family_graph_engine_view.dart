@@ -120,6 +120,9 @@ class _FamilyGraphEngineViewState
   Timer? _telemetryTimer;
   int _lastCullVisibleCount = 0;
 
+  /// v62: Position of the last double-tap, for zoom-toward-focal-point.
+  Offset _doubleTapPosition = Offset.zero;
+
   Size _viewportSize = Size.zero;
   bool _framed = false; // one-time initial framing per family
 
@@ -360,8 +363,14 @@ class _FamilyGraphEngineViewState
         );
 
         return GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onScaleStart: _onScaleStart,
           onScaleUpdate: _onScaleUpdate,
+          // v62: Double-tap to zoom in 2× toward the focal point,
+          // toggles back to 1× on second double-tap.
+          onDoubleTapDown: (details) =>
+              _doubleTapPosition = details.localPosition,
+          onDoubleTap: _handleDoubleTapZoom,
           child: ClipRect(
             child: AnimatedBuilder(
               animation: _camera,
@@ -552,6 +561,15 @@ class _FamilyGraphEngineViewState
       final Offset local = box?.globalToLocal(d.focalPoint) ?? d.focalPoint;
       _camera.zoomTo(_baseZoom * d.scale, focalPoint: local);
     }
+  }
+
+  /// v62: Double-tap toggles between 1× and 2× zoom, centered on
+  /// the tap focal point. Uses the camera's zoomTo with focalPoint
+  /// so the zoom target stays under the user's finger.
+  void _handleDoubleTapZoom() {
+    final currentZoom = _camera.zoomLevel;
+    final targetZoom = currentZoom < 1.5 ? 2.0 : 1.0;
+    _camera.zoomTo(targetZoom, focalPoint: _doubleTapPosition);
   }
 
   // ── Expand / collapse ────────────────────────────────────────────────────
