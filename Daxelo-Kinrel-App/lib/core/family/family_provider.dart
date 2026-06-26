@@ -615,8 +615,42 @@ final archivedFamiliesProvider =
     final client = ref.read(supabaseProvider);
     if (client == null) return [];
 
-    final userId = client.auth.currentUser?.id ??
-        (kAuthDisabled ? MockUser.id : null);
+    // v62.5: Auto sign-in if kAuthDisabled and no session
+    if (kAuthDisabled && client.auth.currentSession == null) {
+      try {
+        await client.auth.signInWithPassword(
+          email: MockUser.email,
+          password: 'Debug@123456',
+        ).timeout(const Duration(seconds: 8));
+      } catch (e) {
+        debugPrint('⚠️ archivedFamiliesProvider: auto sign-in failed: $e');
+      }
+    }
+
+    // v62.5: When kAuthDisabled, query ALL archived families (no userId filter)
+    if (kAuthDisabled) {
+      final families = await client
+          .from(_kFamilyTable)
+          .select('*')
+          .filter('deletedAt', 'not.is', 'null')
+          .order('createdAt', ascending: false)
+          .timeout(const Duration(seconds: 10));
+
+      final now = DateTime.now();
+      final result = families.map((json) {
+        final family = Family.fromJson(json);
+        final archivedAt = family.deletedAt ?? now;
+        final permanentDeleteAt = archivedAt.add(const Duration(days: 30));
+        final daysRemaining = permanentDeleteAt.difference(now).inDays;
+        return ArchivedFamily(
+          family: family,
+          daysRemaining: daysRemaining > 0 ? daysRemaining : 0,
+        );
+      }).toList();
+      return result;
+    }
+
+    final userId = client.auth.currentUser?.id;
     if (userId == null) return [];
 
     // Approach 1: Get family IDs where user is a member
@@ -1708,60 +1742,78 @@ Future<void> deleteFamily({
   required ProviderContainer container,
   required String familyId,
 }) async {
-  // Try NestJS API first (requires auth token)
+  // v62.5: When kAuthDisabled=true, skip the NestJS API (Render free tier
+  // cold-start causes 15s+ timeout). Go straight to Supabase soft-delete.
   bool archived = false;
-  try {
-    final dio = container.read(dioProvider);
-    final response = await dio.delete('/api/families/$familyId');
-    if (response.statusCode == 200) {
-      archived = true;
+
+  if (!kAuthDisabled) {
+    // Try NestJS API first (requires auth token)
+    try {
+      final dio = container.read(dioProvider);
+      final response = await dio
+          .delete('/api/families/$familyId')
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        archived = true;
+      }
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      if (status != null &&
+          status >= 400 &&
+          status < 500 &&
+          status != 401 &&
+          status != 403) {
+        final message =
+            e.response?.data?['message'] ?? e.message ?? 'Unknown error';
+        throw Exception('Failed to archive family: $message');
+      }
+      debugPrint(
+          '⚠️ API call failed (status=$status, type=${e.type}), falling back to Supabase for archive');
+    } catch (e) {
+      debugPrint('⚠️ API call failed, falling back to Supabase for archive: $e');
     }
-  } on DioException catch (e) {
-    // ✅ FIX (BUG-DELETE): Fall back to Supabase for ALL DioException types,
-    // not just 401/403. When the NestJS server is sleeping (Render free tier),
-    // the request times out or gets a connection error, which previously
-    // threw an exception instead of falling back, causing infinite loading.
-    final status = e.response?.statusCode;
-    if (status != null && status >= 400 && status < 500 && status != 401 && status != 403) {
-      // 4xx client errors (except auth) are real failures — don't silently fall back
-      final message = e.response?.data?['message'] ?? e.message ?? 'Unknown error';
-      throw Exception('Failed to archive family: $message');
-    }
-    // For auth errors, timeouts, connection errors, and 5xx — fall back to Supabase
-    debugPrint('⚠️ API call failed (status=$status, type=${e.type}), falling back to Supabase for archive');
-  } catch (e) {
-    debugPrint('⚠️ API call failed, falling back to Supabase for archive: $e');
   }
 
-  // Fallback: Soft-delete via Supabase if API didn't work
+  // Fallback: Soft-delete via Supabase
   if (!archived) {
     final client = container.read(supabaseProvider);
     if (client == null) {
-      throw Exception('Database is not connected. Please restart the app and try again.');
+      throw Exception(
+          'Database is not connected. Please restart the app and try again.');
     }
+
+    // v62.5: Auto sign-in if kAuthDisabled and no session (RLS needs it)
+    if (kAuthDisabled && client.auth.currentSession == null) {
+      try {
+        await client.auth
+            .signInWithPassword(
+              email: MockUser.email,
+              password: 'Debug@123456',
+            )
+            .timeout(const Duration(seconds: 8));
+      } catch (e) {
+        debugPrint('⚠️ deleteFamily: auto sign-in failed: $e');
+      }
+    }
+
     final now = DateTime.now().toIso8601String();
     try {
-      // Soft-delete all persons in the family
-      await withRetry(
-        () => client
-            .from(_kPersonTable)
-            .update({'deletedAt': now, 'updatedAt': now})
-            .eq('familyId', familyId)
-            .filter('deletedAt', 'is', null),
-        operationName: 'Soft-delete family persons (fallback)',
-      );
+      await client
+          .from(_kPersonTable)
+          .update({'deletedAt': now, 'updatedAt': now})
+          .eq('familyId', familyId)
+          .filter('deletedAt', 'is', null)
+          .timeout(const Duration(seconds: 10));
     } catch (e) {
       debugPrint('⚠️ Could not soft-delete persons: $e');
     }
 
     // Soft-delete the family itself
-    await withRetry(
-      () => client
-          .from(_kFamilyTable)
-          .update({'deletedAt': now, 'updatedAt': now})
-          .eq('id', familyId),
-      operationName: 'Soft-delete family (fallback)',
-    );
+    await client
+        .from(_kFamilyTable)
+        .update({'deletedAt': now, 'updatedAt': now})
+        .eq('id', familyId)
+        .timeout(const Duration(seconds: 10));
   }
 
   // Invalidate providers to refresh UI
