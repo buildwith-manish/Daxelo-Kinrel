@@ -282,7 +282,8 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
       setState(() => _isSubmitting = false);
 
       // Navigate to the family graph screen.
-      context.go('/family/${family.id}');
+      // Use /family/:id/graph to avoid white screen from _PrefetchFamilyDetail.
+      context.go('/family/${family.id}/graph');
 
       // Show the AddPersonSheet after a short delay (let the graph load)
       Future.delayed(const Duration(milliseconds: 800), () {
@@ -328,7 +329,10 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
   /// AddPersonSheet. The graph shows the anchor node with the empty-state
   /// "Add Member" option so the user can add relatives later.
   Future<void> _submitSkip() async {
-    if (_personNameController.text.trim().isEmpty) return;
+    if (_personNameController.text.trim().isEmpty) {
+      context.showSnackBar('Please enter your name to create the family', isError: true);
+      return;
+    }
 
     setState(() => _isSubmitting = true);
 
@@ -368,7 +372,10 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
       // v62.5: Reset spinner BEFORE navigation.
       setState(() => _isSubmitting = false);
       // Navigate to the graph — no AddPersonSheet popup (user chose Skip).
-      context.go('/family/${family.id}');
+      // Use /family/:id/graph instead of /family/:id because the detail
+      // screen's _PrefetchFamilyDetail can show a white screen if the
+      // family was just created and the provider hasn't refreshed yet.
+      context.go('/family/${family.id}/graph');
     } catch (e) {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -1264,12 +1271,16 @@ class _BottomNav extends StatelessWidget {
               ],
             ),
             // v62.4: "Skip and Create" button — only on the last step.
+            // v62.5: Skip button only requires Step 1 to be valid (family
+            // name + username), NOT Step 3 (person name). The person name
+            // is still required by _submitSkip(), but we show a snackbar
+            // if it's empty rather than disabling the button.
             if (isLastStep && onSkip != null) ...[
               SizedBox(height: 8),
               DKButton(
                 label: 'Skip and Create',
                 variant: DKButtonVariant.secondary,
-                onPressed: canProceed && !isSubmitting ? onSkip : null,
+                onPressed: !isSubmitting ? onSkip : null,
                 fullWidth: true,
                 size: DKButtonSize.md,
               ),
