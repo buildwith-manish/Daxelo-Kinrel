@@ -86,6 +86,18 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   bool _autoCenterDone = false;
   String? _lastFamilyId;
 
+  // v62: Cached layout + edges — prevents recomputation on every rebuild.
+  // The layout is only recomputed when the underlying graph data changes
+  // (different person/relationship count). This fixes the bug where
+  // long-pressing a node (which opens a bottom sheet → triggers a rebuild
+  // when dismissed) caused the layout to recompute with slightly different
+  // positions, leaving some nodes off-screen.
+  GraphLayoutResult? _cachedLayout;
+  List<GraphEdgeData>? _cachedEdges;
+  Map<String, GraphPersonData>? _cachedPersonMap;
+  int? _cachedPersonCount;
+  int? _cachedRelationshipCount;
+
   @override
   void initState() {
     super.initState();
@@ -113,6 +125,12 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         widget.recenterKey != oldWidget.recenterKey) {
       _autoCenterDone = false;
       _lastFamilyId = widget.familyId;
+      // v62: Invalidate layout cache when family changes.
+      _cachedLayout = null;
+      _cachedEdges = null;
+      _cachedPersonMap = null;
+      _cachedPersonCount = null;
+      _cachedRelationshipCount = null;
     }
   }
 
@@ -294,7 +312,24 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       ));
     }
 
-    // Compute layout
+    // v62: Use cached layout if the graph data hasn't changed.
+    // This prevents layout recomputation on rebuilds triggered by
+    // UI interactions (long-press → bottom sheet → dismiss), which
+    // could cause nodes to shift position and appear off-screen.
+    final dataChanged = _cachedPersonCount != persons.length ||
+        _cachedRelationshipCount != graphData.relationships.length;
+
+    if (!dataChanged &&
+        _cachedLayout != null &&
+        _cachedEdges != null &&
+        _cachedPersonMap != null) {
+      // Reuse cached layout — just rebuild the canvas with the same
+      // positions and edges.
+      return _buildGraphCanvas(
+          _cachedLayout!, _cachedPersonMap!, _cachedEdges!);
+    }
+
+    // Compute layout (only if data changed or first load).
     final anchorPerson = persons.firstWhere(
       (p) => p.isAnchor,
       orElse: () => persons.first,
@@ -332,6 +367,13 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
             'render_path': 'v40_main_thread',
           },
         ));
+
+    // v62: Cache the computed layout + edges for future rebuilds.
+    _cachedLayout = layout;
+    _cachedEdges = edges;
+    _cachedPersonMap = personMap;
+    _cachedPersonCount = persons.length;
+    _cachedRelationshipCount = graphData.relationships.length;
 
     if (layout.positions.isEmpty) {
       return GraphEmptyStack(
