@@ -57,6 +57,8 @@ import '../../features/family/presentation/services/graph_export_service.dart'
 import '../rendering/edge_path_cache.dart' show EdgePathCache;
 import '../rendering/viewport_culler.dart' show ViewportCuller;
 import 'graph_node.dart' show GraphNode;
+import 'graph_quick_actions.dart' show GraphQuickActions;
+import 'graph_relationship_labels.dart' show GraphPersonData;
 
 /// LOD tiers, chosen by camera zoom.
 enum _Lod {
@@ -469,7 +471,21 @@ class _FamilyGraphEngineViewState
       isDeceased: (p['isDeceased'] as bool?) ?? false,
       relationLabel: labels[id] ?? '',
       onTap: () => ref.read(selectedNodeProvider.notifier).state = id,
-      onLongPress: () => _toggleSubtree(id),
+      // v62.2 FIX: Long-press shows the quick-actions sheet (matching
+      // the v40 FamilyGraphWidget behavior) instead of toggling the
+      // subtree (which was hiding nodes — confusing and unexpected).
+      onLongPress: () {
+        final personData = GraphPersonData(
+          id: id,
+          name: (p['name'] as String?) ?? '',
+          gender: p['gender'] as String?,
+          generationIndex: (p['generationIndex'] as num?)?.toInt() ?? 0,
+          isAnchor: (p['isAnchor'] as bool?) ?? false,
+          photoUrl: p['photoUrl'] as String?,
+          isDeceased: (p['isDeceased'] as bool?) ?? false,
+        );
+        GraphQuickActions.show(context, personData);
+      },
     );
   }
 
