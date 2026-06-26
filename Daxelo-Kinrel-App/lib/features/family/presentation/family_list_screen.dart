@@ -1104,7 +1104,7 @@ class _ArchivedFamiliesSheetState
                 ),
               ),
             ),
-            // Title
+            // Title + Delete All button
             Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: KinrelSpacing.base,
@@ -1128,6 +1128,25 @@ class _ArchivedFamiliesSheetState
                     ),
                   ),
                   const Spacer(),
+                  // v62.5: Delete All button — shows when there are archived families
+                  archivedAsync.maybeWhen(
+                    data: (families) => families.isNotEmpty
+                        ? TextButton.icon(
+                            onPressed: () => _deleteAllArchived(context, ref, families),
+                            icon: Icon(Icons.delete_sweep_rounded,
+                                size: 18, color: KinrelColors.error),
+                            label: Text(
+                              'Delete All',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: KinrelColors.error,
+                              ),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                    orElse: () => const SizedBox.shrink(),
+                  ),
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
                     child: Icon(
@@ -1241,6 +1260,97 @@ class _ArchivedFamiliesSheetState
         );
       },
     );
+  }
+
+  /// v62.5: Permanently deletes ALL archived families at once.
+  Future<void> _deleteAllArchived(
+    BuildContext context,
+    WidgetRef ref,
+    List<ArchivedFamily> families,
+  ) async {
+    // Confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: DKColors.cardColor(context),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(KinrelRadius.lg),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded,
+                color: KinrelColors.error, size: 24),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Delete all ${families.length} archived families?',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: DKColors.textPrimary(context),
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'This will permanently delete ALL archived families and their '
+          'members, relationships, and data. This action cannot be undone.',
+          style: TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 14,
+            color: DKColors.textSecondary(context),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Cancel',
+                style: TextStyle(color: DKColors.textSecondary(context))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text('Delete All',
+                style: TextStyle(
+                    fontWeight: FontWeight.w600, color: KinrelColors.error)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final container = ProviderScope.containerOf(context);
+    final messenger = ScaffoldMessenger.of(context);
+    int successCount = 0;
+    int failCount = 0;
+
+    for (final archived in families) {
+      try {
+        await permanentDeleteFamily(
+          container: container,
+          familyId: archived.family.id,
+        ).timeout(const Duration(seconds: 10));
+        successCount++;
+      } catch (e) {
+        failCount++;
+        debugPrint('⚠️ Failed to delete ${archived.family.name}: $e');
+      }
+    }
+
+    if (context.mounted) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(failCount > 0
+              ? '$successCount deleted, $failCount failed'
+              : 'All $successCount families permanently deleted'),
+          backgroundColor:
+              failCount > 0 ? KinrelColors.warning : KinrelColors.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 }
 

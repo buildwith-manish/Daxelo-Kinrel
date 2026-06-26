@@ -1958,15 +1958,30 @@ Future<void> permanentDeleteFamily({
     throw Exception('Database is not connected. Please restart the app.');
   }
 
+  // v62.5: Auto sign-in if kAuthDisabled and no session (RLS needs it)
+  if (kAuthDisabled && client.auth.currentSession == null) {
+    try {
+      await client.auth
+          .signInWithPassword(
+            email: MockUser.email,
+            password: 'Debug@123456',
+          )
+          .timeout(const Duration(seconds: 8));
+    } catch (e) {
+      debugPrint('⚠️ permanentDeleteFamily: auto sign-in failed: $e');
+    }
+  }
+
   // Mark this family as "deleting" for per-card loading spinner
   container.read(deletingFamilyIdsProvider.notifier).update(
         (ids) => {...ids, familyId},
       );
 
   try {
-    // Direct Supabase RPC — single atomic delete, < 200ms
-    // (Skips NestJS which sits on Render free tier = cold start = 30s timeout)
-    await client.rpc('delete_family_forever', params: {'p_family_id': familyId});
+    // Direct Supabase RPC — single atomic delete
+    await client
+        .rpc('delete_family_forever', params: {'p_family_id': familyId})
+        .timeout(const Duration(seconds: 10));
 
     // Refresh UI
     container.invalidate(familyListProvider);
