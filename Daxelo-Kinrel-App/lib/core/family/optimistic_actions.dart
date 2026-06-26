@@ -244,7 +244,11 @@ Future<void> deleteFamilyOptimistic({
   required ProviderContainer container,
   required String familyId,
 }) async {
-  final db = container.read(isarProvider);
+  // v62.5: On web (or when Isar isn't initialized), skip the local
+  // cache operations and go straight to the Supabase delete. Previously
+  // this threw "IsarDatabase not initialized" on web, making delete
+  // impossible.
+  final bool isDbReady = IsarDatabase.isInitialized;
 
   // 0. Add to pending deletes FIRST — client-side guard against race condition
   //    where Supabase returns stale data before the soft-delete transaction commits.
@@ -252,50 +256,46 @@ Future<void> deleteFamilyOptimistic({
         (ids) => {...ids, familyId},
       );
 
-  // 1. Snapshot the current Drift row for rollback
-  final snapshot = await _snapshotFamily(db, familyId);
+  // 1. Snapshot + archive in local DB (skip if not initialized)
+  if (isDbReady) {
+    final db = container.read(isarProvider);
 
-  // 2. FIXED: Instead of deleting the row from Drift, mark the family as
-  //    archived (set deletedAt in the JSON data). This way
-  //    archivedFamiliesProvider can find it immediately in the Drift cache.
-  //    Previously, db.deleteFamily() removed the row entirely, causing only
-  //    the first archived family to appear (the rest were missing from Drift).
-  if (snapshot != null) {
-    try {
-      final dataMap = snapshot.data.isNotEmpty
-          ? Map<String, dynamic>.from(
-              json.decode(snapshot.data) as Map<String, dynamic>)
-          : <String, dynamic>{};
-      dataMap['deletedAt'] = DateTime.now().toIso8601String();
-      await db.upsertFamily(CachedFamiliesCompanion(
-        id: Value(familyId),
-        name: Value(snapshot.name),
-        data: Value(json.encode(dataMap)),
-        kinFamilyId: Value(snapshot.kinFamilyId),
-        username: Value(snapshot.username),
-        cachedAt: Value(DateTime.now()),
-      ));
-    } catch (e) {
-      debugPrint(
-          '⚠️ Optimistic delete family: could not mark archived in Drift: $e');
+    // 1a. Snapshot the current row for rollback
+    final snapshot = await _snapshotFamily(db, familyId);
+
+    // 1b. Mark the family as archived in local cache
+    if (snapshot != null) {
+      try {
+        final dataMap = snapshot.data.isNotEmpty
+            ? Map<String, dynamic>.from(
+                json.decode(snapshot.data) as Map<String, dynamic>)
+            : <String, dynamic>{};
+        dataMap['deletedAt'] = DateTime.now().toIso8601String();
+        await db.upsertFamily(CachedFamiliesCompanion(
+          id: Value(familyId),
+          name: Value(snapshot.name),
+          data: Value(json.encode(dataMap)),
+          kinFamilyId: Value(snapshot.kinFamilyId),
+          username: Value(snapshot.username),
+          cachedAt: Value(DateTime.now()),
+        ));
+      } catch (e) {
+        debugPrint(
+            '⚠️ Optimistic delete family: could not mark archived in Drift: $e');
+      }
     }
   }
 
-  // 3. Invalidate providers so UI updates immediately
-  //    familyListProvider filters out deletedAt != null families, so the
-  //    family disappears from the active list immediately.
-  //    archivedFamiliesProvider will now find the family in Drift.
+  // 2. Invalidate providers so UI updates immediately
   container.invalidate(familyListProvider);
   container.invalidate(archivedFamiliesProvider);
 
-  // 4. Fire real API call in background
+  // 3. Fire real API call
   try {
-    await deleteFamily(container: container, familyId: familyId);
+    await deleteFamily(container: container, familyId: familyId)
+        .timeout(const Duration(seconds: 15));
 
-    // FIXED: Wait for NestJS transaction to propagate to Supabase
-    // before invalidating familyListProvider. Without this delay,
-    // the Supabase query may return stale data (family not yet soft-deleted),
-    // causing deleted families to briefly reappear.
+    // Wait for Supabase to propagate the soft-delete
     await Future.delayed(const Duration(milliseconds: 800));
 
     // On success: remove from pending deletes
@@ -308,8 +308,18 @@ Future<void> deleteFamilyOptimistic({
           (ids) => ids.difference({familyId}),
         );
 
-    // Restore the family in Drift (clear deletedAt)
-    await _restoreFamilySnapshot(db, snapshot);
+    // Restore the family in local DB (skip if not initialized)
+    if (isDbReady) {
+      try {
+        final db = container.read(isarProvider);
+        final snapshot = await _snapshotFamily(db, familyId);
+        if (snapshot != null) {
+          await _restoreFamilySnapshot(db, snapshot);
+        }
+      } catch (restoreErr) {
+        debugPrint('⚠️ Failed to restore family snapshot: $restoreErr');
+      }
+    }
     container.invalidate(familyListProvider);
     container.invalidate(archivedFamiliesProvider);
     rethrow;
@@ -333,51 +343,64 @@ Future<void> restoreFamilyOptimistic({
   required ProviderContainer container,
   required String familyId,
 }) async {
+  // v62.5: Skip local cache if Isar isn't initialized (web)
+  final bool isDbReady = IsarDatabase.isInitialized;
+
   // Mark this family as "restoring" for per-card loading spinner
   container.read(restoringFamilyIdsProvider.notifier).update(
         (ids) => {...ids, familyId},
       );
 
-  final db = container.read(isarProvider);
+  // 1. Snapshot + clear deletedAt in local cache (skip if not initialized)
+  if (isDbReady) {
+    final db = container.read(isarProvider);
 
-  // 1. Snapshot current Drift row for rollback
-  final snapshot = await _snapshotFamily(db, familyId);
+    final snapshot = await _snapshotFamily(db, familyId);
 
-  // 2. Re-upsert with deletedAt cleared
-  try {
-    final existing = snapshot;
-    if (existing != null) {
-      // Parse the data JSON, clear deletedAt, save back
-      final dataMap = existing.data.isNotEmpty
-          ? Map<String, dynamic>.from(
-              json.decode(existing.data) as Map<String, dynamic>)
-          : <String, dynamic>{};
-      dataMap['deletedAt'] = null;
-      dataMap['lastActivityAt'] = DateTime.now().toIso8601String();
+    try {
+      if (snapshot != null) {
+        final dataMap = snapshot.data.isNotEmpty
+            ? Map<String, dynamic>.from(
+                json.decode(snapshot.data) as Map<String, dynamic>)
+            : <String, dynamic>{};
+        dataMap['deletedAt'] = null;
+        dataMap['lastActivityAt'] = DateTime.now().toIso8601String();
 
-      await db.upsertFamily(CachedFamiliesCompanion(
-        id: Value(familyId),
-        name: Value(existing.name),
-        data: Value(_jsonEncode(dataMap)),
-        kinFamilyId: Value(existing.kinFamilyId),
-        username: Value(existing.username),
-        cachedAt: Value(DateTime.now()),
-      ));
+        await db.upsertFamily(CachedFamiliesCompanion(
+          id: Value(familyId),
+          name: Value(snapshot.name),
+          data: Value(_jsonEncode(dataMap)),
+          kinFamilyId: Value(snapshot.kinFamilyId),
+          username: Value(snapshot.username),
+          cachedAt: Value(DateTime.now()),
+        ));
+      }
+    } catch (e) {
+      debugPrint('⚠️ Optimistic restore family: could not update Drift: $e');
     }
-  } catch (e) {
-    debugPrint('⚠️ Optimistic restore family: could not update Drift: $e');
   }
 
-  // 3. Invalidate providers
+  // 2. Invalidate providers
   container.invalidate(familyListProvider);
   container.invalidate(archivedFamiliesProvider);
 
-  // 4. Fire real API call in background
+  // 3. Fire real API call
   try {
-    await restoreFamily(container: container, familyId: familyId);
+    await restoreFamily(container: container, familyId: familyId)
+        .timeout(const Duration(seconds: 15));
   } catch (e) {
-    // 5. On failure: restore snapshot
-    await _restoreFamilySnapshot(db, snapshot);
+    // 5. On failure: restore snapshot (skip if DB not initialized)
+    if (isDbReady) {
+      try {
+        final db = container.read(isarProvider);
+        final snapshot = await _snapshotFamily(db, familyId);
+        if (snapshot != null) {
+          await _restoreFamilySnapshot(db, snapshot);
+        }
+      } catch (restoreErr) {
+        debugPrint('⚠️ Failed to restore family snapshot: $restoreErr');
+      }
+    }
     container.invalidate(familyListProvider);
     container.invalidate(archivedFamiliesProvider);
     rethrow;
