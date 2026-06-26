@@ -281,11 +281,11 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
       // stay in loading state if the user navigates back.
       setState(() => _isSubmitting = false);
 
-      // Navigate to the family graph screen.
-      // Use /family/:id/graph to avoid white screen from _PrefetchFamilyDetail.
-      context.go('/family/${family.id}/graph');
+      // Navigate to the family list (avoids white screen from graph
+      // not loading freshly-created family data yet).
+      context.go('/families');
 
-      // Show the AddPersonSheet after a short delay (let the graph load)
+      // Show the AddPersonSheet after a short delay (let the list load)
       Future.delayed(const Duration(milliseconds: 800), () {
         if (!mounted) return;
         AddPersonSheet.show(context, familyId: family.id);
@@ -324,16 +324,10 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
     }
   }
 
-  /// v62.4: "Skip and Create" — creates the family with just the anchor
-  /// person, then navigates to the graph WITHOUT auto-opening the
-  /// AddPersonSheet. The graph shows the anchor node with the empty-state
-  /// "Add Member" option so the user can add relatives later.
+  /// v62.5: "Skip and Create" — creates the family WITHOUT any member.
+  /// The user can add themselves and other members later from the
+  /// family list / graph screen. No name required.
   Future<void> _submitSkip() async {
-    if (_personNameController.text.trim().isEmpty) {
-      context.showSnackBar('Please enter your name to create the family', isError: true);
-      return;
-    }
-
     setState(() => _isSubmitting = true);
 
     try {
@@ -354,15 +348,21 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
         username: _usernameController.text.trim(),
       ).timeout(const Duration(seconds: 15));
 
-      final birthYear = int.tryParse(_birthYearController.text.trim());
-      await createPersonOptimistic(
-        ref: ref,
-        familyId: family.id,
-        name: _personNameController.text.trim(),
-        gender: _selectedGender?.toLowerCase(),
-        birthYear: birthYear,
-        isAnchor: true,
-      ).timeout(const Duration(seconds: 15));
+      // v62.5: Only create the anchor person if the user entered a name.
+      // If name is empty, skip person creation — the family will have 0
+      // members and show the empty-state "Add Yourself" screen.
+      final personName = _personNameController.text.trim();
+      if (personName.isNotEmpty) {
+        final birthYear = int.tryParse(_birthYearController.text.trim());
+        await createPersonOptimistic(
+          ref: ref,
+          familyId: family.id,
+          name: personName,
+          gender: _selectedGender?.toLowerCase(),
+          birthYear: birthYear,
+          isAnchor: true,
+        ).timeout(const Duration(seconds: 15));
+      }
 
       if (!mounted) return;
 
@@ -371,11 +371,9 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
       );
       // v62.5: Reset spinner BEFORE navigation.
       setState(() => _isSubmitting = false);
-      // Navigate to the graph — no AddPersonSheet popup (user chose Skip).
-      // Use /family/:id/graph instead of /family/:id because the detail
-      // screen's _PrefetchFamilyDetail can show a white screen if the
-      // family was just created and the provider hasn't refreshed yet.
-      context.go('/family/${family.id}/graph');
+      // Navigate to the family list (not the graph, which can show a
+      // white screen if the family data hasn't propagated yet).
+      context.go('/families');
     } catch (e) {
       if (mounted) {
         setState(() => _isSubmitting = false);
