@@ -287,31 +287,43 @@ class CameraController extends ChangeNotifier {
       if (pos.dy > maxY) maxY = pos.dy;
     }
 
-    // Add 10% padding.
-    final width = (maxX - minX) * 1.1;
-    final height = (maxY - minY) * 1.1;
+    // v62.5: For single-node graphs (min == max), add a minimum
+    // bounding box size so the zoom calculation doesn't produce
+    // extreme values. This prevents the node from being off-screen
+    // until the user zooms in.
+    final rawWidth = maxX - minX;
+    final rawHeight = maxY - minY;
+    const minBoxSize = 200.0; // Minimum 200x200 bounding box
+    final width = (rawWidth < minBoxSize ? minBoxSize : rawWidth) * 1.1;
+    final height = (rawHeight < minBoxSize ? minBoxSize : rawHeight) * 1.1;
     final centerX = (minX + maxX) / 2;
     final centerY = (minY + maxY) / 2;
 
     // Compute scale to fit.
-    final scaleX = viewportSize.width / (width > 0 ? width : 1);
-    final scaleY = viewportSize.height / (height > 0 ? height : 1);
+    final scaleX = viewportSize.width / width;
+    final scaleY = viewportSize.height / height;
     var fitZoom = math.min(scaleX, scaleY);
 
-    // Clamp to fit-to-view zoom bounds.
-    fitZoom = fitZoom.clamp(0.3, 2.0);
+    // v62.5: For single-node or tiny graphs, target 1.0 (100%)
+    // so the node is clearly visible without zooming.
+    if (rawWidth < 50 && rawHeight < 50) {
+      fitZoom = 1.0;
+    } else {
+      fitZoom = fitZoom.clamp(0.3, 2.0);
+    }
 
     // Compute pan to center.
     final targetPanX = (viewportSize.width / 2) - (centerX * fitZoom);
     final targetPanY = (viewportSize.height / 2) - (centerY * fitZoom);
 
-    animateTo(
-      targetPanX,
-      targetPanY,
-      fitZoom,
-      duration: const Duration(milliseconds: 600),
-      curve: Curves.easeInOutCubic,
-    );
+    // v62.5: Use instant set (no animation) for initial fit to prevent
+    // blank screen during the 600ms animation. The animation was causing
+    // the graph to appear blank until the animation completed.
+    _panX = targetPanX;
+    _panY = targetPanY;
+    _zoomLevel = fitZoom;
+    _scheduleSave();
+    notifyListeners();
   }
 
   // ── Animated Transition ──────────────────────────────────────────
