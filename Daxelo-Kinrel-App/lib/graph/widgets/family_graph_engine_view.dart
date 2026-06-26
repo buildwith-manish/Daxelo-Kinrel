@@ -52,6 +52,7 @@ import '../interaction/camera_controller.dart' show CameraController;
 import '../interaction/expand_collapse.dart'
     show ExpandCollapseController, ExpandCollapseState;
 import '../../core/constants/feature_flags.dart' show kEnableGraphShareExport;
+import '../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider;
 import '../../features/family/presentation/services/graph_export_service.dart'
     show GraphExportService;
 import '../rendering/edge_path_cache.dart' show EdgePathCache;
@@ -232,6 +233,9 @@ class _FamilyGraphEngineViewState
     final flat = ref.watch(familyGraphProvider(widget.familyId)).valueOrNull;
     // Watched here (in build), not inside LayoutBuilder, per Riverpod rules.
     final String? selectedEdgeId = ref.watch(selectedEdgeProvider);
+    // v2.2: Resolve the viewer's Person ID for perspective-based rendering.
+    final viewerPersonId =
+        ref.watch(viewerPersonIdProvider(widget.familyId)).valueOrNull;
 
     return layoutAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -248,7 +252,7 @@ class _FamilyGraphEngineViewState
             Positioned.fill(
               child: RepaintBoundary(
                 key: _graphBoundaryKey,
-                child: _buildCanvas(layout, flat, selectedEdgeId),
+                child: _buildCanvas(layout, flat, selectedEdgeId, viewerPersonId),
               ),
             ),
             if (!isOnline)
@@ -277,7 +281,7 @@ class _FamilyGraphEngineViewState
   }
 
   Widget _buildCanvas(
-      GraphLayoutResult layout, FlatGraphResult flat, String? selectedEdgeId) {
+      GraphLayoutResult layout, FlatGraphResult flat, String? selectedEdgeId, String? viewerPersonId) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         _viewportSize = constraints.biggest;
@@ -358,7 +362,7 @@ class _FamilyGraphEngineViewState
                 ),
                 // Node layer — LOD-dependent.
                 ..._buildNodeLayer(
-                    layout, visible, personById, relationLabelById),
+                    layout, visible, personById, relationLabelById, viewerPersonId),
               ],
             ),
           ),
@@ -396,6 +400,7 @@ class _FamilyGraphEngineViewState
     Set<String> visible,
     Map<String, Map<String, dynamic>> personById,
     Map<String, String> relationLabelById,
+    String? viewerPersonId,
   ) {
     final _Lod lod = _lodFor(_camera.zoomLevel);
 
@@ -431,7 +436,7 @@ class _FamilyGraphEngineViewState
       final p = personById[id];
       if (pos == null || p == null) continue;
       final Widget node = lod == _Lod.full
-          ? _buildFullNode(id, p, relationLabelById)
+          ? _buildFullNode(id, p, relationLabelById, viewerPersonId)
           : _buildChipNode(p);
 
       // v62: Dim nodes not in the highlighted generation (if set).
@@ -460,7 +465,10 @@ class _FamilyGraphEngineViewState
     String id,
     Map<String, dynamic> p,
     Map<String, String> labels,
+    String? viewerPersonId,
   ) {
+    // v2.2: If this node IS the viewer, show "You" as the relation label.
+    final bool isViewer = viewerPersonId != null && id == viewerPersonId;
     return GraphNode(
       personId: id,
       name: (p['name'] as String?) ?? '',
@@ -469,7 +477,9 @@ class _FamilyGraphEngineViewState
       isAnchor: (p['isAnchor'] as bool?) ?? false,
       photoUrl: p['photoUrl'] as String?,
       isDeceased: (p['isDeceased'] as bool?) ?? false,
-      relationLabel: labels[id] ?? '',
+      // v2.2: "You" label for the viewer's node; otherwise use the
+      // computed relation label from the viewer's perspective.
+      relationLabel: isViewer ? 'You' : (labels[id] ?? ''),
       onTap: () => ref.read(selectedNodeProvider.notifier).state = id,
       // v62.2 FIX: Long-press shows the quick-actions sheet (matching
       // the v40 FamilyGraphWidget behavior) instead of toggling the
@@ -546,6 +556,19 @@ class _FamilyGraphEngineViewState
     if (_viewportSize.width <= 0 || _viewportSize.height <= 0) return;
     if (layout.positions.isEmpty) return;
     _framed = true;
+
+    // v2.2: Center on the viewer's position if available, otherwise
+    // use the saved camera position or fit-to-view.
+    final viewerId =
+        ref.read(viewerPersonIdProvider(widget.familyId)).valueOrNull;
+    if (viewerId != null && layout.positions.containsKey(viewerId)) {
+      // Center on the viewer's node using fitToView (which includes
+      // the viewer's position in the bounding box calculation).
+      _camera.initialFitOnce(layout.positions, _viewportSize);
+      _culler.invalidate();
+      if (mounted) setState(() {});
+      return;
+    }
 
     // Prefer a previously-saved camera position; otherwise frame the graph.
     final saved = await _camera.restorePosition(widget.familyId);
