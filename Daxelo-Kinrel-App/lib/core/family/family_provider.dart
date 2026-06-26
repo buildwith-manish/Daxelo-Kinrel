@@ -768,6 +768,21 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
       return [];
     }
 
+    // v62.3: When kAuthDisabled=true (debug mode), ensure we have a real
+    // Supabase session before querying. RLS policies block reads without
+    // a session, so families won't appear even though they exist.
+    if (kAuthDisabled && client.auth.currentSession == null) {
+      // Try to auto sign-in with debug credentials
+      try {
+        await client.auth.signInWithPassword(
+          email: MockUser.email,
+          password: 'Debug@123456',
+        ).timeout(const Duration(seconds: 8));
+      } catch (e) {
+        debugPrint('⚠️ familyListProvider: auto sign-in failed: $e');
+      }
+    }
+
     // v62.3: When kAuthDisabled=true (debug mode), query ALL families
     // instead of filtering by userId. The mock user 'debug_user' won't
     // match any real createdBy values, so families would never appear.
