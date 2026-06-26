@@ -1,8 +1,5 @@
 # ─────────────────────────────────────────────────────────────────
 # Build Flutter Debug APK — path-filtered + manual dispatch
-#
-# DISABLED — project is web-only (Vercel deployment). Remove the
-# `if: false` line on the job below to re-enable path-filtered builds.
 # ─────────────────────────────────────────────────────────────────
 
 name: Build Flutter APK (path-filtered)
@@ -27,9 +24,6 @@ concurrency:
 jobs:
   build-apk:
     name: Build Debug APK
-    # Web-only project — skip APK build. Remove this `if:` line to
-    # re-enable path-filtered mobile builds.
-    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
