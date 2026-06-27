@@ -1,0 +1,231 @@
+name: Upload Kinship Matrix to Turso
+
+# Manually triggered OR auto-triggered when upload script changes
+# Designed to be re-run repeatedly: each run resumes from the committed checkpoint
+# until the full 28,761,769 rows are uploaded.
+on:
+  workflow_dispatch:
+    inputs:
+      reset:
+        description: 'Reset checkpoint and start from row 0 (use only if you want to re-upload)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'scripts/upload_to_turso.py'
+      - 'scripts/setup_turso_table.py'
+      - '.github/workflows/turso_upload.yml'
+
+# Prevent concurrent runs to avoid duplicate inserts (safe due to INSERT OR IGNORE,
+# but avoids wasting API quota)
+concurrency:
+  group: turso-upload
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350   # GitHub Actions hard limit is 6 hours (360 min); leave 10 min buffer
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # No external deps required — upload script uses only stdlib (urllib, csv, json)
+        echo "No external Python dependencies required (uses stdlib only)"
+
+    - name: Show starting checkpoint
+      run: |
+        echo "=== Repo checkpoint (committed from previous run) ==="
+        if [ -f scripts/upload_checkpoint.json ]; then
+          cat scripts/upload_checkpoint.json
+        else
+          echo "No committed checkpoint — will start from row 0"
+        fi
+
+    - name: Optionally reset checkpoint
+      if: ${{ github.event.inputs.reset == 'true' }}
+      run: |
+        echo "Reset requested — deleting checkpoint files"
+        rm -f scripts/upload_checkpoint.json upload_checkpoint.json
+        echo "NOTE: existing Turso data is NOT cleared. Re-running will use INSERT OR IGNORE to skip duplicates."
+
+    - name: Download kinship_matrix.csv from previous artifact
+      uses: dawidd6/action-download-artifact@v3
+      with:
+        workflow: generate_matrix.yml
+        name: kinship-matrix
+        path: .
+        check_artifacts: true
+        if_no_artifact_found: warn
+
+    - name: Decompress CSV if needed
+      run: |
+        if [ -f kinship_matrix.csv.gz ]; then
+          echo "Found kinship_matrix.csv.gz — decompressing..."
+          gunzip kinship_matrix.csv.gz
+        elif [ -f kinship_matrix.csv ]; then
+          echo "kinship_matrix.csv already decompressed"
+        else
+          echo "No CSV artifact found — will generate below"
+        fi
+
+    - name: Check if CSV is present
+      id: csv_check
+      run: |
+        if [ -f kinship_matrix.csv ]; then
+          SIZE=$(stat -c%s kinship_matrix.csv 2>/dev/null || stat -f%z kinship_matrix.csv)
+          SIZE_GB=$(echo "scale=2; $SIZE / 1024 / 1024 / 1024" | bc)
+          ROWS=$(wc -l < kinship_matrix.csv)
+          echo "Found kinship_matrix.csv: ${SIZE_GB} GB, ${ROWS} lines"
+          echo "csv_present=true" >> $GITHUB_OUTPUT
+        else
+          echo "kinship_matrix.csv not found in artifact."
+          echo "Will generate from indian_kinship.json as fallback."
+          echo "csv_present=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Generate CSV if not present (fallback)
+      if: ${{ steps.csv_check.outputs.csv_present != 'true' }}
+      run: |
+        echo "CSV not found in artifact. Generating from indian_kinship.json..."
+        if [ ! -f Daxelo-Kinrel-App/assets/data/indian_kinship.json ]; then
+          echo "ERROR: indian_kinship.json not found in repo either."
+          echo "Cannot proceed without source data."
+          exit 1
+        fi
+        python scripts/generate_kinship_matrix.py \
+          Daxelo-Kinrel-App/assets/data/indian_kinship.json \
+          kinship_matrix.csv
+        ls -la kinship_matrix.csv
+
+    - name: Resume upload from checkpoint
+      env:
+        TURSO_URL: ${{ secrets.TURSO_URL }}
+        TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      run: |
+        if [ -z "$TURSO_URL" ] || [ -z "$TURSO_AUTH_TOKEN" ]; then
+          echo "ERROR: TURSO_URL and TURSO_AUTH_TOKEN secrets must be set."
+          echo "Go to: Settings → Secrets and variables → Actions → New repository secret"
+          exit 1
+        fi
+        echo "Starting upload (timeout: 340 min)..."
+        # Use timeout to ensure we have time to commit the checkpoint before the job is killed
+        timeout 340m python scripts/upload_to_turso.py kinship_matrix.csv || true
+        echo ""
+        echo "=== Upload phase complete (either finished or timed out) ==="
+        echo "Final checkpoint:"
+        cat scripts/upload_checkpoint.json 2>/dev/null || echo "No checkpoint written"
+
+    - name: Verify upload
+      env:
+        TURSO_URL: ${{ secrets.TURSO_URL }}
+        TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      run: |
+        echo "=== Running verification queries ==="
+        python scripts/setup_turso_table.py --verify-only || true
+
+    - name: Commit updated checkpoint back to repo
+      run: |
+        # Configure git
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        # Check if checkpoint was updated
+        if [ -f scripts/upload_checkpoint.json ]; then
+          git add scripts/upload_checkpoint.json
+          if git diff --cached --quiet; then
+            echo "Checkpoint unchanged — likely upload is complete"
+          else
+            # Read progress for commit message
+            ROWS=$(python -c "import json; print(json.load(open('scripts/upload_checkpoint.json'))['rows_uploaded'])")
+            echo "Committing checkpoint at row ${ROWS}..."
+            git commit -m "chore(turso): upload checkpoint at row ${ROWS}
+
+            Auto-committed by GitHub Actions workflow: turso_upload.yml
+            Run: ${{ github.run_id }}
+            "
+            git push
+            echo "Checkpoint pushed to repo for next run to resume from."
+          fi
+        else
+          echo "No checkpoint file to commit"
+        fi
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Check if upload is complete
+      id: completion_check
+      env:
+        TURSO_URL: ${{ secrets.TURSO_URL }}
+        TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      run: |
+        # Query Turso for current row count
+        RESP=$(curl -s -X POST "${TURSO_URL/libsql:\/\//https:\/\/}/v2/pipeline" \
+          -H "Authorization: Bearer $TURSO_AUTH_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d '{"requests":[{"type":"execute","stmt":{"sql":"SELECT COUNT(*) AS cnt FROM kinship_matrix"}}]}')
+        CNT=$(echo "$RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['results'][0]['response']['result']['rows'][0][0]['value'])")
+        EXPECTED=28761769
+        echo "Turso count: $CNT / $EXPECTED"
+        if [ "$CNT" -ge "$EXPECTED" ]; then
+          echo "complete=true" >> $GITHUB_OUTPUT
+          echo ""
+          echo "============================================================"
+          echo "UPLOAD COMPLETE!"
+          echo "Total rows: $CNT"
+          echo "============================================================"
+        else
+          PCT=$(python3 -c "print(f'{$CNT/$EXPECTED*100:.2f}')")
+          echo "complete=false" >> $GITHUB_OUTPUT
+          echo ""
+          echo "Upload in progress: ${PCT}% ($CNT / $EXPECTED)"
+          echo "Re-run this workflow to continue uploading."
+        fi
+
+    - name: Create issue if upload is complete
+      if: ${{ steps.completion_check.outputs.complete == 'true' }}
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: '✅ Turso kinship matrix upload complete',
+            body: [
+              '## Upload Complete',
+              '',
+              'All **28,761,769** rows of the kinship chain matrix have been uploaded to Turso.',
+              '',
+              '### Verification:',
+              '- Run: ${{ github.run_id }}',
+              '- Workflow: ${{ github.workflow }}',
+              '',
+              '### Next steps:',
+              '1. Update your Flutter app to query the Turso `kinship_matrix` table',
+              '2. Use the SQL: `SELECT result_key, result_female_key FROM kinship_matrix WHERE from_key=? AND via_key=?`',
+              '3. Consider adding a covering index if you need both male + female results in one query',
+              '',
+              '### Files:',
+              '- `scripts/upload_to_turso.py` — the uploader',
+              '- `scripts/setup_turso_table.py` — table + index setup, `--verify-only` mode',
+              '- `scripts/upload_checkpoint.json` — final checkpoint (kept for audit)'
+            ].join('\n'),
+            labels: ['turso', 'data-upload', 'complete']
+          })

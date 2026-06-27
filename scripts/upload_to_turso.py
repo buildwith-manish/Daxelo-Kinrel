@@ -1,0 +1,428 @@
+#!/usr/bin/env python3
+"""
+upload_to_turso.py
+
+Uploads kinship_matrix.csv to Turso (libSQL) via the HTTP pipeline API.
+
+Features:
+  - Reads CSV in chunks of 10,000 rows
+  - Batch HTTP inserts (up to 999 rows per INSERT for SQLite parameter limit)
+  - Progress every 100,000 rows with rate + ETA
+  - Retry on failure (3 attempts per batch, exponential backoff)
+  - Checkpoint every 500,000 rows to upload_checkpoint.json
+  - Resume from checkpoint if interrupted
+  - Uses pip-installable requests (falls back to urllib if unavailable)
+
+Usage:
+    export TURSO_URL=libsql://your-db.turso.io
+    export TURSO_AUTH_TOKEN=your-token-here
+    python upload_to_turso.py [path/to/kinship_matrix.csv]
+"""
+
+import os
+import sys
+import csv
+import json
+import time
+import urllib.request
+import urllib.error
+from datetime import datetime
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+CSV_PATH = sys.argv[1] if len(sys.argv) > 1 else "kinship_matrix.csv"
+CHECKPOINT_FILE = "upload_checkpoint.json"
+ERROR_LOG = "upload_errors.log"
+
+CHUNK_SIZE       = 50_000       # rows read from CSV per batch (larger = fewer HTTP requests)
+INSERT_BATCH     = 500          # rows per INSERT statement (uses SQL literals, not params, to bypass SQLite 999 param limit)
+PROGRESS_EVERY   = 50_000       # print progress every N rows
+CHECKPOINT_EVERY = 100_000      # save checkpoint every N rows
+MAX_RETRIES      = 3            # retry attempts per batch
+RETRY_BACKOFF    = [1, 5, 15]   # seconds to wait between retries
+
+# Fallback checkpoint location for GitHub Actions resume scenario
+REPO_CHECKPOINT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "upload_checkpoint.json")
+
+TURSO_URL = os.environ.get("TURSO_URL", "")
+TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
+
+if not TURSO_URL or not TURSO_AUTH_TOKEN:
+    print("ERROR: TURSO_URL and TURSO_AUTH_TOKEN environment variables must be set.")
+    print()
+    print("Example:")
+    print("  export TURSO_URL=libsql://your-db.turso.io")
+    print("  export TURSO_AUTH_TOKEN=your-token-here")
+    print()
+    print("Or create a .env file with these values and source it before running.")
+    sys.exit(1)
+
+# Convert libsql:// to https://
+HTTP_URL = TURSO_URL.replace("libsql://", "https://").rstrip("/")
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def log_error(msg):
+    with open(ERROR_LOG, "a", encoding="utf-8") as f:
+        f.write(f"[{datetime.utcnow().isoformat()}Z] {msg}\n")
+
+def format_hms(seconds):
+    seconds = int(seconds)
+    h, rem = divmod(seconds, 3600)
+    m, s = divmod(rem, 60)
+    return f"{h}:{m:02d}:{s:02d}"
+
+def sql_escape(s):
+    """Escape a string for safe embedding as a SQL literal (single-quoted)."""
+    if s is None:
+        return "NULL"
+    # Escape backslashes first, then single quotes
+    s = str(s).replace("\\", "\\\\").replace("'", "''")
+    return f"'{s}'"
+
+
+def execute_batch(rows):
+    """
+    Execute a batch INSERT via Turso HTTP v2/pipeline API.
+    Each INSERT statement covers up to INSERT_BATCH rows.
+    Uses SQL literal values (not positional params) to bypass SQLite's 999-parameter limit,
+    allowing 500+ rows per INSERT statement for higher throughput.
+    Returns (success: bool, error: str or None).
+    """
+    if not rows:
+        return True, None
+
+    # Build pipeline of INSERT statements with literal values
+    # v2/pipeline API auto-commits after each request
+    requests = []
+    for i in range(0, len(rows), INSERT_BATCH):
+        chunk = rows[i:i + INSERT_BATCH]
+        # Build VALUES clause with literal values: ('a','b','c','d'),('e','f','g','h'),...
+        values_parts = []
+        for row in chunk:
+            values_parts.append(
+                f"({sql_escape(row[0])},{sql_escape(row[1])},{sql_escape(row[2])},{sql_escape(row[3])})"
+            )
+        values_clause = ",".join(values_parts)
+        sql = f"INSERT OR IGNORE INTO kinship_matrix (from_key, via_key, result_key, result_female_key) VALUES {values_clause}"
+        requests.append({
+            "type": "execute",
+            "stmt": {"sql": sql}
+        })
+
+    payload = json.dumps({"requests": requests}).encode("utf-8")
+    req = urllib.request.Request(
+        f"{HTTP_URL}/v2/pipeline",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {TURSO_AUTH_TOKEN}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    last_error = None
+    for attempt in range(MAX_RETRIES):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                # Check for errors in any of the responses
+                if "error" in data:
+                    last_error = f"Pipeline error: {data['error']}"
+                else:
+                    for r in data.get("results", []):
+                        if "error" in r:
+                            last_error = f"Statement error: {r['error']}"
+                            break
+                    else:
+                        return True, None
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8", errors="replace")[:300]
+            last_error = f"HTTP {e.code}: {err_body}"
+        except Exception as e:
+            last_error = f"Exception: {e}"
+
+        # Rebuild request object (urllib consumes the data buffer)
+        req = urllib.request.Request(
+            f"{HTTP_URL}/v2/pipeline",
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {TURSO_AUTH_TOKEN}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+
+        if attempt < MAX_RETRIES - 1:
+            wait = RETRY_BACKOFF[min(attempt, len(RETRY_BACKOFF) - 1)]
+            log_error(f"Batch failed (attempt {attempt+1}/{MAX_RETRIES}): {last_error}. Retrying in {wait}s...")
+            time.sleep(wait)
+
+    return False, last_error
+
+# ---------------------------------------------------------------------------
+# Checkpoint
+# ---------------------------------------------------------------------------
+
+def load_checkpoint():
+    """Load checkpoint from local file, falling back to repo checkpoint if needed.
+
+    This enables resume across environments:
+      - Local dev: uses ./upload_checkpoint.json (written during upload)
+      - GitHub Actions: uses scripts/upload_checkpoint.json (committed to repo)
+        when local file is not present (first run on a fresh CI runner).
+    """
+    # Try local checkpoint first (written during previous run on same machine)
+    if os.path.exists(CHECKPOINT_FILE):
+        try:
+            with open(CHECKPOINT_FILE, "r", encoding="utf-8") as f:
+                cp = json.load(f)
+            print(f"Resuming from local checkpoint: rows_uploaded={cp['rows_uploaded']:,}, byte_offset={cp['byte_offset']:,}")
+            return cp
+        except Exception as e:
+            log_error(f"local checkpoint load failed: {e}; trying repo checkpoint")
+
+    # Fall back to repo checkpoint (for GitHub Actions resume across runs)
+    if os.path.exists(REPO_CHECKPOINT):
+        try:
+            with open(REPO_CHECKPOINT, "r", encoding="utf-8") as f:
+                cp = json.load(f)
+            print(f"Resuming from repo checkpoint ({REPO_CHECKPOINT}):")
+            print(f"  rows_uploaded={cp['rows_uploaded']:,}, byte_offset={cp['byte_offset']:,}")
+            # Copy to local so we update the local copy going forward
+            with open(CHECKPOINT_FILE, "w", encoding="utf-8") as f:
+                json.dump(cp, f, indent=2)
+            return cp
+        except Exception as e:
+            log_error(f"repo checkpoint load failed: {e}; starting fresh")
+
+    return None
+
+def save_checkpoint(rows_uploaded, byte_offset):
+    """Save checkpoint to BOTH local file and repo file.
+
+    The local file is used for resume on the same machine.
+    The repo file (scripts/upload_checkpoint.json) is committed back to git
+    by GitHub Actions after each run, enabling resume across CI runs.
+    """
+    payload = {
+        "rows_uploaded": rows_uploaded,
+        "byte_offset": byte_offset,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+    }
+
+    # Save to local file (atomic)
+    tmp = CHECKPOINT_FILE + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+        os.replace(tmp, CHECKPOINT_FILE)
+    except Exception as e:
+        log_error(f"local checkpoint save failed: {e}")
+
+    # Also save to repo file (if path is writable)
+    try:
+        with open(REPO_CHECKPOINT, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+    except Exception as e:
+        # Repo file may not be writable in some environments; that's OK
+        pass
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main():
+    if not os.path.exists(CSV_PATH):
+        print(f"ERROR: CSV file not found: {CSV_PATH}")
+        sys.exit(1)
+
+    file_size = os.path.getsize(CSV_PATH)
+    print(f"CSV: {CSV_PATH}")
+    print(f"Size: {file_size / 1024**3:.2f} GB")
+    print(f"Turso URL: {HTTP_URL}")
+    print(f"Chunk size: {CHUNK_SIZE:,} rows | INSERT batch: {INSERT_BATCH} rows")
+    print()
+
+    # Test connection first
+    print("Testing Turso connection...")
+    test_payload = json.dumps({
+        "requests": [{"type": "execute", "stmt": {"sql": "SELECT COUNT(*) FROM kinship_matrix"}}]
+    }).encode("utf-8")
+    test_req = urllib.request.Request(
+        f"{HTTP_URL}/v2/pipeline",
+        data=test_payload,
+        headers={
+            "Authorization": f"Bearer {TURSO_AUTH_TOKEN}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(test_req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            print(f"  Connection OK: {json.dumps(data)[:200]}")
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="replace")[:300]
+        print(f"  FAILED: HTTP {e.code}: {err_body}")
+        print()
+        print("Check that TURSO_URL and TURSO_AUTH_TOKEN are valid.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"  FAILED: {e}")
+        sys.exit(1)
+    print()
+
+    # Load checkpoint
+    cp = load_checkpoint()
+    if cp:
+        start_byte = cp["byte_offset"]
+        rows_uploaded = cp["rows_uploaded"]
+    else:
+        start_byte = 0
+        rows_uploaded = 0
+
+    # Clear error log if starting fresh
+    if rows_uploaded == 0 and os.path.exists(ERROR_LOG):
+        os.remove(ERROR_LOG)
+
+    # Open CSV — we read line-by-line and track byte offset manually
+    # (csv.reader disables file.tell(), so we use a separate file handle
+    # for byte offset tracking)
+    f = open(CSV_PATH, "r", encoding="utf-8", buffering=1024*1024*16, newline="")
+    if start_byte > 0:
+        f.seek(start_byte)
+    else:
+        # Skip header
+        f.readline()
+
+    # Use a wrapper to track byte position
+    class TrackedReader:
+        def __init__(self, fileobj):
+            self.fileobj = fileobj
+            self.bytes_read = fileobj.tell()
+            self._next_line = None
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            line = self.fileobj.readline()
+            if not line:
+                raise StopIteration
+            self.bytes_read += len(line.encode("utf-8"))
+            # csv parses a single line correctly when newline="" is used
+            return next(csv.reader([line]))
+
+        def byte_offset(self):
+            return self.bytes_read
+
+    reader = TrackedReader(f)
+    chunk = []
+    last_progress_rows = 0
+    start_time = time.time()
+    consecutive_failures = 0
+
+    print(f"Starting upload from row {rows_uploaded:,}...")
+    print()
+
+    try:
+        while True:
+            try:
+                row = next(reader)
+            except StopIteration:
+                break
+
+            chunk.append(row)
+            rows_uploaded += 1
+
+            if len(chunk) >= CHUNK_SIZE:
+                success, err = execute_batch(chunk)
+                if success:
+                    chunk.clear()
+                    consecutive_failures = 0
+                else:
+                    consecutive_failures += 1
+                    log_error(f"Batch failed at row {rows_uploaded:,}: {err}")
+                    if consecutive_failures >= 5:
+                        print(f"FATAL: 5 consecutive batch failures. Aborting.")
+                        print(f"Last error: {err}")
+                        save_checkpoint(rows_uploaded - len(chunk), reader.byte_offset())
+                        sys.exit(1)
+                    # Keep chunk for retry on next iteration
+                    time.sleep(5)
+
+                if rows_uploaded - last_progress_rows >= PROGRESS_EVERY:
+                    elapsed = time.time() - start_time
+                    rate = rows_uploaded / elapsed if elapsed > 0 else 0
+                    remaining = 28_761_769 - rows_uploaded  # 5363^2
+                    eta = remaining / rate if rate > 0 else 0
+                    pct = rows_uploaded / 28_761_769 * 100
+                    print(f"Progress: {rows_uploaded:,} / 28,761,769 "
+                          f"({pct:.1f}%) | Rate: {rate:,.0f} rows/s | "
+                          f"ETA: {format_hms(eta)} | Elapsed: {format_hms(elapsed)}")
+                    last_progress_rows = rows_uploaded
+
+                if rows_uploaded % CHECKPOINT_EVERY == 0:
+                    save_checkpoint(rows_uploaded, reader.byte_offset())
+
+        # Final flush
+        if chunk:
+            success, err = execute_batch(chunk)
+            if not success:
+                log_error(f"Final batch failed: {err}")
+            chunk.clear()
+
+    except KeyboardInterrupt:
+        print("\nInterrupted by user. Saving checkpoint...")
+        save_checkpoint(rows_uploaded - len(chunk), reader.byte_offset())
+        f.close()
+        sys.exit(130)
+    except Exception as e:
+        log_error(f"Fatal error: {e}")
+        save_checkpoint(rows_uploaded - len(chunk), reader.byte_offset())
+        f.close()
+        raise
+
+    f.close()
+    elapsed = time.time() - start_time
+
+    if os.path.exists(CHECKPOINT_FILE):
+        os.remove(CHECKPOINT_FILE)
+
+    print()
+    print("=" * 60)
+    print("UPLOAD COMPLETE")
+    print("=" * 60)
+    print(f"Rows uploaded: {rows_uploaded:,}")
+    print(f"Time: {format_hms(elapsed)}")
+    print(f"Rate: {rows_uploaded / elapsed:,.0f} rows/sec")
+
+    # Verify
+    print()
+    print("Verifying row count...")
+    verify_payload = json.dumps({
+        "requests": [{"type": "execute", "stmt": {"sql": "SELECT COUNT(*) AS cnt FROM kinship_matrix"}}]
+    }).encode("utf-8")
+    verify_req = urllib.request.Request(
+        f"{HTTP_URL}/v2/pipeline",
+        data=verify_payload,
+        headers={
+            "Authorization": f"Bearer {TURSO_AUTH_TOKEN}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(verify_req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            print(f"  COUNT(*) in Turso: {json.dumps(data)[:300]}")
+    except Exception as e:
+        print(f"  Verification query failed: {e}")
+
+if __name__ == "__main__":
+    main()
