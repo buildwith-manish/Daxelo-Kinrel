@@ -61,7 +61,96 @@ def execute_sql(sql, args=None):
         print(f"Error: {e}")
         return None
 
+def verify_only():
+    """Run only verification queries against an already-populated table.
+    Exits 0 if all checks pass, 1 otherwise.
+    """
+    print(f"Turso URL: {HTTP_URL}")
+    print(f"Auth token: {TURSO_AUTH_TOKEN[:30]}...")
+    print()
+
+    # Test connection
+    print("[1] Testing connection...")
+    result = execute_sql("SELECT 1 AS test")
+    if result is None:
+        print("FAILED: Could not connect to Turso")
+        sys.exit(1)
+    print(f"    Connection OK")
+    print()
+
+    # Row count
+    print("[2] Row count...")
+    result = execute_sql("SELECT COUNT(*) AS cnt FROM kinship_matrix")
+    if result is None:
+        print("FAILED to query row count")
+        sys.exit(1)
+    try:
+        cnt = int(result["results"][0]["response"]["result"]["rows"][0][0]["value"])
+    except (KeyError, IndexError, ValueError):
+        print(f"Unexpected response: {json.dumps(result)[:300]}")
+        sys.exit(1)
+    expected = 5363 * 5363  # 28,761,769
+    print(f"    COUNT(*) = {cnt:,}")
+    print(f"    Expected = {expected:,} (5363 x 5363)")
+    if cnt == expected:
+        print(f"    Row count MATCHES")
+    elif cnt > 0:
+        pct = cnt / expected * 100
+        print(f"    Upload in progress: {pct:.2f}% complete ({cnt:,}/{expected:,})")
+    else:
+        print(f"    Table is EMPTY")
+    print()
+
+    # Sample query checks
+    print("[3] Sample query verification...")
+    expected_results = [
+        ("father", "brother", "paternal-uncle", "paternal-aunt"),
+        ("mother", "brother", "maternal-uncle", "maternal-aunt"),
+        ("husband", "elder_brother", "jeth", "jethani"),
+        ("wife", "sister", "sali", "sali"),
+        ("son", "father", "self", "self"),
+        ("brother", "son", "nephew", "niece"),
+        ("fathers_elder_brother", "son", "cousin-elder", "cousin-elder"),
+        ("mothers_brother", "daughter", "cousin-maternal", "cousin-maternal"),
+    ]
+    passed = 0
+    failed = 0
+    for from_key, via_key, exp_male, exp_female in expected_results:
+        sql = f"SELECT result_key, result_female_key FROM kinship_matrix WHERE from_key='{from_key}' AND via_key='{via_key}'"
+        result = execute_sql(sql)
+        if result is None:
+            print(f"    FAIL: {from_key} + {via_key} (query failed)")
+            failed += 1
+            continue
+        try:
+            rows = result["results"][0]["response"]["result"]["rows"]
+            if not rows:
+                print(f"    SKIP: {from_key} + {via_key} = (not yet uploaded)")
+                continue
+            actual_male = rows[0][0]["value"]
+            actual_female = rows[0][1]["value"]
+            if actual_male == exp_male and actual_female == exp_female:
+                print(f"    PASS: {from_key} + {via_key} = {actual_male} / {actual_female}")
+                passed += 1
+            else:
+                print(f"    FAIL: {from_key} + {via_key} = {actual_male} / {actual_female} (expected {exp_male} / {exp_female})")
+                failed += 1
+        except (KeyError, IndexError) as e:
+            print(f"    FAIL: {from_key} + {via_key} (parse error: {e})")
+            failed += 1
+
+    print()
+    print(f"Verification: {passed} passed, {failed} failed")
+    if failed > 0:
+        sys.exit(1)
+    print("All checks passed.")
+
 def main():
+    # Check for --verify-only flag
+    if "--verify-only" in sys.argv:
+        verify_only()
+        return
+
     print(f"Turso URL: {HTTP_URL}")
     print(f"Auth token: {TURSO_AUTH_TOKEN[:30]}...")
     print()

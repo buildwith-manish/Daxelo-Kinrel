@@ -37,11 +37,14 @@ CHECKPOINT_FILE = "upload_checkpoint.json"
 ERROR_LOG = "upload_errors.log"
 
 CHUNK_SIZE       = 50_000       # rows read from CSV per batch (larger = fewer HTTP requests)
-INSERT_BATCH     = 249          # rows per INSERT statement (249 * 4 params = 996, just under SQLite's 999 limit)
+INSERT_BATCH     = 500          # rows per INSERT statement (uses SQL literals, not params, to bypass SQLite 999 param limit)
 PROGRESS_EVERY   = 50_000       # print progress every N rows
 CHECKPOINT_EVERY = 100_000      # save checkpoint every N rows
 MAX_RETRIES      = 3            # retry attempts per batch
 RETRY_BACKOFF    = [1, 5, 15]   # seconds to wait between retries
+
+# Fallback checkpoint location for GitHub Actions resume scenario
+REPO_CHECKPOINT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "upload_checkpoint.json")
 
 TURSO_URL = os.environ.get("TURSO_URL", "")
 TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "")
@@ -73,32 +76,42 @@ def format_hms(seconds):
     m, s = divmod(rem, 60)
     return f"{h}:{m:02d}:{s:02d}"
 
+def sql_escape(s):
+    """Escape a string for safe embedding as a SQL literal (single-quoted)."""
+    if s is None:
+        return "NULL"
+    # Escape backslashes first, then single quotes
+    s = str(s).replace("\\", "\\\\").replace("'", "''")
+    return f"'{s}'"
+
+
 def execute_batch(rows):
     """
-    Execute a batch INSERT via Turso HTTP pipeline API.
+    Execute a batch INSERT via Turso HTTP v2/pipeline API.
     Each INSERT statement covers up to INSERT_BATCH rows.
+    Uses SQL literal values (not positional params) to bypass SQLite's 999-parameter limit,
+    allowing 500+ rows per INSERT statement for higher throughput.
     Returns (success: bool, error: str or None).
     """
     if not rows:
         return True, None
 
-    # Build pipeline of INSERT statements
+    # Build pipeline of INSERT statements with literal values
     # v2/pipeline API auto-commits after each request
     requests = []
     for i in range(0, len(rows), INSERT_BATCH):
         chunk = rows[i:i + INSERT_BATCH]
-        placeholders = ",".join(["(?,?,?,?)"] * len(chunk))
-        sql = f"INSERT OR IGNORE INTO kinship_matrix (from_key, via_key, result_key, result_female_key) VALUES {placeholders}"
-        # Flatten args
-        args = []
+        # Build VALUES clause with literal values: ('a','b','c','d'),('e','f','g','h'),...
+        values_parts = []
         for row in chunk:
-            args.append({"type": "text", "value": row[0]})
-            args.append({"type": "text", "value": row[1]})
-            args.append({"type": "text", "value": row[2]})
-            args.append({"type": "text", "value": row[3]})
+            values_parts.append(
+                f"({sql_escape(row[0])},{sql_escape(row[1])},{sql_escape(row[2])},{sql_escape(row[3])})"
+            )
+        values_clause = ",".join(values_parts)
+        sql = f"INSERT OR IGNORE INTO kinship_matrix (from_key, via_key, result_key, result_female_key) VALUES {values_clause}"
         requests.append({
             "type": "execute",
-            "stmt": {"sql": sql, "args": args}
+            "stmt": {"sql": sql}
         })
 
     payload = json.dumps({"requests": requests}).encode("utf-8")
@@ -156,30 +169,68 @@ def execute_batch(rows):
 # ---------------------------------------------------------------------------
 
 def load_checkpoint():
-    if not os.path.exists(CHECKPOINT_FILE):
-        return None
-    try:
-        with open(CHECKPOINT_FILE, "r", encoding="utf-8") as f:
-            cp = json.load(f)
-        print(f"Resuming from checkpoint: rows_uploaded={cp['rows_uploaded']:,}, byte_offset={cp['byte_offset']:,}")
-        return cp
-    except Exception as e:
-        log_error(f"checkpoint load failed: {e}; starting fresh")
-        return None
+    """Load checkpoint from local file, falling back to repo checkpoint if needed.
+
+    This enables resume across environments:
+      - Local dev: uses ./upload_checkpoint.json (written during upload)
+      - GitHub Actions: uses scripts/upload_checkpoint.json (committed to repo)
+        when local file is not present (first run on a fresh CI runner).
+    """
+    # Try local checkpoint first (written during previous run on same machine)
+    if os.path.exists(CHECKPOINT_FILE):
+        try:
+            with open(CHECKPOINT_FILE, "r", encoding="utf-8") as f:
+                cp = json.load(f)
+            print(f"Resuming from local checkpoint: rows_uploaded={cp['rows_uploaded']:,}, byte_offset={cp['byte_offset']:,}")
+            return cp
+        except Exception as e:
+            log_error(f"local checkpoint load failed: {e}; trying repo checkpoint")
+
+    # Fall back to repo checkpoint (for GitHub Actions resume across runs)
+    if os.path.exists(REPO_CHECKPOINT):
+        try:
+            with open(REPO_CHECKPOINT, "r", encoding="utf-8") as f:
+                cp = json.load(f)
+            print(f"Resuming from repo checkpoint ({REPO_CHECKPOINT}):")
+            print(f"  rows_uploaded={cp['rows_uploaded']:,}, byte_offset={cp['byte_offset']:,}")
+            # Copy to local so we update the local copy going forward
+            with open(CHECKPOINT_FILE, "w", encoding="utf-8") as f:
+                json.dump(cp, f, indent=2)
+            return cp
+        except Exception as e:
+            log_error(f"repo checkpoint load failed: {e}; starting fresh")
+
+    return None
 
 def save_checkpoint(rows_uploaded, byte_offset):
-    tmp = CHECKPOINT_FILE + ".tmp"
+    """Save checkpoint to BOTH local file and repo file.
+
+    The local file is used for resume on the same machine.
+    The repo file (scripts/upload_checkpoint.json) is committed back to git
+    by GitHub Actions after each run, enabling resume across CI runs.
+    """
     payload = {
         "rows_uploaded": rows_uploaded,
         "byte_offset": byte_offset,
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }
+
+    # Save to local file (atomic)
+    tmp = CHECKPOINT_FILE + ".tmp"
     try:
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
         os.replace(tmp, CHECKPOINT_FILE)
     except Exception as e:
-        log_error(f"checkpoint save failed: {e}")
+        log_error(f"local checkpoint save failed: {e}")
+
+    # Also save to repo file (if path is writable)
+    try:
+        with open(REPO_CHECKPOINT, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+    except Exception as e:
+        # Repo file may not be writable in some environments; that's OK
+        pass
 
 # ---------------------------------------------------------------------------
 # Main
