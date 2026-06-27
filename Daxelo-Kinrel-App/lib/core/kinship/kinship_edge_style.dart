@@ -551,7 +551,10 @@ class KinshipEdgeStyleResolver {
           dashPattern: [],
           midpointSymbol: KinshipMidpointSymbol.dot,
           midpointColor: KinshipEdgeColors.cousin,
-          strokeWidth: 2.0,
+          // v2.2 spec: cousins use the thickest stroke (2.5px) — the
+          // only category wider than the default 2.0px, reflecting the
+          // wideArcBezier designation.
+          strokeWidth: 2.5,
         );
 
       case KinshipEdgeCategory.inLaw:
@@ -577,7 +580,9 @@ class KinshipEdgeStyleResolver {
           dashPattern: [4.0, 4.0],
           midpointSymbol: KinshipMidpointSymbol.dot,
           midpointColor: KinshipEdgeColors.extended,
-          strokeWidth: 2.0,
+          // v2.2 spec: step_adoptive uses the thinnest stroke (1.5px) —
+          // the lowest visual priority of all 8 sections.
+          strokeWidth: 1.5,
         );
 
       case KinshipEdgeCategory.indirect:

@@ -2,19 +2,15 @@
 //
 // DAXELO KINREL — Graph Legend Panel (V2.1 Blueprint §17.3)
 //
-// A floating legend panel explaining the visual encoding of the family
-// graph. Shows relationship type colors and edge line styles.
+// 8-section card grid + spouse cross-section row.
 //
-// v2.2: Now data-driven — the legend shows ONLY the kinship categories
-// that are actually present in the current graph (passed in via
-// [presentCategories]). This keeps the legend compact for small
-// families and comprehensive for large ones.
+// Each section card shows:
+//   - A filled circle in the section's node color
+//   - An EdgeSamplePainter rendering the edge line style
+//   - The hex color value + edge label
 //
-// The legend is wired into the V2.1 engine view
-// (family_graph_engine_view.dart) as a collapsible panel toggled by a
-// "?" button. It delegates all color/edge-style resolution to the
-// KinshipEdgeStyleResolver — the single source of truth for the
-// 10-category system that covers all 5,359 Indian kinship types.
+// The spouse row is a full-width card below the grid showing the
+// dashed orange edge with a pink heart midpoint.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,20 +18,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/kinship/kinship_edge_style.dart';
+import '../rendering/node_render_coordinator.dart' show KeyStrategy;
 
 // ═══════════════════════════════════════════════════════════════════════
 // GRAPH LEGEND
 // ═══════════════════════════════════════════════════════════════════════
 
 /// A floating legend panel explaining the visual encoding of the family graph.
-///
-/// Displays relationship type color swatches and edge line styles for the
-/// kinship categories present in the current graph. The user can toggle
-/// visibility with the "?" button.
-///
-/// [presentCategories] — the set of categories that actually appear in
-/// the current graph. The legend only shows rows for these categories,
-/// keeping the panel compact for small families.
 class GraphLegend extends ConsumerWidget {
   /// Creates a graph legend panel.
   const GraphLegend({
@@ -52,7 +41,7 @@ class GraphLegend extends ConsumerWidget {
   final VoidCallback onToggle;
 
   /// Which kinship categories are present in the current graph.
-  /// If empty, all 10 categories are shown (the full reference legend).
+  /// If empty, all 8 sections + spouse are shown (full reference legend).
   final Set<KinshipEdgeCategory> presentCategories;
 
   @override
@@ -67,7 +56,7 @@ class GraphLegend extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Toggle button (? icon) — 48×48 tap target (WCAG 2.5.5).
+            // Toggle button (? icon)
             if (!isVisible)
               Semantics(
                 label: 'Toggle legend',
@@ -105,8 +94,9 @@ class GraphLegend extends ConsumerWidget {
             // Legend panel
             if (isVisible)
               Container(
-                width: 260,
-                constraints: const BoxConstraints(maxHeight: 420),
+                key: KeyStrategy.legendKey(),
+                width: 240,
+                constraints: const BoxConstraints(maxHeight: 400),
                 decoration: BoxDecoration(
                   color: const Color(0xFF0A0E1A).withValues(alpha: 0.95),
                   borderRadius: BorderRadius.circular(14),
@@ -173,7 +163,45 @@ class GraphLegend extends ConsumerWidget {
                         padding: const EdgeInsets.all(12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: _buildLegendRows(),
+                          children: [
+                            // Section title
+                            Text(
+                              'V2.1 Sections',
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: KinrelColors.textDim,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+
+                            // 8-section card grid
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: _buildSectionCards(),
+                            ),
+                            const SizedBox(height: 8),
+
+                            // Spouse cross-section row
+                            _buildSpouseRow(),
+                            const SizedBox(height: 8),
+
+                            // Footer note
+                            Text(
+                              'Dot opacity reflects edge alpha. '
+                              'Core has no edge — it\'s the ego node '
+                              'every other section radiates from.',
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 9,
+                                color: KinrelColors.textDim,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -186,208 +214,164 @@ class GraphLegend extends ConsumerWidget {
     );
   }
 
-  /// Builds the legend rows — node colors + edge styles for each
-  /// present category (or all 10 if [presentCategories] is empty).
-  List<Widget> _buildLegendRows() {
-    final categories = presentCategories.isEmpty
-        ? KinshipEdgeCategory.values
-        : KinshipEdgeCategory.values
-            .where((c) => presentCategories.contains(c))
+  /// Builds the 8 section cards.
+  List<Widget> _buildSectionCards() {
+    final sections = _sections;
+    // Filter by presentCategories if non-empty.
+    final visibleSections = presentCategories.isEmpty
+        ? sections
+        : sections
+            .where((s) =>
+                presentCategories.contains(s.category) ||
+                s.category == KinshipEdgeCategory.self)
             .toList();
 
-    final rows = <Widget>[];
-
-    // ── Node Colors section ──
-    rows.add(_buildSectionTitle('Node Colors'));
-    rows.add(const SizedBox(height: 8));
-    for (final cat in categories) {
-      if (cat == KinshipEdgeCategory.self) continue; // self is the viewer
-      rows.add(_buildColorRow(
-        _categoryLabel(cat),
-        _categoryNodeColor(cat),
-      ));
-    }
-    rows.add(const SizedBox(height: 16));
-
-    // ── Edge Styles section ──
-    rows.add(_buildSectionTitle('Edge Styles'));
-    rows.add(const SizedBox(height: 8));
-    for (final cat in categories) {
-      if (cat == KinshipEdgeCategory.self) continue;
-      final style = KinshipEdgeStyleResolver.styleForCategory(cat);
-      rows.add(_buildEdgeRow(
-        _categoryLabel(cat),
-        _lineShapeLabel(style.lineShape),
-        style.color,
-        style.lineShape,
-        style.dashPattern,
-      ));
-    }
-
-    return rows;
+    return visibleSections.map((s) => _buildSectionCard(s)).toList();
   }
 
-  /// Human-readable label for a kinship edge category.
-  String _categoryLabel(KinshipEdgeCategory cat) {
-    switch (cat) {
-      case KinshipEdgeCategory.self:
-        return 'Self';
-      case KinshipEdgeCategory.parent:
-        return 'Parent';
-      case KinshipEdgeCategory.child:
-        return 'Child';
-      case KinshipEdgeCategory.sibling:
-        return 'Sibling';
-      case KinshipEdgeCategory.spouse:
-        return 'Spouse';
-      case KinshipEdgeCategory.grandparent:
-        return 'Grandparent';
-      case KinshipEdgeCategory.auntUncle:
-        return 'Aunt / Uncle';
-      case KinshipEdgeCategory.cousin:
-        return 'Cousin';
-      case KinshipEdgeCategory.inLaw:
-        return 'In-Law';
-      case KinshipEdgeCategory.extended:
-        return 'Extended / Step';
-      case KinshipEdgeCategory.indirect:
-        return 'Indirect';
-    }
-  }
-
-  /// Node color for a category (matches RelationshipColors in graph_node.dart).
-  Color _categoryNodeColor(KinshipEdgeCategory cat) {
-    switch (cat) {
-      case KinshipEdgeCategory.self:
-        return KinshipEdgeColors.self;
-      case KinshipEdgeCategory.parent:
-        return KinshipEdgeColors.parent;
-      case KinshipEdgeCategory.child:
-        return KinshipEdgeColors.child;
-      case KinshipEdgeCategory.sibling:
-        return KinshipEdgeColors.sibling;
-      case KinshipEdgeCategory.spouse:
-        return KinshipEdgeColors.spouseEdge;
-      case KinshipEdgeCategory.grandparent:
-        return KinshipEdgeColors.grandparent;
-      case KinshipEdgeCategory.auntUncle:
-        return KinshipEdgeColors.auntUncle;
-      case KinshipEdgeCategory.cousin:
-        return KinshipEdgeColors.cousin;
-      case KinshipEdgeCategory.inLaw:
-        return KinshipEdgeColors.inLaw;
-      case KinshipEdgeCategory.extended:
-        return KinshipEdgeColors.extended;
-      case KinshipEdgeCategory.indirect:
-        return KinshipEdgeColors.indirect;
-    }
-  }
-
-  /// Human-readable label for a line shape.
-  String _lineShapeLabel(KinshipLineShape shape) {
-    switch (shape) {
-      case KinshipLineShape.solidBezier:
-        return 'Solid';
-      case KinshipLineShape.solidExtendedBezier:
-        return 'Solid';
-      case KinshipLineShape.dashedArc:
-        return 'Dashed Arc';
-      case KinshipLineShape.dashedStraight:
-        return 'Dashed';
-      case KinshipLineShape.dashedShallowS:
-        return 'Dashed S';
-      case KinshipLineShape.wideArcBezier:
-        return 'Wide Arc';
-      case KinshipLineShape.dashedDefault:
-        return 'Dashed';
-    }
-  }
-
-  // ── Helper Widgets ───────────────────────────────────────────────────
-
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontFamily: KinrelTypography.bodyFont,
-        fontSize: 11,
-        fontWeight: FontWeight.w600,
-        color: KinrelColors.textDim,
-        letterSpacing: 0.5,
+  /// Builds a single section card.
+  Widget _buildSectionCard(_LegendSection section) {
+    final cardWidth = (240 - 24 - 6) / 2.0; // ~105px
+    return Container(
+      width: cardWidth,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: KinrelColors.border),
       ),
-    );
-  }
-
-  Widget _buildColorRow(String label, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 14,
-            height: 14,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color,
-              border: Border.all(
-                color: color.withValues(alpha: 0.5),
-                width: 1,
+          // Row 1: circle + section name
+          Row(
+            children: [
+              Container(
+                width: 13,
+                height: 13,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: section.nodeColor,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  section.name,
+                  style: const TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: KinrelColors.textWhite,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          // Row 2: edge sample painter
+          SizedBox(
+            height: 44,
+            width: double.infinity,
+            child: CustomPaint(
+              painter: _EdgeSamplePainter(section: section),
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Row 3: hex color
+          Text(
+            _colorToHex(section.nodeColor),
+            style: TextStyle(
+              fontFamily: KinrelTypography.monoFont,
+              fontSize: 9,
+              color: KinrelColors.textDim,
+            ),
+          ),
+          // Row 4: edge label
+          if (section.edgeLabel != null)
+            Text(
+              section.edgeLabel!,
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 9,
+                color: KinrelColors.border,
               ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            label,
-            style: const TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 12,
-              color: KinrelColors.textSilver,
-            ),
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildEdgeRow(
-    String label,
-    String styleLabel,
-    Color color,
-    KinshipLineShape lineShape,
-    List<double> dashPattern,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+  /// Builds the spouse cross-section row (full-width card below the grid).
+  Widget _buildSpouseRow() {
+    final spouseSection = _LegendSection(
+      name: 'spouse',
+      category: KinshipEdgeCategory.spouse,
+      nodeColor: KinrelColors.nodeSpouse,
+      edgeColor: KinrelColors.nodeSpouse,
+      edgeOpacity: 1.0,
+      strokeWidth: 2.0,
+      isDashed: true,
+      dashLength: 6.0,
+      gapLength: 4.0,
+      isStraight: true,
+      isCore: false,
+      isHeart: true,
+      midpointColor: KinrelColors.spouseHeartColor,
+      midpointOpacity: 1.0,
+      edgeLabel: 'dashedStraight',
+    );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: KinrelColors.border),
+      ),
       child: Row(
         children: [
-          // Line preview
-          SizedBox(
-            width: 28,
-            height: 12,
-            child: CustomPaint(
-              painter: _EdgeStylePreviewPainter(
-                color: color,
-                lineShape: lineShape,
-                dashPattern: dashPattern,
+          // Label
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'spouse',
+                style: const TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: KinrelColors.textWhite,
+                ),
               ),
-            ),
+              Text(
+                '(cross-section)',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 11,
+                  color: KinrelColors.textDim,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
+          // Edge sample
           Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 12,
-                color: KinrelColors.textSilver,
+            child: SizedBox(
+              height: 30,
+              child: CustomPaint(
+                painter: _EdgeSamplePainter(section: spouseSection),
               ),
             ),
           ),
+          const SizedBox(width: 8),
+          // Hex label
           Text(
-            styleLabel,
+            '#F97316 · #EC4899',
             style: TextStyle(
               fontFamily: KinrelTypography.monoFont,
-              fontSize: 10,
+              fontSize: 9,
               color: KinrelColors.textDim,
             ),
           ),
@@ -395,155 +379,400 @@ class GraphLegend extends ConsumerWidget {
       ),
     );
   }
+
+  /// Converts a Color to a hex string like "#0D9488".
+  String _colorToHex(Color color) {
+    final hex = color.toARGB32().toRadixString(16).toUpperCase();
+    // Skip the alpha channel (first 2 chars) for display.
+    return '#${hex.substring(2)}';
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// EDGE STYLE PREVIEW PAINTER
+// SECTION DATA CLASS
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Small CustomPainter that renders a preview of an edge line style.
-///
-/// v2.2: Now uses the actual [KinshipLineShape] + [dashPattern] from the
-/// KinshipEdgeStyleResolver so the preview matches the real edge rendering
-/// exactly.
-class _EdgeStylePreviewPainter extends CustomPainter {
-  _EdgeStylePreviewPainter({
-    required this.color,
-    required this.lineShape,
-    required this.dashPattern,
+/// Immutable description of a legend section's visual properties.
+class _LegendSection {
+  const _LegendSection({
+    required this.name,
+    required this.category,
+    required this.nodeColor,
+    required this.edgeColor,
+    required this.edgeOpacity,
+    required this.strokeWidth,
+    required this.isDashed,
+    this.dashLength = 0,
+    this.gapLength = 0,
+    required this.isStraight,
+    required this.isCore,
+    required this.isHeart,
+    required this.midpointColor,
+    required this.midpointOpacity,
+    this.controlPoint,
+    this.edgeLabel,
   });
 
-  final Color color;
-  final KinshipLineShape lineShape;
-  final List<double> dashPattern;
+  final String name;
+  final KinshipEdgeCategory category;
+  final Color nodeColor;
+  final Color edgeColor;
+  final double edgeOpacity;
+  final double strokeWidth;
+  final bool isDashed;
+  final double dashLength;
+  final double gapLength;
+  final bool isStraight;
+  final bool isCore;
+  final bool isHeart;
+  final Color midpointColor;
+  final double midpointOpacity;
+  final Offset? controlPoint; // for curved lines, in 140×44 canvas space
+  final String? edgeLabel;
+}
+
+/// The 8 sections per the V2.1 spec.
+List<_LegendSection> get _sections => [
+      _LegendSection(
+        name: 'core',
+        category: KinshipEdgeCategory.self,
+        nodeColor: KinrelColors.nodeSelf,
+        edgeColor: const Color(0xFF475569),
+        edgeOpacity: 1.0,
+        strokeWidth: 1.2,
+        isDashed: true,
+        dashLength: 2.0,
+        gapLength: 2.0,
+        isStraight: false,
+        isCore: true,
+        isHeart: false,
+        midpointColor: const Color(0xFF475569),
+        midpointOpacity: 1.0,
+        edgeLabel: null,
+      ),
+      _LegendSection(
+        name: 'ancestors',
+        category: KinshipEdgeCategory.grandparent,
+        nodeColor: KinrelColors.nodeGrandparent,
+        edgeColor: KinrelColors.nodeGrandparent,
+        edgeOpacity: 0.75,
+        strokeWidth: 2.0,
+        isDashed: false,
+        isStraight: false,
+        isCore: false,
+        isHeart: false,
+        midpointColor: KinrelColors.nodeGrandparent,
+        midpointOpacity: 0.90,
+        controlPoint: const Offset(70, 2),
+        edgeLabel: 'solidExtendedBezier',
+      ),
+      _LegendSection(
+        name: 'descendants',
+        category: KinshipEdgeCategory.child,
+        nodeColor: KinrelColors.nodeChild,
+        edgeColor: KinrelColors.nodeChild,
+        edgeOpacity: 0.85,
+        strokeWidth: 2.0,
+        isDashed: false,
+        isStraight: false,
+        isCore: false,
+        isHeart: false,
+        midpointColor: KinrelColors.nodeChild,
+        midpointOpacity: 1.0,
+        controlPoint: const Offset(70, 8),
+        edgeLabel: 'solidBezier',
+      ),
+      _LegendSection(
+        name: 'paternal',
+        category: KinshipEdgeCategory.parent,
+        nodeColor: KinrelColors.nodeParent,
+        edgeColor: KinrelColors.nodeParent,
+        edgeOpacity: 0.85,
+        strokeWidth: 2.0,
+        isDashed: false,
+        isStraight: false,
+        isCore: false,
+        isHeart: false,
+        midpointColor: KinrelColors.nodeParent,
+        midpointOpacity: 1.0,
+        controlPoint: const Offset(70, 8),
+        edgeLabel: 'solidBezier',
+      ),
+      _LegendSection(
+        name: 'maternal',
+        category: KinshipEdgeCategory.parent,
+        nodeColor: KinrelColors.nodeParent,
+        edgeColor: KinrelColors.nodeParent,
+        edgeOpacity: 0.85,
+        strokeWidth: 2.0,
+        isDashed: false,
+        isStraight: false,
+        isCore: false,
+        isHeart: false,
+        midpointColor: KinrelColors.nodeParent,
+        midpointOpacity: 1.0,
+        controlPoint: const Offset(70, 8),
+        edgeLabel: 'solidBezier',
+      ),
+      _LegendSection(
+        name: 'inlaws',
+        category: KinshipEdgeCategory.inLaw,
+        nodeColor: KinrelColors.nodeInLaw,
+        edgeColor: KinrelColors.nodeInLaw,
+        edgeOpacity: 0.70,
+        strokeWidth: 2.0,
+        isDashed: true,
+        dashLength: 5.0,
+        gapLength: 4.0,
+        isStraight: true,
+        isCore: false,
+        isHeart: false,
+        midpointColor: KinrelColors.nodeInLaw,
+        midpointOpacity: 0.85,
+        edgeLabel: 'dashedStraight',
+      ),
+      _LegendSection(
+        name: 'cousins',
+        category: KinshipEdgeCategory.cousin,
+        nodeColor: KinrelColors.nodeCousin,
+        edgeColor: KinrelColors.nodeCousin,
+        edgeOpacity: 0.70,
+        strokeWidth: 2.5,
+        isDashed: false,
+        isStraight: false,
+        isCore: false,
+        isHeart: false,
+        midpointColor: KinrelColors.nodeCousin,
+        midpointOpacity: 0.85,
+        controlPoint: const Offset(70, -12),
+        edgeLabel: 'wideArcBezier',
+      ),
+      _LegendSection(
+        name: 'step_adoptive',
+        category: KinshipEdgeCategory.extended,
+        nodeColor: KinrelColors.nodeExtended,
+        edgeColor: KinrelColors.nodeExtended,
+        edgeOpacity: 0.45,
+        strokeWidth: 1.5,
+        isDashed: true,
+        dashLength: 4.0,
+        gapLength: 4.0,
+        isStraight: true,
+        isCore: false,
+        isHeart: false,
+        midpointColor: KinrelColors.nodeExtended,
+        midpointOpacity: 0.60,
+        edgeLabel: 'dashedDefault',
+      ),
+    ];
+
+// ═══════════════════════════════════════════════════════════════════════
+// EDGE SAMPLE PAINTER
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Single CustomPainter that handles all visual variants for the legend.
+///
+/// Canvas space is 140×44 (the card is ~105px wide but the painter uses
+/// a virtual 140px coordinate space that scales to fit).
+class _EdgeSamplePainter extends CustomPainter {
+  _EdgeSamplePainter({required this.section});
+
+  final _LegendSection section;
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Scale the 140×44 virtual canvas to the actual size.
+    final scaleX = size.width / 140.0;
+    final scaleY = size.height / 44.0;
+    canvas.save();
+    canvas.scale(scaleX, scaleY);
+
+    if (section.isCore) {
+      _drawCore(canvas);
+    } else if (section.isStraight) {
+      _drawStraightLine(canvas);
+      _drawMidpointStraight(canvas);
+    } else {
+      _drawCurvedLine(canvas);
+      _drawMidpointCurved(canvas);
+    }
+
+    canvas.restore();
+  }
+
+  /// Core section: dashed hollow circle at center + "self / root" text.
+  void _drawCore(Canvas canvas) {
     final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.8
+      ..color = section.edgeColor
       ..style = PaintingStyle.stroke
+      ..strokeWidth = section.strokeWidth;
+
+    final center = const Offset(70, 18);
+    final radius = 12.0;
+
+    // Build a circle path and dash it via PathMetrics.
+    final circlePath = Path()
+      ..addOval(Rect.fromCircle(center: center, radius: radius));
+
+    if (section.isDashed) {
+      for (final metric in circlePath.computeMetrics()) {
+        double pos = 0;
+        while (pos < metric.length) {
+          final segEnd =
+              (pos + section.dashLength).clamp(0.0, metric.length);
+          canvas.drawPath(metric.extractPath(pos, segEnd), paint);
+          pos += section.dashLength + section.gapLength;
+        }
+      }
+    } else {
+      canvas.drawPath(circlePath, paint);
+    }
+
+    // "self / root" text below the circle.
+    _drawText(
+      canvas,
+      'self / root',
+      const Offset(70, 36),
+      8,
+      section.edgeColor,
+    );
+  }
+
+  /// Straight line: horizontal at mid-height, optionally dashed.
+  void _drawStraightLine(Canvas canvas) {
+    final paint = Paint()
+      ..color = section.edgeColor.withValues(alpha: section.edgeOpacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = section.strokeWidth
       ..strokeCap = StrokeCap.round;
 
-    final centerY = size.height / 2;
+    const start = Offset(10, 22);
+    const end = Offset(130, 22);
 
-    switch (lineShape) {
-      case KinshipLineShape.solidBezier:
-      case KinshipLineShape.solidExtendedBezier:
-        // Solid S-curve
-        final path = Path()
-          ..moveTo(0, centerY)
-          ..cubicTo(
-            size.width * 0.3, centerY - 3,
-            size.width * 0.7, centerY + 3,
-            size.width, centerY,
-          );
-        canvas.drawPath(path, paint);
-        break;
-
-      case KinshipLineShape.dashedArc:
-        // Dashed arc that bows above
-        _drawDashedPath(
-          canvas,
-          paint,
-          Path()
-            ..moveTo(0, centerY + 2)
-            ..quadraticBezierTo(
-              size.width / 2, centerY - 6,
-              size.width, centerY + 2,
-            ),
-        );
-        break;
-
-      case KinshipLineShape.dashedStraight:
-        // Dashed horizontal line
-        _drawDashedLine(canvas, paint, Offset(0, centerY), Offset(size.width, centerY));
-        break;
-
-      case KinshipLineShape.dashedShallowS:
-        // Dashed shallow S-curve
-        _drawDashedPath(
-          canvas,
-          paint,
-          Path()
-            ..moveTo(0, centerY)
-            ..cubicTo(
-              size.width * 0.3, centerY - 2,
-              size.width * 0.7, centerY + 2,
-              size.width, centerY,
-            ),
-        );
-        break;
-
-      case KinshipLineShape.wideArcBezier:
-        // Wide-arc cubic bezier (solid)
-        final path = Path()
-          ..moveTo(0, centerY)
-          ..cubicTo(
-            size.width * 0.1, centerY - 8,
-            size.width * 0.9, centerY + 8,
-            size.width, centerY,
-          );
-        canvas.drawPath(path, paint);
-        break;
-
-      case KinshipLineShape.dashedDefault:
-        // Standard dashed line
-        _drawDashedLine(canvas, paint, Offset(0, centerY), Offset(size.width, centerY));
-        break;
-    }
-
-    // Draw midpoint symbol for spouse (heart) and other categories (dot)
-    // We can't know the category here without the full style, so we
-    // skip the midpoint in the preview — the color + line shape is
-    // enough to identify the category.
-  }
-
-  void _drawDashedLine(Canvas canvas, Paint paint, Offset start, Offset end) {
-    if (dashPattern.isEmpty || dashPattern.length < 2) {
-      canvas.drawLine(start, end, paint);
-      return;
-    }
-    final dashWidth = dashPattern[0];
-    final dashGap = dashPattern[1];
-    final totalLen = (end - start).distance;
-    final dx = (end.dx - start.dx) / totalLen;
-    final dy = (end.dy - start.dy) / totalLen;
-    double pos = 0;
-    while (pos < totalLen) {
-      final segEnd = (pos + dashWidth).clamp(0.0, totalLen);
-      canvas.drawLine(
-        Offset(start.dx + dx * pos, start.dy + dy * pos),
-        Offset(start.dx + dx * segEnd, start.dy + dy * segEnd),
-        paint,
-      );
-      pos += dashWidth + dashGap;
-    }
-  }
-
-  void _drawDashedPath(Canvas canvas, Paint paint, Path path) {
-    if (dashPattern.isEmpty || dashPattern.length < 2) {
-      canvas.drawPath(path, paint);
-      return;
-    }
-    // For curved paths, use PathMetrics to dash along the path.
-    for (final metric in path.computeMetrics()) {
-      double pos = 0;
-      while (pos < metric.length) {
-        final dashWidth = dashPattern[0];
-        final dashGap = dashPattern[1];
-        final segEnd = (pos + dashWidth).clamp(0.0, metric.length);
-        final extract = metric.extractPath(pos, segEnd);
-        canvas.drawPath(extract, paint);
-        pos += dashWidth + dashGap;
+    if (section.isDashed) {
+      final path = Path()..moveTo(start.dx, start.dy)..lineTo(end.dx, end.dy);
+      for (final metric in path.computeMetrics()) {
+        double pos = 0;
+        while (pos < metric.length) {
+          final segEnd =
+              (pos + section.dashLength).clamp(0.0, metric.length);
+          canvas.drawPath(metric.extractPath(pos, segEnd), paint);
+          pos += section.dashLength + section.gapLength;
+        }
       }
+    } else {
+      canvas.drawLine(start, end, paint);
     }
+  }
+
+  /// Curved line: quadratic Bézier from (10,38) through control point to (130,38).
+  void _drawCurvedLine(Canvas canvas) {
+    final paint = Paint()
+      ..color = section.edgeColor.withValues(alpha: section.edgeOpacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = section.strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    final cp = section.controlPoint ?? const Offset(70, 8);
+    final path = Path()
+      ..moveTo(10, 38)
+      ..quadraticBezierTo(cp.dx, cp.dy, 130, 38);
+
+    // Solid (no dash) for curved lines per spec.
+    canvas.drawPath(path, paint);
+  }
+
+  /// Midpoint dot for straight lines.
+  void _drawMidpointStraight(Canvas canvas) {
+    if (section.isHeart) {
+      _drawHeart(canvas, const Offset(70, 22));
+    } else {
+      final paint = Paint()
+        ..color = section.midpointColor
+          .withValues(alpha: section.midpointOpacity.clamp(0.0, 1.0))
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(const Offset(70, 22), 3.0, paint);
+    }
+  }
+
+  /// Midpoint dot for curved lines — uses Bézier t=0.5 formula.
+  void _drawMidpointCurved(Canvas canvas) {
+    // B(0.5) = 0.25·P0 + 0.5·CP + 0.25·P1
+    final cp = section.controlPoint ?? const Offset(70, 8);
+    final midX = 0.25 * 10 + 0.5 * cp.dx + 0.25 * 130;
+    final midY = 0.25 * 38 + 0.5 * cp.dy + 0.25 * 38;
+
+    final paint = Paint()
+      ..color = section.midpointColor
+          .withValues(alpha: section.midpointOpacity.clamp(0.0, 1.0))
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(midX, midY), 3.0, paint);
+  }
+
+  /// Draws a heart icon at [center] using TextPainter + Material Icons.
+  void _drawHeart(Canvas canvas, Offset center) {
+    _drawIcon(
+      canvas,
+      Icons.favorite,
+      center,
+      14.0,
+      section.midpointColor
+          .withValues(alpha: section.midpointOpacity.clamp(0.0, 1.0)),
+    );
+  }
+
+  /// Draws a text label using TextPainter.
+  void _drawText(
+      Canvas canvas, String text, Offset center, double fontSize, Color color) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontFamily: KinrelTypography.monoFont,
+          fontSize: fontSize,
+          color: color,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout();
+
+    // Center the text at [center].
+    tp.paint(
+      canvas,
+      Offset(
+        center.dx - tp.width / 2,
+        center.dy - tp.height / 2,
+      ),
+    );
+  }
+
+  /// Draws an icon using TextPainter + Material Icons font.
+  void _drawIcon(
+      Canvas canvas, IconData icon, Offset center, double size, Color color) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: String.fromCharCode(icon.codePoint),
+        style: TextStyle(
+          fontFamily: 'MaterialIcons',
+          fontSize: size,
+          color: color,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    tp.paint(
+      canvas,
+      Offset(
+        center.dx - tp.width / 2,
+        center.dy - tp.height / 2,
+      ),
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _EdgeStylePreviewPainter oldDelegate) {
-    return oldDelegate.color != color ||
-        oldDelegate.lineShape != lineShape ||
-        oldDelegate.dashPattern != dashPattern;
+  bool shouldRepaint(covariant _EdgeSamplePainter oldDelegate) {
+    return oldDelegate.section.name != section.name;
   }
 }
