@@ -240,15 +240,38 @@ def main():
     if rows_uploaded == 0 and os.path.exists(ERROR_LOG):
         os.remove(ERROR_LOG)
 
-    # Open CSV at the right byte offset
-    f = open(CSV_PATH, "r", encoding="utf-8", buffering=1024*1024*16)
+    # Open CSV — we read line-by-line and track byte offset manually
+    # (csv.reader disables file.tell(), so we use a separate file handle
+    # for byte offset tracking)
+    f = open(CSV_PATH, "r", encoding="utf-8", buffering=1024*1024*16, newline="")
     if start_byte > 0:
         f.seek(start_byte)
     else:
         # Skip header
         f.readline()
 
-    reader = csv.reader(f)
+    # Use a wrapper to track byte position
+    class TrackedReader:
+        def __init__(self, fileobj):
+            self.fileobj = fileobj
+            self.bytes_read = fileobj.tell()
+            self._next_line = None
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            line = self.fileobj.readline()
+            if not line:
+                raise StopIteration
+            self.bytes_read += len(line.encode("utf-8"))
+            # csv parses a single line correctly when newline="" is used
+            return next(csv.reader([line]))
+
+        def byte_offset(self):
+            return self.bytes_read
+
+    reader = TrackedReader(f)
     chunk = []
     last_progress_rows = 0
     start_time = time.time()
@@ -278,7 +301,7 @@ def main():
                     if consecutive_failures >= 5:
                         print(f"FATAL: 5 consecutive batch failures. Aborting.")
                         print(f"Last error: {err}")
-                        save_checkpoint(rows_uploaded - len(chunk), f.tell())
+                        save_checkpoint(rows_uploaded - len(chunk), reader.byte_offset())
                         sys.exit(1)
                     # Keep chunk for retry on next iteration
                     time.sleep(5)
@@ -295,7 +318,7 @@ def main():
                     last_progress_rows = rows_uploaded
 
                 if rows_uploaded % CHECKPOINT_EVERY == 0:
-                    save_checkpoint(rows_uploaded, f.tell())
+                    save_checkpoint(rows_uploaded, reader.byte_offset())
 
         # Final flush
         if chunk:
@@ -306,12 +329,12 @@ def main():
 
     except KeyboardInterrupt:
         print("\nInterrupted by user. Saving checkpoint...")
-        save_checkpoint(rows_uploaded - len(chunk), f.tell())
+        save_checkpoint(rows_uploaded - len(chunk), reader.byte_offset())
         f.close()
         sys.exit(130)
     except Exception as e:
         log_error(f"Fatal error: {e}")
-        save_checkpoint(rows_uploaded - len(chunk), f.tell())
+        save_checkpoint(rows_uploaded - len(chunk), reader.byte_offset())
         f.close()
         raise
 
