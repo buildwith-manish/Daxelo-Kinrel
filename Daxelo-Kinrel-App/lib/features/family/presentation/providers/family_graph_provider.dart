@@ -83,9 +83,12 @@ class FlatGraphResult {
 
   /// Parses the Supabase RPC JSONB response into a [FlatGraphResult].
   ///
-  /// RPC node shape:  { id, name, username, avatarUrl, gender,
-  ///                    generationIndex, isAnchor, isDeceased, visibility }
-  /// RPC edge shape:  { id, sourceId, targetId, relationshipKey, isPrivate }
+  /// Supports both the legacy `get_family_graph` RPC and the new
+  /// `get_viewer_family_graph` RPC which adds:
+  ///   - node.isViewer (bool) — true for the logged-in user's Person
+  ///   - edge.label (string) — perspective-resolved label from viewer
+  ///   - edge.labelAtoB (string) — raw label from personA→personB
+  ///   - edge.labelBtoA (string) — raw label from personB→personA
   factory FlatGraphResult.fromRpc(Map<String, dynamic> json) {
     final rawNodes = (json['nodes'] as List?) ?? [];
     final rawEdges = (json['edges'] as List?) ?? [];
@@ -103,24 +106,29 @@ class FlatGraphResult {
         'isDeceased': node['isDeceased'] ?? false,
         'visibility': node['visibility'],
         'username': node['username'],
+        // v2.2: isViewer flag from the viewer-aware RPC.
+        'isViewer': node['isViewer'] ?? false,
       };
     }).toList();
 
     // Map RPC edge keys → legacy API keys
     final relationships = rawEdges.map((dynamic e) {
       final edge = e as Map<String, dynamic>;
-      // The RPC may return 'sourceId'/'targetId' or 'member_a_id'/'member_b_id'
-      // depending on the SQL function version. Handle both.
       final sourceId = edge['sourceId'] ?? edge['member_a_id'] ?? edge['source_id'];
       final targetId = edge['targetId'] ?? edge['member_b_id'] ?? edge['target_id'];
-      final relKey = edge['relationshipKey'] ?? edge['relationship_type']
-          ?? edge['relationshipType'] ?? 'unknown';
+      // v2.2: Prefer the viewer-resolved 'label' from the RPC. If not
+      // available (legacy RPC), fall back to relationshipKey.
+      final relKey = edge['label'] ?? edge['relationshipKey'] ??
+          edge['relationship_type'] ?? edge['relationshipType'] ?? 'unknown';
       return <String, dynamic>{
         'id': edge['id'],
         'fromPersonId': sourceId,
         'toPersonId': targetId,
         'relationshipKey': relKey,
         'isPrivate': edge['isPrivate'] ?? edge['is_private'] ?? false,
+        // v2.2: Store the raw bidirectional labels for client-side fallback.
+        'labelAtoB': edge['labelAtoB'],
+        'labelBtoA': edge['labelBtoA'],
       };
     }).toList();
 
@@ -415,10 +423,7 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       // ── Step 1: Always fetch direct query first ──
       // Direct query is the source of truth — it always returns ALL
       // non-deleted persons in the family, regardless of relationships
-      // or connectivity. The RPC `get_family_graph` may return incomplete
-      // data (e.g., only the anchor node) if the person is not connected
-      // via relationships within p_max_degree. By always using direct
-      // query as the primary source, we guarantee all members are visible.
+      // or connectivity.
       final directResult = await _fetchGraphDirectQuery(client, familyId);
 
       if (directResult.persons.isEmpty) {
@@ -426,69 +431,45 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
         return const FlatGraphResult(persons: [], relationships: []);
       }
 
-      // ── Step 2: Try RPC as a supplementary source for richer data ──
-      // The RPC may provide enriched data (kinship labels, computed
-      // relationships, etc.) that the direct query doesn't have. If the
-      // RPC returns a complete result (same or more persons than direct
-      // query), prefer it for the richer data. Otherwise, use direct query.
+      // ── Step 2: Try viewer-aware RPC for perspective-resolved labels ──
+      // v2.2: Use the new get_viewer_family_graph RPC which returns
+      // edges with label/labelAtoB/labelBtoA resolved from the viewer's
+      // perspective. Falls back to the direct query result if the RPC
+      // fails or returns fewer persons.
       try {
-        // v2.2: Resolve viewer first; fall back to anchor (legacy).
-        final memberId = await _resolveViewerMemberId(ref, client, familyId);
-        if (memberId != null) {
+        final viewerId = await _resolveViewerMemberId(ref, client, familyId);
+        if (viewerId != null) {
+          debugPrint('[FamilyGraphNotifier] v2.2: Calling get_viewer_family_graph with viewerId=$viewerId');
           final response = await client.rpc(
-            'get_family_graph',
+            'get_viewer_family_graph',
             params: <String, dynamic>{
-              'p_member_id': memberId,
-              'p_max_degree': 6,
-              'p_include_hidden': false,
+              'p_family_id': familyId,
+              'p_viewer_id': viewerId,
             },
           ).timeout(const Duration(seconds: 15));
 
           final data = response as Map<String, dynamic>?;
-          if (data != null) {
+          if (data != null && !data.containsKey('error')) {
             final rpcResult = FlatGraphResult.fromRpc(data);
 
-            // v38 BUG-5 FIX: Use RPC result ONLY if it returns ≥ persons AND
-            // ≥ relationships than the direct query. Previously, the RPC could
-            // return the same persons but FEWER relationships (e.g., the RPC's
-            // BFS didn't traverse all edges), and the code would accept it —
-            // silently dropping edges that the direct query found.
+            // Verify the RPC returned at least as many persons as direct query.
             final rpcBetterOrEqual =
-                rpcResult.persons.length >= directResult.persons.length &&
-                rpcResult.relationships.length >= directResult.relationships.length;
-
+                rpcResult.persons.length >= directResult.persons.length;
             if (rpcBetterOrEqual) {
               _addToCache(familyId, rpcResult);
               debugPrint(
-                '[FamilyGraphNotifier] RPC: Loaded ${rpcResult.persons.length} persons, '
+                '[FamilyGraphNotifier] Viewer RPC: Loaded ${rpcResult.persons.length} persons, '
                 '${rpcResult.relationships.length} relationships for $familyId',
               );
-              debugPrint('[EDGE-DEBUG] RPC data being used. '
-                  'RPC relationships: ${rpcResult.relationships.length}');
               return rpcResult;
-            }
-
-            // RPC returned fewer persons OR fewer relationships than direct
-            // query — use direct query for completeness.
-            if (rpcResult.relationships.length < directResult.relationships.length) {
-              debugPrint('[EDGE-DEBUG] RPC had ${rpcResult.relationships.length} edges '
-                  'but direct query had ${directResult.relationships.length}. '
-                  'Using direct query to preserve all edges.');
-            } else {
-              debugPrint(
-                '[FamilyGraphNotifier] RPC returned ${rpcResult.persons.length} persons '
-                'but direct query found ${directResult.persons.length}. '
-                'Using direct query for completeness.',
-              );
             }
           }
         }
       } catch (rpcError) {
-        debugPrint('[FamilyGraphNotifier] RPC failed: $rpcError, using direct query');
+        debugPrint('[FamilyGraphNotifier] Viewer RPC failed: $rpcError, using direct query');
       }
 
       // ── Step 3: Return direct query result ──
-      // This is always the fallback and the primary source.
       _addToCache(familyId, directResult);
       return directResult;
     } on PostgrestException catch (e) {
