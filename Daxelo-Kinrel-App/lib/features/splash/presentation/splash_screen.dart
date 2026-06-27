@@ -115,7 +115,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         debugPrint('⚠️ Splash safety timeout triggered — forcing navigation');
         _navigated = true;
         try {
-          if (ref.read(isAuthenticatedProvider) || _hasCachedProfile || _supabaseHasSession()) {
+          // v2.2 FIX: Only route to /home if there's a REAL Supabase session.
+          // Previously _hasCachedProfile was used as a proxy, but on web the
+          // Drift cache (IndexedDB) persists from previous visits, causing
+          // the app to auto-open a "demo" account without real auth.
+          if (_supabaseHasSession()) {
             context.go('/home');
           } else {
             context.go('/sign-in');
@@ -211,7 +215,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _navigated = true;
 
-    if (isAuthenticated || _hasCachedProfile) {
+    if (isAuthenticated) {
+      // Real Supabase session exists — go to home (or last route).
       String? lastRoute;
       try {
         lastRoute = await getLastRoute();
@@ -230,10 +235,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         }
         debugPrint('🧭 Splash: skipping unsafe route restore: $lastRoute');
       }
-      debugPrint('🧭 Splash → /home (authenticated: $isAuthenticated, cached: $_hasCachedProfile)');
+      debugPrint('🧭 Splash → /home (authenticated: $isAuthenticated)');
       context.go('/home');
     } else {
-      debugPrint('🧭 Splash → /sign-in (not authenticated, login required first)');
+      // v2.2 FIX: No real Supabase session — ALWAYS go to sign-in.
+      // Previously _hasCachedProfile was used to bypass this, but on web
+      // the Drift cache (IndexedDB) persists from previous visits, causing
+      // the app to auto-open a "demo" account without real auth.
+      debugPrint('🧭 Splash → /sign-in (not authenticated, login required)');
       context.go('/sign-in');
     }
   }
