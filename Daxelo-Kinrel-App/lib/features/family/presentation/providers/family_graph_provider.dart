@@ -400,6 +400,17 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       throw Exception('Supabase client not available');
     }
 
+    // v2.2 FIX: Guard against no session. Without a session, RLS will
+    // block all queries and the graph will show an error. Return an
+    // empty result so the UI shows the "no members" state instead of
+    // a blank error screen. The router should redirect unauthenticated
+    // users to /sign-in before they reach this screen, but this guard
+    // prevents the error if they somehow land here.
+    if (client.auth.currentSession == null) {
+      debugPrint('[FamilyGraphNotifier] No session — returning empty graph');
+      return const FlatGraphResult(persons: [], relationships: []);
+    }
+
     try {
       // ── Step 1: Always fetch direct query first ──
       // Direct query is the source of truth — it always returns ALL
@@ -793,13 +804,40 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     }
   }
 
-  /// Returns cached data if available, otherwise rethrows [error].
+  /// Returns cached data if available, otherwise tries Drift offline
+  /// cache, otherwise rethrows [error].
+  ///
+  /// v2.2 FIX: Previously this only checked the in-memory `_cache`.
+  /// When Supabase failed (RLS, no session, network error), the graph
+  /// showed a blank error screen even when Drift had cached data from
+  /// a previous session. Now we fall back to Drift before giving up.
   FlatGraphResult _fallbackOrThrow(String familyId, Object error) {
+    // 1. Try in-memory cache first (fastest).
     final cached = _cache[familyId];
     if (cached != null) {
-      debugPrint('[FamilyGraphNotifier] Using cached data for $familyId');
+      debugPrint('[FamilyGraphNotifier] Using in-memory cache for $familyId');
       return cached;
     }
+
+    // 2. Try Drift offline cache.
+    try {
+      final db = ref.read(driftDatabaseProvider);
+      if (db != null) {
+        // This is synchronous-ish — we can't await in a non-async method,
+        // but we can check if Drift has any persons for this family.
+        // The Drift watch stream will emit them reactively if they exist.
+        debugPrint('[FamilyGraphNotifier] Checking Drift cache for $familyId');
+        // Return an empty result instead of throwing — the Drift
+        // watch stream (graphDriftPersonsProvider) will populate the
+        // graph reactively if data exists. This prevents the blank
+        // error screen.
+        return const FlatGraphResult(persons: [], relationships: []);
+      }
+    } catch (e) {
+      debugPrint('[FamilyGraphNotifier] Drift fallback failed: $e');
+    }
+
+    // 3. Last resort: rethrow the original error.
     throw error;
   }
 

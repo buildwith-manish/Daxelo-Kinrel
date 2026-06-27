@@ -868,10 +868,6 @@ class _EngineEdgePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // v2.2: Each edge now uses its kinship category color instead of
-    // a single gray. The KinshipEdgeStyleResolver returns the full
-    // style (color, alpha, dash pattern, line shape) for the edge's
-    // relationship key — covering all 5,359 Indian kinship types.
     final selectedPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5
@@ -896,7 +892,7 @@ class _EngineEdgePainter extends CustomPainter {
         continue;
       }
 
-      // v2.2: Resolve the kinship edge style for this edge's key.
+      // Resolve the kinship edge style for this edge's key.
       final style = KinshipEdgeStyleResolver.styleFor(e.relationshipKey);
       final edgePaint = Paint()
         ..style = PaintingStyle.stroke
@@ -907,10 +903,6 @@ class _EngineEdgePainter extends CustomPainter {
 
       // Apply dash pattern if the style is dashed.
       if (style.dashPattern.isNotEmpty && style.dashPattern.length >= 2) {
-        edgePaint.isAntiAlias = true;
-        // For dashed paths, we need to use PathMetrics to dash along
-        // the bezier. This is slightly more expensive but only runs
-        // once per edge per position change (the path is cached).
         for (final metric in path.computeMetrics()) {
           double pos = 0;
           final dashWidth = style.dashPattern[0];
@@ -925,24 +917,34 @@ class _EngineEdgePainter extends CustomPainter {
         canvas.drawPath(path, edgePaint);
       }
 
-      // v2.2: Draw midpoint symbol (dot for most categories, heart for spouse).
+      // Draw midpoint symbol (dot or heart) — NO text labels on edges.
       if (style.midpointSymbol != KinshipMidpointSymbol.none) {
-        final midX = (s.dx + t.dx) / 2;
-        final midY = (s.dy + t.dy) / 2;
+        // Fix 1: Compute the cubic bezier midpoint at t=0.5 using the
+        // same control points as _bezier(). The formula is:
+        //   B(0.5) = 0.125·P0 + 0.375·CP1 + 0.375·CP2 + 0.125·P3
+        // This places the dot ON the curve, not at the linear midpoint.
+        final double dy = t.dy - s.dy;
+        final double dx = t.dx - s.dx;
+        final double lateral = dx.abs() < 10.0 ? 50.0 : 0.0;
+        final cp1 = Offset(s.dx + lateral, s.dy + dy * 0.35);
+        final cp2 = Offset(t.dx + lateral, t.dy - dy * 0.35);
+        final midX = 0.125 * s.dx + 0.375 * cp1.dx + 0.375 * cp2.dx + 0.125 * t.dx;
+        final midY = 0.125 * s.dy + 0.375 * cp1.dy + 0.375 * cp2.dy + 0.125 * t.dy;
+        final midPoint = Offset(midX, midY);
+
+        // Fix 3: Dot radius 4.0 (was 2.5), full opacity, heart stays 4.0.
         if (style.midpointSymbol == KinshipMidpointSymbol.heart) {
-          // Spouse heart — small pink circle (simplified heart for perf).
           canvas.drawCircle(
-            Offset(midX, midY),
+            midPoint,
             4.0,
             Paint()
               ..color = style.midpointColor
               ..style = PaintingStyle.fill,
           );
         } else {
-          // Dot for all other categories.
           canvas.drawCircle(
-            Offset(midX, midY),
-            2.5,
+            midPoint,
+            4.0,
             Paint()
               ..color = style.midpointColor
               ..style = PaintingStyle.fill,

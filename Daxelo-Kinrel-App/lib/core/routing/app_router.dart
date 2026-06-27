@@ -272,16 +272,16 @@ void markSignInSuccess() {
 /// automatically. This eliminates the need for the fragile cooldown
 /// mechanism and prevents redirect loops caused by stale auth state.
 ///
-/// Self-debouncing: if auth state changes rapidly (e.g., during token
-/// refresh), the notify is delayed by 500ms so GoRouter only re-evaluates
-/// once instead of multiple times in quick succession, preventing
-/// redirect evaluation storms that can contribute to ANR.
+/// v2.2 FIX: Reduced debounce from 500ms to 100ms. The 500ms delay was
+/// too slow — after signIn() succeeded, the user saw the Sign In button
+/// reappear for half a second before the router redirected to /home,
+/// causing them to think login failed and click again.
 class _AuthChangeNotifier extends ChangeNotifier {
   Timer? _debounce;
 
   void notify() {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
+    _debounce = Timer(const Duration(milliseconds: 100), () {
       notifyListeners();
     });
   }
@@ -402,12 +402,17 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
     // This prevents the #1 redirect loop cause: Riverpod auth
     // stream hasn't emitted yet after signIn(), but Supabase
     // already has the session.
-    if (!isAuthenticated && supabaseReady && !authLoading) {
+    if (!isAuthenticated && supabaseReady) {
       try {
         final hasDirectSession =
             Supabase.instance.client.auth.currentSession != null;
         if (hasDirectSession) {
           isAuthenticated = true;
+          // v2.2 FIX: Also clear authLoading — if Supabase has a
+          // direct session, we know the auth state, so the stream
+          // loading is irrelevant. This prevents the authLoading
+          // guard below from blocking the redirect to /home.
+          authLoading = false;
           debugPrint('🔄 Redirect: Using direct Supabase session (Riverpod lag)');
         }
       } catch (_) {}

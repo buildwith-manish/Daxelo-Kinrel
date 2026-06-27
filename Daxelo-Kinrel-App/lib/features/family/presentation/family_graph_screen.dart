@@ -28,12 +28,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
-import '../../../core/constants/feature_flags.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../graph/graph.dart';
 import '../../../graph/widgets/family_graph_engine_view.dart';
@@ -48,7 +45,6 @@ import 'providers/family_graph_provider.dart'
         graphRealtimeProvider,
         selectedNodeProvider;
 import 'widgets/generation_filter_bar.dart';
-import 'widgets/graph_canvas_widget.dart' show PersonData;
 import 'widgets/relationship_legend.dart';
 import 'widgets/stats_panel.dart';
 
@@ -514,22 +510,15 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             if (graph.isTruncated) _buildTruncationBanner(graph),
 
             Expanded(
-              // kUseV21Engine (feature_flags.dart) selects the scalable
-              // culling engine; v40 InteractiveViewer remains the default.
-              child: kUseV21Engine
-                  ? FamilyGraphEngineView(
-                      familyId: widget.familyId,
-                      highlightedGeneration: _highlightedGeneration,
-                      recenterKey: _recenterKey,
-                    )
-                  : FamilyGraphWidget(
-                      familyId: widget.familyId,
-                      familyName: widget.familyName ?? 'Family Tree',
-                      externalTransformController: _graphTransformController,
-                      graphData: graph,
-                      highlightedGeneration: _highlightedGeneration,
-                      recenterKey: _recenterKey,
-                    ),
+              // v2.2: Always use the V2.1 engine view. The old
+              // FamilyGraphWidget with its RelationshipEdge painter
+              // is removed — rendering both painters caused a double
+              // line bug on the web build.
+              child: FamilyGraphEngineView(
+                familyId: widget.familyId,
+                highlightedGeneration: _highlightedGeneration,
+                recenterKey: _recenterKey,
+              ),
             ),
           ],
         ),

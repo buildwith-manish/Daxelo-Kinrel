@@ -712,11 +712,12 @@ class RelationshipEdge extends CustomPainter {
 
       // ── Relationship label — offset PERPENDICULAR to the edge ──
       // v62: Labels only appear when zoomed in enough to read them.
-      // Fade-in from 0.8 → 1.2 (was 0.05 → 0.15, which cluttered the
-      // graph with hundreds of unreadable labels at low zoom). At
-      // zoom 0.8 the user has zoomed in on a region and wants detail;
-      // at zoom 1.2+ labels are full opacity.
-      if (!isIndirect && zoomLevel >= 0.8) {
+      // v2.2 FIX: Permanently disable the relationship label on edges.
+      // The node widget below already shows the label under each person's
+      // name card — the edge canvas label is redundant and was causing
+      // the "Younger Sibling" text to appear at the midpoint.
+      // Threshold set to 999.0 so it never renders at any zoom level.
+      if (!isIndirect && zoomLevel >= 999.0) {
         final double labelOpacity =
             ((zoomLevel - 0.8) / 0.4).clamp(0.0, 1.0);
         if (labelOpacity > 0) {
