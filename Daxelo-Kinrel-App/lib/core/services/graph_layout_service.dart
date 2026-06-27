@@ -267,6 +267,7 @@ class GraphLayoutService {
     required List<GraphRelationship> relationships,
     String? anchorPersonId,
     bool compactMode = false,
+    Map<String, int>? kinshipGenerationMap,
   }) {
     _compactMode = compactMode;
 
@@ -306,6 +307,7 @@ class GraphLayoutService {
       relationships,
       anchor,
       personMap,
+      kinshipGenerationMap,
     );
 
     // ── Step 2: Build spouse map & clamp spouse generations ───────────
@@ -456,15 +458,27 @@ class GraphLayoutService {
     List<GraphRelationship> relationships,
     String anchorId,
     Map<String, GraphPerson> personMap,
+    Map<String, int>? kinshipGenerationMap,
   ) {
     final generations = <String, int>{};
     final visited = <String>{};
 
     // Build adjacency: personId → [(neighborId, generationOffset)]
+    //
+    // v2.2 FIX: When both forward (A→B "uncle") and inverse (B→A "nephew")
+    // edges exist for the same pair, they may have DIFFERENT keys. We
+    // must NOT add both to the adjacency list — that creates conflicting
+    // offsets. Instead, for each (fromId, toId) pair, we keep only the
+    // edge whose key produces a non-zero offset (more specific), or the
+    // first edge if both produce the same offset.
     final adjacency = <String, List<(String, int)>>{};
     for (final p in persons) {
       adjacency[p.id] = [];
     }
+
+    // Track the best offset for each (fromId, toId) pair.
+    // "Best" = largest absolute offset (most specific generational info).
+    final bestOffset = <String, int>{};
 
     for (final rel in relationships) {
       final fromId = rel.fromPersonId;
@@ -473,9 +487,20 @@ class GraphLayoutService {
         continue;
       }
 
-      // Determine generational offset from fromPerson → toPerson
+      // Determine generational offset from fromPerson → toPerson.
+      //
+      // v2.2: Look up the key in the kinshipGenerationMap FIRST. This
+      // map contains all 5,359 Indian kinship types with their correct
+      // generational distance from the viewer (e.g., "father" = -1,
+      // "paternal_uncle" = -1, "cousin" = 0, "grandfather" = -2).
+      //
+      // If the map is not available or the key is not in it, fall back
+      // to the hardcoded key sets (which cover ~38 common types).
       int fromToTo;
-      if (_grandparentKeys.contains(rel.relationshipKey)) {
+      if (kinshipGenerationMap != null &&
+          kinshipGenerationMap.containsKey(rel.relationshipKey)) {
+        fromToTo = kinshipGenerationMap[rel.relationshipKey]!;
+      } else if (_grandparentKeys.contains(rel.relationshipKey)) {
         fromToTo = -2;
       } else if (_parentKeys.contains(rel.relationshipKey)) {
         fromToTo = -1;
@@ -484,13 +509,44 @@ class GraphLayoutService {
       } else if (_childKeys.contains(rel.relationshipKey)) {
         fromToTo = 1;
       } else {
-        fromToTo = 0; // spouse, sibling, etc.
+        fromToTo = 0; // spouse, sibling, cousin, in-law, etc.
       }
+
+      // Deduplicate: for each (fromId, toId) pair, keep the edge with
+      // the largest absolute offset. This ensures that if both a
+      // forward edge (offset -1) and a mis-keyed inverse edge (offset 0)
+      // exist for the same pair, the forward edge wins.
+      final pairKey = '${fromId}|$toId';
+      final existing = bestOffset[pairKey];
+      if (existing != null) {
+        if (fromToTo.abs() <= existing.abs()) {
+          // Existing edge is at least as specific — skip this one.
+          continue;
+        }
+        // New edge is more specific — replace the existing adjacency entry.
+        // Remove the old entry from adjacency[fromId].
+        adjacency[fromId]!.removeWhere((entry) => entry.$1 == toId);
+      }
+      bestOffset[pairKey] = fromToTo;
 
       // Forward edge: from → to with +offset
       adjacency[fromId]!.add((toId, fromToTo));
-      // Reverse edge: to → from with −offset
-      adjacency[toId]!.add((fromId, -fromToTo));
+    }
+
+    // Also add reverse edges (to → from with −offset) for each
+    // forward edge we kept. This ensures the BFS can traverse in
+    // both directions without conflicting offsets.
+    for (final entry in bestOffset.entries) {
+      final parts = entry.key.split('|');
+      final fromId = parts[0];
+      final toId = parts[1];
+      final offset = entry.value;
+      // Reverse: to → from with −offset
+      // Only add if not already present (avoid duplicates from forward).
+      final hasReverse = bestOffset.containsKey('${toId}|$fromId');
+      if (!hasReverse) {
+        adjacency[toId]!.add((fromId, -offset));
+      }
     }
 
     // ── Primary BFS from anchor ────────────────────────────────────

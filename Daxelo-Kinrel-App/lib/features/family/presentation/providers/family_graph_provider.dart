@@ -31,6 +31,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/isar_database.dart';
+import '../../../../core/kinship/kinship_service.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/services/graph_layout_service.dart';
 import '../../../../core/services/supabase_service.dart';
@@ -163,6 +164,25 @@ class FlatGraphResult {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// v2.2: KINSHIP GENERATION MAP
+// Builds a Map<relationshipKey, generationOffset> from KinshipService's
+// 5,359 loaded relationships. Passed to GraphLayoutService.computeLayout
+// so EVERY kinship type — not just the ~38 hardcoded ones — gets the
+// correct generational positioning.
+// ═══════════════════════════════════════════════════════════════════════
+
+final kinshipGenerationMapProvider = Provider<Map<String, int>>((ref) {
+  final kinship = KinshipService.instance;
+  if (!kinship.isLoaded) return {};
+  final map = <String, int>{};
+  for (final rel in kinship.getAllRelationships()) {
+    map[rel.relationshipKey] = rel.generation;
+  }
+  debugPrint('[kinshipGenerationMapProvider] Built map with ${map.length} entries');
+  return map;
+});
+
+// ═══════════════════════════════════════════════════════════════════════
 // ISOLATE LAYOUT PARAMS (for compute())
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -172,12 +192,14 @@ class _LayoutComputeParams {
   final List<GraphRelationship> relationships;
   final String? anchorPersonId;
   final bool compactMode;
+  final Map<String, int>? kinshipGenerationMap;
 
   const _LayoutComputeParams({
     required this.persons,
     required this.relationships,
     this.anchorPersonId,
     this.compactMode = false,
+    this.kinshipGenerationMap,
   });
 }
 
@@ -189,6 +211,7 @@ GraphLayoutResult _runLayoutInIsolate(_LayoutComputeParams params) {
     relationships: params.relationships,
     anchorPersonId: params.anchorPersonId,
     compactMode: params.compactMode,
+    kinshipGenerationMap: params.kinshipGenerationMap,
   );
 }
 
@@ -864,11 +887,17 @@ final graphLayoutProvider =
 
   final compactMode = persons.length > 50;
 
+  // v2.2: Load the kinship generation map (5,359 entries) so the layout
+  // can correctly position nodes for ALL kinship types, not just the
+  // ~38 hardcoded ones.
+  final kinshipGenMap = ref.read(kinshipGenerationMapProvider);
+
   final params = _LayoutComputeParams(
     persons: graphPersons,
     relationships: graphRelationships,
     anchorPersonId: centerPerson.id,
     compactMode: compactMode,
+    kinshipGenerationMap: kinshipGenMap,
   );
 
   // v62: Performance telemetry — measure layout computation time so we
@@ -900,6 +929,7 @@ final graphLayoutProvider =
       relationships: graphRelationships,
       anchorPersonId: centerPerson.id,
       compactMode: compactMode,
+      kinshipGenerationMap: kinshipGenMap,
     );
     fallbackStopwatch.stop();
     AnalyticsService.instance.logEvent('graph_layout_time', {

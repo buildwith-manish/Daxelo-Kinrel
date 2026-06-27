@@ -2038,14 +2038,32 @@ Future<FamilyRelationship> createRelationship({
 
   // ✅ FIX: Look up the inverse relationship key
   // e.g., "father" → "child", "husband" → "wife", "brother" → "sibling"
-  final inverseKey = _relationshipInverseMap[relationshipKey] ?? relationshipKey;
+  //
+  // v2.2 FIX: If the relationshipKey is NOT in the inverse map (i.e., it's
+  // one of the 5,299 extended kinship types like "paternal_uncle" or
+  // "fathers_younger_brothers_son"), we SKIP the inverse edge creation
+  // entirely. Storing the same key for both directions creates
+  // conflicting generation offsets in the layout engine — the forward
+  // edge says "uncle is -1 gen" and the inverse edge also says "uncle
+  // is -1 gen" (instead of "nephew is +1 gen"), which causes the BFS
+  // to assign wrong generations.
+  //
+  // The layout engine builds bidirectional adjacency from each stored
+  // edge (it adds both forward and reverse entries), so skipping the
+  // inverse row does NOT break traversal — the BFS can still walk in
+  // both directions via the forward edge's reverse entry.
+  //
+  // The RelationshipEngine also computes inverses dynamically via
+  // KinshipService, so no data is lost.
+  final inverseKey = _relationshipInverseMap[relationshipKey];
+  final hasKnownInverse = inverseKey != null && inverseKey != relationshipKey;
 
   debugPrint('[CREATE-REL] === START createRelationship ===');
   debugPrint('[CREATE-REL] familyId: $familyId');
   debugPrint('[CREATE-REL] fromPersonId: $fromPersonId');
   debugPrint('[CREATE-REL] toPersonId: $toPersonId');
   debugPrint('[CREATE-REL] relationshipKey: $relationshipKey');
-  debugPrint('[CREATE-REL] inverseKey: $inverseKey');
+  debugPrint('[CREATE-REL] inverseKey: ${inverseKey ?? "UNKNOWN (skipping inverse)"}');
   debugPrint('[CREATE-REL] forwardRelId: $forwardRelId');
   debugPrint('[CREATE-REL] inverseRelId: $inverseRelId');
   debugPrint('[CREATE-REL] auth.currentSession: ${client.auth.currentSession != null ? "present" : "NULL"}');
@@ -2103,34 +2121,48 @@ Future<FamilyRelationship> createRelationship({
   }
   debugPrint('[CREATE-REL] ✅ Forward relationship created with id: ${response['id']}');
 
-  // 2. Create the inverse relationship (best-effort)
-  // The NestJS backend creates both in a transaction. We do best-effort
-  // since Supabase client doesn't support transactions easily.
-  try {
-    debugPrint('[CREATE-REL] Inserting inverse relationship (key=$inverseKey)...');
-    await withRetry(
-      () => client.from(_kRelationshipTable).insert({
-        'id': inverseRelId,
-        'familyId': familyId,
-        'fromPersonId': toPersonId,
-        'toPersonId': fromPersonId,
-        'relationshipKey': inverseKey,
-        'relationshipType': inverseKey,
-        'direction': 'from',
-        'isActive': true,
-        'createdAt': now,
-        'updatedAt': now,
-      }).timeout(const Duration(seconds: 10),
-          onTimeout: () => []),
-      operationName: 'Create inverse relationship',
-    );
-    debugPrint('[CREATE-REL] ✅ Inverse relationship created');
-  } on PostgrestException catch (e) {
-    // Best-effort — inverse creation failure shouldn't block the user
-    debugPrint('[CREATE-REL] ⚠️ Inverse INSERT PostgrestException (non-fatal): code=${e.code} message=${e.message}');
-  } catch (e) {
-    // Best-effort — inverse creation failure shouldn't block the user
-    debugPrint('[CREATE-REL] ⚠️ Could not create inverse relationship (non-fatal): $e');
+  // 2. Create the inverse relationship (best-effort, only if known)
+  //
+  // v2.2 FIX: Only create the inverse if we have a KNOWN inverse key.
+  // For extended kinship types (5,299 of 5,359), the inverse is not in
+  // _relationshipInverseMap. Previously, the code stored the SAME key
+  // for both directions — which caused the layout engine to assign
+  // wrong generations (the inverse edge would say "uncle is -1" when
+  // it should say "nephew is +1", creating conflicting BFS offsets).
+  //
+  // Now we skip the inverse entirely for unknown keys. The layout's
+  // adjacency list handles bidirectional traversal via the forward
+  // edge's auto-generated reverse entry.
+  if (hasKnownInverse) {
+    try {
+      debugPrint('[CREATE-REL] Inserting inverse relationship (key=$inverseKey)...');
+      await withRetry(
+        () => client.from(_kRelationshipTable).insert({
+          'id': inverseRelId,
+          'familyId': familyId,
+          'fromPersonId': toPersonId,
+          'toPersonId': fromPersonId,
+          'relationshipKey': inverseKey,
+          'relationshipType': inverseKey,
+          'direction': 'from',
+          'isActive': true,
+          'createdAt': now,
+          'updatedAt': now,
+        }).timeout(const Duration(seconds: 10),
+            onTimeout: () => []),
+        operationName: 'Create inverse relationship',
+      );
+      debugPrint('[CREATE-REL] ✅ Inverse relationship created');
+    } on PostgrestException catch (e) {
+      // Best-effort — inverse creation failure shouldn't block the user
+      debugPrint('[CREATE-REL] ⚠️ Inverse INSERT PostgrestException (non-fatal): code=${e.code} message=${e.message}');
+    } catch (e) {
+      // Best-effort — inverse creation failure shouldn't block the user
+      debugPrint('[CREATE-REL] ⚠️ Could not create inverse relationship (non-fatal): $e');
+    }
+  } else {
+    debugPrint('[CREATE-REL] ⏭️ Skipping inverse creation — key "$relationshipKey" not in inverse map (extended kinship). '
+        'Layout engine will handle bidirectional traversal via the forward edge.');
   }
 
   // 3. Update Family.lastActivityAt
