@@ -1,8 +1,17 @@
 name: Upload Kinship Matrix to Turso
 
-# Manually triggered OR auto-triggered when upload script changes
+# Manually triggered OR auto-triggered when upload script changes.
 # Designed to be re-run repeatedly: each run resumes from the committed checkpoint
 # until the full 28,761,769 rows are uploaded.
+#
+# Workflow:
+#   1. Checkout repo (includes scripts/ + Daxelo-Kinrel-App/assets/data/indian_kinship.json)
+#   2. Generate kinship_matrix.csv from indian_kinship.json (~2 minutes)
+#   3. Read checkpoint from scripts/upload_checkpoint.json
+#   4. Upload to Turso with INSERT OR IGNORE (idempotent, safe to re-run)
+#   5. Commit updated checkpoint back to repo for next run
+#   6. Verify upload with sample queries
+#   7. Create GitHub issue when upload reaches 28,761,769 rows
 on:
   workflow_dispatch:
     inputs:
@@ -17,14 +26,13 @@ on:
   push:
     branches:
       - main
-      - master
     paths:
       - 'scripts/upload_to_turso.py'
       - 'scripts/setup_turso_table.py'
       - '.github/workflows/turso_upload.yml'
 
-# Prevent concurrent runs to avoid duplicate inserts (safe due to INSERT OR IGNORE,
-# but avoids wasting API quota)
+# Prevent concurrent runs to avoid wasting API quota
+# (INSERT OR IGNORE makes duplicates safe, but concurrency slows things down)
 concurrency:
   group: turso-upload
   cancel-in-progress: false
@@ -39,16 +47,25 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Setup Python 3.11
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-        cache: 'pip'
+        # NOTE: do NOT use cache: 'pip' — there is no requirements.txt/pyproject.toml
+        # in this repo, and the cache option fails the workflow when those files
+        # are missing. The upload script uses only stdlib (urllib, csv, json).
 
-    - name: Install dependencies
+    - name: Verify source JSON exists
       run: |
-        python -m pip install --upgrade pip
-        # No external deps required — upload script uses only stdlib (urllib, csv, json)
-        echo "No external Python dependencies required (uses stdlib only)"
+        if [ ! -f Daxelo-Kinrel-App/assets/data/indian_kinship.json ]; then
+          echo "ERROR: Daxelo-Kinrel-App/assets/data/indian_kinship.json not found"
+          echo "Checked: $(pwd)/Daxelo-Kinrel-App/assets/data/indian_kinship.json"
+          echo "Repo contents:"
+          ls -la
+          exit 1
+        fi
+        SIZE=$(stat -c%s Daxelo-Kinrel-App/assets/data/indian_kinship.json)
+        SIZE_MB=$(echo "scale=2; $SIZE / 1024 / 1024" | bc)
+        echo "Source JSON: ${SIZE_MB} MB"
 
     - name: Show starting checkpoint
       run: |
@@ -66,54 +83,18 @@ jobs:
         rm -f scripts/upload_checkpoint.json upload_checkpoint.json
         echo "NOTE: existing Turso data is NOT cleared. Re-running will use INSERT OR IGNORE to skip duplicates."
 
-    - name: Download kinship_matrix.csv from previous artifact
-      uses: dawidd6/action-download-artifact@v3
-      with:
-        workflow: generate_matrix.yml
-        name: kinship-matrix
-        path: .
-        check_artifacts: true
-        if_no_artifact_found: warn
-
-    - name: Decompress CSV if needed
+    - name: Generate kinship_matrix.csv from JSON
       run: |
-        if [ -f kinship_matrix.csv.gz ]; then
-          echo "Found kinship_matrix.csv.gz — decompressing..."
-          gunzip kinship_matrix.csv.gz
-        elif [ -f kinship_matrix.csv ]; then
-          echo "kinship_matrix.csv already decompressed"
-        else
-          echo "No CSV artifact found — will generate below"
-        fi
-
-    - name: Check if CSV is present
-      id: csv_check
-      run: |
-        if [ -f kinship_matrix.csv ]; then
-          SIZE=$(stat -c%s kinship_matrix.csv 2>/dev/null || stat -f%z kinship_matrix.csv)
-          SIZE_GB=$(echo "scale=2; $SIZE / 1024 / 1024 / 1024" | bc)
-          ROWS=$(wc -l < kinship_matrix.csv)
-          echo "Found kinship_matrix.csv: ${SIZE_GB} GB, ${ROWS} lines"
-          echo "csv_present=true" >> $GITHUB_OUTPUT
-        else
-          echo "kinship_matrix.csv not found in artifact."
-          echo "Will generate from indian_kinship.json as fallback."
-          echo "csv_present=false" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Generate CSV if not present (fallback)
-      if: ${{ steps.csv_check.outputs.csv_present != 'true' }}
-      run: |
-        echo "CSV not found in artifact. Generating from indian_kinship.json..."
-        if [ ! -f Daxelo-Kinrel-App/assets/data/indian_kinship.json ]; then
-          echo "ERROR: indian_kinship.json not found in repo either."
-          echo "Cannot proceed without source data."
-          exit 1
-        fi
+        echo "Generating CSV from Daxelo-Kinrel-App/assets/data/indian_kinship.json..."
         python scripts/generate_kinship_matrix.py \
           Daxelo-Kinrel-App/assets/data/indian_kinship.json \
           kinship_matrix.csv
-        ls -la kinship_matrix.csv
+        echo ""
+        echo "=== CSV generated ==="
+        ls -lh kinship_matrix.csv
+        echo ""
+        echo "Row count (incl header):"
+        wc -l kinship_matrix.csv
 
     - name: Resume upload from checkpoint
       env:
@@ -123,6 +104,8 @@ jobs:
         if [ -z "$TURSO_URL" ] || [ -z "$TURSO_AUTH_TOKEN" ]; then
           echo "ERROR: TURSO_URL and TURSO_AUTH_TOKEN secrets must be set."
           echo "Go to: Settings → Secrets and variables → Actions → New repository secret"
+          echo "  TURSO_URL = libsql://your-db.turso.io"
+          echo "  TURSO_AUTH_TOKEN = eyJ... (your Turso auth token)"
           exit 1
         fi
         echo "Starting upload (timeout: 340 min)..."
@@ -177,7 +160,8 @@ jobs:
         TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
       run: |
         # Query Turso for current row count
-        RESP=$(curl -s -X POST "${TURSO_URL/libsql:\/\//https:\/\/}/v2/pipeline" \
+        HTTP_URL="${TURSO_URL/libsql:\/\//https:\/\/}"
+        RESP=$(curl -s -X POST "${HTTP_URL}/v2/pipeline" \
           -H "Authorization: Bearer $TURSO_AUTH_TOKEN" \
           -H "Content-Type: application/json" \
           -d '{"requests":[{"type":"execute","stmt":{"sql":"SELECT COUNT(*) AS cnt FROM kinship_matrix"}}]}')
@@ -201,7 +185,7 @@ jobs:
 
     - name: Create issue if upload is complete
       if: ${{ steps.completion_check.outputs.complete == 'true' }}
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       with:
         script: |
           github.rest.issues.create({
