@@ -36,10 +36,10 @@ CSV_PATH = sys.argv[1] if len(sys.argv) > 1 else "kinship_matrix.csv"
 CHECKPOINT_FILE = "upload_checkpoint.json"
 ERROR_LOG = "upload_errors.log"
 
-CHUNK_SIZE       = 10_000       # rows read from CSV per batch
-INSERT_BATCH     = 500          # rows per INSERT statement (SQLite param limit is 999; 500 is safe)
-PROGRESS_EVERY   = 100_000      # print progress every N rows
-CHECKPOINT_EVERY = 500_000      # save checkpoint every N rows
+CHUNK_SIZE       = 50_000       # rows read from CSV per batch (larger = fewer HTTP requests)
+INSERT_BATCH     = 249          # rows per INSERT statement (249 * 4 params = 996, just under SQLite's 999 limit)
+PROGRESS_EVERY   = 50_000       # print progress every N rows
+CHECKPOINT_EVERY = 100_000      # save checkpoint every N rows
 MAX_RETRIES      = 3            # retry attempts per batch
 RETRY_BACKOFF    = [1, 5, 15]   # seconds to wait between retries
 
@@ -83,6 +83,7 @@ def execute_batch(rows):
         return True, None
 
     # Build pipeline of INSERT statements
+    # v2/pipeline API auto-commits after each request
     requests = []
     for i in range(0, len(rows), INSERT_BATCH):
         chunk = rows[i:i + INSERT_BATCH]
@@ -99,12 +100,10 @@ def execute_batch(rows):
             "type": "execute",
             "stmt": {"sql": sql, "args": args}
         })
-    # Add a final "commit" request
-    requests.append({"type": "commit"})
 
     payload = json.dumps({"requests": requests}).encode("utf-8")
     req = urllib.request.Request(
-        f"{HTTP_URL}/",
+        f"{HTTP_URL}/v2/pipeline",
         data=payload,
         headers={
             "Authorization": f"Bearer {TURSO_AUTH_TOKEN}",
@@ -136,7 +135,7 @@ def execute_batch(rows):
 
         # Rebuild request object (urllib consumes the data buffer)
         req = urllib.request.Request(
-            f"{HTTP_URL}/",
+            f"{HTTP_URL}/v2/pipeline",
             data=payload,
             headers={
                 "Authorization": f"Bearer {TURSO_AUTH_TOKEN}",
@@ -204,7 +203,7 @@ def main():
         "requests": [{"type": "execute", "stmt": {"sql": "SELECT COUNT(*) FROM kinship_matrix"}}]
     }).encode("utf-8")
     test_req = urllib.request.Request(
-        f"{HTTP_URL}/",
+        f"{HTTP_URL}/v2/pipeline",
         data=test_payload,
         headers={
             "Authorization": f"Bearer {TURSO_AUTH_TOKEN}",
@@ -359,7 +358,7 @@ def main():
         "requests": [{"type": "execute", "stmt": {"sql": "SELECT COUNT(*) AS cnt FROM kinship_matrix"}}]
     }).encode("utf-8")
     verify_req = urllib.request.Request(
-        f"{HTTP_URL}/",
+        f"{HTTP_URL}/v2/pipeline",
         data=verify_payload,
         headers={
             "Authorization": f"Bearer {TURSO_AUTH_TOKEN}",

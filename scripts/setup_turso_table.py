@@ -17,14 +17,15 @@ TURSO_URL = os.environ.get(
 )
 TURSO_AUTH_TOKEN = os.environ.get(
     "TURSO_AUTH_TOKEN",
-    "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJfX19XelhJLUVmR1dnN0ktMEdrNWdRIiwib3JnX2lkIjoxMDAwMTkwMzA5fQ.r3OLqJgVbrbLOwHZnV4O_jWnf47bfLarg9a8NRjAhwLxlL7yFyrqZM7fECcXlesFpZ_KctUePAIpu7Yh_H6RBg"
+    "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODI1NzgxMjQsImlkIjoiMDE5ZjA5YzItMzAwMS03ZGU1LWE3NTQtMWEwZmZmNjQzODljIiwicmlkIjoiODg2ZjM1MzctOGFlZC00ZjdiLTg4MzctMjRmN2ZhZDFhOTIzIn0.pKftSB12uJCZlKHPTjazhmte6uOKieqSG-1s1aiZj-c3pYI9eP2ddcxNah2fZ80m1sREfQW6lzZDFVVgztR3DA"
 )
 
 # Convert libsql:// to https://
-HTTP_URL = TURSO_URL.replace("libsql://", "https://")
+HTTP_URL = TURSO_URL.replace("libsql://", "https://").rstrip("/")
 
 def execute_sql(sql, args=None):
-    """Execute a SQL statement via Turso HTTP API."""
+    """Execute a SQL statement via Turso HTTP v2/pipeline API.
+    The v2/pipeline API auto-commits after each request."""
     payload = {
         "requests": [
             {
@@ -40,7 +41,7 @@ def execute_sql(sql, args=None):
 
     body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
-        f"{HTTP_URL}/",
+        f"{HTTP_URL}/v2/pipeline",
         data=body,
         headers={
             "Authorization": f"Bearer {TURSO_AUTH_TOKEN}",
