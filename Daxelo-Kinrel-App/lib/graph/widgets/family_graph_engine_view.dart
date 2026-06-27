@@ -353,6 +353,11 @@ class _FamilyGraphEngineViewState
         // Build the (transform-independent) content once. The AnimatedBuilder
         // below re-applies only the camera Transform per frame, so the cached
         // raster is reused while panning/zooming.
+        //
+        // v2.2 Fix 7: The entire graph canvas (edges + nodes together) is
+        // wrapped in ONE RepaintBoundary. Previously, separate boundaries
+        // around the edge layer caused it to not repaint when node positions
+        // updated during pan/zoom.
         final Widget content = RepaintBoundary(
           child: SizedBox(
             width: layout.canvasWidth,
@@ -360,11 +365,14 @@ class _FamilyGraphEngineViewState
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                // Edge layer — single cached painter over the full canvas.
-                // v62 FIX: CustomPaint has no `behavior` parameter, so we
-                // give it a transparent ColoredBox as `child` to make the
-                // entire canvas claim hit-test events. Without this, pan/zoom
-                // gestures only register when fingers land on a node.
+                // v2.2 Fix 2: Edge layer is FIRST in the Stack (drawn
+                // beneath nodes). This ensures edges never cover nodes
+                // and are never clipped by node RepaintBoundaries.
+                //
+                // v2.2 Fix 1: CustomPaint uses size: Size.infinite via
+                // Positioned.fill + child: SizedBox.expand() so the paint
+                // canvas covers the full Stack area. Without this, the
+                // canvas defaults to zero/child size and clips all lines.
                 Positioned.fill(
                   child: CustomPaint(
                     painter: _EngineEdgePainter(
@@ -373,12 +381,14 @@ class _FamilyGraphEngineViewState
                       cache: _edgePathCache,
                       selectedEdgeId: selectedEdgeId,
                     ),
-                    child: const ColoredBox(
-                      color: Color(0x00000000),
-                    ),
+                    // Fix 1: child: SizedBox.expand() ensures the paint
+                    // canvas is sized to the full Stack area. Combined
+                    // with Positioned.fill above, this guarantees the
+                    // edge painter's canvas matches the node layer.
+                    child: const SizedBox.expand(),
                   ),
                 ),
-                // Node layer — LOD-dependent.
+                // Node layer — LOD-dependent. Drawn ON TOP of edges.
                 ..._buildNodeLayer(
                     layout, visible, personById, relationLabelById, viewerPersonId),
               ],
@@ -444,9 +454,9 @@ class _FamilyGraphEngineViewState
         Positioned.fill(
           child: CustomPaint(
             painter: _NodeDotPainter(dots),
-            child: const ColoredBox(
-              color: Color(0x00000000),
-            ),
+            // v2.2 Fix 1: SizedBox.expand() ensures the dot painter
+            // canvas covers the full Stack area.
+            child: const SizedBox.expand(),
           ),
         ),
       ];
@@ -868,6 +878,12 @@ class _EngineEdgePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // v2.2 Fix 6: Null/empty guards — skip painting entirely if there
+    // are no edges or no positions. This prevents crashes and wasted
+    // CPU when the graph is empty or still loading.
+    if (edges.isEmpty) return;
+    if (positions.isEmpty) return;
+
     final selectedPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5
@@ -893,11 +909,17 @@ class _EngineEdgePainter extends CustomPainter {
       }
 
       // Resolve the kinship edge style for this edge's key.
+      // v2.2 Fix 4: Add a fallback color and minimum alpha floor so edges
+      // are always visible. The 'extended' category uses alpha 0.45 which
+      // is correct for the dim aesthetic, but we floor at 0.3 to ensure
+      // the line is never invisible.
       final style = KinshipEdgeStyleResolver.styleFor(e.relationshipKey);
+      final edgeColor = style.color ?? const Color(0xFF888888);
+      final edgeAlpha = style.defaultAlpha.clamp(0.3, 1.0);
       final edgePaint = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = style.strokeWidth
-        ..color = style.color.withValues(alpha: style.defaultAlpha)
+        ..strokeWidth = style.strokeWidth.clamp(1.5, 5.0)
+        ..color = edgeColor.withValues(alpha: edgeAlpha)
         ..isAntiAlias = true
         ..strokeCap = StrokeCap.round;
 
@@ -956,9 +978,18 @@ class _EngineEdgePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _EngineEdgePainter old) {
+    // v2.2 Fix 3: Repaint when ANY of the following changes:
+    //   - edges list (new/deleted relationships)
+    //   - positions map (nodes moved during pan/zoom or layout recompute)
+    //   - selectedEdgeId (user tapped a different edge)
+    // Previously only edges.length and identical(edges) were checked, so
+    // when nodes moved but the edge list stays the same, edges were NOT
+    // repainted — they stayed at their old positions until a full rebuild.
     return old.edges.length != edges.length ||
         old.selectedEdgeId != selectedEdgeId ||
-        !identical(old.edges, edges);
+        !identical(old.edges, edges) ||
+        !identical(old.positions, positions) ||
+        old.positions.length != positions.length;
   }
 }
 

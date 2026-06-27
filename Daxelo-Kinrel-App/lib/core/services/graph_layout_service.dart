@@ -422,6 +422,25 @@ class GraphLayoutService {
       );
     }
 
+    // v2.2 Fix 9: Safety net — ensure EVERY person has a position.
+    // If any person was missed by the ring placement (e.g., disconnected
+    // subgraph with no generation assignment, or a bug in the BFS),
+    // assign them a position near the anchor so they don't end up at
+    // Offset.zero (which may be off-canvas after normalization).
+    for (final person in persons) {
+      if (!positions.containsKey(person.id)) {
+        final gen = generations[person.id] ?? person.generationIndex;
+        final radius = ringRadii[gen] ?? baseRadius;
+        final angle = ringAngleOffsets[gen] ?? _descendantTrunk;
+        positions[person.id] = Offset(
+          radius * cos(angle),
+          radius * sin(angle),
+        );
+        debugPrint('[GraphLayoutService] Safety net: assigned position '
+            'to ${person.id} (gen=$gen) at ${positions[person.id]}');
+      }
+    }
+
     // ── Step 7: Translate positions so everything is in positive space ─
     _normalizePositions(positions, ringRadii);
 
