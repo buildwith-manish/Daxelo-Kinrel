@@ -124,13 +124,25 @@ String? nameValidator(String? value) {
   if (name.length < 2) {
     return 'Name must be at least 2 characters';
   }
-  // v62.4: Allow letters (Unicode), spaces, hyphens, apostrophes, dots,
-  // AND numbers. Previously numbers were blocked, so names like
-  // "Example 2" or "Test 123" failed validation — only "Example 1"
-  // worked because it had no digits (the "1" was actually outside
-  // the tested name or the user mistyped). Now any reasonable name
-  // with alphanumeric characters is accepted.
-  final validName = RegExp(r"^[\p{L}\p{N}\s'\-\.]+$", unicode: true);
+  // v2.2 FIX: Web-safe regex — dart2js does NOT support Unicode property
+  // escapes (\p{L}, \p{N}) with `unicode: true`. On Flutter Web this caused
+  // the regex to silently fail to match ANY name, keeping the "Next" button
+  // permanently disabled.
+  //
+  // This regex uses explicit Unicode code-point ranges instead:
+  //   - a-zA-Z0-9          : ASCII letters + digits
+  //   - \u00C0-\u024F      : Latin Extended (European accented names)
+  //   - \u0900-\u097F      : Devanagari (Hindi, Marathi, Nepali)
+  //   - \u0980-\u09FF      : Bengali
+  //   - \u0A00-\u0A7F      : Gurmukhi (Punjabi)
+  //   - \u0A80-\u0AFF      : Gujarati
+  //   - \u0B00-\u0B7F      : Oriya
+  //   - \u0C00-\u0C7F      : Telugu
+  //   - \u0D00-\u0D7F      : Malayalam
+  //   - \u0E00-\u0E7F      : Thai
+  //   - \s'\-\.            : spaces, apostrophes, hyphens, dots
+  final validName = RegExp(
+      r"^[a-zA-Z0-9\u00C0-\u024F\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0C00-\u0C7F\u0D00-\u0D7F\u0E00-\u0E7F\s'\-\.]+$");
   if (!validName.hasMatch(name)) {
     return 'Name can only contain letters, numbers, spaces, hyphens, and apostrophes';
   }

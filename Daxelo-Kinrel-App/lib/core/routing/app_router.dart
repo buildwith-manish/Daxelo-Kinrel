@@ -313,7 +313,12 @@ final _authChangeNotifier = _AuthChangeNotifier();
 ///    where the visited set would have been cleared between events.
 Set<String> _visitedRoutes = {};
 DateTime? _lastRedirectTime;
-const Duration _redirectCooldown = Duration(milliseconds: 500);
+// v2.2 FIX: Reduced from 500ms to 100ms to match the _AuthChangeNotifier
+// debounce. The 500ms cooldown was blocking the post-login redirect —
+// after signIn() succeeded, the auth notifier fired at 100ms, but the
+// cooldown was still active for another 400ms, so the router returned
+// null (no redirect) and the user stayed on /sign-in.
+const Duration _redirectCooldown = Duration(milliseconds: 100);
 
 /// Handle GoRouter redirect logic safely.
 ///
