@@ -52,6 +52,7 @@ import '../interaction/camera_controller.dart' show CameraController;
 import '../interaction/expand_collapse.dart'
     show ExpandCollapseController, ExpandCollapseState;
 import '../../core/constants/feature_flags.dart' show kEnableGraphShareExport;
+import '../../core/kinship/kinship_edge_style.dart';
 import '../../core/kinship/kinship_service.dart' show KinshipService;
 import '../../core/relationship/relationship_engine.dart' show RelationshipEngine;
 import '../../core/services/graph_layout_service.dart' show GraphPerson;
@@ -61,6 +62,7 @@ import '../../features/family/presentation/services/graph_export_service.dart'
 import '../rendering/edge_path_cache.dart' show EdgePathCache;
 import '../rendering/viewport_culler.dart' show ViewportCuller;
 import 'graph_node.dart' show GraphNode;
+import 'graph_legend.dart' show GraphLegend;
 import 'graph_quick_actions.dart' show GraphQuickActions;
 import 'graph_relationship_labels.dart' show GraphPersonData;
 
@@ -139,6 +141,10 @@ class _FamilyGraphEngineViewState
   // Gesture bookkeeping for pan + pinch-zoom.
   Offset _lastFocal = Offset.zero;
   double _baseZoom = 1.0;
+
+  /// v2.2: Whether the graph legend panel is visible.
+  /// Toggled by the "?" button in the bottom-left corner.
+  bool _showLegend = false;
 
   @override
   void initState() {
@@ -261,6 +267,13 @@ class _FamilyGraphEngineViewState
             if (!isOnline)
               const Positioned(
                   left: 0, right: 0, top: 0, child: _OfflineBanner()),
+            // v2.2: Graph legend — shows section colors + edge styles for
+            // the kinship categories present in the current graph.
+            GraphLegend(
+              isVisible: _showLegend,
+              onToggle: () => setState(() => _showLegend = !_showLegend),
+              presentCategories: _presentCategories(flat),
+            ),
             if (kEnableGraphShareExport)
               // Directional alignment so the FAB sits at the bottom-end
               // edge (bottom-right in LTR, bottom-left in RTL) instead of
@@ -418,7 +431,13 @@ class _FamilyGraphEngineViewState
         if (pos == null || p == null) continue;
         dots.add(_Dot(
           pos,
-          _dotColor(p['gender'] as String?, (p['isAnchor'] as bool?) ?? false),
+          _dotColor(
+            p['gender'] as String?,
+            (p['isAnchor'] as bool?) ?? false,
+            // v2.2: pass the relationship key so the dot uses the
+            // kinship category color instead of plain gender color.
+            relationshipKey: relationLabelById[id],
+          ),
         ));
       }
       return <Widget>[
@@ -442,7 +461,7 @@ class _FamilyGraphEngineViewState
       if (pos == null || p == null) continue;
       final Widget node = lod == _Lod.full
           ? _buildFullNode(id, p, relationLabelById, viewerPersonId)
-          : _buildChipNode(p);
+          : _buildChipNode(p, relationshipKey: relationLabelById[id]);
 
       // v62: Dim nodes not in the highlighted generation (if set).
       final int personGen =
@@ -505,9 +524,12 @@ class _FamilyGraphEngineViewState
   }
 
   /// Lightweight mid-zoom node: a coloured dot + the name, no avatar/animations.
-  Widget _buildChipNode(Map<String, dynamic> p) {
-    final color =
-        _dotColor(p['gender'] as String?, (p['isAnchor'] as bool?) ?? false);
+  Widget _buildChipNode(Map<String, dynamic> p, {String? relationshipKey}) {
+    final color = _dotColor(
+      p['gender'] as String?,
+      (p['isAnchor'] as bool?) ?? false,
+      relationshipKey: relationshipKey,
+    );
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -761,8 +783,27 @@ class _FamilyGraphEngineViewState
     return pretty;
   }
 
-  Color _dotColor(String? gender, bool isAnchor) {
-    if (isAnchor) return Colors.orange;
+  /// v2.2: Returns the node dot color based on the kinship category
+  /// of the relationship connecting this node to the viewer.
+  ///
+  /// Falls back to gender-based colors (blue/pink/grey) only when the
+  /// relationship key is null or unknown — preserving the previous
+  /// behavior for backward compatibility.
+  ///
+  /// The anchor/viewer node always uses the Teal "self" color so it
+  /// stands out from all other categories.
+  Color _dotColor(String? gender, bool isAnchor, {String? relationshipKey}) {
+    if (isAnchor) return KinshipEdgeColors.self;
+    // v2.2: Prefer kinship category color over plain gender color.
+    if (relationshipKey != null && relationshipKey.isNotEmpty) {
+      final style = KinshipEdgeStyleResolver.styleFor(relationshipKey);
+      // Don't use the 'self' category color for non-anchor nodes —
+      // fall through to gender-based color in that case.
+      if (style.category != KinshipEdgeCategory.self) {
+        return style.color;
+      }
+    }
+    // Legacy fallback: gender-based color.
     switch (gender) {
       case 'male':
         return Colors.blue;
@@ -771,6 +812,25 @@ class _FamilyGraphEngineViewState
       default:
         return Colors.grey;
     }
+  }
+
+  /// v2.2: Returns the set of kinship categories present in the current
+  /// graph. Used by the legend to show only relevant rows.
+  ///
+  /// Iterates all edges in [flat] and classifies each by its
+  /// relationship key. Returns an empty set if [flat] is null.
+  Set<KinshipEdgeCategory> _presentCategories(FlatGraphResult? flat) {
+    if (flat == null) return <KinshipEdgeCategory>{};
+    final cats = <KinshipEdgeCategory>{};
+    for (final Map<String, dynamic> r in flat.relationships) {
+      final key = r['relationshipKey'] as String?;
+      if (key != null && key.isNotEmpty) {
+        cats.add(KinshipEdgeClassifier.classify(key));
+      }
+    }
+    // Always include 'self' so the viewer's own node color is documented.
+    cats.add(KinshipEdgeCategory.self);
+    return cats;
   }
 }
 
@@ -808,12 +868,11 @@ class _EngineEdgePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final base = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..color = const Color(0x66FFFFFF)
-      ..isAntiAlias = true;
-    final selected = Paint()
+    // v2.2: Each edge now uses its kinship category color instead of
+    // a single gray. The KinshipEdgeStyleResolver returns the full
+    // style (color, alpha, dash pattern, line shape) for the edge's
+    // relationship key — covering all 5,359 Indian kinship types.
+    final selectedPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5
       ..color = Colors.orange
@@ -831,7 +890,65 @@ class _EngineEdgePainter extends CustomPainter {
         targetPos: t,
         pathFactory: _bezier,
       );
-      canvas.drawPath(path, e.id == selectedEdgeId ? selected : base);
+
+      if (e.id == selectedEdgeId) {
+        canvas.drawPath(path, selectedPaint);
+        continue;
+      }
+
+      // v2.2: Resolve the kinship edge style for this edge's key.
+      final style = KinshipEdgeStyleResolver.styleFor(e.relationshipKey);
+      final edgePaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = style.strokeWidth
+        ..color = style.color.withValues(alpha: style.defaultAlpha)
+        ..isAntiAlias = true
+        ..strokeCap = StrokeCap.round;
+
+      // Apply dash pattern if the style is dashed.
+      if (style.dashPattern.isNotEmpty && style.dashPattern.length >= 2) {
+        edgePaint.isAntiAlias = true;
+        // For dashed paths, we need to use PathMetrics to dash along
+        // the bezier. This is slightly more expensive but only runs
+        // once per edge per position change (the path is cached).
+        for (final metric in path.computeMetrics()) {
+          double pos = 0;
+          final dashWidth = style.dashPattern[0];
+          final dashGap = style.dashPattern[1];
+          while (pos < metric.length) {
+            final segEnd = (pos + dashWidth).clamp(0.0, metric.length);
+            canvas.drawPath(metric.extractPath(pos, segEnd), edgePaint);
+            pos += dashWidth + dashGap;
+          }
+        }
+      } else {
+        canvas.drawPath(path, edgePaint);
+      }
+
+      // v2.2: Draw midpoint symbol (dot for most categories, heart for spouse).
+      if (style.midpointSymbol != KinshipMidpointSymbol.none) {
+        final midX = (s.dx + t.dx) / 2;
+        final midY = (s.dy + t.dy) / 2;
+        if (style.midpointSymbol == KinshipMidpointSymbol.heart) {
+          // Spouse heart — small pink circle (simplified heart for perf).
+          canvas.drawCircle(
+            Offset(midX, midY),
+            4.0,
+            Paint()
+              ..color = style.midpointColor
+              ..style = PaintingStyle.fill,
+          );
+        } else {
+          // Dot for all other categories.
+          canvas.drawCircle(
+            Offset(midX, midY),
+            2.5,
+            Paint()
+              ..color = style.midpointColor
+              ..style = PaintingStyle.fill,
+          );
+        }
+      }
     }
   }
 

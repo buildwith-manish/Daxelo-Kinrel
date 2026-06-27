@@ -4,15 +4,24 @@
 //
 // A floating legend panel explaining the visual encoding of the family
 // graph. Shows relationship type colors and edge line styles.
-// Positioned bottom-left, collapsible via a "?" icon button. Dark theme.
-// Wrapped in RepaintBoundary.
+//
+// v2.2: Now data-driven — the legend shows ONLY the kinship categories
+// that are actually present in the current graph (passed in via
+// [presentCategories]). This keeps the legend compact for small
+// families and comprehensive for large ones.
+//
+// The legend is wired into the V2.1 engine view
+// (family_graph_engine_view.dart) as a collapsible panel toggled by a
+// "?" button. It delegates all color/edge-style resolution to the
+// KinshipEdgeStyleResolver — the single source of truth for the
+// 10-category system that covers all 5,359 Indian kinship types.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
-import 'graph_node.dart' show RelationshipColors;
+import '../../core/kinship/kinship_edge_style.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // GRAPH LEGEND
@@ -20,15 +29,20 @@ import 'graph_node.dart' show RelationshipColors;
 
 /// A floating legend panel explaining the visual encoding of the family graph.
 ///
-/// Displays relationship type color swatches and edge line styles.
-/// Auto-opens for 5 seconds on first visit only, then collapses.
-/// The user can toggle visibility with the "?" button.
-class GraphLegend extends ConsumerStatefulWidget {
+/// Displays relationship type color swatches and edge line styles for the
+/// kinship categories present in the current graph. The user can toggle
+/// visibility with the "?" button.
+///
+/// [presentCategories] — the set of categories that actually appear in
+/// the current graph. The legend only shows rows for these categories,
+/// keeping the panel compact for small families.
+class GraphLegend extends ConsumerWidget {
   /// Creates a graph legend panel.
   const GraphLegend({
     super.key,
     required this.isVisible,
     required this.onToggle,
+    this.presentCategories = const <KinshipEdgeCategory>{},
   });
 
   /// Whether the legend panel is currently visible.
@@ -37,18 +51,12 @@ class GraphLegend extends ConsumerStatefulWidget {
   /// Callback to toggle legend visibility.
   final VoidCallback onToggle;
 
-  @override
-  ConsumerState<GraphLegend> createState() => _GraphLegendState();
-}
-
-class _GraphLegendState extends ConsumerState<GraphLegend> {
-  // Auto-open on first visit removed — legend only opens via user tap on "?" button.
+  /// Which kinship categories are present in the current graph.
+  /// If empty, all 10 categories are shown (the full reference legend).
+  final Set<KinshipEdgeCategory> presentCategories;
 
   @override
-  Widget build(BuildContext context) {
-    // Directional positioning so the legend hugs the leading edge in LTR
-    // (left:16) and the trailing edge in RTL (right:16). Must stay a direct
-    // child of Stack — Positioned only works as an immediate child.
+  Widget build(BuildContext context, WidgetRef ref) {
     final bool isRtl = Directionality.of(context) == TextDirection.rtl;
     return Positioned(
       bottom: 80,
@@ -59,10 +67,8 @@ class _GraphLegendState extends ConsumerState<GraphLegend> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Toggle button (? icon)
-            // Accessibility: 48×48 tap target (WCAG 2.5.5) wrapped in a
-            // Semantics button so screen readers announce "Toggle legend".
-            if (!widget.isVisible)
+            // Toggle button (? icon) — 48×48 tap target (WCAG 2.5.5).
+            if (!isVisible)
               Semantics(
                 label: 'Toggle legend',
                 button: true,
@@ -70,7 +76,7 @@ class _GraphLegendState extends ConsumerState<GraphLegend> {
                   width: 48,
                   height: 48,
                   child: GestureDetector(
-                    onTap: widget.onToggle,
+                    onTap: onToggle,
                     behavior: HitTestBehavior.opaque,
                     child: Container(
                       width: 32,
@@ -97,10 +103,10 @@ class _GraphLegendState extends ConsumerState<GraphLegend> {
               ),
 
             // Legend panel
-            if (widget.isVisible)
+            if (isVisible)
               Container(
-                width: 240,
-                constraints: const BoxConstraints(maxHeight: 400),
+                width: 260,
+                constraints: const BoxConstraints(maxHeight: 420),
                 decoration: BoxDecoration(
                   color: const Color(0xFF0A0E1A).withValues(alpha: 0.95),
                   borderRadius: BorderRadius.circular(14),
@@ -118,7 +124,6 @@ class _GraphLegendState extends ConsumerState<GraphLegend> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Header
-                    // Directional padding so RTL layouts mirror correctly.
                     Padding(
                       padding: const EdgeInsetsDirectional.only(
                         start: 14,
@@ -144,16 +149,14 @@ class _GraphLegendState extends ConsumerState<GraphLegend> {
                             ),
                           ),
                           const Spacer(),
-
                           IconButton(
                             icon: const Icon(
                               Icons.close,
                               size: 16,
                               color: KinrelColors.textDim,
                             ),
-                            onPressed: widget.onToggle,
+                            onPressed: onToggle,
                             padding: EdgeInsets.zero,
-                            // 48×48 minimum tap target (WCAG 2.5.5).
                             constraints: const BoxConstraints(
                               minWidth: 48,
                               minHeight: 48,
@@ -170,30 +173,7 @@ class _GraphLegendState extends ConsumerState<GraphLegend> {
                         padding: const EdgeInsets.all(12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Node colors section
-                            _buildSectionTitle('Node Colors'),
-                            const SizedBox(height: 8),
-                            _buildColorRow('Self', RelationshipColors.self),
-                            _buildColorRow('Parent', RelationshipColors.parent),
-                            _buildColorRow('Sibling', RelationshipColors.sibling),
-                            _buildColorRow('Child', RelationshipColors.child),
-                            _buildColorRow('Spouse', RelationshipColors.spouse),
-                            _buildColorRow('Grandparent', RelationshipColors.grandparent),
-                            _buildColorRow('Aunt/Uncle', RelationshipColors.auntUncle),
-                            _buildColorRow('Cousin', RelationshipColors.cousin),
-                            _buildColorRow('In-Law', RelationshipColors.inLaw),
-                            _buildColorRow('Extended', RelationshipColors.extended),
-                            const SizedBox(height: 16),
-
-                            // Edge styles section
-                            _buildSectionTitle('Edge Styles'),
-                            const SizedBox(height: 8),
-                            _buildEdgeRow('Parent-Child', 'Solid', KinrelColors.graphEdgeOrange),
-                            _buildEdgeRow('Sibling', 'Dashed', KinrelColors.nodeSibling),
-                            _buildEdgeRow('Marriage', 'Connector', KinrelColors.spouseHeartColor),
-                            _buildEdgeRow('Extended', 'Curved', KinrelColors.nodeExtended),
-                          ],
+                          children: _buildLegendRows(),
                         ),
                       ),
                     ),
@@ -204,6 +184,123 @@ class _GraphLegendState extends ConsumerState<GraphLegend> {
         ),
       ),
     );
+  }
+
+  /// Builds the legend rows — node colors + edge styles for each
+  /// present category (or all 10 if [presentCategories] is empty).
+  List<Widget> _buildLegendRows() {
+    final categories = presentCategories.isEmpty
+        ? KinshipEdgeCategory.values
+        : KinshipEdgeCategory.values
+            .where((c) => presentCategories.contains(c))
+            .toList();
+
+    final rows = <Widget>[];
+
+    // ── Node Colors section ──
+    rows.add(_buildSectionTitle('Node Colors'));
+    rows.add(const SizedBox(height: 8));
+    for (final cat in categories) {
+      if (cat == KinshipEdgeCategory.self) continue; // self is the viewer
+      rows.add(_buildColorRow(
+        _categoryLabel(cat),
+        _categoryNodeColor(cat),
+      ));
+    }
+    rows.add(const SizedBox(height: 16));
+
+    // ── Edge Styles section ──
+    rows.add(_buildSectionTitle('Edge Styles'));
+    rows.add(const SizedBox(height: 8));
+    for (final cat in categories) {
+      if (cat == KinshipEdgeCategory.self) continue;
+      final style = KinshipEdgeStyleResolver.styleForCategory(cat);
+      rows.add(_buildEdgeRow(
+        _categoryLabel(cat),
+        _lineShapeLabel(style.lineShape),
+        style.color,
+        style.lineShape,
+        style.dashPattern,
+      ));
+    }
+
+    return rows;
+  }
+
+  /// Human-readable label for a kinship edge category.
+  String _categoryLabel(KinshipEdgeCategory cat) {
+    switch (cat) {
+      case KinshipEdgeCategory.self:
+        return 'Self';
+      case KinshipEdgeCategory.parent:
+        return 'Parent';
+      case KinshipEdgeCategory.child:
+        return 'Child';
+      case KinshipEdgeCategory.sibling:
+        return 'Sibling';
+      case KinshipEdgeCategory.spouse:
+        return 'Spouse';
+      case KinshipEdgeCategory.grandparent:
+        return 'Grandparent';
+      case KinshipEdgeCategory.auntUncle:
+        return 'Aunt / Uncle';
+      case KinshipEdgeCategory.cousin:
+        return 'Cousin';
+      case KinshipEdgeCategory.inLaw:
+        return 'In-Law';
+      case KinshipEdgeCategory.extended:
+        return 'Extended / Step';
+      case KinshipEdgeCategory.indirect:
+        return 'Indirect';
+    }
+  }
+
+  /// Node color for a category (matches RelationshipColors in graph_node.dart).
+  Color _categoryNodeColor(KinshipEdgeCategory cat) {
+    switch (cat) {
+      case KinshipEdgeCategory.self:
+        return KinshipEdgeColors.self;
+      case KinshipEdgeCategory.parent:
+        return KinshipEdgeColors.parent;
+      case KinshipEdgeCategory.child:
+        return KinshipEdgeColors.child;
+      case KinshipEdgeCategory.sibling:
+        return KinshipEdgeColors.sibling;
+      case KinshipEdgeCategory.spouse:
+        return KinshipEdgeColors.spouseEdge;
+      case KinshipEdgeCategory.grandparent:
+        return KinshipEdgeColors.grandparent;
+      case KinshipEdgeCategory.auntUncle:
+        return KinshipEdgeColors.auntUncle;
+      case KinshipEdgeCategory.cousin:
+        return KinshipEdgeColors.cousin;
+      case KinshipEdgeCategory.inLaw:
+        return KinshipEdgeColors.inLaw;
+      case KinshipEdgeCategory.extended:
+        return KinshipEdgeColors.extended;
+      case KinshipEdgeCategory.indirect:
+        return KinshipEdgeColors.indirect;
+    }
+  }
+
+  /// Human-readable label for a line shape.
+  String _lineShapeLabel(KinshipLineShape shape) {
+    switch (shape) {
+      case KinshipLineShape.solidBezier:
+        return 'Solid';
+      case KinshipLineShape.solidExtendedBezier:
+        return 'Solid';
+      case KinshipLineShape.dashedArc:
+        return 'Dashed Arc';
+      case KinshipLineShape.dashedStraight:
+        return 'Dashed';
+      case KinshipLineShape.dashedShallowS:
+        return 'Dashed S';
+      case KinshipLineShape.wideArcBezier:
+        return 'Wide Arc';
+      case KinshipLineShape.dashedDefault:
+        return 'Dashed';
+    }
   }
 
   // ── Helper Widgets ───────────────────────────────────────────────────
@@ -252,19 +349,26 @@ class _GraphLegendState extends ConsumerState<GraphLegend> {
     );
   }
 
-  Widget _buildEdgeRow(String label, String style, Color color) {
+  Widget _buildEdgeRow(
+    String label,
+    String styleLabel,
+    Color color,
+    KinshipLineShape lineShape,
+    List<double> dashPattern,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
           // Line preview
           SizedBox(
-            width: 24,
-            height: 2,
+            width: 28,
+            height: 12,
             child: CustomPaint(
               painter: _EdgeStylePreviewPainter(
                 color: color,
-                style: style,
+                lineShape: lineShape,
+                dashPattern: dashPattern,
               ),
             ),
           ),
@@ -280,7 +384,7 @@ class _GraphLegendState extends ConsumerState<GraphLegend> {
             ),
           ),
           Text(
-            style,
+            styleLabel,
             style: TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 10,
@@ -298,74 +402,148 @@ class _GraphLegendState extends ConsumerState<GraphLegend> {
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Small CustomPainter that renders a preview of an edge line style.
+///
+/// v2.2: Now uses the actual [KinshipLineShape] + [dashPattern] from the
+/// KinshipEdgeStyleResolver so the preview matches the real edge rendering
+/// exactly.
 class _EdgeStylePreviewPainter extends CustomPainter {
   _EdgeStylePreviewPainter({
     required this.color,
-    required this.style,
+    required this.lineShape,
+    required this.dashPattern,
   });
 
   final Color color;
-  final String style;
+  final KinshipLineShape lineShape;
+  final List<double> dashPattern;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color
-      ..strokeWidth = 1.5
+      ..strokeWidth = 1.8
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
-    if (style == 'Dashed') {
-      // Draw dashed line
-      const dashWidth = 3.0;
-      const dashGap = 2.0;
-      double x = 0;
-      while (x < size.width) {
-        canvas.drawLine(
-          Offset(x, size.height / 2),
-          Offset((x + dashWidth).clamp(0, size.width), size.height / 2),
+    final centerY = size.height / 2;
+
+    switch (lineShape) {
+      case KinshipLineShape.solidBezier:
+      case KinshipLineShape.solidExtendedBezier:
+        // Solid S-curve
+        final path = Path()
+          ..moveTo(0, centerY)
+          ..cubicTo(
+            size.width * 0.3, centerY - 3,
+            size.width * 0.7, centerY + 3,
+            size.width, centerY,
+          );
+        canvas.drawPath(path, paint);
+        break;
+
+      case KinshipLineShape.dashedArc:
+        // Dashed arc that bows above
+        _drawDashedPath(
+          canvas,
           paint,
+          Path()
+            ..moveTo(0, centerY + 2)
+            ..quadraticBezierTo(
+              size.width / 2, centerY - 6,
+              size.width, centerY + 2,
+            ),
         );
-        x += dashWidth + dashGap;
-      }
-    } else if (style == 'Connector') {
-      // Draw marriage connector with small ring
-      canvas.drawLine(
-        Offset(0, size.height / 2),
-        Offset(size.width * 0.4, size.height / 2),
-        paint,
-      );
-      canvas.drawCircle(
-        Offset(size.width * 0.5, size.height / 2),
-        2.5,
-        paint,
-      );
-      canvas.drawLine(
-        Offset(size.width * 0.6, size.height / 2),
-        Offset(size.width, size.height / 2),
-        paint,
-      );
-    } else if (style == 'Curved') {
-      // Draw curved line
-      final path = Path()
-        ..moveTo(0, size.height)
-        ..quadraticBezierTo(
-          size.width / 2, 0,
-          size.width, size.height,
+        break;
+
+      case KinshipLineShape.dashedStraight:
+        // Dashed horizontal line
+        _drawDashedLine(canvas, paint, Offset(0, centerY), Offset(size.width, centerY));
+        break;
+
+      case KinshipLineShape.dashedShallowS:
+        // Dashed shallow S-curve
+        _drawDashedPath(
+          canvas,
+          paint,
+          Path()
+            ..moveTo(0, centerY)
+            ..cubicTo(
+              size.width * 0.3, centerY - 2,
+              size.width * 0.7, centerY + 2,
+              size.width, centerY,
+            ),
         );
+        break;
+
+      case KinshipLineShape.wideArcBezier:
+        // Wide-arc cubic bezier (solid)
+        final path = Path()
+          ..moveTo(0, centerY)
+          ..cubicTo(
+            size.width * 0.1, centerY - 8,
+            size.width * 0.9, centerY + 8,
+            size.width, centerY,
+          );
+        canvas.drawPath(path, paint);
+        break;
+
+      case KinshipLineShape.dashedDefault:
+        // Standard dashed line
+        _drawDashedLine(canvas, paint, Offset(0, centerY), Offset(size.width, centerY));
+        break;
+    }
+
+    // Draw midpoint symbol for spouse (heart) and other categories (dot)
+    // We can't know the category here without the full style, so we
+    // skip the midpoint in the preview — the color + line shape is
+    // enough to identify the category.
+  }
+
+  void _drawDashedLine(Canvas canvas, Paint paint, Offset start, Offset end) {
+    if (dashPattern.isEmpty || dashPattern.length < 2) {
+      canvas.drawLine(start, end, paint);
+      return;
+    }
+    final dashWidth = dashPattern[0];
+    final dashGap = dashPattern[1];
+    final totalLen = (end - start).distance;
+    final dx = (end.dx - start.dx) / totalLen;
+    final dy = (end.dy - start.dy) / totalLen;
+    double pos = 0;
+    while (pos < totalLen) {
+      final segEnd = (pos + dashWidth).clamp(0.0, totalLen);
+      canvas.drawLine(
+        Offset(start.dx + dx * pos, start.dy + dy * pos),
+        Offset(start.dx + dx * segEnd, start.dy + dy * segEnd),
+        paint,
+      );
+      pos += dashWidth + dashGap;
+    }
+  }
+
+  void _drawDashedPath(Canvas canvas, Paint paint, Path path) {
+    if (dashPattern.isEmpty || dashPattern.length < 2) {
       canvas.drawPath(path, paint);
-    } else {
-      // Solid line
-      canvas.drawLine(
-        Offset(0, size.height / 2),
-        Offset(size.width, size.height / 2),
-        paint,
-      );
+      return;
+    }
+    // For curved paths, use PathMetrics to dash along the path.
+    for (final metric in path.computeMetrics()) {
+      double pos = 0;
+      while (pos < metric.length) {
+        final dashWidth = dashPattern[0];
+        final dashGap = dashPattern[1];
+        final segEnd = (pos + dashWidth).clamp(0.0, metric.length);
+        final extract = metric.extractPath(pos, segEnd);
+        canvas.drawPath(extract, paint);
+        pos += dashWidth + dashGap;
+      }
     }
   }
 
   @override
   bool shouldRepaint(covariant _EdgeStylePreviewPainter oldDelegate) {
-    return oldDelegate.color != color || oldDelegate.style != style;
+    return oldDelegate.color != color ||
+        oldDelegate.lineShape != lineShape ||
+        oldDelegate.dashPattern != dashPattern;
   }
 }
