@@ -372,6 +372,11 @@ class _FamilyGraphEngineViewState
         // v2.2: Compute every node's relation label from the VIEWER's
         // perspective using RelationshipEngine. No hardcoded labels.
         final relationLabelById = _relationLabels(flat, viewerPersonId);
+        // FIX (node-colors): Also compute the RAW kinship key for each
+        // person — needed for color resolution (border, tint, dot).
+        // _relationLabels returns LOCALIZED display names (e.g. "Father")
+        // which don't match the lowercase keys in _borderColorMap.
+        final relationKeyById = _relationKeys(flat, viewerPersonId);
 
         // Expand/collapse filter — empty visible set means "show everything".
         final Set<String> allowed =
@@ -448,7 +453,7 @@ class _FamilyGraphEngineViewState
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.
                 ..._buildNodeLayer(
-                    layout, visible, personById, relationLabelById, viewerPersonId),
+                    layout, visible, personById, relationLabelById, relationKeyById, viewerPersonId),
               ],
             ),
           ),
@@ -486,6 +491,7 @@ class _FamilyGraphEngineViewState
     Set<String> visible,
     Map<String, Map<String, dynamic>> personById,
     Map<String, String> relationLabelById,
+    Map<String, String> relationKeyById,
     String? viewerPersonId,
   ) {
     final _Lod lod = _lodFor(_camera.zoomLevel);
@@ -502,9 +508,9 @@ class _FamilyGraphEngineViewState
           _dotColor(
             p['gender'] as String?,
             (p['isAnchor'] as bool?) ?? false,
-            // v2.2: pass the relationship key so the dot uses the
-            // kinship category color instead of plain gender color.
-            relationshipKey: relationLabelById[id],
+            // FIX (node-colors): Use the RAW kinship key for color
+            // resolution, not the localized display name.
+            relationshipKey: relationKeyById[id],
           ),
         ));
       }
@@ -528,8 +534,8 @@ class _FamilyGraphEngineViewState
       final p = personById[id];
       if (pos == null || p == null) continue;
       final Widget node = lod == _Lod.full
-          ? _buildFullNode(id, p, relationLabelById, viewerPersonId)
-          : _buildChipNode(p, relationshipKey: relationLabelById[id]);
+          ? _buildFullNode(id, p, relationLabelById, relationKeyById, viewerPersonId)
+          : _buildChipNode(p, relationshipKey: relationKeyById[id]);
 
       // v62: Dim nodes not in the highlighted generation (if set).
       final int personGen =
@@ -557,6 +563,7 @@ class _FamilyGraphEngineViewState
     String id,
     Map<String, dynamic> p,
     Map<String, String> labels,
+    Map<String, String> relationKeyById,
     String? viewerPersonId,
   ) {
     // v2.2: If this node IS the viewer, show "You" as the relation label.
@@ -569,6 +576,11 @@ class _FamilyGraphEngineViewState
       isAnchor: (p['isAnchor'] as bool?) ?? false,
       photoUrl: p['photoUrl'] as String?,
       isDeceased: (p['isDeceased'] as bool?) ?? false,
+      // FIX (node-colors): Pass the RAW kinship key so GraphNode can
+      // resolve the correct border/tint color from the 8-color scheme.
+      // Previously this was not passed at all, causing every non-anchor
+      // node to fall back to 'extended' (slate #64748B).
+      relationshipKey: relationKeyById[id],
       // v2.2: "You" label for the viewer's node; otherwise use the
       // computed relation label from the viewer's perspective.
       relationLabel: isViewer ? 'You' : (labels[id] ?? ''),
@@ -652,24 +664,14 @@ class _FamilyGraphEngineViewState
     if (layout.positions.isEmpty) return;
     _framed = true;
 
-    // v2.2: Center on the viewer's position if available, otherwise
-    // use the saved camera position or fit-to-view.
-    final viewerId =
-        ref.read(viewerPersonIdProvider(widget.familyId)).valueOrNull;
-    if (viewerId != null && layout.positions.containsKey(viewerId)) {
-      // Center on the viewer's node using fitToView (which includes
-      // the viewer's position in the bounding box calculation).
-      _camera.initialFitOnce(layout.positions, _viewportSize);
-      _culler.invalidate();
-      if (mounted) setState(() {});
-      return;
-    }
-
-    // Prefer a previously-saved camera position; otherwise frame the graph.
-    final saved = await _camera.restorePosition(widget.familyId);
-    if (saved == null) {
-      _camera.initialFitOnce(layout.positions, _viewportSize);
-    }
+    // FIX (blank-on-load): Always call initialFitOnce on the first frame.
+    // Previously, when a saved camera position existed from a previous
+    // session, initialFitOnce was skipped — but the saved pan/zoom was
+    // computed for a different viewport size, causing the camera to
+    // point at empty space (blank screen until the user manually zoomed).
+    // initialFitOnce has its own _didInitialFit guard so it's safe to
+    // call unconditionally.
+    _camera.initialFitOnce(layout.positions, _viewportSize);
     _culler.invalidate();
     if (mounted) setState(() {});
   }
@@ -821,6 +823,74 @@ class _FamilyGraphEngineViewState
       }
     }
     return labels;
+  }
+
+  /// Computes the RAW kinship key (e.g., "father", "mothers_brother")
+  /// for each person from the viewer's perspective.
+  ///
+  /// Unlike [_relationLabels] which returns LOCALIZED display names
+  /// (e.g., "Father"), this returns the raw key needed for color
+  /// resolution via [RelationshipColors.borderColorFor] and
+  /// [KinshipEdgeStyleResolver.styleFor].
+  ///
+  /// Used to pass `relationshipKey` to [GraphNode] so node borders,
+  /// tints, and dots use the correct 8-color scheme.
+  Map<String, String> _relationKeys(
+    FlatGraphResult flat,
+    String? viewerPersonId,
+  ) {
+    final keys = <String, String>{};
+
+    if (viewerPersonId == null) {
+      for (final Map<String, dynamic> r in flat.relationships) {
+        final t = r['toPersonId'] as String?;
+        final key = r['relationshipKey'] as String?;
+        if (t != null && key != null && !keys.containsKey(t)) {
+          keys[t] = key;
+        }
+      }
+      return keys;
+    }
+
+    final graphPersons = <GraphPerson>[
+      for (final Map<String, dynamic> p in flat.persons)
+        if (p['id'] != null)
+          GraphPerson(
+            id: p['id'] as String,
+            name: (p['name'] as String?) ?? '',
+            gender: p['gender'] as String?,
+            generationIndex: (p['generationIndex'] as num?)?.toInt() ?? 0,
+            isAnchor: (p['isAnchor'] as bool?) ?? false,
+            photoUrl: p['photoUrl'] as String?,
+            isDeceased: (p['isDeceased'] as bool?) ?? false,
+          ),
+    ];
+    final graphRels = <({String fromId, String toId, String type})>[
+      for (final Map<String, dynamic> r in flat.relationships)
+        if (r['fromPersonId'] != null &&
+            r['toPersonId'] != null &&
+            r['relationshipKey'] != null)
+          (
+            fromId: r['fromPersonId'] as String,
+            toId: r['toPersonId'] as String,
+            type: r['relationshipKey'] as String,
+          ),
+    ];
+
+    final engine = RelationshipEngine.instance;
+    for (final GraphPerson p in graphPersons) {
+      if (p.id == viewerPersonId) continue;
+      final key = engine.resolveKey(
+        viewerPersonId: viewerPersonId,
+        targetPersonId: p.id,
+        persons: graphPersons,
+        relationships: graphRels,
+      );
+      if (key != null) {
+        keys[p.id] = key;
+      }
+    }
+    return keys;
   }
 
   /// Resolves a kinship key (e.g. "father", "mothers_brother") to a
