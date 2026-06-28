@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/database/isar_database.dart';
+import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../main.dart' show appInitCompleteProvider;
@@ -216,6 +217,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     _navigated = true;
 
     if (isAuthenticated) {
+      // ── CRITICAL FIX: Invalidate familyListProvider before navigating ──
+      // The provider may have been evaluated (and cached as empty) before
+      // Supabase was ready or before the auth session was restored. By
+      // invalidating it here, we force a fresh fetch with the correct
+      // auth state, so the home screen shows existing families immediately.
+      try {
+        ref.invalidate(familyListProvider);
+        debugPrint('📦 Splash: invalidated familyListProvider before navigation');
+      } catch (e) {
+        debugPrint('⚠️ Splash: could not invalidate familyListProvider: $e');
+      }
+
       // Real Supabase session exists — go to home (or last route).
       String? lastRoute;
       try {
