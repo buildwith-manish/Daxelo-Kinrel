@@ -45,6 +45,18 @@ coverage/
 upload/
 local-*
 
+# ── Kinship Data Assets (downloaded from GitHub Releases, not committed) ──
+Daxelo-Kinrel-App/assets/data/indian_kinship.json
+kinship_matrix.db
+kinship_matrix.db.gz
+kinship_matrix.db-wal
+kinship_matrix.db-shm
+kinship_matrix.db-journal
+kinship_matrix.csv
+indian_kinship.json.gz
+neon_checkpoint.json
+upload_checkpoint.json
+
 # ── Flutter ──
 *.g.dart
 *.freezed.dart

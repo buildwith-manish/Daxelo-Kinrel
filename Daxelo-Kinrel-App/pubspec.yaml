@@ -68,6 +68,11 @@ dependencies:
   package_info_plus: ^8.3.0
   in_app_review: ^2.0.9
 
+  # SQLite for kinship matrix queries (downloaded from GitHub Releases)
+  sqflite: ^2.4.1
+  # Checksum verification for downloaded assets
+  crypto: ^3.0.6
+
   # Media & Device
   image_picker: ^1.0.7
   # v62.4: file_selector for web-compatible image picker (image-only filter)
