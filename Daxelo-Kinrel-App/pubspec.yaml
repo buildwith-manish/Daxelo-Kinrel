@@ -136,8 +136,7 @@ flutter:
   uses-material-design: true
   
   assets:
-    - assets/data/
-    - assets/data/global/
+    - assets/data/kinship_core.json
     - assets/icons/
     - assets/images/
     - assets/fonts/

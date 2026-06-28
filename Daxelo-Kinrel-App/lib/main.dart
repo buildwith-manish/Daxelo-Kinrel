@@ -35,6 +35,7 @@ import 'core/utils/memory_monitor.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'core/widgets/offline_banner.dart';
 import 'core/widgets/global_error_widget.dart';
+import 'widgets/kinship_asset_gate.dart';
 import 'features/profile/data/profile_provider.dart';
 
 import 'core/services/rating_service.dart';
@@ -707,7 +708,8 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     final darkTheme = ref.watch(darkThemeProvider);
     final router = ref.watch(routerProvider);
 
-    return MaterialApp.router(
+    return KinshipAssetGate(
+      child: MaterialApp.router(
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
       // v47 FIX: Allow touch, mouse, trackpad, and stylus gestures everywhere.
@@ -776,6 +778,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
           ),
         );
       },
+      ),
     );
   }
 }

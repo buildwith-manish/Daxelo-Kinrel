@@ -73,8 +73,8 @@ class KinshipRelationship {
     this.hindiSpecificTerm,
     this.distinguishesFromMaternal = false,
     this.elderYoungerDistinction = false,
-    this.regionSpecific,
-    this.displayNames,
+    this.regionSpecific = const {},
+    this.displayNames = const {},
     this.culturalNotes,
     this.searchableText,
     this.inversePath,
@@ -123,8 +123,10 @@ class KinshipRelationship {
           json['distinguishesFromMaternal'] as bool? ?? false,
       elderYoungerDistinction:
           json['elderYoungerDistinction'] as bool? ?? false,
-      regionSpecific: json['regionSpecific'] as Map<String, dynamic>?,
-      displayNames: json['displayNames'] as Map<String, dynamic>?,
+      regionSpecific: (json['regionSpecific'] as Map<String, dynamic>?)
+              ?.map((k, v) => MapEntry(k, v as String)) ??
+          {},
+      displayNames: (json['displayNames'] as Map<String, dynamic>?) ?? {},
       culturalNotes: json['culturalNotes'] as String?,
       searchableText: json['searchableText'] as String?,
       inversePath:
@@ -162,8 +164,8 @@ class KinshipRelationship {
   final String? hindiSpecificTerm;
   final bool distinguishesFromMaternal;
   final bool elderYoungerDistinction;
-  final Map<String, dynamic>? regionSpecific;
-  final Map<String, dynamic>? displayNames;
+  final Map<String, String> regionSpecific;
+  final Map<String, dynamic> displayNames;
   final String? culturalNotes;
   final String? searchableText;
   final List<String>? inversePath;
