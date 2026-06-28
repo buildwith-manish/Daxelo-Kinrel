@@ -36,7 +36,7 @@ import '../../../graph/graph.dart';
 import '../../../graph/widgets/family_graph_engine_view.dart';
 import '../../../graph/widgets/graph_tutorial_overlay.dart';
 import '../../../graph/widgets/search_bar.dart';
-import 'add_person_sheet.dart';
+import 'add_member_options_sheet.dart';
 import 'providers/family_graph_provider.dart'
     show
         FamilyGraphNotifier,
@@ -140,7 +140,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
   /// Opens the Add Member sheet and refreshes graph data when it closes.
   Future<void> _openAddMember() async {
-    await AddPersonSheet.show(context, familyId: widget.familyId);
+    await showAddMemberOptions(context, familyId: widget.familyId);
 
     if (mounted) {
       // v60: Single cache clear + invalidation. Removed the 1500ms
