@@ -62,10 +62,34 @@ fi
 #
 # --base-href "/" is required for Vercel — the app is served at the root.
 # --release enables dart2js tree-shaking and minification.
+#
+# IMPORTANT: We do NOT pipe through `tail` here. The previous version
+# used `| tail -20` which truncated the dart2js error output, making
+# compile failures impossible to diagnose (Vercel only showed the last
+# 20 lines, which were just the stack trace, not the actual error).
+# We tee the full output to a log file AND to stdout so Vercel captures
+# everything, and we surface the full log on failure.
 echo "=== Running flutter build web --release ==="
+set +e
 flutter build web --release \
   --base-href "/" \
-  2>&1 | tail -20
+  > /tmp/flutter_build.log 2>&1
+BUILD_EXIT_CODE=$?
+set -e
+
+if [ $BUILD_EXIT_CODE -ne 0 ]; then
+  echo ""
+  echo "=== ❌ flutter build web FAILED (exit $BUILD_EXIT_CODE) ==="
+  echo "=== Full build log: ==="
+  cat /tmp/flutter_build.log
+  echo ""
+  echo "=== End of build log ==="
+  exit 1
+fi
+
+echo "=== flutter build web succeeded ==="
+echo "=== Last 30 lines of build output: ==="
+tail -30 /tmp/flutter_build.log
 
 echo ""
 echo "=== Build output listing ==="

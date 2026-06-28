@@ -839,7 +839,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     try {
       if (isAdding) {
         await client.from('ChatMessageReaction').insert({
-          'id': 'cr_${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}_${Random().nextInt(1 << 32).toRadixString(36)}',
+          'id': 'cr_${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}_${Random().nextInt(1 << 30).toRadixString(36)}',
           'messageId': messageId,
           'userId': myUserId,
           'emoji': emoji,
@@ -886,7 +886,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (client == null) return;
     try {
       await client.from('ChatReadReceipt').insert({
-        'id': 'crr_${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}_${Random().nextInt(1 << 32).toRadixString(36)}',
+        'id': 'crr_${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}_${Random().nextInt(1 << 30).toRadixString(36)}',
         'messageId': messageId,
         'userId': userId,
       });
@@ -929,7 +929,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     try {
       final rows = unread.map((m) {
         return {
-          'id': 'crr_${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}_${Random().nextInt(1 << 32).toRadixString(36)}',
+          'id': 'crr_${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}_${Random().nextInt(1 << 30).toRadixString(36)}',
           'messageId': m.id,
           'userId': myUserId,
         };
