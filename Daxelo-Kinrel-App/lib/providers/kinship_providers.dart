@@ -6,7 +6,7 @@ import '../services/kinship_resolver.dart';
 import '../core/kinship/kinship_service.dart';
 
 /// Singleton AssetDownloadService.
-final assetDownloadServiceProvider = Provider<AssetDownloadService>((ref) {
+final assetDownloadProvider = Provider<AssetDownloadService>((ref) {
   return AssetDownloadService();
 });
 

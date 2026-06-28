@@ -47,7 +47,7 @@ class _KinshipAssetGateState extends ConsumerState<KinshipAssetGate> {
   }
 
   Future<void> _loadFullJsonInBackground() async {
-    final downloadService = ref.read(assetDownloadServiceProvider);
+    final downloadService = ref.read(assetDownloadProvider);
 
     try {
       final ready = await downloadService.areAssetsReady();

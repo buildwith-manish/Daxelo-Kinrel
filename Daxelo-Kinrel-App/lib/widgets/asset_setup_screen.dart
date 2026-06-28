@@ -40,7 +40,7 @@ class _AssetSetupScreenState extends ConsumerState<AssetSetupScreen> {
     });
 
     try {
-      final downloadService = ref.read(assetDownloadServiceProvider);
+      final downloadService = ref.read(assetDownloadProvider);
 
       // Check if already downloaded
       final ready = await downloadService.areAssetsReady();
@@ -56,18 +56,11 @@ class _AssetSetupScreenState extends ConsumerState<AssetSetupScreen> {
         _statusMessage = 'Starting download...';
       });
 
-      await for (final progress in downloadService.downloadAssets()) {
+      await for (final progress in downloadService.downloadAssetsWithProgress()) {
         setState(() {
           _currentProgress = progress;
           _statusMessage = progress.message;
         });
-      }
-
-      // Verify files
-      final verified = await downloadService.verifyFiles();
-      if (!verified) {
-        throw AssetDownloadException(
-            'File verification failed. Please try again.');
       }
 
       // Initialize resolver with downloaded files
@@ -83,13 +76,16 @@ class _AssetSetupScreenState extends ConsumerState<AssetSetupScreen> {
   }
 
   Future<void> _initializeResolver() async {
-    final downloadService = ref.read(assetDownloadServiceProvider);
-    final resolver = ref.read(kinshipResolverProvider);
+    final downloadService = ref.read(assetDownloadProvider);
 
-    final dbPath = await downloadService.getSqlitePath();
+    // Get the downloaded JSON path
     final jsonPath = await downloadService.getJsonPath();
 
-    await resolver.initializeSqlite(dbPath);
+    // Reload KinshipService with the full JSON
+    // (KinshipService is a singleton accessed via KinshipService.instance)
+    // The resolver uses KinshipService internally — no separate init needed.
+    // Legacy stubs initializeSqlite/initializeJson are no-ops kept for compat.
+    final resolver = ref.read(kinshipResolverProvider);
     await resolver.initializeJson(jsonPath);
 
     ref.read(kinshipReadyProvider.notifier).state = true;
@@ -109,7 +105,7 @@ class _AssetSetupScreenState extends ConsumerState<AssetSetupScreen> {
   }
 
   Future<void> _retryDownload() async {
-    final downloadService = ref.read(assetDownloadServiceProvider);
+    final downloadService = ref.read(assetDownloadProvider);
     await downloadService.resetAssets();
     await _startDownload();
   }
@@ -120,7 +116,6 @@ class _AssetSetupScreenState extends ConsumerState<AssetSetupScreen> {
     final progress = _currentProgress?.progress ?? 0.0;
     final bytesDownloaded = _currentProgress?.bytesDownloaded ?? 0;
     final totalBytes = _currentProgress?.totalBytes ?? 0;
-    final currentFile = _currentProgress?.currentFile ?? '';
 
     return Scaffold(
       body: SafeArea(
