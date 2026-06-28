@@ -34,6 +34,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/database/sync/connectivity_service.dart' show isOnlineProvider;
 import '../../core/services/analytics_service.dart';
@@ -57,6 +58,8 @@ import '../../core/kinship/kinship_service.dart' show KinshipService;
 import '../../core/relationship/relationship_engine.dart' show RelationshipEngine;
 import '../../core/services/graph_layout_service.dart' show GraphPerson;
 import '../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider;
+import '../../core/viewer/viewer_api_client.dart'
+    show viewerApiClientProvider;
 import '../../features/family/presentation/services/graph_export_service.dart'
     show GraphExportService;
 import '../rendering/edge_path_cache.dart' show EdgePathCache;
@@ -77,6 +80,30 @@ enum _Lod {
   /// Single painter draws every node as a dot (max scale).
   dot,
 }
+
+/// Returns true if the current user has an explicit `linkedUserId` link
+/// to their Person node in this family (as opposed to falling back to
+/// `isAnchor` via [viewerPersonIdProvider]).
+///
+/// GAP 3 FIX: Used by [FamilyGraphEngineView] to decide whether to show
+/// the "_ClaimProfileBanner". When the authenticated user has not yet
+/// claimed a Person node, the viewer silently resolves to the anchor —
+/// the graph renders but from the wrong perspective. This provider
+/// surfaces that state so the UI can prompt the user to claim.
+///
+/// Returns `true` on error so we never show a false-positive banner —
+/// the graph stays usable even if the viewer-resolution endpoint fails.
+final _isViewerLinkedProvider =
+    FutureProvider.autoDispose.family<bool, String>((ref, familyId) async {
+  try {
+    final client = ref.read(viewerApiClientProvider);
+    final resolution = await client.resolveViewer(familyId);
+    return resolution.isLinked;
+  } catch (_) {
+    // Assume linked on error — don't show banner unnecessarily
+    return true;
+  }
+});
 
 /// Engine-backed family graph view (see file header).
 class FamilyGraphEngineView extends ConsumerStatefulWidget {
@@ -246,6 +273,22 @@ class _FamilyGraphEngineViewState
     final viewerPersonId =
         ref.watch(viewerPersonIdProvider(widget.familyId)).valueOrNull;
 
+    // GAP 3 FIX: Detect if the viewer resolved via anchor fallback (not
+    // linked). When the authenticated user has not claimed a Person node
+    // in this family, viewerPersonIdProvider silently falls back to the
+    // anchor person — the graph looks "wrong" from the user's perspective
+    // but gives no indication why. We surface a banner prompting them to
+    // claim their profile.
+    //
+    // The check is best-effort: if _isViewerLinkedProvider hasn't resolved
+    // yet (loading) or errors, we assume "linked" so we never block the
+    // graph UI or show a false-positive banner.
+    final viewerIsLinked =
+        ref.watch(_isViewerLinkedProvider(widget.familyId)).valueOrNull ??
+            true;
+    final viewerIsUnlinked =
+        viewerPersonId != null && !viewerIsLinked;
+
     return layoutAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (Object e, _) => _ErrorRetry(
@@ -256,40 +299,55 @@ class _FamilyGraphEngineViewState
         if (layout.positions.isEmpty || flat == null) {
           return const _EmptyGraph();
         }
-        return Stack(
+        // Wrap the graph in a Column so we can show a claim-profile banner
+        // above it when the viewer is unlinked. The graph itself expands
+        // to fill the remaining space.
+        return Column(
           children: [
-            Positioned.fill(
-              child: RepaintBoundary(
-                key: _graphBoundaryKey,
-                child: _buildCanvas(layout, flat, selectedEdgeId, viewerPersonId),
-              ),
-            ),
-            if (!isOnline)
-              const Positioned(
-                  left: 0, right: 0, top: 0, child: _OfflineBanner()),
-            // v2.2: Graph legend — shows section colors + edge styles for
-            // the kinship categories present in the current graph.
-            GraphLegend(
-              isVisible: _showLegend,
-              onToggle: () => setState(() => _showLegend = !_showLegend),
-              presentCategories: _presentCategories(flat),
-            ),
-            if (kEnableGraphShareExport)
-              // Directional alignment so the FAB sits at the bottom-end
-              // edge (bottom-right in LTR, bottom-left in RTL) instead of
-              // always at the physical right.
-              Align(
-                alignment: AlignmentDirectional.bottomEnd,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: FloatingActionButton.small(
-                    heroTag: 'graph_share_export',
-                    onPressed: _shareGraph,
-                    tooltip: 'Share graph',
-                    child: const Icon(Icons.ios_share),
+            // Claim banner — shown when user has no linked Person node
+            if (viewerIsUnlinked)
+              _ClaimProfileBanner(familyId: widget.familyId),
+            // Existing graph widget — expand to fill remaining space
+            Expanded(
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: RepaintBoundary(
+                      key: _graphBoundaryKey,
+                      child: _buildCanvas(
+                          layout, flat, selectedEdgeId, viewerPersonId),
+                    ),
                   ),
-                ),
+                  if (!isOnline)
+                    const Positioned(
+                        left: 0, right: 0, top: 0, child: _OfflineBanner()),
+                  // v2.2: Graph legend — shows section colors + edge styles for
+                  // the kinship categories present in the current graph.
+                  GraphLegend(
+                    isVisible: _showLegend,
+                    onToggle: () =>
+                        setState(() => _showLegend = !_showLegend),
+                    presentCategories: _presentCategories(flat),
+                  ),
+                  if (kEnableGraphShareExport)
+                    // Directional alignment so the FAB sits at the bottom-end
+                    // edge (bottom-right in LTR, bottom-left in RTL) instead of
+                    // always at the physical right.
+                    Align(
+                      alignment: AlignmentDirectional.bottomEnd,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: FloatingActionButton.small(
+                          heroTag: 'graph_share_export',
+                          onPressed: _shareGraph,
+                          tooltip: 'Share graph',
+                          child: const Icon(Icons.ios_share),
+                        ),
+                      ),
+                    ),
+                ],
               ),
+            ),
           ],
         );
       },
@@ -1088,6 +1146,62 @@ class _ErrorRetry extends StatelessWidget {
           const Text('Could not load the family graph.'),
           const SizedBox(height: 12),
           FilledButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
+      ),
+    );
+  }
+}
+
+/// Banner shown when the authenticated user has not yet claimed a
+/// Person node in this family. Tapping it navigates to person selection
+/// so the user can tap "This is me" / Claim on their own Person node.
+///
+/// GAP 3 FIX: Without this banner, the graph silently renders from the
+/// anchor person's perspective when the user has no linked Person node,
+/// which makes the labels look wrong (e.g. a father sees his children
+/// labeled as "sibling") with no explanation.
+class _ClaimProfileBanner extends ConsumerWidget {
+  const _ClaimProfileBanner({required this.familyId});
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: const Color(0xFFE8622A).withValues(alpha: 0.12),
+      child: Row(
+        children: [
+          const Icon(Icons.person_search, color: Color(0xFFE8622A), size: 18),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              "Tap to claim your profile — you're viewing as the family anchor",
+              style: TextStyle(
+                color: Color(0xFFE8622A),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              // Navigate to the family detail screen, which has a Members
+              // tab where the user can find their own Person node and tap
+              // "This is me" / Claim. The app uses GoRouter, so we use
+              // context.push('/family/$familyId'). If the route changes,
+              // search for how other parts of the app navigate to the
+              // members list for a family.
+              context.push('/family/$familyId');
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFE8622A),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text('Claim', style: TextStyle(fontSize: 12)),
+          ),
         ],
       ),
     );

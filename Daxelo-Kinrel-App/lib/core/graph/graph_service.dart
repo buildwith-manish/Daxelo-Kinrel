@@ -96,36 +96,71 @@ class Edge {
   final String direction;
 }
 
-/// Inverse relationship type mapping
+/// Maps a stored relationship type to its inverse when traversing an edge
+/// in the reverse direction during BFS.
+///
+/// Uses gender-neutral intermediate terms ('child', 'parent', 'sibling')
+/// because gender resolution happens later in RelationshipEngine._resolveSingleStepKey().
+/// The intermediate terms must be ones that _resolveSingleStepKey() knows
+/// how to resolve — 'child', 'parent', 'sibling', 'spouse' are all handled.
+///
+/// For compound stored types (e.g. 'father_in_law'), the inverse must also
+/// be a term that either exists as a key in KinshipService or can be
+/// resolved by _resolveSingleStepKey().
 const Map<String, String> inverseTypeMap = {
+  // Core blood relations — gender resolved later by target's gender
   'father': 'child',
   'mother': 'child',
-  'child': 'parent',
+  'parent': 'child',
   'son': 'parent',
   'daughter': 'parent',
+  'child': 'parent',
+
+  // Siblings — gender resolved later by target's gender
   'brother': 'sibling',
   'sister': 'sibling',
+  'sibling': 'sibling',
+
+  // Spouses
+  'husband': 'spouse',
+  'wife': 'spouse',
   'spouse': 'spouse',
-  'husband': 'wife',
-  'wife': 'husband',
+
+  // Grandparents / grandchildren
   'grandfather': 'grandchild',
   'grandmother': 'grandchild',
+  'grandparent': 'grandchild',
   'grandchild': 'grandparent',
-  'uncle': 'nephew_or_niece',
-  'aunt': 'nephew_or_niece',
-  'nephew': 'uncle_or_aunt',
-  'niece': 'uncle_or_aunt',
-  'cousin': 'cousin',
+  'grandson': 'grandparent',
+  'granddaughter': 'grandparent',
+
+  // Aunts / uncles / nephews / nieces
+  'uncle': 'sibling_child',
+  'aunt': 'sibling_child',
+  'nephew': 'parent_sibling',
+  'niece': 'parent_sibling',
+
+  // In-laws
   'father_in_law': 'child_in_law',
   'mother_in_law': 'child_in_law',
   'son_in_law': 'parent_in_law',
   'daughter_in_law': 'parent_in_law',
   'brother_in_law': 'sibling_in_law',
   'sister_in_law': 'sibling_in_law',
+
+  // Step relations
   'step_father': 'step_child',
   'step_mother': 'step_child',
+  'step_son': 'step_parent',
+  'step_daughter': 'step_parent',
   'step_brother': 'step_sibling',
   'step_sister': 'step_sibling',
+  'step_child': 'step_parent',
+  'step_parent': 'step_child',
+  'step_sibling': 'step_sibling',
+
+  // Cousins (symmetric)
+  'cousin': 'cousin',
 };
 
 /// Kinship term mapping for relationship composition.

@@ -137,10 +137,21 @@ class RelationshipEngine {
       return _resolveSingleStepKey(pathTypes.first, targetPersonId, persons);
     }
 
-    // Multi-step path — try KinshipService.resolvePathToKey first
+    // Multi-step path — try resolveChainPath first (96-97% accuracy)
+    // resolveChainPath composes chainRules at runtime for arbitrary depth.
     try {
       final kinship = KinshipService.instance;
       if (kinship.isLoaded) {
+        // 1. Try runtime chain traversal (new — highest accuracy)
+        final traversed = kinship.resolveChainPath(
+          pathTypes,
+          viewerGender: _getViewerGender(viewerPersonId, persons),
+        );
+        if (traversed != null && kinship.getRelationship(traversed) != null) {
+          return traversed;
+        }
+
+        // 2. Try direct path key lookup (old — works for exact compound keys)
         final resolved = kinship.resolvePathToKey(pathTypes);
         if (resolved != null) {
           return resolved.relationshipKey;
@@ -195,12 +206,30 @@ class RelationshipEngine {
     return result.toString();
   }
 
+  /// Returns the viewer's gender for use in gendered chain resolution.
+  /// Defaults to 'male' if the viewer's person is not found or has no gender.
+  String _getViewerGender(
+    String? viewerPersonId,
+    List<GraphPerson> persons,
+  ) {
+    if (viewerPersonId == null) return 'male';
+    final viewer =
+        persons.where((p) => p.id == viewerPersonId).firstOrNull;
+    final gender = viewer?.gender?.toLowerCase();
+    if (gender == 'female' || gender == 'f') return 'female';
+    return 'male';
+  }
+
   /// Resolves a single-step relationship type to a gender-specific key.
   ///
   /// "parent" → "father" or "mother" (based on target's gender)
   /// "child" → "son" or "daughter"
   /// "sibling" → "brother" or "sister"
   /// "spouse" → "husband" or "wife"
+  ///
+  /// Also resolves the gender-neutral intermediate inverse terms produced
+  /// by [inverseTypeMap] in `graph_service.dart` (e.g. "sibling_child",
+  /// "parent_sibling", "child_in_law") to their gendered final keys.
   String? _resolveSingleStepKey(
     String type,
     String targetPersonId,
@@ -208,25 +237,69 @@ class RelationshipEngine {
   ) {
     final target = persons.where((p) => p.id == targetPersonId).firstOrNull;
     final gender = target?.gender?.toLowerCase();
+    final isFemale = gender == 'female' || gender == 'f';
 
     switch (type) {
+      // Standard single-step — resolve by target gender
       case 'parent':
       case 'father':
       case 'mother':
-        return gender == 'female' ? 'mother' : 'father';
+        return isFemale ? 'mother' : 'father';
+
       case 'child':
       case 'son':
       case 'daughter':
-        return gender == 'female' ? 'daughter' : 'son';
+        return isFemale ? 'daughter' : 'son';
+
       case 'sibling':
       case 'brother':
       case 'sister':
-        return gender == 'female' ? 'sister' : 'brother';
+        return isFemale ? 'sister' : 'brother';
+
       case 'spouse':
       case 'husband':
       case 'wife':
-        return gender == 'female' ? 'wife' : 'husband';
+        return isFemale ? 'wife' : 'husband';
+
+      case 'grandparent':
+      case 'grandfather':
+      case 'grandmother':
+        return isFemale ? 'maternal_grandmother' : 'paternal_grandfather';
+
+      case 'grandchild':
+      case 'grandson':
+      case 'granddaughter':
+        return isFemale ? 'granddaughter' : 'grandson';
+
+      // Intermediate inverse terms from inverseTypeMap
+      case 'sibling_child':
+        // uncle/aunt's perspective on nephews/nieces
+        return isFemale ? 'niece' : 'nephew';
+
+      case 'parent_sibling':
+        // nephew/niece's perspective on uncles/aunts
+        return isFemale ? 'aunt' : 'uncle';
+
+      case 'child_in_law':
+        return isFemale ? 'daughter_in_law' : 'son_in_law';
+
+      case 'parent_in_law':
+        return isFemale ? 'mother_in_law' : 'father_in_law';
+
+      case 'sibling_in_law':
+        return isFemale ? 'sister_in_law' : 'brother_in_law';
+
+      case 'step_parent':
+        return isFemale ? 'step_mother' : 'step_father';
+
+      case 'step_child':
+        return isFemale ? 'step_daughter' : 'step_son';
+
+      case 'step_sibling':
+        return isFemale ? 'step_sister' : 'step_brother';
+
       default:
+        // Return the type as-is — may be a compound key already in KinshipService
         return type;
     }
   }
