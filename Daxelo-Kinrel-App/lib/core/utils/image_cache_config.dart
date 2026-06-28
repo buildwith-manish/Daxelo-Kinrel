@@ -88,6 +88,23 @@ class ImageCacheConfig {
   static Future<void> initialize() async {
     if (_initialized) return;
 
+    // WEB: Skip disk cache initialization on web — flutter_cache_manager
+    // uses sqflite + path_provider which don't work on web. The in-memory
+    // image cache (PaintingBinding) works fine on web, so we still set
+    // that up. CachedNetworkImage will fall back to network-only mode
+    // (no disk caching) on web, which is acceptable.
+    if (kIsWeb) {
+      try {
+        PaintingBinding.instance.imageCache.maximumSizeBytes =
+            _maxMemoryCacheBytes;
+        _initialized = true;
+        debugPrint('✅ ImageCacheConfig: Web mode — memory cache only');
+      } catch (e) {
+        debugPrint('⚠️ ImageCacheConfig: Web memory cache setup failed: $e');
+      }
+      return;
+    }
+
     try {
       // 1. Set memory cache limits for Flutter's in-memory image cache.
       //    This controls how many decoded images are kept in RAM.

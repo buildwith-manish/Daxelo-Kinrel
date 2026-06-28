@@ -27,7 +27,18 @@ class IsarDatabase {
   /// Initialize the database with all tables.
   /// Must be called before any database operations.
   /// Should be called in main() before runApp().
+  ///
+  /// WEB: Skips initialization on web platforms because Drift's web
+  /// backend requires sqlite3.wasm + drift_worker.js files to be served
+  /// from the web root. Those files are not currently set up in web/.
+  /// All providers that read from Drift have `isInitialized` guards
+  /// that fall back to Supabase-only mode when Drift is unavailable.
   static Future<void> initialize() async {
+    if (kIsWeb) {
+      debugPrint('🔧 Drift database skipped on web — using Supabase-only mode');
+      return;
+    }
+
     if (_instance != null) {
       debugPrint('🔧 Database already initialized, skipping...');
       return;

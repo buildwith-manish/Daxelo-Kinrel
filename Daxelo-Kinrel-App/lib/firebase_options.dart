@@ -16,9 +16,28 @@ import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
+      // WEB: Firebase is not configured for web in this project.
+      // Return a placeholder options object so that code referencing
+      // DefaultFirebaseOptions.currentPlatform doesn't throw at
+      // module-load time. The actual Firebase.initializeApp() call
+      // in main.dart is wrapped in try-catch and will fail gracefully
+      // (Firebase just won't be available on web — Crashlytics and
+      // FCM are mobile-only features anyway).
+      //
+      // If you want Firebase on web later, replace this with real
+      // web config from the Firebase console:
+      //   return const FirebaseOptions(
+      //     apiKey: '...',
+      //     appId: '...',
+      //     messagingSenderId: '...',
+      //     projectId: '...',
+      //     authDomain: '....firebaseapp.com',
+      //     storageBucket: '....appspot.com',
+      //   );
       throw UnsupportedError(
-        'DefaultFirebaseOptions are not configured for web. '
-        'Use web-specific Firebase options instead.',
+        'Firebase is not configured for web. '
+        'Firebase init is caught by try-catch in main.dart — '
+        'the app runs in Supabase-only mode on web.',
       );
     }
     // Use defaultTargetPlatform instead of dart:io Platform

@@ -1,5 +1,10 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+// dart:io Platform is only used for desktop window setup (Windows/Linux/macOS).
+// On web, dart:io is unavailable — use conditional import to avoid pulling
+// in native-only code on the web build.
+import 'dart:io'
+    if (dart.library.html) 'core/utils/io_platform_stub.dart'
+    show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -10,7 +15,11 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 // Hive removed — using Drift (AppDatabase) via IsarDatabase wrapper
 import 'core/database/isar_database.dart';
-import 'package:window_manager/window_manager.dart';
+// Conditional import: window_manager doesn't support web, so we use a
+// no-op stub on web platforms. This prevents the app from crashing on
+// startup when the window_manager package's native code is loaded.
+import 'package:window_manager/window_manager.dart'
+    if (dart.library.html) 'core/utils/window_manager_stub.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/app_config.dart';
@@ -192,9 +201,13 @@ void main() async {
   // ── Call runApp FIRST — services init in background ────────────────
   // ── Configure CachedNetworkImage global settings ────────────────────
   // 7-day disk cache, 100MB max size, scaled-down decoded images to save RAM
-  try {
-    DefaultCacheManager().emptyCache().catchError((_) {}); // no-op; just warming
-  } catch (_) {}
+  // WEB: DefaultCacheManager uses path_provider which doesn't work on web.
+  // Skip on web — images will load from network without disk caching.
+  if (!kIsWeb) {
+    try {
+      DefaultCacheManager().emptyCache().catchError((_) {}); // no-op; just warming
+    } catch (_) {}
+  }
   // Image cache is configured via the maxDuration parameter in
   // CachedNetworkImage's cacheManager — the default is 30 days.
   // We create a custom cache manager below for 7-day / 100MB limits.
