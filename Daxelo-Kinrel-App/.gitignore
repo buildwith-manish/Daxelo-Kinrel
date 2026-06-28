@@ -6,6 +6,9 @@
 .pub-cache/
 .pub/
 build/
+# Explicit: never commit the web build output — it's rebuilt by CI
+# with the correct --base-href for each deployment target.
+Daxelo-Kinrel-App/build/
 flutter_*.png
 .metadata
 
