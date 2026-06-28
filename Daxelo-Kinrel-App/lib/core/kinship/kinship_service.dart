@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'kinship_models.dart';
@@ -39,25 +40,74 @@ class KinshipService {
   final Map<String, KinshipRelationship> _searchIndex =
       {}; // lowercase keyword → relationship
 
+  /// Chain map: fromRelationshipKey → {viaKey → ChainRule}
+  /// Built from the `chainRules` array on each v5.0.0 entry.
+  final Map<String, Map<String, ChainRule>> _chainMap = {};
+
   bool _isLoaded = false;
   bool get isLoaded => _isLoaded;
   int get totalRelationships => _data?.totalRelationships ?? 0;
   List<String> get supportedLanguages => _data?.supportedLanguages ?? [];
   List<String> get categories => _byCategory.keys.toList()..sort();
 
-  /// Load kinship data from JSON asset
-  Future<void> load() async {
+  /// Reset the service so it can be reloaded with different data
+  /// (e.g. when the full JSON finishes downloading after the core
+  /// JSON was loaded as an instant fallback).
+  void reload() {
+    _data = null;
+    _isLoaded = false;
+    _byKey.clear();
+    _byCategory.clear();
+    _byLineage.clear();
+    _byGender.clear();
+    _byGeneration.clear();
+    _searchIndex.clear();
+    _chainMap.clear();
+  }
+
+  /// Load kinship data from JSON asset or downloaded local file.
+  ///
+  /// [localFilePath] — if provided and the file exists, loads from the
+  /// downloaded full JSON (e.g. from GitHub Releases). Otherwise falls
+  /// back to the bundled `kinship_core.json` (tiny fallback with core
+  /// relationships only).
+  Future<void> load({String? localFilePath}) async {
     if (_isLoaded) return;
 
     try {
-      final jsonStr = await rootBundle.loadString(
-        'assets/data/indian_kinship.json',
-      );
+      String jsonStr;
+
+      if (localFilePath != null && File(localFilePath).existsSync()) {
+        // Load from downloaded local file (full 5363-entry JSON)
+        debugPrint('📁 Loading kinship data from local file: $localFilePath');
+        jsonStr = await File(localFilePath).readAsString();
+      } else {
+        // Try bundled full JSON first (for backward compat during transition)
+        try {
+          jsonStr = await rootBundle.loadString(
+            'assets/data/indian_kinship.json',
+          );
+          debugPrint('📦 Loading kinship data from bundled indian_kinship.json');
+        } catch (_) {
+          // Fall back to tiny core JSON (bundled fallback)
+          try {
+            jsonStr = await rootBundle.loadString(
+              'assets/data/kinship_core.json',
+            );
+            debugPrint('⚠️ Using core JSON fallback (limited data)');
+          } catch (e) {
+            debugPrint('❌ No kinship data available: $e');
+            rethrow;
+          }
+        }
+      }
+
       final jsonData = jsonDecode(jsonStr) as Map<String, dynamic>;
       _data = KinshipData.fromJson(jsonData);
 
       _buildIndices();
       _isLoaded = true;
+      debugPrint('✅ Kinship data loaded: ${_data?.totalRelationships ?? 0} relationships');
     } catch (e) {
       // Log the error but don't throw — allow the app to continue
       // with an empty dataset rather than crashing
@@ -93,6 +143,13 @@ class KinshipService {
       _searchIndex[rel.relationshipKey.toLowerCase()] = rel;
       for (final kw in rel.searchKeywords) {
         _searchIndex[kw.toLowerCase()] = rel;
+      }
+
+      // Chain map: build from v5.0.0 chainRules array
+      if (rel.chainRules.isNotEmpty) {
+        _chainMap[rel.relationshipKey] = {
+          for (final rule in rel.chainRules) rule.via: rule,
+        };
       }
     }
   }
@@ -271,6 +328,75 @@ class KinshipService {
     if (path.isEmpty || _data == null) return null;
     final pathKey = path.join('_');
     return _byKey[pathKey];
+  }
+
+  /// Resolve fromKey + viaKey using chainRules from the v5.0.0 JSON.
+  ///
+  /// Returns the [ChainRule] if a chain rule exists for the pair,
+  /// otherwise null (caller should fall back to math engine).
+  ///
+  /// Example: resolveChain("father", "brother") → ChainRule(result: "paternal-uncle")
+  ChainRule? resolveChain(
+    String fromKey,
+    String viaKey, {
+    String viewerGender = 'male',
+  }) {
+    if (_chainMap.isEmpty) return null;
+
+    final normalizedFrom = normalizeRelationshipKey(fromKey);
+    final normalizedVia = normalizeRelationshipKey(viaKey);
+
+    // Direct chain rule lookup
+    final fromChains = _chainMap[normalizedFrom];
+    if (fromChains != null) {
+      final rule = fromChains[normalizedVia];
+      if (rule != null) return rule;
+    }
+
+    // Try inverse keys (e.g. if fromKey is "son", try its inverse "father")
+    final fromRel = getRelationship(normalizedFrom);
+    if (fromRel?.inverseKey != null) {
+      final inverseChains = _chainMap[fromRel!.inverseKey!];
+      if (inverseChains != null) {
+        final rule = inverseChains[normalizedVia];
+        if (rule != null) return rule;
+      }
+    }
+
+    return null;
+  }
+
+  /// Get the inverse relationship key for a given key.
+  ///
+  /// [viewerGender] can be 'male', 'female', or 'neutral'.
+  /// Returns null if no inverse is defined.
+  String? getInverseKey(String key, {String viewerGender = 'male'}) {
+    final rel = getRelationship(key);
+    if (rel == null) return null;
+    switch (viewerGender) {
+      case 'female':
+        return rel.inverseKeyFemale ?? rel.inverseKey;
+      case 'neutral':
+        return rel.inverseKeyNeutral ?? rel.inverseKey;
+      default:
+        return rel.inverseKey;
+    }
+  }
+
+  /// Get graph display metadata for a relationship key.
+  /// Returns null if not available.
+  Map<String, dynamic>? getGraphDisplay(String key) {
+    return getRelationship(key)?.graphDisplay;
+  }
+
+  /// Get the Hindi-specific term for a relationship (e.g. "Tau", "Chacha").
+  String? getHindiSpecificTerm(String key) {
+    return getRelationship(key)?.hindiSpecificTerm;
+  }
+
+  /// Get the Indian kinship class for a relationship.
+  String? getIndianKinshipClass(String key) {
+    return getRelationship(key)?.indianKinshipClass;
   }
 
   /// Get all relationships
