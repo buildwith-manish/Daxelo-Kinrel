@@ -27,8 +27,11 @@ Future<PickedContact?> pickContactImpl() async {
   Contact fullContact = contact;
   if (contact.phones.isEmpty && contact.emails.isEmpty) {
     try {
-      fullContact = await FlutterContacts.getContact(contact.id,
+      final fetched = await FlutterContacts.getContact(contact.id,
           withProperties: true, withPhoto: false);
+      if (fetched != null) {
+        fullContact = fetched;
+      }
     } catch (_) {
       // Fall back to the partial contact
     }
