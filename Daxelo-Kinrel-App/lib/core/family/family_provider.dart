@@ -725,6 +725,22 @@ final familyListProvider = FutureProvider<List<Family>>((ref) async {
   // NestJS soft-delete transaction commits (Bug 3 race condition).
   final pendingDeletes = ref.watch(pendingDeleteFamilyIdsProvider);
 
+  // BUG FIX (families-not-loading-after-login): Watch the current user so
+  // the provider auto-rebuilds when auth state changes. Previously this
+  // provider only watched `isSupabaseReadyProvider`, which meant it was
+  // cached as `[]` if it ran before the user signed in (e.g. via the
+  // 3-second preload in main.dart). When the user then signed in, the
+  // cached empty list kept being returned and the home screen showed
+  // "No Families Yet" until the user manually triggered create-family
+  // (which calls `ref.invalidate(familyListProvider)`).
+  //
+  // By watching `currentUserProvider`, the provider rebuilds as soon as
+  // `currentUser` transitions from `null` → `User` (sign-in) or
+  // `User` → `null` (sign-out), always reflecting the current auth state.
+  // We don't need to read the returned value — the `ref.watch()` call
+  // itself is what establishes the dependency.
+  ref.watch(currentUserProvider);
+
   final isReady = ref.watch(isSupabaseReadyProvider);
   if (!isReady) {
     // Even when Supabase isn't ready, try Isar cache for offline access

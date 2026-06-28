@@ -434,6 +434,30 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
                   'event': event.name,
                 });
               } catch (_) {}
+
+              // BUG FIX (families-not-loading-after-login): Invalidate any
+              // family-related providers that may have been preloaded (and
+              // cached as empty) before the user signed in. The 3-second
+              // preload in this file (search for "Preload bottom nav tabs")
+              // calls `ref.read(familyListProvider.future)` which evaluates
+              // the provider with no session and caches `[]`. Without this
+              // invalidation, the home screen keeps showing "No Families Yet"
+              // until the user manually triggers create-family.
+              //
+              // `familyListProvider` now also watches `currentUserProvider`
+              // (see lib/core/family/family_provider.dart), so it would
+              // rebuild on its own — but invalidating here is belt-and-
+              // suspenders: it guarantees a fresh fetch on every sign-in,
+              // including token-refresh/`SIGNED_IN` events emitted by
+              // Supabase when recovering a persisted session on app start.
+              try {
+                ref.invalidate(familyListProvider);
+                ref.invalidate(archivedFamiliesProvider);
+                debugPrint('🔐 Auth listener: signedIn — familyListProvider invalidated');
+              } catch (e) {
+                debugPrint('⚠️ Auth listener: failed to invalidate family providers: $e');
+              }
+
               debugPrint('🔐 Auth listener: signedIn — navigation handled by router');
             } else if (event == AuthChangeEvent.signedOut) {
               try {
@@ -535,8 +559,32 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     // 6. Preload bottom nav tabs (3s delay)
     Future.delayed(const Duration(seconds: 3), () {
       try {
-        // Preload tabs — works with or without auth session
-        ref.read(familyListProvider.future).catchError((_) => <Family>[]);
+        // BUG FIX (families-not-loading-after-login): Only preload
+        // `familyListProvider` when there is an active auth session.
+        //
+        // Previously this call ran unconditionally ("works with or without
+        // auth session"), which meant that if the user was still on the
+        // sign-in screen 3 seconds after app launch, the provider would
+        // evaluate with `currentSession == null` and cache `[]`. The home
+        // screen would then show "No Families Yet" after the user signed
+        // in, because the cached empty result kept being returned. The
+        // families only appeared after the user triggered create-family
+        // (which calls `ref.invalidate(familyListProvider)`).
+        //
+        // The empty cache is now also recovered by:
+        //   • `familyListProvider` watching `currentUserProvider` (auto-
+        //     rebuild on sign-in), AND
+        //   • the auth state listener in this file invalidating the
+        //     provider on `signedIn`.
+        // But skipping the preload entirely when unauthenticated avoids
+        // caching a known-empty result in the first place.
+        final client = ref.read(supabaseProvider);
+        final hasSession = client?.auth.currentSession != null;
+        if (hasSession) {
+          ref.read(familyListProvider.future).catchError((_) => <Family>[]);
+        } else {
+          debugPrint('⏭️ familyListProvider preload skipped — no auth session');
+        }
         ref.read(profileProvider.notifier).loadProfile().catchError((_) {});
         ref.read(profileProvider.notifier).loadStats().catchError((_) {});
         debugPrint('🚀 Bottom nav tabs preloaded');
