@@ -988,7 +988,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 // Message Bubble Widget
 // ═══════════════════════════════════════════════════════════════════════
 
-class _MessageBubble extends StatelessWidget {
+class _MessageBubble extends ConsumerWidget {
   const _MessageBubble({
     required this.message,
     required this.isMe,
@@ -1004,7 +1004,11 @@ class _MessageBubble extends StatelessWidget {
   final VoidCallback onLongPress;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Read the current user id so we can highlight the user's own reactions.
+    // _MessageBubble is a separate widget (not _ChatScreenState), so it
+    // can't use the _currentUserId getter — it reads the provider directly.
+    final currentUserId = ref.watch(chatCurrentUserIdProvider);
     return GestureDetector(
       onLongPress: onLongPress,
       child: Align(
@@ -1059,7 +1063,8 @@ class _MessageBubble extends StatelessWidget {
                 ),
               ),
               // Reactions row
-              if (message.reactions.isNotEmpty) _buildReactions(),
+              if (message.reactions.isNotEmpty)
+                _buildReactions(currentUserId),
             ],
           ),
         ),
@@ -1378,7 +1383,7 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildReactions() {
+  Widget _buildReactions(String? currentUserId) {
     final grouped = message.groupedReactions;
     return Padding(
       padding: const EdgeInsets.only(top: 3),
@@ -1387,7 +1392,7 @@ class _MessageBubble extends StatelessWidget {
         runSpacing: 2,
         children: grouped.entries.map((entry) {
           final hasMyReaction = message.reactions.any(
-            (r) => r.emoji == entry.key && r.userId == _currentUserId,
+            (r) => r.emoji == entry.key && r.userId == currentUserId,
           );
           return GestureDetector(
             onTap: onReact,
