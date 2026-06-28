@@ -22,6 +22,7 @@ import 'family_tree_canvas.dart';
 import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
 import 'relationship_builder_screen.dart';
+import 'add_member_options_sheet.dart';
 
 import '../../../core/utils/error_boundary.dart';
 import '../../../core/utils/smart_preloader.dart';
@@ -841,7 +842,7 @@ class _GraphTabState extends ConsumerState<_GraphTab> {
             'Add family members to start building your tree. '
             'Tap the + button below to add the first person.',
         actionLabel: 'Add Member',
-        onAction: () => AddPersonSheet.show(context, familyId: familyId),
+        onAction: () => showAddMemberOptions(context, familyId: familyId),
       );
     }
 
@@ -912,7 +913,7 @@ class _GraphTabState extends ConsumerState<_GraphTab> {
           child: _ToolbarButton(
             icon: Icons.person_add_rounded,
             tooltip: 'Add Member',
-            onTap: () => AddPersonSheet.show(context, familyId: familyId),
+            onTap: () => showAddMemberOptions(context, familyId: familyId),
           ),
         ),
 
@@ -2090,7 +2091,7 @@ class _BottomActionBar extends StatelessWidget {
                 icon: Icons.person_add,
                 size: DKButtonSize.sm,
                 onPressed: () =>
-                    AddPersonSheet.show(context, familyId: familyId),
+                    showAddMemberOptions(context, familyId: familyId),
               ),
               const SizedBox(width: 8),
               // Share

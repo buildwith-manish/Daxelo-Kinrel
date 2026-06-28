@@ -6,6 +6,8 @@ import '../../core/family/family_provider.dart';
 import '../../core/networking/dio_client.dart';
 import '../../core/database/isar_database.dart';
 import '../../core/database/app_database.dart';
+import '../../core/services/supabase_service.dart';
+import '../../features/family/presentation/add_member_source.dart';
 
 // ── Display ID Helpers ────────────────────────────────────────────
 
@@ -326,6 +328,51 @@ class SearchRepository {
       debugPrint('⚠️ Server-side search error: $e');
       // Fall back to local search
       return searchAll(query, _typeToFilter(type));
+    }
+  }
+
+  // ── Global Kinrel User Search ────────────────────────────────────
+
+  /// Search ALL Kinrel users (not just family members) via the
+  /// `fn_search_kinrel_users` Supabase RPC function.
+  ///
+  /// This bypasses the User table's RLS (which only lets you see your
+  /// own row) by calling a SECURITY DEFINER function that returns all
+  /// users with public profiles matching the query.
+  ///
+  /// Used by the "Find on Kinrel" add-member flow.
+  Future<List<KinrelUser>> searchKinrelUsers(
+    String query, {
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return [];
+
+    try {
+      final client = _ref.read(supabaseProvider);
+      if (client == null) {
+        debugPrint('⚠️ searchKinrelUsers: Supabase not ready');
+        return [];
+      }
+
+      final response = await client.rpc(
+        'fn_search_kinrel_users',
+        params: {
+          'p_query': trimmed,
+          'p_limit': limit,
+          'p_offset': offset,
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      final list = response as List? ?? [];
+      return list
+          .map((row) =>
+              KinrelUser.fromJson(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('⚠️ searchKinrelUsers error: $e');
+      return [];
     }
   }
 

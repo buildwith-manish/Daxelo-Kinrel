@@ -107,6 +107,9 @@ dependencies:
   # QR Code scanning (gated behind kEnableQrJoin)
   mobile_scanner: ^5.2.0
 
+  # Contact picker (for "From Contacts" add-member flow)
+  flutter_contacts: ^1.1.9+1
+
   # Text-to-speech for kinship pronunciation (gated behind kEnableAudioPronunciation)
   flutter_tts: ^4.2.0
 

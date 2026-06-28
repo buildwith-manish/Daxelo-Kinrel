@@ -98,6 +98,24 @@ class PermissionService {
     );
   }
 
+  /// Request contacts permission.
+  ///
+  /// Used by the "From Contacts" add-member flow to import a contact's
+  /// name, phone, and email into the add-person sheet.
+  static Future<PermissionResult> requestContacts(
+      BuildContext context) async {
+    return _requestWithRationale(
+      context: context,
+      permission: Permission.contacts,
+      title: 'Contacts',
+      reason:
+          'KINREL can pre-fill the add-member form with a contact\'s '
+          'name, phone, and email so you don\'t have to type them '
+          'manually. We only read the contact you select — we never '
+          'upload your address book.',
+    );
+  }
+
   // ── Open App Settings ─────────────────────────────────────────────
 
   /// Open the app's settings page in the system Settings app.

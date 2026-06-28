@@ -22,6 +22,7 @@ import 'services/photo_picker_service.dart';
 import 'providers/family_graph_provider.dart' show FamilyGraphNotifier, familyGraphProvider;
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
+import 'add_member_source.dart';
 import 'relationship_picker_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────
@@ -41,6 +42,11 @@ class AddPersonSheet extends ConsumerStatefulWidget {
     required this.familyId,
     this.existingPerson,
     this.anchorPerson,
+    this.source = AddMemberSource.manual,
+    this.prefilledName,
+    this.prefilledPhone,
+    this.prefilledEmail,
+    this.preselectedKinrelUser,
   });
 
   final String familyId;
@@ -52,12 +58,38 @@ class AddPersonSheet extends ConsumerStatefulWidget {
   /// "Add relative" flow with this person as the anchor in Step 1.
   final Person? anchorPerson;
 
+  /// How the add-member flow was initiated. Controls which step the
+  /// flow starts on and how the person is created in _submit().
+  ///   - manual: Step 0 → 1 → 2 → 3 (full manual entry)
+  ///   - fromContacts: Step 0 (prefilled) → 1 → 2 → 3
+  ///   - findOnKinrel: Step 1 → 2 → 3 (skip Step 0, link to existing user)
+  final AddMemberSource source;
+
+  /// Pre-filled name (from contacts or Kinrel search).
+  final String? prefilledName;
+
+  /// Pre-filled phone (from contacts).
+  final String? prefilledPhone;
+
+  /// Pre-filled email (from contacts).
+  final String? prefilledEmail;
+
+  /// Pre-selected Kinrel user (from "Find on Kinrel" search).
+  /// When non-null, the sheet skips Step 0 and links the new Person
+  /// to this Kinrel user's auth account via `linkedUserId`.
+  final KinrelUser? preselectedKinrelUser;
+
   /// Show as a full-screen bottom sheet.
   static Future<void> show(
     BuildContext context, {
     required String familyId,
     Person? existingPerson,
     Person? anchorPerson,
+    AddMemberSource source = AddMemberSource.manual,
+    String? prefilledName,
+    String? prefilledPhone,
+    String? prefilledEmail,
+    KinrelUser? preselectedKinrelUser,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -72,6 +104,11 @@ class AddPersonSheet extends ConsumerStatefulWidget {
         familyId: familyId,
         existingPerson: existingPerson,
         anchorPerson: anchorPerson,
+        source: source,
+        prefilledName: prefilledName,
+        prefilledPhone: prefilledPhone,
+        prefilledEmail: prefilledEmail,
+        preselectedKinrelUser: preselectedKinrelUser,
       ),
     );
   }
@@ -184,6 +221,35 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         try {
           _selectedDob = DateTime.parse(p.dateOfBirth!);
         } catch (_) {}
+      }
+    } else {
+      // ── Pre-fill data from contacts or Kinrel search ─────────────
+      // For fromContacts: pre-fill name, phone, email from the picked
+      // contact. The user can edit these in Step 0.
+      // For findOnKinrel: pre-fill name from the selected Kinrel user
+      // and skip Step 0 entirely (jump to Step 1 = Relationship).
+      if (widget.prefilledName != null) {
+        _nameController.text = widget.prefilledName!;
+      }
+      if (widget.prefilledPhone != null) {
+        _phoneController.text = widget.prefilledPhone!;
+      }
+      if (widget.prefilledEmail != null) {
+        _emailController.text = widget.prefilledEmail!;
+      }
+
+      // For findOnKinrel, also pre-fill gender if available
+      if (widget.preselectedKinrelUser != null) {
+        final user = widget.preselectedKinrelUser!;
+        if (user.name.isNotEmpty) {
+          _nameController.text = user.name;
+        }
+        if (user.gender != null && user.gender!.isNotEmpty) {
+          _selectedGender = user.gender!;
+        }
+        // Skip Step 0 (Basic Info) — jump directly to Step 1 (Relationship)
+        // because the person already exists on Kinrel.
+        _currentStep = 1;
       }
     }
   }
@@ -456,6 +522,38 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           isDeceased: _isDeceased,
           isAnchor: isFirstMember, // ← v20/v38: First member is always the anchor
         );
+
+        // ═══════════════════════════════════════════════════════════════
+        // LINK TO KINREL USER (findOnKinrel source only)
+        // ═══════════════════════════════════════════════════════════════
+        // When the user selected an existing Kinrel user via "Find on
+        // Kinrel", we link the new Person node to that user's auth
+        // account by setting `linkedUserId` on the Person row. This
+        // lets the linked user log in and see this family from their
+        // own perspective (viewer-perspective graph).
+        if (widget.source == AddMemberSource.findOnKinrel &&
+            widget.preselectedKinrelUser != null &&
+            result != null) {
+          try {
+            final client = ref.read(supabaseProvider);
+            if (client != null) {
+              await client
+                  .from('Person')
+                  .update({
+                    'linkedUserId': widget.preselectedKinrelUser!.id,
+                    'linkedAt': DateTime.now().toUtc().toIso8601String(),
+                  })
+                  .eq('id', result.id)
+                  .timeout(const Duration(seconds: 10));
+              debugPrint(
+                  '[ADD-MEMBER] Linked Person ${result.id} to Kinrel user ${widget.preselectedKinrelUser!.id}');
+            }
+          } catch (e) {
+            // Non-fatal — the Person was created, just the link failed.
+            // The user can re-link later via the claim flow.
+            debugPrint('[ADD-MEMBER] Failed to link Kinrel user: $e');
+          }
+        }
 
         // ═══════════════════════════════════════════════════════════════
         // v7 (2026-06-19): RELATIONSHIP CREATION — DIRECT SUPABASE QUERY

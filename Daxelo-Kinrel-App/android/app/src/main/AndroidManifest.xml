@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
     <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Required for "From Contacts" add-member flow -->
+    <uses-permission android:name="android.permission.READ_CONTACTS"/>
     <!-- P3-F3: Required for push notifications on Android 13+ (API 33) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
