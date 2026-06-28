@@ -32,6 +32,7 @@ on:
       - 'Daxelo-Kinrel-App/pubspec.lock'
       - 'Daxelo-Kinrel-App/vercel*.sh'
       - 'Daxelo-Kinrel-App/vercel.json'
+      - 'Daxelo-Kinrel-App/.gitignore'
       - '.github/workflows/deploy-gh-pages.yml'
   workflow_dispatch:
 
