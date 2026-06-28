@@ -1790,6 +1790,13 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   // ── Logout ─────────────────────────────────────────────────────
 
   Future<void> logout() async {
+    // Get userId BEFORE signing out (auth is cleared by signOut())
+    String? userId;
+    try {
+      final client = _ref.read(supabaseProvider);
+      userId = client?.auth.currentUser?.id;
+    } catch (_) {}
+
     try {
       // Notify backend to invalidate session
       await _dio.post('/api/auth/logout');
@@ -1808,6 +1815,11 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
     // Clear Isar cache on logout
     if (IsarDatabase.isInitialized) {
       try {
+        // Clear only THIS user's cached families (not all users on device)
+        if (userId != null) {
+          await IsarDatabase.clearFamiliesForUser(userId);
+        }
+        // Clear all other cache (profiles, persons, relationships, etc.)
         await IsarDatabase.clearCache(includePendingOps: true);
       } catch (_) {}
     }

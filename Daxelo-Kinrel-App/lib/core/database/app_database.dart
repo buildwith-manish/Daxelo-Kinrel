@@ -35,6 +35,7 @@ class CachedRelationships extends Table {
 
 class CachedFamilies extends Table {
   TextColumn get id => text()();
+  TextColumn get userId => text().withDefault(const Constant(''))();
   TextColumn get name => text()();
   TextColumn get data => text()();
   TextColumn get kinFamilyId => text().nullable()();
@@ -277,7 +278,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'daxelo_kinrel_db');
@@ -354,6 +355,15 @@ class AppDatabase extends _$AppDatabase {
             await migrator.createTable(cachedViewerEntries);
             await migrator.createTable(cachedRelationshipKeys);
           }
+          if (from < 7) {
+            // v6 → v7: Add userId column to CachedFamilies for user-scoped
+            // cache reads. This prevents Account A's cached families from
+            // appearing when Account B signs in on the same device.
+            await migrator.addColumn(
+              cachedFamilies,
+              cachedFamilies.userId,
+            );
+          }
         },
       );
 
@@ -379,8 +389,16 @@ class AppDatabase extends _$AppDatabase {
 
   // ── Families ──────────────────────────────────────────────────────
 
-  Future<List<CachedFamily>> getAllFamilies() =>
-      select(cachedFamilies).get();
+  /// Get all cached families. If [userId] is provided, only returns
+  /// families cached for that user (prevents cross-user cache bleed).
+  Future<List<CachedFamily>> getAllFamilies({String? userId}) {
+    if (userId != null && userId.isNotEmpty) {
+      return (select(cachedFamilies)
+            ..where((t) => t.userId.equals(userId)))
+          .get();
+    }
+    return select(cachedFamilies).get();
+  }
 
   /// Watch all cached families as a reactive stream.
   /// Emits a new list whenever any row in cachedFamilies changes.
@@ -399,6 +417,12 @@ class AppDatabase extends _$AppDatabase {
       (delete(cachedFamilies)..where((t) => t.id.equals(id))).go();
 
   Future<void> clearFamilies() => delete(cachedFamilies).go();
+
+  /// Delete only the cached families for a specific user.
+  /// Used during logout to clear the current user's cache without
+  /// affecting other users' cached data on shared devices.
+  Future<void> clearFamiliesForUser(String userId) =>
+      (delete(cachedFamilies)..where((t) => t.userId.equals(userId))).go();
 
   Future<CachedFamily?> getFamilyByCode(String familyCode) =>
       (select(cachedFamilies)

@@ -61,6 +61,15 @@ class IsarDatabase {
     }
   }
 
+  /// Delete only the cached families for a specific user.
+  /// Used during logout to clear the current user's cache without
+  /// affecting other users' cached data on shared devices.
+  static Future<void> clearFamiliesForUser(String userId) async {
+    if (_instance == null) return;
+    await _instance!.clearFamiliesForUser(userId);
+    debugPrint('🔧 Cleared cached families for user $userId');
+  }
+
   /// Clear all cached data (useful for logout).
   /// Keeps pending operations so they can be synced later.
   static Future<void> clearCache({bool includePendingOps = false}) async {

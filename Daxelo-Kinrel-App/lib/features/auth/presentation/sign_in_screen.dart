@@ -27,6 +27,7 @@ import '../../../core/routing/app_router.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/form_validators.dart';
 import '../../../core/services/analytics_service.dart';
+import '../../../core/family/family_provider.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
   SignInScreen({super.key});
@@ -154,6 +155,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         // knows to redirect to /2fa-verify instead of /home
         markSignInSuccess();
 
+        // Invalidate family providers so they re-fetch for the
+        // newly signed-in user (prevents stale [] from pre-login).
+        try {
+          ref.invalidate(familyListProvider);
+        } catch (_) {}
+
         // Navigate to 2FA verification screen
         if (mounted) {
           context.go('/2fa-verify');
@@ -163,6 +170,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
       // No 2FA required — mark sign-in success and navigate
       markSignInSuccess();
+
+      // Invalidate family providers so they re-fetch for the
+      // newly signed-in user (prevents stale [] from pre-login).
+      try {
+        ref.invalidate(familyListProvider);
+      } catch (_) {}
 
       // Navigate directly — same fix as _signIn(): no delay,
       // no _navigateToHome() wrapper.
@@ -233,6 +246,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         // knows to redirect to /2fa-verify instead of /home
         markSignInSuccess();
 
+        // Invalidate family providers so they re-fetch for the
+        // newly signed-in user (prevents stale [] from pre-login).
+        try {
+          ref.invalidate(familyListProvider);
+        } catch (_) {}
+
         // Navigate to 2FA verification screen
         if (mounted) {
           context.go('/2fa-verify');
@@ -242,6 +261,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
       // No 2FA required — mark sign-in success and navigate
       markSignInSuccess();
+
+      // Invalidate family providers so they re-fetch for the
+      // newly signed-in user (prevents stale [] from pre-login).
+      try {
+        ref.invalidate(familyListProvider);
+      } catch (_) {}
 
       // Navigate directly to home. Do NOT use a delay — the old
       // 800ms delay + _navigateToHome() wrapper caused the

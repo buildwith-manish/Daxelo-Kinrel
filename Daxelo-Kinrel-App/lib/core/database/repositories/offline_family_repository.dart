@@ -51,8 +51,11 @@ class OfflineFamilyRepository {
   }
 
   /// Get cached families from Drift.
+  /// Filters by the current user's ID to prevent cross-user cache bleed.
   Future<List<Family>> _getCachedFamilies() async {
-    final rows = await _db.getAllFamilies();
+    final client = _ref.read(supabaseProvider);
+    final userId = client?.auth.currentUser?.id;
+    final rows = await _db.getAllFamilies(userId: userId);
     return rows.map((row) {
       final data = _jsonDecode(row.data);
       return Family.fromJson(data);
@@ -134,13 +137,17 @@ class OfflineFamilyRepository {
   }
 
   /// Cache families to Drift.
+  /// Tags each row with the current user's ID for user-scoped reads.
   Future<void> _cacheFamilies(List<Family> families) async {
     if (!IsarDatabase.isInitialized) return;
+    final client = _ref.read(supabaseProvider);
+    final userId = client?.auth.currentUser?.id ?? '';
 
     for (final family in families) {
       final json = family.toJson();
       await _db.upsertFamily(CachedFamiliesCompanion(
         id: Value(family.id),
+        userId: Value(userId),
         name: Value(family.name),
         data: Value(_jsonEncode(json)),
         kinFamilyId: Value(family.kinFamilyId),
