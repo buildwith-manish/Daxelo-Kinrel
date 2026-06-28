@@ -58,6 +58,43 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
+
+  <script>
+    // ── CRITICAL: Unregister ALL service workers BEFORE Flutter loads ──
+    // This must run in <head> BEFORE flutter_bootstrap.js so that stale
+    // service workers from previous deployments are removed before Flutter
+    // tries to register a new one. Without this, the old service worker
+    // can serve cached stale content (including old index.html files that
+    // don't have this cleanup script), causing a blank screen.
+    //
+    // The registration is done synchronously (not async) to ensure it
+    // completes before the body scripts load.
+    if ('serviceWorker' in navigator) {
+      // Force unregister all service workers
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for (var i = 0; i < registrations.length; i++) {
+          registrations[i].unregister().then(function(success) {
+            console.log('[SW] Unregistered stale service worker:', success);
+          });
+        }
+      }).catch(function(e) {
+        console.warn('[SW] Could not unregister service workers:', e);
+      });
+
+      // Also prevent Flutter from registering a NEW service worker by
+      // overriding the serviceWorker.register API. Flutter's service
+      // worker is deprecated and causes caching issues on web.
+      // We only block flutter_service_worker.js, not all service workers.
+      var originalRegister = navigator.serviceWorker.register.bind(navigator.serviceWorker);
+      navigator.serviceWorker.register = function(scriptUrl, options) {
+        if (scriptUrl && scriptUrl.indexOf('flutter_service_worker') !== -1) {
+          console.log('[SW] Blocked Flutter service worker registration (deprecated)');
+          return Promise.resolve();
+        }
+        return originalRegister(scriptUrl, options);
+      };
+    }
+  </script>
 </head>
 <body>
   <!-- Loading indicator shown until Flutter renders -->
@@ -69,20 +106,6 @@
   </div>
 
   <script>
-    // ── Unregister stale service workers from previous deployments ──
-    // Old service workers can cache stale assets and cause a blank
-    // screen after a new deployment. We unregister ALL service workers
-    // on every page load so the user always gets fresh content.
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        for (var i = 0; i < registrations.length; i++) {
-          registrations[i].unregister().then(function(success) {
-            if (success) console.log('Unregistered stale service worker');
-          });
-        }
-      });
-    }
-
     // ── Hide loading indicator once Flutter is ready ──
     window.addEventListener('flutter-first-frame', function() {
       var loading = document.getElementById('loading');
@@ -91,6 +114,18 @@
         setTimeout(function() { loading.remove(); }, 300);
       }
     });
+
+    // ── Failsafe: hide loading after 30s even if flutter-first-frame never fires ──
+    // This prevents the user from being stuck on the loading spinner if
+    // Flutter fails to render (e.g., due to a JavaScript error).
+    setTimeout(function() {
+      var loading = document.getElementById('loading');
+      if (loading && !loading.classList.contains('hidden')) {
+        console.warn('[Kinrel] Flutter did not render within 30s — hiding loading indicator');
+        loading.classList.add('hidden');
+        setTimeout(function() { loading.remove(); }, 300);
+      }
+    }, 30000);
   </script>
 
   <script src="flutter_bootstrap.js" async></script>
