@@ -7,23 +7,22 @@
 // the real implementation opens the contact picker.
 //
 // Usage:
-//   final contact = await ContactPickerHelper.pickContact();
+//   final contact = await pickContact();
 //   if (contact != null) {
 //     // contact.name, contact.phone, contact.email
 //   }
 
+import 'picked_contact.dart';
 import 'contact_picker_helper_stub.dart'
     if (dart.library.io) 'contact_picker_helper_io.dart';
 
-/// A simple data class holding the picked contact's details.
-class PickedContact {
-  final String? name;
-  final String? phone;
-  final String? email;
-  const PickedContact({this.name, this.phone, this.email});
-}
+// Re-export PickedContact so callers only need to import this one file.
+export 'picked_contact.dart';
 
 /// Opens the native contact picker and returns the selected contact.
 /// Returns null if the user cancelled or the platform doesn't support
 /// contact picking (e.g. web).
-Future<PickedContact?> pickContact() => _pickContactImpl();
+///
+/// Delegates to [pickContactImpl] which is defined in the
+/// platform-specific file (stub on web, io on native).
+Future<PickedContact?> pickContact() => pickContactImpl();

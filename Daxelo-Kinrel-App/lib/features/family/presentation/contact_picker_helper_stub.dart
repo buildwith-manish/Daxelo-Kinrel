@@ -4,10 +4,11 @@
 // on web). Used via conditional import when dart.library.io is not
 // available (i.e. on web builds).
 
-import 'contact_picker_helper.dart';
+import 'picked_contact.dart';
 
-Future<PickedContact?> _pickContactImpl() async {
-  // Contacts are not available on web — return null to indicate
-  // the user "cancelled" (the calling code falls back to manual entry).
+/// Web implementation — always returns null because contacts are not
+/// available on web platforms. The calling code falls back to manual
+/// entry when this returns null.
+Future<PickedContact?> pickContactImpl() async {
   return null;
 }
