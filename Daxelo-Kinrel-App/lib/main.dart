@@ -294,7 +294,7 @@ Future<void> _initializeServices() async {
       // Widget tree not built yet — wait a bit
       if (attempt < 4) {
         debugPrint('🔧 Waiting for ProviderContainer... (attempt ${attempt + 1})');
-        await Future.delayed(const Duration(milliseconds: 200));
+        await Future.delayed(const Duration(milliseconds: 50));
       } else {
         debugPrint('⚠️ No global container available after 5 attempts — Supabase providers may not update');
       }
@@ -487,7 +487,8 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     } catch (_) {}
 
     // 2. Start the SyncEngine if Isar is initialized AND user has a session
-    Future.delayed(const Duration(seconds: 3), () {
+    // PERF: Reduced from 3s to 2s — starts sync 1 second earlier
+    Future.delayed(const Duration(seconds: 2), () {
       if (IsarDatabase.isInitialized) {
         try {
           final client = ref.read(supabaseProvider);
@@ -569,8 +570,11 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       debugPrint('⚠️ AppStartupService init failed: $e');
     }
 
-    // 6. Preload bottom nav tabs (3s delay)
-    Future.delayed(const Duration(seconds: 3), () {
+    // 6. Preload bottom nav tabs
+    // PERF: Reduced from 3s to 500ms — warms familyListProvider 2.5s
+    // earlier so cached data is ready by the time the user navigates
+    // to the Home tab.
+    Future.delayed(const Duration(milliseconds: 500), () {
       try {
         // BUG FIX (families-not-loading-after-login): Only preload
         // `familyListProvider` when there is an active auth session.

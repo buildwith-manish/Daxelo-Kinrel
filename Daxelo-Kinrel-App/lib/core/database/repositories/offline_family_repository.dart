@@ -150,6 +150,13 @@ class OfflineFamilyRepository {
     }
   }
 
+  /// Public method to save families to the Drift cache.
+  /// Called by familyListProvider after a successful network fetch so
+  /// the next cold start returns cached data instantly.
+  Future<void> saveFamilies(List<Family> families) async {
+    await _cacheFamilies(families);
+  }
+
   // ── Family Members ──────────────────────────────────────────────
 
   /// Get persons in a family.

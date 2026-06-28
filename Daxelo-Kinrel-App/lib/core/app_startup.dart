@@ -203,9 +203,11 @@ class AppStartupService {
   void _waitForSupabaseAndRefresh() async {
     if (_container == null) return;
 
-    // Poll Supabase readiness (max 10 seconds)
-    for (int i = 0; i < 20; i++) {
-      await Future.delayed(const Duration(milliseconds: 500));
+    // PERF: Poll every 100ms (was 500ms) up to 50 times = 5 seconds max
+    // (was 10 seconds). Checks 5× more frequently so it reacts faster
+    // when Supabase is ready, and halves the worst-case wait time.
+    for (int i = 0; i < 50; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
       try {
         final isReady = _container!.read(isSupabaseReadyProvider);
         if (isReady) break;
