@@ -76,3 +76,6 @@ worklog.md
 agent-ctx/
 tool-results/
 download/
+
+# Supabase CLI local state (contains link state, not for version control)
+supabase/.temp/

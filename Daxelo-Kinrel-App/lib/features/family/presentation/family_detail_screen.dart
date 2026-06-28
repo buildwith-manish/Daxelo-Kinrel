@@ -89,6 +89,18 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
           ),
         ),
         actions: [
+          // Family chat — opens the real-time group chat for this family.
+          IconButton(
+            icon: const Icon(Icons.chat_bubble_outline),
+            tooltip: 'Family Chat',
+            onPressed: () {
+              final detail = ref.read(familyDetailProvider(widget.familyId)).valueOrNull;
+              final familyName = detail?.family.name ?? 'Family';
+              context.push(
+                '/family/${widget.familyId}/chat?name=${Uri.encodeComponent(familyName)}',
+              );
+            },
+          ),
           IconButton(
             icon: Icon(Icons.share_outlined),
             tooltip: 'Share Family',

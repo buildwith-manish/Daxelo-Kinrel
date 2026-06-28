@@ -63,6 +63,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // Quick reaction emojis
   static const _reactionEmojis = ['❤️', '😂', '👍', '😮', '😢', '🙏'];
 
+  // The real current user id (replaces the old hard-coded 'user_me' check).
+  // Read from chatCurrentUserIdProvider which is wired to Supabase auth.
+  String? get _currentUserId =>
+      ref.read(chatCurrentUserIdProvider);
+
+  /// Returns true if [msg] was sent by the current user.
+  bool _isMine(ChatMessage msg) =>
+      msg.senderId == _currentUserId;
+
   @override
   void initState() {
     super.initState();
@@ -146,19 +155,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (text.isEmpty) return;
 
     final chatState = ref.read(chatProvider(widget.familyId));
-    ref
-        .read(chatProvider(widget.familyId).notifier)
-        .sendMessage(text, replyToId: chatState.replyToMessage?.id);
+    // sendMessage() does an optimistic insert synchronously, then persists
+    // to Supabase async. Fire-and-forget the Future — the UI already
+    // updated and the realtime INSERT event will be de-duped by the
+    // notifier.
+    final replyToId = chatState.replyToMessage?.id;
+    Future.microtask(() {
+      ref
+          .read(chatProvider(widget.familyId).notifier)
+          .sendMessage(text, replyToId: replyToId);
+    });
 
     _textController.clear();
     _focusNode.requestFocus();
-
-    // Simulate someone typing back after a brief delay
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        ref.read(chatProvider(widget.familyId).notifier).simulateTyping();
-      }
-    });
   }
 
   void _showReactionPicker(String messageId) {
@@ -187,21 +196,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final chatState = ref.watch(chatProvider(widget.familyId));
     final messages = chatState.messages;
 
+    // Loading state — show a centered spinner while the initial fetch
+    // is in flight. Once _initialLoadDone is true (set by the notifier
+    // after _loadMessages), isLoading flips back to false.
+    Widget bodyContent;
+    if (chatState.isLoading && messages.isEmpty) {
+      bodyContent = const Center(
+        child: CircularProgressIndicator(color: KinrelColors.orange),
+      );
+    } else if (chatState.error != null && messages.isEmpty) {
+      bodyContent = _buildErrorState(chatState.error!);
+    } else {
+      bodyContent = Stack(
+        children: [
+          _buildMessagesList(messages, chatState),
+          // Scroll-to-bottom FAB
+          if (_showScrollFab) _buildScrollFab(),
+          // Inline error banner (non-blocking) if a send failed
+          if (chatState.error != null && messages.isNotEmpty)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _buildInlineErrorBanner(chatState.error!),
+            ),
+        ],
+      );
+    }
+
     return DKScaffold(
       backgroundColor: const Color(0xFF13141E),
       appBar: _buildAppBar(chatState),
       body: Column(
         children: [
           // Messages list
-          Expanded(
-            child: Stack(
-              children: [
-                _buildMessagesList(messages, chatState),
-                // Scroll-to-bottom FAB
-                if (_showScrollFab) _buildScrollFab(),
-              ],
-            ),
-          ),
+          Expanded(child: bodyContent),
           // Typing indicator
           if (chatState.isTyping) _buildTypingIndicator(chatState),
           // Reply preview bar
@@ -209,6 +238,76 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             _buildReplyPreview(chatState.replyToMessage!),
           // Input bar
           _buildInputBar(),
+        ],
+      ),
+    );
+  }
+
+  // ── Error states ─────────────────────────────────────────────────
+
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off, size: 48, color: KinrelColors.textDim),
+            const SizedBox(height: 12),
+            const Text(
+              'Could not load messages',
+              style: TextStyle(
+                color: KinrelColors.textWhite,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: KinrelColors.textDim,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () {
+                ref.read(chatProvider(widget.familyId).notifier).reload();
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+              style: FilledButton.styleFrom(
+                backgroundColor: KinrelColors.orange,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInlineErrorBanner(String error) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: Colors.redAccent.withValues(alpha: 0.15),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.redAccent, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              error,
+              style: const TextStyle(
+                color: Colors.redAccent,
+                fontSize: 12,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );
@@ -368,7 +467,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             const SizedBox(height: 8),
             // Messages for this date
             ...group.messages.map((msg) {
-              final isMe = msg.senderId == 'user_me';
+              final isMe = _isMine(msg);
               return Padding(
                 padding: EdgeInsets.only(bottom: 4),
                 child: _MessageBubble(
@@ -667,7 +766,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // ── Message Actions Bottom Sheet ─────────────────────────────────
 
   void _showMessageActions(ChatMessage message) {
-    final isMe = message.senderId == 'user_me';
+    final isMe = _isMine(message);
 
     showModalBottomSheet(
       context: context,
@@ -690,7 +789,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: _reactionEmojis.map((emoji) {
                     final hasReacted = message.reactions.any(
-                      (r) => r.emoji == emoji && r.userId == 'user_me',
+                      (r) => r.emoji == emoji && r.userId == _currentUserId,
                     );
                     return GestureDetector(
                       onTap: () {
@@ -1288,7 +1387,7 @@ class _MessageBubble extends StatelessWidget {
         runSpacing: 2,
         children: grouped.entries.map((entry) {
           final hasMyReaction = message.reactions.any(
-            (r) => r.emoji == entry.key && r.userId == 'user_me',
+            (r) => r.emoji == entry.key && r.userId == _currentUserId,
           );
           return GestureDetector(
             onTap: onReact,

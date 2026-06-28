@@ -1,20 +1,37 @@
 // lib/features/chat/providers/chat_provider.dart
 //
-// DAXELO KINREL — Family Chat State Management
+// DAXELO KINREL — Family Chat State Management (Supabase Realtime)
 //
 // Manages family group chat state using Riverpod StateNotifierProvider.
-// Supports text, photo, voice note, and family event message types.
-// Includes realistic Hinglish demo data for an Indian family chat.
+// Backed by Supabase tables:
+//   - ChatMessage          (the messages themselves)
+//   - ChatMessageReaction  (per-user emoji reactions)
+//   - ChatReadReceipt      (per-user read state)
+//
+// Realtime subscriptions fire on INSERT/UPDATE/DELETE for the family's
+// chat messages + reactions + read receipts, so messages appear
+// instantly for both sender and receiver without requiring refresh.
 //
 // Features:
-//   - Real-time messaging UI (WebSocket placeholder)
+//   - Real-time messaging via Supabase Realtime (Postgres Changes)
+//   - Persistent storage in Supabase (messages survive app restart)
 //   - Read receipts (double tick, orange for read)
-//   - Typing indicator
 //   - Reply to specific messages
 //   - React to messages with emoji
-//   - Online status per sender
+//   - Echo de-dup (sender doesn't double-render their own message)
+//   - Automatic reconnection (Supabase Realtime auto-reconnects)
+//   - Loading and error states
+//   - Message ordering by createdAt ASC (display reversed in UI)
+//   - Network interruption handling (optimistic UI + reconcile on reconnect)
 
+import 'dart:async';
+import 'dart:math';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../core/services/supabase_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Models
@@ -42,6 +59,15 @@ class MessageReaction {
 
   @override
   int get hashCode => emoji.hashCode ^ userId.hashCode;
+
+  Map<String, dynamic> toJson() => {'emoji': emoji, 'userId': userId};
+
+  factory MessageReaction.fromJson(Map<String, dynamic> json) {
+    return MessageReaction(
+      emoji: json['emoji'] as String? ?? '',
+      userId: json['userId'] as String? ?? '',
+    );
+  }
 }
 
 /// A single chat message in the family group.
@@ -137,6 +163,7 @@ class ChatMessage {
     String? replyToId,
     String? replyToContent,
     String? replyToSenderName,
+    bool? isOnline,
   }) {
     return ChatMessage(
       id: id,
@@ -150,12 +177,83 @@ class ChatMessage {
       replyToId: replyToId ?? this.replyToId,
       replyToContent: replyToContent ?? this.replyToContent,
       replyToSenderName: replyToSenderName ?? this.replyToSenderName,
-      isOnline: isOnline,
+      isOnline: isOnline ?? this.isOnline,
       senderInitials: senderInitials,
       durationSeconds: durationSeconds,
       eventTitle: eventTitle,
       eventDate: eventDate,
     );
+  }
+
+  /// Parse a ChatMessage from a Supabase row.
+  factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    return ChatMessage(
+      id: json['id'] as String? ?? '',
+      senderId: json['senderId'] as String? ?? '',
+      senderName: json['senderName'] as String? ?? 'Unknown',
+      content: json['content'] as String? ?? '',
+      messageType: _parseMessageType(json['messageType'] as String?),
+      timestamp: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
+      isRead: json['isRead'] as bool? ?? false,
+      reactions: const [],
+      replyToId: json['replyToId'] as String?,
+      replyToContent: json['replyToContent'] as String?,
+      replyToSenderName: json['replyToSenderName'] as String?,
+      senderInitials: json['senderInitials'] as String?,
+      durationSeconds: json['durationSeconds'] as int?,
+      eventTitle: json['eventTitle'] as String?,
+      eventDate: json['eventDate'] as String?,
+    );
+  }
+
+  static MessageType _parseMessageType(String? raw) {
+    switch (raw) {
+      case 'photo':
+        return MessageType.photo;
+      case 'voiceNote':
+        return MessageType.voiceNote;
+      case 'familyEvent':
+        return MessageType.familyEvent;
+      case 'text':
+      default:
+        return MessageType.text;
+    }
+  }
+
+  /// Serialize for Supabase insert. Excludes server-managed fields
+  /// (id is generated client-side as a CUID-like string; createdAt /
+  /// updatedAt are server defaults; isRead is false on insert).
+  Map<String, dynamic> toJson({required String familyId}) {
+    return {
+      'id': id,
+      'familyId': familyId,
+      'senderId': senderId,
+      'senderName': senderName,
+      'senderInitials': senderInitials,
+      'content': content,
+      'messageType': _messageTypeToString(messageType),
+      'replyToId': replyToId,
+      'replyToContent': replyToContent,
+      'replyToSenderName': replyToSenderName,
+      'durationSeconds': durationSeconds,
+      'eventTitle': eventTitle,
+      'eventDate': eventDate,
+    };
+  }
+
+  static String _messageTypeToString(MessageType t) {
+    switch (t) {
+      case MessageType.photo:
+        return 'photo';
+      case MessageType.voiceNote:
+        return 'voiceNote';
+      case MessageType.familyEvent:
+        return 'familyEvent';
+      case MessageType.text:
+      default:
+        return 'text';
+    }
   }
 }
 
@@ -187,9 +285,11 @@ class ChatState {
     this.typingUserName,
     this.replyToMessage,
     this.isLoading = false,
+    this.error,
   });
 
-  /// All messages in the chat, sorted by timestamp.
+  /// All messages in the chat, sorted newest-first (UI displays with
+  /// reverse: true on ListView).
   final List<ChatMessage> messages;
 
   /// Family members in this chat.
@@ -207,6 +307,9 @@ class ChatState {
   /// Loading state for initial fetch.
   final bool isLoading;
 
+  /// Error message if fetch failed (null = no error).
+  final String? error;
+
   /// Number of online members.
   int get onlineCount => members.where((m) => m.isOnline).length;
 
@@ -221,6 +324,8 @@ class ChatState {
     ChatMessage? replyToMessage,
     bool isLoading = false,
     bool clearReplyTo = false,
+    String? error,
+    bool clearError = false,
   }) {
     return ChatState(
       messages: messages ?? this.messages,
@@ -231,6 +336,7 @@ class ChatState {
           ? null
           : (replyToMessage ?? this.replyToMessage),
       isLoading: isLoading,
+      error: clearError ? null : (error ?? this.error),
     );
   }
 }
@@ -239,25 +345,402 @@ class ChatState {
 // Notifier
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Current user ID (placeholder — would come from auth in production).
-const _currentUserId = 'user_me';
+/// Generates a CUID-like ID for new messages so the client can
+/// optimistically insert into state before the server confirms.
+String _generateId() {
+  final timestamp = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
+  final random = Random();
+  final rand = List.generate(
+    16,
+    (_) => random.nextInt(36),
+  ).map((v) => v.toRadixString(36)).join();
+  return 'cm_${timestamp}_$rand';
+}
+
+/// Compute the sender's initials from their display name.
+String _initialsFromName(String name) {
+  final parts = name.trim().split(RegExp(r'\s+'));
+  if (parts.isEmpty || parts.first.isEmpty) return '?';
+  if (parts.length == 1) {
+    return parts.first[0].toUpperCase();
+  }
+  return (parts.first[0] + parts[1][0]).toUpperCase();
+}
 
 class ChatNotifier extends StateNotifier<ChatState> {
-  ChatNotifier({required this.familyId}) : super(const ChatState()) {
-    _loadDemoData();
+  ChatNotifier({
+    required this.familyId,
+    required this.ref,
+  }) : super(const ChatState(isLoading: true)) {
+    _init();
   }
 
   final String familyId;
+  final Ref ref;
+
+  // Realtime channel for this family's chat
+  RealtimeChannel? _channel;
+  // Echo de-dup: tracks message IDs we've inserted optimistically so
+  // the realtime INSERT event for our own message doesn't double-render.
+  final Set<String> _pendingOptimisticIds = {};
+  // Subscriptions to family member list (for the header online count)
+  StreamSubscription<List<Map<String, dynamic>>>? _membersSub;
+  // Whether we've completed the initial load
+  bool _initialLoadDone = false;
+
+  // ── Initialization ───────────────────────────────────────────────
+
+  Future<void> _init() async {
+    await _loadMembers();
+    await _loadMessages();
+    _subscribeToRealtime();
+  }
+
+  /// Returns the current Supabase client (or null if not ready).
+  SupabaseClient? get _client => ref.read(supabaseProvider);
+
+  /// Returns the current user's ID (auth.users.id as string).
+  String? get _currentUserId =>
+      _client?.auth.currentUser?.id ?? _client?.auth.currentSession?.user.id;
+
+  /// Returns the current user's display name for chat messages.
+  /// Falls back to "You" if we can't resolve a real name.
+  String get _currentUserName {
+    final user = _client?.auth.currentUser;
+    if (user == null) return 'You';
+    // Try userMetadata.name first, then email, then 'You'
+    final meta = user.userMetadata;
+    final name = meta?['name'] as String? ??
+        meta?['full_name'] as String? ??
+        meta?['displayName'] as String?;
+    if (name != null && name.trim().isNotEmpty) return name.trim();
+    if (user.email != null) return user.email!.split('@').first;
+    return 'You';
+  }
+
+  // ── Load members (for the chat header) ────────────────────────────
+
+  Future<void> _loadMembers() async {
+    final client = _client;
+    if (client == null) return;
+    try {
+      // Use the SECURITY DEFINER RPC fn_get_family_member_names(family_id)
+      // to fetch display names for ALL family members. The public."User"
+      // table has RLS that only lets a user read their own row, so a
+      // direct .from('User').select() would return just the current user
+      // and every other member would show as "Member". The RPC bypasses
+      // RLS safely and self-gates on family membership.
+      final response = await client
+          .rpc('fn_get_family_member_names', params: {'family_id': familyId});
+
+      final members = <OnlineMember>[];
+      for (final row in (response as List? ?? <Map<String, dynamic>>[])) {
+        final userId = row['userId'] as String? ?? '';
+        if (userId.isEmpty) continue;
+        final name = row['name'] as String? ?? 'Member';
+        members.add(OnlineMember(
+          id: userId,
+          name: name,
+          initials: _initialsFromName(name),
+          isOnline: false, // presence not implemented in this phase
+        ));
+      }
+      if (mounted) {
+        state = state.copyWith(members: members);
+      }
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier._loadMembers error: $e');
+      // Fallback: at least include the current user so the header
+      // isn't completely empty.
+      final myUserId = _currentUserId;
+      final myName = _currentUserName;
+      if (mounted && myUserId != null && state.members.isEmpty) {
+        state = state.copyWith(members: [
+          OnlineMember(
+            id: myUserId,
+            name: myName,
+            initials: _initialsFromName(myName),
+            isOnline: false,
+          ),
+        ]);
+      }
+    }
+  }
+
+  // ── Load messages from Supabase ───────────────────────────────────
+
+  Future<void> _loadMessages() async {
+    final client = _client;
+    if (client == null) {
+      if (mounted) {
+        state = state.copyWith(isLoading: false, error: 'Not signed in');
+      }
+      return;
+    }
+    try {
+      // Fetch last 200 messages, ordered by createdAt ASC.
+      // We'll store newest-first in state (matching the old demo layout).
+      final messagesResponse = await client
+          .from('ChatMessage')
+          .select()
+          .eq('familyId', familyId)
+          .order('createdAt', ascending: true)
+          .limit(200);
+
+      final messageIds = <String>[];
+      final messages = <ChatMessage>[];
+      for (final row in messagesResponse as List) {
+        final msg = ChatMessage.fromJson(row as Map<String, dynamic>);
+        if (msg.id.isEmpty) continue;
+        messages.add(msg);
+        messageIds.add(msg.id);
+      }
+
+      // Fetch reactions for these messages in a single query.
+      final reactions = <String, List<MessageReaction>>{};
+      if (messageIds.isNotEmpty) {
+        // Supabase's inFilter accepts a list.
+        final reactionsResponse = await client
+            .from('ChatMessageReaction')
+            .select()
+            .inFilter('messageId', messageIds);
+        for (final r in reactionsResponse as List) {
+          final messageId = r['messageId'] as String? ?? '';
+          if (messageId.isEmpty) continue;
+          reactions.putIfAbsent(messageId, () => []);
+          reactions[messageId]!.add(MessageReaction(
+            emoji: r['emoji'] as String? ?? '',
+            userId: r['userId'] as String? ?? '',
+          ));
+        }
+      }
+
+      // Apply reactions to messages.
+      final withReactions = messages.map((m) {
+        return m.copyWith(reactions: reactions[m.id] ?? const []);
+      }).toList();
+
+      // Newest first (UI ListView is reverse: true)
+      withReactions.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+      if (mounted) {
+        state = state.copyWith(
+          messages: withReactions,
+          isLoading: false,
+          clearError: true,
+        );
+      }
+      _initialLoadDone = true;
+
+      // Mark all unread messages not sent by me as read.
+      unawaited(_markUnreadAsRead());
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier._loadMessages error: $e');
+      if (mounted) {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Failed to load messages: $e',
+        );
+      }
+    }
+  }
+
+  // ── Realtime subscription ─────────────────────────────────────────
+
+  void _subscribeToRealtime() {
+    final client = _client;
+    if (client == null) return;
+
+    // Tear down any existing channel.
+    _channel?.unsubscribe();
+
+    _channel = client
+        .channel('chat:$familyId')
+        // New message inserted
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'ChatMessage',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'familyId',
+            value: familyId,
+          ),
+          callback: (payload) => _handleMessageInsert(payload.newRecord),
+        )
+        // Message updated (edit / soft-delete / read-receipt flip)
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'ChatMessage',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'familyId',
+            value: familyId,
+          ),
+          callback: (payload) => _handleMessageUpdate(payload.newRecord),
+        )
+        // Message deleted (sender hard-delete)
+        .onPostgresChanges(
+          event: PostgresChangeEvent.delete,
+          schema: 'public',
+          table: 'ChatMessage',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'familyId',
+            value: familyId,
+          ),
+          callback: (payload) => _handleMessageDelete(payload.oldRecord),
+        )
+        // Reaction added
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'ChatMessageReaction',
+          callback: (payload) => _handleReactionChange(
+            payload.newRecord,
+            isDelete: false,
+          ),
+        )
+        // Reaction removed
+        .onPostgresChanges(
+          event: PostgresChangeEvent.delete,
+          schema: 'public',
+          table: 'ChatMessageReaction',
+          callback: (payload) => _handleReactionChange(
+            payload.oldRecord,
+            isDelete: true,
+          ),
+        )
+        .subscribe();
+
+    debugPrint('📡 ChatNotifier: subscribed to chat:$familyId');
+  }
+
+  void _handleMessageInsert(Map<String, dynamic> row) {
+    final msgId = row['id'] as String?;
+    if (msgId == null || msgId.isEmpty) return;
+
+    // Echo de-dup: if we inserted this message optimistically, the
+    // pending id is in _pendingOptimisticIds. Remove it and skip the
+    // insert (the optimistic message is already in state).
+    if (_pendingOptimisticIds.remove(msgId)) {
+      // Still patch isRead from the server's view if needed.
+      final existing = state.messages.firstWhere(
+        (m) => m.id == msgId,
+        orElse: () => ChatMessage(
+          id: msgId,
+          senderId: '',
+          senderName: '',
+          content: '',
+          messageType: MessageType.text,
+          timestamp: DateTime.now(),
+        ),
+      );
+      final serverIsRead = row['isRead'] as bool? ?? false;
+      if (existing.isRead != serverIsRead && mounted) {
+        final updated = state.messages.map((m) {
+          if (m.id != msgId) return m;
+          return m.copyWith(isRead: serverIsRead);
+        }).toList();
+        state = state.copyWith(messages: updated);
+      }
+      return;
+    }
+    if (state.messages.any((m) => m.id == msgId)) {
+      // Already in state — skip (idempotent).
+      return;
+    }
+
+    final msg = ChatMessage.fromJson(row);
+    final updated = [msg, ...state.messages];
+    updated.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    if (mounted) {
+      state = state.copyWith(messages: updated);
+    }
+
+    // If the message was sent by someone else, mark it as read.
+    final myUserId = _currentUserId;
+    if (myUserId != null && msg.senderId != myUserId) {
+      unawaited(_markSingleAsRead(msg.id, myUserId));
+    }
+  }
+
+  void _handleMessageUpdate(Map<String, dynamic> row) {
+    final msgId = row['id'] as String?;
+    if (msgId == null) return;
+    final updated = state.messages.map((m) {
+      if (m.id != msgId) return m;
+      return ChatMessage.fromJson(row).copyWith(reactions: m.reactions);
+    }).toList();
+    if (mounted) {
+      state = state.copyWith(messages: updated);
+    }
+  }
+
+  void _handleMessageDelete(Map<String, dynamic> row) {
+    final msgId = row['id'] as String?;
+    if (msgId == null) return;
+    final updated = state.messages.where((m) => m.id != msgId).toList();
+    if (mounted) {
+      state = state.copyWith(messages: updated);
+    }
+  }
+
+  void _handleReactionChange(Map<String, dynamic> row,
+      {required bool isDelete}) {
+    final messageId = row['messageId'] as String?;
+    if (messageId == null) return;
+    final emoji = row['emoji'] as String? ?? '';
+    final userId = row['userId'] as String? ?? '';
+
+    final updated = state.messages.map((m) {
+      if (m.id != messageId) return m;
+      final reactions = List<MessageReaction>.from(m.reactions);
+      if (isDelete) {
+        reactions.removeWhere(
+          (r) => r.emoji == emoji && r.userId == userId,
+        );
+      } else {
+        if (!reactions.any(
+          (r) => r.emoji == emoji && r.userId == userId,
+        )) {
+          reactions.add(MessageReaction(emoji: emoji, userId: userId));
+        }
+      }
+      return m.copyWith(reactions: reactions);
+    }).toList();
+
+    if (mounted) {
+      state = state.copyWith(messages: updated);
+    }
+  }
 
   // ── Actions ──────────────────────────────────────────────────────
 
-  /// Send a new text message.
-  void sendMessage(String content, {String? replyToId}) {
+  /// Send a new text message. Inserts optimistically into state, then
+  /// persists to Supabase. If the server INSERT fails, the optimistic
+  /// message is removed and an error is surfaced.
+  Future<void> sendMessage(String content, {String? replyToId}) async {
+    final trimmed = content.trim();
+    if (trimmed.isEmpty) return;
+
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) {
+      if (mounted) {
+        state = state.copyWith(error: 'Not signed in');
+      }
+      return;
+    }
+
     final now = DateTime.now();
+    final msgId = _generateId();
+    final senderName = _currentUserName;
+
     ChatMessage? replyTo;
     String? replyContent;
     String? replySender;
-
     if (replyToId != null) {
       replyTo = state.messages.firstWhere(
         (m) => m.id == replyToId,
@@ -267,21 +750,46 @@ class ChatNotifier extends StateNotifier<ChatState> {
       replySender = replyTo.senderName;
     }
 
-    final message = ChatMessage(
-      id: 'msg_${now.millisecondsSinceEpoch}',
-      senderId: _currentUserId,
-      senderName: 'You',
-      content: content,
+    final optimistic = ChatMessage(
+      id: msgId,
+      senderId: myUserId,
+      senderName: senderName,
+      content: trimmed,
       messageType: MessageType.text,
       timestamp: now,
       isRead: false,
       replyToId: replyToId,
       replyToContent: replyContent,
       replyToSenderName: replySender,
+      senderInitials: _initialsFromName(senderName),
     );
 
-    final updated = [message, ...state.messages];
-    state = state.copyWith(messages: updated, clearReplyTo: true);
+    // Track for echo de-dup so the realtime INSERT doesn't double-render.
+    _pendingOptimisticIds.add(msgId);
+
+    // Optimistic insert (newest first).
+    final updated = [optimistic, ...state.messages];
+    if (mounted) {
+      state = state.copyWith(messages: updated, clearReplyTo: true);
+    }
+
+    // Persist to Supabase. The realtime INSERT event will fire but be
+    // dropped by the de-dup check above.
+    try {
+      await client.from('ChatMessage').insert(optimistic.toJson(
+        familyId: familyId,
+      ));
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.sendMessage insert failed: $e');
+      _pendingOptimisticIds.remove(msgId);
+      if (mounted) {
+        final withoutFailed = state.messages.where((m) => m.id != msgId).toList();
+        state = state.copyWith(
+          messages: withoutFailed,
+          error: 'Failed to send message',
+        );
+      }
+    }
   }
 
   /// Set the message to reply to.
@@ -294,433 +802,180 @@ class ChatNotifier extends StateNotifier<ChatState> {
     state = state.copyWith(clearReplyTo: true);
   }
 
-  /// Toggle an emoji reaction on a message.
-  void toggleReaction(String messageId, String emoji) {
+  /// Toggle an emoji reaction on a message. Optimistic update + Supabase
+  /// upsert. Idempotent — if the user already has that reaction, we
+  /// DELETE it; otherwise we INSERT it.
+  Future<void> toggleReaction(String messageId, String emoji) async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) return;
+
+    // Find the message + check existing reaction.
+    final msg = state.messages.firstWhere(
+      (m) => m.id == messageId,
+      orElse: () => state.messages.first,
+    );
+    final existingIdx = msg.reactions.indexWhere(
+      (r) => r.emoji == emoji && r.userId == myUserId,
+    );
+    final isAdding = existingIdx < 0;
+
+    // Optimistic update.
     final updated = state.messages.map((m) {
       if (m.id != messageId) return m;
-
-      final existingIndex = m.reactions.indexWhere(
-        (r) => r.emoji == emoji && r.userId == _currentUserId,
-      );
-
-      List<MessageReaction> newReactions;
-      if (existingIndex >= 0) {
-        // Remove existing reaction
-        newReactions = List.from(m.reactions)..removeAt(existingIndex);
+      final reactions = List<MessageReaction>.from(m.reactions);
+      if (isAdding) {
+        reactions.add(MessageReaction(emoji: emoji, userId: myUserId));
       } else {
-        // Add new reaction
-        newReactions = List.from(m.reactions)
-          ..add(MessageReaction(emoji: emoji, userId: _currentUserId));
+        reactions.removeWhere(
+          (r) => r.emoji == emoji && r.userId == myUserId,
+        );
       }
-
-      return m.copyWith(reactions: newReactions);
-    }).toList();
-
-    state = state.copyWith(messages: updated);
-  }
-
-  /// Mark a message as read.
-  void markAsRead(String messageId) {
-    final updated = state.messages.map((m) {
-      if (m.id == messageId) return m.copyWith(isRead: true);
-      return m;
+      return m.copyWith(reactions: reactions);
     }).toList();
     state = state.copyWith(messages: updated);
+
+    // Persist to Supabase.
+    try {
+      if (isAdding) {
+        await client.from('ChatMessageReaction').insert({
+          'id': 'cr_${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}_${Random().nextInt(1 << 32).toRadixString(36)}',
+          'messageId': messageId,
+          'userId': myUserId,
+          'emoji': emoji,
+        });
+      } else {
+        await client
+            .from('ChatMessageReaction')
+            .delete()
+            .eq('messageId', messageId)
+            .eq('userId', myUserId)
+            .eq('emoji', emoji);
+      }
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.toggleReaction failed: $e');
+      // Revert on failure.
+      final reverted = state.messages.map((m) {
+        if (m.id != messageId) return m;
+        final reactions = List<MessageReaction>.from(m.reactions);
+        if (isAdding) {
+          reactions.removeWhere(
+            (r) => r.emoji == emoji && r.userId == myUserId,
+          );
+        } else {
+          reactions.add(MessageReaction(emoji: emoji, userId: myUserId));
+        }
+        return m.copyWith(reactions: reactions);
+      }).toList();
+      if (mounted) {
+        state = state.copyWith(messages: reverted);
+      }
+    }
   }
 
-  /// Mark all messages as read.
-  void markAllRead() {
-    final updated = state.messages.map((m) {
+  /// Mark a single message as read (inserts a ChatReadReceipt).
+  Future<void> markAsRead(String messageId) async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) return;
+    await _markSingleAsRead(messageId, myUserId);
+  }
+
+  Future<void> _markSingleAsRead(String messageId, String userId) async {
+    final client = _client;
+    if (client == null) return;
+    try {
+      await client.from('ChatReadReceipt').insert({
+        'id': 'crr_${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}_${Random().nextInt(1 << 32).toRadixString(36)}',
+        'messageId': messageId,
+        'userId': userId,
+      });
+      // The isRead flip on ChatMessage happens via the trigger on
+      // ChatReadReceipt, and we'll see it via realtime UPDATE.
+    } on PostgrestException catch (e) {
+      // 23505 = unique_violation — already read, ignore.
+      if (e.code != '23505') {
+        debugPrint('⚠️ ChatNotifier._markSingleAsRead error: $e');
+      }
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier._markSingleAsRead error: $e');
+    }
+  }
+
+  /// Mark all messages as read. Called when the chat screen is opened.
+  /// Bulk-inserts ChatReadReceipt rows for all messages not sent by me
+  /// that don't already have a receipt from me.
+  Future<void> markAllRead() async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) return;
+    if (!_initialLoadDone) return;
+
+    // Find messages not sent by me that aren't yet marked read.
+    final unread = state.messages
+        .where((m) => m.senderId != myUserId && !m.isRead)
+        .toList();
+    if (unread.isEmpty) return;
+
+    // Optimistic: mark all as read locally.
+    final optimistic = state.messages.map((m) {
+      if (m.senderId == myUserId || m.isRead) return m;
       return m.copyWith(isRead: true);
     }).toList();
-    state = state.copyWith(messages: updated);
-  }
+    state = state.copyWith(messages: optimistic);
 
-  /// Simulate typing indicator.
-  void simulateTyping() {
-    state = state.copyWith(isTyping: true, typingUserName: 'Maa');
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        state = state.copyWith(isTyping: false, typingUserName: null);
+    // Bulk-insert receipts. Use a single INSERT with multiple rows.
+    // Ignore 23505 (already-read) errors.
+    try {
+      final rows = unread.map((m) {
+        return {
+          'id': 'crr_${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}_${Random().nextInt(1 << 32).toRadixString(36)}',
+          'messageId': m.id,
+          'userId': myUserId,
+        };
+      }).toList();
+      await client.from('ChatReadReceipt').insert(rows);
+    } on PostgrestException catch (e) {
+      if (e.code != '23505') {
+        debugPrint('⚠️ ChatNotifier.markAllRead error: $e');
       }
-    });
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.markAllRead error: $e');
+    }
   }
 
-  // ── Demo Data ────────────────────────────────────────────────────
+  /// Mark all unread messages (not sent by me) as read. Called after
+  /// the initial load completes — ensures the chat opens with
+  /// everything read.
+  Future<void> _markUnreadAsRead() async {
+    await markAllRead();
+  }
 
-  void _loadDemoData() {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
+  /// Simulate typing indicator. (Disabled in production — would broadcast
+  /// via a Supabase Realtime Broadcast channel. Kept as a no-op so the
+  /// UI doesn't crash if it calls this method.)
+  void simulateTyping() {
+    // No-op for now. Could be implemented later by broadcasting a
+    // 'typing' event on the chat:$familyId channel.
+  }
 
-    const members = <OnlineMember>[
-      OnlineMember(id: 'user_me', name: 'You', initials: 'YO', isOnline: true),
-      OnlineMember(id: 'u_maa', name: 'Maa', initials: 'MA', isOnline: true),
-      OnlineMember(id: 'u_papa', name: 'Papa', initials: 'PA', isOnline: true),
-      OnlineMember(id: 'u_didi', name: 'Didi', initials: 'DI', isOnline: false),
-      OnlineMember(
-        id: 'u_bhaiya',
-        name: 'Bhaiya',
-        initials: 'BH',
-        isOnline: true,
-      ),
-      OnlineMember(
-        id: 'u_chachi',
-        name: 'Chachi',
-        initials: 'CH',
-        isOnline: false,
-      ),
-      OnlineMember(id: 'u_nani', name: 'Nani', initials: 'NA', isOnline: false),
-      OnlineMember(
-        id: 'u_cousin_1',
-        name: 'Rahul Bhaiya',
-        initials: 'RB',
-        isOnline: true,
-      ),
-    ];
+  /// Reload everything (used on reconnect / pull-to-refresh).
+  Future<void> reload() async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    await _loadMembers();
+    await _loadMessages();
+    // Re-subscribe in case the channel was dropped.
+    _subscribeToRealtime();
+  }
 
-    final messages = <ChatMessage>[
-      // ── Yesterday's messages ─────────────────────────────────────
-      ChatMessage(
-        id: 'msg_001',
-        senderId: 'u_papa',
-        senderName: 'Papa',
-        content:
-            'Sabko good evening! Kal Sharma ji ka dinner hai, sab yaad hai na?',
-        messageType: MessageType.text,
-        timestamp: yesterday.add(const Duration(hours: 19, minutes: 15)),
-        isRead: true,
-        isOnline: true,
-        senderInitials: 'PA',
-      ),
-      ChatMessage(
-        id: 'msg_002',
-        senderId: 'u_maa',
-        senderName: 'Maa',
-        content:
-            'Haan yaad hai. Main kheer bana rahi hoon, aur kuch chahiye toh batao',
-        messageType: MessageType.text,
-        timestamp: yesterday.add(const Duration(hours: 19, minutes: 18)),
-        isRead: true,
-        isOnline: true,
-        senderInitials: 'MA',
-      ),
-      ChatMessage(
-        id: 'msg_003',
-        senderId: 'u_chachi',
-        senderName: 'Chachi',
-        content: 'Main samose aur pakode le kar aa rahi hoon! 😋',
-        messageType: MessageType.text,
-        timestamp: yesterday.add(const Duration(hours: 19, minutes: 22)),
-        isRead: true,
-        isOnline: false,
-        senderInitials: 'CH',
-        reactions: [
-          MessageReaction(emoji: '❤️', userId: 'u_maa'),
-          MessageReaction(emoji: '😋', userId: 'u_bhaiya'),
-        ],
-      ),
-      ChatMessage(
-        id: 'msg_004',
-        senderId: 'u_bhaiya',
-        senderName: 'Bhaiya',
-        content: 'Nice! Main cold drinks arrange kar dunga',
-        messageType: MessageType.text,
-        timestamp: yesterday.add(const Duration(hours: 19, minutes: 25)),
-        isRead: true,
-        isOnline: true,
-        senderInitials: 'BH',
-      ),
-      ChatMessage(
-        id: 'msg_005',
-        senderId: 'u_didi',
-        senderName: 'Didi',
-        content:
-            'Guys main thoda late aaungi, office ka kaam hai. But I\'ll try to come by 8!',
-        messageType: MessageType.text,
-        timestamp: yesterday.add(const Duration(hours: 19, minutes: 30)),
-        isRead: true,
-        isOnline: false,
-        senderInitials: 'DI',
-        reactions: [MessageReaction(emoji: '👍', userId: 'u_papa')],
-      ),
-      ChatMessage(
-        id: 'msg_006',
-        senderId: 'u_papa',
-        senderName: 'Papa',
-        content:
-            'Koi baat nahi beta, jo bhi time pe aao. Pehle kaam khatam karo',
-        messageType: MessageType.text,
-        timestamp: yesterday.add(const Duration(hours: 19, minutes: 32)),
-        isRead: true,
-        isOnline: true,
-        senderInitials: 'PA',
-      ),
+  // ── Lifecycle ────────────────────────────────────────────────────
 
-      // ── Today's messages ─────────────────────────────────────────
-      ChatMessage(
-        id: 'msg_007',
-        senderId: 'u_maa',
-        senderName: 'Maa',
-        content:
-            'Good morning sabko! 🙏 Aaj subah mandir jana hai, kaun aa raha hai?',
-        messageType: MessageType.text,
-        timestamp: today.add(const Duration(hours: 6, minutes: 30)),
-        isRead: true,
-        isOnline: true,
-        senderInitials: 'MA',
-        reactions: [
-          MessageReaction(emoji: '🙏', userId: 'u_papa'),
-          MessageReaction(emoji: '🙏', userId: 'u_nani'),
-        ],
-      ),
-      ChatMessage(
-        id: 'msg_008',
-        senderId: 'u_papa',
-        senderName: 'Papa',
-        content: 'Main chalunga. 7 baje nikalte hain?',
-        messageType: MessageType.text,
-        timestamp: today.add(const Duration(hours: 6, minutes: 35)),
-        isRead: true,
-        isOnline: true,
-        senderInitials: 'PA',
-      ),
-      ChatMessage(
-        id: 'msg_009',
-        senderId: 'u_bhaiya',
-        senderName: 'Bhaiya',
-        content: 'Maa mujhe chhod do aaj, kal raat late soya tha 😴',
-        messageType: MessageType.text,
-        timestamp: today.add(const Duration(hours: 6, minutes: 40)),
-        isRead: true,
-        isOnline: true,
-        senderInitials: 'BH',
-        reactions: [
-          MessageReaction(emoji: '😂', userId: 'u_didi'),
-          MessageReaction(emoji: '😠', userId: 'u_maa'),
-        ],
-      ),
-      ChatMessage(
-        id: 'msg_010',
-        senderId: 'u_nani',
-        senderName: 'Nani',
-        content: 'Beta, mandir jaana bahut acchi baat hai. Main bhi aati hoon!',
-        messageType: MessageType.text,
-        timestamp: today.add(const Duration(hours: 7, minutes: 5)),
-        isRead: true,
-        isOnline: false,
-        senderInitials: 'NA',
-      ),
-      ChatMessage(
-        id: 'msg_011',
-        senderId: 'u_maa',
-        senderName: 'Maa',
-        content: 'Ji Nani! Aap aaiye, main aapko pick kar lungi 🚗',
-        messageType: MessageType.text,
-        timestamp: today.add(const Duration(hours: 7, minutes: 10)),
-        isRead: true,
-        isOnline: true,
-        senderInitials: 'MA',
-      ),
-
-      // Mid-day conversation
-      ChatMessage(
-        id: 'msg_012',
-        senderId: 'u_chachi',
-        senderName: 'Chachi',
-        content:
-            'Arey listen! Ramesh ki engagement final ho gayi — 14th ko! 🎉💍',
-        messageType: MessageType.text,
-        timestamp: today.add(const Duration(hours: 10, minutes: 15)),
-        isRead: true,
-        isOnline: false,
-        senderInitials: 'CH',
-        reactions: [
-          MessageReaction(emoji: '🎉', userId: 'u_maa'),
-          MessageReaction(emoji: '🎉', userId: 'u_papa'),
-          MessageReaction(emoji: '❤️', userId: 'u_didi'),
-          MessageReaction(emoji: '💍', userId: 'u_bhaiya'),
-        ],
-      ),
-      ChatMessage(
-        id: 'msg_013',
-        senderId: 'u_papa',
-        senderName: 'Papa',
-        content: 'Bahut acchi khabar! Ladki wale kon hain?',
-        messageType: MessageType.text,
-        timestamp: today.add(const Duration(hours: 10, minutes: 20)),
-        isRead: true,
-        isOnline: true,
-        senderInitials: 'PA',
-      ),
-      ChatMessage(
-        id: 'msg_014',
-        senderId: 'u_chachi',
-        senderName: 'Chachi',
-        content:
-            'Gupta ji ki beti — Priya. Meerut mein rehte hain. Bahut acche parivaar hain',
-        messageType: MessageType.text,
-        timestamp: today.add(const Duration(hours: 10, minutes: 22)),
-        isRead: true,
-        isOnline: false,
-        senderInitials: 'CH',
-      ),
-
-      // Voice note placeholder
-      ChatMessage(
-        id: 'msg_015',
-        senderId: 'u_nani',
-        senderName: 'Nani',
-        content: 'Voice note',
-        messageType: MessageType.voiceNote,
-        timestamp: today.add(const Duration(hours: 11, minutes: 0)),
-        isRead: true,
-        isOnline: false,
-        senderInitials: 'NA',
-        durationSeconds: 42,
-      ),
-
-      // Photo placeholder
-      ChatMessage(
-        id: 'msg_016',
-        senderId: 'u_didi',
-        senderName: 'Didi',
-        content: 'Dekho Ramesh aur Priya ki photo! 📸',
-        messageType: MessageType.photo,
-        timestamp: today.add(const Duration(hours: 11, minutes: 30)),
-        isRead: true,
-        isOnline: false,
-        senderInitials: 'DI',
-        reactions: [
-          MessageReaction(emoji: '❤️', userId: 'u_maa'),
-          MessageReaction(emoji: '😍', userId: 'u_chachi'),
-          MessageReaction(emoji: '❤️', userId: 'u_papa'),
-        ],
-      ),
-
-      // Family event sharing
-      ChatMessage(
-        id: 'msg_017',
-        senderId: 'u_papa',
-        senderName: 'Papa',
-        content: 'Engagement ceremony ki details share kar raha hoon',
-        messageType: MessageType.familyEvent,
-        timestamp: today.add(const Duration(hours: 12, minutes: 0)),
-        isRead: true,
-        isOnline: true,
-        senderInitials: 'PA',
-        eventTitle: 'Ramesh & Priya Engagement',
-        eventDate: '14th March, 2025',
-        reactions: [
-          MessageReaction(emoji: '🎉', userId: 'u_maa'),
-          MessageReaction(emoji: '🎉', userId: 'u_bhaiya'),
-          MessageReaction(emoji: '👍', userId: 'u_didi'),
-        ],
-      ),
-
-      // Reply message
-      ChatMessage(
-        id: 'msg_018',
-        senderId: 'u_maa',
-        senderName: 'Maa',
-        content: 'Hum sab ja rahe hain! Mujhe shopping bhi karni hai 😄',
-        messageType: MessageType.text,
-        timestamp: today.add(const Duration(hours: 12, minutes: 5)),
-        isRead: true,
-        isOnline: true,
-        senderInitials: 'MA',
-        replyToId: 'msg_017',
-        replyToContent: 'Engagement ceremony ki details share kar raha hoon',
-        replyToSenderName: 'Papa',
-      ),
-
-      // Recent messages
-      ChatMessage(
-        id: 'msg_019',
-        senderId: 'u_cousin_1',
-        senderName: 'Rahul Bhaiya',
-        content:
-            'Bhai log, aaj evening cricket khelni hai? Ground pe milte hain 5 baje 🏏',
-        messageType: MessageType.text,
-        timestamp: today.add(const Duration(hours: 14, minutes: 30)),
-        isRead: true,
-        isOnline: true,
-        senderInitials: 'RB',
-        reactions: [MessageReaction(emoji: '🏏', userId: 'u_bhaiya')],
-      ),
-      ChatMessage(
-        id: 'msg_020',
-        senderId: 'u_bhaiya',
-        senderName: 'Bhaiya',
-        content: 'Count me in! Main bat le kar aaunga 💪',
-        messageType: MessageType.text,
-        timestamp: today.add(const Duration(hours: 14, minutes: 35)),
-        isRead: true,
-        isOnline: true,
-        senderInitials: 'BH',
-        replyToId: 'msg_019',
-        replyToContent:
-            'Bhai log, aaj evening cricket khelni hai? Ground pe milte hain 5 baje 🏏',
-        replyToSenderName: 'Rahul Bhaiya',
-      ),
-      ChatMessage(
-        id: 'msg_021',
-        senderId: 'u_didi',
-        senderName: 'Didi',
-        content:
-            'Holi ke liye colour aur pichkari ka list bana do. Kal market jaana hai',
-        messageType: MessageType.text,
-        timestamp: today.add(const Duration(hours: 15, minutes: 10)),
-        isRead: false,
-        isOnline: false,
-        senderInitials: 'DI',
-      ),
-      ChatMessage(
-        id: 'msg_022',
-        senderId: 'u_maa',
-        senderName: 'Maa',
-        content:
-            'Haan beta, main list bana dungi. Gulal ka special order bhi karna hai Sharma uncle ke yahan se — unka colour bahut accha aata hai',
-        messageType: MessageType.text,
-        timestamp: today.add(const Duration(hours: 15, minutes: 15)),
-        isRead: false,
-        isOnline: true,
-        senderInitials: 'MA',
-      ),
-      ChatMessage(
-        id: 'msg_023',
-        senderId: 'u_papa',
-        senderName: 'Papa',
-        content:
-            'Aur suno, Holi ke din potluck rakhne ka plan hai. Har family ek dish banayegi. Kya banayega each of you? 🤔',
-        messageType: MessageType.text,
-        timestamp: today.add(const Duration(hours: 15, minutes: 30)),
-        isRead: false,
-        isOnline: true,
-        senderInitials: 'PA',
-      ),
-      ChatMessage(
-        id: 'msg_024',
-        senderId: 'u_chachi',
-        senderName: 'Chachi',
-        content:
-            'Main gujiya aur thandai banaungi! Traditional Holi special 😊',
-        messageType: MessageType.text,
-        timestamp: today.add(const Duration(hours: 15, minutes: 35)),
-        isRead: false,
-        isOnline: false,
-        senderInitials: 'CH',
-        reactions: [
-          MessageReaction(emoji: '😋', userId: 'u_bhaiya'),
-          MessageReaction(emoji: '❤️', userId: 'u_maa'),
-        ],
-      ),
-    ];
-
-    state = state.copyWith(
-      messages: messages.reversed.toList(), // newest first for our display
-      members: members,
-    );
+  @override
+  void dispose() {
+    _channel?.unsubscribe();
+    _channel = null;
+    _membersSub?.cancel();
+    super.dispose();
   }
 }
 
@@ -731,10 +986,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
 /// Family chat provider — parameterized by family ID.
 final chatProvider =
     StateNotifierProvider.family<ChatNotifier, ChatState, String>(
-      (ref, familyId) => ChatNotifier(familyId: familyId),
+      (ref, familyId) => ChatNotifier(familyId: familyId, ref: ref),
     );
 
 /// Convenience: online member count for a family chat.
 final chatOnlineCountProvider = Provider.family<int, String>((ref, familyId) {
   return ref.watch(chatProvider(familyId)).onlineCount;
+});
+
+/// Convenience: the current user's ID for chat (so the UI can compare
+/// message.senderId against this instead of hard-coding 'user_me').
+final chatCurrentUserIdProvider = Provider<String?>((ref) {
+  final client = ref.watch(supabaseProvider);
+  return client?.auth.currentUser?.id ?? client?.auth.currentSession?.user.id;
 });

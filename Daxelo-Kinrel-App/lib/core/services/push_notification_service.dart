@@ -86,6 +86,14 @@ String? resolveDeepLink(Map<String, dynamic> data) {
       }
       return null;
 
+    case 'chat_message':
+      // Deep-link into the family chat screen for new chat messages.
+      final familyId = data['familyId'] as String?;
+      if (familyId != null && familyId.isNotEmpty) {
+        return '/family/$familyId/chat';
+      }
+      return null;
+
     default:
       // Unknown type — try to extract any usable deep link
       final deepLink = data['deepLink'] as String?;
