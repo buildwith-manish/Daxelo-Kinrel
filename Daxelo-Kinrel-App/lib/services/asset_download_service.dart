@@ -2,24 +2,23 @@
 //
 // DAXELO KINREL — Asset Download Service
 //
-// Downloads and caches the two large kinship data files from GitHub Releases:
-//   1. indian_kinship.json.gz  (~3 MB)  — translations + metadata
-//   2. kinship_matrix.db.gz    (~941 MB) — SQLite kinship chain matrix
+// Downloads kinship JSON data files from GitHub Releases.
+// The primary file is indian_kinship.json.gz (~3 MB compressed).
+// Global kinship JSONs are downloaded on demand by language.
 //
-// Both files are decompressed to the app's application documents directory
-// and cached across launches. On subsequent launches, no download occurs.
+// The app bundles a tiny kinship_core.json (~388 KB) in the APK for
+// instant offline access. The full JSON is downloaded in the background
+// on first launch to unlock all 5363 relationships.
 
 import 'dart:async';
 import 'dart:io';
-import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:crypto/crypto.dart';
 
 /// Progress update emitted during download.
 class DownloadProgress {
-  final String currentFile; // 'json' or 'sqlite'
+  final String currentFile;
   final double progress; // 0.0 to 1.0
   final String message;
   final int bytesDownloaded;
@@ -32,27 +31,28 @@ class DownloadProgress {
     required this.bytesDownloaded,
     this.totalBytes,
   });
-
-  @override
-  String toString() =>
-      'DownloadProgress($currentFile: ${(progress * 100).toStringAsFixed(1)}%, '
-      '$bytesDownloaded/${totalBytes ?? '?'} bytes)';
 }
 
-/// Handles downloading and caching both kinship data files.
+/// Handles downloading and caching kinship JSON data files.
 class AssetDownloadService {
   static const String releaseBaseUrl =
-      'https://github.com/buildwith-manish/Daxelo-Kinrel/releases/download/v1.0.0-data';
+      'https://github.com/buildwith-manish/Daxelo-Kinrel/releases/download/v1.0.0-assets';
 
-  static const String sqliteUrl = '$releaseBaseUrl/kinship_matrix.db.gz';
-  static const String jsonUrl = '$releaseBaseUrl/indian_kinship.json.gz';
+  /// Primary Indian kinship JSON (v5.0.0, 5363 entries)
+  static const String indianJsonUrl = '$releaseBaseUrl/indian_kinship.json.gz';
 
-  static const String sqliteFileName = 'kinship_matrix.db';
-  static const String jsonFileName = 'indian_kinship.json';
-  static const String sqliteGzFileName = 'kinship_matrix.db.gz';
-  static const String jsonGzFileName = 'indian_kinship.json.gz';
+  /// Global kinship JSONs — downloaded on demand by language
+  static const Map<String, String> globalJsonUrls = {
+    'arabic': '$releaseBaseUrl/arabic_kinship_production.json.gz',
+    'korean': '$releaseBaseUrl/korean_kinship_production.json.gz',
+    'japanese': '$releaseBaseUrl/japanese_kinship_production.json.gz',
+    'russian': '$releaseBaseUrl/russian_kinship_production_v2.json.gz',
+    'vietnamese': '$releaseBaseUrl/vietnamese_kinship_production_v2.json.gz',
+    'chinese': '$releaseBaseUrl/chinese_kinship_production.json.gz',
+  };
 
-  // Version marker file — bump this when releasing new data to force re-download.
+  static const String indianJsonFileName = 'indian_kinship.json';
+  static const String indianJsonGzFileName = 'indian_kinship.json.gz';
   static const String _versionMarker = 'asset_version_1_0_0.txt';
   static const String _currentVersion = '1.0.0';
 
@@ -60,187 +60,153 @@ class AssetDownloadService {
 
   AssetDownloadService({Dio? dio}) : _dio = dio ?? Dio();
 
-  /// Check if both files already downloaded and valid.
-  Future<bool> areAssetsReady() async {
+  /// Check if the Indian kinship JSON is already downloaded.
+  Future<bool> isIndianJsonReady() async {
     try {
-      final dir = await _getAssetDir();
-      final jsonFile = File('${dir.path}/$jsonFileName');
-      final dbFile = File('${dir.path}/$sqliteFileName');
-      final versionFile = File('${dir.path}/$_versionMarker');
-
-      if (!jsonFile.existsSync() || !dbFile.existsSync()) {
-        return false;
-      }
-
-      // Check version marker — if version changed, need re-download
-      if (!versionFile.existsSync()) {
-        return false;
-      }
-      final version = await versionFile.readAsString();
-      if (version.trim() != _currentVersion) {
-        return false;
-      }
-
-      // Basic size sanity check (JSON should be > 1MB, DB > 100MB)
-      final jsonSize = await jsonFile.length();
-      final dbSize = await dbFile.length();
-      if (jsonSize < 1024 * 1024) return false; // < 1 MB
-      if (dbSize < 50 * 1024 * 1024) return false; // < 50 MB
-
-      return true;
+      final path = await getIndianJsonPath();
+      final file = File(path);
+      if (!file.existsSync()) return false;
+      final size = await file.length();
+      return size > 1024 * 1024; // > 1 MB
     } catch (_) {
       return false;
     }
   }
 
-  /// Download both files with progress updates.
-  /// Returns a stream of [DownloadProgress] that completes when both files are ready.
-  Stream<DownloadProgress> downloadAssets() async* {
+  /// Download indian_kinship.json.gz, decompress, and save locally.
+  /// Returns a stream of download progress (0.0 to 1.0).
+  Stream<DownloadProgress> downloadIndianJson() async* {
     final dir = await _getAssetDir();
     if (!dir.existsSync()) {
       dir.createSync(recursive: true);
     }
 
-    // Check internet connectivity
-    final connectivityResult = await Connectivity().checkConnectivity();
-    if (connectivityResult.contains(ConnectivityResult.none)) {
+    // Check connectivity
+    final connectivity = await Connectivity().checkConnectivity();
+    if (connectivity.contains(ConnectivityResult.none)) {
       throw AssetDownloadException(
-        'No internet connection. Please connect to the internet to download kinship data.',
+        'No internet connection. Please connect to download kinship data.',
       );
     }
 
-    // Download JSON first (smaller, faster)
-    yield* _downloadFile(
-      url: jsonUrl,
-      gzPath: '${dir.path}/$jsonGzFileName',
-      outPath: '${dir.path}/$jsonFileName',
-      fileLabel: 'json',
-      message: 'Downloading relationship data...',
+    final gzPath = '${dir.path}/$indianJsonGzFileName';
+    final outPath = '${dir.path}/$indianJsonFileName';
+
+    // Delete existing file if present
+    final outFile = File(outPath);
+    if (outFile.existsSync()) {
+      await outFile.delete();
+    }
+
+    yield DownloadProgress(
+      currentFile: 'indian',
+      progress: 0.0,
+      message: 'Downloading kinship data...',
+      bytesDownloaded: 0,
+      totalBytes: 0,
     );
 
-    // Download SQLite DB second (larger)
-    yield* _downloadFile(
-      url: sqliteUrl,
-      gzPath: '${dir.path}/$sqliteGzFileName',
-      outPath: '${dir.path}/$sqliteFileName',
-      fileLabel: 'sqlite',
-      message: 'Downloading kinship matrix...',
+    // Download
+    await _dio.download(
+      indianJsonUrl,
+      gzPath,
+      onReceiveProgress: (received, total) {
+        if (total > 0) {
+          _progressController.add(DownloadProgress(
+            currentFile: 'indian',
+            progress: received / total,
+            message: 'Downloading kinship data...',
+            bytesDownloaded: received,
+            totalBytes: total,
+          ));
+        }
+      },
     );
+
+    // Decompress
+    _progressController.add(const DownloadProgress(
+      currentFile: 'indian',
+      progress: 1.0,
+      message: 'Extracting kinship data...',
+      bytesDownloaded: 0,
+      totalBytes: 0,
+    ));
+
+    await _decompressGzip(gzPath, outPath);
+
+    // Delete .gz file
+    final gzFile = File(gzPath);
+    if (gzFile.existsSync()) {
+      await gzFile.delete();
+    }
 
     // Write version marker
     final versionFile = File('${dir.path}/$_versionMarker');
     await versionFile.writeAsString(_currentVersion);
   }
 
-  Stream<DownloadProgress> _downloadFile({
-    required String url,
-    required String gzPath,
-    required String outPath,
-    required String fileLabel,
-    required String message,
-  }) async* {
-    final gzFile = File(gzPath);
-
-    try {
-      // Delete existing decompressed file if present
-      final outFile = File(outPath);
-      if (outFile.existsSync()) {
-        await outFile.delete();
-      }
-
-      await _dio.download(
-        url,
-        gzPath,
-        onReceiveProgress: (received, total) {
-          if (total > 0) {
-            final progress = received / total;
-            // Emit via the stream controller
-            _progressController.add(DownloadProgress(
-              currentFile: fileLabel,
-              progress: progress,
-              message: message,
-              bytesDownloaded: received,
-              totalBytes: total,
-            ));
-          }
-        },
-      );
-
-      // Decompress the gzip file
-      yield DownloadProgress(
-        currentFile: fileLabel,
-        progress: 1.0,
-        message: 'Extracting $fileLabel...',
-        bytesDownloaded: 0,
-        totalBytes: 0,
-      );
-
-      await _decompressGzip(gzPath, outPath);
-
-      // Delete the .gz file to save space
-      if (gzFile.existsSync()) {
-        await gzFile.delete();
-      }
-    } catch (e) {
-      throw AssetDownloadException('Failed to download $fileLabel: $e');
-    }
-  }
-
-  /// Decompress a .gz file to the output path using `gzip` system command.
-  /// On mobile platforms, we use Dart's built-in gzip decompression via
-  /// the `dart:io` GZipCodec.
-  Future<void> _decompressGzip(String gzPath, String outPath) async {
-    final inputBytes = await File(gzPath).readAsBytes();
-    final decompressedBytes = gzip.decode(inputBytes);
-    await File(outPath).writeAsBytes(decompressedBytes);
-  }
-
   final StreamController<DownloadProgress> _progressController =
       StreamController<DownloadProgress>.broadcast();
 
-  /// Get path to downloaded SQLite file.
-  Future<String> getSqlitePath() async {
+  /// Get local path of downloaded indian_kinship.json.
+  Future<String> getIndianJsonPath() async {
     final dir = await _getAssetDir();
-    return '${dir.path}/$sqliteFileName';
+    return '${dir.path}/$indianJsonFileName';
   }
 
-  /// Get path to downloaded JSON file.
-  Future<String> getJsonPath() async {
+  /// Download a specific global language JSON on demand.
+  Future<void> downloadGlobalJson(String language) async {
+    final url = globalJsonUrls[language];
+    if (url == null) {
+      throw AssetDownloadException('Unknown language: $language');
+    }
+
     final dir = await _getAssetDir();
-    return '${dir.path}/$jsonFileName';
+    if (!dir.existsSync()) {
+      dir.createSync(recursive: true);
+    }
+
+    final gzPath = '${dir.path}/${language}_kinship.json.gz';
+    final outPath = '${dir.path}/${language}_kinship.json';
+
+    await _dio.download(url, gzPath);
+    await _decompressGzip(gzPath, outPath);
+
+    final gzFile = File(gzPath);
+    if (gzFile.existsSync()) {
+      await gzFile.delete();
+    }
   }
 
-  /// Verify file integrity by checking file sizes are non-trivial.
-  Future<bool> verifyFiles() async {
+  /// Check if a specific global JSON is downloaded.
+  Future<bool> isGlobalJsonReady(String language) async {
     try {
-      final jsonPath = await getJsonPath();
-      final dbPath = await getSqlitePath();
-
-      final jsonFile = File(jsonPath);
-      final dbFile = File(dbPath);
-
-      if (!jsonFile.existsSync() || !dbFile.existsSync()) {
-        return false;
-      }
-
-      final jsonSize = await jsonFile.length();
-      final dbSize = await dbFile.length();
-
-      // JSON should be > 10 MB (uncompressed ~53 MB)
-      // DB should be > 500 MB (uncompressed ~8 GB, but VACUUM'd would be ~300-400 MB)
-      // We accept anything > 50 MB for the DB to be flexible
-      return jsonSize > 10 * 1024 * 1024 && dbSize > 50 * 1024 * 1024;
+      final dir = await _getAssetDir();
+      final file = File('${dir.path}/${language}_kinship.json');
+      return file.existsSync();
     } catch (_) {
       return false;
     }
   }
 
-  /// Delete all downloaded assets and version marker.
+  /// Get path to a downloaded global JSON.
+  Future<String> getGlobalJsonPath(String language) async {
+    final dir = await _getAssetDir();
+    return '${dir.path}/${language}_kinship.json';
+  }
+
+  /// Delete all downloaded assets.
   Future<void> resetAssets() async {
     final dir = await _getAssetDir();
     if (dir.existsSync()) {
       await dir.delete(recursive: true);
     }
+  }
+
+  Future<void> _decompressGzip(String gzPath, String outPath) async {
+    final inputBytes = await File(gzPath).readAsBytes();
+    final decompressedBytes = gzip.decode(inputBytes);
+    await File(outPath).writeAsBytes(decompressedBytes);
   }
 
   Future<Directory> _getAssetDir() async {
