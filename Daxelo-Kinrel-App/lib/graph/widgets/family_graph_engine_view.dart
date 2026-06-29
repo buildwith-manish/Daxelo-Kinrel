@@ -162,6 +162,13 @@ class _FamilyGraphEngineViewState
   Size _viewportSize = Size.zero;
   bool _framed = false; // one-time initial framing per family
 
+  // PERF: Cache relation labels/keys so they don't recompute on every
+  // pan/zoom frame. Only recompute when the underlying flat data changes.
+  FlatGraphResult? _lastFlat;
+  String? _lastViewerId;
+  Map<String, String>? _cachedRelationLabels;
+  Map<String, String>? _cachedRelationKeys;
+
   // Repaint/recull throttling.
   Rect _lastCullViewport = Rect.zero;
   _Lod _lastLod = _Lod.full;
@@ -268,8 +275,9 @@ class _FamilyGraphEngineViewState
     final bool isOnline = ref.watch(isOnlineProvider).valueOrNull ?? true;
     final layoutAsync = ref.watch(graphLayoutProvider(widget.familyId));
     final flat = ref.watch(familyGraphProvider(widget.familyId)).valueOrNull;
-    // Watched here (in build), not inside LayoutBuilder, per Riverpod rules.
-    final String? selectedEdgeId = ref.watch(selectedEdgeProvider);
+    // PERF: selectedEdgeProvider is NOT watched here — it's watched inside
+    // _EdgeSelectionWrapper (a separate ConsumerWidget) so that tapping an
+    // edge only rebuilds the edge painter, not the entire canvas.
     // v2.2: Resolve the viewer's Person ID for perspective-based rendering.
     final viewerPersonId =
         ref.watch(viewerPersonIdProvider(widget.familyId)).valueOrNull;
@@ -316,7 +324,7 @@ class _FamilyGraphEngineViewState
                     child: RepaintBoundary(
                       key: _graphBoundaryKey,
                       child: _buildCanvas(
-                          layout, flat, selectedEdgeId, viewerPersonId),
+                          layout, flat, viewerPersonId),
                     ),
                   ),
                   if (!isOnline)
@@ -356,7 +364,7 @@ class _FamilyGraphEngineViewState
   }
 
   Widget _buildCanvas(
-      GraphLayoutResult layout, FlatGraphResult flat, String? selectedEdgeId, String? viewerPersonId) {
+      GraphLayoutResult layout, FlatGraphResult flat, String? viewerPersonId) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         // FIX (keyboard-resize): Don't update _viewportSize if the height
@@ -391,14 +399,16 @@ class _FamilyGraphEngineViewState
           for (final Map<String, dynamic> p in flat.persons)
             if (p['id'] != null) p['id'] as String: p,
         };
-        // v2.2: Compute every node's relation label from the VIEWER's
-        // perspective using RelationshipEngine. No hardcoded labels.
-        final relationLabelById = _relationLabels(flat, viewerPersonId);
-        // FIX (node-colors): Also compute the RAW kinship key for each
-        // person — needed for color resolution (border, tint, dot).
-        // _relationLabels returns LOCALIZED display names (e.g. "Father")
-        // which don't match the lowercase keys in _borderColorMap.
-        final relationKeyById = _relationKeys(flat, viewerPersonId);
+        // PERF: Only recompute relation labels/keys when the underlying
+        // flat data or viewer changes — NOT on every pan/zoom frame.
+        if (!identical(_lastFlat, flat) || _lastViewerId != viewerPersonId) {
+          _cachedRelationLabels = _relationLabels(flat, viewerPersonId);
+          _cachedRelationKeys = _relationKeys(flat, viewerPersonId);
+          _lastFlat = flat;
+          _lastViewerId = viewerPersonId;
+        }
+        final relationLabelById = _cachedRelationLabels!;
+        final relationKeyById = _cachedRelationKeys!;
 
         // Expand/collapse filter — empty visible set means "show everything".
         final Set<String> allowed =
@@ -459,18 +469,14 @@ class _FamilyGraphEngineViewState
                 // canvas covers the full Stack area. Without this, the
                 // canvas defaults to zero/child size and clips all lines.
                 Positioned.fill(
-                  child: CustomPaint(
-                    painter: _EngineEdgePainter(
-                      positions: layout.positions,
-                      edges: edges,
-                      cache: _edgePathCache,
-                      selectedEdgeId: selectedEdgeId,
-                    ),
-                    // Fix 1: child: SizedBox.expand() ensures the paint
-                    // canvas is sized to the full Stack area. Combined
-                    // with Positioned.fill above, this guarantees the
-                    // edge painter's canvas matches the node layer.
-                    child: const SizedBox.expand(),
+                  // PERF: Wrap the edge painter in a ConsumerWidget that
+                  // watches selectedEdgeProvider independently. This way,
+                  // tapping an edge to select it only rebuilds the edge
+                  // painter — NOT the entire canvas (nodes, layout, etc).
+                  child: _EdgeSelectionWrapper(
+                    positions: layout.positions,
+                    edges: edges,
+                    cache: _edgePathCache,
                   ),
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.
@@ -1001,6 +1007,36 @@ class _FamilyGraphEngineViewState
 
 /// Draws relationship edges using cached bezier paths.
 ///
+/// Wraps the edge CustomPaint in a ConsumerWidget that independently
+/// watches [selectedEdgeProvider]. When the user taps an edge, only
+/// this widget rebuilds — the main canvas (nodes, layout, etc.) does
+/// not rebuild at all.
+class _EdgeSelectionWrapper extends ConsumerWidget {
+  const _EdgeSelectionWrapper({
+    required this.positions,
+    required this.edges,
+    required this.cache,
+  });
+
+  final Map<String, Offset> positions;
+  final List<GraphEdgeData> edges;
+  final EdgePathCache cache;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final String? selectedEdgeId = ref.watch(selectedEdgeProvider);
+    return CustomPaint(
+      painter: _EngineEdgePainter(
+        positions: positions,
+        edges: edges,
+        cache: cache,
+        selectedEdgeId: selectedEdgeId,
+      ),
+      child: const SizedBox.expand(),
+    );
+  }
+}
+
 /// Paths are memoised in [EdgePathCache] keyed by quantized endpoint
 /// positions. Because graph-space positions are constant during pan/zoom,
 /// repeated frames hit the cache and skip path construction entirely. The

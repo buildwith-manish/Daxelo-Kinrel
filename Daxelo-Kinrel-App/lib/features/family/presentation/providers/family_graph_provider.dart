@@ -1007,17 +1007,16 @@ final graphRealtimeProvider =
   final client = ref.read(supabaseProvider);
   if (client == null) return;
 
-  DateTime? _lastInvalidation;
+  // PERF: 1.5s debounce so rapid-fire events (e.g., bulk member adds)
+  // only trigger ONE invalidation after the stream goes quiet.
+  Timer? _debounceTimer;
 
   void invalidateIfNeeded() {
-    final now = DateTime.now();
-    if (_lastInvalidation != null &&
-        now.difference(_lastInvalidation!) < const Duration(seconds: 2)) {
-      return;
-    }
-    _lastInvalidation = now;
-    debugPrint('[graphRealtimeProvider] Invalidating graph for $familyId');
-    ref.invalidate(familyGraphProvider(familyId));
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 1500), () {
+      debugPrint('[graphRealtimeProvider] Invalidating graph for $familyId (debounced)');
+      ref.invalidate(familyGraphProvider(familyId));
+    });
   }
 
   // Subscribe to Relationship changes for this family
@@ -1048,6 +1047,7 @@ final graphRealtimeProvider =
       .subscribe();
 
   ref.onDispose(() {
+    _debounceTimer?.cancel();
     client.removeChannel(channel);
   });
 });

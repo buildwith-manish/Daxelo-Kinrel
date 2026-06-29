@@ -125,6 +125,8 @@ class EdgePathCache {
           path: entry.path,
           sourcePos: sourcePos,
           targetPos: targetPos,
+          sourceId: sourceId,
+          targetId: targetId,
         );
         return entry.path;
       }
@@ -138,6 +140,8 @@ class EdgePathCache {
       path: path,
       sourcePos: sourcePos,
       targetPos: targetPos,
+      sourceId: sourceId,
+      targetId: targetId,
     );
     return path;
   }
@@ -161,16 +165,8 @@ class EdgePathCache {
   /// Useful when a node is removed or moves dramatically.
   void evictForNodes(Set<String> nodeIds) {
     _cache.removeWhere((String key, _CacheEntry entry) {
-      // Parse source and target IDs from the entry key.
-      // The entry key format is "sourceId_targetId_qSrcX_qSrcY_qTgtX_qTgtY"
-      // but we store the sourcePos/targetPos directly, so we check the
-      // cache key against the edgeId format instead.
-      // Actually, we need the edgeId-to-nodeId mapping. Since _cache is
-      // keyed by edgeId, we use the stored positions to identify which
-      // edges involve the affected nodes.
-      // However, we don't store sourceId/targetId in _CacheEntry. Let's
-      // add them for this use case.
-      return false; // Fallback: evict nothing; use clear() for full invalidation
+      return nodeIds.contains(entry.sourceId) ||
+          nodeIds.contains(entry.targetId);
     });
   }
 
@@ -271,10 +267,14 @@ class _CacheEntry {
     required this.path,
     required this.sourcePos,
     required this.targetPos,
+    required this.sourceId,
+    required this.targetId,
   });
 
   final String key;
   final Path path;
   final Offset sourcePos;
   final Offset targetPos;
+  final String sourceId;
+  final String targetId;
 }

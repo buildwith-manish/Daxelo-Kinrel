@@ -6,6 +6,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -102,7 +103,7 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen>
                                 shape: BoxShape.circle,
                                 image: community.avatarUrl != null
                                     ? DecorationImage(
-                                        image: NetworkImage(community.avatarUrl!),
+                                        image: CachedNetworkImageProvider(community.avatarUrl!),
                                         fit: BoxFit.cover,
                                       )
                                     : null,
