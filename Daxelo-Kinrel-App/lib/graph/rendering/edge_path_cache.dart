@@ -204,6 +204,8 @@ class EdgePathCache {
         path: path,
         sourcePos: edge.sourcePos,
         targetPos: edge.targetPos,
+        sourceId: edge.sourceId,
+        targetId: edge.targetId,
       );
     }
   }
