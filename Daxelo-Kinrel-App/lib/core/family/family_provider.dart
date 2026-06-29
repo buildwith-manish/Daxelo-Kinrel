@@ -1730,67 +1730,41 @@ Future<void> deleteFamily({
   required ProviderContainer container,
   required String familyId,
 }) async {
-  // v2.2: Try NestJS API first (requires real auth token).
-  bool archived = false;
+  // FIX: Skip NestJS API entirely — it's on Render free tier and
+  // cold-starts in 10-30s, causing TimeoutException. Go straight
+  // to Supabase direct update which is fast and reliable.
+  final client = container.read(supabaseProvider);
+  if (client == null) {
+    throw Exception(
+        'Database is not connected. Please restart the app and try again.');
+  }
 
-  // Try NestJS API first (requires auth token)
+  // v2.2: Real auth only — guard against no session.
+  if (client.auth.currentSession == null) {
+    throw Exception('You must be signed in to delete a family.');
+  }
+
+  final now = DateTime.now().toIso8601String();
+
+  // 1. Soft-delete all persons in this family
   try {
-    final dio = container.read(dioProvider);
-    final response = await dio
-        .delete('/api/families/$familyId')
-        .timeout(const Duration(seconds: 10));
-    if (response.statusCode == 200) {
-      archived = true;
-    }
-  } on DioException catch (e) {
-    final status = e.response?.statusCode;
-    if (status != null &&
-        status >= 400 &&
-        status < 500 &&
-        status != 401 &&
-        status != 403) {
-      final message =
-          e.response?.data?['message'] ?? e.message ?? 'Unknown error';
-      throw Exception('Failed to archive family: $message');
-    }
-    debugPrint(
-        '⚠️ API call failed (status=$status, type=${e.type}), falling back to Supabase for archive');
-  } catch (e) {
-    debugPrint('⚠️ API call failed, falling back to Supabase for archive: $e');
-  }
-
-  // Fallback: Soft-delete via Supabase
-  if (!archived) {
-    final client = container.read(supabaseProvider);
-    if (client == null) {
-      throw Exception(
-          'Database is not connected. Please restart the app and try again.');
-    }
-
-    // v2.2: Real auth only — guard against no session.
-    if (client.auth.currentSession == null) {
-      throw Exception('You must be signed in to delete a family.');
-    }
-
-    final now = DateTime.now().toIso8601String();
-    try {
-      await client
-          .from(_kPersonTable)
-          .update({'deletedAt': now, 'updatedAt': now})
-          .eq('familyId', familyId)
-          .filter('deletedAt', 'is', null)
-          .timeout(const Duration(seconds: 10));
-    } catch (e) {
-      debugPrint('⚠️ Could not soft-delete persons: $e');
-    }
-
-    // Soft-delete the family itself
     await client
-        .from(_kFamilyTable)
+        .from(_kPersonTable)
         .update({'deletedAt': now, 'updatedAt': now})
-        .eq('id', familyId)
+        .eq('familyId', familyId)
+        .filter('deletedAt', 'is', null)
         .timeout(const Duration(seconds: 10));
+  } catch (e) {
+    debugPrint('⚠️ Could not soft-delete persons: $e');
+    // Continue — the family soft-delete is the important one
   }
+
+  // 2. Soft-delete the family itself
+  await client
+      .from(_kFamilyTable)
+      .update({'deletedAt': now, 'updatedAt': now})
+      .eq('id', familyId)
+      .timeout(const Duration(seconds: 10));
 
   // Invalidate providers to refresh UI
   container.invalidate(familyListProvider);
@@ -1996,28 +1970,23 @@ Future<void> deletePerson({
   }
 
   final now = DateTime.now().toIso8601String();
-  await withRetry(
-    () => client
-        .from(_kPersonTable)
-        .update({'deletedAt': now, 'updatedAt': now})
-        .eq('id', personId),
-    operationName: 'Delete person',
-  );
 
-  // v38 BUG-4 FIX: Deactivate all relationships involving this person.
-  // Previously, deletePerson only set Person.deletedAt but left the
-  // Relationship rows with isActive=true. The graph query would then
-  // return those orphaned edges, the painter would look up the deleted
-  // person's position (null), and silently skip the edge — but the
-  // edge count in the stats panel was still inflated.
+  // FIX: Use direct Supabase calls with timeouts instead of withRetry.
+  // withRetry adds 1s + 2s + 4s delays on failure, causing the total
+  // delete time to exceed 15s → TimeoutException.
+  await client
+      .from(_kPersonTable)
+      .update({'deletedAt': now, 'updatedAt': now})
+      .eq('id', personId)
+      .timeout(const Duration(seconds: 10));
+
+  // Deactivate all relationships involving this person.
   try {
-    await withRetry(
-      () => client
-          .from('Relationship')
-          .update({'isActive': false, 'updatedAt': now})
-          .or('fromPersonId.eq.$personId,toPersonId.eq.$personId'),
-      operationName: 'Deactivate deleted person relationships',
-    );
+    await client
+        .from('Relationship')
+        .update({'isActive': false, 'updatedAt': now})
+        .or('fromPersonId.eq.$personId,toPersonId.eq.$personId')
+        .timeout(const Duration(seconds: 10));
     debugPrint('[deletePerson] Deactivated relationships for $personId');
   } catch (e) {
     debugPrint('[deletePerson] Could not deactivate relationships (non-fatal): $e');

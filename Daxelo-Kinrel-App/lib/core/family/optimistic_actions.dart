@@ -292,8 +292,12 @@ Future<void> deleteFamilyOptimistic({
 
   // 3. Fire real API call
   try {
-    await deleteFamily(container: container, familyId: familyId)
-        .timeout(const Duration(seconds: 15));
+    // FIX: Removed the 15s outer timeout — the inner deleteFamily()
+    // has its own timeouts (10s for NestJS API, 10s for Supabase).
+    // The 15s outer timeout was causing TimeoutException because
+    // NestJS API (on Render free tier) cold-starts in 10s, then
+    // the Supabase fallback takes another 10s = 20s total > 15s.
+    await deleteFamily(container: container, familyId: familyId);
 
     // Wait for Supabase to propagate the soft-delete
     await Future.delayed(const Duration(milliseconds: 800));
@@ -776,29 +780,46 @@ Future<void> deletePersonOptimistic({
   required String personId,
   required String familyId,
 }) async {
-  final db = ref.read(isarProvider);
+  // FIX: Guard against IsarDatabase not being initialized (web/cold start).
+  // Previously this called ref.read(isarProvider) unconditionally, which
+  // throws on web where Drift is skipped.
+  final bool isDbReady = IsarDatabase.isInitialized;
 
-  // 1. Snapshot current Drift row for rollback
-  final snapshot = await _snapshotPerson(db, personId);
+  // 1. Snapshot + delete from local Drift cache (skip if not initialized)
+  if (isDbReady) {
+    final db = ref.read(isarProvider);
 
-  // 2. Immediately delete from local Drift cache
-  try {
-    await db.deletePerson(personId);
-  } catch (e) {
-    debugPrint('⚠️ Optimistic delete person: could not remove from Drift: $e');
+    // 1a. Snapshot current Drift row for rollback
+    final snapshot = await _snapshotPerson(db, personId);
+
+    // 1b. Immediately delete from local Drift cache
+    try {
+      await db.deletePerson(personId);
+    } catch (e) {
+      debugPrint('⚠️ Optimistic delete person: could not remove from Drift: $e');
+    }
   }
 
-  // 3. Invalidate providers so UI updates immediately
+  // 2. Invalidate providers so UI updates immediately
   ref.invalidate(familyMembersProvider(familyId));
   ref.invalidate(familyDetailProvider(familyId));
 
-  // 4. Fire real API call in background
+  // 3. Fire real API call
   try {
     await deletePerson(ref: ref, personId: personId, familyId: familyId);
-    // deletePerson already invalidates familyMembersProvider
   } catch (e) {
-    // 5. On failure: restore snapshot
-    await _restorePersonSnapshot(db, snapshot);
+    // 4. On failure: restore snapshot (if we have one)
+    if (isDbReady) {
+      try {
+        final db = ref.read(isarProvider);
+        final snapshot = await _snapshotPerson(db, personId);
+        if (snapshot != null) {
+          await _restorePersonSnapshot(db, snapshot);
+        }
+      } catch (restoreErr) {
+        debugPrint('⚠️ Failed to restore person snapshot: $restoreErr');
+      }
+    }
     ref.invalidate(familyMembersProvider(familyId));
     ref.invalidate(familyDetailProvider(familyId));
     rethrow;
