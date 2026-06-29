@@ -186,7 +186,14 @@ class GraphLegend extends ConsumerWidget {
                             const SizedBox(height: 8),
 
                             // Spouse cross-section row
-                            _buildSpouseRow(),
+                            // BUG 3 FIX: Only show the spouse row when
+                            // spouse edges are present in the graph (or
+                            // when presentCategories is empty = full
+                            // reference legend mode).
+                            if (presentCategories.isEmpty ||
+                                presentCategories
+                                    .contains(KinshipEdgeCategory.spouse))
+                              _buildSpouseRow(),
                             const SizedBox(height: 8),
 
                             // Footer note
@@ -271,11 +278,15 @@ class GraphLegend extends ConsumerWidget {
           ),
           const SizedBox(height: 6),
           // Row 2: edge sample painter
-          SizedBox(
-            height: 44,
-            width: double.infinity,
-            child: CustomPaint(
-              painter: _EdgeSamplePainter(section: section),
+          // BUG 1 FIX: ClipRect prevents the cousins arc (control point
+          // at virtual y=-12) from overflowing into the title text above.
+          ClipRect(
+            child: SizedBox(
+              height: 44,
+              width: double.infinity,
+              child: CustomPaint(
+                painter: _EdgeSamplePainter(section: section),
+              ),
             ),
           ),
           const SizedBox(height: 4),
@@ -357,11 +368,14 @@ class GraphLegend extends ConsumerWidget {
           ),
           const SizedBox(width: 8),
           // Edge sample
+          // BUG 1 FIX: ClipRect for consistency + safety.
           Expanded(
-            child: SizedBox(
-              height: 30,
-              child: CustomPaint(
-                painter: _EdgeSamplePainter(section: spouseSection),
+            child: ClipRect(
+              child: SizedBox(
+                height: 30,
+                child: CustomPaint(
+                  painter: _EdgeSamplePainter(section: spouseSection),
+                ),
               ),
             ),
           ),
@@ -773,6 +787,12 @@ class _EdgeSamplePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _EdgeSamplePainter oldDelegate) {
-    return oldDelegate.section.name != section.name;
+    // BUG 2 FIX: Compare by name + edgeLabel + isCore together, which
+    // is guaranteed unique per section. Comparing only by name is
+    // fragile — paternal and maternal both share KinshipEdgeCategory.parent
+    // and may not repaint correctly when the filter changes.
+    return oldDelegate.section.name != section.name ||
+        oldDelegate.section.edgeLabel != section.edgeLabel ||
+        oldDelegate.section.isCore != section.isCore;
   }
 }
