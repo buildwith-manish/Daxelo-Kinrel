@@ -147,9 +147,7 @@ class _FamilyGraphEngineViewState
   ///          = 72/2 - 120/2 = 36 - 60 = -24
   /// Edge endpoints must use this offset so lines connect to the
   /// visual circle center, not the Positioned box center.
-  static const double _kNodeCircleDiameter = 72.0;
-  static const double _kCircleCenterYOffset =
-      (_kNodeCircleDiameter / 2) - (_kNodeSize.height / 2); // = -24.0
+  static const double _kCircleCenterYOffset = 36.0 - 60.0; // = -24.0
 
   /// Zoom thresholds for LOD tiers.
   static const double _kChipZoom = 0.55;
