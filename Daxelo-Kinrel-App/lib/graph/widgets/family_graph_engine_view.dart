@@ -431,11 +431,17 @@ class _FamilyGraphEngineViewState
 
         // Edges: only when BOTH endpoints are visible.
         final edges = <GraphEdgeData>[];
+        final drawnPairs = <String>{};
         for (final Map<String, dynamic> r in flat.relationships) {
           final s = r['fromPersonId'] as String?;
           final t = r['toPersonId'] as String?;
           if (s == null || t == null) continue;
           if (!_culler.isEdgeVisible(s, t, visible)) continue;
+          // Deduplicate by sorted pair key so A→B and B→A produce one edge
+          final ids = [s, t]..sort();
+          final pairKey = '${ids[0]}_${ids[1]}';
+          if (drawnPairs.contains(pairKey)) continue;
+          drawnPairs.add(pairKey);
           edges.add(GraphEdgeData(
             id: (r['id'] ?? '$s-$t').toString(),
             sourceId: s,
@@ -443,6 +449,45 @@ class _FamilyGraphEngineViewState
             relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
             isPrivate: r['isPrivate'] as bool? ?? false,
           ));
+        }
+
+        // ── Synthetic edge fallback ─────────────────────────────────────
+        // Nodes that exist in the family but have no relationship rows in
+        // the DB will appear as floating disconnected circles with no line.
+        // For every such node, draw a synthetic dashed 'related' edge to
+        // the anchor so the graph always looks connected.
+        // This is purely visual — no DB writes occur.
+        {
+          // Find the anchor person ID from the flat data
+          String? anchorId;
+          for (final p in flat.persons) {
+            if (p['isAnchor'] == true) {
+              anchorId = p['id'] as String?;
+              break;
+            }
+          }
+          // Fall back to the first person if no anchor
+          anchorId ??= flat.persons.isNotEmpty
+              ? flat.persons.first['id'] as String?
+              : null;
+          if (anchorId != null) {
+            for (final p in flat.persons) {
+              final personId = p['id'] as String?;
+              if (personId == null || personId == anchorId) continue;
+              if (!visible.contains(personId)) continue;
+              if (drawnPairs.contains('${[anchorId, personId]..sort().join("_")}')) continue;
+              final ids = [anchorId, personId]..sort();
+              final pairKey = '${ids[0]}_${ids[1]}';
+              if (drawnPairs.contains(pairKey)) continue;
+              drawnPairs.add(pairKey);
+              edges.add(GraphEdgeData(
+                id: 'synthetic_$personId',
+                sourceId: anchorId,
+                targetId: personId,
+                relationshipKey: 'related',
+              ));
+            }
+          }
         }
 
         // Build the (transform-independent) content once. The AnimatedBuilder
