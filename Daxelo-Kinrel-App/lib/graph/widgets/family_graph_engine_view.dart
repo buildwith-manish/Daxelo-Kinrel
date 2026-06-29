@@ -475,7 +475,6 @@ class _FamilyGraphEngineViewState
               final personId = p['id'] as String?;
               if (personId == null || personId == anchorId) continue;
               if (!visible.contains(personId)) continue;
-              if (drawnPairs.contains('${[anchorId, personId]..sort().join("_")}')) continue;
               final ids = [anchorId, personId]..sort();
               final pairKey = '${ids[0]}_${ids[1]}';
               if (drawnPairs.contains(pairKey)) continue;
