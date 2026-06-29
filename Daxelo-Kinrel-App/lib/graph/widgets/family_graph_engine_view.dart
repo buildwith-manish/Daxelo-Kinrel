@@ -138,6 +138,19 @@ class _FamilyGraphEngineViewState
   /// Bounding box used for culling + node placement (circle + label).
   static const Size _kNodeSize = Size(96, 120);
 
+  /// The visual circle diameter inside each node (GraphNode.nodeSize).
+  /// The circle is at the TOP of the Column, so its visual center is
+  /// offset from the Positioned center by:
+  ///   circleCenterY = boxTop + diameter/2
+  ///   boxCenterY    = boxTop + boxHeight/2
+  ///   offset = circleCenterY - boxCenterY = diameter/2 - boxHeight/2
+  ///          = 72/2 - 120/2 = 36 - 60 = -24
+  /// Edge endpoints must use this offset so lines connect to the
+  /// visual circle center, not the Positioned box center.
+  static const double _kNodeCircleDiameter = 72.0;
+  static const double _kCircleCenterYOffset =
+      (_kNodeCircleDiameter / 2) - (_kNodeSize.height / 2); // = -24.0
+
   /// Zoom thresholds for LOD tiers.
   static const double _kChipZoom = 0.55;
   static const double _kDotZoom = 0.3;
@@ -518,7 +531,18 @@ class _FamilyGraphEngineViewState
                   // tapping an edge to select it only rebuilds the edge
                   // painter — NOT the entire canvas (nodes, layout, etc).
                   child: _EdgeSelectionWrapper(
-                    positions: layout.positions,
+                    // BUG 1 FIX: Apply Y offset so edge endpoints connect
+                    // to the visual circle center, not the Positioned box
+                    // center. The circle is at the TOP of the Column
+                    // (72px diameter in a 120px tall box), so the visual
+                    // circle center is 24px above the box center.
+                    positions: {
+                      for (final entry in layout.positions.entries)
+                        entry.key: Offset(
+                          entry.value.dx,
+                          entry.value.dy + _kCircleCenterYOffset,
+                        ),
+                    },
                     edges: edges,
                     cache: _edgePathCache,
                   ),

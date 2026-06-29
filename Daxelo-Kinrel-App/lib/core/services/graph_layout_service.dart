@@ -135,13 +135,18 @@ class GraphLayoutService {
   // ── Radial Layout Constants ────────────────────────────────────────
 
   /// Base ring radius for the first ring around the anchor (dp).
-  static const double baseRadius = 160.0;
+  /// Increased from 160 to 200 for wider spacing between rings to
+  /// prevent edge overlapping when multiple members are added.
+  static const double baseRadius = 200.0;
 
   /// Spacing between consecutive rings (dp).
-  static const double ringSpacing = 160.0;
+  /// Increased from 160 to 220 for wider spacing so edges between
+  /// different rings don't intersect.
+  static const double ringSpacing = 220.0;
 
   /// Horizontal offset for a spouse placed beside their partner (dp).
-  static const double spouseOffset = 90.0;
+  /// Increased from 90 to 110 for slightly more spouse separation.
+  static const double spouseOffset = 110.0;
 
   /// Padding around the outermost ring for canvas sizing (dp).
   static const double canvasPadding = 120.0;
@@ -736,24 +741,27 @@ class GraphLayoutService {
     // Determine the angular spread for this ring.
     // For small families (≤8 people total), use a semicircle.
     // For larger families, use a wider arc.
+    // BUG 2 FIX: Widened arcs at every tier so edges between nodes
+    // on the same ring don't overlap. More angular spread = more
+    // horizontal separation between nodes = less edge crossing.
     double totalArcAngle;
     if (gen < 0) {
-      // Ancestors: semicircle from 225° to 315° (centered on 270°)
-      totalArcAngle = _degToRad(90.0); // 90° arc
+      // Ancestors: arc from 200° to 340° (centered on 270°)
+      totalArcAngle = _degToRad(140.0); // 140° arc (was 90°)
     } else {
-      // Descendants: semicircle from 45° to 135° (centered on 90°)
-      totalArcAngle = _degToRad(90.0); // 90° arc
+      // Descendants: arc from 20° to 160° (centered on 90°)
+      totalArcAngle = _degToRad(140.0); // 140° arc (was 90°)
     }
 
     // For larger families, widen the arc to avoid cramping
-    if (totalSlots > 4) {
-      totalArcAngle = _degToRad(180.0); // 180° arc
+    if (totalSlots > 3) {
+      totalArcAngle = _degToRad(200.0); // 200° arc (was 180°)
     }
-    if (totalSlots > 8) {
-      totalArcAngle = _degToRad(270.0); // 270° arc
+    if (totalSlots > 6) {
+      totalArcAngle = _degToRad(300.0); // 300° arc (was 270°)
     }
-    if (totalSlots > 16) {
-      totalArcAngle = _degToRad(360.0); // full circle
+    if (totalSlots > 12) {
+      totalArcAngle = _degToRad(360.0); // full circle (was >16)
     }
 
     final angleStep = totalArcAngle / (totalSlots + 1);
