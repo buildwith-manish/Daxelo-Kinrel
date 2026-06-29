@@ -939,11 +939,29 @@ class _FamilyGraphEngineViewState
     final keys = <String, String>{};
 
     if (viewerPersonId == null) {
+      // No viewer — use stored relationshipKey from BOTH directions
+      // so every connected node gets a color, not just toPersonId.
       for (final Map<String, dynamic> r in flat.relationships) {
-        final t = r['toPersonId'] as String?;
+        final from = r['fromPersonId'] as String?;
+        final to = r['toPersonId'] as String?;
         final key = r['relationshipKey'] as String?;
-        if (t != null && key != null && !keys.containsKey(t)) {
-          keys[t] = key;
+        if (key == null) continue;
+        // Assign the key to the target person (from → to: "to is key")
+        if (to != null && !keys.containsKey(to)) {
+          keys[to] = key;
+        }
+        // Also assign the inverse key to the source person if we can
+        // resolve it. For now, just assign the same key — the color
+        // classifier will still produce the correct category color
+        // because 'father' and 'child' both map to their respective
+        // categories. The exact key matters for the edge label, but
+        // for node COLOR we just need the category.
+        if (from != null && !keys.containsKey(from)) {
+          // Try the inverse key from the hardcoded map
+          final inverseKey = _inverseRelationshipKey(key);
+          if (inverseKey != null) {
+            keys[from] = inverseKey;
+          }
         }
       }
       return keys;
@@ -988,6 +1006,36 @@ class _FamilyGraphEngineViewState
       }
     }
     return keys;
+  }
+
+  /// Returns the inverse relationship key for common kinship terms.
+  /// Used by [_relationKeys] when no viewer is available to assign
+  /// colors to BOTH endpoints of an edge.
+  static String? _inverseRelationshipKey(String key) {
+    const inverseMap = <String, String>{
+      'father': 'child',
+      'mother': 'child',
+      'parent': 'child',
+      'child': 'parent',
+      'son': 'parent',
+      'daughter': 'parent',
+      'brother': 'sibling',
+      'sister': 'sibling',
+      'sibling': 'sibling',
+      'husband': 'wife',
+      'wife': 'husband',
+      'spouse': 'spouse',
+      'grandfather': 'grandchild',
+      'grandmother': 'grandchild',
+      'grandson': 'grandparent',
+      'granddaughter': 'grandparent',
+      'uncle': 'nephew',
+      'aunt': 'niece',
+      'nephew': 'uncle',
+      'niece': 'aunt',
+      'cousin': 'cousin',
+    };
+    return inverseMap[key];
   }
 
   /// Resolves a kinship key (e.g. "father", "mothers_brother") to a

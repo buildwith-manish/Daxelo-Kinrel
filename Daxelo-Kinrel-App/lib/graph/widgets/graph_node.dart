@@ -32,6 +32,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
+import '../../core/kinship/kinship_edge_style.dart';
 import '../../core/kinship/kinship_service.dart';
 import '../../core/widgets/cached_avatar.dart';
 
@@ -147,12 +148,53 @@ class RelationshipColors {
   /// 'extended' (slate) if the dataset isn't loaded.
   static Color borderColorFor(String? relationshipKey) {
     if (relationshipKey == null) return extended;
-    // Try the exact map first (fast path for common keys).
+
+    // 1. Try the exact map first (fast path for common keys).
     final exact = _borderColorMap[relationshipKey];
     if (exact != null) return exact;
-    // Fall back to kinship dataset category lookup.
-    final category = _kinshipCategoryFor(relationshipKey);
-    return _categoryBorderColor(category);
+
+    // 2. Use KinshipEdgeClassifier (handles all 5,350+ terms via
+    //    comprehensive regex patterns — no kinship dataset required).
+    //    This is the SAME classifier used by the edge painter and the
+    //    legend, so node ring colors always match edge colors.
+    final category = KinshipEdgeClassifier.classify(relationshipKey);
+    final categoryColor = _categoryColorFromEdgeCategory(category);
+    if (categoryColor != null) return categoryColor;
+
+    // 3. Fall back to kinship dataset category lookup (for any edge
+    //    cases the classifier misses).
+    final datasetCategory = _kinshipCategoryFor(relationshipKey);
+    return _categoryBorderColor(datasetCategory);
+  }
+
+  /// Maps a [KinshipEdgeCategory] to a [RelationshipColors] color.
+  /// Returns null for categories that don't have a direct mapping
+  /// (caller falls through to the next lookup).
+  static Color? _categoryColorFromEdgeCategory(KinshipEdgeCategory cat) {
+    switch (cat) {
+      case KinshipEdgeCategory.self:
+        return self;
+      case KinshipEdgeCategory.parent:
+        return parent;
+      case KinshipEdgeCategory.child:
+        return child;
+      case KinshipEdgeCategory.sibling:
+        return sibling;
+      case KinshipEdgeCategory.spouse:
+        return spouse;
+      case KinshipEdgeCategory.grandparent:
+        return grandparent;
+      case KinshipEdgeCategory.auntUncle:
+        return auntUncle;
+      case KinshipEdgeCategory.cousin:
+        return cousin;
+      case KinshipEdgeCategory.inLaw:
+        return inLaw;
+      case KinshipEdgeCategory.extended:
+        return extended;
+      case KinshipEdgeCategory.indirect:
+        return extended;
+    }
   }
 
   /// v62: Cached kinship dataset lookup for border color resolution.
@@ -215,7 +257,34 @@ class RelationshipColors {
   /// Returns the background tint for a given relationship key.
   static Color tintFor(String? relationshipKey) {
     if (relationshipKey == null) return extendedTint;
-    return _tintColorMap[relationshipKey] ?? extendedTint;
+    // Try exact map first
+    final exact = _tintColorMap[relationshipKey];
+    if (exact != null) return exact;
+    // Use KinshipEdgeClassifier for all 5,350+ terms
+    final category = KinshipEdgeClassifier.classify(relationshipKey);
+    switch (category) {
+      case KinshipEdgeCategory.self:
+        return selfTint;
+      case KinshipEdgeCategory.parent:
+        return parentTint;
+      case KinshipEdgeCategory.child:
+        return childTint;
+      case KinshipEdgeCategory.sibling:
+        return siblingTint;
+      case KinshipEdgeCategory.spouse:
+        return spouseTint;
+      case KinshipEdgeCategory.grandparent:
+        return grandparentTint;
+      case KinshipEdgeCategory.auntUncle:
+        return auntUncleTint;
+      case KinshipEdgeCategory.cousin:
+        return cousinTint;
+      case KinshipEdgeCategory.inLaw:
+        return inLawTint;
+      case KinshipEdgeCategory.extended:
+      case KinshipEdgeCategory.indirect:
+        return extendedTint;
+    }
   }
 
   /// Map of relationship key → border color.
