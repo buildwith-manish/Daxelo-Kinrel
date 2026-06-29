@@ -387,34 +387,47 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   /// Resolve the effective relationship key from type + gender + sub-type.
   /// The key describes what the ANCHOR person will be to the new person,
   /// so we use the anchor's gender for parent/child/sibling terms.
-  /// For spouse, we also use the anchor's gender since the sentence says
-  /// "Anchor will be the husband/wife of NewPerson".
+  /// Resolves the effective relationship key based on the selected
+  /// relationship type and the NEW PERSON's gender.
+  ///
+  /// The question asked is "How is newName related to anchor?" — so
+  /// the key represents the NEW PERSON's relationship TO the anchor.
+  /// For example, if the user selects "Parent" and the new person is
+  /// male, the key is 'father' (newPerson is the father of anchor).
+  ///
+  /// CRITICAL FIX: Previously this used the ANCHOR's gender, which
+  /// produced the wrong key. For example, if the anchor was male and
+  /// the user selected "Sibling", it returned 'brother' — but that
+  /// means "anchor is the brother of newPerson", which is the OPPOSITE
+  /// of what the question asks. Now it uses the new person's gender.
   String? get _effectiveRelationshipKey {
     if (_selectedRelationshipKey != null) return _selectedRelationshipKey;
 
-    // The preview sentence is "Anchor will be the [label] of NewPerson",
-    // so the label must match the anchor's gender.
-    final anchorGender = _effectiveAnchorPerson?.gender ?? 'male';
+    // Use the NEW PERSON's gender (not the anchor's) because the
+    // question is "How is newName related to anchor?".
+    final newPersonGender = _selectedGender;
     switch (_selectedRelType) {
       case 'parent':
-        return anchorGender == 'female' ? 'mother' : 'father';
+        return newPersonGender == 'female' ? 'mother' : 'father';
       case 'child':
-        return anchorGender == 'female' ? 'daughter' : 'son';
+        return newPersonGender == 'female' ? 'daughter' : 'son';
       case 'spouse':
-        return anchorGender == 'female' ? 'wife' : 'husband';
+        return newPersonGender == 'female' ? 'wife' : 'husband';
       case 'sibling':
         if (_selectedSubType == 'elder') {
-          return anchorGender == 'female' ? 'elder_sister' : 'elder_brother';
+          return newPersonGender == 'female' ? 'elder_sister' : 'elder_brother';
         } else if (_selectedSubType == 'younger') {
-          return anchorGender == 'female' ? 'younger_sister' : 'younger_brother';
+          return newPersonGender == 'female' ? 'younger_sister' : 'younger_brother';
         }
-        return anchorGender == 'female' ? 'sister' : 'brother';
+        return newPersonGender == 'female' ? 'sister' : 'brother';
       default:
         return null;
     }
   }
 
   /// Human-readable preview sentence.
+  /// Shows "NewPerson will be the [label] of Anchor" — matching the
+  /// question "How is newName related to anchor?".
   String get _relationshipPreview {
     final key = _effectiveRelationshipKey;
     if (key == null) return '';
@@ -423,7 +436,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         : 'New Member';
     final anchorName = _effectiveAnchorPerson?.name ?? 'existing member';
     final label = _selectedRelationshipLabel ?? key.snakeToTitle;
-    return '$anchorName will be the $label of $newName';
+    return '$newName will be the $label of $anchorName';
   }
 
   // ── Submit ─────────────────────────────────────────────────────
@@ -626,12 +639,24 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               }
 
               if (linkToPersonId != null && linkToPersonId.isNotEmpty && linkToPersonId != result.id) {
-                debugPrint('[ADD-MEMBER] v50: Creating relationship: from=$linkToPersonId to=${result.id} key=$relKey');
+                // CRITICAL FIX: The relationship question asks "How is
+                // newName related to anchor?" — so the user is saying
+                // "newPerson IS the [brother/father/etc] OF anchor".
+                // The relationship must be stored as:
+                //   from: newPerson (result.id), to: anchor (linkToPersonId)
+                //   key: relKey (e.g. 'brother' = newPerson is brother of anchor)
+                //
+                // Previously this was reversed (from: anchor, to: newPerson),
+                // which stored "anchor IS the brother of newPerson" — the
+                // opposite of what the user selected. This caused the
+                // RelationshipEngine BFS to resolve the wrong direction,
+                // resulting in missing labels and incorrect colors.
+                debugPrint('[ADD-MEMBER] v50: Creating relationship: from=${result.id} (new) to=$linkToPersonId (anchor) key=$relKey');
                 await createRelationship(
                   ref: ref,
                   familyId: widget.familyId,
-                  fromPersonId: linkToPersonId,
-                  toPersonId: result.id,
+                  fromPersonId: result.id,
+                  toPersonId: linkToPersonId,
                   relationshipKey: relKey,
                 );
                 debugPrint('[ADD-MEMBER] v50: ✅ Relationship created successfully');
