@@ -201,6 +201,13 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     final graphAsync = ref.watch(familyGraphProvider(widget.familyId));
 
     return Scaffold(
+      // FIX (keyboard-resize): Prevent the keyboard from shrinking the
+      // graph body. The graph manages its own layout and camera — a body
+      // resize would cause the LayoutBuilder to fire with smaller
+      // constraints, corrupting the camera viewport rect and making
+      // nodes/edges disappear + background turn white. Bottom sheets
+      // handle their own viewInsets.bottom padding via isScrollControlled.
+      resizeToAvoidBottomInset: false,
       backgroundColor: KinrelColors.darkBackground,
       appBar: _buildAppBar(),
       body: GraphTutorialOverlay(

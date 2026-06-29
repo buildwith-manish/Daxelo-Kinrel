@@ -53,6 +53,7 @@ import '../interaction/camera_controller.dart' show CameraController;
 import '../interaction/expand_collapse.dart'
     show ExpandCollapseController, ExpandCollapseState;
 import '../../core/constants/feature_flags.dart' show kEnableGraphShareExport;
+import '../../core/constants/brand_colors.dart' show KinrelColors;
 import '../../core/kinship/kinship_edge_style.dart';
 import '../../core/kinship/kinship_service.dart' show KinshipService;
 import '../../core/relationship/relationship_engine.dart' show RelationshipEngine;
@@ -358,7 +359,28 @@ class _FamilyGraphEngineViewState
       GraphLayoutResult layout, FlatGraphResult flat, String? selectedEdgeId, String? viewerPersonId) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        _viewportSize = constraints.biggest;
+        // FIX (keyboard-resize): Don't update _viewportSize if the height
+        // shrank by more than 25% — that's a keyboard push, not a real
+        // resize. The camera was fitted to the original viewport; using
+        // a keyboard-shrunken viewport would cause the camera viewport
+        // rect to be recalculated incorrectly, making nodes/edges
+        // disappear and the background turn white.
+        final newHeight = constraints.biggest.height;
+        final newWidth = constraints.biggest.width;
+        final isKeyboardPush = _viewportSize.height > 0 &&
+            newHeight < _viewportSize.height * 0.75;
+        if (!isKeyboardPush) {
+          final sizeChanged = _viewportSize.width != newWidth ||
+              _viewportSize.height != newHeight;
+          _viewportSize = constraints.biggest;
+          // FIX (culler-invalidation): After a REAL viewport size change
+          // (orientation change, window resize — NOT keyboard), invalidate
+          // the culler so the next build recalculates visibility with the
+          // correct new viewport.
+          if (sizeChanged) {
+            _culler.invalidate();
+          }
+        }
 
         // One-time framing AFTER the first frame — never during build, which
         // avoids the historical setState-during-build crash.
@@ -459,25 +481,28 @@ class _FamilyGraphEngineViewState
           ),
         );
 
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onScaleStart: _onScaleStart,
-          onScaleUpdate: _onScaleUpdate,
-          // v62: Double-tap to zoom in 2× toward the focal point,
-          // toggles back to 1× on second double-tap.
-          onDoubleTapDown: (details) =>
-              _doubleTapPosition = details.localPosition,
-          onDoubleTap: _handleDoubleTapZoom,
-          child: ClipRect(
-            child: AnimatedBuilder(
-              animation: _camera,
-              child: content,
-              builder: (BuildContext context, Widget? child) {
-                return Transform(
-                  transform: _camera.transformMatrix,
-                  child: child,
-                );
-              },
+        return ColoredBox(
+          color: KinrelColors.darkBackground,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onScaleStart: _onScaleStart,
+            onScaleUpdate: _onScaleUpdate,
+            // v62: Double-tap to zoom in 2× toward the focal point,
+            // toggles back to 1× on second double-tap.
+            onDoubleTapDown: (details) =>
+                _doubleTapPosition = details.localPosition,
+            onDoubleTap: _handleDoubleTapZoom,
+            child: ClipRect(
+              child: AnimatedBuilder(
+                animation: _camera,
+                child: content,
+                builder: (BuildContext context, Widget? child) {
+                  return Transform(
+                    transform: _camera.transformMatrix,
+                    child: child,
+                  );
+                },
+              ),
             ),
           ),
         );
