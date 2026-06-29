@@ -413,6 +413,11 @@ class _FamilyGraphEngineViewState
         // PERF: Only recompute relation labels/keys when the underlying
         // flat data or viewer changes — NOT on every pan/zoom frame.
         if (!identical(_lastFlat, flat) || _lastViewerId != viewerPersonId) {
+          // CRITICAL FIX: Invalidate the RelationshipEngine cache when
+          // graph data changes. Without this, the engine returns stale
+          // cached results from before the new person was added, so the
+          // new person gets no relationship key → no label → no color.
+          RelationshipEngine.instance.invalidateCache();
           _cachedRelationLabels = _relationLabels(flat, viewerPersonId);
           _cachedRelationKeys = _relationKeys(flat, viewerPersonId);
           _lastFlat = flat;
