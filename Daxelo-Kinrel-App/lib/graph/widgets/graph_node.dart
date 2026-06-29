@@ -33,7 +33,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/kinship/kinship_edge_style.dart';
-import '../../core/kinship/kinship_service.dart';
 import '../../core/widgets/cached_avatar.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -137,253 +136,47 @@ class RelationshipColors {
   /// Extended background tint — slate 4%
   static const Color extendedTint = Color(0x0A64748B);
 
-  // ── Resolution ──────────────────────────────────────────────────────
+  // ── Resolution — SINGLE SOURCE OF TRUTH ─────────────────────────────
+  //
+  // Node border colors and tints are resolved via KinshipEdgeStyleResolver
+  // — the SAME resolver used by the edge painter. This ensures node ring
+  // colors ALWAYS match edge line colors, because both use the same
+  // KinshipEdgeClassifier.classify() → KinshipEdgeStyle pipeline.
+  //
+  // Previous architecture had a DUPLICATE color system with its own
+  // _borderColorMap (35 entries), _tintColorMap (35 entries),
+  // _categoryColorFromEdgeCategory, _kinshipCategoryFor, and
+  // _categoryBorderColor. These could fall out of sync with the edge
+  // painter's KinshipEdgeStyleResolver, causing mismatched colors.
+  //
+  // All duplicate maps and methods have been REMOVED. The only color
+  // resolution path is now:
+  //   relationshipKey → KinshipEdgeClassifier.classify()
+  //                   → KinshipEdgeStyleResolver.styleForCategory()
+  //                   → KinshipEdgeStyle.color
+  //
+  // This handles ALL 5,350+ kinship terms via comprehensive regex
+  // patterns — no hardcoded maps, no kinship dataset dependency.
 
-  /// Returns the border color for a given relationship key.
-  ///
-  /// v62: Now consults the 5,359-entry kinship dataset's
-  /// `relationshipCategory` field to resolve the correct color for
-  /// ALL kinship terms — not just the ~35 keys in the legacy
-  /// _borderColorMap. Falls back to the hardcoded map, then to
-  /// 'extended' (slate) if the dataset isn't loaded.
+  /// Resolves the border color for a relationship key.
+  /// Delegates to KinshipEdgeStyleResolver (same as edge painter).
   static Color borderColorFor(String? relationshipKey) {
-    if (relationshipKey == null) return extended;
-
-    // 1. Try the exact map first (fast path for common keys).
-    final exact = _borderColorMap[relationshipKey];
-    if (exact != null) return exact;
-
-    // 2. Use KinshipEdgeClassifier (handles all 5,350+ terms via
-    //    comprehensive regex patterns — no kinship dataset required).
-    //    This is the SAME classifier used by the edge painter and the
-    //    legend, so node ring colors always match edge colors.
-    final category = KinshipEdgeClassifier.classify(relationshipKey);
-    final categoryColor = _categoryColorFromEdgeCategory(category);
-    if (categoryColor != null) return categoryColor;
-
-    // 3. Fall back to kinship dataset category lookup (for any edge
-    //    cases the classifier misses).
-    final datasetCategory = _kinshipCategoryFor(relationshipKey);
-    return _categoryBorderColor(datasetCategory);
+    if (relationshipKey == null || relationshipKey.isEmpty) {
+      return extended;
+    }
+    final style = KinshipEdgeStyleResolver.styleFor(relationshipKey);
+    return style.color ?? extended;
   }
 
-  /// Maps a [KinshipEdgeCategory] to a [RelationshipColors] color.
-  /// Returns null for categories that don't have a direct mapping
-  /// (caller falls through to the next lookup).
-  static Color? _categoryColorFromEdgeCategory(KinshipEdgeCategory cat) {
-    switch (cat) {
-      case KinshipEdgeCategory.self:
-        return self;
-      case KinshipEdgeCategory.parent:
-        return parent;
-      case KinshipEdgeCategory.child:
-        return child;
-      case KinshipEdgeCategory.sibling:
-        return sibling;
-      case KinshipEdgeCategory.spouse:
-        return spouse;
-      case KinshipEdgeCategory.grandparent:
-        return grandparent;
-      case KinshipEdgeCategory.auntUncle:
-        return auntUncle;
-      case KinshipEdgeCategory.cousin:
-        return cousin;
-      case KinshipEdgeCategory.inLaw:
-        return inLaw;
-      case KinshipEdgeCategory.extended:
-        return extended;
-      case KinshipEdgeCategory.indirect:
-        return extended;
-    }
-  }
-
-  /// v62: Cached kinship dataset lookup for border color resolution.
-  static final Map<String, String?> _kinshipCatCache =
-      <String, String?>{};
-
-  /// v62: Resolves the relationshipCategory from the kinship dataset.
-  /// Returns null if the dataset isn't loaded or the key isn't found.
-  static String? _kinshipCategoryFor(String relationshipKey) {
-    if (relationshipKey.isEmpty || relationshipKey == 'unknown') {
-      return null;
-    }
-    if (_kinshipCatCache.containsKey(relationshipKey)) {
-      return _kinshipCatCache[relationshipKey];
-    }
-    String? result;
-    try {
-      final service = KinshipService.instance;
-      if (service.isLoaded) {
-        final rel = service.getRelationship(relationshipKey);
-        result = rel?.relationshipCategory;
-      }
-    } catch (_) {
-      result = null;
-    }
-    _kinshipCatCache[relationshipKey] = result;
-    return result;
-  }
-
-  /// Maps a kinship dataset category to a border color.
-  static Color _categoryBorderColor(String? datasetCategory) {
-    switch (datasetCategory) {
-      case 'spouse':
-        return spouse;
-      case 'offspring':
-        return child;
-      case 'sibling':
-        return sibling;
-      case 'grandparent':
-        return grandparent;
-      case 'in_law':
-        return inLaw;
-      case 'cousin':
-        return cousin;
-      case 'paternal':
-      case 'maternal':
-        // Could be parent or aunt/uncle — use the relationshipKey
-        // prefix to disambiguate. The caller's key isn't available
-        // here, so default to parent (most common paternal/maternal).
-        return parent;
-      case 'extended':
-      case 'step':
-      case 'ceremonial':
-        return extended;
-      default:
-        return extended;
-    }
-  }
-
-  /// Returns the background tint for a given relationship key.
+  /// Resolves the background tint for a relationship key.
+  /// Derives tint from the same color as borderColorFor.
   static Color tintFor(String? relationshipKey) {
-    if (relationshipKey == null) return extendedTint;
-    // Try exact map first
-    final exact = _tintColorMap[relationshipKey];
-    if (exact != null) return exact;
-    // Use KinshipEdgeClassifier for all 5,350+ terms
-    final category = KinshipEdgeClassifier.classify(relationshipKey);
-    switch (category) {
-      case KinshipEdgeCategory.self:
-        return selfTint;
-      case KinshipEdgeCategory.parent:
-        return parentTint;
-      case KinshipEdgeCategory.child:
-        return childTint;
-      case KinshipEdgeCategory.sibling:
-        return siblingTint;
-      case KinshipEdgeCategory.spouse:
-        return spouseTint;
-      case KinshipEdgeCategory.grandparent:
-        return grandparentTint;
-      case KinshipEdgeCategory.auntUncle:
-        return auntUncleTint;
-      case KinshipEdgeCategory.cousin:
-        return cousinTint;
-      case KinshipEdgeCategory.inLaw:
-        return inLawTint;
-      case KinshipEdgeCategory.extended:
-      case KinshipEdgeCategory.indirect:
-        return extendedTint;
+    if (relationshipKey == null || relationshipKey.isEmpty) {
+      return extendedTint;
     }
+    final color = borderColorFor(relationshipKey);
+    return color.withValues(alpha: 0.04);
   }
-
-  /// Map of relationship key → border color.
-  static const Map<String, Color> _borderColorMap = {
-    // Self
-    'self': self,
-    // Parent
-    'parent': parent,
-    'father': parent,
-    'mother': parent,
-    // Sibling
-    'sibling': sibling,
-    'brother': sibling,
-    'sister': sibling,
-    // Child
-    'child': child,
-    'son': child,
-    'daughter': child,
-    // Spouse
-    'spouse': spouse,
-    'husband': spouse,
-    'wife': spouse,
-    'partner': spouse,
-    // Grandparent
-    'grandparent': grandparent,
-    'grandfather': grandparent,
-    'grandmother': grandparent,
-    // Aunt/Uncle
-    'aunt': auntUncle,
-    'uncle': auntUncle,
-    'paternal_uncle': auntUncle,
-    'paternal_aunt': auntUncle,
-    'maternal_uncle': auntUncle,
-    'maternal_aunt': auntUncle,
-    // Cousin
-    'cousin': cousin,
-    'cousin_brother': cousin,
-    'cousin_sister': cousin,
-    // In-Law
-    'father_in_law': inLaw,
-    'mother_in_law': inLaw,
-    'son_in_law': inLaw,
-    'daughter_in_law': inLaw,
-    'brother_in_law': inLaw,
-    'sister_in_law': inLaw,
-    // Extended
-    'stepfather': extended,
-    'stepmother': extended,
-    'stepson': extended,
-    'stepdaughter': extended,
-    'stepbrother': extended,
-    'stepsister': extended,
-    'half_brother': extended,
-    'half_sister': extended,
-  };
-
-  /// Map of relationship key → background tint.
-  static const Map<String, Color> _tintColorMap = {
-    'self': selfTint,
-    'parent': parentTint,
-    'father': parentTint,
-    'mother': parentTint,
-    'sibling': siblingTint,
-    'brother': siblingTint,
-    'sister': siblingTint,
-    'child': childTint,
-    'son': childTint,
-    'daughter': childTint,
-    'spouse': spouseTint,
-    'husband': spouseTint,
-    'wife': spouseTint,
-    'partner': spouseTint,
-    'grandparent': grandparentTint,
-    'grandfather': grandparentTint,
-    'grandmother': grandparentTint,
-    'aunt': auntUncleTint,
-    'uncle': auntUncleTint,
-    'paternal_uncle': auntUncleTint,
-    'paternal_aunt': auntUncleTint,
-    'maternal_uncle': auntUncleTint,
-    'maternal_aunt': auntUncleTint,
-    'cousin': cousinTint,
-    'cousin_brother': cousinTint,
-    'cousin_sister': cousinTint,
-    'father_in_law': inLawTint,
-    'mother_in_law': inLawTint,
-    'son_in_law': inLawTint,
-    'daughter_in_law': inLawTint,
-    'brother_in_law': inLawTint,
-    'sister_in_law': inLawTint,
-    'stepfather': extendedTint,
-    'stepmother': extendedTint,
-    'stepson': extendedTint,
-    'stepdaughter': extendedTint,
-    'stepbrother': extendedTint,
-    'stepsister': extendedTint,
-    'half_brother': extendedTint,
-    'half_sister': extendedTint,
-  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════
