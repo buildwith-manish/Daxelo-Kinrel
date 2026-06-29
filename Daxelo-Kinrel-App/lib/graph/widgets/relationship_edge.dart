@@ -364,23 +364,23 @@ class EdgeStyleResolver {
     switch (category) {
       case EdgeCategory.parent:
       case EdgeCategory.child:
-        return 0.85;
+        return 0.95;
       case EdgeCategory.spouse:
-        return 0.85;
+        return 0.95;
       case EdgeCategory.sibling:
-        return 0.75;
+        return 0.95;
       case EdgeCategory.grandparent:
-        return 0.75;
+        return 0.90;
       case EdgeCategory.auntUncle:
-        return 0.7;
+        return 0.88;
       case EdgeCategory.cousin:
-        return 0.6;
+        return 0.85;
       case EdgeCategory.inLaw:
-        return 0.7;
+        return 0.88;
       case EdgeCategory.extended:
-        return 0.70; // v60: raised from 0.45 — was invisible on dark bg
+        return 0.82;
       case EdgeCategory.indirect:
-        return 0.5;
+        return 0.65;
     }
   }
 
@@ -499,10 +499,10 @@ class RelationshipEdge extends CustomPainter {
   // ── Paint Constants ────────────────────────────────────────────────
 
   /// Default stroke width.
-  static const double _defaultStrokeWidth = 2.0;
+  static const double _defaultStrokeWidth = 2.5;   // was 2.0
 
   /// Selected edge stroke width.
-  static const double _selectedStrokeWidth = 2.5;
+  static const double _selectedStrokeWidth = 3.5;  // was 2.5
 
   /// Dimmed alpha for edges outside highlighted generation.
   static const double _dimmedAlpha = 0.30;
@@ -510,10 +510,10 @@ class RelationshipEdge extends CustomPainter {
   // ── Midpoint Indicator Constants ──────────────────────────────────
 
   /// Radius of the filled dot at parent-child midpoints.
-  static const double _dotRadius = 5.0;
+  static const double _dotRadius = 6.0;             // was 5.0
 
   /// Radius of the glow halo around the dot.
-  static const double _dotGlowRadius = 9.0;
+  static const double _dotGlowRadius = 11.0;        // was 9.0
 
   /// Total size of the heart shape for spouse midpoints.
   static const double _heartSize = 14.0;

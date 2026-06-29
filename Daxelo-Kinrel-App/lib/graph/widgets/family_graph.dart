@@ -283,6 +283,11 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         isAnchor: p.isAnchor,
         photoUrl: p.photoUrl,
         isDeceased: p.isDeceased,
+        // FIX: Pass kinshipCategory so node ring colors are correct.
+        // PersonData.kinshipCategory is the server-computed category
+        // (e.g. "parent", "sibling", "cousin"). GraphPersonData stores
+        // it as relationshipKey which is used by RelationshipColors.borderColorFor().
+        relationshipKey: p.kinshipCategory,
       );
     }
 
@@ -312,12 +317,49 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       ));
     }
 
+    // ── Synthetic edge fallback ─────────────────────────────────────
+    // Nodes that exist in the family but have no relationship rows in
+    // the DB will appear as floating disconnected circles with no line.
+    // For every such node, draw a synthetic dashed 'related' edge to
+    // the anchor so the graph always looks connected.
+    // This is purely visual — no DB writes occur.
+    {
+      final anchorId = persons.firstWhere(
+        (p) => p.isAnchor,
+        orElse: () => persons.first,
+      ).id;
+
+      final connectedIds = <String>{};
+      for (final e in edges) {
+        connectedIds.add(e.sourceId);
+        connectedIds.add(e.targetId);
+      }
+
+      for (final person in persons) {
+        if (person.id == anchorId) continue;
+        if (connectedIds.contains(person.id)) continue;
+
+        final ids = [anchorId, person.id]..sort();
+        final pairKey = '${ids[0]}_${ids[1]}';
+        if (drawnPairs.contains(pairKey)) continue;
+        drawnPairs.add(pairKey);
+
+        edges.add(GraphEdgeData(
+          id: 'synthetic_${person.id}',
+          sourceId: anchorId,
+          targetId: person.id,
+          relationshipKey: 'related',
+        ));
+      }
+    }
+
     // v62: Use cached layout if the graph data hasn't changed.
     // This prevents layout recomputation on rebuilds triggered by
     // UI interactions (long-press → bottom sheet → dismiss), which
     // could cause nodes to shift position and appear off-screen.
     final dataChanged = _cachedPersonCount != persons.length ||
-        _cachedRelationshipCount != graphData.relationships.length;
+        _cachedRelationshipCount != graphData.relationships.length ||
+        _cachedEdges == null;
 
     if (!dataChanged &&
         _cachedLayout != null &&
@@ -566,9 +608,15 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         person, personMap, edges,
       );
 
-      final relKey = GraphRelationshipLabels.getRelationshipKey(
+      // getRelationshipKey only returns a value if a direct edge exists
+      // from the anchor to this person in the edges list. If no such edge
+      // exists (person was added but no relationship row stored in DB),
+      // fall back to the kinshipCategory that the server already resolved
+      // and stored on the person node itself.
+      String? relKey = GraphRelationshipLabels.getRelationshipKey(
         person.id, personMap, edges,
       );
+      relKey ??= person.relationshipKey; // person.relationshipKey = kinshipCategory
 
       final double nodeOpacity =
           (highlightedGen != null && person.generationIndex != highlightedGen)
