@@ -1098,12 +1098,48 @@ class _EngineEdgePainter extends CustomPainter {
   final EdgePathCache cache;
   final String? selectedEdgeId;
 
+  /// Builds a bezier curve path between two node centers.
+  ///
+  /// The curve is designed to:
+  ///   1. Start and end at the EXACT center of each node (no offset)
+  ///   2. Use a smooth S-curve when nodes are vertically aligned
+  ///   3. Use a gentle arc when nodes are horizontally offset
+  ///   4. Avoid overlapping with other edges by using directional
+  ///      control points that spread curves apart
   static Path _bezier(Offset s, Offset t) {
     final double dy = t.dy - s.dy;
     final double dx = t.dx - s.dx;
-    final double lateral = dx.abs() < 10.0 ? 50.0 : 0.0;
-    final cp1 = Offset(s.dx + lateral, s.dy + dy * 0.35);
-    final cp2 = Offset(t.dx + lateral, t.dy - dy * 0.35);
+    final double distance = (s - t).distance;
+
+    // For very short distances, use a simple line to avoid weird curves
+    if (distance < 20.0) {
+      return Path()
+        ..moveTo(s.dx, s.dy)
+        ..lineTo(t.dx, t.dy);
+    }
+
+    // Control point offset — scales with distance for smooth curves
+    // at any zoom level. Clamped to prevent extreme curves.
+    final double cpOffset = (distance * 0.3).clamp(30.0, 120.0);
+
+    if (dx.abs() < 10.0) {
+      // Vertically aligned nodes: S-curve with lateral offset
+      // Direction of the lateral offset depends on which side of the
+      // anchor the node is on (deterministic, not random)
+      final double lateral = dx >= 0 ? cpOffset * 0.5 : -cpOffset * 0.5;
+      final cp1 = Offset(s.dx + lateral, s.dy + dy * 0.35);
+      final cp2 = Offset(t.dx + lateral, t.dy - dy * 0.35);
+      return Path()
+        ..moveTo(s.dx, s.dy)
+        ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, t.dx, t.dy);
+    }
+
+    // Horizontally offset nodes: gentle vertical bezier
+    // Control points are placed along the vertical midpoint to create
+    // a smooth, non-overlapping curve
+    final midY = s.dy + dy * 0.5;
+    final cp1 = Offset(s.dx + dx * 0.25, midY);
+    final cp2 = Offset(t.dx - dx * 0.25, midY);
     return Path()
       ..moveTo(s.dx, s.dy)
       ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, t.dx, t.dy);
@@ -1174,18 +1210,22 @@ class _EngineEdgePainter extends CustomPainter {
 
       // Draw midpoint symbol (dot or heart) — NO text labels on edges.
       if (style.midpointSymbol != KinshipMidpointSymbol.none) {
-        // Fix 1: Compute the cubic bezier midpoint at t=0.5 using the
-        // same control points as _bezier(). The formula is:
-        //   B(0.5) = 0.125·P0 + 0.375·CP1 + 0.375·CP2 + 0.125·P3
-        // This places the dot ON the curve, not at the linear midpoint.
-        final double dy = t.dy - s.dy;
-        final double dx = t.dx - s.dx;
-        final double lateral = dx.abs() < 10.0 ? 50.0 : 0.0;
-        final cp1 = Offset(s.dx + lateral, s.dy + dy * 0.35);
-        final cp2 = Offset(t.dx + lateral, t.dy - dy * 0.35);
-        final midX = 0.125 * s.dx + 0.375 * cp1.dx + 0.375 * cp2.dx + 0.125 * t.dx;
-        final midY = 0.125 * s.dy + 0.375 * cp1.dy + 0.375 * cp2.dy + 0.125 * t.dy;
-        final midPoint = Offset(midX, midY);
+        // Compute the actual midpoint on the bezier path using PathMetrics.
+        // This is more accurate than manually computing control points
+        // because it accounts for the actual curve geometry.
+        Offset midPoint = Offset(
+          (s.dx + t.dx) / 2,
+          (s.dy + t.dy) / 2,
+        );
+        for (final metric in path.computeMetrics()) {
+          if (metric.length > 0) {
+            final tangent = metric.getTangentForOffset(metric.length * 0.5);
+            if (tangent != null) {
+              midPoint = tangent.position;
+              break;
+            }
+          }
+        }
 
         // Fix 3: Dot radius 4.0 (was 2.5), full opacity, heart stays 4.0.
         if (style.midpointSymbol == KinshipMidpointSymbol.heart) {
