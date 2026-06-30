@@ -330,6 +330,96 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     }
   }
 
+  /// v64 (BUG-1 FIX): Optimistically inject a new person + relationship
+  /// edge into the cached [FlatGraphResult] for [familyId].
+  ///
+  /// WHY THIS EXISTS:
+  ///   When the user adds a new family member via AddPersonSheet, the
+  ///   createRelationship() call writes the relationship row to Supabase
+  ///   and then calls `ref.invalidate(familyGraphProvider(familyId))`.
+  ///   The invalidation triggers a fresh Supabase round-trip, but during
+  ///   the ~200–800ms refetch window, the graph widget rebuilds with the
+  ///   STALE cached FlatGraphResult (which has no entry for the new
+  ///   person). The new node then has no `relationshipKey` and falls
+  ///   through to the 'extended' slate-gray fallback color — even though
+  ///   the user explicitly selected "Father" / "Brother" / etc.
+  ///
+  /// WHAT THIS METHOD DOES:
+  ///   - If a cached FlatGraphResult exists for [familyId], appends a
+  ///     new person entry and a new relationship entry to it.
+  ///   - The injected relationship uses the EXACT relationshipKey the
+  ///     user selected, so the very next paint assigns the correct
+  ///     KinshipEdgeCategory color (parent=blue, child=pink, etc.).
+  ///   - The next server refetch will replace this optimistic entry
+  ///     with the real server data (same content, just authoritative).
+  ///
+  /// SAFETY:
+  ///   - No-op if no cache entry exists (the graph will just wait for
+  ///     the server refetch).
+  ///   - Idempotent: if the person is already in the cache (e.g. the
+  ///     user tapped "Add" twice quickly), the second call is a no-op.
+  ///   - The injected person entry uses the same field names as the
+  ///     Supabase RPC so FlatGraphResult.toPersonDataList() parses it
+  ///     correctly.
+  static void injectOptimisticEdge({
+    required String familyId,
+    required String personId,
+    required String personName,
+    String? gender,
+    required String relationshipKey,
+    required String anchorPersonId,
+    String? photoUrl,
+    bool isDeceased = false,
+  }) {
+    final cached = _cache[familyId];
+    if (cached == null) {
+      // No cache to update — the graph will refetch from server.
+      return;
+    }
+
+    // Idempotency: skip if the person is already in the cache (avoids
+    // duplicate nodes if the caller fires this twice).
+    final alreadyPresent = cached.persons.any(
+      (p) => p['id'] == personId,
+    );
+    if (alreadyPresent) return;
+
+    // Append the new person + relationship to a copy of the cache.
+    // We mutate a COPY (not the original list references) so Riverpod
+    // detects the change and triggers a rebuild.
+    final newPersons = List<Map<String, dynamic>>.from(cached.persons);
+    newPersons.add(<String, dynamic>{
+      'id': personId,
+      'name': personName,
+      'gender': gender,
+      'generationIndex': 0, // placeholder; server will correct this
+      'isAnchor': false,
+      'photoUrl': photoUrl,
+      'isDeceased': isDeceased,
+      'visibility': 'public',
+      'username': null,
+      'isViewer': false,
+    });
+
+    final newRelationships = List<Map<String, dynamic>>.from(cached.relationships);
+    newRelationships.add(<String, dynamic>{
+      'id': 'optimistic_${personId}_$relationshipKey',
+      'fromPersonId': personId,
+      'toPersonId': anchorPersonId,
+      'relationshipKey': relationshipKey,
+      'isPrivate': false,
+      'labelAtoB': null,
+      'labelBtoA': null,
+    });
+
+    _cache[familyId] = FlatGraphResult(
+      persons: newPersons,
+      relationships: newRelationships,
+      isTruncated: cached.isTruncated,
+      totalCount: cached.totalCount,
+    );
+  }
+
   @override
   Future<FlatGraphResult> build(String familyId) async {
     // Invalidate the layout when graph data is (re)fetched

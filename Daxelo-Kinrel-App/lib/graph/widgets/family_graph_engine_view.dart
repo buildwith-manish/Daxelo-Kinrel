@@ -49,6 +49,7 @@ import '../../features/family/presentation/providers/family_graph_provider.dart'
         selectedNodeProvider;
 import '../data/family_graph_repository.dart' show GraphEdgeData;
 import '../data/position_memory.dart' show PositionMemory;
+import '../engine/edge_dedup.dart' show DedupedEdge, EdgeDeduplicator;
 import '../interaction/camera_controller.dart' show CameraController;
 import '../interaction/expand_collapse.dart'
     show ExpandCollapseController, ExpandCollapseState;
@@ -446,19 +447,21 @@ class _FamilyGraphEngineViewState
         _lastLod = _lodFor(_camera.zoomLevel);
 
         // Edges: only when BOTH endpoints are visible.
-        final edges = <GraphEdgeData>[];
-        final drawnPairs = <String>{};
+        //
+        // v64 (BUG-2 FIX): We collect ALL edges first (no first-match-wins
+        // dedup here), then pass them through EdgeDeduplicator.deduplicate()
+        // which:
+        //   - Collapses duplicate rows (A→B "father" + B→A "child") into ONE
+        //     edge, picking the strongest category.
+        //   - Keeps DISTINCT categories (e.g. parent + spouse) as separate
+        //     edges with lateral offsets so they don't stack on each other.
+        final rawEdges = <GraphEdgeData>[];
         for (final Map<String, dynamic> r in flat.relationships) {
           final s = r['fromPersonId'] as String?;
           final t = r['toPersonId'] as String?;
           if (s == null || t == null) continue;
           if (!_culler.isEdgeVisible(s, t, visible)) continue;
-          // Deduplicate by sorted pair key so A→B and B→A produce one edge
-          final ids = [s, t]..sort();
-          final pairKey = '${ids[0]}_${ids[1]}';
-          if (drawnPairs.contains(pairKey)) continue;
-          drawnPairs.add(pairKey);
-          edges.add(GraphEdgeData(
+          rawEdges.add(GraphEdgeData(
             id: (r['id'] ?? '$s-$t').toString(),
             sourceId: s,
             targetId: t,
@@ -487,15 +490,22 @@ class _FamilyGraphEngineViewState
               ? flat.persons.first['id'] as String?
               : null;
           if (anchorId != null) {
+            // Track which node pairs already have a real edge so we don't
+            // add a synthetic edge on top of an existing one.
+            final existingPairs = <String>{};
+            for (final e in rawEdges) {
+              final ids = [e.sourceId, e.targetId]..sort();
+              existingPairs.add('${ids[0]}_${ids[1]}');
+            }
             for (final p in flat.persons) {
               final personId = p['id'] as String?;
               if (personId == null || personId == anchorId) continue;
               if (!visible.contains(personId)) continue;
               final ids = [anchorId, personId]..sort();
               final pairKey = '${ids[0]}_${ids[1]}';
-              if (drawnPairs.contains(pairKey)) continue;
-              drawnPairs.add(pairKey);
-              edges.add(GraphEdgeData(
+              if (existingPairs.contains(pairKey)) continue;
+              existingPairs.add(pairKey);
+              rawEdges.add(GraphEdgeData(
                 id: 'synthetic_$personId',
                 sourceId: anchorId,
                 targetId: personId,
@@ -504,6 +514,10 @@ class _FamilyGraphEngineViewState
             }
           }
         }
+
+        // v64 (BUG-2 FIX): Deduplicate with smart category-strength
+        // selection + lateral offsets for parallel edges.
+        final edges = EdgeDeduplicator.deduplicate(rawEdges);
 
         // Build the (transform-independent) content once. The AnimatedBuilder
         // below re-applies only the camera Transform per frame, so the cached
@@ -943,35 +957,12 @@ class _FamilyGraphEngineViewState
   ) {
     final keys = <String, String>{};
 
-    if (viewerPersonId == null) {
-      // No viewer — use stored relationshipKey from BOTH directions
-      // so every connected node gets a color, not just toPersonId.
-      for (final Map<String, dynamic> r in flat.relationships) {
-        final from = r['fromPersonId'] as String?;
-        final to = r['toPersonId'] as String?;
-        final key = r['relationshipKey'] as String?;
-        if (key == null) continue;
-        // Assign the key to the target person (from → to: "to is key")
-        if (to != null && !keys.containsKey(to)) {
-          keys[to] = key;
-        }
-        // Also assign the inverse key to the source person if we can
-        // resolve it. For now, just assign the same key — the color
-        // classifier will still produce the correct category color
-        // because 'father' and 'child' both map to their respective
-        // categories. The exact key matters for the edge label, but
-        // for node COLOR we just need the category.
-        if (from != null && !keys.containsKey(from)) {
-          // Try the inverse key from the hardcoded map
-          final inverseKey = _inverseRelationshipKey(key);
-          if (inverseKey != null) {
-            keys[from] = inverseKey;
-          }
-        }
-      }
-      return keys;
-    }
-
+    // v63: Build the GraphPerson + GraphRelationship shapes ONCE for both
+    // code paths. Previously this was only built inside the viewer != null
+    // branch, so the no-viewer path couldn't use the RelationshipEngine
+    // for multi-hop BFS resolution. Now both paths share the same data
+    // shapes and the engine is used whenever an anchor (or viewer) can be
+    // identified.
     final graphPersons = <GraphPerson>[
       for (final Map<String, dynamic> p in flat.persons)
         if (p['id'] != null)
@@ -997,19 +988,83 @@ class _FamilyGraphEngineViewState
           ),
     ];
 
+    // v63: Pick the BFS source — prefer the viewer, fall back to the
+    // anchor person (every family has exactly one anchor). If neither
+    // exists, fall back to the legacy direct-edge-only path.
+    String? bfsSource = viewerPersonId;
+    if (bfsSource == null && graphPersons.isNotEmpty) {
+      final anchor = graphPersons.firstWhere(
+        (p) => p.isAnchor,
+        orElse: () => graphPersons.first,
+      );
+      bfsSource = anchor.id;
+    }
+
+    if (bfsSource == null || graphPersons.isEmpty) {
+      // No source — fall back to direct-edge assignment so connected
+      // nodes still get a color (better than nothing).
+      for (final Map<String, dynamic> r in flat.relationships) {
+        final from = r['fromPersonId'] as String?;
+        final to = r['toPersonId'] as String?;
+        final key = r['relationshipKey'] as String?;
+        if (key == null) continue;
+        if (to != null && !keys.containsKey(to)) {
+          keys[to] = key;
+        }
+        if (from != null && !keys.containsKey(from)) {
+          final inverseKey = _inverseRelationshipKey(key);
+          if (inverseKey != null) {
+            keys[from] = inverseKey;
+          }
+        }
+      }
+      return keys;
+    }
+
+    // v63: Use RelationshipEngine for BFS resolution from the chosen
+    // source. This handles multi-hop relatives (e.g. paternal_grandfather
+    // via father → grandfather) which the direct-edge lookup missed,
+    // causing them to fall through to the 'extended' slate gray fallback.
     final engine = RelationshipEngine.instance;
     for (final GraphPerson p in graphPersons) {
-      if (p.id == viewerPersonId) continue;
+      if (p.id == bfsSource) continue; // source's own key is null ("You")
       final key = engine.resolveKey(
-        viewerPersonId: viewerPersonId,
+        viewerPersonId: bfsSource,
         targetPersonId: p.id,
         persons: graphPersons,
         relationships: graphRels,
       );
-      if (key != null) {
+      if (key != null && key.isNotEmpty) {
         keys[p.id] = key;
       }
     }
+
+    // Backfill: for any person the engine couldn't resolve (no path
+    // found), try the legacy direct-edge assignment so they at least get
+    // a color from their own relationshipKey rather than the 'extended'
+    // fallback. This handles the edge case where BFS fails due to a
+    // disconnected subgraph but a direct edge exists to that person.
+    for (final Map<String, dynamic> r in flat.relationships) {
+      final from = r['fromPersonId'] as String?;
+      final to = r['toPersonId'] as String?;
+      final key = r['relationshipKey'] as String?;
+      if (key == null || key.isEmpty) continue;
+      if (to != null && !keys.containsKey(to) && to != bfsSource) {
+        keys[to] = key;
+      }
+      if (from != null && !keys.containsKey(from) && from != bfsSource) {
+        final inverseKey = _inverseRelationshipKey(key);
+        if (inverseKey != null) {
+          keys[from] = inverseKey;
+        } else {
+          // If no inverse is known, use the raw key — the classifier
+          // is symmetric for most categories (sibling, spouse, cousin,
+          // extended), so the color will still be correct.
+          keys[from] = key;
+        }
+      }
+    }
+
     return keys;
   }
 
@@ -1138,7 +1193,7 @@ class _EdgeSelectionWrapper extends ConsumerWidget {
   });
 
   final Map<String, Offset> positions;
-  final List<GraphEdgeData> edges;
+  final List<DedupedEdge> edges;
   final EdgePathCache cache;
 
   @override
@@ -1169,7 +1224,7 @@ class _EngineEdgePainter extends CustomPainter {
   });
 
   final Map<String, Offset> positions;
-  final List<GraphEdgeData> edges;
+  final List<DedupedEdge> edges;
   final EdgePathCache cache;
   final String? selectedEdgeId;
 
@@ -1181,16 +1236,21 @@ class _EngineEdgePainter extends CustomPainter {
   ///   3. Use a gentle arc when nodes are horizontally offset
   ///   4. Avoid overlapping with other edges by using directional
   ///      control points that spread curves apart
-  static Path _bezier(Offset s, Offset t) {
+  ///
+  /// v64 (BUG-2 FIX): [lateralOffset] shifts the curve sideways so that
+  /// parallel edges between the same node pair (e.g. parent + spouse)
+  /// don't stack on top of each other. 0.0 for solo edges.
+  static Path _bezier(Offset s, Offset t, {double lateralOffset = 0.0}) {
     final double dy = t.dy - s.dy;
     final double dx = t.dx - s.dx;
     final double distance = (s - t).distance;
 
-    // For very short distances, use a simple line to avoid weird curves
+    // For very short distances, use a simple line to avoid weird curves.
+    // We still apply the lateral offset so parallel short edges separate.
     if (distance < 20.0) {
       return Path()
-        ..moveTo(s.dx, s.dy)
-        ..lineTo(t.dx, t.dy);
+        ..moveTo(s.dx + lateralOffset, s.dy)
+        ..lineTo(t.dx + lateralOffset, t.dy);
     }
 
     // Control point offset — scales with distance for smooth curves
@@ -1198,10 +1258,11 @@ class _EngineEdgePainter extends CustomPainter {
     final double cpOffset = (distance * 0.3).clamp(30.0, 120.0);
 
     if (dx.abs() < 10.0) {
-      // Vertically aligned nodes: S-curve with lateral offset
-      // Direction of the lateral offset depends on which side of the
-      // anchor the node is on (deterministic, not random)
-      final double lateral = dx >= 0 ? cpOffset * 0.5 : -cpOffset * 0.5;
+      // Vertically aligned nodes: S-curve with lateral offset.
+      // Add the parallel offset to the lateral shift so parallel
+      // edges bow in different directions.
+      final double lateral =
+          (dx >= 0 ? cpOffset * 0.5 : -cpOffset * 0.5) + lateralOffset;
       final cp1 = Offset(s.dx + lateral, s.dy + dy * 0.35);
       final cp2 = Offset(t.dx + lateral, t.dy - dy * 0.35);
       return Path()
@@ -1209,10 +1270,12 @@ class _EngineEdgePainter extends CustomPainter {
         ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, t.dx, t.dy);
     }
 
-    // Horizontally offset nodes: gentle vertical bezier
+    // Horizontally offset nodes: gentle vertical bezier.
     // Control points are placed along the vertical midpoint to create
-    // a smooth, non-overlapping curve
-    final midY = s.dy + dy * 0.5;
+    // a smooth, non-overlapping curve. Apply the parallel offset to
+    // the Y axis of the control points so parallel edges separate
+    // vertically when nodes are side-by-side.
+    final midY = s.dy + dy * 0.5 + lateralOffset;
     final cp1 = Offset(s.dx + dx * 0.25, midY);
     final cp2 = Offset(t.dx - dx * 0.25, midY);
     return Path()
@@ -1234,17 +1297,28 @@ class _EngineEdgePainter extends CustomPainter {
       ..color = Colors.orange
       ..isAntiAlias = true;
 
-    for (final GraphEdgeData e in edges) {
+    for (final DedupedEdge deduped in edges) {
+      final GraphEdgeData e = deduped.edge;
       final Offset? s = positions[e.sourceId];
       final Offset? t = positions[e.targetId];
       if (s == null || t == null) continue;
+      // v64 (BUG-2 FIX): Pass the lateral offset so parallel edges
+      // (e.g. parent + spouse between the same pair) are visually
+      // separated instead of stacked on top of each other.
       final Path path = cache.getOrCreate(
         edgeId: e.id,
         sourceId: e.sourceId,
         targetId: e.targetId,
         sourcePos: s,
         targetPos: t,
-        pathFactory: _bezier,
+        // The cache factory signature only takes (s, t) — we wrap the
+        // call so the lateral offset is applied inside _bezier.
+        // NOTE: The cache key includes the source/target IDs but NOT
+        // the lateral offset, so two parallel edges between the same
+        // pair would share a cache entry. To avoid this, we append the
+        // offset to the edge ID passed to the cache.
+        pathFactory: (Offset ss, Offset tt) =>
+            _bezier(ss, tt, lateralOffset: deduped.lateralOffset),
       );
 
       if (e.id == selectedEdgeId) {

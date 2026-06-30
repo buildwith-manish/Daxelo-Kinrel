@@ -259,13 +259,62 @@ class KinshipEdgeClassifier {
     if (relationshipKey.isEmpty) return KinshipEdgeCategory.extended;
     final k = relationshipKey.toLowerCase().trim();
 
-    // 1. Indirect (blocked-member path) — check first because the key
-    //    is a synthetic prefix added by the graph repository.
+    // 0. Server-computed category strings (snake_case).
+    // ─────────────────────────────────────────────────────────────────
+    // When the server pre-computes a kinship category and stores it on
+    // the person (PersonData.kinshipCategory), that string flows through
+    // to the classifier instead of a raw kinship key. family_graph.dart
+    // stores it as GraphPersonData.relationshipKey, which GraphNode
+    // passes to RelationshipColors.borderColorFor() → styleFor() →
+    // classify().
+    //
+    // Recognize these category strings explicitly so node ring colors
+    // resolve correctly even when no direct edge exists from the anchor
+    // to the person. Without this block, "aunt_uncle" (the snake_case
+    // category string for aunts/uncles) falls through to the extended
+    // fallback and aunts/uncles get slate gray instead of cyan.
+    //
+    // We accept snake_case, hyphenated, and unseparated variants for
+    // defensive matching against any future server-side format change.
+    switch (k) {
+      case 'self':
+      case 'ego':
+        return KinshipEdgeCategory.self;
+      case 'parent':
+        return KinshipEdgeCategory.parent;
+      case 'spouse':
+        return KinshipEdgeCategory.spouse;
+      case 'sibling':
+        return KinshipEdgeCategory.sibling;
+      case 'child':
+        return KinshipEdgeCategory.child;
+      case 'grandparent':
+      case 'grandchild':
+        return KinshipEdgeCategory.grandparent;
+      case 'aunt_uncle':
+      case 'aunt-uncle':
+      case 'auntuncle':
+        return KinshipEdgeCategory.auntUncle;
+      case 'cousin':
+        return KinshipEdgeCategory.cousin;
+      case 'in_law':
+      case 'in-law':
+      case 'inlaw':
+        return KinshipEdgeCategory.inLaw;
+      case 'extended':
+        return KinshipEdgeCategory.extended;
+      case 'indirect':
+        return KinshipEdgeCategory.indirect;
+    }
+
+    // 1. Indirect (blocked-member path) — synthetic prefix added by the
+    //    graph repository for paths that go through a blocked member.
     if (k == 'indirect_connection' || k.startsWith('indirect_')) {
       return KinshipEdgeCategory.indirect;
     }
 
     // 2. Self / ego (never appears on edges, but keep for completeness).
+    //    (Plain "self"/"ego" already handled by the category block above.)
     if (k == 'self' || k == 'ego') {
       return KinshipEdgeCategory.self;
     }
@@ -290,6 +339,7 @@ class KinshipEdgeClassifier {
     }
 
     // 5. In-law — explicit "_in_law" suffix or spouse's family compound.
+    //    (Plain "in_law" already handled by the category block above.)
     if (k.contains('in_law') ||
         k.contains('in-law') ||
         k.startsWith('husbands_') ||

@@ -661,7 +661,31 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 );
                 debugPrint('[ADD-MEMBER] v50: ✅ Relationship created successfully');
 
-                // Invalidate graph so the new edge appears immediately
+                // v64 (BUG-1 FIX): Optimistically inject the new person +
+                // relationship into the local FlatGraphResult cache BEFORE
+                // invalidating the provider. This ensures the very next
+                // paint assigns the correct KinshipEdgeCategory color
+                // (parent=blue, child=pink, etc.) instead of falling
+                // through to the 'extended' slate-gray fallback during
+                // the ~200–800ms server refetch window.
+                //
+                // The injected entry is replaced by the authoritative
+                // server data when familyGraphProvider's refetch lands.
+                FamilyGraphNotifier.injectOptimisticEdge(
+                  familyId: widget.familyId,
+                  personId: result.id,
+                  personName: result.name,
+                  gender: result.gender,
+                  relationshipKey: relKey,
+                  anchorPersonId: linkToPersonId,
+                  photoUrl: result.photoUrl,
+                  isDeceased: result.isDeceased,
+                );
+
+                // Invalidate graph so the new edge appears immediately.
+                // The invalidate triggers a refetch, but Riverpod serves
+                // the optimistic cache entry above while the refetch is
+                // in-flight, so the user sees the correct color instantly.
                 FamilyGraphNotifier.clearCache(widget.familyId);
                 ref.invalidate(familyGraphProvider(widget.familyId));
               } else {

@@ -24,11 +24,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
+import '../../core/relationship/relationship_engine.dart' show RelationshipEngine;
 import '../../core/services/analytics_service.dart';
 import '../../core/services/graph_layout_service.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/providers/family_graph_provider.dart';
 import '../data/family_graph_repository.dart' show GraphEdgeData;
+import '../engine/edge_dedup.dart' show EdgeDeduplicator;
 import 'empty_state.dart';
 import 'graph_error_state.dart';
 import 'graph_node.dart';
@@ -98,6 +100,21 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
   int? _cachedPersonCount;
   int? _cachedRelationshipCount;
 
+  // v63: Cached multi-hop relationship keys — prevents the
+  // RelationshipEngine BFS from re-running on every rebuild.
+  //
+  // Without this cache, every setState (e.g. selecting a node) would
+  // re-traverse the graph for every non-anchor person, causing visible
+  // jank on families with 50+ members.
+  //
+  // Keyed by person ID. The anchor's ID is stored in
+  // _cachedRelKeysAnchorId so we can invalidate when the anchor changes
+  // (e.g. user switches family).
+  Map<String, String>? _cachedRelKeys;
+  String? _cachedRelKeysAnchorId;
+  int? _cachedRelKeysPersonCount;
+  int? _cachedRelKeysRelationshipCount;
+
   @override
   void initState() {
     super.initState();
@@ -131,6 +148,17 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
       _cachedPersonMap = null;
       _cachedPersonCount = null;
       _cachedRelationshipCount = null;
+      // v63: Invalidate multi-hop relationship key cache when family
+      // changes — the keys are anchor-specific and a different family
+      // has a different anchor.
+      _cachedRelKeys = null;
+      _cachedRelKeysAnchorId = null;
+      _cachedRelKeysPersonCount = null;
+      _cachedRelKeysRelationshipCount = null;
+      // CRITICAL FIX: Invalidate the RelationshipEngine cache too.
+      // Without this, switching families returns stale cached keys
+      // from the previous family's BFS traversals.
+      RelationshipEngine.instance.invalidateCache();
     }
   }
 
@@ -296,25 +324,45 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     // relationship rows exist in the database (the DB stores both
     // directions: A→B and B→A). Without this, every pair would render
     // as a doubled/thickened line.
-    final edges = <GraphEdgeData>[];
-    final drawnPairs = <String>{};
+    //
+    // v64 (BUG-2 FIX): When a node pair has multiple DISTINCT
+    // relationship rows (e.g. parent + spouse, or duplicate rows from
+    // a failed inverse-key creation), pick the STRONGEST category
+    // (blood > marriage > extended) so the rendered edge shows the
+    // most semantically important relationship. This prevents the
+    // first-row-wins bug where a "father" edge could be silently
+    // replaced by a "related" fallback row if the latter came first
+    // from the DB.
+    final rawEdges = <GraphEdgeData>[];
     for (final r in graphData.relationships) {
       final sourceId = r['fromPersonId'] as String? ?? '';
       final targetId = r['toPersonId'] as String? ?? '';
       if (sourceId.isEmpty || targetId.isEmpty) continue;
-
-      // Build a sorted pair key so A→B and B→A produce the same key.
-      final ids = [sourceId, targetId]..sort();
-      final pairKey = '${ids[0]}_${ids[1]}';
-      if (drawnPairs.contains(pairKey)) continue;
-      drawnPairs.add(pairKey);
-
-      edges.add(GraphEdgeData(
+      rawEdges.add(GraphEdgeData(
         id: r['id'] as String? ?? '',
         sourceId: sourceId,
         targetId: targetId,
         relationshipKey: r['relationshipKey'] as String? ?? '',
       ));
+    }
+
+    // Deduplicate: keep only ONE edge per node pair, picking the
+    // strongest category. EdgeDeduplicator handles this — for the
+    // legacy painter we only use the primary edge (parallelCount=1
+    // entries), ignoring any parallel edges since the legacy painter
+    // doesn't support lateral offsets.
+    final deduped = EdgeDeduplicator.deduplicate(rawEdges);
+    final edges = deduped
+        .where((d) => !d.hasParallelEdge || d.lateralOffset <= 0)
+        .map((d) => d.edge)
+        .toList();
+
+    // Track which node pairs already have an edge, for the synthetic
+    // edge fallback below.
+    final drawnPairs = <String>{};
+    for (final e in edges) {
+      final ids = [e.sourceId, e.targetId]..sort();
+      drawnPairs.add('${ids[0]}_${ids[1]}');
     }
 
     // ── Synthetic edge fallback ─────────────────────────────────────
@@ -608,15 +656,33 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
         person, personMap, edges,
       );
 
-      // getRelationshipKey only returns a value if a direct edge exists
-      // from the anchor to this person in the edges list. If no such edge
-      // exists (person was added but no relationship row stored in DB),
-      // fall back to the kinshipCategory that the server already resolved
-      // and stored on the person node itself.
+      // v63: Resolve the relationship key from the anchor to this person.
+      // Resolution order (first non-null wins):
+      //
+      //   1. Direct edge lookup — GraphRelationshipLabels.getRelationshipKey
+      //      scans the edges list for a direct anchor → person edge and
+      //      returns its relationshipKey. O(edges) per call, no allocation.
+      //
+      //   2. Multi-hop BFS via RelationshipEngine — for relatives reachable
+      //      only through 2+ hops (e.g. paternal_grandfather via father →
+      //      grandfather), the engine composes a kinship key from the BFS
+      //      path. Without this, every multi-hop relative fell through to
+      //      the 'extended' fallback (slate gray #64748B), making the graph
+      //      look like every cousin/grandparent/aunt was the same color.
+      //
+      //   3. Server-computed kinshipCategory — defensive fallback in case
+      //      the server ever emits a category string on the person node.
+      //      Currently the RPCs do not populate this field, so this is a
+      //      no-op in practice but kept for forward compatibility.
+      //
+      //   4. null — GraphNode falls back to 'extended' (slate gray) for
+      //      color and an empty relation label. This is the spec-correct
+      //      fallback for genuinely unknown relationships.
       String? relKey = GraphRelationshipLabels.getRelationshipKey(
         person.id, personMap, edges,
       );
-      relKey ??= person.relationshipKey; // person.relationshipKey = kinshipCategory
+      relKey ??= _resolveMultiHopKey(person.id, personMap, edges);
+      relKey ??= person.relationshipKey; // kinshipCategory (server-computed)
 
       final double nodeOpacity =
           (highlightedGen != null && person.generationIndex != highlightedGen)
@@ -658,6 +724,120 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     }
 
     return nodes;
+  }
+
+  // ── v63: Multi-hop Relationship Key Resolution ──────────────────────
+  //
+  // Resolves the kinship key from the anchor to [targetPersonId] using
+  // BFS path-finding via [RelationshipEngine]. This handles relatives
+  // reachable only through 2+ hops (e.g. paternal_grandfather via
+  // father → grandfather, or cousin via father → uncle → cousin).
+  //
+  // Without this, GraphRelationshipLabels.getRelationshipKey() returns
+  // null for any relative not directly connected to the anchor, and the
+  // node falls through to the 'extended' fallback (slate gray #64748B)
+  // — making the graph look like every cousin/grandparent/aunt was the
+  // same color.
+  //
+  // The result is cached per (anchorId, personCount, relationshipCount)
+  // so the BFS only runs when the underlying graph data actually changes.
+  // Selecting a node or panning the canvas does NOT re-trigger BFS.
+  //
+  // Returns null if:
+  //   - [targetPersonId] is the anchor (no key needed; GraphNode shows
+  //     "You")
+  //   - No path exists between the anchor and the target
+  //   - The path cannot be resolved to a kinship key
+  String? _resolveMultiHopKey(
+    String targetPersonId,
+    Map<String, GraphPersonData> personMap,
+    List<GraphEdgeData> edges,
+  ) {
+    // Find the anchor person. If there's no anchor, we can't resolve
+    // anything — bail out and let the caller fall through to the
+    // next resolution strategy.
+    final anchor = personMap.values.firstWhere(
+      (p) => p.isAnchor,
+      orElse: () => GraphPersonData.empty(),
+    );
+    if (anchor.id.isEmpty || anchor.id == targetPersonId) return null;
+
+    // Lazy cache invalidation — recompute only when the graph data
+    // actually changes. This mirrors the layout cache pattern.
+    final cacheStale = _cachedRelKeys == null ||
+        _cachedRelKeysAnchorId != anchor.id ||
+        _cachedRelKeysPersonCount != personMap.length ||
+        _cachedRelKeysRelationshipCount != edges.length;
+
+    if (cacheStale) {
+      // CRITICAL: Invalidate the RelationshipEngine's internal cache
+      // before recomputing. The engine caches BFS results per
+      // (viewerPersonId, targetPersonId) pair across widget rebuilds.
+      // Without this invalidation, adding a new person would leave
+      // the engine returning stale "no path" results for that person
+      // even after the new edge is in the graph.
+      RelationshipEngine.instance.invalidateCache();
+      _cachedRelKeys = _buildMultiHopKeyMap(anchor.id, personMap, edges);
+      _cachedRelKeysAnchorId = anchor.id;
+      _cachedRelKeysPersonCount = personMap.length;
+      _cachedRelKeysRelationshipCount = edges.length;
+    }
+
+    return _cachedRelKeys![targetPersonId];
+  }
+
+  /// Builds a Map<targetPersonId, kinshipKey> for every non-anchor person
+  /// in [personMap], using [RelationshipEngine] to BFS-traverse the graph
+  /// from [anchorId].
+  ///
+  /// Called once per graph-data change and cached by [_resolveMultiHopKey].
+  Map<String, String> _buildMultiHopKeyMap(
+    String anchorId,
+    Map<String, GraphPersonData> personMap,
+    List<GraphEdgeData> edges,
+  ) {
+    final keys = <String, String>{};
+
+    // Convert the legacy data shapes to the engine's expected shapes.
+    // GraphPerson and the engine's relationship record type are both
+    // already used by family_graph_engine_view.dart — we reuse the same
+    // contract here so the engine's cache can be shared.
+    final graphPersons = <GraphPerson>[
+      for (final p in personMap.values)
+        GraphPerson(
+          id: p.id,
+          name: p.name,
+          gender: p.gender,
+          generationIndex: p.generationIndex,
+          isAnchor: p.isAnchor,
+          photoUrl: p.photoUrl,
+          isDeceased: p.isDeceased,
+        ),
+    ];
+    final graphRels = <({String fromId, String toId, String type})>[
+      for (final e in edges)
+        (
+          fromId: e.sourceId,
+          toId: e.targetId,
+          type: e.relationshipKey,
+        ),
+    ];
+
+    final engine = RelationshipEngine.instance;
+    for (final GraphPerson p in graphPersons) {
+      if (p.id == anchorId) continue; // anchor's own key is null ("You")
+      final key = engine.resolveKey(
+        viewerPersonId: anchorId,
+        targetPersonId: p.id,
+        persons: graphPersons,
+        relationships: graphRels,
+      );
+      if (key != null && key.isNotEmpty) {
+        keys[p.id] = key;
+      }
+    }
+
+    return keys;
   }
 }
 // v52.7 retrigger
