@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **fix(deploy): remove broken `Daxelo-Kinrel` submodule pointer causing Vercel "Failed to fetch git submodules" warning**
+  - The repo contained a gitlink (submodule pointer) at `Daxelo-Kinrel` (commit `0e5b957...`) but had NO `.gitmodules` file. The pointed-to commit was a dangling object not reachable from any branch. Vercel's clone step warned "Failed to fetch one or more git submodules" on every deploy, which could cause the deployed app to run stale or incomplete graph code.
+  - Fix: removed the broken gitlink from the index (`git rm --cached Daxelo-Kinrel`) and deleted the empty `Daxelo-Kinrel/` directory. All real code lives in `Daxelo-Kinrel-App/` (Flutter app), `server/` (NestJS backend), and `supabase/` (migrations) — none of which were ever in the submodule.
+  - After this commit, the next Vercel deploy should no longer show the submodule warning.
+
 - **fix(graph): ALL non-self nodes render grey — directionality bug in relationship key resolution (v65 CRITICAL)**
   - Every non-self node (father, sibling, children, etc.) was rendering with the default grey/slate outline regardless of actual relationship category. Edge line colors also disagreed with node label colors (e.g. label showed blue "Father" but edge line was pink).
   - Root cause: `GraphRelationshipLabels.getRelationshipKey()` and `getRelationLabel()` had their two if-branches SWAPPED. The stored relationship `from: Rajesh, to: anchor, key: 'father'` means "Rajesh IS the father OF the anchor" — from the anchor's perspective, Rajesh IS 'father' (the stored key). But the code was returning the INVERSE ('son') because it applied `getInverseKey()` to the wrong branch. This made every father node pink (child), every child node blue (parent), etc.
