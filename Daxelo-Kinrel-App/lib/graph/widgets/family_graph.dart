@@ -826,14 +826,17 @@ class _FamilyGraphWidgetState extends ConsumerState<FamilyGraphWidget> {
     final engine = RelationshipEngine.instance;
     for (final GraphPerson p in graphPersons) {
       if (p.id == anchorId) continue; // anchor's own key is null ("You")
-      final key = engine.resolveKey(
+      // v66: Use resolveClassification — returns the category-correct
+      // key even when chain rules fail. Ensures EVERY reachable node
+      // gets a color, not just direct-explicit relationships.
+      final classification = engine.resolveClassification(
         viewerPersonId: anchorId,
         targetPersonId: p.id,
         persons: graphPersons,
         relationships: graphRels,
       );
-      if (key != null && key.isNotEmpty) {
-        keys[p.id] = key;
+      if (classification != null && classification.key.isNotEmpty) {
+        keys[p.id] = classification.key;
       }
     }
 

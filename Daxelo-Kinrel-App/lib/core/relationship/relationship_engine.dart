@@ -18,7 +18,9 @@
 import 'package:flutter/foundation.dart';
 
 import '../graph/graph_service.dart';
+import '../kinship/kinship_edge_style.dart';
 import '../kinship/kinship_service.dart';
+import '../kinship/structural_kinship_classifier.dart';
 import '../services/graph_layout_service.dart' show GraphPerson;
 
 /// Computes relationship keys from a viewer's perspective.
@@ -36,6 +38,11 @@ class RelationshipEngine {
   /// Cache: `(viewerPersonId, targetPersonId) → List<PathStep>`
   final Map<String, List<PathStep>?> _pathCache = {};
 
+  /// v66: Cache for full classifications (category + label + key).
+  /// Used by resolveClassification() so we don't recompute the structural
+  /// classifier on every call.
+  final Map<String, StructuralClassification> _classificationCache = {};
+
   /// Returns the relationship key from the viewer's perspective to the target.
   ///
   /// Example: viewerPersonId=Son, targetPersonId=Father → "father"
@@ -50,17 +57,53 @@ class RelationshipEngine {
     required List<GraphPerson> persons,
     required List<({String fromId, String toId, String type})> relationships,
   }) {
-    // Self — no relationship key needed (UI shows "You")
+    // v66: Delegate to resolveClassification and return just the key.
+    // This ensures every caller benefits from the structural fallback.
+    final classification = resolveClassification(
+      viewerPersonId: viewerPersonId,
+      targetPersonId: targetPersonId,
+      persons: persons,
+      relationships: relationships,
+    );
+    return classification?.key;
+  }
+
+  /// v66: Returns the FULL classification (category + label + key) from
+  /// the viewer's perspective to the target.
+  ///
+  /// This is the primary API. It NEVER returns null for a reachable
+  /// target — if the kinship chain rules can't resolve the path, the
+  /// structural classifier provides a guaranteed fallback that routes
+  /// to the correct KinshipEdgeCategory based on path structure alone.
+  ///
+  /// Returns null ONLY when:
+  /// - viewerPersonId == targetPersonId (self — UI shows "You")
+  /// - no path exists between viewer and target
+  StructuralClassification? resolveClassification({
+    required String? viewerPersonId,
+    required String targetPersonId,
+    required List<GraphPerson> persons,
+    required List<({String fromId, String toId, String type})> relationships,
+  }) {
+    // Self — no classification needed (UI shows "You")
     if (viewerPersonId == targetPersonId) return null;
 
-    if (viewerPersonId == null) {
-      // No viewer — fall back to old behavior (use stored relationshipKey)
-      return _getStoredKey(targetPersonId, persons, relationships);
+    final cacheKey = '${viewerPersonId}_$targetPersonId';
+    if (_classificationCache.containsKey(cacheKey)) {
+      return _classificationCache[cacheKey];
     }
 
-    final cacheKey = '${viewerPersonId}_$targetPersonId';
-    if (_keyCache.containsKey(cacheKey)) {
-      return _keyCache[cacheKey];
+    // No viewer — use structural classifier on the stored edge.
+    if (viewerPersonId == null) {
+      final storedKey = _getStoredKey(targetPersonId, persons, relationships);
+      if (storedKey == null) return null;
+      final target = persons.where((p) => p.id == targetPersonId).firstOrNull;
+      final classification = StructuralKinshipClassifier.classify(
+        path: [storedKey],
+        targetGender: target?.gender,
+      );
+      _classificationCache[cacheKey] = classification;
+      return classification;
     }
 
     // Use GraphService BFS to find the path
@@ -73,20 +116,48 @@ class RelationshipEngine {
     );
 
     if (pathResult == null) {
-      _keyCache[cacheKey] = null;
+      // No path — can't classify. Return null (node will show no label).
       return null;
     }
 
     // Extract the relationship types from the path steps
     final pathTypes = pathResult.path.map((step) => step.type).toList();
 
-    // Try to compose a kinship key from the path
-    final key = _composeKey(pathTypes, viewerPersonId, targetPersonId, persons);
+    // v66: Try the kinship chain rules first (high accuracy for known
+    // compounds), then fall back to the structural classifier which
+    // works for ANY path structure.
+    final target = persons.where((p) => p.id == targetPersonId).firstOrNull;
+    final viewer = persons.where((p) => p.id == viewerPersonId).firstOrNull;
+    final viewerGender = (viewer?.gender?.toLowerCase() == 'female') ? 'female' : 'male';
 
-    _keyCache[cacheKey] = key;
-    _pathCache[cacheKey] = pathResult.path;
+    // Step 1: Try chain-rule composition (existing logic).
+    final composedKey = _composeKey(pathTypes, viewerPersonId, targetPersonId, persons);
 
-    return key;
+    // Step 2: If the composed key resolves to a known kinship
+    // relationship, use it. Otherwise, use the structural classifier.
+    StructuralClassification? classification;
+    if (composedKey != null && composedKey.isNotEmpty) {
+      final kinship = KinshipService.instance;
+      final known = kinship.isLoaded ? kinship.getRelationship(composedKey) : null;
+      if (known != null) {
+        // The composed key is a real kinship term — classify it.
+        classification = StructuralKinshipClassifier.classify(
+          path: [composedKey],
+          targetGender: target?.gender,
+          viewerGender: viewerGender,
+        );
+      }
+    }
+
+    // Step 3: Structural fallback — works for ANY path, guaranteed.
+    classification ??= StructuralKinshipClassifier.classify(
+      path: pathTypes,
+      targetGender: target?.gender,
+      viewerGender: viewerGender,
+    );
+
+    _classificationCache[cacheKey] = classification;
+    return classification;
   }
 
   /// Returns the path steps between viewer and target.
@@ -356,11 +427,13 @@ class RelationshipEngine {
   void invalidateCache() {
     _keyCache.clear();
     _pathCache.clear();
+    _classificationCache.clear();
   }
 
   /// Invalidates cached results for a specific viewer.
   void invalidateViewer(String viewerPersonId) {
     _keyCache.removeWhere((key, _) => key.startsWith('${viewerPersonId}_'));
     _pathCache.removeWhere((key, _) => key.startsWith('${viewerPersonId}_'));
+    _classificationCache.removeWhere((key, _) => key.startsWith('${viewerPersonId}_'));
   }
 }

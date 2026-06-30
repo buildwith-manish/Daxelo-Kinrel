@@ -970,18 +970,18 @@ class _FamilyGraphEngineViewState
     final engine = RelationshipEngine.instance;
     for (final GraphPerson p in graphPersons) {
       if (p.id == viewerPersonId) continue; // viewer's own label is "You"
-      final key = engine.resolveKey(
+      final classification = engine.resolveClassification(
         viewerPersonId: viewerPersonId,
         targetPersonId: p.id,
         persons: graphPersons,
         relationships: graphRels,
       );
-      if (key != null) {
-        // Translate the kinship key → display name via KinshipService.
-        // The engine returns keys only; localization lives in
-        // KinshipService per architecture §12.
-        final displayName = _localizeKinshipKey(key);
-        labels[p.id] = displayName;
+      if (classification != null) {
+        // v66: Use the structural classifier's label directly — it's
+        // already human-readable ("Father", "Grandfather", "Cousin", etc.)
+        // and matches the category color. This replaces the old
+        // _localizeKinshipKey() lookup which failed for multi-hop paths.
+        labels[p.id] = classification.label;
       }
     }
     return labels;
@@ -1086,14 +1086,18 @@ class _FamilyGraphEngineViewState
       final engine = RelationshipEngine.instance;
       for (final GraphPerson p in graphPersons) {
         if (p.id == effectiveSource) continue;
-        final key = engine.resolveKey(
+        // v66: Use resolveClassification — returns the category-correct
+        // key even when chain rules fail. This ensures EVERY reachable
+        // node gets a color, not just the 2-3 that match the 26-key
+        // kinship dataset.
+        final classification = engine.resolveClassification(
           viewerPersonId: effectiveSource,
           targetPersonId: p.id,
           persons: graphPersons,
           relationships: graphRels,
         );
-        if (key != null && key.isNotEmpty) {
-          keys[p.id] = key;
+        if (classification != null && classification.key.isNotEmpty) {
+          keys[p.id] = classification.key;
         }
       }
     }
