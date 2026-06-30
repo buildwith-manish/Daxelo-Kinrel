@@ -519,6 +519,52 @@ class _FamilyGraphEngineViewState
         // selection + lateral offsets for parallel edges.
         final edges = EdgeDeduplicator.deduplicate(rawEdges);
 
+        // v65 (BUGFIX): Resolve each edge's relationshipKey from the
+        // anchor's perspective so the edge LINE color matches the node
+        // color. Previously the edge used the raw stored key, which could
+        // be the inverse direction (e.g. 'child' instead of 'father'),
+        // causing the edge to be pink while the node was blue.
+        //
+        // For each deduped edge, if one endpoint is the anchor (or the
+        // viewer), replace the edge's relationshipKey with the
+        // BFS-resolved key for the OTHER endpoint. This guarantees
+        // edge color == node color for every anchor-connected edge.
+        //
+        // The anchor is identified from flat.persons (isAnchor == true),
+        // falling back to viewerPersonId. The BFS source used by
+        // _relationKeys is one of these two, so checking both covers
+        // all cases.
+        final String? anchorId = _findAnchorId(flat, viewerPersonId);
+        if (anchorId != null && relationKeyById.isNotEmpty) {
+          for (int i = 0; i < edges.length; i++) {
+            final deduped = edges[i];
+            final e = deduped.edge;
+            // Determine which endpoint is the anchor and which is the
+            // relative. Use the relative's BFS-resolved key.
+            final String? relativeKey;
+            if (e.sourceId == anchorId) {
+              relativeKey = relationKeyById[e.targetId];
+            } else if (e.targetId == anchorId) {
+              relativeKey = relationKeyById[e.sourceId];
+            } else {
+              relativeKey = null; // edge between two non-anchor nodes
+            }
+            if (relativeKey != null && relativeKey.isNotEmpty) {
+              edges[i] = DedupedEdge(
+                edge: GraphEdgeData(
+                  id: e.id,
+                  sourceId: e.sourceId,
+                  targetId: e.targetId,
+                  relationshipKey: relativeKey,
+                  isPrivate: e.isPrivate,
+                ),
+                lateralOffset: deduped.lateralOffset,
+                parallelCount: deduped.parallelCount,
+              );
+            }
+          }
+        }
+
         // Build the (transform-independent) content once. The AnimatedBuilder
         // below re-applies only the camera Transform per frame, so the cached
         // raster is reused while panning/zooming.
@@ -1025,47 +1071,108 @@ class _FamilyGraphEngineViewState
     // source. This handles multi-hop relatives (e.g. paternal_grandfather
     // via father → grandfather) which the direct-edge lookup missed,
     // causing them to fall through to the 'extended' slate gray fallback.
-    final engine = RelationshipEngine.instance;
-    for (final GraphPerson p in graphPersons) {
-      if (p.id == bfsSource) continue; // source's own key is null ("You")
-      final key = engine.resolveKey(
-        viewerPersonId: bfsSource,
-        targetPersonId: p.id,
-        persons: graphPersons,
-        relationships: graphRels,
-      );
-      if (key != null && key.isNotEmpty) {
-        keys[p.id] = key;
+    //
+    // v65 GUARD: If bfsSource is not in graphPersons (e.g. the viewer's
+    // Person was deleted or is from a different family), the BFS will
+    // silently fail for ALL targets, leaving every non-self node grey.
+    // Fall back to the anchor in that case.
+    final effectiveSource = graphPersons.any((p) => p.id == bfsSource)
+        ? bfsSource
+        : (graphPersons.any((p) => p.isAnchor)
+            ? graphPersons.firstWhere((p) => p.isAnchor).id
+            : (graphPersons.isNotEmpty ? graphPersons.first.id : null));
+
+    if (effectiveSource != null) {
+      final engine = RelationshipEngine.instance;
+      for (final GraphPerson p in graphPersons) {
+        if (p.id == effectiveSource) continue;
+        final key = engine.resolveKey(
+          viewerPersonId: effectiveSource,
+          targetPersonId: p.id,
+          persons: graphPersons,
+          relationships: graphRels,
+        );
+        if (key != null && key.isNotEmpty) {
+          keys[p.id] = key;
+        }
       }
     }
 
-    // Backfill: for any person the engine couldn't resolve (no path
-    // found), try the legacy direct-edge assignment so they at least get
-    // a color from their own relationshipKey rather than the 'extended'
-    // fallback. This handles the edge case where BFS fails due to a
-    // disconnected subgraph but a direct edge exists to that person.
+    // v65 (BUGFIX): Backfill for any person the engine couldn't resolve.
+    //
+    // CRITICAL DIRECTIONALITY FIX: The stored relationship
+    //   from: Rajesh, to: anchor, key: 'father'
+    // means "Rajesh IS the father OF the anchor". From the ANCHOR's
+    // perspective, Rajesh IS 'father' — the stored key already IS the
+    // anchor's perspective on Rajesh. The previous code was assigning
+    // the INVERSE ('child') to Rajesh, which is the relationship from
+    // RAJESH's perspective, not the anchor's. This caused every node
+    // to get the wrong color (e.g. a father node colored pink/child
+    // instead of blue/parent).
+    //
+    // The correct logic:
+    //   - Edge points TO anchor (to == source): the stored key IS the
+    //     source's perspective on `from`. Assign key DIRECTLY to `from`.
+    //   - Edge points FROM anchor (from == source): the stored key IS
+    //     the source's perspective on `to`. Assign key DIRECTLY to `to`.
+    //   - Edge doesn't involve anchor: assign key to `to` and inverse
+    //     to `from` (legacy behavior for non-anchor-centric edges).
+    final sourceId = effectiveSource;
     for (final Map<String, dynamic> r in flat.relationships) {
       final from = r['fromPersonId'] as String?;
       final to = r['toPersonId'] as String?;
       final key = r['relationshipKey'] as String?;
       if (key == null || key.isEmpty) continue;
-      if (to != null && !keys.containsKey(to) && to != bfsSource) {
+      if (sourceId == null) continue;
+
+      // Case 1: Edge points TO the anchor.
+      // Stored key = anchor's perspective on `from` person.
+      if (to == sourceId && from != null && !keys.containsKey(from)) {
+        keys[from] = key;
+        continue;
+      }
+
+      // Case 2: Edge points FROM the anchor.
+      // Stored key = anchor's perspective on `to` person.
+      if (from == sourceId && to != null && !keys.containsKey(to)) {
+        keys[to] = key;
+        continue;
+      }
+
+      // Case 3: Edge doesn't involve the anchor (e.g. between two
+      // non-anchor nodes). Use legacy assignment: key for `to`,
+      // inverse for `from`. The inverse is approximate but ensures
+      // both endpoints get SOME color rather than grey.
+      if (to != null && !keys.containsKey(to) && to != sourceId) {
         keys[to] = key;
       }
-      if (from != null && !keys.containsKey(from) && from != bfsSource) {
+      if (from != null && !keys.containsKey(from) && from != sourceId) {
         final inverseKey = _inverseRelationshipKey(key);
-        if (inverseKey != null) {
-          keys[from] = inverseKey;
-        } else {
-          // If no inverse is known, use the raw key — the classifier
-          // is symmetric for most categories (sibling, spouse, cousin,
-          // extended), so the color will still be correct.
-          keys[from] = key;
-        }
+        keys[from] = inverseKey ?? key;
       }
     }
 
     return keys;
+  }
+
+  /// v65: Finds the anchor person ID from the flat graph data.
+  ///
+  /// Used to identify which node is the graph's center so that edge
+  /// colors can be resolved from the anchor's perspective (matching
+  /// the node colors).
+  ///
+  /// Resolution order:
+  ///   1. The person with `isAnchor == true` in [flat.persons].
+  ///   2. [viewerPersonId] as a fallback (when no anchor is flagged).
+  ///   3. null if neither exists.
+  static String? _findAnchorId(FlatGraphResult flat, String? viewerPersonId) {
+    for (final Map<String, dynamic> p in flat.persons) {
+      if (p['isAnchor'] == true) {
+        final id = p['id'];
+        if (id is String && id.isNotEmpty) return id;
+      }
+    }
+    return viewerPersonId;
   }
 
   /// Returns the inverse relationship key for common kinship terms.

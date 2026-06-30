@@ -59,6 +59,9 @@ class GraphRelationshipLabels {
   /// Returns 'You' if [person] is the anchor.
   /// Returns '' if no anchor exists in [personMap] or no edge connects
   /// the person to the anchor.
+  ///
+  /// v65 (CRITICAL FIX): Same directionality fix as [getRelationshipKey] —
+  /// the two branches were swapped, returning the inverse label.
   static String getRelationLabel(
     GraphPersonData person,
     Map<String, GraphPersonData> personMap,
@@ -72,10 +75,12 @@ class GraphRelationshipLabels {
     if (anchor.id == person.id) return 'You';
 
     for (final edge in edges) {
-      if (edge.sourceId == anchor.id && edge.targetId == person.id) {
+      // Edge points TO the anchor: stored key IS the anchor's perspective.
+      if (edge.targetId == anchor.id && edge.sourceId == person.id) {
         return formatKey(edge.relationshipKey);
       }
-      if (edge.sourceId == person.id && edge.targetId == anchor.id) {
+      // Edge points FROM the anchor: anchor's perspective is the inverse.
+      if (edge.sourceId == anchor.id && edge.targetId == person.id) {
         return formatKey(getInverseKey(edge.relationshipKey));
       }
     }
@@ -83,8 +88,32 @@ class GraphRelationshipLabels {
     return '';
   }
 
-  /// Returns the relationship key for [personId] from the anchor, or
-  /// null if no direct edge connects them.
+  /// Returns the relationship key for [personId] FROM THE ANCHOR'S
+  /// perspective, or null if no direct edge connects them.
+  ///
+  /// v65 (CRITICAL FIX): The two branches were SWAPPED, causing every
+  /// direct-edge lookup to return the INVERSE key. This made every
+  /// non-self node render with the wrong color (e.g. a father node
+  /// colored pink/child instead of blue/parent).
+  ///
+  /// Stored edge semantics: `from: A, to: B, key: 'X'` means
+  /// "A is the X of B". So:
+  ///
+  ///   - Edge points TO anchor (`to == anchor`): the stored key IS the
+  ///     anchor's perspective on `from`. Example:
+  ///       from: Rajesh, to: anchor, key: 'father'
+  ///       → "Rajesh is the father of the anchor"
+  ///       → From anchor's perspective, Rajesh = 'father' (the stored key)
+  ///     Return the stored key DIRECTLY (no inversion).
+  ///
+  ///   - Edge points FROM anchor (`from == anchor`): the stored key is
+  ///     the anchor's relationship TO `to`, not the anchor's perspective
+  ///     ON `to`. The anchor's perspective on `to` is the INVERSE.
+  ///     Example:
+  ///       from: anchor, to: Rajesh, key: 'son'
+  ///       → "The anchor is the son of Rajesh"
+  ///       → From anchor's perspective, Rajesh = 'father' (inverse of 'son')
+  ///     Return the INVERSE of the stored key.
   static String? getRelationshipKey(
     String personId,
     Map<String, GraphPersonData> personMap,
@@ -94,12 +123,15 @@ class GraphRelationshipLabels {
       (p) => p.isAnchor,
       orElse: () => GraphPersonData.empty(),
     );
+    if (anchor.id.isEmpty) return null;
 
     for (final edge in edges) {
-      if (edge.sourceId == anchor.id && edge.targetId == personId) {
+      // Edge points TO the anchor: stored key IS the anchor's perspective.
+      if (edge.targetId == anchor.id && edge.sourceId == personId) {
         return edge.relationshipKey;
       }
-      if (edge.sourceId == personId && edge.targetId == anchor.id) {
+      // Edge points FROM the anchor: anchor's perspective is the inverse.
+      if (edge.sourceId == anchor.id && edge.targetId == personId) {
         return getInverseKey(edge.relationshipKey);
       }
     }

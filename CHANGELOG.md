@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **fix(graph): ALL non-self nodes render grey — directionality bug in relationship key resolution (v65 CRITICAL)**
+  - Every non-self node (father, sibling, children, etc.) was rendering with the default grey/slate outline regardless of actual relationship category. Edge line colors also disagreed with node label colors (e.g. label showed blue "Father" but edge line was pink).
+  - Root cause: `GraphRelationshipLabels.getRelationshipKey()` and `getRelationLabel()` had their two if-branches SWAPPED. The stored relationship `from: Rajesh, to: anchor, key: 'father'` means "Rajesh IS the father OF the anchor" — from the anchor's perspective, Rajesh IS 'father' (the stored key). But the code was returning the INVERSE ('son') because it applied `getInverseKey()` to the wrong branch. This made every father node pink (child), every child node blue (parent), etc.
+  - The same directionality bug existed in `family_graph_engine_view.dart`'s `_relationKeys()` backfill logic — edges pointing TO the anchor were assigned the inverse key instead of the direct key.
+  - Fix: swapped both branches in `getRelationshipKey()` and `getRelationLabel()` so that:
+    - Edge points TO anchor (`to == anchor`): return stored key DIRECTLY (it IS the anchor's perspective)
+    - Edge points FROM anchor (`from == anchor`): return INVERSE key (anchor's perspective is the inverse)
+  - Also fixed the backfill in `_relationKeys()` with the same directionality correction, added a BFS source guard (falls back to anchor when viewer is not in graphPersons), and resolved edge LINE colors from the anchor's perspective so they match node colors.
+  - This fix is 100% data-driven based on the relationship type — no name/ID/family-specific logic. Works for ANY family structure.
+  - Regression test added at `test/graph/widgets/relationship_directionality_test.dart` (18 test cases covering both edge directions × all relationship types + 6 generic multi-family scenarios).
+
 - **fix(graph): node colors not applying when a member is added (BUG-1)**
   - Newly-added members were rendering with the default 'extended' slate-gray fallback color instead of their selected category color (parent=blue, child=pink, etc.) during the ~200–800ms server refetch window after `createRelationship()` succeeded.
   - Root cause: `createRelationship()` calls `ref.invalidate(familyGraphProvider(familyId))` which triggers a fresh Supabase round-trip, but during the refetch window the graph widget rebuilds with the STALE cached `FlatGraphResult` (which has no entry for the new person). The new node then has no `relationshipKey` and falls through to the 'extended' fallback.
