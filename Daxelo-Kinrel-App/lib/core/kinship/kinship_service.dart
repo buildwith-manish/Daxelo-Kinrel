@@ -128,6 +128,7 @@ class KinshipService {
               relationType: 'extended',
               elderYounger: '',
               relationshipCategory: 'extended',
+              relationshipPath: const [],
               searchKeywords: searchKeywords,
               chainRules: const [],
             );
