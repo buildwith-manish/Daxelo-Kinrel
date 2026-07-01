@@ -427,6 +427,14 @@ class _FamilyGraphEngineViewState
           // cached results from before the new person was added, so the
           // new person gets no relationship key → no label → no color.
           RelationshipEngine.instance.invalidateCache();
+          // v84 FIX: Also invalidate the edge path cache so stale Path
+          // objects (keyed to old positions) don't get reused after a
+          // data refresh. Without this, edges to newly-positioned nodes
+          // can render at their OLD position or not at all.
+          _edgePathCache.clear();
+          // v84 FIX: Invalidate the viewport culler so the new node
+          // set is recomputed immediately (not waiting for a pan).
+          _culler.invalidate();
           _cachedRelationLabels = _relationLabels(flat, viewerPersonId);
           _cachedRelationKeys = _relationKeys(flat, viewerPersonId);
           // v69: Compute authoritative categories — this is the SINGLE

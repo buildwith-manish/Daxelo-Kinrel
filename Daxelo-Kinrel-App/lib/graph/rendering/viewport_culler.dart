@@ -63,6 +63,14 @@ class ViewportCuller extends ChangeNotifier {
   /// The current set of visible node IDs.
   Set<String> _currentVisibleIds = <String>{};
 
+  /// v84: Tracks the last-seen node ID set so we can detect when
+  /// nodes are added/removed (not just when the viewport moves).
+  /// Without this, adding a member without panning causes the culler
+  /// to return a STALE visible set that excludes the new node —
+  /// and since edges only render when BOTH endpoints are visible,
+  /// the connection line is silently dropped.
+  Set<String> _lastNodeIds = const <String>{};
+
   // ── Public Getters ───────────────────────────────────────────────
 
   /// The current set of visible node IDs (viewport + buffer zone).
@@ -112,10 +120,22 @@ class ViewportCuller extends ChangeNotifier {
     Map<String, Size> nodeSizes,
     Rect viewport,
   ) {
-    // Skip recalculation if viewport hasn't moved enough.
-    if (!shouldRebuild(_lastViewport, viewport)) {
+    // v84 FIX: Also force recomputation when the node ID set changes
+    // (e.g. member added, member deleted, expand/collapse). Previously,
+    // the culler only recomputed when the viewport moved >80px, so
+    // adding a member WITHOUT panning left the new node invisible —
+    // and its connecting edge was silently dropped because
+    // isEdgeVisible() requires BOTH endpoints to be in the visible set.
+    final currentNodeIds = positions.keys.toSet();
+    final nodeSetChanged = !_setsEqual(_lastNodeIds, currentNodeIds);
+
+    // Skip recalculation if viewport hasn't moved enough AND node set
+    // hasn't changed.
+    if (!nodeSetChanged && !shouldRebuild(_lastViewport, viewport)) {
       return _currentVisibleIds;
     }
+
+    _lastNodeIds = currentNodeIds;
 
     final expandedViewport = _expandViewport(viewport);
     final visible = <String>{};
