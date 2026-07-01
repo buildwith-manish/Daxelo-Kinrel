@@ -45,9 +45,10 @@ export 'security/permission_validator.dart' hide GraphNodeData, GraphEdgeData, G
 export 'analytics/analytics_tracker.dart';
 
 // ── Presentation Layer (Widgets) ─────────────────────────────────────────────
-export 'widgets/family_graph.dart';
+// v68: family_graph.dart (FamilyGraphWidget v40) removed — dead code.
+// relationship_edge.dart removed — only used by the old engine.
+export 'widgets/family_graph_engine_view.dart';
 export 'widgets/graph_node.dart';
-export 'widgets/relationship_edge.dart' hide GraphEdgeData;
 export 'widgets/empty_state.dart';
 export 'widgets/search_bar.dart';
 export 'widgets/filter_panel.dart';

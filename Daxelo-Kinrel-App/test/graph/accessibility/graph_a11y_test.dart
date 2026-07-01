@@ -12,7 +12,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/graph/widgets/graph_node.dart';
-import 'package:kinrel/graph/widgets/graph_node_state.dart';
 
 String? _getSemanticsLabel(WidgetTester tester, Finder finder) {
   final element = tester.element(finder);

@@ -2,9 +2,9 @@
 //
 // DAXELO KINREL — Family Graph (V2.1 Engine view)
 //
-// The scalable, engine-backed alternative to the v40 `InteractiveViewer`
-// widget (`family_graph.dart`). Gated behind `kUseV21Engine`
-// (feature_flags.dart) so it cannot affect production until verified.
+// v68: This is the SOLE graph renderer. The old v40 FamilyGraphWidget
+// (family_graph.dart) has been removed — this engine is no longer gated
+// behind a feature flag.
 //
 // Performance design (Steps 3/4 of Path B — see docs/graph/PATH_B_REWIRE.md):
 //

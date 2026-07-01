@@ -2,15 +2,13 @@
 //
 // DAXELO KINREL — Relationship Graph Screen
 //
-// Now powered by the V2.1 FamilyGraphWidget from lib/graph/.
-// This screen wraps FamilyGraphWidget and provides it with the
-// family context needed for data fetching and permission checks.
+// Powered by FamilyGraphEngineView (the V2.1 engine).
+// The old FamilyGraphWidget (v40) has been removed —
+// FamilyGraphEngineView is the sole graph renderer.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/feature_flags.dart';
-import '../../../graph/widgets/family_graph.dart';
 import '../../../graph/widgets/family_graph_engine_view.dart';
 
 class RelationshipGraphScreen extends ConsumerStatefulWidget {
@@ -27,13 +25,8 @@ class _RelationshipGraphScreenState
     extends ConsumerState<RelationshipGraphScreen> {
   @override
   Widget build(BuildContext context) {
-    return kUseV21Engine
-        ? FamilyGraphEngineView(
-            familyId: widget.familyId,
-          )
-        : FamilyGraphWidget(
-            familyId: widget.familyId,
-            familyName: 'Family Tree',
-          );
+    return FamilyGraphEngineView(
+      familyId: widget.familyId,
+    );
   }
 }
