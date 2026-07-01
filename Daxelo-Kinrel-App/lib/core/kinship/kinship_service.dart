@@ -126,6 +126,7 @@ class KinshipService {
               lineage: 'bilateral',
               generation: 0,
               relationType: 'extended',
+              elderYounger: '',
               relationshipCategory: 'extended',
               searchKeywords: searchKeywords,
               chainRules: const [],
