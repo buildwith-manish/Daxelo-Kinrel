@@ -2113,10 +2113,31 @@ Future<FamilyRelationship> createRelationship({
   // inverse row does NOT break traversal — the BFS can still walk in
   // both directions via the forward edge's reverse entry.
   //
-  // The RelationshipEngine also computes inverses dynamically via
-  // KinshipService, so no data is lost.
+  // v86 FIX: STOP creating inverse relationship rows entirely.
+  //
+  // Previously, createRelationship created BOTH:
+  //   forward: from: newPerson, to: anchor, key: 'father'
+  //   inverse: from: anchor, to: newPerson, key: 'child'
+  //
+  // This caused TWO bugs:
+  //   1. "Parent shows Son" — the BFS found the inverse edge first
+  //      (from: anchor, to: newPerson, key: 'child') and classified
+  //      the new person as 'child' (Son), not 'parent' (Father).
+  //   2. Duplicate edges — the EdgeDeduplicator collapsed the pair
+  //      but sometimes picked the inverse edge's key, giving the
+  //      wrong color.
+  //
+  // The fix: create ONLY the forward edge. The BFS adjacency list
+  // (GraphService.buildAdjacencyList) automatically adds a reverse
+  // entry for every edge, so traversal still works in both directions.
+  // The inverse key is computed dynamically by RelationshipEngine
+  // when needed, so no data is lost.
+  //
+  // This also simplifies the _relationCategories logic — there's only
+  // ONE edge per pair, always pointing from newPerson → anchor with
+  // the user-selected key. No more inverse confusion.
   final inverseKey = _relationshipInverseMap[relationshipKey];
-  final hasKnownInverse = inverseKey != null && inverseKey != relationshipKey;
+  final hasKnownInverse = false; // v86: NEVER create inverse edge
 
   debugPrint('[CREATE-REL] === START createRelationship ===');
   debugPrint('[CREATE-REL] familyId: $familyId');
