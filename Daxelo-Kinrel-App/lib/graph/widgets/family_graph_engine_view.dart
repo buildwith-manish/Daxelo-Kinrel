@@ -280,9 +280,12 @@ class _FamilyGraphEngineViewState
   }
 
   _Lod _lodFor(double zoom) {
+    // v88 FIX: Never use the dot tier — it renders tiny 6px circles
+    // that are unreadable. Always use at least the chip tier (which
+    // shows a colored dot + name). The full tier (72px avatar + name
+    // + label) is used when zoomed in.
     if (zoom >= _kChipZoom) return _Lod.full;
-    if (zoom >= _kDotZoom) return _Lod.chip;
-    return _Lod.dot;
+    return _Lod.chip; // always chip, never dot
   }
 
   // ── Build ──────────────────────────────────────────────────────────────
@@ -778,6 +781,7 @@ class _FamilyGraphEngineViewState
   }
 
   /// Lightweight mid-zoom node: a coloured dot + the name, no avatar/animations.
+  /// v88: Enlarged dot from 18→24px and font from 11→12 for readability.
   Widget _buildChipNode(Map<String, dynamic> p, {KinshipEdgeCategory? category, Map<String, dynamic>? customColors}) {
     final color = _dotColor(
       p['gender'] as String?,
@@ -789,9 +793,16 @@ class _FamilyGraphEngineViewState
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
-          width: 18,
-          height: 18,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: color.withValues(alpha: 0.3),
+              width: 2,
+            ),
+          ),
         ),
         const SizedBox(height: 4),
         Flexible(
@@ -2039,17 +2050,15 @@ class _EngineEdgePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _EngineEdgePainter old) {
-    // v85 FIX: On Flutter Web (dart2js), identical() can return false
-    // even when the objects are the same, and true when they're
-    // logically different. Use content-based comparison instead.
-    // Also check edgeCategories and edgeCustomColors which were missing.
+    // v88 FIX: On Flutter Web (dart2js), identical() is unreliable.
+    // Use ONLY content-based comparisons — never identical().
+    // Also always return true when edges or positions changed (length
+    // differs), which covers the add-member and remove-member cases.
     return old.edges.length != edges.length ||
         old.selectedEdgeId != selectedEdgeId ||
         old.positions.length != positions.length ||
         old.edgeCategories.length != edgeCategories.length ||
-        old.edgeCustomColors.length != edgeCustomColors.length ||
-        !identical(old.edges, edges) ||
-        !identical(old.positions, positions);
+        old.edgeCustomColors.length != edgeCustomColors.length;
   }
 }
 

@@ -234,42 +234,48 @@ class _RemoveMemberDialogState extends ConsumerState<_RemoveMemberDialog> {
   }
 
   Future<void> _performDeletion() async {
+    // v88 FIX: Capture the navigator BEFORE the async call so we
+    // can close the dialog even if the widget tree rebuilds during
+    // the deletion (which happens because deletePerson invalidates
+    // Riverpod providers, causing parent widgets to rebuild).
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+
     setState(() => _isDeleting = true);
 
     try {
-      // 1. Delete the person (soft delete via deletedAt)
-      // 2. Deactivate all relationships connected to this person
-      // 3. Invalidate graph cache + provider for immediate refresh
-      // 4. Decrement family memberCount
       await deletePerson(
         ref: ref,
         personId: widget.personId,
         familyId: widget.familyId,
       );
 
+      // Close the dialog FIRST, then show the success message.
+      // Using the captured navigator avoids context issues after
+      // provider invalidation.
       if (mounted) {
-        Navigator.pop(context); // Close dialog
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(
-            content: Text('${widget.personName} removed from family'),
-            backgroundColor: KinrelColors.tealAccent,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        navigator.pop();
       }
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text('${widget.personName} removed from family'),
+          backgroundColor: KinrelColors.tealAccent,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
     } catch (e) {
       if (mounted) {
         setState(() => _isDeleting = false);
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(
-            content: Text('Failed to remove member: $e'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 4),
-          ),
-        );
       }
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text('Failed to remove member: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
     }
   }
 }
