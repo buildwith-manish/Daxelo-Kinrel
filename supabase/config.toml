@@ -9,23 +9,18 @@ max_rows = 1000
 
 [db]
 port = 54322
-shadow_project_name = "daxelo-kinrel-shadow"
-seed_sql_paths = ["./server/prisma/seed.sql"]
 
 [db.pooler]
 enabled = true
 port = 54329
 pool_mode = "transaction"
 default_pool_size = 20
-additional_pool_size = 5
 
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
 additional_redirect_urls = ["https://localhost:3000"]
 jwt_expiry = 3600
-refresh_token_rotation_enabled = true
-refresh_token_reuse_interval = 10
 enable_signup = true
 enable_anonymous_sign_ins = false
 
