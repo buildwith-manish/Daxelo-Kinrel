@@ -140,6 +140,7 @@ flutter:
   
   assets:
     - assets/data/kinship_core.json
+    - assets/data/kinship_terms.json
     - assets/icons/
     - assets/images/
     - assets/fonts/

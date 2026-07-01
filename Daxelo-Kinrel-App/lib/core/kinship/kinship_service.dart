@@ -77,25 +77,84 @@ class KinshipService {
     if (_isLoaded) return;
 
     try {
-      // v74: Always load the bundled core JSON — it has the 26 base
-      // relationships + chain rules needed for BFS path resolution.
-      // The full 5,363-entry category mapping is in kinship_category_map.dart
+      // v78: Load TWO data sources:
+      // 1. kinship_core.json — 26 base relationships + chain rules (for BFS)
+      // 2. kinship_terms.json — 5,363 terms (for search picker UI)
+      //
+      // The core JSON provides the chain rules needed for multi-hop
+      // relationship resolution. The terms JSON provides all 5,363
+      // Indian kinship terms so the user can search and select ANY
+      // relationship type in the add-member flow.
+      //
+      // Category → color resolution is handled by kinship_category_map.dart
       // (const, compiled into the binary, no I/O needed).
-      final jsonStr = await rootBundle.loadString(
+
+      // Step 1: Load core JSON (26 entries + chain rules + translations)
+      final coreJsonStr = await rootBundle.loadString(
         'assets/data/kinship_core.json',
       );
-      final jsonData = jsonDecode(jsonStr) as Map<String, dynamic>;
-      _data = KinshipData.fromJson(jsonData);
+      final coreData = jsonDecode(coreJsonStr) as Map<String, dynamic>;
+      _data = KinshipData.fromJson(coreData);
 
       _buildIndices();
+      debugPrint('✅ Core kinship loaded: ${_data?.totalRelationships ?? 0} relationships + chain rules');
+
+      // Step 2: Load full terms JSON (5,363 entries for search)
+      // Merge into _byKey and _searchIndex WITHOUT overwriting
+      // the core entries (which have chain rules).
+      try {
+        final termsJsonStr = await rootBundle.loadString(
+          'assets/data/kinship_terms.json',
+        );
+        final termsData = jsonDecode(termsJsonStr) as Map<String, dynamic>;
+        final terms = termsData['terms'] as List<dynamic>;
+        int added = 0;
+        for (final term in terms) {
+          final t = term as Map<String, dynamic>;
+          final key = t['k'] as String;
+          final englishTerm = t['e'] as String;
+          final searchKeywords = (t['s'] as List<dynamic>).cast<String>();
+
+          // If this key is NOT already in _byKey (from core), add a
+          // lightweight KinshipRelationship for search purposes.
+          if (!_byKey.containsKey(key)) {
+            final rel = KinshipRelationship(
+              id: _byKey.length + 1,
+              relationshipKey: key,
+              englishTerm: englishTerm,
+              gender: 'neutral',
+              lineage: 'bilateral',
+              generation: 0,
+              relationType: 'extended',
+              relationshipCategory: 'extended',
+              searchKeywords: searchKeywords,
+              chainRules: const [],
+            );
+            _byKey[key] = rel;
+            _searchIndex[englishTerm.toLowerCase()] = rel;
+            _searchIndex[key.toLowerCase()] = rel;
+            for (final kw in searchKeywords) {
+              _searchIndex[kw.toLowerCase()] = rel;
+            }
+            added++;
+          } else {
+            // Key already exists from core — just add search keywords
+            final existing = _byKey[key]!;
+            for (final kw in searchKeywords) {
+              _searchIndex[kw.toLowerCase()] = existing;
+            }
+          }
+        }
+        debugPrint('✅ Full kinship terms loaded: $added new entries (total: ${_byKey.length})');
+      } catch (e) {
+        debugPrint('⚠️ Failed to load kinship_terms.json: $e — using core data only');
+      }
+
       _isLoaded = true;
-      debugPrint('✅ Kinship data loaded: ${_data?.totalRelationships ?? 0} relationships');
+      debugPrint('✅ KinshipService ready: ${_byKey.length} searchable terms');
     } catch (e) {
-      // Log the error but don't throw — allow the app to continue
-      // with an empty dataset rather than crashing
       debugPrint('❌ Failed to load kinship data: $e');
       _isLoaded = false;
-      // Re-throw so the UI can show an error state
       rethrow;
     }
   }
