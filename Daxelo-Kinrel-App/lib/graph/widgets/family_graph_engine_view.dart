@@ -587,9 +587,23 @@ class _FamilyGraphEngineViewState
         return ColoredBox(
           color: KinrelColors.darkBackground,
           child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
+            // v72 FIX: Use translucent (NOT opaque) so child GraphNode
+            // gesture detectors can receive tap/long-press events.
+            // The previous `opaque` setting swallowed all touch events
+            // before they reached the nodes, making taps/long-press
+            // impossible on both web and app.
+            behavior: HitTestBehavior.translucent,
             onScaleStart: _onScaleStart,
             onScaleUpdate: _onScaleUpdate,
+            // v72 FIX: Add onTapDown + onLongPress for geometric node
+            // hit-testing. The parent ScaleGestureRecognizer competes
+            // with the child's TapGestureRecognizer in the gesture arena.
+            // On web, the scale recognizer wins for ANY pointer sequence,
+            // so node taps never fire. We do a geometric hit-test here
+            // (convert screen pos → graph space → check if inside any
+            // node circle) and handle the tap directly.
+            onTapDown: (details) => _handleNodeTapDown(details, layout, flat, viewerPersonId),
+            onLongPressStart: (details) => _handleNodeLongPress(details, layout, flat, viewerPersonId),
             // v62: Double-tap to zoom in 2× toward the focal point,
             // toggles back to 1× on second double-tap.
             onDoubleTapDown: (details) =>
@@ -832,6 +846,99 @@ class _FamilyGraphEngineViewState
     final currentZoom = _camera.zoomLevel;
     final targetZoom = currentZoom < 1.5 ? 2.0 : 1.0;
     _camera.zoomTo(targetZoom, focalPoint: _doubleTapPosition);
+  }
+
+  // ── v72: Geometric Node Hit-Testing ────────────────────────────────────
+  //
+  // The parent GestureDetector's ScaleGestureRecognizer competes with
+  // the child GraphNode's TapGestureRecognizer. On Flutter web, the
+  // scale recognizer wins for ANY pointer sequence, so node taps never
+  // fire. We solve this by doing a GEOMETRIC hit-test at the parent
+  // level: convert the screen position to graph space, then check if
+  // it falls inside any node circle.
+
+  /// Converts a screen-space [localPosition] to graph-space coordinates
+  /// using the camera's inverse transform.
+  ///
+  /// The camera transform is: translate(tx, ty) → scale(zoom).
+  /// The inverse is: scale(1/zoom) → translate(-tx, -ty).
+  /// So: graphPos = (screenPos - translation) / zoom.
+  Offset _screenToGraphSpace(Offset localPosition) {
+    final matrix = _camera.transformMatrix;
+    // Extract translation (tx, ty) and scale (zoom) from the matrix.
+    final zoom = matrix.getMaxScaleOnAxis();
+    if (zoom == 0) return localPosition;
+    final tx = matrix.getTranslation().x;
+    final ty = matrix.getTranslation().y;
+    return Offset(
+      (localPosition.dx - tx) / zoom,
+      (localPosition.dy - ty) / zoom,
+    );
+  }
+
+  /// Finds the node ID at [screenPos], or null if no node is hit.
+  /// Uses a generous hit radius (half the node size + 8px) so taps
+  /// near the edge of a node still register.
+  String? _hitTestNode(Offset screenPos, GraphLayoutResult layout) {
+    final graphPos = _screenToGraphSpace(screenPos);
+    const nodeRadius = 44.0; // generous tap target
+    String? bestId;
+    double bestDist = double.infinity;
+    for (final entry in layout.positions.entries) {
+      final dist = (entry.value - graphPos).distance;
+      if (dist < nodeRadius && dist < bestDist) {
+        bestDist = dist;
+        bestId = entry.key;
+      }
+    }
+    return bestId;
+  }
+
+  /// Handles a tap-down on the canvas. If the tap hits a node, selects it
+  /// and navigates to the person detail screen.
+  void _handleNodeTapDown(
+    TapDownDetails details,
+    GraphLayoutResult layout,
+    FlatGraphResult flat,
+    String? viewerPersonId,
+  ) {
+    final nodeId = _hitTestNode(details.localPosition, layout);
+    if (nodeId != null) {
+      ref.read(selectedNodeProvider.notifier).state = nodeId;
+      // v72: Navigate to person detail screen so the tap does something
+      // visible (not just sets internal state).
+      context.push('/family/${widget.familyId}/person/$nodeId');
+    }
+  }
+
+  /// Handles a long-press on the canvas. If the press hits a node,
+  /// shows the quick-actions sheet.
+  void _handleNodeLongPress(
+    LongPressStartDetails details,
+    GraphLayoutResult layout,
+    FlatGraphResult flat,
+    String? viewerPersonId,
+  ) {
+    final nodeId = _hitTestNode(details.localPosition, layout);
+    if (nodeId == null) return;
+
+    // Find the person data for this node.
+    final personData = flat.persons
+        .where((p) => p['id'] == nodeId)
+        .firstOrNull;
+    if (personData == null) return;
+
+    final graphPersonData = GraphPersonData(
+      id: nodeId,
+      name: (personData['name'] as String?) ?? '',
+      gender: personData['gender'] as String?,
+      generationIndex:
+          (personData['generationIndex'] as num?)?.toInt() ?? 0,
+      isAnchor: (personData['isAnchor'] as bool?) ?? false,
+      photoUrl: personData['photoUrl'] as String?,
+      isDeceased: (personData['isDeceased'] as bool?) ?? false,
+    );
+    GraphQuickActions.show(context, graphPersonData);
   }
 
   // ── Expand / collapse ────────────────────────────────────────────────────

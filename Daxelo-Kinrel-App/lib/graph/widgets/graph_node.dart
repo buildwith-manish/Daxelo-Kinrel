@@ -511,15 +511,16 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       button: true,
       child: Opacity(
         opacity: effectiveOpacity,
-        // v47 FIX: Use RawGestureDetector with eager TapGestureRecognizer.
-        // On Android, a regular GestureDetector(translucent) competes with
-        // the parent ScaleGestureRecognizer in the gesture arena — when you
-        // pinch with 2 fingers starting on a node, the tap recognizer delays
-        // the scale recognizer from winning, causing zoom to freeze.
+        // v72 FIX: The parent FamilyGraphEngineView now does geometric
+        // hit-testing for tap/long-press (see _handleNodeTapDown /
+        // _handleNodeLongPress). This child RawGestureDetector is kept
+        // for backward compatibility but uses HitTestBehavior.translucent
+        // so it doesn't swallow events that the parent needs to handle.
         //
-        // RawGestureDetector with eager TapGestureRecognizer resolves the
-        // arena instantly: 1 finger = tap (wins immediately), 2 fingers =
-        // tap rejects itself (only 1 pointer) → scale wins immediately.
+        // The previous `opaque` setting intercepted all touch events,
+        // preventing the parent's GestureDetector from receiving them —
+        // which meant on web (where the parent's scale recognizer wins
+        // the arena), node taps never fired.
         child: RawGestureDetector(
           gestures: {
             TapGestureRecognizer:
@@ -537,7 +538,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
               },
             ),
           },
-          behavior: HitTestBehavior.opaque,
+          behavior: HitTestBehavior.translucent,
           child: _buildAnimatedNode(reduceMotion: reduceMotion),
         ),
       ),
