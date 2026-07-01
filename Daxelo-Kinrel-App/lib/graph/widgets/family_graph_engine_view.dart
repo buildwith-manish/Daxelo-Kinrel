@@ -1756,6 +1756,7 @@ class _FamilyGraphEngineViewState
 /// not rebuild at all.
 class _EdgeSelectionWrapper extends ConsumerWidget {
   const _EdgeSelectionWrapper({
+    super.key,
     required this.positions,
     required this.edges,
     required this.edgeCategories,
