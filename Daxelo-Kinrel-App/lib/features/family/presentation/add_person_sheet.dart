@@ -140,6 +140,12 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   String? _selectedSubType; // elder | younger (siblings only)
   String? _selectedRelationshipKey; // full key from RelationshipPickerSheet
   String? _selectedRelationshipLabel;
+  // v80: Custom kinship state
+  String? _customKinshipName;
+  int _customNodeColorValue = 0xFF64748B; // default slate
+  int _customLineColorValue = 0xFF64748B; // default slate
+  String _customLineType = 'solid'; // solid | dashed
+  String _customDotType = 'dot'; // dot | heart | none
   bool _isDeceased = false;
   bool _isSubmitting = false;
   DateTime? _selectedDob;
@@ -378,8 +384,276 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         _selectedRelationshipLabel = result.snakeToTitle;
         _selectedRelType = null;   // ← clears simple card so no confusion
         _selectedSubType = null;
+        _customKinshipName = null; // clear custom if user picks a standard term
       });
     }
+  }
+
+  // v80: Show the custom kinship dialog
+  Future<void> _showCustomKinshipDialog() async {
+    final nameController = TextEditingController(text: _customKinshipName);
+    var nodeColor = _customNodeColorValue;
+    var lineColor = _customLineColorValue;
+    var lineType = _customLineType;
+    var dotType = _customDotType;
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: KinrelColors.darkCard,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
+          ),
+          title: Text(
+            'Add Your Own Kinship',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: KinrelColors.textWhite,
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Kinship Name
+                Text('Kinship Name', style: _labelStyle),
+                SizedBox(height: 6),
+                TextField(
+                  controller: nameController,
+                  style: TextStyle(color: KinrelColors.textWhite, fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: 'e.g. Guru, Godfather, Chacha...',
+                    hintStyle: TextStyle(color: KinrelColors.textDim),
+                    filled: true,
+                    fillColor: KinrelColors.darkBackground,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: KinrelColors.textDim.withValues(alpha: 0.2)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: KinrelColors.orange),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 20),
+
+                // Node Color
+                Text('Node Color', style: _labelStyle),
+                SizedBox(height: 6),
+                _buildColorPicker(setDialogState, () => nodeColor, (c) {
+                  nodeColor = c;
+                  setDialogState(() {});
+                }),
+                SizedBox(height: 16),
+
+                // Connection Line Color
+                Text('Connection Line Color', style: _labelStyle),
+                SizedBox(height: 6),
+                _buildColorPicker(setDialogState, () => lineColor, (c) {
+                  lineColor = c;
+                  setDialogState(() {});
+                }),
+                SizedBox(height: 16),
+
+                // Connection Line Type
+                Text('Connection Line Type', style: _labelStyle),
+                SizedBox(height: 6),
+                _buildSegmentedChoice(setDialogState, () => lineType, [
+                  ('Solid', 'solid'),
+                  ('Dashed', 'dashed'),
+                ], (v) { lineType = v; setDialogState(() {}); }),
+                SizedBox(height: 16),
+
+                // Relationship Dot
+                Text('Relationship Dot', style: _labelStyle),
+                SizedBox(height: 6),
+                _buildSegmentedChoice(setDialogState, () => dotType, [
+                  ('Dot', 'dot'),
+                  ('Heart', 'heart'),
+                  ('None', 'none'),
+                ], (v) { dotType = v; setDialogState(() {}); }),
+                SizedBox(height: 20),
+
+                // Preview
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: KinrelColors.darkBackground,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                  ),
+                  child: Row(
+                    children: [
+                      // Node preview
+                      Container(
+                        width: 40, height: 40,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: KinrelColors.darkSurface,
+                          border: Border.all(color: Color(nodeColor), width: 3),
+                        ),
+                      ),
+                      // Line preview
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 4),
+                          child: CustomPaint(
+                            size: Size(double.infinity, 40),
+                            painter: _LinePreviewPainter(
+                              color: Color(lineColor),
+                              isDashed: lineType == 'dashed',
+                              dotType: dotType,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Anchor preview
+                      Container(
+                        width: 40, height: 40,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: KinrelColors.darkSurface,
+                          border: Border.all(color: KinrelColors.tealAccent, width: 3),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel', style: TextStyle(color: KinrelColors.textDim)),
+            ),
+            TextButton(
+              onPressed: () {
+                if (nameController.text.trim().isNotEmpty) {
+                  Navigator.pop(context, {
+                    'name': nameController.text.trim(),
+                    'nodeColor': nodeColor,
+                    'lineColor': lineColor,
+                    'lineType': lineType,
+                    'dotType': dotType,
+                  });
+                }
+              },
+              child: Text('Save', style: TextStyle(color: KinrelColors.orange, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        _customKinshipName = result['name'] as String;
+        _customNodeColorValue = result['nodeColor'] as int;
+        _customLineColorValue = result['lineColor'] as int;
+        _customLineType = result['lineType'] as String;
+        _customDotType = result['dotType'] as String;
+        // Clear standard selections
+        _selectedRelationshipKey = null;
+        _selectedRelationshipLabel = null;
+        _selectedRelType = null;
+        _selectedSubType = null;
+      });
+    }
+  }
+
+  TextStyle get _labelStyle => TextStyle(
+    fontFamily: KinrelTypography.bodyFont,
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+    color: KinrelColors.textSilver,
+  );
+
+  // v80: Color picker row — 10 preset colors
+  Widget _buildColorPicker(StateSetter setDialogState, int Function() getter, Function(int) setter) {
+    const colors = [
+      0xFF0D9488, // teal (self)
+      0xFF3B82F6, // blue (parent)
+      0xFFEC4899, // pink (child)
+      0xFF8B5CF6, // purple (sibling)
+      0xFFF97316, // orange (spouse)
+      0xFF6366F1, // indigo (grandparent)
+      0xFF06B6D4, // cyan (aunt/uncle)
+      0xFF10B981, // emerald (cousin)
+      0xFFF59E0B, // amber (in-law)
+      0xFF64748B, // slate (extended)
+    ];
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: colors.map((c) {
+        final isSelected = getter() == c;
+        return GestureDetector(
+          onTap: () { setter(c); setDialogState(() {}); },
+          child: Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: Color(c),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isSelected ? Colors.white : Colors.transparent,
+                width: 3,
+              ),
+            ),
+            child: isSelected
+                ? Icon(Icons.check, color: Colors.white, size: 18)
+                : null,
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // v80: Segmented choice for line type / dot type
+  Widget _buildSegmentedChoice(
+    StateSetter setDialogState,
+    String Function() getter,
+    List<(String, String)> options,
+    Function(String) onSelect,
+  ) {
+    return Wrap(
+      spacing: 8,
+      children: options.map((opt) {
+        final label = opt.$1;
+        final value = opt.$2;
+        final isSelected = getter() == value;
+        return GestureDetector(
+          onTap: () => onSelect(value),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? KinrelColors.orange.withValues(alpha: 0.15)
+                  : KinrelColors.darkBackground,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isSelected
+                    ? KinrelColors.orange
+                    : KinrelColors.textDim.withValues(alpha: 0.15),
+              ),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? KinrelColors.orange : KinrelColors.textSilver,
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
   }
 
 
@@ -401,6 +675,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   /// means "anchor is the brother of newPerson", which is the OPPOSITE
   /// of what the question asks. Now it uses the new person's gender.
   String? get _effectiveRelationshipKey {
+    // v80: Custom kinship — use the custom name as the key
+    if (_customKinshipName != null && _customKinshipName!.isNotEmpty) {
+      return 'custom_${_customKinshipName!.toLowerCase().replaceAll(' ', '_')}';
+    }
     if (_selectedRelationshipKey != null) return _selectedRelationshipKey;
 
     // Use the NEW PERSON's gender (not the anchor's) because the
@@ -435,7 +713,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         ? _nameController.text.trim()
         : 'New Member';
     final anchorName = _effectiveAnchorPerson?.name ?? 'existing member';
-    final label = _selectedRelationshipLabel ?? key.snakeToTitle;
+    // v80: Use custom kinship name if set
+    final label = _customKinshipName ?? _selectedRelationshipLabel ?? key.snakeToTitle;
     return '$newName will be the $label of $anchorName';
   }
 
@@ -1412,6 +1691,65 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                     color: KinrelColors.textDim,
                     size: 18,
                   ),
+                ],
+              ),
+            ),
+          ),
+
+          // v80: Add Your Own Kinship
+          SizedBox(height: 8),
+          _SectionLabel('Or create your own'),
+          SizedBox(height: 8),
+          GestureDetector(
+            onTap: _showCustomKinshipDialog,
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                color: KinrelColors.darkCard,
+                borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+                border: Border.all(
+                  color: _customKinshipName != null
+                      ? KinrelColors.orange.withValues(alpha: 0.4)
+                      : KinrelColors.textDim.withValues(alpha: 0.15),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.palette_outlined, color: KinrelColors.purple, size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _customKinshipName ?? 'Add Your Own Kinship',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 14,
+                        color: _customKinshipName != null
+                            ? KinrelColors.textWhite
+                            : KinrelColors.textDim,
+                      ),
+                    ),
+                  ),
+                  if (_customKinshipName != null) ...[
+                    Container(
+                      width: 16, height: 16,
+                      decoration: BoxDecoration(
+                        color: Color(_customNodeColorValue),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                      ),
+                    ),
+                    SizedBox(width: 4),
+                    Container(
+                      width: 16, height: 16,
+                      decoration: BoxDecoration(
+                        color: Color(_customLineColorValue),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                  ],
+                  Icon(Icons.chevron_right, color: KinrelColors.textDim, size: 18),
                 ],
               ),
             ),
@@ -2496,4 +2834,66 @@ class _ConfettiPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _ConfettiPainter oldDelegate) =>
       progress != oldDelegate.progress;
+}
+
+/// v80: Preview painter for the custom kinship line + dot
+class _LinePreviewPainter extends CustomPainter {
+  final Color color;
+  final bool isDashed;
+  final String dotType;
+
+  _LinePreviewPainter({
+    required this.color,
+    required this.isDashed,
+    required this.dotType,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final midY = size.height / 2;
+    if (isDashed) {
+      double x = 0;
+      const dashWidth = 6.0;
+      const dashGap = 4.0;
+      while (x < size.width) {
+        canvas.drawLine(
+          Offset(x, midY),
+          Offset((x + dashWidth).clamp(0, size.width), midY),
+          paint,
+        );
+        x += dashWidth + dashGap;
+      }
+    } else {
+      canvas.drawLine(Offset(0, midY), Offset(size.width, midY), paint);
+    }
+
+    // Draw dot/heart at midpoint
+    if (dotType != 'none') {
+      final midX = size.width / 2;
+      if (dotType == 'heart') {
+        // Simple pink heart (circle for preview)
+        canvas.drawCircle(
+          Offset(midX, midY),
+          4,
+          Paint()..color = const Color(0xFFEC4899),
+        );
+      } else {
+        canvas.drawCircle(
+          Offset(midX, midY),
+          4,
+          Paint()..color = color,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _LinePreviewPainter old) =>
+      color != old.color || isDashed != old.isDashed || dotType != old.dotType;
 }
