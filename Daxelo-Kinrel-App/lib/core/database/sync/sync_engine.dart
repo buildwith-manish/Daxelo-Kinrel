@@ -1045,7 +1045,7 @@ class SyncEngine {
 
       // Fetch invitations for this user from Supabase
       final invitations = await client
-          .from('invitations')
+          .from('Invitation')
           .select()
           .or('inviter_id.eq.$userId,invitee_id.eq.$userId')
           .order('created_at', ascending: false);
@@ -1493,9 +1493,9 @@ class SyncEngine {
         final filter = batch.join(',');
 
         final relationships = await client
-            .from('relationships')
+            .from('Relationship')
             .select()
-            .filter('family_id', 'in', '($filter)');
+            .filter('familyId', 'in', '($filter)');
 
         for (final relData in relationships as List<dynamic>) {
           final relMap = relData as Map<String, dynamic>;

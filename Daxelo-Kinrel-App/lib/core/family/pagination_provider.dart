@@ -257,7 +257,7 @@ class PaginatedFamilyNotifier
     // From FamilyMember table
     try {
       final memberEntries = await client
-          .from('FamilyMembers')
+          .from('FamilyMember')
           .select('familyId')
           .eq('userId', userId);
       for (final row in (memberEntries as List)) {
@@ -268,7 +268,7 @@ class PaginatedFamilyNotifier
     // From createdBy fallback
     try {
       final createdFamilies = await client
-          .from('Families')
+          .from('Family')
           .select('id')
           .eq('createdBy', userId);
       for (final row in (createdFamilies as List)) {
@@ -283,7 +283,7 @@ class PaginatedFamilyNotifier
     // called before .order()/.limit() which return PostgrestTransformBuilder.
     // We build the filter part first, then apply ordering and limiting.
     final filterBuilder = client
-        .from('Families')
+        .from('Family')
         .select()
         .inFilter('id', familyIds.toList())
         .filter('deletedAt', 'is', null);
