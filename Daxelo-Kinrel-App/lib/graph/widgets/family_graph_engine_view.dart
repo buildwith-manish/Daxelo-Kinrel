@@ -764,7 +764,15 @@ class _FamilyGraphEngineViewState
           photoUrl: p['photoUrl'] as String?,
           isDeceased: (p['isDeceased'] as bool?) ?? false,
         );
-        GraphQuickActions.show(context, personData);
+        // v87: Pass familyId + isOwner + isSelf for Remove Member
+        final isAnchor = (p['isAnchor'] as bool?) ?? false;
+        GraphQuickActions.show(
+          context,
+          personData,
+          familyId: widget.familyId,
+          isOwner: true, // TODO: check actual family role from provider
+          isSelf: isAnchor, // anchor = family creator = can't remove self
+        );
       },
     );
   }
@@ -952,7 +960,14 @@ class _FamilyGraphEngineViewState
       photoUrl: personData['photoUrl'] as String?,
       isDeceased: (personData['isDeceased'] as bool?) ?? false,
     );
-    GraphQuickActions.show(context, graphPersonData);
+    final isAnchor = (personData['isAnchor'] as bool?) ?? false;
+    GraphQuickActions.show(
+      context,
+      graphPersonData,
+      familyId: widget.familyId,
+      isOwner: true,
+      isSelf: isAnchor,
+    );
   }
 
   /// Handles a long-press on the canvas. If the press hits a node,
@@ -982,7 +997,14 @@ class _FamilyGraphEngineViewState
       photoUrl: personData['photoUrl'] as String?,
       isDeceased: (personData['isDeceased'] as bool?) ?? false,
     );
-    GraphQuickActions.show(context, graphPersonData);
+    final isAnchor = (personData['isAnchor'] as bool?) ?? false;
+    GraphQuickActions.show(
+      context,
+      graphPersonData,
+      familyId: widget.familyId,
+      isOwner: true,
+      isSelf: isAnchor,
+    );
   }
 
   // ── Expand / collapse ────────────────────────────────────────────────────
