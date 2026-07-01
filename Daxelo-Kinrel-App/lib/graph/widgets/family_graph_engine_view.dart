@@ -480,50 +480,23 @@ class _FamilyGraphEngineViewState
           ));
         }
 
-        // ── Synthetic edge fallback ─────────────────────────────────────
-        // Nodes that exist in the family but have no relationship rows in
-        // the DB will appear as floating disconnected circles with no line.
-        // For every such node, draw a synthetic dashed 'related' edge to
-        // the anchor so the graph always looks connected.
-        // This is purely visual — no DB writes occur.
-        {
-          // Find the anchor person ID from the flat data
-          String? anchorId;
-          for (final p in flat.persons) {
-            if (p['isAnchor'] == true) {
-              anchorId = p['id'] as String?;
-              break;
-            }
-          }
-          // Fall back to the first person if no anchor
-          anchorId ??= flat.persons.isNotEmpty
-              ? flat.persons.first['id'] as String?
-              : null;
-          if (anchorId != null) {
-            // Track which node pairs already have a real edge so we don't
-            // add a synthetic edge on top of an existing one.
-            final existingPairs = <String>{};
-            for (final e in rawEdges) {
-              final ids = [e.sourceId, e.targetId]..sort();
-              existingPairs.add('${ids[0]}_${ids[1]}');
-            }
-            for (final p in flat.persons) {
-              final personId = p['id'] as String?;
-              if (personId == null || personId == anchorId) continue;
-              if (!visible.contains(personId)) continue;
-              final ids = [anchorId, personId]..sort();
-              final pairKey = '${ids[0]}_${ids[1]}';
-              if (existingPairs.contains(pairKey)) continue;
-              existingPairs.add(pairKey);
-              rawEdges.add(GraphEdgeData(
-                id: 'synthetic_$personId',
-                sourceId: anchorId,
-                targetId: personId,
-                relationshipKey: 'related',
-              ));
-            }
-          }
-        }
+        // v70 (FIX): REMOVED the synthetic edge fallback.
+        //
+        // Previously, when a person had NO relationship row in the DB
+        // (e.g. they were added without selecting a relationship type),
+        // the code drew a FAKE dashed 'related' edge to the anchor.
+        // This was misleading — it made the graph look connected when
+        // it wasn't, and the fake 'related' key classified as 'extended'
+        // (grey), making the node appear grey with no label.
+        //
+        // Now, unlinked nodes simply have NO edge drawn. They appear as
+        // floating circles with no connecting line, which truthfully
+        // represents their state: the user hasn't specified how they're
+        // related to the anchor. The node still renders with its name,
+        // and the user can tap it to add a relationship.
+        //
+        // The "Links: 0" stat in the home screen correctly reflects
+        // this — it counts actual DB rows, not visual edges.
 
         // v64 (BUG-2 FIX): Deduplicate with smart category-strength
         // selection + lateral offsets for parallel edges.
