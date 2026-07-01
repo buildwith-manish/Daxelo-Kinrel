@@ -1259,9 +1259,15 @@ class _FamilyGraphEngineViewState
       }
 
       // Case 2: Edge points FROM the anchor.
-      // Stored key = anchor's perspective on `to` person.
+      // v76 FIX: The stored key describes the anchor's relationship TO
+      // `to`, NOT the anchor's perspective ON `to`.
+      // Example: from: anchor, to: newPerson, key: 'son'
+      // → "anchor IS son OF newPerson"
+      // → anchor's perspective on newPerson = INVERSE of 'son' = 'parent'
+      // Previously this used the raw key 'son', giving the wrong label.
       if (from == sourceId && to != null && !keys.containsKey(to)) {
-        keys[to] = key;
+        final inverseKey = _inverseRelationshipKey(key) ?? key;
+        keys[to] = inverseKey;
         continue;
       }
 
@@ -1390,32 +1396,64 @@ class _FamilyGraphEngineViewState
 
       // Priority 1: Direct edge from anchor → use the STORED key.
       // Honor the user's explicit selection — don't let BFS overwrite.
+      //
+      // v76 FIX: The stored key has DIFFERENT meanings depending on
+      // edge direction:
+      //   from: newPerson, to: anchor, key: 'father'
+      //     → "newPerson IS father OF anchor"
+      //     → newPerson's category = 'father' = parent (blue) ✅
+      //
+      //   from: anchor, to: newPerson, key: 'son'
+      //     → "anchor IS son OF newPerson"
+      //     → newPerson's category = INVERSE of 'son' = parent (blue) ✅
+      //
+      // Previously both branches used the raw key, so the second case
+      // classified newPerson as 'son' = child (pink) — WRONG.
       if (directEdgePersons.contains(p.id)) {
         // Find the stored key for this direct edge.
         String? storedKey;
+        bool needsInverse = false;
         for (final r in flat.relationships) {
           final from = r['fromPersonId'] as String?;
           final to = r['toPersonId'] as String?;
           final key = r['relationshipKey'] as String?;
           if (key == null || key.isEmpty) continue;
           if (to == effectiveSource && from == p.id) {
+            // Edge points TO anchor: key IS the anchor's perspective
+            // on `from`. Use the key DIRECTLY.
             storedKey = key;
+            needsInverse = false;
             break;
           }
           if (from == effectiveSource && to == p.id) {
+            // Edge points FROM anchor: key is the anchor's relationship
+            // TO `to`, NOT the anchor's perspective ON `to`.
+            // The anchor's perspective on `to` is the INVERSE.
             storedKey = key;
+            needsInverse = true;
             break;
           }
         }
         if (storedKey != null) {
+          // v76: If the edge points FROM anchor, we need the INVERSE
+          // key to get the anchor's perspective on the target person.
+          // For example: from: anchor, to: newPerson, key: 'son'
+          // → anchor IS son OF newPerson → newPerson is anchor's PARENT
+          // → we need to classify 'son' as its inverse (parent), not as 'son' (child).
+          //
+          // For edges pointing TO anchor, the key is already correct.
+          final effectiveKey = needsInverse
+              ? _inverseKeyForCategory(storedKey)
+              : storedKey;
+
           // v71: Use the 5,363-entry lookup map as the PRIMARY resolver
           // — no string guessing, no gaps. Falls back to the structural
           // classifier only for keys not in the map (e.g. synthetic keys).
-          if (KinshipCategoryMap.isKnown(storedKey)) {
-            category = KinshipCategoryMap.categoryFor(storedKey);
+          if (KinshipCategoryMap.isKnown(effectiveKey)) {
+            category = KinshipCategoryMap.categoryFor(effectiveKey);
           } else {
             final classification = StructuralKinshipClassifier.classify(
-              path: [storedKey],
+              path: [effectiveKey],
               targetGender: p.gender,
             );
             category = classification.category;
@@ -1437,6 +1475,78 @@ class _FamilyGraphEngineViewState
     }
 
     return categories;
+  }
+
+  /// v76: Returns the inverse relationship key for common kinship terms.
+  ///
+  /// Used by `_relationCategories()` when the stored edge points FROM
+  /// the anchor (e.g. `from: anchor, to: newPerson, key: 'son'`).
+  /// In this case, 'son' means "anchor IS son OF newPerson", so
+  /// newPerson's category is the INVERSE of 'son' = 'parent'.
+  ///
+  /// For keys not in this map, returns the key unchanged (the
+  /// structural classifier will handle it via path analysis).
+  static String _inverseKeyForCategory(String key) {
+    const inverseMap = <String, String>{
+      // Parent ↔ Child
+      'father': 'child',
+      'mother': 'child',
+      'parent': 'child',
+      'child': 'parent',
+      'son': 'parent',
+      'daughter': 'parent',
+      // Sibling (symmetric)
+      'brother': 'sibling',
+      'sister': 'sibling',
+      'sibling': 'sibling',
+      'elder_brother': 'sibling',
+      'younger_brother': 'sibling',
+      'elder_sister': 'sibling',
+      'younger_sister': 'sibling',
+      // Spouse (symmetric)
+      'husband': 'spouse',
+      'wife': 'spouse',
+      'spouse': 'spouse',
+      'partner': 'spouse',
+      // Grandparent ↔ Grandchild
+      'grandfather': 'grandchild',
+      'grandmother': 'grandchild',
+      'grandparent': 'grandchild',
+      'grandchild': 'grandparent',
+      'grandson': 'grandparent',
+      'granddaughter': 'grandparent',
+      // Aunt/Uncle ↔ Nephew/Niece
+      'uncle': 'nephew',
+      'aunt': 'niece',
+      'nephew': 'uncle',
+      'niece': 'aunt',
+      // Cousin (symmetric)
+      'cousin': 'cousin',
+      // In-law
+      'father_in_law': 'child_in_law',
+      'mother_in_law': 'child_in_law',
+      'son_in_law': 'parent_in_law',
+      'daughter_in_law': 'parent_in_law',
+      'brother_in_law': 'sibling_in_law',
+      'sister_in_law': 'sibling_in_law',
+      // Step
+      'step_father': 'step_child',
+      'step_mother': 'step_child',
+      'step_son': 'step_parent',
+      'step_daughter': 'step_parent',
+      'step_brother': 'step_sibling',
+      'step_sister': 'step_sibling',
+      // Compound Indian kinship (common ones)
+      'fathers_brother': 'nephew',
+      'fathers_sister': 'niece',
+      'mothers_brother': 'nephew',
+      'mothers_sister': 'niece',
+      'brothers_son': 'uncle',
+      'brothers_daughter': 'uncle',
+      'sisters_son': 'uncle',
+      'sisters_daughter': 'uncle',
+    };
+    return inverseMap[key] ?? key;
   }
 
   /// v65: Finds the anchor person ID from the flat graph data.
