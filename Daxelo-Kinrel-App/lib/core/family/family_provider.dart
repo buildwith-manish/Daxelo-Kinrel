@@ -2111,14 +2111,13 @@ Future<FamilyRelationship> createRelationship({
   }
 
   // 1. Create the forward relationship
-  // FIX: Use direct Supabase INSERT without withRetry to avoid
-  // timeout issues. The onTimeout returns null which causes a
-  // misleading "timed out" error even when the INSERT actually
-  // succeeded (Supabase just didn't return the row in time).
-  Map<String, dynamic>? response;
+  // v75 FIX: Use a simpler INSERT without .select() — the SELECT after
+  // INSERT can timeout on web (especially with triggers), causing the
+  // entire operation to appear as "failed" even though the INSERT
+  // succeeded. We just insert and don't wait for the returned row.
   try {
     debugPrint('[CREATE-REL] Inserting forward relationship...');
-    response = await client
+    await client
         .from(_kRelationshipTable)
         .insert({
           'id': forwardRelId,
@@ -2132,10 +2131,8 @@ Future<FamilyRelationship> createRelationship({
           'createdAt': now,
           'updatedAt': now,
         })
-        .select()
-        .maybeSingle()
-        .timeout(const Duration(seconds: 10));
-    debugPrint('[CREATE-REL] Forward INSERT returned: $response');
+        .timeout(const Duration(seconds: 15));
+    debugPrint('[CREATE-REL] ✅ Forward INSERT succeeded (id=$forwardRelId)');
   } on PostgrestException catch (e) {
     debugPrint('[CREATE-REL] ❌ Forward INSERT PostgrestException: code=${e.code} message=${e.message} hint=${e.hint} details=${e.details}');
     rethrow;
@@ -2145,21 +2142,16 @@ Future<FamilyRelationship> createRelationship({
     rethrow;
   }
 
-  // FIX: Don't throw if response is null — the INSERT likely succeeded
-  // but Supabase didn't return the row (timeout on the SELECT).
-  // Just proceed with the data we have.
-  if (response == null) {
-    debugPrint('[CREATE-REL] ⚠️ Forward INSERT returned null — assuming success (timeout on SELECT)');
-    response = {
-      'id': forwardRelId,
-      'familyId': familyId,
-      'fromPersonId': fromPersonId,
-      'toPersonId': toPersonId,
-      'relationshipKey': relationshipKey,
-      'isActive': true,
-    };
-  }
-  debugPrint('[CREATE-REL] ✅ Forward relationship created with id: ${response['id']}');
+  // Build the response from our local data (we don't need the server's
+  // returned row — we know what we inserted).
+  final response = {
+    'id': forwardRelId,
+    'familyId': familyId,
+    'fromPersonId': fromPersonId,
+    'toPersonId': toPersonId,
+    'relationshipKey': relationshipKey,
+    'isActive': true,
+  };
 
   // 2. Create the inverse relationship (best-effort, only if known)
   //

@@ -699,8 +699,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             debugPrint('[ADD-MEMBER] v50: ❌ Relationship creation failed: $e');
             debugPrint('[ADD-MEMBER] v50: Stack: $stackTrace');
             if (mounted) {
+              // v75 FIX: Show a MORE prominent error and DON'T close the sheet.
+              // The user needs to know the relationship wasn't saved so they
+              // can retry. Previously, the confetti + success message fired
+              // at the same time, hiding the error.
               context.showSnackBar(
-                'Member added, but the relationship link could not be created: $e',
+                '⚠️ Member added but relationship NOT saved: $e\n'
+                'Tap the member to add a relationship manually.',
                 isError: true,
               );
             }
