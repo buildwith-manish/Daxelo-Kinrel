@@ -119,7 +119,7 @@ class KinshipService {
           // lightweight KinshipRelationship for search purposes.
           if (!_byKey.containsKey(key)) {
             final rel = KinshipRelationship(
-              id: _byKey.length + 1,
+              id: 'term_${_byKey.length + 1}',
               relationshipKey: key,
               englishTerm: englishTerm,
               gender: 'neutral',
