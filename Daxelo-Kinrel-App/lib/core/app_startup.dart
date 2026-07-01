@@ -231,8 +231,10 @@ class AppStartupService {
     _scheduleOccasionReminders();
   }
 
-  /// Preload the kinship dataset (5,359 relationships × 15 languages)
+  /// Preload the kinship core dataset (26 base relationships + chain rules)
   /// in the background so the Add Member flow has it ready.
+  /// v74: The full 5,363-entry category map is a const in the binary
+  /// (kinship_category_map.dart) — no download needed.
   void _preloadKinshipData() {
     if (_container == null) return;
     try {

@@ -44,7 +44,7 @@ import 'core/utils/memory_monitor.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'core/widgets/offline_banner.dart';
 import 'core/widgets/global_error_widget.dart';
-import 'widgets/kinship_asset_gate.dart';
+import 'core/kinship/kinship_service.dart';
 import 'features/profile/data/profile_provider.dart';
 
 import 'core/services/rating_service.dart';
@@ -786,7 +786,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     final darkTheme = ref.watch(darkThemeProvider);
     final router = ref.watch(routerProvider);
 
-    return KinshipAssetGate(
+    return _KinshipInitializer(
       child: MaterialApp.router(
       title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
@@ -860,4 +860,38 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
     );
   }
 }
-// v62.1: Force fresh web build
+
+/// v74: Replaces the deleted KinshipAssetGate. Simply loads
+/// kinship_core.json (bundled, ~115KB, instant) on startup.
+/// No background download — the full 5,363-entry const map
+/// (kinship_category_map.dart) is compiled into the binary and
+/// needs no I/O.
+class _KinshipInitializer extends StatefulWidget {
+  final Widget child;
+  const _KinshipInitializer({required this.child});
+
+  @override
+  State<_KinshipInitializer> createState() => _KinshipInitializerState();
+}
+
+class _KinshipInitializerState extends State<_KinshipInitializer> {
+  @override
+  void initState() {
+    super.initState();
+    _loadKinship();
+  }
+
+  Future<void> _loadKinship() async {
+    try {
+      await KinshipService.instance.load();
+      debugPrint('✅ Kinship core data loaded: ${KinshipService.instance.totalRelationships} relationships');
+    } catch (e) {
+      debugPrint('⚠️ Failed to load kinship core data: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+// v74: English-only kinship — no download needed
+

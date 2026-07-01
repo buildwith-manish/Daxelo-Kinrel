@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'kinship_models.dart';
@@ -51,8 +50,6 @@ class KinshipService {
   List<String> get categories => _byCategory.keys.toList()..sort();
 
   /// Reset the service so it can be reloaded with different data
-  /// (e.g. when the full JSON finishes downloading after the core
-  /// JSON was loaded as an instant fallback).
   void _reset() {
     _data = null;
     _isLoaded = false;
@@ -65,50 +62,28 @@ class KinshipService {
     _chainMap.clear();
   }
 
-  /// Reload with full JSON after background download completes.
-  Future<void> reload(String localFilePath) async {
-    _reset();
-    await load(localFilePath: localFilePath);
-    debugPrint('✅ KinshipService reloaded with full data: ${_data?.totalRelationships} relationships');
-  }
-
-  /// Load kinship data from JSON asset or downloaded local file.
+  /// Load kinship data from the bundled kinship_core.json.
   ///
-  /// [localFilePath] — if provided and the file exists, loads from the
-  /// downloaded full JSON (e.g. from GitHub Releases). Otherwise falls
-  /// back to the bundled `kinship_core.json` (tiny fallback with core
-  /// relationships only).
+  /// v74: The full 5,363-entry kinship dataset is no longer downloaded
+  /// — it's compiled into the binary as a const map
+  /// (kinship_category_map.dart) for O(1) category lookups. The core
+  /// JSON (26 entries + chain rules) is bundled in the app assets and
+  /// provides BFS path resolution for multi-hop relatives.
+  ///
+  /// For future multi-language support, see the architecture docs —
+  /// language translations can be added as separate per-language JSON
+  /// files downloaded on demand, without touching this service.
   Future<void> load({String? localFilePath}) async {
     if (_isLoaded) return;
 
     try {
-      String jsonStr;
-
-      if (localFilePath != null && File(localFilePath).existsSync()) {
-        // Load from downloaded local file (full 5363-entry JSON)
-        debugPrint('📁 Loading kinship data from local file: $localFilePath');
-        jsonStr = await File(localFilePath).readAsString();
-      } else {
-        // Try bundled full JSON first (for backward compat during transition)
-        try {
-          jsonStr = await rootBundle.loadString(
-            'assets/data/indian_kinship.json',
-          );
-          debugPrint('📦 Loading kinship data from bundled indian_kinship.json');
-        } catch (_) {
-          // Fall back to tiny core JSON (bundled fallback)
-          try {
-            jsonStr = await rootBundle.loadString(
-              'assets/data/kinship_core.json',
-            );
-            debugPrint('⚠️ Using core JSON fallback (limited data)');
-          } catch (e) {
-            debugPrint('❌ No kinship data available: $e');
-            rethrow;
-          }
-        }
-      }
-
+      // v74: Always load the bundled core JSON — it has the 26 base
+      // relationships + chain rules needed for BFS path resolution.
+      // The full 5,363-entry category mapping is in kinship_category_map.dart
+      // (const, compiled into the binary, no I/O needed).
+      final jsonStr = await rootBundle.loadString(
+        'assets/data/kinship_core.json',
+      );
       final jsonData = jsonDecode(jsonStr) as Map<String, dynamic>;
       _data = KinshipData.fromJson(jsonData);
 
