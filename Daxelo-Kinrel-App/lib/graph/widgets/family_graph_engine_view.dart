@@ -894,8 +894,9 @@ class _FamilyGraphEngineViewState
     return bestId;
   }
 
-  /// Handles a tap-down on the canvas. If the tap hits a node, selects it
-  /// and navigates to the person detail screen.
+  /// Handles a tap-down on the canvas. If the tap hits a node, shows
+  /// the quick-actions sheet (same as long-press) — does NOT navigate
+  /// to a separate route, avoiding the "Page Not Found" error.
   void _handleNodeTapDown(
     TapDownDetails details,
     GraphLayoutResult layout,
@@ -903,12 +904,28 @@ class _FamilyGraphEngineViewState
     String? viewerPersonId,
   ) {
     final nodeId = _hitTestNode(details.localPosition, layout);
-    if (nodeId != null) {
-      ref.read(selectedNodeProvider.notifier).state = nodeId;
-      // v72: Navigate to person detail screen so the tap does something
-      // visible (not just sets internal state).
-      context.push('/family/${widget.familyId}/person/$nodeId');
-    }
+    if (nodeId == null) return;
+
+    // Select the node.
+    ref.read(selectedNodeProvider.notifier).state = nodeId;
+
+    // Show the quick-actions sheet (same as long-press).
+    final personData = flat.persons
+        .where((p) => p['id'] == nodeId)
+        .firstOrNull;
+    if (personData == null) return;
+
+    final graphPersonData = GraphPersonData(
+      id: nodeId,
+      name: (personData['name'] as String?) ?? '',
+      gender: personData['gender'] as String?,
+      generationIndex:
+          (personData['generationIndex'] as num?)?.toInt() ?? 0,
+      isAnchor: (personData['isAnchor'] as bool?) ?? false,
+      photoUrl: personData['photoUrl'] as String?,
+      isDeceased: (personData['isDeceased'] as bool?) ?? false,
+    );
+    GraphQuickActions.show(context, graphPersonData);
   }
 
   /// Handles a long-press on the canvas. If the press hits a node,

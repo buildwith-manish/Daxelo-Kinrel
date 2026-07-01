@@ -625,12 +625,29 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
             final rpcBetterOrEqual =
                 rpcResult.persons.length >= directResult.persons.length;
             if (rpcBetterOrEqual) {
-              _addToCache(familyId, rpcResult);
+              // v73 FIX: The RPC filters by r."isActive" = true, which
+              // excludes freshly-created relationships that have
+              // isActive = null. This caused "LINKS 0" even when
+              // relationships existed in the DB. Fix: if the direct
+              // query found MORE relationships than the RPC, merge the
+              // direct query's relationships into the RPC result so no
+              // edges are silently dropped.
+              final mergedResult = rpcResult.relationships.length >=
+                      directResult.relationships.length
+                  ? rpcResult
+                  : FlatGraphResult(
+                      persons: rpcResult.persons,
+                      relationships: directResult.relationships,
+                      isTruncated: rpcResult.isTruncated,
+                      totalCount: rpcResult.totalCount,
+                    );
+
+              _addToCache(familyId, mergedResult);
               debugPrint(
-                '[FamilyGraphNotifier] Viewer RPC: Loaded ${rpcResult.persons.length} persons, '
-                '${rpcResult.relationships.length} relationships for $familyId',
+                '[FamilyGraphNotifier] Viewer RPC: Loaded ${mergedResult.persons.length} persons, '
+                '${mergedResult.relationships.length} relationships for $familyId',
               );
-              return rpcResult;
+              return mergedResult;
             }
           }
         }
