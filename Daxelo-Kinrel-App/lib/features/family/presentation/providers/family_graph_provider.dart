@@ -730,9 +730,10 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
         //
         // Now we fetch ALL relationships for the family and filter isActive
         // in the mapping step below (where we coerce null → true).
+        // v83: Also fetch customColors column for custom kinship rendering.
         rawRelationships = await client
             .from('Relationship')
-            .select('id, "fromPersonId", "toPersonId", "relationshipKey", "familyId"')
+            .select('id, "fromPersonId", "toPersonId", "relationshipKey", "familyId", "customColors"')
             .eq('familyId', familyId)
             .timeout(const Duration(seconds: 15));
       } catch (colError) {
@@ -832,6 +833,7 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
               'relationshipKey': rKey,
               'isPrivate': edge['is_private'] ?? edge['isPrivate'] ?? false,
               'isActive': isActive,
+              'customColors': edge['customColors'], // v83: pass through for custom kinship
             };
           })
           // Filter out edges with null/empty IDs — these can never be

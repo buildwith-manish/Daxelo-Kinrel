@@ -937,6 +937,16 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   fromPersonId: result.id,
                   toPersonId: linkToPersonId,
                   relationshipKey: relKey,
+                  // v83: Pass custom kinship colors + display name
+                  customColors: _customKinshipName != null
+                      ? {
+                          'nodeColor': _customNodeColorValue,
+                          'lineColor': _customLineColorValue,
+                          'lineType': _customLineType,
+                          'dotType': _customDotType,
+                        }
+                      : null,
+                  customDisplayName: _customKinshipName,
                 );
                 debugPrint('[ADD-MEMBER] v50: ✅ Relationship created successfully');
 

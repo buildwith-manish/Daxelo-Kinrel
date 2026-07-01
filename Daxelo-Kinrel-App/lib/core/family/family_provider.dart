@@ -2060,12 +2060,36 @@ Future<FamilyRelationship> createRelationship({
   required String fromPersonId,
   required String toPersonId,
   required String relationshipKey,
+  Map<String, dynamic>? customColors,
+  String? customDisplayName,
 }) async {
   final client = ref.read(supabaseProvider);
   if (client == null) {
     throw Exception(
       'Database is not connected. Please restart the app and try again.',
     );
+  }
+
+  // v83: If custom colors are provided, save them to CustomKinshipConfig
+  if (customColors != null && customDisplayName != null) {
+    try {
+      final configId = _generateId();
+      final userId = client.auth.currentUser?.id;
+      await client.from('CustomKinshipConfig').insert({
+        'id': configId,
+        'familyId': familyId,
+        'relationshipKey': relationshipKey,
+        'displayName': customDisplayName,
+        'nodeColor': customColors['nodeColor'],
+        'lineColor': customColors['lineColor'],
+        'lineType': customColors['lineType'],
+        'dotType': customColors['dotType'],
+        'createdBy': userId?.toString(),
+      }).timeout(const Duration(seconds: 10));
+      debugPrint('[CREATE-REL] ✅ CustomKinshipConfig saved (id=$configId)');
+    } catch (e) {
+      debugPrint('[CREATE-REL] ⚠️ CustomKinshipConfig save failed (non-fatal): $e');
+    }
   }
 
   final forwardRelId = _generateId();
@@ -2130,6 +2154,7 @@ Future<FamilyRelationship> createRelationship({
           'relationshipType': relationshipKey,
           'direction': 'from',
           'isActive': true,
+          'customColors': customColors, // v83: null for standard, JSON for custom
           'createdAt': now,
           'updatedAt': now,
         })

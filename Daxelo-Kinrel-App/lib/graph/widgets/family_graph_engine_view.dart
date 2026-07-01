@@ -186,6 +186,8 @@ class _FamilyGraphEngineViewState
   // v69: Cache the authoritative KinshipEdgeCategory per person —
   // eliminates the lossy string round-trip that caused grey nodes.
   Map<String, KinshipEdgeCategory>? _cachedRelationCategories;
+  // v83: Cache custom colors per person (from customColors JSONB column)
+  Map<String, Map<String, dynamic>>? _cachedCustomColors;
 
   // Repaint/recull throttling.
   Rect _lastCullViewport = Rect.zero;
@@ -431,12 +433,15 @@ class _FamilyGraphEngineViewState
           // source of truth for node/edge colors. No lossy string
           // round-trip through KinshipEdgeClassifier.classify().
           _cachedRelationCategories = _relationCategories(flat, viewerPersonId);
+          // v83: Build custom colors map from relationship data
+          _cachedCustomColors = _extractCustomColors(flat);
           _lastFlat = flat;
           _lastViewerId = viewerPersonId;
         }
         final relationLabelById = _cachedRelationLabels!;
         final relationKeyById = _cachedRelationKeys!;
         final relationCategoryById = _cachedRelationCategories!;
+        final customColorsByPersonId = _cachedCustomColors!;
 
         // Expand/collapse filter — empty visible set means "show everything".
         final Set<String> allowed =
@@ -506,16 +511,20 @@ class _FamilyGraphEngineViewState
         // v69: Resolve each edge's color from the authoritative category
         // map (relationCategoryById) — no lossy string round-trip.
         //
-        // For each deduped edge, if one endpoint is the anchor, use the
-        // OTHER endpoint's category to determine the edge color. This
-        // guarantees edge color == node color for every anchor-connected
-        // edge, with zero risk of grey fallback from a misclassified key.
+        // v83: Also check customColors — if an edge has customColors in
+        // the relationship data, use the custom line color instead.
         final String? anchorId = _findAnchorId(flat, viewerPersonId);
-        // Build a per-edge category map for the painter.
         final edgeCategories = <String, KinshipEdgeCategory>{};
-        if (anchorId != null && relationCategoryById.isNotEmpty) {
+        final edgeCustomColors = <String, Map<String, dynamic>>{};
+        if (anchorId != null) {
           for (final deduped in edges) {
             final e = deduped.edge;
+            // Check for custom colors on this edge
+            final customColors = customColorsByPersonId[e.sourceId] ??
+                customColorsByPersonId[e.targetId];
+            if (customColors != null) {
+              edgeCustomColors[e.id] = customColors;
+            }
             // Determine which endpoint is the anchor and which is the
             // relative. Use the relative's authoritative category.
             KinshipEdgeCategory? cat;
@@ -573,12 +582,13 @@ class _FamilyGraphEngineViewState
                     },
                     edges: edges,
                     edgeCategories: edgeCategories,
+                    edgeCustomColors: edgeCustomColors,
                     cache: _edgePathCache,
                   ),
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.
                 ..._buildNodeLayer(
-                    layout, visible, personById, relationLabelById, relationCategoryById, viewerPersonId),
+                    layout, visible, personById, relationLabelById, relationCategoryById, customColorsByPersonId, viewerPersonId),
               ],
             ),
           ),
@@ -634,6 +644,7 @@ class _FamilyGraphEngineViewState
     Map<String, Map<String, dynamic>> personById,
     Map<String, String> relationLabelById,
     Map<String, KinshipEdgeCategory> relationCategoryById,
+    Map<String, Map<String, dynamic>> customColorsByPersonId,
     String? viewerPersonId,
   ) {
     final _Lod lod = _lodFor(_camera.zoomLevel);
@@ -652,6 +663,8 @@ class _FamilyGraphEngineViewState
             (p['isAnchor'] as bool?) ?? false,
             // v69: Use the authoritative category for dot color.
             category: relationCategoryById[id],
+            // v83: Use custom colors if available
+            customColors: customColorsByPersonId[id],
           ),
         ));
       }
@@ -675,8 +688,8 @@ class _FamilyGraphEngineViewState
       final p = personById[id];
       if (pos == null || p == null) continue;
       final Widget node = lod == _Lod.full
-          ? _buildFullNode(id, p, relationLabelById, relationCategoryById, viewerPersonId)
-          : _buildChipNode(p, category: relationCategoryById[id]);
+          ? _buildFullNode(id, p, relationLabelById, relationCategoryById, customColorsByPersonId, viewerPersonId)
+          : _buildChipNode(p, category: relationCategoryById[id], customColors: customColorsByPersonId[id]);
 
       // v62: Dim nodes not in the highlighted generation (if set).
       final int personGen =
@@ -705,6 +718,7 @@ class _FamilyGraphEngineViewState
     Map<String, dynamic> p,
     Map<String, String> labels,
     Map<String, KinshipEdgeCategory> relationCategoryById,
+    Map<String, Map<String, dynamic>> customColorsByPersonId,
     String? viewerPersonId,
   ) {
     // v2.2: If this node IS the viewer, show "You" as the relation label.
@@ -744,11 +758,12 @@ class _FamilyGraphEngineViewState
   }
 
   /// Lightweight mid-zoom node: a coloured dot + the name, no avatar/animations.
-  Widget _buildChipNode(Map<String, dynamic> p, {KinshipEdgeCategory? category}) {
+  Widget _buildChipNode(Map<String, dynamic> p, {KinshipEdgeCategory? category, Map<String, dynamic>? customColors}) {
     final color = _dotColor(
       p['gender'] as String?,
       (p['isAnchor'] as bool?) ?? false,
       category: category,
+      customColors: customColors,
     );
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -1322,6 +1337,44 @@ class _FamilyGraphEngineViewState
   ///   2. Multi-hop BFS via RelationshipEngine → use classification.category.
   ///   3. Fallback: null (GraphNode uses 'extended' grey — spec-correct
   ///      for genuinely unclassifiable nodes).
+  /// v83: Extracts custom colors from the relationship data.
+  ///
+  /// Returns a Map<personId, customColors> where customColors is the
+  /// JSONB object stored in the Relationship table's customColors column.
+  /// Used to override the standard category colors for custom kinships.
+  Map<String, Map<String, dynamic>> _extractCustomColors(
+    FlatGraphResult flat,
+  ) {
+    final result = <String, Map<String, dynamic>>{};
+
+    // Find the anchor
+    String? anchorId;
+    for (final p in flat.persons) {
+      if (p['isAnchor'] == true) {
+        anchorId = p['id'] as String?;
+        break;
+      }
+    }
+    if (anchorId == null) return result;
+
+    for (final r in flat.relationships) {
+      final from = r['fromPersonId'] as String?;
+      final to = r['toPersonId'] as String?;
+      final customColors = r['customColors'];
+      if (customColors == null || customColors is! Map) continue;
+
+      // Assign custom colors to the non-anchor person
+      final customMap = Map<String, dynamic>.from(customColors);
+      if (to == anchorId && from != null) {
+        result[from] = customMap;
+      } else if (from == anchorId && to != null) {
+        result[to] = customMap;
+      }
+    }
+
+    return result;
+  }
+
   Map<String, KinshipEdgeCategory> _relationCategories(
     FlatGraphResult flat,
     String? viewerPersonId,
@@ -1640,8 +1693,12 @@ class _FamilyGraphEngineViewState
   ///
   /// The anchor/viewer node always uses the Teal "self" color so it
   /// stands out from all other categories.
-  Color _dotColor(String? gender, bool isAnchor, {KinshipEdgeCategory? category}) {
+  Color _dotColor(String? gender, bool isAnchor, {KinshipEdgeCategory? category, Map<String, dynamic>? customColors}) {
     if (isAnchor) return KinshipEdgeColors.self;
+    // v83: If custom colors are provided, use the custom node color
+    if (customColors != null && customColors['nodeColor'] != null) {
+      return Color(customColors['nodeColor'] as int);
+    }
     // v69: Use the authoritative category directly — no string round-trip.
     if (category != null && category != KinshipEdgeCategory.self) {
       return KinshipEdgeStyleResolver.styleForCategory(category).color;
@@ -1690,15 +1747,14 @@ class _EdgeSelectionWrapper extends ConsumerWidget {
     required this.positions,
     required this.edges,
     required this.edgeCategories,
+    required this.edgeCustomColors,
     required this.cache,
   });
 
   final Map<String, Offset> positions;
   final List<DedupedEdge> edges;
-  /// v69: Per-edge authoritative category — eliminates the lossy string
-  /// round-trip. When present, the painter uses styleForCategory() instead
-  /// of styleFor(key).
   final Map<String, KinshipEdgeCategory> edgeCategories;
+  final Map<String, Map<String, dynamic>> edgeCustomColors;
   final EdgePathCache cache;
 
   @override
@@ -1709,6 +1765,7 @@ class _EdgeSelectionWrapper extends ConsumerWidget {
         positions: positions,
         edges: edges,
         edgeCategories: edgeCategories,
+        edgeCustomColors: edgeCustomColors,
         cache: cache,
         selectedEdgeId: selectedEdgeId,
       ),
@@ -1726,16 +1783,15 @@ class _EngineEdgePainter extends CustomPainter {
     required this.positions,
     required this.edges,
     required this.edgeCategories,
+    required this.edgeCustomColors,
     required this.cache,
     this.selectedEdgeId,
   });
 
   final Map<String, Offset> positions;
   final List<DedupedEdge> edges;
-  /// v69: Per-edge authoritative category. When present, the painter
-  /// uses styleForCategory() instead of styleFor(key) — no lossy string
-  /// round-trip, no grey fallback for known relationships.
   final Map<String, KinshipEdgeCategory> edgeCategories;
+  final Map<String, Map<String, dynamic>> edgeCustomColors;
   final EdgePathCache cache;
   final String? selectedEdgeId;
 
@@ -1851,12 +1907,37 @@ class _EngineEdgePainter extends CustomPainter {
       // use styleForCategory() (always correct, never grey for known
       // relationships). Fall back to styleFor(key) only when no category
       // is available (e.g. edges between two non-anchor nodes).
+      //
+      // v83: If edgeCustomColors has this edge, override with custom colors.
+      final customColors = edgeCustomColors[e.id];
       final KinshipEdgeCategory? edgeCat = edgeCategories[e.id];
       final style = edgeCat != null
           ? KinshipEdgeStyleResolver.styleForCategory(edgeCat)
           : KinshipEdgeStyleResolver.styleFor(e.relationshipKey);
-      final edgeColor = style.color ?? const Color(0xFF888888);
-      final edgeAlpha = style.defaultAlpha.clamp(0.3, 1.0);
+
+      // v83: Apply custom colors if available
+      final Color edgeColor;
+      final double edgeAlpha;
+      final List<double> dashPattern;
+      final KinshipMidpointSymbol midpointSymbol;
+
+      if (customColors != null) {
+        edgeColor = Color(customColors['lineColor'] as int? ?? style.color?.value ?? 0xFF888888);
+        edgeAlpha = 1.0;
+        dashPattern = customColors['lineType'] == 'dashed' ? [6.0, 4.0] : [];
+        final dotType = customColors['dotType'] as String? ?? 'dot';
+        midpointSymbol = dotType == 'heart'
+            ? KinshipMidpointSymbol.heart
+            : dotType == 'none'
+                ? KinshipMidpointSymbol.none
+                : KinshipMidpointSymbol.dot;
+      } else {
+        edgeColor = style.color ?? const Color(0xFF888888);
+        edgeAlpha = style.defaultAlpha.clamp(0.3, 1.0);
+        dashPattern = style.dashPattern;
+        midpointSymbol = style.midpointSymbol;
+      }
+
       final edgePaint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = style.strokeWidth.clamp(1.5, 5.0)
@@ -1865,11 +1946,11 @@ class _EngineEdgePainter extends CustomPainter {
         ..strokeCap = StrokeCap.round;
 
       // Apply dash pattern if the style is dashed.
-      if (style.dashPattern.isNotEmpty && style.dashPattern.length >= 2) {
+      if (dashPattern.isNotEmpty && dashPattern.length >= 2) {
         for (final metric in path.computeMetrics()) {
           double pos = 0;
-          final dashWidth = style.dashPattern[0];
-          final dashGap = style.dashPattern[1];
+          final dashWidth = dashPattern[0];
+          final dashGap = dashPattern[1];
           while (pos < metric.length) {
             final segEnd = (pos + dashWidth).clamp(0.0, metric.length);
             canvas.drawPath(metric.extractPath(pos, segEnd), edgePaint);
@@ -1881,7 +1962,7 @@ class _EngineEdgePainter extends CustomPainter {
       }
 
       // Draw midpoint symbol (dot or heart) — NO text labels on edges.
-      if (style.midpointSymbol != KinshipMidpointSymbol.none) {
+      if (midpointSymbol != KinshipMidpointSymbol.none) {
         // Compute the actual midpoint on the bezier path using PathMetrics.
         // This is more accurate than manually computing control points
         // because it accounts for the actual curve geometry.
@@ -1900,7 +1981,7 @@ class _EngineEdgePainter extends CustomPainter {
         }
 
         // Fix 3: Dot radius 4.0 (was 2.5), full opacity, heart stays 4.0.
-        if (style.midpointSymbol == KinshipMidpointSymbol.heart) {
+        if (midpointSymbol == KinshipMidpointSymbol.heart) {
           canvas.drawCircle(
             midPoint,
             4.0,
