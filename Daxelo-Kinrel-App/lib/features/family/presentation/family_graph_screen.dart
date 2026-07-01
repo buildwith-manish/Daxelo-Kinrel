@@ -767,21 +767,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             color: Colors.white.withValues(alpha: 0.1),
             margin: const EdgeInsets.symmetric(horizontal: 4),
           ),
-          // Add Member — PROMINENT in toolbar for guaranteed visibility
-          _toolbarButton(
-            icon: Icons.person_add_alt_1_rounded,
-            tooltip: 'Add Member',
-            onPressed: _openAddMember,
-            highlighted: true,
-            isPrimary: true,
-          ),
-          // Divider
-          Container(
-            width: 1,
-            height: 24,
-            color: Colors.white.withValues(alpha: 0.1),
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-          ),
           // Filter
           _toolbarButton(
             icon: Icons.filter_list_rounded,
