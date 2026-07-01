@@ -33,6 +33,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../core/constants/brand_colors.dart';
+import '../../core/kinship/heart_shape.dart';
 import '../../core/kinship/kinship_edge_style.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -93,7 +94,12 @@ class FamilyTreePainter extends CustomPainter {
   // ── Midpoint Indicator Constants ──────────────────────────────────
   static const double _dotRadius = 5.0;
   static const double _dotGlowRadius = 9.0;
-  static const double _heartSize = 14.0;
+  // v89: Heart size = 26 dp (matches the visual footprint of the
+  // EdgeDotWidget overlay, which uses a 32×32 canvas with the heart
+  // filling ~78 % = 25 dp). Picking the same size here means the
+  // painter-drawn heart (Layer 1) and widget-drawn heart (Layer 2)
+  // overlay PERFECTLY when both are visible at zoom ≥ 0.4.
+  static const double _heartSize = 26.0;
 
   // ── LOD Thresholds ─────────────────────────────────────────────────
   static const double _lodMinimalZoom = 0.4;
@@ -279,7 +285,9 @@ class FamilyTreePainter extends CustomPainter {
       final midpoint = _computeMidpoint(start, end, style.lineShape);
       switch (style.midpointSymbol) {
         case KinshipMidpointSymbol.heart:
-          _drawHeart(canvas, midpoint, midpointColor);
+          // v89: skip the glow halo when zoomed out for crisp rendering.
+          _drawHeart(canvas, midpoint, midpointColor,
+              compact: zoomLevel < _lodLabelZoom);
           break;
         case KinshipMidpointSymbol.dot:
           _drawDot(canvas, midpoint, midpointColor);
@@ -688,31 +696,24 @@ class FamilyTreePainter extends CustomPainter {
     canvas.drawCircle(center, _dotRadius, dotPaint);
   }
 
-  void _drawHeart(Canvas canvas, Offset center, Color color) {
-    final heartPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    final s = _heartSize;
-    final circleRadius = s / 4;
-
-    final leftCircleCenter = Offset(
-        center.dx - circleRadius * 0.7, center.dy - circleRadius * 0.4);
-    final rightCircleCenter = Offset(
-        center.dx + circleRadius * 0.7, center.dy - circleRadius * 0.4);
-
-    canvas.drawCircle(leftCircleCenter, circleRadius, heartPaint);
-    canvas.drawCircle(rightCircleCenter, circleRadius, heartPaint);
-
-    final halfS = s / 2;
-    final path = Path()
-      ..moveTo(leftCircleCenter.dx - circleRadius * 0.7,
-          leftCircleCenter.dy + circleRadius * 0.2)
-      ..lineTo(rightCircleCenter.dx + circleRadius * 0.7,
-          rightCircleCenter.dy + circleRadius * 0.2)
-      ..lineTo(center.dx, center.dy + halfS * 0.75)
-      ..close();
-    canvas.drawPath(path, heartPaint);
+  // v89: Delegates to [HeartShape.drawHeart] so this painter produces
+  // the EXACT same heart as the EdgeDotWidget overlay (Layer 2). The
+  // old implementation drew two overlapping circles + a tiny triangle
+  // (total ~14×12 px) which visually collapsed to a pink blob at any
+  // zoomed-out view. The new implementation builds the heart from two
+  // cubic bezier curves — a proper, recognizable heart silhouette.
+  //
+  // [compact] is true when zoomed out (< 0.6) so we skip the glow
+  // halo and keep the heart crisp on dense graphs.
+  void _drawHeart(Canvas canvas, Offset center, Color color,
+      {bool compact = false}) {
+    HeartShape.drawHeart(
+      canvas: canvas,
+      center: center,
+      size: _heartSize,
+      color: color,
+      compact: compact,
+    );
   }
 
   // ── Edge Label Drawing ─────────────────────────────────────────────

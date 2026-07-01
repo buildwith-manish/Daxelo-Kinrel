@@ -20,6 +20,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/brand_colors.dart';
+import '../../../../core/kinship/heart_shape.dart';
 import '../../../../core/kinship/kinship_edge_style.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -177,6 +178,13 @@ class _EdgeDotWidgetState extends State<EdgeDotWidget>
   }
 
   // ── Heart (spouse) ──────────────────────────────────────────────────
+  //
+  // v89: Delegates to [HeartShape.drawHeart] so the widget overlay and
+  // the canvas painter produce pixel-identical hearts. The old
+  // implementation drew two overlapping circles + a tiny triangle,
+  // which visually collapsed to a pink blob at any zoomed-out view.
+  // The new implementation builds the heart from two cubic bezier
+  // curves — a proper, recognizable heart silhouette at all zoom levels.
 
   Widget _buildHeart(Color color) {
     return CustomPaint(
@@ -237,8 +245,13 @@ class _CircleDotPainter extends CustomPainter {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// HEART PAINTER (spouse midpoint)
+// HEART PAINTER (spouse midpoint) — v89 rewrite
 // ═══════════════════════════════════════════════════════════════════════
+//
+// Delegates to [HeartShape.drawHeart] so this painter renders the
+// exact same heart as the canvas painter in family_tree_painter.dart.
+// The heart fills ~25×23 dp inside the 32×32 canvas (with a 5 dp glow
+// halo extending slightly beyond).
 
 class _HeartPainter extends CustomPainter {
   const _HeartPainter({required this.color});
@@ -248,59 +261,11 @@ class _HeartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-
-    // Soft glow behind the heart (slightly larger, low alpha).
-    final glowPaint = Paint()
-      ..color = color.withValues(alpha: 0.18)
-      ..style = PaintingStyle.fill
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-    canvas.drawCircle(center, 12.0, glowPaint);
-
-    // Solid heart fill.
-    final heartPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    const double s = 16.0;
-    final circleRadius = s / 4;
-
-    final leftCircleCenter = Offset(
-      center.dx - circleRadius * 0.7,
-      center.dy - circleRadius * 0.4,
-    );
-    final rightCircleCenter = Offset(
-      center.dx + circleRadius * 0.7,
-      center.dy - circleRadius * 0.4,
-    );
-
-    canvas.drawCircle(leftCircleCenter, circleRadius, heartPaint);
-    canvas.drawCircle(rightCircleCenter, circleRadius, heartPaint);
-
-    final halfS = s / 2;
-    final path = Path()
-      ..moveTo(
-        leftCircleCenter.dx - circleRadius * 0.7,
-        leftCircleCenter.dy + circleRadius * 0.2,
-      )
-      ..lineTo(
-        rightCircleCenter.dx + circleRadius * 0.7,
-        rightCircleCenter.dy + circleRadius * 0.2,
-      )
-      ..lineTo(center.dx, center.dy + halfS * 0.75)
-      ..close();
-    canvas.drawPath(path, heartPaint);
-
-    // Subtle white highlight on the upper-left to give the heart depth.
-    final highlightPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.35)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(
-      Offset(
-        leftCircleCenter.dx - circleRadius * 0.3,
-        leftCircleCenter.dy - circleRadius * 0.3,
-      ),
-      circleRadius * 0.35,
-      highlightPaint,
+    HeartShape.drawHeart(
+      canvas: canvas,
+      center: center,
+      size: size.shortestSide,
+      color: color,
     );
   }
 
