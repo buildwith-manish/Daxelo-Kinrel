@@ -56,6 +56,7 @@ import '../interaction/expand_collapse.dart'
 import '../../core/constants/feature_flags.dart' show kEnableGraphShareExport;
 import '../../core/constants/brand_colors.dart' show KinrelColors;
 import '../../core/kinship/kinship_edge_style.dart';
+import '../../core/kinship/kinship_category_map.dart';
 import '../../core/kinship/structural_kinship_classifier.dart';
 import '../../core/kinship/kinship_service.dart' show KinshipService;
 import '../../core/relationship/relationship_engine.dart' show RelationshipEngine;
@@ -1283,14 +1284,18 @@ class _FamilyGraphEngineViewState
           }
         }
         if (storedKey != null) {
-          // Use the structural classifier to get the authoritative
-          // category from the stored key. This handles ALL keys
-          // correctly — no gaps.
-          final classification = StructuralKinshipClassifier.classify(
-            path: [storedKey],
-            targetGender: p.gender,
-          );
-          category = classification.category;
+          // v71: Use the 5,363-entry lookup map as the PRIMARY resolver
+          // — no string guessing, no gaps. Falls back to the structural
+          // classifier only for keys not in the map (e.g. synthetic keys).
+          if (KinshipCategoryMap.isKnown(storedKey)) {
+            category = KinshipCategoryMap.categoryFor(storedKey);
+          } else {
+            final classification = StructuralKinshipClassifier.classify(
+              path: [storedKey],
+              targetGender: p.gender,
+            );
+            category = classification.category;
+          }
         }
       }
 

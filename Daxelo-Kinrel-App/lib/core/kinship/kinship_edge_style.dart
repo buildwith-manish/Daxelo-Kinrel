@@ -52,6 +52,8 @@
 
 import 'package:flutter/material.dart';
 
+import 'kinship_category_map.dart';
+
 // ═══════════════════════════════════════════════════════════════════════
 // EDGE CATEGORY ENUM
 // ═══════════════════════════════════════════════════════════════════════
@@ -546,7 +548,20 @@ class KinshipEdgeStyleResolver {
   KinshipEdgeStyleResolver._();
 
   /// Resolve the style for a relationship key.
+  ///
+  /// v71: Uses the pre-built 5,363-entry lookup map
+  /// ([KinshipCategoryMap]) as the PRIMARY resolution path — no string
+  /// guessing, no regex gaps. Every known kinship key resolves to its
+  /// exact category. Only unknown/synthetic keys (e.g. 'related',
+  /// 'unknown') fall through to the regex classifier, which routes
+  /// them to 'extended' (grey).
   static KinshipEdgeStyle styleFor(String relationshipKey) {
+    // v71: Try the complete lookup map first — covers all 5,363 keys.
+    if (KinshipCategoryMap.isKnown(relationshipKey)) {
+      final category = KinshipCategoryMap.categoryFor(relationshipKey);
+      return styleForCategory(category);
+    }
+    // Fallback for synthetic/unknown keys (e.g. 'related', 'unknown').
     final category = KinshipEdgeClassifier.classify(relationshipKey);
     return styleForCategory(category);
   }
