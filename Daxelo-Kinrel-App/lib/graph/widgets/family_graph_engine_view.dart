@@ -928,14 +928,48 @@ class _FamilyGraphEngineViewState
   ) {
     final labels = <String, String>{};
 
-    // No viewer → use legacy stored relationshipKey (architecture §3
-    // invariant 7: isAnchor legacy fallback path).
+    // No viewer → use the structural classifier on stored edges.
+    //
+    // v67 (BUG-19 FIX): The previous version assigned the raw
+    // relationshipKey to the `to` person of each edge — but the key
+    // describes the `from` person's relationship TO the `to` person,
+    // not the anchor's perspective. This caused labels to be backwards
+    // (e.g. anchor labeled "Father", actual father unlabeled).
+    //
+    // The fix: resolve labels from the ANCHOR's perspective using the
+    // same directionality logic as _getStoredKey(). The anchor is the
+    // person with isAnchor == true (or the first person as fallback).
     if (viewerPersonId == null) {
+      // Find the anchor.
+      String? anchorId;
+      for (final Map<String, dynamic> p in flat.persons) {
+        if (p['isAnchor'] == true) {
+          anchorId = p['id'] as String?;
+          break;
+        }
+      }
+      anchorId ??= flat.persons.isNotEmpty
+          ? flat.persons.first['id'] as String?
+          : null;
+
+      if (anchorId == null) return labels;
+
       for (final Map<String, dynamic> r in flat.relationships) {
-        final t = r['toPersonId'] as String?;
+        final from = r['fromPersonId'] as String?;
+        final to = r['toPersonId'] as String?;
         final key = r['relationshipKey'] as String?;
-        if (t != null && key != null && !labels.containsKey(t)) {
-          labels[t] = key;
+        if (key == null || key.isEmpty) continue;
+
+        // Edge points TO anchor: stored key IS the anchor's perspective
+        // on `from`. Label the `from` person.
+        if (to == anchorId && from != null && !labels.containsKey(from)) {
+          labels[from] = _prettyPrintKey(key);
+        }
+        // Edge points FROM anchor: anchor's perspective on `to` is the
+        // inverse. Label the `to` person with the inverse key.
+        else if (from == anchorId && to != null && !labels.containsKey(to)) {
+          final inverseKey = _inverseRelationshipKey(key);
+          labels[to] = _prettyPrintKey(inverseKey ?? key);
         }
       }
       return labels;
@@ -1144,16 +1178,27 @@ class _FamilyGraphEngineViewState
       }
 
       // Case 3: Edge doesn't involve the anchor (e.g. between two
-      // non-anchor nodes). Use legacy assignment: key for `to`,
-      // inverse for `from`. The inverse is approximate but ensures
-      // both endpoints get SOME color rather than grey.
-      if (to != null && !keys.containsKey(to) && to != sourceId) {
-        keys[to] = key;
-      }
-      if (from != null && !keys.containsKey(from) && from != sourceId) {
-        final inverseKey = _inverseRelationshipKey(key);
-        keys[from] = inverseKey ?? key;
-      }
+      // non-anchor nodes).
+      //
+      // v67 (BUG-18 FIX): Previously this assigned keys to BOTH
+      // endpoints from the same edge — but the key only describes one
+      // person's relationship to the other, not the anchor's
+      // perspective on either. This produced wrong colors for non-
+      // anchor-connected nodes.
+      //
+      // The fix: SKIP non-anchor edges entirely. The BFS above should
+      // have already resolved keys for any node reachable from the
+      // anchor. If a node is NOT reachable (disconnected subgraph),
+      // it's better to leave it with no key (GraphNode falls back to
+      // 'extended' grey) than to assign a wrong key from an arbitrary
+      // edge. The grey fallback is the spec-correct behavior for
+      // genuinely unclassifiable nodes.
+      //
+      // Exception: if the edge is a spouse edge between two non-anchor
+      // nodes and ONE of them already has a BFS-resolved key, we can
+      // infer the other is the spouse. But this is rare and the BFS
+      // usually handles it. Skip for safety.
+      break;
     }
 
     return keys;
@@ -1227,14 +1272,18 @@ class _FamilyGraphEngineViewState
     } catch (_) {
       // Fall through to the pretty-printed key.
     }
-    // Pretty-print the raw key as a fallback
-    // ("mothers_brother" → "Mothers Brother").
-    final pretty = key
+    return _prettyPrintKey(key);
+  }
+
+  /// v67: Pretty-prints a kinship key as a human-readable label.
+  /// "father" → "Father", "father_in_law" → "Father In Law",
+  /// "mothers_brother" → "Mothers Brother".
+  String _prettyPrintKey(String key) {
+    return key
         .split('_')
         .where((s) => s.isNotEmpty)
         .map((s) => '${s[0].toUpperCase()}${s.substring(1)}')
         .join(' ');
-    return pretty;
   }
 
   /// v2.2: Returns the node dot color based on the kinship category
@@ -1416,8 +1465,17 @@ class _EngineEdgePainter extends CustomPainter {
       // v64 (BUG-2 FIX): Pass the lateral offset so parallel edges
       // (e.g. parent + spouse between the same pair) are visually
       // separated instead of stacked on top of each other.
+      //
+      // v67 (BUG-11 FIX): Append the lateral offset to the edge ID
+      // passed to the cache, so parallel edges between the same pair
+      // (which may share the same base edge ID after dedup) get
+      // SEPARATE cache entries. Without this, the second parallel edge
+      // would hit the cache and get the FIRST edge's path (wrong curve).
+      final cacheEdgeId = deduped.lateralOffset != 0.0
+          ? '${e.id}__offset_${deduped.lateralOffset.toStringAsFixed(1)}'
+          : e.id;
       final Path path = cache.getOrCreate(
-        edgeId: e.id,
+        edgeId: cacheEdgeId,
         sourceId: e.sourceId,
         targetId: e.targetId,
         sourcePos: s,

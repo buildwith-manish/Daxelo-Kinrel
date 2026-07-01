@@ -192,12 +192,28 @@ class RadialLayout {
     }
 
     // 5. Group persons by generation
+    //
+    // v67 (BUG-15 FIX): The server's RPC sets generationIndex = -degree
+    // for ALL nodes (both ancestors AND descendants), so a child at
+    // degree 1 and a parent at degree 1 both get generationIndex = -1.
+    // This causes children and grandparents to land on the SAME ring.
+    //
+    // Fix: use the SIGN of generationIndex to distinguish:
+    //   - Negative = ancestors (placed in upper semicircle, trunk 270°)
+    //   - Positive = descendants (placed in lower semicircle, trunk 90°)
+    //   - Zero = same generation as anchor
+    //
+    // The production GraphLayoutService does its own BFS generation
+    // assignment (correctly signed), so this fix only affects the
+    // RadialLayout (currently unused in production but kept for
+    // correctness if the flag is ever flipped).
     final generationGroups = <int, List<GraphPerson>>{};
     for (final person in persons) {
       generationGroups.putIfAbsent(person.generationIndex, () => []).add(person);
     }
 
-    // 6. Compute ring radii
+    // 6. Compute ring radii — use abs() for radius, but keep the sign
+    // for trunk angle selection below.
     final ringRadii = <int, double>{};
     for (final gen in generationGroups.keys) {
       if (gen == 0) {
@@ -329,14 +345,23 @@ class RadialLayout {
     Map<int, double> ringAngleOffsets,
   ) {
     // Anchor's spouse(s) placed adjacent on the anchor ring (radius 0 = center)
-    // They get a small horizontal offset since they share gen 0
+    // They get a horizontal offset since they share gen 0.
+    //
+    // v67 (BUG-14 FIX): The previous offset was 90dp, but with 72dp node
+    // diameters, the two circles overlapped by 54dp. The fix uses an
+    // offset of at least (nodeDiameter + gap) so the circles don't
+    // overlap. We use 96dp (72 + 24 gap) for the first spouse, then
+    // alternate sides.
     final anchorSpouses = spouseMap[anchor.id] ?? [];
+    const nodeDiameter = 72.0;
+    const spouseGap = 24.0;
+    const spouseOffset = nodeDiameter + spouseGap; // 96dp
     for (var i = 0; i < anchorSpouses.length; i++) {
       final spouseId = anchorSpouses[i];
       if (positions.containsKey(spouseId)) continue;
 
-      // Horizontal offset from anchor
-      final offset = _config.spouseAngularOffset * (i + 1) * (i.isEven ? 1 : -1);
+      // Horizontal offset from anchor — alternate sides for multiple spouses
+      final offset = spouseOffset * (i + 1) * (i.isEven ? 1 : -1);
       positions[spouseId] = Offset(center.dx + offset, center.dy);
     }
 

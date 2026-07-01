@@ -167,6 +167,10 @@ class GraphRelationshipLabels {
   /// The full kinship inverse map. Covers core parent/child, sibling,
   /// spouse, grandparent/grandchild, uncle/aunt/nephew/niece, cousin,
   /// in-law, and step relationships.
+  ///
+  /// v67 (BUG-17 FIX): Added missing reverse entries for Indian compound
+  /// forms (fathers_brother, brothers_son, wifes_father, etc.) and
+  /// synthetic fallbacks (related/unknown/other).
   static const Map<String, String> _inverseMap = {
     // Core parent/child
     'father': 'son',
@@ -221,6 +225,41 @@ class GraphRelationshipLabels {
     'daughter_in_law': 'mother_in_law',
     'brother_in_law': 'sister_in_law',
     'sister_in_law': 'brother_in_law',
+    // v67: Indian compound aunt/uncle inverses
+    'fathers_brother': 'nephew',
+    'fathers_sister': 'niece',
+    'fathers_elder_brother': 'nephew',
+    'fathers_younger_brother': 'nephew',
+    'mothers_brother': 'nephew',
+    'mothers_sister': 'niece',
+    // v67: Indian compound niece/nephew inverses (sibling's children)
+    'brothers_son': 'uncle',
+    'brothers_daughter': 'uncle',
+    'sisters_son': 'uncle',
+    'sisters_daughter': 'uncle',
+    // v67: Indian compound cousin inverses (symmetric)
+    'fathers_brothers_son': 'cousin',
+    'fathers_brothers_daughter': 'cousin',
+    'fathers_sisters_son': 'cousin',
+    'fathers_sisters_daughter': 'cousin',
+    'mothers_brothers_son': 'cousin',
+    'mothers_brothers_daughter': 'cousin',
+    'mothers_sisters_son': 'cousin',
+    'mothers_sisters_daughter': 'cousin',
+    // v67: Indian compound in-law inverses (spouse's family)
+    'wifes_father': 'son_in_law',
+    'wifes_mother': 'son_in_law',
+    'husbands_father': 'son_in_law',
+    'husbands_mother': 'son_in_law',
+    'wifes_brother': 'brother_in_law',
+    'wifes_sister': 'sister_in_law',
+    'husbands_brother': 'brother_in_law',
+    'husbands_sister': 'sister_in_law',
+    // v67: children's spouses inverses
+    'sons_wife': 'father_in_law',
+    'sons_husband': 'father_in_law',
+    'daughters_husband': 'father_in_law',
+    'daughters_wife': 'father_in_law',
     // Step
     'stepfather': 'stepson',
     'stepmother': 'stepdaughter',
@@ -228,5 +267,15 @@ class GraphRelationshipLabels {
     'stepdaughter': 'stepmother',
     'stepbrother': 'stepbrother',
     'stepsister': 'stepsister',
+    'step_father': 'step_son',
+    'step_mother': 'step_daughter',
+    'step_son': 'step_father',
+    'step_daughter': 'step_mother',
+    'step_brother': 'step_brother',
+    'step_sister': 'step_sister',
+    // v67: synthetic fallbacks
+    'related': 'related',
+    'unknown': 'unknown',
+    'other': 'other',
   };
 }

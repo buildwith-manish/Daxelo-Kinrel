@@ -461,6 +461,51 @@ class KinshipEdgeClassifier {
     return KinshipEdgeCategory.extended;
   }
 
+  /// v67 (BUG-5 FIX): Translates server-side kinship category strings
+  /// to client-side [KinshipEdgeCategory] values.
+  ///
+  /// The server (`kinship.service.ts`) uses 5 category strings:
+  ///   - 'immediate_family'
+  ///   - 'extended_paternal'
+  ///   - 'extended_maternal'
+  ///   - 'in_laws'
+  ///   - 'by_marriage'
+  ///
+  /// The client expects 11 categories (self, parent, child, sibling,
+  /// spouse, grandparent, auntUncle, cousin, inLaw, extended, indirect).
+  /// Without this translator, the server's 'immediate_family' would
+  /// not match any client category and fall through to 'extended'
+  /// (grey) — causing every server-categorized node to render grey.
+  ///
+  /// This translator maps the broad server categories to the closest
+  /// client category. The mapping is intentionally conservative:
+  ///   - 'immediate_family' → parent (most common case; the structural
+  ///     classifier will refine to child/sibling/spouse if the path
+  ///     warrants it)
+  ///   - 'extended_paternal' / 'extended_maternal' → auntUncle (most
+  ///     common extended relation; structural classifier refines)
+  ///   - 'in_laws' → inLaw
+  ///   - 'by_marriage' → spouse (marriage-based relations)
+  ///
+  /// Returns null if [serverCategory] is null or unrecognized, so the
+  /// caller can fall back to BFS/structural classification.
+  static KinshipEdgeCategory? fromServerCategory(String? serverCategory) {
+    if (serverCategory == null || serverCategory.isEmpty) return null;
+    switch (serverCategory.toLowerCase().trim()) {
+      case 'immediate_family':
+        return KinshipEdgeCategory.parent;
+      case 'extended_paternal':
+      case 'extended_maternal':
+        return KinshipEdgeCategory.auntUncle;
+      case 'in_laws':
+        return KinshipEdgeCategory.inLaw;
+      case 'by_marriage':
+        return KinshipEdgeCategory.spouse;
+      default:
+        return null;
+    }
+  }
+
   /// Matches parent's-sibling (the uncle/aunt themselves) + their spouses.
   /// Examples: fathers_elder_brother, fathers_sisters_husband,
   ///           mothers_younger_brother, mothers_brothers_wife.

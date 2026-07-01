@@ -108,6 +108,15 @@ class FlatGraphResult {
         'username': node['username'],
         // v2.2: isViewer flag from the viewer-aware RPC.
         'isViewer': node['isViewer'] ?? false,
+        // v67 (BUG-4 FIX): Parse server-computed kinshipCategory. The
+        // server (kinship.service.ts) emits one of: 'immediate_family',
+        // 'extended_paternal', 'extended_maternal', 'in_laws',
+        // 'by_marriage'. KinshipEdgeClassifier.fromServerCategory()
+        // translates these to client categories. Previously this field
+        // was never parsed, so PersonData.kinshipCategory was always
+        // null — wasting the server's pre-computed category.
+        'kinshipCategory': node['kinshipCategory'] ?? node['relationshipCategory'],
+        'computedKinship': node['computedKinship'] ?? node['englishTerm'],
       };
     }).toList();
 
@@ -388,11 +397,16 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     // We mutate a COPY (not the original list references) so Riverpod
     // detects the change and triggers a rebuild.
     final newPersons = List<Map<String, dynamic>>.from(cached.persons);
+    // v67 (BUG-12 FIX): Infer the generation index from the relationship
+    // key so the newly-added node lands on the correct ring immediately,
+    // instead of flashing on the anchor ring (gen 0) for ~500ms until
+    // the server refetch lands.
+    final inferredGen = _inferGenerationIndex(relationshipKey);
     newPersons.add(<String, dynamic>{
       'id': personId,
       'name': personName,
       'gender': gender,
-      'generationIndex': 0, // placeholder; server will correct this
+      'generationIndex': inferredGen,
       'isAnchor': false,
       'photoUrl': photoUrl,
       'isDeceased': isDeceased,
@@ -418,6 +432,71 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       isTruncated: cached.isTruncated,
       totalCount: cached.totalCount,
     );
+  }
+
+  /// v67 (BUG-12): Infers the generation index for a newly-added member
+  /// based on their relationship key to the anchor.
+  ///
+  /// Returns the generation offset:
+  ///   - parent/grandparent/aunt/uncle → negative (ancestors, upper rings)
+  ///   - child/grandchild/niece/nephew → positive (descendants, lower rings)
+  ///   - sibling/spouse/cousin → 0 (same generation as anchor)
+  ///   - unknown → 0 (safe default; server refetch will correct it)
+  static int _inferGenerationIndex(String relationshipKey) {
+    final k = relationshipKey.toLowerCase().trim();
+    // Ancestors (up)
+    if (k == 'father' || k == 'mother' || k == 'parent' ||
+        k == 'step_father' || k == 'step_mother' ||
+        k == 'stepfather' || k == 'stepmother') {
+      return -1;
+    }
+    if (k == 'grandfather' || k == 'grandmother' || k == 'grandparent' ||
+        k.startsWith('paternal_grand') || k.startsWith('maternal_grand')) {
+      return -2;
+    }
+    if (k == 'great_grandfather' || k == 'great_grandmother' ||
+        k.startsWith('great_grand')) {
+      return -3;
+    }
+    if (k == 'uncle' || k == 'aunt' || k.startsWith('paternal_uncle') ||
+        k.startsWith('paternal_aunt') || k.startsWith('maternal_uncle') ||
+        k.startsWith('maternal_aunt') || k.startsWith('fathers_brother') ||
+        k.startsWith('fathers_sister') || k.startsWith('mothers_brother') ||
+        k.startsWith('mothers_sister')) {
+      return -1; // aunts/uncles are same generation as parents
+    }
+    // Descendants (down)
+    if (k == 'son' || k == 'daughter' || k == 'child' ||
+        k == 'step_son' || k == 'step_daughter' ||
+        k == 'stepson' || k == 'stepdaughter') {
+      return 1;
+    }
+    if (k == 'grandson' || k == 'granddaughter' || k == 'grandchild') {
+      return 2;
+    }
+    if (k == 'nephew' || k == 'niece' ||
+        k.startsWith('brothers_son') || k.startsWith('brothers_daughter') ||
+        k.startsWith('sisters_son') || k.startsWith('sisters_daughter')) {
+      return 1; // nieces/nephews are same generation as children
+    }
+    // Same generation
+    if (k == 'brother' || k == 'sister' || k == 'sibling' ||
+        k == 'husband' || k == 'wife' || k == 'spouse' || k == 'partner' ||
+        k == 'cousin' || k.startsWith('cousin') ||
+        k.startsWith('elder_brother') || k.startsWith('younger_brother') ||
+        k.startsWith('elder_sister') || k.startsWith('younger_sister') ||
+        k.startsWith('half_brother') || k.startsWith('half_sister') ||
+        k.startsWith('step_brother') || k.startsWith('step_sister')) {
+      return 0;
+    }
+    // In-laws — same generation as the corresponding blood relation
+    if (k.contains('in_law') || k.contains('in-law')) {
+      if (k.contains('father') || k.contains('mother')) return -1;
+      if (k.contains('son') || k.contains('daughter')) return 1;
+      return 0; // sibling-in-law
+    }
+    // Unknown — safe default
+    return 0;
   }
 
   @override

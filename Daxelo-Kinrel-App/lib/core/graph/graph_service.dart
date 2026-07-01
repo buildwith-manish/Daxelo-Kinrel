@@ -104,9 +104,11 @@ class Edge {
 /// The intermediate terms must be ones that _resolveSingleStepKey() knows
 /// how to resolve — 'child', 'parent', 'sibling', 'spouse' are all handled.
 ///
-/// For compound stored types (e.g. 'father_in_law'), the inverse must also
-/// be a term that either exists as a key in KinshipService or can be
-/// resolved by _resolveSingleStepKey().
+/// v67 (BUG-1 FIX): Expanded to cover compound Indian kinship keys that
+/// were previously missing (paternal_grandfather, fathers_elder_brother,
+/// fathers_brothers_son, etc.). Previously, missing keys fell through to
+/// `inverseType() ?? type` which returned the key UNCHANGED — causing
+/// BFS to produce wrong path types for multi-hop traversal.
 const Map<String, String> inverseTypeMap = {
   // Core blood relations — gender resolved later by target's gender
   'father': 'child',
@@ -120,11 +122,18 @@ const Map<String, String> inverseTypeMap = {
   'brother': 'sibling',
   'sister': 'sibling',
   'sibling': 'sibling',
+  'elder_brother': 'sibling',
+  'younger_brother': 'sibling',
+  'elder_sister': 'sibling',
+  'younger_sister': 'sibling',
+  'half_brother': 'sibling',
+  'half_sister': 'sibling',
 
   // Spouses
   'husband': 'spouse',
   'wife': 'spouse',
   'spouse': 'spouse',
+  'partner': 'spouse',
 
   // Grandparents / grandchildren
   'grandfather': 'grandchild',
@@ -134,11 +143,60 @@ const Map<String, String> inverseTypeMap = {
   'grandson': 'grandparent',
   'granddaughter': 'grandparent',
 
+  // Paternal/maternal grandparents (compound)
+  'paternal_grandfather': 'grandchild',
+  'paternal_grandmother': 'grandchild',
+  'maternal_grandfather': 'grandchild',
+  'maternal_grandmother': 'grandchild',
+
+  // Great-grandparents
+  'great_grandfather': 'great_grandchild',
+  'great_grandmother': 'great_grandchild',
+  'great_grandparent': 'great_grandchild',
+  'great_grandchild': 'great_grandparent',
+  'great_grandson': 'great_grandparent',
+  'great_granddaughter': 'great_grandparent',
+
   // Aunts / uncles / nephews / nieces
   'uncle': 'sibling_child',
   'aunt': 'sibling_child',
   'nephew': 'parent_sibling',
   'niece': 'parent_sibling',
+
+  // Paternal/maternal aunts/uncles (compound)
+  'paternal_uncle': 'sibling_child',
+  'paternal_aunt': 'sibling_child',
+  'maternal_uncle': 'sibling_child',
+  'maternal_aunt': 'sibling_child',
+
+  // Indian compound aunt/uncle forms
+  'fathers_brother': 'sibling_child',
+  'fathers_sister': 'sibling_child',
+  'fathers_elder_brother': 'sibling_child',
+  'fathers_younger_brother': 'sibling_child',
+  'mothers_brother': 'sibling_child',
+  'mothers_sister': 'sibling_child',
+
+  // Indian compound niece/nephew forms (sibling's children)
+  'brothers_son': 'parent_sibling',
+  'brothers_daughter': 'parent_sibling',
+  'sisters_son': 'parent_sibling',
+  'sisters_daughter': 'parent_sibling',
+
+  // Cousins (symmetric — cousin's cousin is still cousin)
+  'cousin': 'cousin',
+  'cousin_brother': 'cousin',
+  'cousin_sister': 'cousin',
+
+  // Indian compound cousin forms (parent's sibling's children)
+  'fathers_brothers_son': 'cousin',
+  'fathers_brothers_daughter': 'cousin',
+  'fathers_sisters_son': 'cousin',
+  'fathers_sisters_daughter': 'cousin',
+  'mothers_brothers_son': 'cousin',
+  'mothers_brothers_daughter': 'cousin',
+  'mothers_sisters_son': 'cousin',
+  'mothers_sisters_daughter': 'cousin',
 
   // In-laws
   'father_in_law': 'child_in_law',
@@ -147,6 +205,25 @@ const Map<String, String> inverseTypeMap = {
   'daughter_in_law': 'parent_in_law',
   'brother_in_law': 'sibling_in_law',
   'sister_in_law': 'sibling_in_law',
+  'parent_in_law': 'child_in_law',
+  'child_in_law': 'parent_in_law',
+  'sibling_in_law': 'sibling_in_law',
+
+  // Indian compound in-law forms (spouse's family)
+  'wifes_father': 'child_in_law',
+  'wifes_mother': 'child_in_law',
+  'husbands_father': 'child_in_law',
+  'husbands_mother': 'child_in_law',
+  'wifes_brother': 'sibling_in_law',
+  'wifes_sister': 'sibling_in_law',
+  'husbands_brother': 'sibling_in_law',
+  'husbands_sister': 'sibling_in_law',
+
+  // Children's spouses (in-law from child's marriage)
+  'sons_wife': 'parent_in_law',
+  'sons_husband': 'parent_in_law',
+  'daughters_husband': 'parent_in_law',
+  'daughters_wife': 'parent_in_law',
 
   // Step relations
   'step_father': 'step_child',
@@ -159,8 +236,19 @@ const Map<String, String> inverseTypeMap = {
   'step_parent': 'step_child',
   'step_sibling': 'step_sibling',
 
-  // Cousins (symmetric)
-  'cousin': 'cousin',
+  // Legacy single-word step forms
+  'stepfather': 'stepchild',
+  'stepmother': 'stepchild',
+  'stepchild': 'stepparent',
+  'stepson': 'stepfather',
+  'stepdaughter': 'stepfather',
+  'stepbrother': 'stepbrother',
+  'stepsister': 'stepsister',
+
+  // Synthetic / unknown
+  'related': 'related',
+  'unknown': 'unknown',
+  'other': 'other',
 };
 
 /// Kinship term mapping for relationship composition.
@@ -232,6 +320,11 @@ class GraphService {
       }
 
       adjacency[rel.fromId]?.add(Edge(rel.toId, rel.type, 'from'));
+      // v67 (BUG-6 NOTE): The 'direction' field is stored but NOT used
+      // by _buildPathResult() or composeKinshipTerm() — the inverse
+      // type is already applied here via inverseType(). The direction
+      // field exists for potential future use (e.g. UI showing the
+      // traversal direction). Do NOT double-invert based on direction.
       adjacency[rel.toId]?.add(Edge(rel.fromId, inverseType(rel.type), 'to'));
     }
 

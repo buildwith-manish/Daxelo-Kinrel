@@ -623,6 +623,11 @@ class _GraphNodeState extends ConsumerState<GraphNode>
         // ── Relation label below name ─────────────────────────────
         // Same FittedBox treatment for the relationship label so localized
         // strings (Arabic, Hindi, etc.) don't clip in narrow nodes.
+        //
+        // v67 (BUG-20 FIX): The viewer's "You" label should always use
+        // the teal self color, even when the viewer is not the anchor.
+        // Previously the label used _borderColor which could be a
+        // non-teal relationship color when isAnchor==false.
         if (!widget.isAnonymous && widget.relationLabel.isNotEmpty)
           FittedBox(
             fit: BoxFit.scaleDown,
@@ -632,7 +637,9 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 11.0,
                 fontWeight: FontWeight.w500,
-                color: _borderColor,
+                color: widget.relationLabel == 'You'
+                    ? RelationshipColors.self
+                    : _borderColor,
               ),
               textAlign: TextAlign.center,
               maxLines: 1,

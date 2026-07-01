@@ -367,7 +367,29 @@ class StructuralKinshipClassifier {
       );
     }
     if (hasSpouse && childCount > 0 && parentCount == 0) {
-      // Spouse's child (from previous marriage) = step-child → extended
+      // v67 (BUG-8 FIX): Spouse's child is NOT always a step-child.
+      // If the path is ['wife', 'son'] or ['husband', 'daughter'],
+      // the child is likely the viewer's OWN child (shared with the
+      // spouse), not a step-child from a previous marriage.
+      //
+      // Heuristic: a single spouse step + single child step = own child
+      // (blood relation through the marriage). Only classify as
+      // step-child if there are additional hops suggesting a different
+      // parent (e.g. spouse + parent + child = spouse's parent's other
+      // child = step-sibling, not step-child).
+      //
+      // This prevents the user's own children from being misclassified
+      // as step-children (grey/extended) when they're reachable via
+      // the spouse.
+      if (spouseCount == 1 && childCount == 1 && siblingCount == 0) {
+        final isFemale = targetGender == 'female' || targetGender == 'f';
+        return StructuralClassification(
+          category: KinshipEdgeCategory.child,
+          label: isFemale ? 'Daughter' : 'Son',
+          key: isFemale ? 'daughter' : 'son',
+        );
+      }
+      // Multi-hop spouse+child path — treat as step-child (extended).
       final isFemale = targetGender == 'female' || targetGender == 'f';
       return StructuralClassification(
         category: KinshipEdgeCategory.extended,
@@ -535,7 +557,15 @@ class StructuralKinshipClassifier {
     }
     // Grandparent/aunt/cousin direct keys
     if (t.startsWith('grand') || t.startsWith('paternal_grand') || t.startsWith('maternal_grand')) {
-      return _StepRole.parent; // treat as parent (up a generation)
+      // v67 (BUG-9 FIX): Distinguish grandchild from grandparent.
+      // 'grandson', 'granddaughter', 'grandchild' are DOWN a generation
+      // (child role). 'grandfather', 'grandmother', 'grandparent' and
+      // paternal/maternal variants are UP a generation (parent role).
+      if (t == 'grandson' || t == 'granddaughter' || t == 'grandchild' ||
+          t == 'great_grandson' || t == 'great_granddaughter' || t == 'great_grandchild') {
+        return _StepRole.child;
+      }
+      return _StepRole.parent; // grandfather/grandmother = up a generation
     }
     if (t == 'uncle' || t == 'aunt' || t.startsWith('fathers_brother') || t.startsWith('fathers_sister') ||
         t.startsWith('mothers_brother') || t.startsWith('mothers_sister')) {
