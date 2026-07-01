@@ -2111,13 +2111,15 @@ Future<FamilyRelationship> createRelationship({
   }
 
   // 1. Create the forward relationship
-  // v75 FIX: Use a simpler INSERT without .select() — the SELECT after
-  // INSERT can timeout on web (especially with triggers), causing the
-  // entire operation to appear as "failed" even though the INSERT
-  // succeeded. We just insert and don't wait for the returned row.
+  // v82 FIX: Re-added .select().maybeSingle() — the previous v75 fix
+  // removed it to avoid timeouts, but on Flutter Web the insert without
+  // .select() can return before the row is actually committed, causing
+  // the graph refresh to fetch 0 relationships (the row isn't there yet).
+  // The .select() forces the client to wait for the row to be readable.
+  Map<String, dynamic>? response;
   try {
     debugPrint('[CREATE-REL] Inserting forward relationship...');
-    await client
+    response = await client
         .from(_kRelationshipTable)
         .insert({
           'id': forwardRelId,
@@ -2131,8 +2133,10 @@ Future<FamilyRelationship> createRelationship({
           'createdAt': now,
           'updatedAt': now,
         })
+        .select()
+        .maybeSingle()
         .timeout(const Duration(seconds: 15));
-    debugPrint('[CREATE-REL] ✅ Forward INSERT succeeded (id=$forwardRelId)');
+    debugPrint('[CREATE-REL] ✅ Forward INSERT succeeded (id=$forwardRelId, response=$response)');
   } on PostgrestException catch (e) {
     debugPrint('[CREATE-REL] ❌ Forward INSERT PostgrestException: code=${e.code} message=${e.message} hint=${e.hint} details=${e.details}');
     rethrow;
@@ -2142,16 +2146,20 @@ Future<FamilyRelationship> createRelationship({
     rethrow;
   }
 
-  // Build the response from our local data (we don't need the server's
-  // returned row — we know what we inserted).
-  final response = {
-    'id': forwardRelId,
-    'familyId': familyId,
-    'fromPersonId': fromPersonId,
-    'toPersonId': toPersonId,
-    'relationshipKey': relationshipKey,
-    'isActive': true,
-  };
+  // Don't throw if response is null — the INSERT likely succeeded
+  // but Supabase didn't return the row (timeout on SELECT).
+  if (response == null) {
+    debugPrint('[CREATE-REL] ⚠️ Forward INSERT returned null — assuming success');
+    response = {
+      'id': forwardRelId,
+      'familyId': familyId,
+      'fromPersonId': fromPersonId,
+      'toPersonId': toPersonId,
+      'relationshipKey': relationshipKey,
+      'isActive': true,
+    };
+  }
+  debugPrint('[CREATE-REL] ✅ Forward relationship created with id: ${response['id']}');
 
   // 2. Create the inverse relationship (best-effort, only if known)
   //
@@ -2179,7 +2187,7 @@ Future<FamilyRelationship> createRelationship({
         'isActive': true,
         'createdAt': now,
         'updatedAt': now,
-      }).timeout(const Duration(seconds: 10));
+      }).select().maybeSingle().timeout(const Duration(seconds: 10));
       debugPrint('[CREATE-REL] ✅ Inverse relationship created');
     } on PostgrestException catch (e) {
       // Best-effort — inverse creation failure shouldn't block the user
