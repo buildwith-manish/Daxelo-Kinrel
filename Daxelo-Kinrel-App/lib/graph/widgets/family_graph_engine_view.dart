@@ -575,7 +575,11 @@ class _FamilyGraphEngineViewState
                   // watches selectedEdgeProvider independently. This way,
                   // tapping an edge to select it only rebuilds the edge
                   // painter — NOT the entire canvas (nodes, layout, etc).
+                  // v85 FIX: Add ValueKey with edges length + positions
+                  // length so the wrapper rebuilds when data changes on
+                  // Flutter Web (where identical() can be unreliable).
                   child: _EdgeSelectionWrapper(
+                    key: ValueKey('edge_layer_${edges.length}_${layout.positions.length}'),
                     // BUG 1 FIX: Apply Y offset so edge endpoints connect
                     // to the visual circle center, not the Positioned box
                     // center. The circle is at the TOP of the Column
@@ -2012,18 +2016,17 @@ class _EngineEdgePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _EngineEdgePainter old) {
-    // v2.2 Fix 3: Repaint when ANY of the following changes:
-    //   - edges list (new/deleted relationships)
-    //   - positions map (nodes moved during pan/zoom or layout recompute)
-    //   - selectedEdgeId (user tapped a different edge)
-    // Previously only edges.length and identical(edges) were checked, so
-    // when nodes moved but the edge list stays the same, edges were NOT
-    // repainted — they stayed at their old positions until a full rebuild.
+    // v85 FIX: On Flutter Web (dart2js), identical() can return false
+    // even when the objects are the same, and true when they're
+    // logically different. Use content-based comparison instead.
+    // Also check edgeCategories and edgeCustomColors which were missing.
     return old.edges.length != edges.length ||
         old.selectedEdgeId != selectedEdgeId ||
+        old.positions.length != positions.length ||
+        old.edgeCategories.length != edgeCategories.length ||
+        old.edgeCustomColors.length != edgeCustomColors.length ||
         !identical(old.edges, edges) ||
-        !identical(old.positions, positions) ||
-        old.positions.length != positions.length;
+        !identical(old.positions, positions);
   }
 }
 
