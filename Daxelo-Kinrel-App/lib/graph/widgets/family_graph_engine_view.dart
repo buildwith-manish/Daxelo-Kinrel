@@ -56,6 +56,7 @@ import '../interaction/expand_collapse.dart'
 import '../../core/constants/feature_flags.dart' show kEnableGraphShareExport;
 import '../../core/constants/brand_colors.dart' show KinrelColors;
 import '../../core/kinship/kinship_edge_style.dart';
+import '../../core/kinship/structural_kinship_classifier.dart';
 import '../../core/kinship/kinship_service.dart' show KinshipService;
 import '../../core/relationship/relationship_engine.dart' show RelationshipEngine;
 import '../../core/services/graph_layout_service.dart' show GraphPerson;
@@ -174,12 +175,16 @@ class _FamilyGraphEngineViewState
   Size _viewportSize = Size.zero;
   bool _framed = false; // one-time initial framing per family
 
-  // PERF: Cache relation labels/keys so they don't recompute on every
-  // pan/zoom frame. Only recompute when the underlying flat data changes.
+  // PERF: Cache relation labels/keys/categories so they don't recompute
+  // on every pan/zoom frame. Only recompute when the underlying flat
+  // data changes.
   FlatGraphResult? _lastFlat;
   String? _lastViewerId;
   Map<String, String>? _cachedRelationLabels;
   Map<String, String>? _cachedRelationKeys;
+  // v69: Cache the authoritative KinshipEdgeCategory per person —
+  // eliminates the lossy string round-trip that caused grey nodes.
+  Map<String, KinshipEdgeCategory>? _cachedRelationCategories;
 
   // Repaint/recull throttling.
   Rect _lastCullViewport = Rect.zero;
@@ -421,11 +426,16 @@ class _FamilyGraphEngineViewState
           RelationshipEngine.instance.invalidateCache();
           _cachedRelationLabels = _relationLabels(flat, viewerPersonId);
           _cachedRelationKeys = _relationKeys(flat, viewerPersonId);
+          // v69: Compute authoritative categories — this is the SINGLE
+          // source of truth for node/edge colors. No lossy string
+          // round-trip through KinshipEdgeClassifier.classify().
+          _cachedRelationCategories = _relationCategories(flat, viewerPersonId);
           _lastFlat = flat;
           _lastViewerId = viewerPersonId;
         }
         final relationLabelById = _cachedRelationLabels!;
         final relationKeyById = _cachedRelationKeys!;
+        final relationCategoryById = _cachedRelationCategories!;
 
         // Expand/collapse filter — empty visible set means "show everything".
         final Set<String> allowed =
@@ -519,48 +529,29 @@ class _FamilyGraphEngineViewState
         // selection + lateral offsets for parallel edges.
         final edges = EdgeDeduplicator.deduplicate(rawEdges);
 
-        // v65 (BUGFIX): Resolve each edge's relationshipKey from the
-        // anchor's perspective so the edge LINE color matches the node
-        // color. Previously the edge used the raw stored key, which could
-        // be the inverse direction (e.g. 'child' instead of 'father'),
-        // causing the edge to be pink while the node was blue.
+        // v69: Resolve each edge's color from the authoritative category
+        // map (relationCategoryById) — no lossy string round-trip.
         //
-        // For each deduped edge, if one endpoint is the anchor (or the
-        // viewer), replace the edge's relationshipKey with the
-        // BFS-resolved key for the OTHER endpoint. This guarantees
-        // edge color == node color for every anchor-connected edge.
-        //
-        // The anchor is identified from flat.persons (isAnchor == true),
-        // falling back to viewerPersonId. The BFS source used by
-        // _relationKeys is one of these two, so checking both covers
-        // all cases.
+        // For each deduped edge, if one endpoint is the anchor, use the
+        // OTHER endpoint's category to determine the edge color. This
+        // guarantees edge color == node color for every anchor-connected
+        // edge, with zero risk of grey fallback from a misclassified key.
         final String? anchorId = _findAnchorId(flat, viewerPersonId);
-        if (anchorId != null && relationKeyById.isNotEmpty) {
-          for (int i = 0; i < edges.length; i++) {
-            final deduped = edges[i];
+        // Build a per-edge category map for the painter.
+        final edgeCategories = <String, KinshipEdgeCategory>{};
+        if (anchorId != null && relationCategoryById.isNotEmpty) {
+          for (final deduped in edges) {
             final e = deduped.edge;
             // Determine which endpoint is the anchor and which is the
-            // relative. Use the relative's BFS-resolved key.
-            final String? relativeKey;
+            // relative. Use the relative's authoritative category.
+            KinshipEdgeCategory? cat;
             if (e.sourceId == anchorId) {
-              relativeKey = relationKeyById[e.targetId];
+              cat = relationCategoryById[e.targetId];
             } else if (e.targetId == anchorId) {
-              relativeKey = relationKeyById[e.sourceId];
-            } else {
-              relativeKey = null; // edge between two non-anchor nodes
+              cat = relationCategoryById[e.sourceId];
             }
-            if (relativeKey != null && relativeKey.isNotEmpty) {
-              edges[i] = DedupedEdge(
-                edge: GraphEdgeData(
-                  id: e.id,
-                  sourceId: e.sourceId,
-                  targetId: e.targetId,
-                  relationshipKey: relativeKey,
-                  isPrivate: e.isPrivate,
-                ),
-                lateralOffset: deduped.lateralOffset,
-                parallelCount: deduped.parallelCount,
-              );
+            if (cat != null) {
+              edgeCategories[e.id] = cat;
             }
           }
         }
@@ -607,12 +598,13 @@ class _FamilyGraphEngineViewState
                         ),
                     },
                     edges: edges,
+                    edgeCategories: edgeCategories,
                     cache: _edgePathCache,
                   ),
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.
                 ..._buildNodeLayer(
-                    layout, visible, personById, relationLabelById, relationKeyById, viewerPersonId),
+                    layout, visible, personById, relationLabelById, relationCategoryById, viewerPersonId),
               ],
             ),
           ),
@@ -653,7 +645,7 @@ class _FamilyGraphEngineViewState
     Set<String> visible,
     Map<String, Map<String, dynamic>> personById,
     Map<String, String> relationLabelById,
-    Map<String, String> relationKeyById,
+    Map<String, KinshipEdgeCategory> relationCategoryById,
     String? viewerPersonId,
   ) {
     final _Lod lod = _lodFor(_camera.zoomLevel);
@@ -670,9 +662,8 @@ class _FamilyGraphEngineViewState
           _dotColor(
             p['gender'] as String?,
             (p['isAnchor'] as bool?) ?? false,
-            // FIX (node-colors): Use the RAW kinship key for color
-            // resolution, not the localized display name.
-            relationshipKey: relationKeyById[id],
+            // v69: Use the authoritative category for dot color.
+            category: relationCategoryById[id],
           ),
         ));
       }
@@ -696,8 +687,8 @@ class _FamilyGraphEngineViewState
       final p = personById[id];
       if (pos == null || p == null) continue;
       final Widget node = lod == _Lod.full
-          ? _buildFullNode(id, p, relationLabelById, relationKeyById, viewerPersonId)
-          : _buildChipNode(p, relationshipKey: relationKeyById[id]);
+          ? _buildFullNode(id, p, relationLabelById, relationCategoryById, viewerPersonId)
+          : _buildChipNode(p, category: relationCategoryById[id]);
 
       // v62: Dim nodes not in the highlighted generation (if set).
       final int personGen =
@@ -725,7 +716,7 @@ class _FamilyGraphEngineViewState
     String id,
     Map<String, dynamic> p,
     Map<String, String> labels,
-    Map<String, String> relationKeyById,
+    Map<String, KinshipEdgeCategory> relationCategoryById,
     String? viewerPersonId,
   ) {
     // v2.2: If this node IS the viewer, show "You" as the relation label.
@@ -738,11 +729,10 @@ class _FamilyGraphEngineViewState
       isAnchor: (p['isAnchor'] as bool?) ?? false,
       photoUrl: p['photoUrl'] as String?,
       isDeceased: (p['isDeceased'] as bool?) ?? false,
-      // FIX (node-colors): Pass the RAW kinship key so GraphNode can
-      // resolve the correct border/tint color from the 8-color scheme.
-      // Previously this was not passed at all, causing every non-anchor
-      // node to fall back to 'extended' (slate #64748B).
-      relationshipKey: relationKeyById[id],
+      // v69: Pass the AUTHORITATIVE category directly — no lossy string
+      // round-trip. GraphNode uses styleForCategory(category) for its
+      // border/tint color, which is always correct.
+      category: relationCategoryById[id],
       // v2.2: "You" label for the viewer's node; otherwise use the
       // computed relation label from the viewer's perspective.
       relationLabel: isViewer ? 'You' : (labels[id] ?? ''),
@@ -766,11 +756,11 @@ class _FamilyGraphEngineViewState
   }
 
   /// Lightweight mid-zoom node: a coloured dot + the name, no avatar/animations.
-  Widget _buildChipNode(Map<String, dynamic> p, {String? relationshipKey}) {
+  Widget _buildChipNode(Map<String, dynamic> p, {KinshipEdgeCategory? category}) {
     final color = _dotColor(
       p['gender'] as String?,
       (p['isAnchor'] as bool?) ?? false,
-      relationshipKey: relationshipKey,
+      category: category,
     );
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -1204,6 +1194,149 @@ class _FamilyGraphEngineViewState
     return keys;
   }
 
+  /// v69: Computes the AUTHORITATIVE [KinshipEdgeCategory] for every
+  /// person in the graph from the viewer/anchor's perspective.
+  ///
+  /// This is the SINGLE source of truth for node AND edge colors. It
+  /// eliminates the lossy string round-trip that caused grey nodes:
+  /// previously, the render path stored only the kinship key STRING
+  /// (via `_relationKeys`), then re-classified it via
+  /// `KinshipEdgeClassifier.classify()` — which has gaps (e.g.
+  /// 'great_grandfather', 'unknown', compound keys → all fall through
+  /// to 'extended' grey).
+  ///
+  /// This method returns the category DIRECTLY from the structural
+  /// classifier, which never has gaps. The caller passes the category
+  /// to `GraphNode` and the edge painter, which use
+  /// `KinshipEdgeStyleResolver.styleForCategory(category)` — always
+  /// correct, never grey for a known relationship.
+  ///
+  /// PRIORITY (first match wins):
+  ///   1. Direct edge from anchor to person → use the STORED key the
+  ///      user explicitly selected (honor their choice, don't let BFS
+  ///      overwrite it). Classify via the structural classifier.
+  ///   2. Multi-hop BFS via RelationshipEngine → use classification.category.
+  ///   3. Fallback: null (GraphNode uses 'extended' grey — spec-correct
+  ///      for genuinely unclassifiable nodes).
+  Map<String, KinshipEdgeCategory> _relationCategories(
+    FlatGraphResult flat,
+    String? viewerPersonId,
+  ) {
+    final categories = <String, KinshipEdgeCategory>{};
+
+    // Build GraphPerson list for the structural classifier.
+    final graphPersons = <GraphPerson>[
+      for (final Map<String, dynamic> p in flat.persons)
+        if (p['id'] != null)
+          GraphPerson(
+            id: p['id'] as String,
+            name: (p['name'] as String?) ?? '',
+            gender: p['gender'] as String?,
+            generationIndex: (p['generationIndex'] as num?)?.toInt() ?? 0,
+            isAnchor: (p['isAnchor'] as bool?) ?? false,
+            photoUrl: p['photoUrl'] as String?,
+            isDeceased: (p['isDeceased'] as bool?) ?? false,
+          ),
+    ];
+    final graphRels = <({String fromId, String toId, String type})>[
+      for (final Map<String, dynamic> r in flat.relationships)
+        if (r['fromPersonId'] != null &&
+            r['toPersonId'] != null &&
+            r['relationshipKey'] != null)
+          (
+            fromId: r['fromPersonId'] as String,
+            toId: r['toPersonId'] as String,
+            type: r['relationshipKey'] as String,
+          ),
+    ];
+
+    // Find the BFS source (viewer or anchor).
+    String? bfsSource = viewerPersonId;
+    if (bfsSource == null && graphPersons.isNotEmpty) {
+      final anchor = graphPersons.firstWhere(
+        (p) => p.isAnchor,
+        orElse: () => graphPersons.first,
+      );
+      bfsSource = anchor.id;
+    }
+    // Guard: if source is not in graphPersons, fall back to anchor.
+    final effectiveSource = graphPersons.any((p) => p.id == bfsSource)
+        ? bfsSource
+        : (graphPersons.any((p) => p.isAnchor)
+            ? graphPersons.firstWhere((p) => p.isAnchor).id
+            : (graphPersons.isNotEmpty ? graphPersons.first.id : null));
+
+    if (effectiveSource == null || graphPersons.isEmpty) return categories;
+
+    // Build a set of direct-edge person IDs for fast lookup.
+    // A "direct edge" is any edge where one endpoint is the source.
+    final directEdgePersons = <String>{};
+    for (final r in flat.relationships) {
+      final from = r['fromPersonId'] as String?;
+      final to = r['toPersonId'] as String?;
+      final key = r['relationshipKey'] as String?;
+      if (key == null || key.isEmpty) continue;
+      if (to == effectiveSource && from != null) {
+        directEdgePersons.add(from);
+      }
+      if (from == effectiveSource && to != null) {
+        directEdgePersons.add(to);
+      }
+    }
+
+    final engine = RelationshipEngine.instance;
+    for (final GraphPerson p in graphPersons) {
+      if (p.id == effectiveSource) continue; // source is "self"
+
+      KinshipEdgeCategory? category;
+
+      // Priority 1: Direct edge from anchor → use the STORED key.
+      // Honor the user's explicit selection — don't let BFS overwrite.
+      if (directEdgePersons.contains(p.id)) {
+        // Find the stored key for this direct edge.
+        String? storedKey;
+        for (final r in flat.relationships) {
+          final from = r['fromPersonId'] as String?;
+          final to = r['toPersonId'] as String?;
+          final key = r['relationshipKey'] as String?;
+          if (key == null || key.isEmpty) continue;
+          if (to == effectiveSource && from == p.id) {
+            storedKey = key;
+            break;
+          }
+          if (from == effectiveSource && to == p.id) {
+            storedKey = key;
+            break;
+          }
+        }
+        if (storedKey != null) {
+          // Use the structural classifier to get the authoritative
+          // category from the stored key. This handles ALL keys
+          // correctly — no gaps.
+          final classification = StructuralKinshipClassifier.classify(
+            path: [storedKey],
+            targetGender: p.gender,
+          );
+          category = classification.category;
+        }
+      }
+
+      // Priority 2: Multi-hop BFS via RelationshipEngine.
+      category ??= engine.resolveClassification(
+        viewerPersonId: effectiveSource,
+        targetPersonId: p.id,
+        persons: graphPersons,
+        relationships: graphRels,
+      )?.category;
+
+      if (category != null) {
+        categories[p.id] = category;
+      }
+    }
+
+    return categories;
+  }
+
   /// v65: Finds the anchor person ID from the flat graph data.
   ///
   /// Used to identify which node is the graph's center so that edge
@@ -1295,16 +1428,11 @@ class _FamilyGraphEngineViewState
   ///
   /// The anchor/viewer node always uses the Teal "self" color so it
   /// stands out from all other categories.
-  Color _dotColor(String? gender, bool isAnchor, {String? relationshipKey}) {
+  Color _dotColor(String? gender, bool isAnchor, {KinshipEdgeCategory? category}) {
     if (isAnchor) return KinshipEdgeColors.self;
-    // v2.2: Prefer kinship category color over plain gender color.
-    if (relationshipKey != null && relationshipKey.isNotEmpty) {
-      final style = KinshipEdgeStyleResolver.styleFor(relationshipKey);
-      // Don't use the 'self' category color for non-anchor nodes —
-      // fall through to gender-based color in that case.
-      if (style.category != KinshipEdgeCategory.self) {
-        return style.color;
-      }
+    // v69: Use the authoritative category directly — no string round-trip.
+    if (category != null && category != KinshipEdgeCategory.self) {
+      return KinshipEdgeStyleResolver.styleForCategory(category).color;
     }
     // Legacy fallback: gender-based color.
     switch (gender) {
@@ -1349,11 +1477,16 @@ class _EdgeSelectionWrapper extends ConsumerWidget {
   const _EdgeSelectionWrapper({
     required this.positions,
     required this.edges,
+    required this.edgeCategories,
     required this.cache,
   });
 
   final Map<String, Offset> positions;
   final List<DedupedEdge> edges;
+  /// v69: Per-edge authoritative category — eliminates the lossy string
+  /// round-trip. When present, the painter uses styleForCategory() instead
+  /// of styleFor(key).
+  final Map<String, KinshipEdgeCategory> edgeCategories;
   final EdgePathCache cache;
 
   @override
@@ -1363,6 +1496,7 @@ class _EdgeSelectionWrapper extends ConsumerWidget {
       painter: _EngineEdgePainter(
         positions: positions,
         edges: edges,
+        edgeCategories: edgeCategories,
         cache: cache,
         selectedEdgeId: selectedEdgeId,
       ),
@@ -1379,12 +1513,17 @@ class _EngineEdgePainter extends CustomPainter {
   _EngineEdgePainter({
     required this.positions,
     required this.edges,
+    required this.edgeCategories,
     required this.cache,
     this.selectedEdgeId,
   });
 
   final Map<String, Offset> positions;
   final List<DedupedEdge> edges;
+  /// v69: Per-edge authoritative category. When present, the painter
+  /// uses styleForCategory() instead of styleFor(key) — no lossy string
+  /// round-trip, no grey fallback for known relationships.
+  final Map<String, KinshipEdgeCategory> edgeCategories;
   final EdgePathCache cache;
   final String? selectedEdgeId;
 
@@ -1495,12 +1634,15 @@ class _EngineEdgePainter extends CustomPainter {
         continue;
       }
 
-      // Resolve the kinship edge style for this edge's key.
-      // v2.2 Fix 4: Add a fallback color and minimum alpha floor so edges
-      // are always visible. The 'extended' category uses alpha 0.45 which
-      // is correct for the dim aesthetic, but we floor at 0.3 to ensure
-      // the line is never invisible.
-      final style = KinshipEdgeStyleResolver.styleFor(e.relationshipKey);
+      // v69: Resolve the edge style from the AUTHORITATIVE category —
+      // no lossy string round-trip. If edgeCategories has this edge,
+      // use styleForCategory() (always correct, never grey for known
+      // relationships). Fall back to styleFor(key) only when no category
+      // is available (e.g. edges between two non-anchor nodes).
+      final KinshipEdgeCategory? edgeCat = edgeCategories[e.id];
+      final style = edgeCat != null
+          ? KinshipEdgeStyleResolver.styleForCategory(edgeCat)
+          : KinshipEdgeStyleResolver.styleFor(e.relationshipKey);
       final edgeColor = style.color ?? const Color(0xFF888888);
       final edgeAlpha = style.defaultAlpha.clamp(0.3, 1.0);
       final edgePaint = Paint()

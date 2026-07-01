@@ -262,6 +262,7 @@ class GraphNode extends ConsumerStatefulWidget {
     this.isDeceased = false,
     this.isAnonymous = false,
     this.relationshipKey,
+    this.category,
     required this.relationLabel,
     this.nodeState = NodeState.normal,
     this.opacity = 1.0,
@@ -298,6 +299,12 @@ class GraphNode extends ConsumerStatefulWidget {
 
   /// The relationship type key from the anchor to this person.
   final String? relationshipKey;
+
+  /// v69: The AUTHORITATIVE kinship category — the single source of
+  /// truth for node/edge color. When present, used directly via
+  /// styleForCategory(category). When null, falls back to
+  /// borderColorFor(relationshipKey) (lossy string round-trip).
+  final KinshipEdgeCategory? category;
 
   /// Display label for the relationship (e.g., "Father").
   final String relationLabel;
@@ -450,7 +457,15 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   Color get _borderColor {
     if (widget.isAnonymous) return _highContrast ? Colors.grey : KinrelColors.textDim;
     if (widget.isAnchor) return RelationshipColors.self;
-    final color = RelationshipColors.borderColorFor(widget.relationshipKey);
+    // v69: Prefer the AUTHORITATIVE category — no lossy string round-trip.
+    // styleForCategory() is always correct and never falls through to
+    // grey for a known relationship.
+    Color color;
+    if (widget.category != null) {
+      color = KinshipEdgeStyleResolver.styleForCategory(widget.category!).color;
+    } else {
+      color = RelationshipColors.borderColorFor(widget.relationshipKey);
+    }
     // High contrast: full opacity colors for WCAG AA 4.5:1 contrast
     return _highContrast ? Color.fromRGBO(color.red, color.green, color.blue, 1.0) : color;
   }
@@ -458,6 +473,11 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   Color get _tintColor {
     if (widget.isAnonymous) return Colors.transparent;
     if (widget.isAnchor) return RelationshipColors.selfTint;
+    // v69: Derive tint from the authoritative category when available.
+    if (widget.category != null) {
+      final color = KinshipEdgeStyleResolver.styleForCategory(widget.category!).color;
+      return color.withValues(alpha: 0.04);
+    }
     return RelationshipColors.tintFor(widget.relationshipKey);
   }
 

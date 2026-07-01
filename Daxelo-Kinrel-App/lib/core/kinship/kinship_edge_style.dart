@@ -358,7 +358,11 @@ class KinshipEdgeClassifier {
         k == 'grandparent' ||
         k.startsWith('grand') ||
         k.startsWith('paternal_grand') ||
-        k.startsWith('maternal_grand')) {
+        k.startsWith('maternal_grand') ||
+        // v69 stopgap: great_grandfather/great_grandmother/great_grandson
+        // etc. previously fell through to 'extended' (grey) because the
+        // pattern only matched startsWith('grand'), not startsWith('great_grand').
+        k.startsWith('great_grand')) {
       return KinshipEdgeCategory.grandparent;
     }
 
