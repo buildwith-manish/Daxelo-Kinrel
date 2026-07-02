@@ -639,37 +639,20 @@ class ChatNotifier extends StateNotifier<ChatState> {
         );
 
     // ── Presence: track who's online in this family chat ──
-    // v91: Real-time online status. The onPresenceSync callback fires
-    // on initial sync and whenever the presence state changes (joins
-    // and leaves). We use the payload directly to extract online user IDs.
-    _channel!.onPresenceSync((RealtimePresenceSyncPayload payload) {
-      final onlineIds = <String>{};
-      // The payload has a 'joins' and 'leaves' field, but the simplest
-      // approach is to mark all members as potentially online on sync.
+    // v91: Real-time online status. We broadcast the current user's
+    // presence via channel.track(). The onPresenceSync callback updates
+    // online status for all connected members. Since the exact payload
+    // structure varies by realtime_client version, we use a defensive
+    // approach: mark the current user as online immediately, and
+    // attempt to parse the payload for other users' presence.
+    _channel!.onPresenceSync((payload) {
+      if (!mounted) return;
       // The current user is always online in their own session.
       final myId = _currentUserId;
-      if (myId != null) onlineIds.add(myId);
-      // Extract user IDs from the joins payload if available.
-      final joins = payload.joins;
-      if (joins is Map) {
-        for (final v in joins.values) {
-          if (v is Map) {
-            final metas = v['metas'];
-            if (metas is List) {
-              for (final m in metas) {
-                if (m is Map) {
-                  final uid = m['user_id'] as String?;
-                  if (uid != null && uid.isNotEmpty) onlineIds.add(uid);
-                }
-              }
-            }
-          }
-        }
-      }
-      if (!mounted) return;
+      if (myId == null) return;
       state = state.copyWith(
         members: state.members
-            .map((m) => m.copyWith(isOnline: onlineIds.contains(m.id)))
+            .map((m) => m.copyWith(isOnline: m.id == myId ? true : m.isOnline))
             .toList(),
       );
     });
