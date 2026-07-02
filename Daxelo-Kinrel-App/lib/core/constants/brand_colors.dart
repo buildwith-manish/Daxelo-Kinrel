@@ -145,7 +145,11 @@ class KinrelColors {
   static const Color textSilver = Color(0xFFC9B4A8);
 
   /// Disabled/Hint — #8A7A72 (dim, placeholders only)
-  static const Color textDim = Color(0xFF8A7A72);
+  // KIN-08 FIX: Raised from #8A7A72 (4.14:1 on darkCard, 4.48:1 on
+  // darkBackground — both fail WCAG AA 4.5:1) to #C9B4A8 (~8.6:1 on
+  // both surfaces, passing AA with AAA headroom). This is an app-wide
+  // token swap — every subtitle, hint, and dim text inherits the fix.
+  static const Color textDim = Color(0xFFC9B4A8);
 
   /// Very muted dark text
   static const Color textMutedDark = Color(0xFF4A4A5E);
@@ -226,7 +230,7 @@ class KinrelColors {
   static const Color lightBg = lightBackground;
   static const Color lightTextPrimary = textDark;
   static const Color lightTextSecondary = textSecondaryLight;
-  static const Color lightTextDim = Color(0xFF8A7A72);
+  static const Color lightTextDim = Color(0xFFC9B4A8);
   static const Color lightBorder = Color(0x14000000); // rgba(0,0,0,0.08)
 
   // ── Utility ─────────────────────────────────────────────────────

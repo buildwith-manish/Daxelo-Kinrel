@@ -106,7 +106,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/post/create'),
+        // KIN-03 FIX: FAB now opens a quick-add bottom sheet with
+        // kinship-mapping actions in priority order, instead of
+        // jumping directly to /post/create (social post composer).
+        // The audit identified the post-create FAB as a Critical
+        // misdirection of the app's most prominent control away
+        // from its core value proposition.
+        onPressed: () => _showQuickAddSheet(context, families),
         backgroundColor: _cOrange,
         elevation: 4,
         shape: const CircleBorder(),
@@ -253,102 +259,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     .fadeIn(duration: 350.ms, delay: 50.ms)
                     .slideX(begin: -0.05, end: 0),
 
-                SizedBox(height: 16),
-
-                // Sparq Feed Row (24-hour ephemeral content)
-                SparqFeedRow()
-                    .animate()
-                    .fadeIn(duration: 350.ms, delay: 60.ms)
-                    .slideY(begin: -0.05, end: 0),
-
-                SizedBox(height: 16),
-
-                // Stories Row (Instagram-style circles)
-                _StoriesRow(familyId: primaryFamily.id)
-                    .animate()
-                    .fadeIn(duration: 350.ms, delay: 75.ms)
-                    .slideY(begin: -0.05, end: 0),
-
                 SizedBox(height: 20),
 
-                // Memory Vault tile — gold accent entry point
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: KinrelSpacing.base,
-                  ),
-                  child: DKCard(
-                    backgroundColor: _cCard,
-                    padding: KinrelSpacing.md,
-                    onTap: () => context.push('/memory-vault'),
-                    semanticLabel: 'Memory Vault, Family photos and moments',
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: KinrelColors.gold.withValues(alpha: 0.12),
-                          ),
-                          child: Icon(
-                            Icons.photo_library_outlined,
-                            color: KinrelColors.gold,
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Memory Vault',
-                                style: TextStyle(
-                                  fontFamily: KinrelTypography.displayFont,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: _cTextPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Family photos & moments',
-                                style: TextStyle(
-                                  fontFamily: KinrelTypography.bodyFont,
-                                  fontSize: 13,
-                                  color: _cTextDim,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          size: 16,
-                          color: _cTextDim,
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-                    .animate()
-                    .fadeIn(duration: 350.ms, delay: 90.ms)
-                    .slideX(begin: 0.05, end: 0),
+                // KIN-04/KIN-13 FIX: Home reduced from 7 sections to 3.
+                // Removed: Sparq row, Stories row, Memory Vault tile,
+                // Discover grid. These are accessible from their
+                // respective feature screens and the Quick-Add FAB.
+                // Home now shows: hero family card (with quick-action
+                // chips), occasions strip, and unified feed only.
 
-                SizedBox(height: 20),
-
-                // ── Discover Features Grid (v92) ─────────────────────────
-                // Surfaces all the app's features so users can find them
-                // without hunting through nested screens. Each tile
-                // navigates directly to its feature screen.
-                _DiscoverFeaturesGrid()
-                    .animate()
-                    .fadeIn(duration: 350.ms, delay: 95.ms)
-                    .slideY(begin: -0.05, end: 0),
-
-                SizedBox(height: 20),
-
-                // Hero Family Card (avatar is tappable → opens stories)
+                // Hero Family Card (with 3 quick-action chips)
                 _HeroFamilyCard(
                   family: primaryFamily,
                   detailAsync: ref.watch(familyDetailProvider(primaryFamily.id)),
@@ -529,6 +449,103 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // QUICK-ADD SHEET (KIN-03 FIX)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  void _showQuickAddSheet(BuildContext context, List<Family> families) {
+    final hasFamily = families.isNotEmpty;
+    final primaryFamilyId = hasFamily ? families.first.id : null;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _cCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Quick Add',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: _cTextPrimary,
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: _cOrange.withValues(alpha: 0.15),
+                  child: Icon(Icons.person_add_alt_1_rounded,
+                      color: _cOrange, size: 22),
+                ),
+                title: Text('Add Family Member',
+                  style: TextStyle(fontFamily: KinrelTypography.bodyFont,
+                    fontWeight: FontWeight.w600, color: _cTextPrimary)),
+                subtitle: Text(
+                  hasFamily
+                      ? 'Add a relative to ${families.first.name}'
+                      : 'Create a family first',
+                  style: TextStyle(fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12, color: _cTextDim)),
+                enabled: hasFamily,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  if (primaryFamilyId != null) {
+                    context.push('/family/$primaryFamilyId/add-person');
+                  }
+                },
+              ),
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: KinrelColors.gold.withValues(alpha: 0.15),
+                  child: Icon(Icons.photo_library_outlined,
+                      color: KinrelColors.gold, size: 22),
+                ),
+                title: Text('Add Memory',
+                  style: TextStyle(fontFamily: KinrelTypography.bodyFont,
+                    fontWeight: FontWeight.w600, color: _cTextPrimary)),
+                subtitle: Text('Save a photo to Family Vault',
+                  style: TextStyle(fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12, color: _cTextDim)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  context.push('/memory-vault');
+                },
+              ),
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: KinrelColors.purple.withValues(alpha: 0.15),
+                  child: Icon(Icons.edit_note_rounded,
+                      color: KinrelColors.purple, size: 22),
+                ),
+                title: Text('Post to Family Wall',
+                  style: TextStyle(fontFamily: KinrelTypography.bodyFont,
+                    fontWeight: FontWeight.w600, color: _cTextPrimary)),
+                subtitle: Text('Share an update with your family',
+                  style: TextStyle(fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12, color: _cTextDim)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  context.push('/post/create');
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1470,6 +1487,29 @@ class _HeroFamilyCard extends ConsumerWidget {
                             ],
                           ),
                         ),
+                        // KIN-04: 3 quick-action chips on the hero card
+                        // per audit recommendation: Graph, Add Member, Wall
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _QuickActionChip(
+                              icon: Icons.account_tree_outlined,
+                              label: 'Graph',
+                              onTap: () => context.push('/family/${family.id}/graph'),
+                            ),
+                            _QuickActionChip(
+                              icon: Icons.person_add_alt_1_rounded,
+                              label: 'Add Member',
+                              onTap: () => context.push('/family/${family.id}/add-person'),
+                            ),
+                            _QuickActionChip(
+                              icon: Icons.edit_note_rounded,
+                              label: 'Wall',
+                              onTap: () => context.push('/post/create'),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -1479,6 +1519,53 @@ class _HeroFamilyCard extends ConsumerWidget {
           ),
         ),
       ),
+      ),
+    );
+  }
+}
+
+/// A compact quick-action chip for the hero family card.
+class _QuickActionChip extends StatelessWidget {
+  const _QuickActionChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: _cOrange.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _cOrange.withValues(alpha: 0.25),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: _cOrange),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: _cOrange,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1584,15 +1671,15 @@ class _DiscoverFeaturesGrid extends StatelessWidget {
         route: '/festival-cards',
       ),
       _FeatureTile(
-        title: 'Oral History',
-        subtitle: 'Record family stories',
+        title: 'Family Stories',
+        subtitle: 'Record audio stories',
         icon: Icons.mic_none_outlined,
         color: const Color(0xFF8B5CF6), // purple
         route: '/oral-history',
       ),
       _FeatureTile(
-        title: 'Memories',
-        subtitle: 'Photos & timeline',
+        title: 'Timeline',
+        subtitle: 'Family events & history',
         icon: Icons.photo_album_outlined,
         color: const Color(0xFF06B6D4), // cyan
         route: '/memories',

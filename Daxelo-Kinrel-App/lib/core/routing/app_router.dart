@@ -58,10 +58,8 @@ import '../../features/family/presentation/join_family_screen.dart';
 import '../../features/family/presentation/family_qr_screen.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_builder_screen.dart';
-import '../../features/family/presentation/relationship_graph_screen.dart';
 import '../../features/family/presentation/family_graph_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
-import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
 import '../../features/profile/presentation/quiet_hours_screen.dart';
@@ -617,12 +615,11 @@ final routerProvider = Provider<GoRouter>((ref) {
               child: _PrefetchProfile(child: ProfileScreen()),
             ),
           ),
-          // Keep /settings in shell for backward compat
-          GoRoute(
-            path: '/settings',
-            pageBuilder: (context, state) =>
-                _instantPage(key: state.pageKey, child: SettingsScreen()),
-          ),
+          // KIN-01 FIX: Deleted /settings route and SettingsScreen.
+          // Code verification confirmed zero deep links to /settings
+          // anywhere in the codebase. ProfileScreen (/profile) is the
+          // live, actively-maintained "Me" surface that has already
+          // absorbed all settings sections.
         ],
       ),
 
@@ -1360,7 +1357,6 @@ class _BottomNav extends StatelessWidget {
     if (location.startsWith('/notifications')) return 3;
     if (location.startsWith('/explore')) return 0;
     if (location.startsWith('/profile')) return 4;
-    if (location.startsWith('/settings')) return 0;
     return 0;
   }
 

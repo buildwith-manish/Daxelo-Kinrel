@@ -175,6 +175,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
     // Load biometric lock from secure storage
     _loadBiometricState();
+    // KIN-05 FIX: Load the four previously-unpersisted toggles from
+    // secure storage, mirroring the _loadBiometricState pattern.
+    _loadNotificationToggleStates();
 
     // Show skeleton while profile is loading
     final isProfileLoading = user == null && profile == null;
@@ -227,17 +230,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 onTap: () => context.push('/profile/linked-accounts'),
               ),
               _divider(),
-              _SettingsRow(
-                icon: Icons.language_outlined,
-                label: 'Preferred language',
-                subtitle:
-                    _languageOptions[profile?.preferredLanguage ?? 'en'] ??
-                    'English',
-                onTap: () => _showLanguageSheet(
-                  context,
-                  profile?.preferredLanguage ?? 'en',
-                ),
-              ),
+              // KIN-02 FIX: Removed duplicate "Preferred language" row.
+              // Both rows bound the same field (preferredLanguage) and
+              // opened the same sheet (_showLanguageSheet). Keeping only
+              // the Appearance-section "App language" row, relabelled
+              // to just "Language" per the audit recommendation.
               _divider(),
               _SettingsRow(
                 icon: Icons.shield_outlined,
@@ -269,7 +266,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               _divider(),
               _SettingsRow(
                 icon: Icons.translate_outlined,
-                label: 'App language',
+                label: 'Language',
                 subtitle:
                     _languageOptions[profile?.preferredLanguage ?? 'en'] ??
                     'English',
@@ -1352,6 +1349,46 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     } catch (_) {}
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  // NOTIFICATION TOGGLE PERSISTENCE (KIN-05 FIX)
+  // ══════════════════════════════════════════════════════════════════
+
+  static const _kPushNotifKey = 'push_notif_enabled';
+  static const _kBirthdayRemindersKey = 'birthday_reminders_enabled';
+  static const _kAnniversaryRemindersKey = 'anniversary_reminders_enabled';
+  static const _kFamilyActivityKey = 'family_activity_notif_enabled';
+
+  Future<void> _loadNotificationToggleStates() async {
+    try {
+      const storage = FlutterSecureStorage();
+      final results = await Future.wait([
+        storage.read(key: _kPushNotifKey),
+        storage.read(key: _kBirthdayRemindersKey),
+        storage.read(key: _kAnniversaryRemindersKey),
+        storage.read(key: _kFamilyActivityKey),
+      ]);
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(_pushNotifProvider.notifier).state =
+            results[0] != 'false';
+        ref.read(_birthdayRemindersProvider.notifier).state =
+            results[1] != 'false';
+        ref.read(_anniversaryRemindersProvider.notifier).state =
+            results[2] == 'true';
+        ref.read(_familyActivityProvider.notifier).state =
+            results[3] != 'false';
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveToggleState(String key, bool value) async {
+    try {
+      const storage = FlutterSecureStorage();
+      await storage.write(key: key, value: value.toString());
+    } catch (_) {}
+  }
+
   Future<void> _onBiometricToggle(bool enabling) async {
     final localAuth = LocalAuthentication();
 
@@ -1415,6 +1452,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   // ══════════════════════════════════════════════════════════════════
 
   Future<void> _persistToggle(String key, bool value) async {
+    // KIN-05 FIX: Previously wrote to SharedPreferences with a key
+    // that _loadNotificationToggleStates didn't read back. Now writes
+    // to FlutterSecureStorage using the same keys the load method
+    // reads, mirroring the proven _biometricLockProvider pattern.
+    final secureKey = switch (key) {
+      'push_notifications' => _kPushNotifKey,
+      'birthday_reminders' => _kBirthdayRemindersKey,
+      'anniversary_reminders' => _kAnniversaryRemindersKey,
+      'family_activity' => _kFamilyActivityKey,
+      _ => key,
+    };
+    await _saveToggleState(secureKey, value);
+    // Also keep the SharedPreferences write for backward compat
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(key, value);
