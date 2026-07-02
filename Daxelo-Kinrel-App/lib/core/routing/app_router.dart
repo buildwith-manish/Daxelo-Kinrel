@@ -112,6 +112,7 @@ import '../../features/memory_vault/data/memory_model.dart';
 import '../../features/occasions/presentation/occasions_screen.dart';
 import '../../features/chat/presentation/chat_screen.dart';
 import '../../features/share/presentation/share_screen.dart';
+import '../../features/oral_history/presentation/oral_history_screen.dart';
 import '../../features/gamification/presentation/achievements_screen.dart';
 import '../../features/documents/presentation/documents_screen.dart';
 import '../../presentation/screens/invite/invite_screen.dart';
@@ -756,6 +757,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/events',
         pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: const EventsScreen()),
+      ),
+
+      // ── Oral History ────────────────────────────────────────────
+      GoRoute(
+        path: '/oral-history',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const OralHistoryScreen()),
       ),
 
       // ── Memories & Timeline ─────────────────────────────────────

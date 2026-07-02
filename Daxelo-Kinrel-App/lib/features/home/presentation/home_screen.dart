@@ -337,6 +337,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
                 SizedBox(height: 20),
 
+                // ── Discover Features Grid (v92) ─────────────────────────
+                // Surfaces all the app's features so users can find them
+                // without hunting through nested screens. Each tile
+                // navigates directly to its feature screen.
+                _DiscoverFeaturesGrid()
+                    .animate()
+                    .fadeIn(duration: 350.ms, delay: 95.ms)
+                    .slideY(begin: -0.05, end: 0),
+
+                SizedBox(height: 20),
+
                 // Hero Family Card (avatar is tappable → opens stories)
                 _HeroFamilyCard(
                   family: primaryFamily,
@@ -1531,4 +1542,241 @@ class _DottedKGraphPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _DottedKGraphPainter oldDelegate) =>
       oldDelegate.color != color;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DISCOVER FEATURES GRID (v92)
+// ═══════════════════════════════════════════════════════════════════════
+//
+// A 2-column grid of feature tiles shown on the Home screen, directly
+// below the Memory Vault tile. Each tile navigates to its feature
+// screen. This surfaces ALL the app's features in one place so users
+// don't have to hunt through nested menus.
+//
+// Features included:
+//   • Events & Celebrations (/events)
+//   • Festival Cards (/festival-cards)
+//   • Oral History (/oral-history)
+//   • Memories (/memories)
+//   • AI Assistant (/ai-chat)
+//   • Kinship Dictionary (/explore)
+//   • Quiz & Trivia (/quiz)
+//   • Achievements (/achievements)
+//   • Documents (/documents)
+//   • Family Map (/family-map)
+
+class _DiscoverFeaturesGrid extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final features = <_FeatureTile>[
+      _FeatureTile(
+        title: 'Events',
+        subtitle: 'Birthdays & festivals',
+        icon: Icons.celebration_outlined,
+        color: const Color(0xFFE8612A), // orange
+        route: '/events',
+      ),
+      _FeatureTile(
+        title: 'Festival Cards',
+        subtitle: 'Share greetings',
+        icon: Icons.card_giftcard_outlined,
+        color: const Color(0xFFD4AF37), // gold
+        route: '/festival-cards',
+      ),
+      _FeatureTile(
+        title: 'Oral History',
+        subtitle: 'Record family stories',
+        icon: Icons.mic_none_outlined,
+        color: const Color(0xFF8B5CF6), // purple
+        route: '/oral-history',
+      ),
+      _FeatureTile(
+        title: 'Memories',
+        subtitle: 'Photos & timeline',
+        icon: Icons.photo_album_outlined,
+        color: const Color(0xFF06B6D4), // cyan
+        route: '/memories',
+      ),
+      _FeatureTile(
+        title: 'AI Assistant',
+        subtitle: 'Ask about kinship',
+        icon: Icons.smart_toy_outlined,
+        color: const Color(0xFF10B981), // emerald
+        route: '/ai-chat',
+      ),
+      _FeatureTile(
+        title: 'Kinship Dictionary',
+        subtitle: 'Explore terms',
+        icon: Icons.menu_book_outlined,
+        color: const Color(0xFFF59E0B), // amber
+        route: '/explore',
+      ),
+      _FeatureTile(
+        title: 'Quiz & Trivia',
+        subtitle: 'Test your knowledge',
+        icon: Icons.quiz_outlined,
+        color: const Color(0xFFEC4899), // pink
+        route: '/quiz',
+      ),
+      _FeatureTile(
+        title: 'Achievements',
+        subtitle: 'Badges & rewards',
+        icon: Icons.emoji_events_outlined,
+        color: const Color(0xFF6366F1), // indigo
+        route: '/achievements',
+      ),
+      _FeatureTile(
+        title: 'Documents',
+        subtitle: 'Family records',
+        icon: Icons.folder_outlined,
+        color: const Color(0xFF64748B), // slate
+        route: '/documents',
+      ),
+      _FeatureTile(
+        title: 'Family Map',
+        subtitle: 'See your origins',
+        icon: Icons.map_outlined,
+        color: const Color(0xFF2E8B57), // green
+        route: '/family-map',
+      ),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section header
+          Row(
+            children: [
+              Icon(
+                Icons.grid_view_rounded,
+                size: 18,
+                color: _cOrange,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Discover',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: _cTextPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Grid
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.15,
+            ),
+            itemCount: features.length,
+            itemBuilder: (context, index) {
+              final f = features[index];
+              return _DiscoverTile(feature: f);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A single feature tile in the Discover grid.
+class _DiscoverTile extends StatelessWidget {
+  const _DiscoverTile({required this.feature});
+  final _FeatureTile feature;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => context.push(feature.route),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _cCard,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: feature.color.withValues(alpha: 0.15),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Icon
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: feature.color.withValues(alpha: 0.15),
+                ),
+                child: Icon(
+                  feature.icon,
+                  color: feature.color,
+                  size: 20,
+                ),
+              ),
+              // Title + subtitle
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    feature.title,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: _cTextPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    feature.subtitle,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 11,
+                      color: _cTextDim,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Model for a feature tile.
+class _FeatureTile {
+  const _FeatureTile({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.route,
+  });
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final String route;
 }

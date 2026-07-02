@@ -354,7 +354,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
                 iconColor: KinrelColors.purple,
                 onTap: () {
                   Navigator.pop(ctx);
-                  context.push('/family-invite/${widget.familyId}');
+                  context.push('/family/${widget.familyId}/invite');
                 },
               ),
               Divider(color: KinrelColors.border, height: 1),
@@ -1260,7 +1260,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
           _CollaboratorsHeader(
             count: memberships.length,
             isAdmin: isAdmin,
-            onInviteTap: () => context.push('/family-invite/${widget.familyId}'),
+            onInviteTap: () => context.push('/family/${widget.familyId}/invite'),
           ),
           const SizedBox(height: 8),
           ...memberships.map((membership) => _CollaboratorCard(
@@ -1288,7 +1288,7 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
             child: _InviteCollaboratorCTA(
-              onTap: () => context.push('/family-invite/${widget.familyId}'),
+              onTap: () => context.push('/family/${widget.familyId}/invite'),
             ),
           ),
           const SizedBox(height: 12),

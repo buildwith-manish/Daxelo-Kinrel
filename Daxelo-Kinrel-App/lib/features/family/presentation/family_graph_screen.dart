@@ -28,6 +28,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -286,6 +287,14 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           icon: const Icon(Icons.search_rounded, size: 22),
           tooltip: 'Search family',
           onPressed: () => setState(() => _showSearch = true),
+        ),
+        // v92: Chat button — quick access to family chat from the graph.
+        IconButton(
+          icon: const Icon(Icons.chat_bubble_outline_rounded, size: 22),
+          tooltip: 'Family chat',
+          onPressed: () {
+            context.push('/family/${widget.familyId}/chat');
+          },
         ),
         // Add Member button — primary action, always visible
         Padding(
