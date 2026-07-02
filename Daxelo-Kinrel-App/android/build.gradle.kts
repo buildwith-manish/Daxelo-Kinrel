@@ -45,14 +45,19 @@ subprojects {
         }
     }
 
-    // ── Force Kotlin language version 1.8+ for all subprojects ─────
+    // ── Force Kotlin language version + experimental opt-in for all subprojects ─
     // Kotlin 2.x no longer supports language version 1.6.
     // Some Flutter plugins (e.g. sentry_flutter) still declare
     // languageVersion = "1.6", which causes compilation failures.
+    // v92: Also enable ExperimentalStdlibApi opt-in for record_android
+    // which uses Kotlin 'enum entries' feature (requires opt-in).
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         compilerOptions {
             languageVersion.set(
-                org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_1_8
+                org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0
+            )
+            freeCompilerArgs.addAll(
+                "-opt-in=kotlin.ExperimentalStdlibApi",
             )
         }
     }
