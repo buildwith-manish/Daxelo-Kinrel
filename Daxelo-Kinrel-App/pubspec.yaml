@@ -61,7 +61,7 @@ dependencies:
   printing: ^5.14.2
 
   # Audio recording (v91: Oral history transcription feature)
-  record: ^5.2.0
+  record: ^7.1.1
   
   # Utilities
   permission_handler: ^11.3.1
