@@ -324,7 +324,7 @@ class _EventsHeader extends StatelessWidget {
                             final reminderTime =
                                 eventDate.subtract(const Duration(days: 1));
                             if (reminderTime.isAfter(DateTime.now())) {
-                              LocalNotificationScheduler.instance
+                              LocalNotificationScheduler
                                   .scheduleEventReminder(
                                 id: ev.id.hashCode.abs() % 100000,
                                 title: '${ev.emoji} ${ev.title}',
@@ -425,7 +425,7 @@ class _EventNotificationTileState extends State<_EventNotificationTile> {
                     scheduledDate: reminderTime,
                   );
                 } else {
-                  await LocalNotificationScheduler.instance
+                  await LocalNotificationScheduler
                       .cancelNotification(id);
                 }
               } catch (e) {

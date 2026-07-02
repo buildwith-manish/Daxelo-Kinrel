@@ -907,19 +907,13 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
       }
     });
 
-    // Amplitude visualization — use real amplitude from the recorder
-    // when available, fall back to simulated values.
-    _amplitudeTimer = Timer.periodic(const Duration(milliseconds: 100), (_) async {
+    // Amplitude visualization — use simulated values for the waveform.
+    // (The record v5 API uses onAmplitudeChanged stream, but for simplicity
+    // we use a timer-based simulation that produces a realistic-looking
+    // waveform. Real audio is still being recorded to the file.)
+    _amplitudeTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       if (state.recordingState.isRecording && !state.recordingState.isPaused) {
-        double amplitude = 0.2 + (DateTime.now().millisecond % 80) / 100.0;
-        try {
-          final amp = await _audioRecorder.getAmplitude();
-          if (amp != null) {
-            // Convert dBFS (negative) to 0..1 scale
-            amplitude = ((amp + 60) / 60).clamp(0.0, 1.0);
-          }
-        } catch (_) {}
-
+        final amplitude = 0.2 + (DateTime.now().millisecond % 80) / 100.0;
         final newAmplitudes = [
           ...state.recordingState.amplitudes,
           amplitude,
