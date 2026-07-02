@@ -46,16 +46,16 @@ class SparqRepository {
 
   /// Get the Sparq feed (grouped by user)
   Future<List<UserSparqGroup>> getFeed({int page = 1, int limit = 20}) async {
-    final dio = _ref.read(dioProvider);
-    final response = await dio.get('/sparq/feed', queryParameters: {'page': page, 'limit': limit});
+    final httpClient = _ref.read(dioProvider);
+    final response = await httpClient.get('/sparq/feed', queryParameters: {'page': page, 'limit': limit});
     final list = response.data as List? ?? [];
     return list.map((e) => UserSparqGroup.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   /// Get active Sparqs for a specific user
   Future<List<SparqModel>> getUserSparqs(String userId) async {
-    final dio = _ref.read(dioProvider);
-    final response = await dio.get('/sparq/user/$userId');
+    final httpClient = _ref.read(dioProvider);
+    final response = await httpClient.get('/sparq/user/$userId');
     final list = response.data as List? ?? [];
     return list.map((e) => SparqModel.fromJson(e as Map<String, dynamic>)).toList();
   }
@@ -76,7 +76,7 @@ class SparqRepository {
     DateTime? revealAt,
     String? parentSparqId,
   }) async {
-    final dio = _ref.read(dioProvider);
+    final httpClient = _ref.read(dioProvider);
     final formData = dio.FormData.fromMap({
       'type': type,
       'audience': audience,
@@ -96,42 +96,42 @@ class SparqRepository {
           filename: mediaFile.path.split('/').last,
         ),
     });
-    final response = await dio.post('/sparq', data: formData);
+    final response = await httpClient.post('/sparq', data: formData);
     return SparqModel.fromJson(response.data);
   }
 
   /// Mark a Sparq as viewed
   Future<void> markViewed(String sparqId) async {
-    final dio = _ref.read(dioProvider);
-    await dio.post('/sparq/$sparqId/view');
+    final httpClient = _ref.read(dioProvider);
+    await httpClient.post('/sparq/$sparqId/view');
   }
 
   /// Get viewers for a Sparq (creator only)
   Future<List<Map<String, dynamic>>> getViewers(String sparqId) async {
-    final dio = _ref.read(dioProvider);
-    final response = await dio.get('/sparq/$sparqId/viewers');
+    final httpClient = _ref.read(dioProvider);
+    final response = await httpClient.get('/sparq/$sparqId/viewers');
     final list = response.data as List? ?? [];
     return list.cast<Map<String, dynamic>>();
   }
 
   /// Delete your own Sparq
   Future<void> deleteSparq(String sparqId) async {
-    final dio = _ref.read(dioProvider);
-    await dio.delete('/sparq/$sparqId');
+    final httpClient = _ref.read(dioProvider);
+    await httpClient.delete('/sparq/$sparqId');
   }
 
   /// Toggle echo on a Sparq — POST /sparq/$sparqId/echo
   /// Returns { echoCount, isEchoed }
   Future<Map<String, dynamic>> toggleEcho(String sparqId) async {
-    final dio = _ref.read(dioProvider);
-    final response = await dio.post('/sparq/$sparqId/echo');
+    final httpClient = _ref.read(dioProvider);
+    final response = await httpClient.post('/sparq/$sparqId/echo');
     return response.data as Map<String, dynamic>;
   }
 
   /// Get the chain of Sparqs for a parent Sparq — GET /sparq/$sparqId/chain
   Future<List<SparqModel>> getChain(String sparqId) async {
-    final dio = _ref.read(dioProvider);
-    final response = await dio.get('/sparq/$sparqId/chain');
+    final httpClient = _ref.read(dioProvider);
+    final response = await httpClient.get('/sparq/$sparqId/chain');
     final list = response.data as List? ?? [];
     return list.map((e) => SparqModel.fromJson(e as Map<String, dynamic>)).toList();
   }
@@ -147,7 +147,7 @@ class SparqRepository {
     String mood = 'happy',
     String intensity = 'warm',
   }) async {
-    final dio = _ref.read(dioProvider);
+    final httpClient = _ref.read(dioProvider);
     final formData = dio.FormData.fromMap({
       'type': type,
       'mood': mood,
@@ -161,7 +161,7 @@ class SparqRepository {
           filename: mediaFile.path.split('/').last,
         ),
     });
-    final response = await dio.post('/sparq/$parentSparqId/chain', data: formData);
+    final response = await httpClient.post('/sparq/$parentSparqId/chain', data: formData);
     return SparqModel.fromJson(response.data);
   }
 
