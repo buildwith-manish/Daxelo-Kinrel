@@ -26,10 +26,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/services/local_notification_scheduler.dart';
 import '../../../core/utils/device_tier.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/events_provider.dart';
@@ -222,14 +224,7 @@ class _EventsHeader extends StatelessWidget {
           ),
           // Notification bell
           GestureDetector(
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Event notifications coming soon!'),
-                  backgroundColor: _cCard,
-                ),
-              );
-            },
+            onTap: () => _showNotificationSettings(context, ref),
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -242,6 +237,205 @@ class _EventsHeader extends StatelessWidget {
                 size: 20,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Show a bottom sheet with notification settings for events.
+  /// Toggles schedule local notifications for all upcoming events.
+  void _showNotificationSettings(BuildContext context, WidgetRef ref) {
+    final events = ref.read(eventsProvider).events;
+    final upcoming = events.where((e) {
+      try {
+        final d = DateTime.parse(e.date);
+        return d.isAfter(DateTime.now());
+      } catch (_) {
+        return false;
+      }
+    }).toList();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _cCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSt) {
+            return Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(
+                        color: _cBorder,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Event Notifications',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: _cTextPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Get reminded about upcoming family events.',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 14,
+                      color: _cTextSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  if (upcoming.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'No upcoming events to notify.',
+                          style: TextStyle(color: _cTextSecondary, fontSize: 14),
+                        ),
+                      ),
+                    )
+                  else
+                    ...upcoming.map((e) => _EventNotificationTile(event: e)),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () {
+                        int scheduled = 0;
+                        for (final ev in upcoming) {
+                          try {
+                            final eventDate = DateTime.parse(ev.date);
+                            final reminderTime =
+                                eventDate.subtract(const Duration(days: 1));
+                            if (reminderTime.isAfter(DateTime.now())) {
+                              LocalNotificationScheduler.instance
+                                  .scheduleEventReminder(
+                                id: ev.id.hashCode.abs() % 100000,
+                                title: '${ev.emoji} ${ev.title}',
+                                body:
+                                    'Tomorrow at ${ev.time ?? 'all day'}${ev.location != null ? ' • ${ev.location}' : ''}',
+                                scheduledDate: reminderTime,
+                              );
+                              scheduled++;
+                            }
+                          } catch (_) {}
+                        }
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              scheduled > 0
+                                  ? 'Scheduled $scheduled event reminder${scheduled == 1 ? '' : 's'}'
+                                  : 'No events to schedule',
+                            ),
+                            backgroundColor: _cCard,
+                          ),
+                        );
+                      },
+                      style: FilledButton.styleFrom(backgroundColor: _cOrange),
+                      child: const Text('Enable All Reminders'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// A single event notification toggle tile.
+class _EventNotificationTile extends StatefulWidget {
+  const _EventNotificationTile({required this.event});
+  final EventModel event;
+
+  @override
+  State<_EventNotificationTile> createState() => _EventNotificationTileState();
+}
+
+class _EventNotificationTileState extends State<_EventNotificationTile> {
+  bool _enabled = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Text(widget.event.emoji, style: const TextStyle(fontSize: 24)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.event.title,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: _cTextPrimary,
+                  ),
+                ),
+                Text(
+                  widget.event.date,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    color: _cTextSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: _enabled,
+            activeColor: _cOrange,
+            onChanged: (v) async {
+              setState(() => _enabled = v);
+              try {
+                final eventDate = DateTime.parse(widget.event.date);
+                final reminderTime =
+                    eventDate.subtract(const Duration(days: 1));
+                final id = widget.event.id.hashCode.abs() % 100000;
+                if (v && reminderTime.isAfter(DateTime.now())) {
+                  await LocalNotificationScheduler.scheduleEventReminder(
+                    id: id,
+                    title: '${widget.event.emoji} ${widget.event.title}',
+                    body:
+                        'Tomorrow at ${widget.event.time ?? 'all day'}${widget.event.location != null ? ' • ${widget.event.location}' : ''}',
+                    scheduledDate: reminderTime,
+                  );
+                } else {
+                  await LocalNotificationScheduler.instance
+                      .cancelNotification(id);
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e')),
+                  );
+                }
+              }
+            },
           ),
         ],
       ),
@@ -1913,14 +2107,7 @@ class _ShareEventButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Share event coming soon!'),
-            backgroundColor: _cCard,
-          ),
-        );
-      },
+      onTap: () => _shareEvent(context),
       child: Container(
         height: 48,
         decoration: BoxDecoration(
@@ -1947,6 +2134,21 @@ class _ShareEventButton extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _shareEvent(BuildContext context) {
+    final text = StringBuffer()
+      ..writeln('${event.emoji} ${event.title}')
+      ..writeln('📅 ${event.date}${event.time != null ? ' at ${event.time}' : ''}')
+      ..writeln('🎭 ${event.type.label}');
+    if (event.location != null && event.location!.isNotEmpty) {
+      text.writeln('📍 ${event.location}');
+    }
+    if (event.description != null && event.description!.isNotEmpty) {
+      text.writeln('📝 ${event.description}');
+    }
+    text.writeln('— Shared via Kinrel');
+    Share.share(text.toString(), subject: 'Family event: ${event.title}');
   }
 }
 

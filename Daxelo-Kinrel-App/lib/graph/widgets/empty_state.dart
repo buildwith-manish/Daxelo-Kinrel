@@ -23,6 +23,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
@@ -243,9 +244,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    // Invite family flow — navigate to invite screen
-                    // TODO: Implement invite family flow
-                    // context.push('/family/${widget.familyId}/invite');
+                    context.push('/family/${widget.familyId}/invite');
                   },
                   icon: const Icon(Icons.person_add_outlined, size: 18.0),
                   label: const Text(

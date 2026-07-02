@@ -395,6 +395,39 @@ class LocalNotificationScheduler {
     await _cancel(id);
   }
 
+  /// Schedule a generic event reminder at a specific date/time.
+  ///
+  /// Used by the Events screen to schedule one-off reminders for
+  /// upcoming family events (birthdays, anniversaries, festivals,
+  /// reunions, custom events).
+  ///
+  /// [id] should be unique per event — use `event.id.hashCode.abs() % 100000`.
+  /// [scheduledDate] must be in the future.
+  static Future<void> scheduleEventReminder({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledDate,
+  }) async {
+    if (!_initialized) {
+      await initialize();
+      if (!_initialized) return;
+    }
+
+    if (scheduledDate.isBefore(DateTime.now())) {
+      debugPrint('⚠️ scheduleEventReminder: scheduledDate is in the past, skipping');
+      return;
+    }
+
+    await _scheduleNotification(
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: scheduledDate,
+      isRepeating: false,
+    );
+  }
+
   /// Get the next occurrence of a specific hour:minute today or tomorrow.
   static DateTime _nextOccurrence(int hour, int minute) {
     final now = DateTime.now();

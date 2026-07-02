@@ -24,6 +24,7 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../family/presentation/join_family_screen.dart';
 import '../../feed/presentation/widgets/feed_post_card.dart';
 import '../../feed/providers/feed_provider.dart';
 import '../../stories/providers/stories_provider.dart';
@@ -575,9 +576,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
           FilledButton(
             onPressed: () {
+              final id = codeController.text.trim();
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Join family coming soon!')),
+              if (id.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Please enter a Family ID')),
+                );
+                return;
+              }
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => JoinFamilyScreen(kinFamilyId: id),
+                ),
               );
             },
             style: FilledButton.styleFrom(backgroundColor: _cOrange),

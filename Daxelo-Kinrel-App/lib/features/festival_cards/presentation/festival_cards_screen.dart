@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -1002,15 +1004,7 @@ class _CardPreviewView extends StatelessWidget {
               // Share button
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    // In production, this would use share_plus or similar
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Share functionality coming soon!'),
-                        backgroundColor: KinrelColors.darkCard,
-                      ),
-                    );
-                  },
+                  onPressed: () => _shareCard(context),
                   icon: Icon(Icons.share, size: 18),
                   label: Text('Share'),
                   style: ElevatedButton.styleFrom(
@@ -1034,14 +1028,7 @@ class _CardPreviewView extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('WhatsApp share coming soon!'),
-                    backgroundColor: Color(0xFF25D366),
-                  ),
-                );
-              },
+              onPressed: () => _shareOnWhatsApp(context),
               icon: Icon(Icons.chat, size: 18),
               label: Text('Share on WhatsApp'),
               style: ElevatedButton.styleFrom(
@@ -1057,5 +1044,68 @@ class _CardPreviewView extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Share the festival card image via the OS share sheet.
+  void _shareCard(BuildContext context) {
+    try {
+      final bytes = base64Decode(imageBase64);
+      final xfile = XFile.fromData(
+        bytes,
+        name: 'festival_card_${DateTime.now().millisecondsSinceEpoch}.png',
+        mimeType: 'image/png',
+      );
+      final text = StringBuffer()
+        ..writeln('🎉 ${festival ?? 'Festival'} greetings from Kinrel!');
+      if (kinshipTerm != null && kinshipTerm!.isNotEmpty) {
+        text.writeln('💌 $kinshipTerm');
+      }
+      Share.shareXFiles([xfile], text: text.toString());
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not share card: $e'),
+          backgroundColor: KinrelColors.darkCard,
+        ),
+      );
+    }
+  }
+
+  /// Share the festival card via WhatsApp deep link + share sheet for image.
+  void _shareOnWhatsApp(BuildContext context) async {
+    try {
+      final bytes = base64Decode(imageBase64);
+      final xfile = XFile.fromData(
+        bytes,
+        name: 'festival_card_${DateTime.now().millisecondsSinceEpoch}.png',
+        mimeType: 'image/png',
+      );
+      final text = StringBuffer()
+        ..writeln('🎉 ${festival ?? 'Festival'} greetings from Kinrel!');
+      if (kinshipTerm != null && kinshipTerm!.isNotEmpty) {
+        text.writeln('💌 $kinshipTerm');
+      }
+      text.writeln('Download Kinrel: https://kinrel.app');
+
+      // Try WhatsApp deep link first; fall back to share sheet.
+      final waUrl = Uri.parse(
+        'https://wa.me/?text=${Uri.encodeComponent(text.toString())}',
+      );
+      final launched = await launchUrl(waUrl, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        // WhatsApp not installed — use generic share sheet with the image.
+        Share.shareXFiles([xfile], text: text.toString());
+      } else {
+        // Also share the image via the share sheet so the user can attach it.
+        Share.shareXFiles([xfile], text: text.toString());
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not share on WhatsApp: $e'),
+          backgroundColor: const Color(0xFF25D366),
+        ),
+      );
+    }
   }
 }
