@@ -362,3 +362,102 @@ const storyGradients = <List<String>>[
   ['#DC143C', '#F59240'], // Festival Red
   ['#4CAF7A', '#131416'], // Success to Dark
 ];
+
+// ── Story Reply (v91) ─────────────────────────────────────────────
+
+/// A text reply to a story.
+class StoryReply {
+  const StoryReply({
+    required this.id,
+    required this.storyId,
+    required this.userId,
+    required this.userName,
+    this.userAvatarUrl,
+    required this.content,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String storyId;
+  final String userId;
+  final String userName;
+  final String? userAvatarUrl;
+  final String content;
+  final DateTime createdAt;
+
+  factory StoryReply.fromJson(Map<String, dynamic> json) {
+    return StoryReply(
+      id: json['id'] as String? ?? '',
+      storyId: json['storyId'] as String? ?? '',
+      userId: json['userId'] as String? ?? '',
+      userName: json['userName'] as String? ?? 'Member',
+      userAvatarUrl: json['userAvatarUrl'] as String?,
+      content: json['content'] as String? ?? '',
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
+    );
+  }
+}
+
+/// Sends a text reply to a story. Inserts into the Supabase
+/// `StoryReply` table (created in migration
+/// `20260702120000_story_sparq_replies_chat_attachments.sql`).
+final sendStoryReplyProvider =
+    FutureProvider.family<bool, StoryReplyParams>((ref, params) async {
+  try {
+    final client = ref.read(supabaseProvider);
+    if (client == null) return false;
+
+    await client.from('StoryReply').insert({
+      'storyId': params.storyId,
+      'userId': params.userId,
+      'userName': params.userName,
+      'userAvatarUrl': params.userAvatarUrl,
+      'content': params.content,
+    });
+
+    return true;
+  } catch (e) {
+    debugPrint('⚠️ sendStoryReplyProvider error: $e');
+    return false;
+  }
+});
+
+/// Fetches all replies for a story, newest first.
+final storyRepliesProvider =
+    FutureProvider.family<List<StoryReply>, String>((ref, storyId) async {
+  try {
+    final client = ref.read(supabaseProvider);
+    if (client == null) return [];
+
+    final response = await client
+        .from('StoryReply')
+        .select()
+        .eq('storyId', storyId)
+        .order('createdAt', ascending: false);
+
+    return (response as List)
+        .map((e) => StoryReply.fromJson(e as Map<String, dynamic>))
+        .toList();
+  } catch (e) {
+    debugPrint('⚠️ storyRepliesProvider error: $e');
+    return [];
+  }
+});
+
+/// Parameters for sending a story reply.
+class StoryReplyParams {
+  const StoryReplyParams({
+    required this.storyId,
+    required this.userId,
+    required this.userName,
+    this.userAvatarUrl,
+    required this.content,
+  });
+
+  final String storyId;
+  final String userId;
+  final String userName;
+  final String? userAvatarUrl;
+  final String content;
+}

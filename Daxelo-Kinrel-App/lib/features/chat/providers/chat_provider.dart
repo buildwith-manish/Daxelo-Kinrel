@@ -89,7 +89,11 @@ class ChatMessage {
     this.durationSeconds, // for voice notes
     this.eventTitle, // for family event sharing
     this.eventDate, // for family event sharing
+    this.mediaUrl, // v91: for photo/voice attachments
   });
+
+  /// URL of the attached media (photo or voice note) in Supabase storage.
+  final String? mediaUrl;
 
   /// Unique message identifier.
   final String id;
@@ -164,6 +168,7 @@ class ChatMessage {
     String? replyToContent,
     String? replyToSenderName,
     bool? isOnline,
+    String? mediaUrl,
   }) {
     return ChatMessage(
       id: id,
@@ -182,6 +187,7 @@ class ChatMessage {
       durationSeconds: durationSeconds,
       eventTitle: eventTitle,
       eventDate: eventDate,
+      mediaUrl: mediaUrl ?? this.mediaUrl,
     );
   }
 
@@ -204,6 +210,7 @@ class ChatMessage {
       durationSeconds: json['durationSeconds'] as int?,
       eventTitle: json['eventTitle'] as String?,
       eventDate: json['eventDate'] as String?,
+      mediaUrl: json['mediaUrl'] as String?,
     );
   }
 
@@ -239,6 +246,7 @@ class ChatMessage {
       'durationSeconds': durationSeconds,
       'eventTitle': eventTitle,
       'eventDate': eventDate,
+      if (mediaUrl != null) 'mediaUrl': mediaUrl,
     };
   }
 
@@ -270,6 +278,20 @@ class OnlineMember {
   final String name;
   final String initials;
   final bool isOnline;
+
+  OnlineMember copyWith({
+    String? id,
+    String? name,
+    String? initials,
+    bool? isOnline,
+  }) {
+    return OnlineMember(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      initials: initials ?? this.initials,
+      isOnline: isOnline ?? this.isOnline,
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -438,11 +460,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
         final userId = row['userId'] as String? ?? '';
         if (userId.isEmpty) continue;
         final name = row['name'] as String? ?? 'Member';
+        // v91: Mark the current user as online immediately — presence
+        // events from other users will update via _handlePresenceChange.
+        final isMe = userId == _currentUserId;
         members.add(OnlineMember(
           id: userId,
           name: name,
           initials: _initialsFromName(name),
-          isOnline: false, // presence not implemented in this phase
+          isOnline: isMe, // current user is always online in their own session
         ));
       }
       if (mounted) {
@@ -460,7 +485,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
             id: myUserId,
             name: myName,
             initials: _initialsFromName(myName),
-            isOnline: false,
+            isOnline: true, // v91: current user is online
           ),
         ]);
       }
@@ -612,9 +637,52 @@ class ChatNotifier extends StateNotifier<ChatState> {
             isDelete: true,
           ),
         )
-        .subscribe();
+        // ── Presence: track who's online in this family chat ──
+        // v91: Real-time online status. Each client tracks its own
+        // presence; join/leave events update member isOnline flags.
+        .onPresence(
+          callback: (List<Presence> presences, {bool? sync, PresenceEvent? event, String? joinRef}) {
+            _handlePresenceChange(presences);
+          },
+        );
 
-    debugPrint('📡 ChatNotifier: subscribed to chat:$familyId');
+    // Track the current user's presence once the channel subscribes.
+    final myId = _currentUserId;
+    final myName = _currentUserName;
+    if (myId != null) {
+      _channel!.subscribe((status, [error]) {
+        if (status == 'SUBSCRIBED') {
+          _channel!.track({
+            'user_id': myId,
+            'name': myName,
+          });
+        }
+      });
+    } else {
+      _channel!.subscribe();
+    }
+
+    debugPrint('📡 ChatNotifier: subscribed to chat:$familyId (with presence)');
+  }
+
+  /// Handle presence sync events — update member isOnline flags.
+  void _handlePresenceChange(List<Presence> presences) {
+    final onlineIds = <String>{};
+    for (final p in presences) {
+      final payload = p.payload;
+      final uid = payload['user_id'] as String?;
+      if (uid != null && uid.isNotEmpty) {
+        onlineIds.add(uid);
+      }
+    }
+
+    if (!mounted) return;
+
+    final updatedMembers = state.members.map((m) {
+      return m.copyWith(isOnline: onlineIds.contains(m.id));
+    }).toList();
+
+    state = state.copyWith(members: updatedMembers);
   }
 
   void _handleMessageInsert(Map<String, dynamic> row) {
@@ -800,6 +868,118 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// Clear the reply-to state.
   void clearReplyTo() {
     state = state.copyWith(clearReplyTo: true);
+  }
+
+  /// Send a photo attachment (v91).
+  ///
+  /// Uploads the image bytes to the `chat-attachments` storage bucket,
+  /// gets the public URL, and inserts a ChatMessage with
+  /// `messageType = photo` and `mediaUrl` set to the public URL.
+  Future<void> sendAttachment({
+    required Uint8List bytes,
+    required String fileName,
+    required String mimeType,
+    String? caption,
+  }) async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) {
+      if (mounted) state = state.copyWith(error: 'Not signed in');
+      return;
+    }
+
+    final senderName = _currentUserName;
+    final msgId = _generateId();
+    final now = DateTime.now();
+
+    // Upload to storage
+    final storagePath = '$familyId/$msgId-$fileName';
+    try {
+      await client.storage
+          .from('chat-attachments')
+          .uploadBinary(storagePath, bytes, fileOptions: FileOptions(contentType: mimeType));
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.sendAttachment upload failed: $e');
+      if (mounted) state = state.copyWith(error: 'Failed to upload attachment');
+      return;
+    }
+
+    final mediaUrl = client.storage
+        .from('chat-attachments')
+        .getPublicUrl(storagePath);
+
+    final optimistic = ChatMessage(
+      id: msgId,
+      senderId: myUserId,
+      senderName: senderName,
+      content: caption ?? '',
+      messageType: MessageType.photo,
+      timestamp: now,
+      isRead: false,
+      senderInitials: _initialsFromName(senderName),
+    );
+
+    _pendingOptimisticIds.add(msgId);
+    final updated = [optimistic, ...state.messages];
+    if (mounted) state = state.copyWith(messages: updated);
+
+    try {
+      await client.from('ChatMessage').insert({
+        ...optimistic.toJson(familyId: familyId),
+        'mediaUrl': mediaUrl,
+      });
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.sendAttachment insert failed: $e');
+      _pendingOptimisticIds.remove(msgId);
+      if (mounted) {
+        final withoutFailed = state.messages.where((m) => m.id != msgId).toList();
+        state = state.copyWith(
+          messages: withoutFailed,
+          error: 'Failed to send attachment',
+        );
+      }
+    }
+  }
+
+  /// Forward a message to another family chat (v91).
+  ///
+  /// Re-inserts the message content into the target family's chat
+  /// with `messageType` preserved. The forwarded message appears as
+  /// sent by the current user (not the original sender) — this is
+  /// standard forwarding behavior (like WhatsApp/Telegram).
+  Future<bool> forwardMessage({
+    required String targetFamilyId,
+    required ChatMessage original,
+  }) async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) return false;
+
+    final msgId = _generateId();
+    final senderName = _currentUserName;
+    final now = DateTime.now();
+
+    final forwarded = ChatMessage(
+      id: msgId,
+      senderId: myUserId,
+      senderName: senderName,
+      content: original.content,
+      messageType: original.messageType,
+      timestamp: now,
+      isRead: false,
+      senderInitials: _initialsFromName(senderName),
+    );
+
+    try {
+      await client.from('ChatMessage').insert({
+        ...forwarded.toJson(familyId: targetFamilyId),
+        if (original.mediaUrl != null) 'mediaUrl': original.mediaUrl,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.forwardMessage failed: $e');
+      return false;
+    }
   }
 
   /// Toggle an emoji reaction on a message. Optimistic update + Supabase

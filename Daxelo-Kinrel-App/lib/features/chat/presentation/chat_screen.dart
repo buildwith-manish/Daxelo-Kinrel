@@ -18,11 +18,14 @@ import 'package:kinrel/core/widgets/global_error_widget.dart';
 //   - Scroll-to-bottom FAB when scrolled up
 //   - Sender name in received group messages (orange)
 
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/chat_provider.dart';
 
@@ -696,15 +699,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           children: [
             // Attachment button
             _AttachmentButton(
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Attachments coming soon!'),
-                    backgroundColor: KinrelColors.darkCard,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
+              onTap: () => _pickAndSendAttachment(),
             ),
             const SizedBox(width: 6),
             // Text field
@@ -760,6 +755,211 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ],
         ),
       ),
+    );
+  }
+
+  // ── Attachment Picker (v91) ──────────────────────────────────────
+
+  /// Pick an image from the gallery and send it as a chat attachment.
+  Future<void> _pickAndSendAttachment() async {
+    try {
+      final picker = ImagePicker();
+      final xfile = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+      if (xfile == null) return; // user cancelled
+
+      final bytes = await xfile.readAsBytes();
+      final fileName = xfile.name.isNotEmpty
+          ? xfile.name
+          : 'attachment_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final mimeType = xfile.mimeType ?? 'image/jpeg';
+
+      // Show a sending indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 16, height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: KinrelColors.orange,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text('Sending attachment...'),
+              ],
+            ),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 10),
+          ),
+        );
+      }
+
+      await ref.read(chatProvider(widget.familyId).notifier).sendAttachment(
+        bytes: Uint8List.fromList(bytes),
+        fileName: fileName,
+        mimeType: mimeType,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Attachment sent'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send attachment: $e'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  // ── Forward to another family (v91) ──────────────────────────────
+
+  /// Show a bottom sheet with the user's families. Tapping one
+  /// forwards the [message] to that family's chat.
+  void _showForwardFamilyPicker(ChatMessage message) {
+    final familiesAsync = ref.read(familyListProvider);
+
+    familiesAsync.when(
+      data: (families) {
+        if (families.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('You have no families to forward to.'),
+              backgroundColor: KinrelColors.darkCard,
+            ),
+          );
+          return;
+        }
+
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: KinrelColors.darkCard,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(KinrelRadius.xxl),
+            ),
+          ),
+          builder: (ctx) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'Forward to...',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: KinrelColors.textWhite,
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    ...families.map((f) {
+                      // Don't show the current family — no point forwarding
+                      // to the same chat.
+                      final isCurrent = f.id == widget.familyId;
+                      if (isCurrent) return const SizedBox.shrink();
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
+                          child: Text(
+                            (f.name.isNotEmpty ? f.name[0] : '?').toUpperCase(),
+                            style: TextStyle(color: KinrelColors.orange),
+                          ),
+                        ),
+                        title: Text(
+                          f.name,
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            color: KinrelColors.textWhite,
+                          ),
+                        ),
+                        subtitle: f.familyCode != null
+                            ? Text(
+                                f.familyCode!,
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.bodyFont,
+                                  fontSize: 12,
+                                  color: KinrelColors.textDim,
+                                ),
+                              )
+                            : null,
+                        onTap: () async {
+                          Navigator.pop(ctx);
+                          final success = await ref
+                              .read(chatProvider(widget.familyId).notifier)
+                              .forwardMessage(
+                                targetFamilyId: f.id,
+                                original: message,
+                              );
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  success
+                                      ? 'Forwarded to ${f.name}'
+                                      : 'Failed to forward message',
+                                ),
+                                backgroundColor: KinrelColors.darkCard,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                        },
+                      );
+                    }),
+                    if (families.length <= 1)
+                      Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'Join or create another family to forward messages.',
+                          style: TextStyle(color: KinrelColors.textDim),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+      loading: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Loading families...')),
+        );
+      },
+      error: (e, _) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not load families: $e')),
+        );
+      },
     );
   }
 
@@ -895,13 +1095,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
                 onTap: () {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Forward coming soon!'),
-                      backgroundColor: KinrelColors.darkCard,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                  _showForwardFamilyPicker(message);
                 },
               ),
               // Delete (only for own messages)

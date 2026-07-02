@@ -583,19 +583,53 @@ class _StoriesViewerScreenState extends ConsumerState<StoriesViewerScreen>
     );
   }
 
-  void _sendReply() {
+  void _sendReply() async {
     final text = _replyController.text.trim();
     if (text.isEmpty) return;
-    // TODO: Implement reply via API
+
+    final story = _currentStory;
+    if (story == null) return;
+
+    final client = ref.read(supabaseProvider);
+    final myUserId = client?.auth.currentUser?.id;
+    if (myUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please sign in to reply'),
+          backgroundColor: _cCard,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // Get user name + avatar from auth metadata
+    final userMeta = client?.auth.currentUser?.userMetadata;
+    final myName = (userMeta?['name'] as String?) ??
+        (userMeta?['full_name'] as String?) ??
+        'Member';
+    final myAvatar = userMeta?['avatar_url'] as String?;
+
     _replyController.clear();
     FocusScope.of(context).unfocus();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Reply sent!'),
-        backgroundColor: _cCard,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 1),
-      ),
-    );
+
+    final success = await ref.read(sendStoryReplyProvider(StoryReplyParams(
+      storyId: story.id,
+      userId: myUserId,
+      userName: myName,
+      userAvatarUrl: myAvatar,
+      content: text,
+    )).future);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? 'Reply sent!' : 'Failed to send reply'),
+          backgroundColor: _cCard,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
   }
 }

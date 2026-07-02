@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/brand_colors.dart';
+import '../../../../core/services/supabase_service.dart';
 import '../../data/models/sparq_model.dart';
 import '../../data/providers/sparq_provider.dart';
+import '../../data/repositories/sparq_repository.dart';
 
 class SparqViewerScreen extends ConsumerStatefulWidget {
   const SparqViewerScreen({super.key, required this.userId});
@@ -135,6 +138,54 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
     final sparq = _sparqs[_currentIndex];
     HapticFeedback.mediumImpact();
     await ref.read(sparqProvider.notifier).toggleEcho(sparq.id);
+  }
+
+  /// Submit a text reply to the current Sparq (v91).
+  /// Inserts into Supabase `SparqReply` table via SparqRepository.
+  Future<void> _submitReply(SparqModel sparq) async {
+    final text = _replyText?.trim();
+    if (text == null || text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please type a reply first')),
+      );
+      return;
+    }
+
+    final client = ref.read(supabaseProvider);
+    final myUserId = client?.auth.currentUser?.id;
+    if (myUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to reply')),
+      );
+      return;
+    }
+
+    final userMeta = client?.auth.currentUser?.userMetadata;
+    final myName = (userMeta?['name'] as String?) ??
+        (userMeta?['full_name'] as String?) ??
+        'Member';
+    final myAvatar = userMeta?['avatar_url'] as String?;
+
+    // Clear the field immediately for UX
+    setState(() => _replyText = null);
+
+    final repo = ref.read(sparqRepositoryProvider);
+    final reply = await repo.replyToSparq(
+      sparqId: sparq.id,
+      userId: myUserId,
+      userName: myName,
+      userAvatarUrl: myAvatar,
+      content: text,
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(reply != null ? 'Reply sent!' : 'Failed to send reply'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
   }
 
   @override
@@ -449,10 +500,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                           hintStyle: TextStyle(color: Colors.white30, fontSize: 14, fontFamily: 'DM Sans'),
                           suffixIcon: IconButton(
                             icon: Icon(Icons.send, color: moodAccent, size: 18),
-                            onPressed: () {
-                              // TODO: implement reply submission
-                              _replyText = null;
-                            },
+                            onPressed: () => _submitReply(sparq),
                           ),
                         ),
                       ),
