@@ -89,6 +89,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     super.build(context); // Required by AutomaticKeepAliveClientMixin
     final familiesAsync = ref.watch(familyListProvider);
     final user = ref.watch(currentUserProvider);
+    // Extract families for the FAB's quick-add sheet (available even
+    // during loading — the sheet handles the empty case gracefully).
+    final families = familiesAsync.valueOrNull ?? [];
 
     return DKScaffold(
       backgroundColor: _cBg,
