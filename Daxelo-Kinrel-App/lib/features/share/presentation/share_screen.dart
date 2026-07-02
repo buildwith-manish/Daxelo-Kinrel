@@ -25,17 +25,23 @@
 //   QR Code:     #F59240 (amber)
 //   Copy:        #F5F0EE (white)
 
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:share_plus/share_plus.dart' as share_plus;
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/feature_flags.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/utils/share_helper.dart';
+import '../../family/presentation/services/graph_export_service.dart';
 import '../providers/share_provider.dart';
 
 // ── Color shortcuts ──────────────────────────────────────────────────
@@ -2405,6 +2411,7 @@ class _ShareGraphTab extends ConsumerWidget {
           // share cards, not the graph PNG.
           if (kEnableGraphShareExport)
             _ExportOptionsSection(
+                familyName: familyName,
                 isExporting: shareState.isExporting,
                 onExport: () async {
                   await notifier.exportGraph();
@@ -2805,17 +2812,297 @@ class _SimpleTreeLinePainter extends CustomPainter {
 // Export Options Section
 // ═══════════════════════════════════════════════════════════════════════
 
-class _ExportOptionsSection extends StatelessWidget {
+class _ExportOptionsSection extends ConsumerWidget {
   const _ExportOptionsSection({
+    required this.familyName,
     required this.isExporting,
     required this.onExport,
   });
 
+  final String familyName;
   final bool isExporting;
   final VoidCallback onExport;
 
+  /// Generates an A4 PDF with the family name, member list, and
+  /// relationships. Uses the pdf package. Returns null if no family
+  /// data is available.
+  Future<Uint8List?> _generateFamilyPdf(
+      WidgetRef ref, String familyName) async {
+    try {
+      // Fetch families to find the current family's members
+      final supabase = ref.read(supabaseProvider);
+      if (supabase == null) return null;
+
+      // Get the current user's families
+      final familiesResponse = await supabase
+          .from('Family')
+          .select('id, name')
+          .eq('name', familyName)
+          .limit(1);
+
+      if (familiesResponse.isEmpty) return null;
+      final familyId = familiesResponse.first['id'] as String?;
+
+      // Fetch members
+      List<Map<String, dynamic>> members = [];
+      List<Map<String, dynamic>> relationships = [];
+      if (familyId != null) {
+        final membersResponse = await supabase
+            .from('Person')
+            .select('id, name, gender, "dateOfBirth", "isAnchor"')
+            .eq('familyId', familyId)
+            .isFilter('deletedAt', null)
+            .order('name');
+        members = List<Map<String, dynamic>>.from(membersResponse);
+
+        final relsResponse = await supabase
+            .from('Relationship')
+            .select('"fromPersonId", "toPersonId", "relationshipKey"')
+            .eq('familyId', familyId)
+            .eq('isActive', true);
+        relationships = List<Map<String, dynamic>>.from(relsResponse);
+      }
+
+      // Build name lookup
+      final nameMap = <String, String>{};
+      for (final m in members) {
+        nameMap[m['id'] as String? ?? ''] = m['name'] as String? ?? 'Unknown';
+      }
+
+      final pdf = pw.Document();
+      pdf.addPage(
+        pw.Page(
+          pageFormat: pw.PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(40),
+          build: (context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  familyName,
+                  style: pw.TextStyle(
+                    fontSize: 24,
+                    fontWeight: pw.FontWeight.bold,
+                    color: pw.PdfColors.deepOrange,
+                  ),
+                ),
+                pw.SizedBox(height: 4),
+                pw.Text(
+                  'Family Tree',
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    color: pw.PdfColors.grey700,
+                  ),
+                ),
+                pw.Divider(),
+                pw.SizedBox(height: 16),
+                pw.Text(
+                  'Members (${members.length})',
+                  style: pw.TextStyle(
+                    fontSize: 16,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 8),
+                ...members.map((m) {
+                  final name = m['name'] as String? ?? 'Unknown';
+                  final gender = m['gender'] as String? ?? '-';
+                  final dob = m['dateOfBirth'] as String?;
+                  final isAnchor = m['isAnchor'] as bool? ?? false;
+                  return pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 4),
+                    child: pw.Text(
+                      '• $name${isAnchor ? ' (You)' : ''} — $gender${dob != null ? ' • DOB: $dob' : ''}',
+                      style: pw.TextStyle(fontSize: 11),
+                    ),
+                  );
+                }),
+                pw.SizedBox(height: 20),
+                pw.Text(
+                  'Relationships (${relationships.length})',
+                  style: pw.TextStyle(
+                    fontSize: 16,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 8),
+                ...relationships.map((r) {
+                  final from = nameMap[r['fromPersonId'] as String?] ?? '?';
+                  final to = nameMap[r['toPersonId'] as String?] ?? '?';
+                  final key = (r['relationshipKey'] as String?)
+                      ?.replaceAll('_', ' ') ?? 'related';
+                  return pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 3),
+                    child: pw.Text(
+                      '• $from → $to ($key)',
+                      style: pw.TextStyle(fontSize: 10),
+                    ),
+                  );
+                }),
+                pw.Spacer(),
+                pw.Divider(),
+                pw.SizedBox(height: 4),
+                pw.Align(
+                  alignment: pw.Alignment.centerRight,
+                  child: pw.Text(
+                    'Generated by Kinrel • ${DateTime.now().toLocal().toString().split('.').first}',
+                    style: pw.TextStyle(fontSize: 8, color: pw.PdfColors.grey),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+
+      return pdf.save();
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Generates a true vector SVG document with the family name,
+  /// member list, and relationships as text elements.
+  Future<Uint8List?> _generateFamilySvg(
+      WidgetRef ref, String familyName) async {
+    try {
+      final supabase = ref.read(supabaseProvider);
+      if (supabase == null) return null;
+
+      final familiesResponse = await supabase
+          .from('Family')
+          .select('id, name')
+          .eq('name', familyName)
+          .limit(1);
+
+      if (familiesResponse.isEmpty) return null;
+      final familyId = familiesResponse.first['id'] as String?;
+
+      List<Map<String, dynamic>> members = [];
+      List<Map<String, dynamic>> relationships = [];
+      if (familyId != null) {
+        final membersResponse = await supabase
+            .from('Person')
+            .select('id, name, gender, "isAnchor"')
+            .eq('familyId', familyId)
+            .isFilter('deletedAt', null)
+            .order('name');
+        members = List<Map<String, dynamic>>.from(membersResponse);
+
+        final relsResponse = await supabase
+            .from('Relationship')
+            .select('"fromPersonId", "toPersonId", "relationshipKey"')
+            .eq('familyId', familyId)
+            .eq('isActive', true);
+        relationships = List<Map<String, dynamic>>.from(relsResponse);
+      }
+
+      final nameMap = <String, String>{};
+      for (final m in members) {
+        nameMap[m['id'] as String? ?? ''] = m['name'] as String? ?? 'Unknown';
+      }
+
+      // Calculate SVG dimensions based on content
+      final memberCount = members.length;
+      final relCount = relationships.length;
+      final height = 200.0 + (memberCount * 24) + (relCount * 20) + 60;
+      const width = 800.0;
+
+      final buf = StringBuffer();
+      buf.writeln(
+        '<svg xmlns="http://www.w3.org/2000/svg" '
+        'width="$width" height="${height.toStringAsFixed(0)}" '
+        'viewBox="0 0 $width ${height.toStringAsFixed(0)}">',
+      );
+      buf.writeln('  <title>$familyName — Family Tree</title>');
+      buf.writeln('  <rect width="100%" height="100%" fill="#13141E"/>');
+
+      // Family name header
+      buf.writeln(
+        '  <text x="40" y="50" fill="#E8612A" '
+        'font-family="Arial,sans-serif" font-size="28" font-weight="bold">'
+        '${_escapeXml(familyName)}</text>',
+      );
+      buf.writeln(
+        '  <text x="40" y="75" fill="#C9B4A8" '
+        'font-family="Arial,sans-serif" font-size="14">'
+        'Family Tree</text>',
+      );
+      buf.writeln(
+        '  <line x1="40" y1="90" x2="${width - 40}" y2="90" '
+        'stroke="#333" stroke-width="1"/>',
+      );
+
+      // Members section
+      var y = 120.0;
+      buf.writeln(
+        '  <text x="40" y="${y.toStringAsFixed(0)}" fill="#FFFFFF" '
+        'font-family="Arial,sans-serif" font-size="16" font-weight="bold">'
+        'Members ($memberCount)</text>',
+      );
+      y += 25;
+      for (final m in members) {
+        final name = _escapeXml(m['name'] as String? ?? 'Unknown');
+        final gender = m['gender'] as String? ?? '-';
+        final isAnchor = m['isAnchor'] as bool? ?? false;
+        buf.writeln(
+          '  <text x="60" y="${y.toStringAsFixed(0)}" fill="#C9B4A8" '
+          'font-family="Arial,sans-serif" font-size="12">'
+          '• $name${isAnchor ? ' (You)' : ''} — $gender</text>',
+        );
+        y += 24;
+      }
+
+      // Relationships section
+      y += 15;
+      buf.writeln(
+        '  <text x="40" y="${y.toStringAsFixed(0)}" fill="#FFFFFF" '
+        'font-family="Arial,sans-serif" font-size="16" font-weight="bold">'
+        'Relationships ($relCount)</text>',
+      );
+      y += 25;
+      for (final r in relationships) {
+        final from = _escapeXml(nameMap[r['fromPersonId'] as String?] ?? '?');
+        final to = _escapeXml(nameMap[r['toPersonId'] as String?] ?? '?');
+        final key = _escapeXml(
+            (r['relationshipKey'] as String?)?.replaceAll('_', ' ') ??
+                'related');
+        buf.writeln(
+          '  <text x="60" y="${y.toStringAsFixed(0)}" fill="#C9B4A8" '
+          'font-family="Arial,sans-serif" font-size="11">'
+          '• $from → $to ($key)</text>',
+        );
+        y += 20;
+      }
+
+      // Footer
+      buf.writeln(
+        '  <text x="${(width - 40).toStringAsFixed(0)}" '
+        'y="${(height - 20).toStringAsFixed(0)}" '
+        'text-anchor="end" fill="#666" '
+        'font-family="Arial,sans-serif" font-size="9">'
+        'Generated by Kinrel • ${DateTime.now().toLocal().toString().split('.').first}'
+        '</text>',
+      );
+      buf.writeln('</svg>');
+
+      return Uint8List.fromList(buf.toString().codeUnits);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static String _escapeXml(String s) {
+    return s
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&apos;');
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2847,14 +3134,69 @@ class _ExportOptionsSection extends StatelessWidget {
           title: 'PDF Document',
           subtitle: 'Vector quality · A4 layout',
           color: _cSMS,
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('PDF export coming soon!'),
-                backgroundColor: _cCard,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+          onTap: () async {
+            // v91: Real PDF export — generates an A4 PDF document with
+            // the family name, member list, and relationships using the
+            // pdf package. No screenshot needed.
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      SizedBox(
+                        width: 16, height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: _cOrange,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text('Generating PDF...'),
+                    ],
+                  ),
+                  backgroundColor: _cCard,
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 15),
+                ),
+              );
+            }
+            try {
+              final pdfBytes = await _generateFamilyPdf(ref, familyName);
+              if (pdfBytes == null) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Could not generate PDF. No family data.'),
+                      backgroundColor: _cCard,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+                return;
+              }
+              final xfile = share_plus.XFile.fromData(
+                pdfBytes,
+                name: '${familyName}_family_tree.pdf',
+                mimeType: 'application/pdf',
+              );
+              await share_plus.Share.shareXFiles([xfile],
+                  subject: '$familyName — Family Tree (PDF)');
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('PDF export failed: $e'),
+                    backgroundColor: _cCard,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            }
           },
         ),
         const SizedBox(height: 8),
@@ -2865,14 +3207,69 @@ class _ExportOptionsSection extends StatelessWidget {
           title: 'SVG Vector',
           subtitle: 'Scalable · Editable in design tools',
           color: _cAmber,
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('SVG export coming soon!'),
-                backgroundColor: _cCard,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+          onTap: () async {
+            // v91: Real SVG export — generates a true vector SVG document
+            // with the family name, member list, and relationships as
+            // text elements. Opens in any SVG viewer / design tool.
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      SizedBox(
+                        width: 16, height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: _cAmber,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text('Generating SVG...'),
+                    ],
+                  ),
+                  backgroundColor: _cCard,
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 15),
+                ),
+              );
+            }
+            try {
+              final svgBytes = await _generateFamilySvg(ref, familyName);
+              if (svgBytes == null) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Could not generate SVG. No family data.'),
+                      backgroundColor: _cCard,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+                return;
+              }
+              final xfile = share_plus.XFile.fromData(
+                svgBytes,
+                name: '${familyName}_family_tree.svg',
+                mimeType: 'image/svg+xml',
+              );
+              await share_plus.Share.shareXFiles([xfile],
+                  subject: '$familyName — Family Tree (SVG)');
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('SVG export failed: $e'),
+                    backgroundColor: _cCard,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            }
           },
         ),
       ],

@@ -55,6 +55,10 @@ dependencies:
   shimmer: ^3.0.0
   flutter_svg: ^2.1.0+1
   smooth_page_indicator: ^1.2.0
+
+  # PDF generation (v91: PDF export feature)
+  pdf: ^3.11.2
+  printing: ^5.14.2
   
   # Utilities
   permission_handler: ^11.3.1
