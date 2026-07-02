@@ -28,6 +28,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -1938,6 +1939,51 @@ class DKErrorState extends StatelessWidget {
               .fadeIn(duration: 300.ms, delay: 200.ms)
               .slideY(begin: 0.1, end: 0, duration: 300.ms),
         ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DKSuccessToast — KIN-09 FIX
+// ═══════════════════════════════════════════════════════════════════════
+
+class DKSuccessToast {
+  DKSuccessToast._();
+
+  static void show(BuildContext context, String message, {bool isMilestone = false}) {
+    if (isMilestone) {
+      HapticFeedback.mediumImpact();
+    } else {
+      HapticFeedback.lightImpact();
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.check_circle_rounded, color: DKColors.success, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  fontFamily: 'DM Sans',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF191B2C),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: isMilestone ? 3 : 2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(color: DKColors.success.withValues(alpha: 0.3), width: 1),
+        ),
       ),
     );
   }

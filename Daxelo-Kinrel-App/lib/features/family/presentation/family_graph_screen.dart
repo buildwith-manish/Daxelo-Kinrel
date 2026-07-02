@@ -288,6 +288,14 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           tooltip: 'Search family',
           onPressed: () => setState(() => _showSearch = true),
         ),
+        // Phase 3: Archive button — unified Photos/Timeline/Audio entry.
+        IconButton(
+          icon: const Icon(Icons.photo_library_outlined, size: 22),
+          tooltip: 'Family Archive',
+          onPressed: () {
+            context.push('/family/${widget.familyId}/archive');
+          },
+        ),
         // v92: Chat button — quick access to family chat from the graph.
         IconButton(
           icon: const Icon(Icons.chat_bubble_outline_rounded, size: 22),

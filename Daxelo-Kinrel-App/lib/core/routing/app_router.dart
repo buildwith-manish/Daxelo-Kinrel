@@ -49,7 +49,7 @@ import '../../features/auth/presentation/sign_in_screen.dart';
 import '../../features/auth/presentation/sign_up_screen.dart';
 import '../../features/auth/presentation/two_factor_login_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
-import '../../features/explore/presentation/explore_screen.dart';
+// KIN-25: ExploreScreen import removed — /explore route deleted.
 import '../../features/family/presentation/family_list_screen.dart';
 import '../../features/family/presentation/family_detail_screen.dart';
 import '../../features/family/presentation/path_finder_screen.dart';
@@ -59,6 +59,7 @@ import '../../features/family/presentation/family_qr_screen.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_builder_screen.dart';
 import '../../features/family/presentation/family_graph_screen.dart';
+import '../../features/family/presentation/family_archive_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
@@ -579,11 +580,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) =>
                 _instantPage(key: state.pageKey, child: HomeScreen()),
           ),
-          // GoRoute(
-          //   path: '/kinship-search',
-          //   pageBuilder: (context, state) =>
-          //       _instantPage(key: state.pageKey, child: KinshipSearchScreen()),
-          // ),
           GoRoute(
             path: '/search',
             pageBuilder: (context, state) =>
@@ -596,18 +592,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               child: _PrefetchFamilyList(child: FamilyListScreen()),
             ),
           ),
-          GoRoute(
-            path: '/notifications',
-            pageBuilder: (context, state) => _instantPage(
-              key: state.pageKey,
-              child: const NotificationsScreen(),
-            ),
-          ),
-          GoRoute(
-            path: '/explore',
-            pageBuilder: (context, state) =>
-                _instantPage(key: state.pageKey, child: ExploreScreen()),
-          ),
+          // KIN-20: /notifications removed from ShellRoute — it's now
+          // a pushed route (bell icon on Home header), not a tab.
+          // KIN-25: /explore deleted — confirmed orphan with zero nav
+          // entry points from any tab, Home card, or Profile menu.
           GoRoute(
             path: '/profile',
             pageBuilder: (context, state) => _instantPage(
@@ -615,12 +603,16 @@ final routerProvider = Provider<GoRouter>((ref) {
               child: _PrefetchProfile(child: ProfileScreen()),
             ),
           ),
-          // KIN-01 FIX: Deleted /settings route and SettingsScreen.
-          // Code verification confirmed zero deep links to /settings
-          // anywhere in the codebase. ProfileScreen (/profile) is the
-          // live, actively-maintained "Me" surface that has already
-          // absorbed all settings sections.
         ],
+      ),
+
+      // ── Notifications (pushed via bell icon, no bottom nav) ──────
+      GoRoute(
+        path: '/notifications',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const NotificationsScreen(),
+        ),
       ),
 
       // ── Family Routes (200ms fast fade + prefetch) ────────────────
@@ -706,6 +698,17 @@ final routerProvider = Provider<GoRouter>((ref) {
           child: FamilyGraphScreen(
             familyId: state.pathParameters['id']!,
             familyName: state.uri.queryParameters['name'],
+          ),
+        ),
+      ),
+
+      // ── Family Archive (Phase 3: unified Photos/Timeline/Audio) ──
+      GoRoute(
+        path: '/family/:id/archive',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilyArchiveScreen(
+            familyId: state.pathParameters['id'],
           ),
         ),
       ),
@@ -1300,12 +1303,15 @@ class _MainShellState extends State<MainShell> {
   }
 }
 
-/// 5-tab bottom navigation:
-/// 0. Home      (home icon)
+/// 4-tab bottom navigation (Phase 2 IA restructure per Definitive Audit):
+/// 0. Home      (home icon) — with bell icon for notifications in header
 /// 1. Search    (search icon)
-/// 2. Graph     (family_restroom icon)
-/// 3. Alerts    (notifications icon with badge)
-/// 4. Me        (person icon)
+/// 2. Family    (family_restroom icon) — direct-to-canvas for primary family
+/// 3. Me        (person icon)
+///
+/// KIN-10: "Graph" tab renamed to "Family" and routes directly to the
+/// primary family's graph canvas instead of a list.
+/// KIN-20: Alerts removed from bottom nav; moved to bell icon on Home.
 class _BottomNav extends StatelessWidget {
   const _BottomNav();
 
@@ -1323,13 +1329,7 @@ class _BottomNav extends StatelessWidget {
     DKNavItem(
       icon: Icons.family_restroom_outlined,
       activeIcon: Icons.family_restroom_rounded,
-      label: 'Graph',
-    ),
-    DKNavItem(
-      icon: Icons.notifications_outlined,
-      activeIcon: Icons.notifications_rounded,
-      label: 'Alerts',
-      badge: 0, // Badge count; update dynamically when needed
+      label: 'Family',
     ),
     DKNavItem(
       icon: Icons.person_outline_rounded,
@@ -1353,10 +1353,9 @@ class _BottomNav extends StatelessWidget {
   int _currentIndex(String location) {
     if (location.startsWith('/home')) return 0;
     if (location.startsWith('/search')) return 1;
-    if (location.startsWith('/families')) return 2;
-    if (location.startsWith('/notifications')) return 3;
-    if (location.startsWith('/explore')) return 0;
-    if (location.startsWith('/profile')) return 4;
+    if (location.startsWith('/families') ||
+        location.startsWith('/family/')) return 2;
+    if (location.startsWith('/profile')) return 3;
     return 0;
   }
 
@@ -1368,10 +1367,11 @@ class _BottomNav extends StatelessWidget {
       case 1:
         context.go('/search');
       case 2:
+        // KIN-10: Family tab goes to /families (family list).
+        // If the user has exactly one family, the list screen
+        // auto-navigates to that family's graph directly.
         context.go('/families');
       case 3:
-        context.go('/notifications');
-      case 4:
         context.go('/profile');
     }
   }
