@@ -48,6 +48,15 @@ const _cTextSecondary = KinrelColors.textSilver; // #C9B4A8
 const _cTextDim = KinrelColors.textDim; // #8A7A72
 const _cBorder = Color(0xFF3A3A4A);
 
+/// Format a DateTime as "h:mm AM/PM" for notification bodies.
+String _formatTime(DateTime dt) {
+  final hour = dt.hour;
+  final minute = dt.minute.toString().padLeft(2, '0');
+  final period = hour >= 12 ? 'PM' : 'AM';
+  final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+  return '$displayHour:$minute $period';
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Events Screen
 // ═══════════════════════════════════════════════════════════════════════
@@ -161,9 +170,9 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
 // Header: "Events & Celebrations" with calendar icon in orange
 // ═══════════════════════════════════════════════════════════════════════
 
-class _EventsHeader extends StatelessWidget {
+class _EventsHeader extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.fromLTRB(
         KinrelSpacing.base,
@@ -248,12 +257,7 @@ class _EventsHeader extends StatelessWidget {
   void _showNotificationSettings(BuildContext context, WidgetRef ref) {
     final events = ref.read(eventsProvider).events;
     final upcoming = events.where((e) {
-      try {
-        final d = DateTime.parse(e.date);
-        return d.isAfter(DateTime.now());
-      } catch (_) {
-        return false;
-      }
+      return e.date.isAfter(DateTime.now());
     }).toList();
 
     showModalBottomSheet(
@@ -320,16 +324,16 @@ class _EventsHeader extends StatelessWidget {
                         int scheduled = 0;
                         for (final ev in upcoming) {
                           try {
-                            final eventDate = DateTime.parse(ev.date);
+                            final eventDate = ev.date;
                             final reminderTime =
                                 eventDate.subtract(const Duration(days: 1));
                             if (reminderTime.isAfter(DateTime.now())) {
                               LocalNotificationScheduler
                                   .scheduleEventReminder(
                                 id: ev.id.hashCode.abs() % 100000,
-                                title: '${ev.emoji} ${ev.title}',
+                                title: '${ev.emoji} ${ev.name}',
                                 body:
-                                    'Tomorrow at ${ev.time ?? 'all day'}${ev.location != null ? ' • ${ev.location}' : ''}',
+                                    'Tomorrow${ev.isAllDay ? '' : ' at ${_formatTime(eventDate)}'}${ev.location != null ? ' • ${ev.location}' : ''}',
                                 scheduledDate: reminderTime,
                               );
                               scheduled++;
@@ -387,7 +391,7 @@ class _EventNotificationTileState extends State<_EventNotificationTile> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.event.title,
+                  widget.event.name,
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 15,
@@ -396,7 +400,7 @@ class _EventNotificationTileState extends State<_EventNotificationTile> {
                   ),
                 ),
                 Text(
-                  widget.event.date,
+                  widget.event.formattedDate,
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
@@ -412,16 +416,16 @@ class _EventNotificationTileState extends State<_EventNotificationTile> {
             onChanged: (v) async {
               setState(() => _enabled = v);
               try {
-                final eventDate = DateTime.parse(widget.event.date);
+                final eventDate = widget.event.date;
                 final reminderTime =
                     eventDate.subtract(const Duration(days: 1));
                 final id = widget.event.id.hashCode.abs() % 100000;
                 if (v && reminderTime.isAfter(DateTime.now())) {
                   await LocalNotificationScheduler.scheduleEventReminder(
                     id: id,
-                    title: '${widget.event.emoji} ${widget.event.title}',
+                    title: '${widget.event.emoji} ${widget.event.name}',
                     body:
-                        'Tomorrow at ${widget.event.time ?? 'all day'}${widget.event.location != null ? ' • ${widget.event.location}' : ''}',
+                        'Tomorrow${widget.event.isAllDay ? '' : ' at ${_formatTime(eventDate)}'}${widget.event.location != null ? ' • ${widget.event.location}' : ''}',
                     scheduledDate: reminderTime,
                   );
                 } else {
@@ -2138,9 +2142,9 @@ class _ShareEventButton extends StatelessWidget {
 
   void _shareEvent(BuildContext context) {
     final text = StringBuffer()
-      ..writeln('${event.emoji} ${event.title}')
-      ..writeln('📅 ${event.date}${event.time != null ? ' at ${event.time}' : ''}')
-      ..writeln('🎭 ${event.type.label}');
+      ..writeln('${event.emoji} ${event.name}')
+      ..writeln('📅 ${event.formattedDate}')
+      ..writeln('🎭 ${event.type.name}');
     if (event.location != null && event.location!.isNotEmpty) {
       text.writeln('📍 ${event.location}');
     }
@@ -2148,7 +2152,7 @@ class _ShareEventButton extends StatelessWidget {
       text.writeln('📝 ${event.description}');
     }
     text.writeln('— Shared via Kinrel');
-    Share.share(text.toString(), subject: 'Family event: ${event.title}');
+    Share.share(text.toString(), subject: 'Family event: ${event.name}');
   }
 }
 
