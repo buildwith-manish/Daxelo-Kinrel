@@ -147,32 +147,32 @@ jobs:
         continue-on-error: true
 
       # ── Build signed release APK ─────────────────────────────────
+      # Flutter always emits exactly one APK at:
+      #   build/app/outputs/flutter-apk/app-release.apk
+      # We upload ONLY that file (no rename, no copy, no glob) so the
+      # workflow produces a single artifact: app-release.apk.
       - name: Build signed APK
         run: cd ${{ env.FLUTTER_DIR }} && flutter build apk --release --build-number=$GITHUB_RUN_NUMBER
 
-      # ── Rename APK with release info ─────────────────────────────
-      - name: Rename APK with release info
+      # ── Verify the single APK exists ─────────────────────────────
+      - name: Verify APK
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            RELEASE_TYPE="${{ github.event.inputs.release_type }}"
-          else
-            RELEASE_TYPE="auto"
+          APK="${{ env.FLUTTER_DIR }}/build/app/outputs/flutter-apk/app-release.apk"
+          if [ ! -f "$APK" ]; then
+            echo "ERROR: app-release.apk not found at $APK"
+            ls -la ${{ env.FLUTTER_DIR }}/build/app/outputs/flutter-apk/ || true
+            exit 1
           fi
-          SRC="${{ env.FLUTTER_DIR }}/build/app/outputs/flutter-apk/app-release.apk"
-          DST="${{ env.FLUTTER_DIR }}/build/app/outputs/flutter-apk/kinrel-${RELEASE_TYPE}-${GITHUB_RUN_NUMBER}.apk"
-          if [ -f "$SRC" ]; then
-            cp "$SRC" "$DST"
-            echo "APK renamed: kinrel-${RELEASE_TYPE}-${GITHUB_RUN_NUMBER}.apk"
-          else
-            echo "WARNING: APK not found at $SRC"
-          fi
+          echo "APK ready: $APK ($(du -h "$APK" | cut -f1))"
 
-      # ── Upload signed APK artifact ───────────────────────────────
+      # ── Upload the single signed APK artifact ────────────────────
+      # NOTE: path is the EXACT app-release.apk file (not a *.apk glob)
+      # so only ONE apk is uploaded per workflow run.
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-apk-signed-${{ github.event.inputs.release_type || 'auto' }}-${{ github.run_number }}
-          path: ${{ env.FLUTTER_DIR }}/build/app/outputs/flutter-apk/*.apk
+          path: ${{ env.FLUTTER_DIR }}/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
           if-no-files-found: error
 
