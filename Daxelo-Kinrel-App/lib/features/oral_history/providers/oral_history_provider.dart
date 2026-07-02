@@ -868,16 +868,20 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
     // Check microphone permission and start real recording
     try {
       if (await _audioRecorder.hasPermission()) {
-        // Record to a temporary file
-        final path = await _audioRecorder.start(
+        // v92: In record v5, start() returns Future<void>, not Future<String>.
+        // The recording is saved to the path we provide. We store that path
+        // so transcribeRecording() can read the file later.
+        final recordedPath =
+            'oral_history_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        await _audioRecorder.start(
           const RecordConfig(
             encoder: AudioEncoder.aacLc,
             bitRate: 128000,
             sampleRate: 44100,
           ),
-          path: 'oral_history_${DateTime.now().millisecondsSinceEpoch}.m4a',
+          path: recordedPath,
         );
-        _recordingPath = path;
+        _recordingPath = recordedPath;
       }
     } catch (e) {
       debugPrint('⚠️ OralHistory: could not start audio recording: $e');
