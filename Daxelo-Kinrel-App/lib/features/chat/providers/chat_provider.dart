@@ -641,9 +641,37 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // ── Presence: track who's online in this family chat ──
     // v91: Real-time online status. The onPresenceSync callback fires
     // on initial sync and whenever the presence state changes (joins
-    // and leaves), so we don't need separate join/leave handlers.
+    // and leaves). We use the payload directly to extract online user IDs.
     _channel!.onPresenceSync((RealtimePresenceSyncPayload payload) {
-      _handlePresenceSync(_channel!.presenceState);
+      final onlineIds = <String>{};
+      // The payload has a 'joins' and 'leaves' field, but the simplest
+      // approach is to mark all members as potentially online on sync.
+      // The current user is always online in their own session.
+      final myId = _currentUserId;
+      if (myId != null) onlineIds.add(myId);
+      // Extract user IDs from the joins payload if available.
+      final joins = payload.joins;
+      if (joins is Map) {
+        for (final v in joins.values) {
+          if (v is Map) {
+            final metas = v['metas'];
+            if (metas is List) {
+              for (final m in metas) {
+                if (m is Map) {
+                  final uid = m['user_id'] as String?;
+                  if (uid != null && uid.isNotEmpty) onlineIds.add(uid);
+                }
+              }
+            }
+          }
+        }
+      }
+      if (!mounted) return;
+      state = state.copyWith(
+        members: state.members
+            .map((m) => m.copyWith(isOnline: onlineIds.contains(m.id)))
+            .toList(),
+      );
     });
 
     // Track the current user's presence once the channel subscribes.
@@ -663,30 +691,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
 
     debugPrint('📡 ChatNotifier: subscribed to chat:$familyId (with presence)');
-  }
-
-  /// Handle presence sync — extract all online user IDs from the
-  /// presence state and update member isOnline flags.
-  void _handlePresenceSync(Map<String, List<dynamic>> presenceState) {
-    final onlineIds = <String>{};
-    for (final presenceList in presenceState.values) {
-      for (final presence in presenceList) {
-        if (presence is Map) {
-          final uid = presence['user_id'] as String?;
-          if (uid != null && uid.isNotEmpty) {
-            onlineIds.add(uid);
-          }
-        }
-      }
-    }
-
-    if (!mounted) return;
-
-    final updatedMembers = state.members.map((m) {
-      return m.copyWith(isOnline: onlineIds.contains(m.id));
-    }).toList();
-
-    state = state.copyWith(members: updatedMembers);
   }
 
   void _handleMessageInsert(Map<String, dynamic> row) {
