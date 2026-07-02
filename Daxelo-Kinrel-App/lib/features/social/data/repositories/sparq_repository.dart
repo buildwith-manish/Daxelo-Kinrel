@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:io';
-import 'package:dio/dio.dart';
+import 'package:dio/dio.dart' as dio;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/networking/dio_client.dart';
 import '../../../../core/services/supabase_service.dart';
@@ -77,7 +77,7 @@ class SparqRepository {
     String? parentSparqId,
   }) async {
     final dio = _ref.read(dioProvider);
-    final formData = FormData.fromMap({
+    final formData = dio.FormData.fromMap({
       'type': type,
       'audience': audience,
       'mood': mood,
@@ -91,7 +91,7 @@ class SparqRepository {
       if (revealAt != null) 'revealAt': revealAt.toIso8601String(),
       if (parentSparqId != null) 'parentSparqId': parentSparqId,
       if (mediaFile != null)
-        'media': await MultipartFile.fromFile(
+        'media': await dio.MultipartFile.fromFile(
           mediaFile.path,
           filename: mediaFile.path.split('/').last,
         ),
@@ -148,7 +148,7 @@ class SparqRepository {
     String intensity = 'warm',
   }) async {
     final dio = _ref.read(dioProvider);
-    final formData = FormData.fromMap({
+    final formData = dio.FormData.fromMap({
       'type': type,
       'mood': mood,
       'intensity': intensity,
@@ -156,7 +156,7 @@ class SparqRepository {
       if (backgroundColor != null) 'backgroundColor': backgroundColor,
       if (duration != null) 'duration': duration,
       if (mediaFile != null)
-        'media': await MultipartFile.fromFile(
+        'media': await dio.MultipartFile.fromFile(
           mediaFile.path,
           filename: mediaFile.path.split('/').last,
         ),
