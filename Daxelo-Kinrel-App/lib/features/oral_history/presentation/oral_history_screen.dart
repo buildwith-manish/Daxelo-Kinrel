@@ -721,7 +721,7 @@ class _OralHistoryScreenState extends ConsumerState<OralHistoryScreen>
     notifier.setRecordingSaving(true);
     await Future.delayed(const Duration(milliseconds: 800));
     notifier.setRecordingSaving(false);
-    final duration = notifier.stopRecording();
+    final duration = await notifier.stopRecording();
     _showSaveStoryDialog(duration);
   }
 

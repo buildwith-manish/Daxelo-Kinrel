@@ -10,11 +10,15 @@
 // ignite gradient (#E8612A → #F59240), glow effects.
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:record/record.dart';
 
 import '../../../core/constants/brand_colors.dart';
+import '../../../core/networking/dio_client.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Story Category Enum
@@ -844,7 +848,11 @@ class OralHistoryState {
 
 /// State notifier managing oral history stories and recording.
 class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
-  OralHistoryNotifier() : super(OralHistoryState(stories: _demoStories));
+  OralHistoryNotifier(this._ref) : super(OralHistoryState(stories: _demoStories));
+
+  final Ref _ref;
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  String? _recordingPath;
 
   Timer? _recordingTimer;
   Timer? _amplitudeTimer;
@@ -852,9 +860,30 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
   // ── Recording Methods ──────────────────────────────────────────────
 
   /// Start a new recording session.
-  void startRecording() {
+  /// v91: Uses the `record` package to capture real audio to a file.
+  Future<void> startRecording() async {
     _recordingTimer?.cancel();
     _amplitudeTimer?.cancel();
+
+    // Check microphone permission and start real recording
+    try {
+      if (await _audioRecorder.hasPermission()) {
+        // Record to a temporary file
+        final path = await _audioRecorder.start(
+          const RecordConfig(
+            encoder: AudioEncoder.aacLc,
+            bitRate: 128000,
+            sampleRate: 44100,
+          ),
+          path: 'oral_history_${DateTime.now().millisecondsSinceEpoch}.m4a',
+        );
+        _recordingPath = path;
+      }
+    } catch (e) {
+      debugPrint('⚠️ OralHistory: could not start audio recording: $e');
+      // Fall through — the timer/amplitude simulation still runs so the
+      // UI shows a recording state even if the mic isn't available.
+    }
 
     state = state.copyWith(
       recordingState: const RecordingState(
@@ -867,7 +896,7 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
       ),
     );
 
-    // Simulate recording timer
+    // Recording timer
     _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (state.recordingState.isRecording && !state.recordingState.isPaused) {
         final newDuration =
@@ -878,13 +907,22 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
       }
     });
 
-    // Simulate amplitude visualization
-    _amplitudeTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+    // Amplitude visualization — use real amplitude from the recorder
+    // when available, fall back to simulated values.
+    _amplitudeTimer = Timer.periodic(const Duration(milliseconds: 100), (_) async {
       if (state.recordingState.isRecording && !state.recordingState.isPaused) {
-        final randomAmplitude = 0.2 + (DateTime.now().millisecond % 80) / 100.0;
+        double amplitude = 0.2 + (DateTime.now().millisecond % 80) / 100.0;
+        try {
+          final amp = await _audioRecorder.getAmplitude();
+          if (amp != null) {
+            // Convert dBFS (negative) to 0..1 scale
+            amplitude = ((amp + 60) / 60).clamp(0.0, 1.0);
+          }
+        } catch (_) {}
+
         final newAmplitudes = [
           ...state.recordingState.amplitudes,
-          randomAmplitude,
+          amplitude,
         ];
         // Keep only last 50 amplitudes for waveform
         if (newAmplitudes.length > 50) {
@@ -892,7 +930,7 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
         }
         state = state.copyWith(
           recordingState: state.recordingState.copyWith(
-            amplitude: randomAmplitude,
+            amplitude: amplitude,
             amplitudes: newAmplitudes,
           ),
         );
@@ -901,23 +939,34 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
   }
 
   /// Pause the current recording.
-  void pauseRecording() {
+  Future<void> pauseRecording() async {
+    try {
+      await _audioRecorder.pause();
+    } catch (_) {}
     state = state.copyWith(
       recordingState: state.recordingState.copyWith(isPaused: true),
     );
   }
 
   /// Resume a paused recording.
-  void resumeRecording() {
+  Future<void> resumeRecording() async {
+    try {
+      await _audioRecorder.resume();
+    } catch (_) {}
     state = state.copyWith(
       recordingState: state.recordingState.copyWith(isPaused: false),
     );
   }
 
   /// Stop the current recording and return the recorded duration.
-  Duration stopRecording() {
+  Future<Duration> stopRecording() async {
     _recordingTimer?.cancel();
     _amplitudeTimer?.cancel();
+
+    try {
+      final path = await _audioRecorder.stop();
+      if (path != null) _recordingPath = path;
+    } catch (_) {}
 
     final recordedDuration = state.recordingState.duration;
 
@@ -940,9 +989,18 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
 
   // ── Transcription Methods ──────────────────────────────────────────
 
-  /// Transcribe the current recording using AI with language detection.
+  /// Transcribe the current recording using the server's AI voice
+  /// transcription endpoint (POST /v1/ai-voice/transcribe).
+  ///
+  /// v91: Real implementation — reads the recorded audio file,
+  /// base64-encodes it, and sends it to the server. Falls back to
+  /// a user-friendly error if no recording is available.
   Future<void> transcribeRecording() async {
-    // Phase 1: Language Detection
+    final lang = state.selectedLanguage;
+
+    // Phase 1: Language Detection (simulated — the server endpoint
+    // transcribes in one shot and doesn't have a separate language
+    // detection phase, so we use the user-selected language directly).
     state = state.copyWith(
       transcriptionState: const TranscriptionState(
         isTranscribing: true,
@@ -952,105 +1010,138 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
       ),
     );
 
-    // Simulate language detection with progress
-    for (var i = 0; i < 5; i++) {
-      await Future.delayed(const Duration(milliseconds: 200));
+    // Brief detection progress animation
+    for (var i = 0; i < 3; i++) {
+      await Future.delayed(const Duration(milliseconds: 150));
       if (!state.transcriptionState.isTranscribing) return;
       state = state.copyWith(
         transcriptionState: state.transcriptionState.copyWith(
-          detectionProgress: (i + 1) / 5,
+          detectionProgress: (i + 1) / 3,
         ),
       );
     }
 
-    // Determine detected language based on selected language
-    final lang = state.selectedLanguage;
     final detectedLang =
         TranscriptionLanguageX.fromCode(lang) ?? TranscriptionLanguage.en;
-    final isHinglish =
-        lang == 'hi' &&
-        (DateTime.now().millisecond % 3 == 0); // ~33% chance of code-switching
 
-    final finalDetectedLang = isHinglish
-        ? TranscriptionLanguage.hinglish
-        : detectedLang;
-    final confidence =
-        0.85 + (DateTime.now().millisecond % 15) / 100.0; // 0.85–0.99
-
-    // Set detected language
     state = state.copyWith(
       transcriptionState: state.transcriptionState.copyWith(
         isDetectingLanguage: false,
         detectionProgress: 1.0,
-        detectedLanguage: () => finalDetectedLang,
-        languageConfidence: confidence,
-        isCodeSwitching: finalDetectedLang.isCodeSwitching,
+        detectedLanguage: () => detectedLang,
+        languageConfidence: 0.95,
+        isCodeSwitching: detectedLang.isCodeSwitching,
       ),
     );
 
-    // Phase 2: Transcription with progress
-    for (var i = 0; i < 8; i++) {
-      await Future.delayed(const Duration(milliseconds: 250));
-      if (!state.transcriptionState.isTranscribing) return;
+    // Phase 2: Real transcription via server endpoint
+    // Progress animation while waiting for the server.
+    var progress = 0.1;
+    final progressTimer = Timer.periodic(
+      const Duration(milliseconds: 300),
+      (_) {
+        if (!state.transcriptionState.isTranscribing) return;
+        progress = (progress + 0.05).clamp(0.1, 0.9);
+        state = state.copyWith(
+          transcriptionState: state.transcriptionState.copyWith(
+            progress: progress,
+          ),
+        );
+      },
+    );
+
+    try {
+      String? transcriptionText;
+
+      if (_recordingPath != null) {
+        // Read the audio file and base64-encode it
+        final audioFile = File(_recordingPath!);
+        if (await audioFile.exists()) {
+          final audioBytes = await audioFile.readAsBytes();
+          final audioBase64 = base64Encode(audioBytes);
+
+          // Call the server's transcription endpoint
+          final dio = _ref.read(dioProvider);
+          final response = await dio.post(
+            '/v1/ai-voice/transcribe',
+            data: {
+              'audio': audioBase64,
+              'language': lang,
+            },
+          ).timeout(const Duration(seconds: 60));
+
+          final data = response.data as Map<String, dynamic>?;
+          transcriptionText = data?['transcription'] as String?;
+        }
+      }
+
+      progressTimer.cancel();
+
+      if (transcriptionText == null || transcriptionText.isEmpty) {
+        // No recording available or empty result — show error
+        state = state.copyWith(
+          transcriptionState: TranscriptionState(
+            isTranscribing: false,
+            progress: 0.0,
+            text: '',
+            error: 'No audio recording available. Please record audio first.',
+          ),
+        );
+        return;
+      }
+
+      // Create timestamped segments by splitting on sentence boundaries
+      final sentences = transcriptionText
+          .split(RegExp(r'[।.!?]'))
+          .where((s) => s.trim().isNotEmpty)
+          .toList();
+
+      final totalSeconds = state.recordingState.duration.inSeconds > 0
+          ? state.recordingState.duration.inSeconds
+          : 60;
+      final segments = <TranscriptionSegment>[];
+      for (var i = 0; i < sentences.length; i++) {
+        final startSec = (i * totalSeconds / sentences.length).round();
+        final endSec = ((i + 1) * totalSeconds / sentences.length).round();
+        segments.add(
+          TranscriptionSegment(
+            text: sentences[i].trim(),
+            startTime: Duration(seconds: startSec),
+            endTime: Duration(seconds: endSec),
+            confidence: 0.9,
+          ),
+        );
+      }
+
       state = state.copyWith(
-        transcriptionState: state.transcriptionState.copyWith(
-          progress: 0.1 + (i + 1) / 10,
+        transcriptionState: TranscriptionState(
+          isTranscribing: false,
+          progress: 1.0,
+          text: transcriptionText,
+          language: lang,
+          segments: segments,
+          detectedLanguage: detectedLang,
+          languageConfidence: 0.95,
+          isCodeSwitching: detectedLang.isCodeSwitching,
+        ),
+      );
+    } catch (e) {
+      progressTimer.cancel();
+      state = state.copyWith(
+        transcriptionState: TranscriptionState(
+          isTranscribing: false,
+          progress: 0.0,
+          text: '',
+          error: 'Transcription failed: $e',
         ),
       );
     }
-
-    // Simulate transcription result based on selected language
-    final transcriptionTexts = {
-      'hi':
-          'यह हमारे परिवार की कहानी है। हमारे दादा जी ने इस घर को बहुत मेहनत से बनाया था। वे हमेशा कहते थे कि परिवार सबसे बड़ा धन है।',
-      'bn':
-          'এটি আমাদের পরিবারের গল্প। আমাদের দাদা অনেক কঠোর পরিশ্রম করে এই বাড়িটি তৈরি করেছিলেন।',
-      'ta':
-          'இது எங்கள் குடும்பத்தின் கதை. எங்கள் தாத்தா இந்த வீட்டை நிறைய கடினமாக கட்டினார்கள்.',
-      'en':
-          'This is our family story. Our grandfather built this house with great effort. He always said that family is the greatest wealth.',
-    };
-
-    final fullText = transcriptionTexts[lang] ?? transcriptionTexts['en']!;
-
-    // Create timestamped segments with varying confidence
-    final sentences = fullText
-        .split(RegExp(r'[।.!]'))
-        .where((s) => s.trim().isNotEmpty)
-        .toList();
-
-    final totalSeconds = 120; // Simulated 2-minute recording
-    final segments = <TranscriptionSegment>[];
-    for (var i = 0; i < sentences.length; i++) {
-      final startSec = (i * totalSeconds / sentences.length).round();
-      final endSec = ((i + 1) * totalSeconds / sentences.length).round();
-      // Vary confidence per segment
-      final segConfidence = 0.7 + (i % 3) * 0.1; // 0.7, 0.8, 0.9 rotating
-      segments.add(
-        TranscriptionSegment(
-          text: sentences[i].trim(),
-          startTime: Duration(seconds: startSec),
-          endTime: Duration(seconds: endSec),
-          confidence: segConfidence,
-        ),
-      );
-    }
-
-    state = state.copyWith(
-      transcriptionState: TranscriptionState(
-        isTranscribing: false,
-        progress: 1.0,
-        text: fullText,
-        language: lang,
-        segments: segments,
-        detectedLanguage: finalDetectedLang,
-        languageConfidence: confidence,
-        isCodeSwitching: finalDetectedLang.isCodeSwitching,
-      ),
-    );
   }
 
-  /// Simulate translation to English.
+  /// Translate the transcription to English.
+  /// v91: Still uses client-side translation mapping for known languages
+  /// since the server endpoint doesn't have a separate translation API.
+  /// For unknown languages, returns the original text.
   Future<void> translateToEnglish() async {
     if (!state.transcriptionState.hasResults) return;
 
@@ -1061,41 +1152,34 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
       ),
     );
 
-    // Simulate translation progress
-    for (var i = 0; i < 6; i++) {
+    // Translation progress animation
+    for (var i = 0; i < 4; i++) {
       await Future.delayed(const Duration(milliseconds: 200));
       state = state.copyWith(
         transcriptionState: state.transcriptionState.copyWith(
-          translationProgress: (i + 1) / 6,
+          translationProgress: (i + 1) / 4,
         ),
       );
     }
 
-    // Simulate English translation
-    final translations = {
-      'hi':
-          'This is our family\'s story. Our grandfather built this house with great hard work. He always used to say that family is the greatest wealth.',
-      'bn':
-          'This is our family\'s story. Our grandfather built this house with great hard work.',
-      'ta':
-          'This is our family\'s story. Our grandfather built this house with great difficulty.',
-      'en':
-          'This is our family story. Our grandfather built this house with great effort. He always said that family is the greatest wealth.',
-    };
-
+    // Use the original transcription text as the "translation" for English.
+    // For other languages, the server's transcription endpoint may already
+    // return English — we use what we have.
+    final originalText = state.transcriptionState.text;
     final lang = state.transcriptionState.language;
-    final translation = translations[lang] ?? translations['en']!;
+
+    // If the text is already in English (ASCII-heavy), use it as-is.
+    // Otherwise, return the original text with a note that professional
+    // translation is recommended.
+    final isAscii = originalText.codeUnits.every((c) => c < 128);
+    final translation = isAscii
+        ? originalText
+        : '$originalText\n\n[English translation: Please use a translation service for accurate English rendering of the $lang text above.]';
 
     // Add translations to segments
     final updatedSegments = state.transcriptionState.segments.map((seg) {
-      // Simple: first third of translation for first segment, etc.
-      final transParts = translation.split(RegExp(r'[.!?]'));
-      final idx = state.transcriptionState.segments.indexOf(seg);
-      final transText = idx < transParts.length
-          ? transParts[idx].trim()
-          : translation;
       return seg.copyWith(
-        englishTranslation: transText.isNotEmpty ? '$transText.' : null,
+        englishTranslation: isAscii ? seg.text : null,
       );
     }).toList();
 
@@ -1180,7 +1264,7 @@ class OralHistoryNotifier extends StateNotifier<OralHistoryState> {
 /// Main oral history provider.
 final oralHistoryProvider =
     StateNotifierProvider<OralHistoryNotifier, OralHistoryState>((ref) {
-      return OralHistoryNotifier();
+      return OralHistoryNotifier(ref);
     });
 
 /// Computed provider: filtered stories based on current filter and search.

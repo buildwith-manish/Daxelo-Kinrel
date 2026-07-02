@@ -59,6 +59,9 @@ dependencies:
   # PDF generation (v91: PDF export feature)
   pdf: ^3.11.2
   printing: ^5.14.2
+
+  # Audio recording (v91: Oral history transcription feature)
+  record: ^5.2.0
   
   # Utilities
   permission_handler: ^11.3.1
