@@ -141,9 +141,37 @@ class FlatGraphResult {
       };
     }).toList();
 
+    // v90 FIX: Deduplicate edges by canonical pair (sorted from|to).
+    //
+    // The Relationship table stores BOTH the forward (A→B "father") AND
+    // the inverse (B→A "son") row for every relationship created via
+    // createRelationshipBetween(). The viewer RPC returns every row
+    // faithfully, so a family with 3 conceptual relationships arrives
+    // here as 6 raw edges — and the LINKS counter on the graph screen
+    // shows "6" instead of "3".
+    //
+    // The direct-query path (_fetchGraphDirectQuery) already dedupes
+    // using the same canonical-pair strategy, but the RPC path did not,
+    // and the merge logic at the call site preferred the RPC's larger
+    // un-deduped count. Fix the root cause here: dedupe inside the
+    // factory so EVERY FlatGraphResult produced from an RPC has the
+    // same invariant as the direct-query path.
+    final seenPairs = <String>{};
+    final dedupedRelationships = <Map<String, dynamic>>[];
+    for (final r in relationships) {
+      final from = r['fromPersonId']?.toString() ?? '';
+      final to = r['toPersonId']?.toString() ?? '';
+      if (from.isEmpty || to.isEmpty) continue;
+      final pairKey = [from, to]..sort();
+      final canonical = '${pairKey[0]}|${pairKey[1]}';
+      if (seenPairs.contains(canonical)) continue; // skip inverse duplicate
+      seenPairs.add(canonical);
+      dedupedRelationships.add(r);
+    }
+
     return FlatGraphResult(
       persons: persons,
-      relationships: relationships,
+      relationships: dedupedRelationships,
       isTruncated: json['isTruncated'] as bool? ?? false,
       totalCount: json['totalCount'] as int?,
     );

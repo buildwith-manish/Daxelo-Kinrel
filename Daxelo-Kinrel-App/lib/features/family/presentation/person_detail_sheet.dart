@@ -571,6 +571,31 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                   icon: Icons.calendar_today_outlined,
                   label: 'Date of Birth',
                   value: person.dateOfBirth!,
+                )
+              // v90 FIX: Inline "Add birthday" affordance.
+              //
+              // Before this fix, the only way to add a birthday to an
+              // existing person was to tap the "Edit" button in the
+              // action row at the bottom. But that row has TWO
+              // visually-similar orange outlined buttons side-by-side:
+              //
+              //   [ Edit ]   [ Add Relative ]
+              //
+              // Users trying to add a birthday frequently tapped
+              // "Add Relative" by mistake, which opens AddPersonSheet
+              // in CREATE mode (anchorPerson only, no existingPerson),
+              // entering the existing person's name + birthday, and
+              // accidentally creating a duplicate Person row instead
+              // of updating the original.
+              //
+              // Fix: when dateOfBirth is empty, render an inline
+              // tappable "Add birthday" row that opens AddPersonSheet
+              // with existingPerson: person directly — bypassing the
+              // two-button confusion entirely.
+              else if (kEnableProfileEditing)
+                _InlineAddBirthdayRow(
+                  person: person,
+                  familyId: widget.familyId,
                 ),
               if (person.gender != null)
                 _InfoRow(
@@ -938,8 +963,13 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
         Row(
           children: [
             // Edit profile
+            // v90 FIX: Use a FILLED orange button for "Edit" so it
+            // visually dominates "Add Relative" — users editing an
+            // existing person's birthday/name should not mis-tap
+            // "Add Relative" (which opens the sheet in CREATE mode
+            // and accidentally creates a duplicate person).
             Expanded(
-              child: OutlinedButton.icon(
+              child: FilledButton.icon(
                 onPressed: () {
                   Navigator.of(context).pop();
                   AddPersonSheet.show(
@@ -950,9 +980,9 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                 },
                 icon: Icon(Icons.edit_outlined, size: 16),
                 label: Text('Edit'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: KinrelColors.orange,
-                  side: BorderSide(color: KinrelColors.orange),
+                style: FilledButton.styleFrom(
+                  backgroundColor: KinrelColors.orange,
+                  foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(vertical: 10),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
@@ -968,6 +998,8 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
             SizedBox(width: 8),
 
             // Add relative
+            // v90 FIX: Keep this as an OUTLINED button with a softer
+            // alpha so it's clearly the secondary action.
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: () {
@@ -981,9 +1013,9 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
                 icon: Icon(Icons.person_add_outlined, size: 16),
                 label: Text('Add Relative'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: KinrelColors.orange,
+                  foregroundColor: KinrelColors.orange.withValues(alpha: 0.85),
                   side: BorderSide(
-                    color: KinrelColors.orange.withValues(alpha: 0.5),
+                    color: KinrelColors.orange.withValues(alpha: 0.4),
                   ),
                   padding: EdgeInsets.symmetric(vertical: 10),
                   shape: RoundedRectangleBorder(
@@ -1557,4 +1589,88 @@ class _TimelineEntry {
   final String title;
   final IconData icon;
   final Color color;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INLINE "ADD BIRTHDAY" ROW — v90 FIX
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Renders an inline tappable row inside the Personal Details card when
+// the person has no dateOfBirth. Tapping it opens AddPersonSheet in
+// EDIT mode (existingPerson: person) so the birthday is saved to the
+// existing person row via UPDATE — NOT via INSERT (which would create
+// a duplicate person).
+//
+// This bypasses the two-button confusion in the action row at the
+// bottom of the sheet, where users frequently tapped "Add Relative"
+// instead of "Edit" when trying to add a birthday.
+
+class _InlineAddBirthdayRow extends StatelessWidget {
+  const _InlineAddBirthdayRow({
+    required this.person,
+    required this.familyId,
+  });
+
+  final Person person;
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        // Close the bottom sheet first, then open the edit sheet.
+        Navigator.of(context).pop();
+        AddPersonSheet.show(
+          context,
+          familyId: familyId,
+          existingPerson: person, // ← EDIT mode → UPDATE, not INSERT
+        );
+      },
+      borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        child: Row(
+          children: [
+            Icon(
+              Icons.cake_outlined,
+              size: 18,
+              color: KinrelColors.orange,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Date of Birth',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: KinrelColors.textDim,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Add birthday',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: KinrelColors.orange,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.add_circle_outline_rounded,
+              size: 20,
+              color: KinrelColors.orange,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

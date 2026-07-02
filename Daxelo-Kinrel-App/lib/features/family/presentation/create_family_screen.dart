@@ -12,12 +12,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/optimistic_actions.dart';
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
 import '../../../shared/widgets/dk_components.dart';
 import 'add_person_sheet.dart';
+import 'join_family_screen.dart';
+import 'qr_scanner_screen.dart';
 
 class CreateFamilyScreen extends ConsumerStatefulWidget {
   CreateFamilyScreen({super.key});
@@ -408,6 +411,33 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
               fontWeight: FontWeight.w600,
             ),
           ),
+          // v90 FIX: Add a "Scan QR to Join" action so users who landed on
+          // Create Family but actually meant to join an existing family
+          // have an escape hatch. Reuses the exact pattern from
+          // family_list_screen.dart's _showJoinOptionsBottomSheet.
+          actions: [
+            if (kEnableQrJoin)
+              IconButton(
+                icon: const Icon(Icons.qr_code_scanner_rounded),
+                tooltip: 'Scan QR to Join',
+                onPressed: () {
+                  Navigator.of(context).push<String>(
+                    MaterialPageRoute(
+                      builder: (_) => const QrScannerScreen(),
+                    ),
+                  ).then((familyId) {
+                    if (familyId != null && familyId.isNotEmpty) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              JoinFamilyScreen(kinFamilyId: familyId),
+                        ),
+                      );
+                    }
+                  });
+                },
+              ),
+          ],
         ),
         body: Column(
         children: [

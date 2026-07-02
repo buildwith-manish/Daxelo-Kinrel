@@ -67,6 +67,14 @@ class _RelationshipPickerSheetState
   final _searchController = TextEditingController();
   String _query = '';
   String? _selectedKey;
+  // v90 FIX: Track the category the user tapped in "Browse by Category".
+  // When non-null, the build method renders _buildCategoryResults() which
+  // calls KinshipService.getByCategory() directly (an O(1) map lookup that
+  // returns the correct list). Previously _showCategoryResults() routed
+  // the category name through kinshipSearchProvider, but KinshipService.search()
+  // does not match against relationshipCategory — so it always returned []
+  // and the user saw "No relationships found for \"Core\"".
+  String? _selectedCategory;
   SupportedLanguage _selectedLanguage = SupportedLanguage.hindi;
   final _scrollController = ScrollController();
 
@@ -230,7 +238,11 @@ class _RelationshipPickerSheetState
             child: TextField(
               controller: _searchController,
               onChanged: (v) {
-                setState(() => _query = v);
+                setState(() {
+                  _query = v;
+                  // v90: Typing in the search box exits category-browse mode.
+                  _selectedCategory = null;
+                });
                 // Update the Riverpod search provider so
                 // kinshipSearchResultsProvider actually fires a search
                 ref.read(kinshipSearchProvider.notifier).state = v;
@@ -248,7 +260,7 @@ class _RelationshipPickerSheetState
                   color: KinrelColors.purple,
                   size: 20,
                 ),
-                suffixIcon: _query.isNotEmpty
+                suffixIcon: (_query.isNotEmpty || _selectedCategory != null)
                     ? IconButton(
                         icon: Icon(
                           Icons.clear,
@@ -257,7 +269,10 @@ class _RelationshipPickerSheetState
                         ),
                         onPressed: () {
                           _searchController.clear();
-                          setState(() => _query = '');
+                          setState(() {
+                            _query = '';
+                            _selectedCategory = null;
+                          });
                           ref.read(kinshipSearchProvider.notifier).state = '';
                         },
                       )
@@ -278,12 +293,19 @@ class _RelationshipPickerSheetState
           SizedBox(height: 8),
 
           // Results / Kinship panel
+          // v90: Added a category-browse branch. When the user taps a
+          // category tile, _selectedCategory is set and we render
+          // _buildCategoryResults() — which calls getByCategory() directly
+          // instead of routing through the (broken for categories) search
+          // provider.
           Expanded(
             child: _selectedKey != null
                 ? _buildKinshipPanel()
-                : (_query.isEmpty
-                      ? _buildSuggestionsList()
-                      : _buildSearchResults()),
+                : (_selectedCategory != null
+                      ? _buildCategoryResults()
+                      : (_query.isEmpty
+                            ? _buildSuggestionsList()
+                            : _buildSearchResults())),
           ),
         ],
       ),
@@ -301,6 +323,7 @@ class _RelationshipPickerSheetState
     setState(() {
       _selectedKey = key;
       _query = '';
+      _selectedCategory = null;
       _searchController.clear();
     });
   }
@@ -374,12 +397,96 @@ class _RelationshipPickerSheetState
     }).toList();
   }
 
+  // v90 FIX: Browse by Category now uses KinshipService.getByCategory()
+  // directly (an O(1) map lookup) instead of routing the category name
+  // through kinshipSearchProvider. The search provider's underlying
+  // KinshipService.search() does not match against relationshipCategory,
+  // so it always returned [] for category names and the user saw
+  // "No relationships found for \"Core\"" on every tap.
   void _showCategoryResults(String category) {
     setState(() {
-      _query = category;
-      _searchController.text = category;
+      _selectedCategory = category;
+      _query = '';
+      _searchController.clear();
     });
-    ref.read(kinshipSearchProvider.notifier).state = category;
+    // Clear the search provider so it doesn't keep the last query around.
+    ref.read(kinshipSearchProvider.notifier).state = '';
+  }
+
+  /// Renders the list of kinship terms in the selected category.
+  /// Uses KinshipService.getByCategory() — the same O(1) map lookup that
+  /// already produces the correct count shown on each category tile —
+  /// so the visible result list always matches the count badge.
+  Widget _buildCategoryResults() {
+    final kinshipService = ref.read(kinshipServiceProvider);
+    final rels = kinshipService.getByCategory(_selectedCategory!);
+
+    if (rels.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.category_outlined, size: 48, color: KinrelColors.textDim),
+            SizedBox(height: 12),
+            Text(
+              'No relationships in "${_selectedCategory!.snakeToTitle}"',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                color: KinrelColors.textDim,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView(
+      controller: _scrollController,
+      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+      children: [
+        // Back-to-browse link
+        InkWell(
+          onTap: () {
+            setState(() => _selectedCategory = null);
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Icon(Icons.arrow_back, size: 16, color: KinrelColors.purple),
+                SizedBox(width: 6),
+                Text(
+                  'Back to categories',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: KinrelColors.purple,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        _SectionHeader(title: _selectedCategory!.snakeToTitle),
+        const SizedBox(height: 4),
+        Text(
+          '${rels.length} ${rels.length == 1 ? "relationship" : "relationships"}',
+          style: TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 12,
+            color: KinrelColors.textDim,
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (final rel in rels)
+          _ContextualRelationshipTile(
+            relationship: rel,
+            kinshipService: kinshipService,
+            onTap: () => _selectRelationship(rel.relationshipKey),
+          ),
+      ],
+    );
   }
 
   Widget _buildSearchResults() {
