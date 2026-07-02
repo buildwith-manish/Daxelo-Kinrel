@@ -636,15 +636,20 @@ class ChatNotifier extends StateNotifier<ChatState> {
             payload.oldRecord,
             isDelete: true,
           ),
-        )
-        // ── Presence: track who's online in this family chat ──
-        // v91: Real-time online status. Each client tracks its own
-        // presence; join/leave events update member isOnline flags.
-        .onPresence(
-          callback: (List<Presence> presences, {bool? sync, PresenceEvent? event, String? joinRef}) {
-            _handlePresenceChange(presences);
-          },
         );
+
+    // ── Presence: track who's online in this family chat ──
+    // v91: Real-time online status. Each client tracks its own
+    // presence; sync/join/leave events update member isOnline flags.
+    _channel!.onPresenceSync((Map<String, dynamic> presenceState) {
+      _handlePresenceSync(presenceState);
+    });
+    _channel!.onPresenceJoin((PresenceJoinPayload payload) {
+      _handlePresenceSync(_channel!.presenceState);
+    });
+    _channel!.onPresenceLeave((PresenceLeavePayload payload) {
+      _handlePresenceSync(_channel!.presenceState);
+    });
 
     // Track the current user's presence once the channel subscribes.
     final myId = _currentUserId;
@@ -665,14 +670,19 @@ class ChatNotifier extends StateNotifier<ChatState> {
     debugPrint('📡 ChatNotifier: subscribed to chat:$familyId (with presence)');
   }
 
-  /// Handle presence sync events — update member isOnline flags.
-  void _handlePresenceChange(List<Presence> presences) {
+  /// Handle presence sync — extract all online user IDs from the
+  /// presence state and update member isOnline flags.
+  void _handlePresenceSync(Map<String, dynamic> presenceState) {
     final onlineIds = <String>{};
-    for (final p in presences) {
-      final payload = p.payload;
-      final uid = payload['user_id'] as String?;
-      if (uid != null && uid.isNotEmpty) {
-        onlineIds.add(uid);
+    for (final entry in presenceState.values) {
+      final metas = entry is List ? entry : [entry];
+      for (final m in metas) {
+        if (m is Map) {
+          final uid = m['user_id'] as String?;
+          if (uid != null && uid.isNotEmpty) {
+            onlineIds.add(uid);
+          }
+        }
       }
     }
 
