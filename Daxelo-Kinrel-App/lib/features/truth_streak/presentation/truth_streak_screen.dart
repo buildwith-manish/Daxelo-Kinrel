@@ -479,12 +479,7 @@ class _FlipCardState extends State<_FlipCard>
         children: [
           CircleAvatar(
             radius: 20,
-            gradient: LinearGradient(
-              colors: [
-                KinrelColors.orange.withValues(alpha: 0.2),
-                KinrelColors.amber.withValues(alpha: 0.1),
-              ],
-            ),
+            backgroundColor: KinrelColors.orange.withValues(alpha: 0.2),
             child: Text(
               widget.answer.userName.isNotEmpty
                   ? widget.answer.userName[0].toUpperCase()
