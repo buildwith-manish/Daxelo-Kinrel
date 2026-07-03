@@ -1,9 +1,13 @@
 // lib/features/truth_streak/presentation/truth_streak_screen.dart
 //
-// Full-screen Truth Streak reveal — shows all answers attributed to
-// each family member, once the current user has answered.
+// DAXELO KINREL — Truth Streak Full Screen with Card-Flip Reveal
+//
+// When the user has answered, each family member's answer appears as
+// a face-down card that flips over one at a time with a ~150ms stagger.
+// HapticFeedback.lightImpact() fires on each flip.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/brand_colors.dart';
@@ -21,13 +25,40 @@ class TruthStreakScreen extends ConsumerStatefulWidget {
       _TruthStreakScreenState();
 }
 
-class _TruthStreakScreenState extends ConsumerState<TruthStreakScreen> {
+class _TruthStreakScreenState extends ConsumerState<TruthStreakScreen>
+    with SingleTickerProviderStateMixin {
+  // Track which cards have been flipped
+  final Set<int> _flipped = {};
+  late final AnimationController _flipController;
+
   @override
   void initState() {
     super.initState();
     Future.microtask(() {
       ref.read(truthStreakProvider(widget.familyId).notifier).load();
     });
+    _flipController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+  }
+
+  @override
+  void dispose() {
+    _flipController.dispose();
+    super.dispose();
+  }
+
+  /// Start the staggered flip reveal
+  void _startFlipReveal(int count) {
+    for (int i = 0; i < count; i++) {
+      Future.delayed(Duration(milliseconds: i * 150), () {
+        if (mounted) {
+          HapticFeedback.lightImpact();
+          setState(() => _flipped.add(i));
+        }
+      });
+    }
   }
 
   @override
@@ -54,9 +85,7 @@ class _TruthStreakScreenState extends ConsumerState<TruthStreakScreen> {
       ),
       body: state.isLoading
           ? Center(
-              child: CircularProgressIndicator(
-                color: const Color(0xFF8B5CF6),
-              ),
+              child: CircularProgressIndicator(color: KinrelColors.orange),
             )
           : state.error != null
               ? DKErrorState(
@@ -119,26 +148,40 @@ class _TruthStreakScreenState extends ConsumerState<TruthStreakScreen> {
       );
     }
 
-    // User has answered — show the full reveal
+    // User has answered — trigger flip reveal if not started
+    if (_flipped.isEmpty && state.allAnswers.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _startFlipReveal(state.allAnswers.length);
+      });
+    }
+
+    // Full reveal with card-flip animation
     return ListView(
       padding: const EdgeInsets.all(KinrelSpacing.base),
       children: [
-        // Question card
+        // Question card — brand orange/amber
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                KinrelColors.orange.withValues(alpha: 0.18),
                 KinrelColors.darkCard,
               ],
             ),
             border: Border.all(
-              color: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
+              color: KinrelColors.orange.withValues(alpha: 0.35),
+              width: 1.5,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: KinrelColors.orange.withValues(alpha: 0.1),
+                blurRadius: 20,
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,7 +190,7 @@ class _TruthStreakScreenState extends ConsumerState<TruthStreakScreen> {
                 children: [
                   Icon(
                     Icons.local_fire_department_rounded,
-                    color: Color(0xFF8B5CF6),
+                    color: KinrelColors.orange,
                     size: 20,
                   ),
                   const SizedBox(width: 8),
@@ -156,19 +199,24 @@ class _TruthStreakScreenState extends ConsumerState<TruthStreakScreen> {
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF8B5CF6),
+                      fontWeight: FontWeight.w700,
+                      color: KinrelColors.orange,
                     ),
                   ),
                   const Spacer(),
                   if (state.stats != null && state.stats!.currentStreak > 0)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
+                        horizontal: 12,
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Color(0xFF8B5CF6),
+                        gradient: LinearGradient(
+                          colors: [
+                            KinrelColors.orange,
+                            KinrelColors.amber,
+                          ],
+                        ),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -182,7 +230,7 @@ class _TruthStreakScreenState extends ConsumerState<TruthStreakScreen> {
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 12,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ],
@@ -204,7 +252,7 @@ class _TruthStreakScreenState extends ConsumerState<TruthStreakScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
         // Answers header
         Row(
           children: [
@@ -219,7 +267,8 @@ class _TruthStreakScreenState extends ConsumerState<TruthStreakScreen> {
             ),
             const SizedBox(width: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
                 color: KinrelColors.orange.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
@@ -237,8 +286,16 @@ class _TruthStreakScreenState extends ConsumerState<TruthStreakScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        // Answers list
-        ...state.allAnswers.map((answer) => _buildAnswerTile(answer)),
+        // Answers list with card-flip animation
+        ...state.allAnswers.asMap().entries.map((entry) {
+          final index = entry.key;
+          final answer = entry.value;
+          final isFlipped = _flipped.contains(index);
+          return _FlipCard(
+            answer: answer,
+            isFlipped: isFlipped,
+          );
+        }),
         // Stats footer
         if (state.stats != null) ...[
           const SizedBox(height: 24),
@@ -255,7 +312,7 @@ class _TruthStreakScreenState extends ConsumerState<TruthStreakScreen> {
                   'Current Streak',
                   '${state.stats!.currentStreak}',
                   Icons.local_fire_department_outlined,
-                  const Color(0xFF8B5CF6),
+                  KinrelColors.orange,
                 ),
                 _buildStatItem(
                   'Longest Streak',
@@ -268,64 +325,6 @@ class _TruthStreakScreenState extends ConsumerState<TruthStreakScreen> {
           ),
         ],
       ],
-    );
-  }
-
-  Widget _buildAnswerTile(answer) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
-            child: Text(
-              answer.userName.isNotEmpty
-                  ? answer.userName[0].toUpperCase()
-                  : '?',
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: KinrelColors.orange,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  answer.userName,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: KinrelColors.textWhite,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  answer.answer,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 14,
-                    color: KinrelColors.textSilver,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -354,6 +353,179 @@ class _TruthStreakScreenState extends ConsumerState<TruthStreakScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// A single answer card with a flip reveal animation.
+class _FlipCard extends StatefulWidget {
+  const _FlipCard({required this.answer, required this.isFlipped});
+  final dynamic answer;
+  final bool isFlipped;
+
+  @override
+  State<_FlipCard> createState() => _FlipCardState();
+}
+
+class _FlipCardState extends State<_FlipCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _flipAnimation;
+  bool _showFront = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _flipAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void didUpdateWidget(_FlipCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isFlipped && !oldWidget.isFlipped && !_showFront) {
+      _controller.forward();
+      setState(() => _showFront = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_showFront) {
+      // Face-down card (mystery)
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        height: 80,
+        decoration: BoxDecoration(
+          color: KinrelColors.darkCard,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: KinrelColors.orange.withValues(alpha: 0.15),
+          ),
+        ),
+        child: Center(
+          child: Icon(
+            Icons.help_outline_rounded,
+            color: KinrelColors.orange.withValues(alpha: 0.3),
+            size: 32,
+          ),
+        ),
+      );
+    }
+
+    // Animated flip
+    return AnimatedBuilder(
+      animation: _flipAnimation,
+      builder: (context, child) {
+        final angle = _flipAnimation.value * 3.14159;
+        final showFrontSide = _flipAnimation.value > 0.5;
+        return Transform(
+          alignment: Alignment.center,
+          transform: Matrix4.identity()
+            ..setEntry(3, 2, 0.001)
+            ..rotateY(showFrontSide ? 0 : angle),
+          child: showFrontSide ? child : _buildBackCard(),
+        );
+      },
+      child: _buildFrontCard(),
+    );
+  }
+
+  Widget _buildBackCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      height: 80,
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: KinrelColors.orange.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.help_outline_rounded,
+          color: KinrelColors.orange.withValues(alpha: 0.3),
+          size: 32,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFrontCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: KinrelColors.orange.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 20,
+            gradient: LinearGradient(
+              colors: [
+                KinrelColors.orange.withValues(alpha: 0.2),
+                KinrelColors.amber.withValues(alpha: 0.1),
+              ],
+            ),
+            child: Text(
+              widget.answer.userName.isNotEmpty
+                  ? widget.answer.userName[0].toUpperCase()
+                  : '?',
+              style: TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: KinrelColors.orange,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.answer.userName,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  widget.answer.answer,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 14,
+                    color: KinrelColors.textSilver,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

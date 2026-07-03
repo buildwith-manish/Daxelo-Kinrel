@@ -63,7 +63,7 @@ class FamilyActivityScreen extends ConsumerWidget {
             activities.add(_ActivityItem(
               type: _ActivityType.link,
               description:
-                  '${fromPerson?.name ?? "Unknown"} → ${toPerson?.name ?? "Unknown"} (${rel.relationshipKey.replaceAll("_", " ")})',
+                  '${fromPerson?.name ?? "Someone"} added ${toPerson?.name ?? "a family member"} as ${rel.relationshipKey.replaceAll("_", " ")}',
               timestamp: rel.createdAt,
             ));
           }
@@ -71,7 +71,7 @@ class FamilyActivityScreen extends ConsumerWidget {
           for (final member in detail.members) {
             activities.add(_ActivityItem(
               type: _ActivityType.memberAdded,
-              description: '${member.name} was added',
+              description: '${member.name} joined the family',
               timestamp: member.createdAt,
             ));
           }

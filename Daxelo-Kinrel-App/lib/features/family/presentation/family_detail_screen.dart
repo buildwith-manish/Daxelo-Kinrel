@@ -126,41 +126,21 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           }
 
           // ── Scrollable feed (replaces TabBarView) ──────────────
+          // Feed order: Truth Streak (hero) → Games → Graph → Members → Activity
           return CustomScrollView(
             slivers: [
               // 1. Header section — family name, avatar, stats
               SliverToBoxAdapter(child: _FeedHeader(detail: detail)),
 
-              // 2. Graph preview card
+              // 2. Truth Streak — the visual HERO (largest, most prominent)
               SliverToBoxAdapter(
-                child: _GraphPreviewCard(
-                  detail: detail,
-                  familyId: widget.familyId,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: TruthStreakCard(familyId: widget.familyId),
                 ),
               ),
 
-              // 3. Truth Streak card
-              SliverToBoxAdapter(
-                child: TruthStreakCard(familyId: widget.familyId),
-              ),
-
-              // 4. Members preview row
-              SliverToBoxAdapter(
-                child: _MembersPreviewRow(
-                  detail: detail,
-                  familyId: widget.familyId,
-                ),
-              ),
-
-              // 5. Activity preview
-              SliverToBoxAdapter(
-                child: _ActivityPreviewCard(
-                  detail: detail,
-                  familyId: widget.familyId,
-                ),
-              ),
-
-              // 6. Hot Seat card (section 7)
+              // 3. Hot Seat game
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 16),
@@ -168,11 +148,44 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                 ),
               ),
 
-              // 7. Relation Riddles card (section 8)
+              // 4. Relation Riddles game
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 16),
                   child: RelationRiddleCard(familyId: widget.familyId),
+                ),
+              ),
+
+              // 5. Graph preview card (quieter supporting card)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: _GraphPreviewCard(
+                    detail: detail,
+                    familyId: widget.familyId,
+                  ),
+                ),
+              ),
+
+              // 6. Members preview row
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: _MembersPreviewRow(
+                    detail: detail,
+                    familyId: widget.familyId,
+                  ),
+                ),
+              ),
+
+              // 7. Activity preview
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: _ActivityPreviewCard(
+                    detail: detail,
+                    familyId: widget.familyId,
+                  ),
                 ),
               ),
 
@@ -1981,7 +1994,7 @@ class _ActivityTab extends StatelessWidget {
         _ActivityItem(
           type: _ActivityType.link,
           description:
-              '${fromPerson?.name ?? 'Unknown'} → ${toPerson?.name ?? 'Unknown'} (${rel.relationshipKey.replaceAll('_', ' ')})',
+              '${fromPerson?.name ?? 'Someone'} added ${toPerson?.name ?? 'a family member'} as ${rel.relationshipKey.replaceAll('_', ' ')}',
           timestamp: rel.createdAt,
         ),
       );
@@ -1991,7 +2004,7 @@ class _ActivityTab extends StatelessWidget {
       activities.add(
         _ActivityItem(
           type: _ActivityType.memberAdded,
-          description: '${member.name} was added',
+          description: '${member.name} joined the family',
           timestamp: member.createdAt,
         ),
       );
@@ -2232,21 +2245,35 @@ class _MembersPreviewRow extends StatelessWidget {
                     children: [
                       CircleAvatar(
                         radius: 22,
-                        backgroundColor:
-                            KinrelColors.orange.withValues(alpha: 0.15),
+                        backgroundColor: KinrelColors.orange.withValues(alpha: 0.12),
                         backgroundImage: person.photoUrl != null
                             ? NetworkImage(person.photoUrl!)
                             : null,
                         child: person.photoUrl == null
-                            ? Text(
-                                person.name.isNotEmpty
-                                    ? person.name[0].toUpperCase()
-                                    : '?',
-                                style: TextStyle(
-                                  fontFamily: KinrelTypography.displayFont,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: KinrelColors.orange,
+                            ? Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      KinrelColors.orange.withValues(alpha: 0.25),
+                                      KinrelColors.amber.withValues(alpha: 0.1),
+                                    ],
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    person.name.isNotEmpty
+                                        ? person.name[0].toUpperCase()
+                                        : '?',
+                                    style: TextStyle(
+                                      fontFamily: KinrelTypography.displayFont,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: KinrelColors.orange,
+                                    ),
+                                  ),
                                 ),
                               )
                             : null,
@@ -2292,14 +2319,14 @@ class _ActivityPreviewCard extends StatelessWidget {
       activities.add(_ActivityItem(
         type: _ActivityType.link,
         description:
-            '${fromPerson?.name ?? "Unknown"} → ${toPerson?.name ?? "Unknown"} (${rel.relationshipKey.replaceAll("_", " ")})',
+            '${fromPerson?.name ?? "Someone"} added ${toPerson?.name ?? "a family member"} as ${rel.relationshipKey.replaceAll("_", " ")}',
         timestamp: rel.createdAt,
       ));
     }
     for (final member in detail.members) {
       activities.add(_ActivityItem(
         type: _ActivityType.memberAdded,
-        description: '${member.name} was added',
+        description: '${member.name} joined the family',
         timestamp: member.createdAt,
       ));
     }
