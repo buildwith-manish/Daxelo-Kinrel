@@ -28,6 +28,7 @@ class OptimisticPerson extends Person {
     required super.name,
     super.gender,
     super.dateOfBirth,
+    super.anniversaryDate,
     super.city,
     super.gotra,
     super.isDeceased = false,

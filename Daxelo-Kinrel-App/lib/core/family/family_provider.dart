@@ -1412,6 +1412,7 @@ Future<Person> createPerson({
   required String name,
   String? gender,
   String? dateOfBirth,
+  String? anniversaryDate,
   String? city,
   String? gotra,
   bool isDeceased = false,
@@ -1477,6 +1478,9 @@ Future<Person> createPerson({
   };
   if (dateOfBirth != null && dateOfBirth.isNotEmpty) {
     insertData['dateOfBirth'] = dateOfBirth;
+  }
+  if (anniversaryDate != null && anniversaryDate.isNotEmpty) {
+    insertData['anniversaryDate'] = anniversaryDate;
   }
   if (city != null) insertData['city'] = city;
   if (gotra != null) insertData['gotra'] = gotra;
@@ -1659,6 +1663,7 @@ Future<Person> updatePerson({
   required String name,
   String? gender,
   String? dateOfBirth,
+  String? anniversaryDate,
   String? city,
   String? gotra,
   bool isDeceased = false,
@@ -1679,6 +1684,7 @@ Future<Person> updatePerson({
           'name': name,
           if (gender != null) 'gender': gender,
           if (dateOfBirth != null) 'dateOfBirth': dateOfBirth,
+          if (anniversaryDate != null) 'anniversaryDate': anniversaryDate,
           if (city != null) 'city': city,
           if (gotra != null) 'gotra': gotra,
           'isDeceased': isDeceased,

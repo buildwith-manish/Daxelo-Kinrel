@@ -126,6 +126,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   final _nameController = TextEditingController();
   final _nicknameController = TextEditingController();
   final _dobController = TextEditingController();
+  final _anniversaryController = TextEditingController();
   final _cityController = TextEditingController();
   final _gotraController = TextEditingController();
   final _birthPlaceController = TextEditingController();
@@ -149,6 +150,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   bool _isDeceased = false;
   bool _isSubmitting = false;
   DateTime? _selectedDob;
+  DateTime? _selectedAnniversary;
   DateTime? _selectedDeathDate;
   bool _locationExpanded = false;
   bool _contactExpanded = false;
@@ -227,6 +229,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           _selectedDob = DateTime.parse(p.dateOfBirth!);
         } catch (_) {}
       }
+      // Hydrate anniversary date in edit mode
+      _anniversaryController.text = p.anniversaryDate ?? '';
+      if (p.anniversaryDate != null && p.anniversaryDate!.isNotEmpty) {
+        try {
+          _selectedAnniversary = DateTime.parse(p.anniversaryDate!);
+        } catch (_) {}
+      }
     } else {
       // ── Pre-fill data from contacts or Kinrel search ─────────────
       // For fromContacts: pre-fill name, phone, email from the picked
@@ -265,6 +274,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     _nameController.dispose();
     _nicknameController.dispose();
     _dobController.dispose();
+    _anniversaryController.dispose();
     _cityController.dispose();
     _gotraController.dispose();
     _birthPlaceController.dispose();
@@ -338,6 +348,35 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       setState(() {
         _selectedDob = picked;
         _dobController.text = picked.toIso8601String().split('T').first;
+      });
+    }
+  }
+
+  Future<void> _pickAnniversaryDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedAnniversary ?? DateTime(now.year - 5),
+      firstDate: DateTime(1900),
+      lastDate: now,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.dark(
+              primary: KinrelColors.orange,
+              surface: KinrelColors.darkElevated,
+              onSurface: KinrelColors.textWhite,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedAnniversary = picked;
+        _anniversaryController.text =
+            picked.toIso8601String().split('T').first;
       });
     }
   }
@@ -740,6 +779,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           dateOfBirth: _dobController.text.trim().isEmpty
               ? null
               : _dobController.text.trim(),
+          anniversaryDate: _anniversaryController.text.trim().isEmpty
+              ? null
+              : _anniversaryController.text.trim(),
           city: _cityController.text.trim().isEmpty
               ? null
               : _cityController.text.trim(),
@@ -804,6 +846,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           dateOfBirth: _dobController.text.trim().isEmpty
               ? null
               : _dobController.text.trim(),
+          anniversaryDate: _anniversaryController.text.trim().isEmpty
+              ? null
+              : _anniversaryController.text.trim(),
           city: _cityController.text.trim().isEmpty
               ? null
               : _cityController.text.trim(),
@@ -1285,6 +1330,12 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             _buildDateField(),
             SizedBox(height: 16),
 
+            // Anniversary (optional)
+            _SectionLabel('Anniversary Date (optional)'),
+            SizedBox(height: 6),
+            _buildAnniversaryField(),
+            SizedBox(height: 16),
+
             // City
             _SectionLabel('City / Village'),
             SizedBox(height: 6),
@@ -1542,6 +1593,32 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           decoration: _inputDecoration('YYYY-MM-DD').copyWith(
             suffixIcon: Icon(
               Icons.calendar_today_outlined,
+              color: KinrelColors.textDim,
+              size: 18,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnniversaryField() {
+    return GestureDetector(
+      onTap: _pickAnniversaryDate,
+      child: AbsorbPointer(
+        child: TextFormField(
+          controller: _anniversaryController,
+          keyboardType: TextInputType.datetime,
+          textInputAction: TextInputAction.next,
+          textCapitalization: TextCapitalization.none,
+          style: TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 15,
+            color: KinrelColors.textWhite,
+          ),
+          decoration: _inputDecoration('YYYY-MM-DD (optional)').copyWith(
+            suffixIcon: Icon(
+              Icons.favorite_outline,
               color: KinrelColors.textDim,
               size: 18,
             ),

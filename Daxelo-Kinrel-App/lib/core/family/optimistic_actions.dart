@@ -547,6 +547,7 @@ Future<Person> createPersonOptimistic({
   required String name,
   String? gender,
   String? dateOfBirth,
+  String? anniversaryDate,
   String? city,
   String? gotra,
   bool isDeceased = false,
@@ -564,6 +565,7 @@ Future<Person> createPersonOptimistic({
     name: name,
     gender: gender,
     dateOfBirth: dateOfBirth,
+    anniversaryDate: anniversaryDate,
     city: city,
     gotra: gotra,
     isDeceased: isDeceased,
@@ -615,6 +617,7 @@ Future<Person> createPersonOptimistic({
       name: name,
       gender: gender,
       dateOfBirth: dateOfBirth,
+      anniversaryDate: anniversaryDate,
       city: city,
       gotra: gotra,
       isDeceased: isDeceased,
@@ -670,6 +673,7 @@ Future<void> updatePersonOptimistic({
   String? name,
   String? gender,
   String? dateOfBirth,
+  String? anniversaryDate,
   String? city,
   String? gotra,
   bool? isDeceased,
@@ -695,6 +699,7 @@ Future<void> updatePersonOptimistic({
       if (name != null) dataMap['name'] = name;
       if (gender != null) dataMap['gender'] = gender;
       if (dateOfBirth != null) dataMap['dateOfBirth'] = dateOfBirth;
+      if (anniversaryDate != null) dataMap['anniversaryDate'] = anniversaryDate;
       if (city != null) dataMap['city'] = city;
       if (gotra != null) dataMap['gotra'] = gotra;
       if (isDeceased != null) dataMap['isDeceased'] = isDeceased;
@@ -740,6 +745,7 @@ Future<void> updatePersonOptimistic({
         name: name ?? snapshot?.name ?? '',
         gender: gender,
         dateOfBirth: dateOfBirth,
+        anniversaryDate: anniversaryDate,
         city: city,
         gotra: gotra,
         isDeceased: isDeceased ?? false,

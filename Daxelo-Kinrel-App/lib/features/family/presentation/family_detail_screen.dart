@@ -31,6 +31,7 @@ import '../../profile/data/profile_provider.dart';
 import '../../truth_streak/presentation/truth_streak_card.dart';
 import '../../hot_seat/presentation/hot_seat_card.dart';
 import '../../relation_riddles/presentation/relation_riddle_card.dart';
+import '../../occasions/providers/occasion_reminders_provider.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
   FamilyDetailScreen({super.key, required this.familyId});
@@ -189,7 +190,18 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                 ),
               ),
 
-              // 8. More Games placeholder
+              // 8. Family Calendar card
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: _FamilyCalendarCard(
+                    detail: detail,
+                    familyId: widget.familyId,
+                  ),
+                ),
+              ),
+
+              // 9. More Games placeholder
               SliverToBoxAdapter(child: _MoreGamesCard()),
 
               // Bottom padding for FAB
@@ -2413,6 +2425,218 @@ class _ActivityPreviewCard extends StatelessWidget {
 }
 
 /// Section 6: More Games placeholder
+/// Section 8: Family Calendar card — upcoming birthdays/anniversaries
+class _FamilyCalendarCard extends ConsumerWidget {
+  const _FamilyCalendarCard({required this.detail, required this.familyId});
+  final FamilyDetail detail;
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final occasions = ref.watch(familyOccasionsProvider(familyId));
+    final upcoming = occasions.take(3).toList();
+    final missingDob = detail.members
+        .where((p) =>
+            p.deletedAt == null &&
+            (p.dateOfBirth == null || p.dateOfBirth!.isEmpty))
+        .toList();
+
+    // If no occasions AND no missing DOB, hide the card
+    if (upcoming.isEmpty && missingDob.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.calendar_today_outlined,
+                  size: 18, color: KinrelColors.orange),
+              const SizedBox(width: 8),
+              Text(
+                'Family Calendar',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () => context.push('/family/$familyId/calendar'),
+                child: Text(
+                  'View All',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: KinrelColors.orange,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Upcoming occasions
+          ...upcoming.map((occasion) => Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: KinrelColors.darkCard,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
+                      backgroundImage: occasion.photoUrl != null
+                          ? NetworkImage(occasion.photoUrl!)
+                          : null,
+                      child: occasion.photoUrl == null
+                          ? Icon(
+                              occasion.type == OccasionType.birthday
+                                  ? Icons.cake_outlined
+                                  : Icons.favorite_outline,
+                              size: 18,
+                              color: KinrelColors.orange,
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            occasion.name,
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.displayFont,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: KinrelColors.textWhite,
+                            ),
+                          ),
+                          Text(
+                            occasion.type == OccasionType.birthday
+                                ? 'Birthday'
+                                : 'Anniversary',
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 12,
+                              color: KinrelColors.textDim,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: occasion.daysUntil <= 7
+                            ? KinrelColors.orange.withValues(alpha: 0.15)
+                            : KinrelColors.darkElevated,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        occasion.daysUntil == 0
+                            ? 'Today!'
+                            : occasion.daysUntil == 1
+                                ? 'Tomorrow'
+                                : '${occasion.daysUntil} days',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: occasion.daysUntil <= 7
+                              ? KinrelColors.orange
+                              : KinrelColors.textDim,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+          // Missing DOB prompt
+          if (missingDob.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: KinrelColors.darkCard.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: KinrelColors.textDim.withValues(alpha: 0.15),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline,
+                          size: 14, color: KinrelColors.textDim),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Missing info',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: KinrelColors.textDim,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ...missingDob.take(3).map((person) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            AddPersonSheet.show(
+                              context,
+                              familyId: familyId,
+                              existingPerson: person,
+                            );
+                          },
+                          child: Row(
+                            children: [
+                              Icon(Icons.cake_outlined,
+                                  size: 14, color: KinrelColors.textDim),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'Add ${person.name}\'s birthday',
+                                  style: TextStyle(
+                                    fontFamily: KinrelTypography.bodyFont,
+                                    fontSize: 12,
+                                    color: KinrelColors.textDim,
+                                    decoration: TextDecoration.underline,
+                                    decorationColor:
+                                        KinrelColors.textDim,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _MoreGamesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {

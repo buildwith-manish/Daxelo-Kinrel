@@ -392,3 +392,107 @@ final occasionRemindersProvider =
     AsyncNotifierProvider<OccasionRemindersNotifier, OccasionRemindersState>(
   OccasionRemindersNotifier.new,
 );
+
+// ═══════════════════════════════════════════════════════════════════════
+// FAMILY-SCOPED OCCASIONS PROVIDER
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Computes occasions for a single family (not global). Reuses the same
+// per-person birthday/anniversary calculation logic from the global
+// notifier. Used by the Family Calendar card + screen in Family Space.
+
+/// Computes occasions for a single family, keyed by familyId.
+/// Returns a sorted list of OccasionItem (birthdays + anniversaries).
+final familyOccasionsProvider =
+    Provider.autoDispose.family<List<OccasionItem>, String>(
+  (ref, familyId) {
+    final membersAsync = ref.watch(familyMembersProvider(familyId));
+    final members = membersAsync.valueOrNull ?? [];
+
+    // Load disabled reminder IDs synchronously from the global state
+    // (the global notifier already tracks this in SharedPreferences)
+    final globalState = ref.watch(occasionRemindersProvider).valueOrNull;
+    final disabledIds = <String>{};
+    // We can't await SharedPreferences in a sync provider, so we
+    // rely on the global notifier having loaded them. If the global
+    // state hasn't loaded yet, reminders default to enabled — the
+    // toggle still works via the global notifier.
+    if (globalState != null) {
+      for (final occasion in globalState.occasions) {
+        if (!occasion.isReminderEnabled) {
+          disabledIds.add(occasion.reminderKey);
+        }
+      }
+    }
+
+    final occasions = <OccasionItem>[];
+
+    for (final person in members) {
+      // Birthday
+      if (person.dateOfBirth != null && person.dateOfBirth!.isNotEmpty) {
+        final dob = DateTime.tryParse(person.dateOfBirth!);
+        if (dob != null) {
+          final next = _computeNextOccurrence(dob);
+          final days = _computeDaysUntil(next);
+          final key = '${person.id}_${OccasionType.birthday.name}';
+          occasions.add(OccasionItem(
+            personId: person.id,
+            name: person.name,
+            photoUrl: person.photoUrl,
+            type: OccasionType.birthday,
+            nextOccurrence: next,
+            daysUntil: days,
+            isReminderEnabled: !disabledIds.contains(key),
+          ));
+        }
+      }
+
+      // Anniversary
+      final anniv = person.anniversaryDate;
+      if (anniv != null && anniv.isNotEmpty) {
+        final annivDate = DateTime.tryParse(anniv);
+        if (annivDate != null) {
+          final next = _computeNextOccurrence(annivDate);
+          final days = _computeDaysUntil(next);
+          final key = '${person.id}_${OccasionType.anniversary.name}';
+          occasions.add(OccasionItem(
+            personId: person.id,
+            name: person.name,
+            photoUrl: person.photoUrl,
+            type: OccasionType.anniversary,
+            nextOccurrence: next,
+            daysUntil: days,
+            isReminderEnabled: !disabledIds.contains(key),
+          ));
+        }
+      }
+    }
+
+    occasions.sort((a, b) => a.daysUntil.compareTo(b.daysUntil));
+    return occasions;
+  },
+);
+
+// ── Shared helper functions (extracted from the notifier's private
+//    methods so both the global notifier and familyOccasionsProvider
+//    can use the same calculation logic) ──────────────────────────
+
+DateTime _computeNextOccurrence(DateTime date) {
+  final now = DateTime.now();
+  var next = DateTime(now.year, date.month, date.day);
+  if (next.isBefore(DateTime(now.year, now.month, now.day))) {
+    next = DateTime(now.year + 1, date.month, date.day);
+  }
+  return next;
+}
+
+int _computeDaysUntil(DateTime nextOccurrence) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final target = DateTime(
+    nextOccurrence.year,
+    nextOccurrence.month,
+    nextOccurrence.day,
+  );
+  return target.difference(today).inDays;
+}

@@ -67,6 +67,7 @@ import '../../features/chat/presentation/chat_inbox_screen.dart';
 import '../../features/truth_streak/presentation/truth_streak_screen.dart';
 import '../../features/hot_seat/presentation/hot_seat_screen.dart';
 import '../../features/relation_riddles/presentation/relation_riddle_screen.dart';
+import '../../features/occasions/presentation/family_calendar_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
@@ -777,6 +778,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: RelationRiddleScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+
+      // ── Family Calendar (family-scoped occasions) ────────────────
+      GoRoute(
+        path: '/family/:id/calendar',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilyCalendarScreen(
             familyId: state.pathParameters['id']!,
           ),
         ),
