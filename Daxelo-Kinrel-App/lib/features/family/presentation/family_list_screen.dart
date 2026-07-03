@@ -142,7 +142,7 @@ class _FamilyListScreenState extends ConsumerState<FamilyListScreen>
                         child: _FamilyCard(
                           family: family,
                           index: index,
-                          onTap: () => context.push('/family/${family.id}/graph?name=${Uri.encodeComponent(family.name)}'),
+                          onTap: () => context.push('/family/${family.id}'),
                         ),
                       );
                     }, childCount: families.length + 1),
