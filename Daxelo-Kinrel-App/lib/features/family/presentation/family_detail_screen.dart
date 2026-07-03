@@ -187,20 +187,6 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           );
         },
       ),
-      // Bottom action bar — centered at bottom
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: detailAsync.when(
-        loading: () => null,
-        error: (_, __) => null,
-        data: (detail) {
-          if (detail == null) return null;
-          return _BottomActionBar(
-            familyId: widget.familyId,
-            familyName: detail.family.name,
-            memberCount: detail.members.length,
-          );
-        },
-      ),
     );
   }
 
