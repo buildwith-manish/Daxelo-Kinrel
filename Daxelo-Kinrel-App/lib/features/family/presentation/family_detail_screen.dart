@@ -28,6 +28,7 @@ import '../../../core/utils/error_boundary.dart';
 import '../../../core/utils/smart_preloader.dart';
 import '../../../core/utils/share_helper.dart';
 import '../../profile/data/profile_provider.dart';
+import '../../truth_streak/presentation/truth_streak_card.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
   FamilyDetailScreen({super.key, required this.familyId});
@@ -38,26 +39,10 @@ class FamilyDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<FamilyDetailScreen> createState() => _FamilyDetailScreenState();
 }
 
-class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
+class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final detailAsync = ref.watch(familyDetailProvider(widget.familyId));
-    const primaryColor = KinrelColors.purple;
 
     return DKScaffold(
       appBar: AppBar(
@@ -113,71 +98,73 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen>
             onPressed: () => _showFamilySettings(context),
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: primaryColor,
-          unselectedLabelColor: KinrelColors.textSilver,
-          indicatorColor: primaryColor,
-          indicatorSize: TabBarIndicatorSize.label,
-          labelStyle: const TextStyle(
-            fontFamily: KinrelTypography.bodyFont,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-          unselectedLabelStyle: const TextStyle(
-            fontFamily: KinrelTypography.bodyFont,
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
-          tabs: const [
-            Tab(text: 'Graph'),
-            Tab(text: 'Members'),
-            Tab(text: 'Activity'),
-          ],
-        ),
       ),
       body: detailAsync.when(
         loading: () => const _FamilyDetailLoadingWidget(),
-        error: (error, _) => ScrollConfiguration(
-          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-          child: DKErrorState(
-            message: 'Failed to load family data',
-            onRetry: () {
-              ref.invalidate(familyListProvider);
-              ref.invalidate(familyDetailProvider(widget.familyId));
-              ref.invalidate(familyMembersProvider(widget.familyId));
-              ref.invalidate(familyRelationshipsProvider(widget.familyId));
-            },
-          ),
+        error: (error, _) => DKErrorState(
+          message: 'Failed to load family data',
+          onRetry: () {
+            ref.invalidate(familyListProvider);
+            ref.invalidate(familyDetailProvider(widget.familyId));
+            ref.invalidate(familyMembersProvider(widget.familyId));
+            ref.invalidate(familyRelationshipsProvider(widget.familyId));
+          },
         ),
         data: (detail) {
           if (detail == null) {
-            return ScrollConfiguration(
-              behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-              child: DKErrorState(
-                message: 'Family not found',
-                onRetry: () {
-                  ref.invalidate(familyListProvider);
-                  ref.invalidate(familyDetailProvider(widget.familyId));
-                  ref.invalidate(familyMembersProvider(widget.familyId));
-                  ref.invalidate(familyRelationshipsProvider(widget.familyId));
-                },
-              ),
+            return DKErrorState(
+              message: 'Family not found',
+              onRetry: () {
+                ref.invalidate(familyListProvider);
+                ref.invalidate(familyDetailProvider(widget.familyId));
+                ref.invalidate(familyMembersProvider(widget.familyId));
+                ref.invalidate(familyRelationshipsProvider(widget.familyId));
+              },
             );
           }
 
-          return TabBarView(
-            controller: _tabController,
-            children: [
-              // P4-F7: Wrap high-risk graph tab with ErrorBoundary
-              ErrorBoundary(
-                child: _GraphTab(detail: detail, familyId: widget.familyId),
+          // ── Scrollable feed (replaces TabBarView) ──────────────
+          return CustomScrollView(
+            slivers: [
+              // 1. Header section — family name, avatar, stats
+              SliverToBoxAdapter(child: _FeedHeader(detail: detail)),
+
+              // 2. Graph preview card
+              SliverToBoxAdapter(
+                child: _GraphPreviewCard(
+                  detail: detail,
+                  familyId: widget.familyId,
+                ),
               ),
-              // P4-F7: Wrap member list with ErrorBoundary
-              ErrorBoundary(
-                child: _MembersTab(detail: detail, familyId: widget.familyId),
+
+              // 3. Truth Streak card
+              SliverToBoxAdapter(
+                child: TruthStreakCard(familyId: widget.familyId),
               ),
-              _ActivityTab(detail: detail, familyId: widget.familyId),
+
+              // 4. Members preview row
+              SliverToBoxAdapter(
+                child: _MembersPreviewRow(
+                  detail: detail,
+                  familyId: widget.familyId,
+                ),
+              ),
+
+              // 5. Activity preview
+              SliverToBoxAdapter(
+                child: _ActivityPreviewCard(
+                  detail: detail,
+                  familyId: widget.familyId,
+                ),
+              ),
+
+              // 6. More Games placeholder
+              SliverToBoxAdapter(child: _MoreGamesCard()),
+
+              // Bottom padding for FAB
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 100),
+              ),
             ],
           );
         },
@@ -2038,6 +2025,404 @@ class _ActivityTab extends StatelessWidget {
           child: _ActivityTile(activity: activity, index: index),
         );
       },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FEED WIDGETS (scrollable home feed sections)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Section 1: Header — family avatar, name, stats
+class _FeedHeader extends StatelessWidget {
+  const _FeedHeader({required this.detail});
+  final FamilyDetail detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final family = detail.family;
+    return Padding(
+      padding: const EdgeInsets.all(KinrelSpacing.base),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
+            child: Text(
+              family.name.isNotEmpty ? family.name[0].toUpperCase() : 'F',
+              style: TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: KinrelColors.orange,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  family.name,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${detail.members.length} members · ${detail.relationships.length} links',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 13,
+                    color: KinrelColors.textDim,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Section 2: Graph preview card — compact, pushes to full graph
+class _GraphPreviewCard extends StatelessWidget {
+  const _GraphPreviewCard({required this.detail, required this.familyId});
+  final FamilyDetail detail;
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => context.push(
+            '/family/$familyId/graph?name=${Uri.encodeComponent(detail.family.name)}',
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: KinrelColors.darkCard,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: KinrelColors.orange.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: KinrelColors.orange.withValues(alpha: 0.12),
+                  ),
+                  child: Icon(
+                    Icons.account_tree_outlined,
+                    color: KinrelColors.orange,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Family Graph',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: KinrelColors.textWhite,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${detail.members.length} members · ${detail.relationships.length} relationships',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 13,
+                          color: KinrelColors.textDim,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: KinrelColors.textDim,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Section 4: Members preview row — horizontal scrollable avatars
+class _MembersPreviewRow extends StatelessWidget {
+  const _MembersPreviewRow({required this.detail, required this.familyId});
+  final FamilyDetail detail;
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context) {
+    final members = detail.members.where((p) => p.deletedAt == null).take(10).toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Members',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () =>
+                    context.push('/family/$familyId/members'),
+                child: Text(
+                  'View All',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: KinrelColors.orange,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 72,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: members.length,
+              itemBuilder: (context, index) {
+                final person = members[index];
+                return Container(
+                  width: 56,
+                  margin: const EdgeInsets.only(right: 10),
+                  child: Column(
+                    children: [
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundColor:
+                            KinrelColors.orange.withValues(alpha: 0.15),
+                        backgroundImage: person.photoUrl != null
+                            ? NetworkImage(person.photoUrl!)
+                            : null,
+                        child: person.photoUrl == null
+                            ? Text(
+                                person.name.isNotEmpty
+                                    ? person.name[0].toUpperCase()
+                                    : '?',
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.displayFont,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: KinrelColors.orange,
+                                ),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        person.name.split(' ').first,
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 10,
+                          color: KinrelColors.textDim,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Section 5: Activity preview — recent 3-5 items
+class _ActivityPreviewCard extends StatelessWidget {
+  const _ActivityPreviewCard({required this.detail, required this.familyId});
+  final FamilyDetail detail;
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context) {
+    final activities = <_ActivityItem>[];
+
+    for (final rel in detail.relationships) {
+      final fromPerson =
+          detail.members.where((p) => p.id == rel.fromPersonId).firstOrNull;
+      final toPerson =
+          detail.members.where((p) => p.id == rel.toPersonId).firstOrNull;
+      activities.add(_ActivityItem(
+        type: _ActivityType.link,
+        description:
+            '${fromPerson?.name ?? "Unknown"} → ${toPerson?.name ?? "Unknown"} (${rel.relationshipKey.replaceAll("_", " ")})',
+        timestamp: rel.createdAt,
+      ));
+    }
+    for (final member in detail.members) {
+      activities.add(_ActivityItem(
+        type: _ActivityType.memberAdded,
+        description: '${member.name} was added',
+        timestamp: member.createdAt,
+      ));
+    }
+    activities.sort((a, b) {
+      if (a.timestamp == null && b.timestamp == null) return 0;
+      if (a.timestamp == null) return 1;
+      if (b.timestamp == null) return -1;
+      return b.timestamp!.compareTo(a.timestamp!);
+    });
+
+    final recent = activities.take(4).toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Recent Activity',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () =>
+                    context.push('/family/$familyId/activity'),
+                child: Text(
+                  'View All',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: KinrelColors.orange,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...recent.map((activity) => Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: KinrelColors.darkCard,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      activity.type == _ActivityType.link
+                          ? Icons.link_rounded
+                          : Icons.person_add_alt_1_rounded,
+                      size: 18,
+                      color: activity.type == _ActivityType.link
+                          ? KinrelColors.orange
+                          : KinrelColors.purple,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        activity.description,
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 13,
+                          color: KinrelColors.textSilver,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+/// Section 6: More Games placeholder
+class _MoreGamesCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(KinrelSpacing.base),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: KinrelColors.textDim.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.videogame_asset_outlined,
+            size: 32,
+            color: KinrelColors.textDim.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'More family games coming soon',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: KinrelColors.textDim,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Hot Seat · Relation Riddles · and more',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 12,
+              color: KinrelColors.textDim.withValues(alpha: 0.6),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -61,7 +61,10 @@ import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_builder_screen.dart';
 import '../../features/family/presentation/family_graph_screen.dart';
 import '../../features/family/presentation/family_archive_screen.dart';
+import '../../features/family/presentation/family_members_screen.dart';
+import '../../features/family/presentation/family_activity_screen.dart';
 import '../../features/chat/presentation/chat_inbox_screen.dart';
+import '../../features/truth_streak/presentation/truth_streak_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
@@ -718,6 +721,39 @@ final routerProvider = Provider<GoRouter>((ref) {
           key: state.pageKey,
           child: FamilyArchiveScreen(
             familyId: state.pathParameters['id'],
+          ),
+        ),
+      ),
+
+      // ── Family Members (extracted from FamilyDetailScreen) ──────
+      GoRoute(
+        path: '/family/:id/members',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilyMembersScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+
+      // ── Family Activity (extracted from FamilyDetailScreen) ─────
+      GoRoute(
+        path: '/family/:id/activity',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilyActivityScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+
+      // ── Truth Streak (daily family question game) ───────────────
+      GoRoute(
+        path: '/family/:id/truth-streak',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: TruthStreakScreen(
+            familyId: state.pathParameters['id']!,
           ),
         ),
       ),
