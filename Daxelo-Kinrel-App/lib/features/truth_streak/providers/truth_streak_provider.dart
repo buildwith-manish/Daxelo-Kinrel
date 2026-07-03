@@ -307,7 +307,7 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
 
 // ── Provider ──────────────────────────────────────────────────────
 
-final truthStreakProvider = StateNotifierProvider.family
-    .autoDispose<TruthStreakNotifier, TruthStreakState, String>(
+final truthStreakProvider =
+    StateNotifierProvider.autoDispose.family<TruthStreakNotifier, TruthStreakState, String>(
   (ref, familyId) => TruthStreakNotifier(ref, familyId),
 );

@@ -340,6 +340,7 @@ class LocalNotificationScheduler {
     required String body,
     required DateTime scheduledDate,
     required bool isRepeating,
+    DateTimeComponents? repeatPattern,
   }) async {
     final androidDetails = AndroidNotificationDetails(
       _channelId,
@@ -376,8 +377,8 @@ class LocalNotificationScheduler {
       tzDateTime,
       details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      matchDateTimeComponents:
-          isRepeating ? DateTimeComponents.dayOfWeekAndTime : null,
+      matchDateTimeComponents: repeatPattern ??
+          (isRepeating ? DateTimeComponents.dayOfWeekAndTime : null),
     );
   }
 
@@ -426,6 +427,32 @@ class LocalNotificationScheduler {
       scheduledDate: scheduledDate,
       isRepeating: false,
     );
+  }
+
+  /// Schedule a daily recurring reminder for Truth Streak at 8 PM local.
+  /// ID 5004 is reserved for this. Uses matchDateTimeComponents: time
+  /// for daily recurrence.
+  static Future<void> scheduleTruthStreakDailyReminder() async {
+    if (!_initialized) {
+      await initialize();
+      if (!_initialized) return;
+    }
+
+    final when = _nextOccurrence(20, 0); // 8 PM local
+
+    await _scheduleNotification(
+      id: 5004,
+      title: '🔥 Don\'t break your streak!',
+      body: 'Answer today\'s Truth Streak question before midnight.',
+      scheduledDate: when,
+      isRepeating: true,
+      repeatPattern: DateTimeComponents.time, // daily recurrence
+    );
+  }
+
+  /// Cancel the Truth Streak daily reminder.
+  static Future<void> cancelTruthStreakReminder() async {
+    await _cancel(5004);
   }
 
   /// Get the next occurrence of a specific hour:minute today or tomorrow.

@@ -29,6 +29,8 @@ import '../../../core/utils/smart_preloader.dart';
 import '../../../core/utils/share_helper.dart';
 import '../../profile/data/profile_provider.dart';
 import '../../truth_streak/presentation/truth_streak_card.dart';
+import '../../hot_seat/presentation/hot_seat_card.dart';
+import '../../relation_riddles/presentation/relation_riddle_card.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
   FamilyDetailScreen({super.key, required this.familyId});
@@ -158,7 +160,23 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                 ),
               ),
 
-              // 6. More Games placeholder
+              // 6. Hot Seat card (section 7)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: HotSeatCard(familyId: widget.familyId),
+                ),
+              ),
+
+              // 7. Relation Riddles card (section 8)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: RelationRiddleCard(familyId: widget.familyId),
+                ),
+              ),
+
+              // 8. More Games placeholder
               SliverToBoxAdapter(child: _MoreGamesCard()),
 
               // Bottom padding for FAB

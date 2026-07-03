@@ -334,6 +334,13 @@ class AppStartupService {
         members: allMembers,
         anniversaries: allAnniversaries,
       );
+      // Schedule daily Truth Streak reminder at 8 PM local
+      try {
+        await LocalNotificationScheduler.scheduleTruthStreakDailyReminder();
+        debugPrint('📬 AppStartup: Truth Streak daily reminder scheduled (8 PM)');
+      } catch (e) {
+        debugPrint('⚠️ AppStartup: Truth Streak reminder scheduling failed: $e');
+      }
       debugPrint('📬 AppStartup: Occasion reminders scheduled (${allMembers.length} birthdays, ${allAnniversaries.length} anniversaries)');
     } catch (e) {
       debugPrint('⚠️ AppStartup: Occasion reminder scheduling failed: $e');

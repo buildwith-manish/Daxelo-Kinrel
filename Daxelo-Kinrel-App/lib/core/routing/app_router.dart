@@ -65,6 +65,8 @@ import '../../features/family/presentation/family_members_screen.dart';
 import '../../features/family/presentation/family_activity_screen.dart';
 import '../../features/chat/presentation/chat_inbox_screen.dart';
 import '../../features/truth_streak/presentation/truth_streak_screen.dart';
+import '../../features/hot_seat/presentation/hot_seat_screen.dart';
+import '../../features/relation_riddles/presentation/relation_riddle_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
@@ -753,6 +755,28 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: TruthStreakScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+
+      // ── Hot Seat (daily spotlight game) ──────────────────────────
+      GoRoute(
+        path: '/family/:id/hot-seat',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: HotSeatScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+
+      // ── Relation Riddles (daily kinship quiz) ────────────────────
+      GoRoute(
+        path: '/family/:id/relation-riddles',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: RelationRiddleScreen(
             familyId: state.pathParameters['id']!,
           ),
         ),
