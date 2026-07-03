@@ -12,6 +12,9 @@ class HotSeatQuestion {
   final String question;
   final String? answer;
   final DateTime createdAt;
+
+  HotSeatQuestion copyWith({String? answer}) =>
+    HotSeatQuestion(id: id, askerId: askerId, askerName: askerName, question: question, answer: answer ?? this.answer, createdAt: createdAt);
   factory HotSeatQuestion.fromJson(Map<String, dynamic> json) => HotSeatQuestion(
     id: json['id'] ?? '', askerId: json['askerId'] ?? '', askerName: json['askerName'] ?? 'Member',
     question: json['question'] ?? '', answer: json['answer'] as String?, createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),

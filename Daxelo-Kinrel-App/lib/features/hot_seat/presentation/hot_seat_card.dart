@@ -70,16 +70,17 @@ class _HotSeatCardState extends ConsumerState<HotSeatCard> {
             if (isMe && unansweredCount > 0)
               Text('$unansweredCount unanswered question${unansweredCount == 1 ? "" : "s"} — tap to answer',
                 style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim))
-            else if (!isMe)
+            else if (!isMe) ...[
               TextField(controller: _questionController, maxLines: 1,
                 style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textWhite),
                 decoration: InputDecoration(hintText: 'Ask a question...', hintStyle: TextStyle(color: KinrelColors.textDim, fontSize: 14),
                   filled: true, fillColor: KinrelColors.darkElevated, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
                   contentPadding: const EdgeInsets.all(10),
                   suffixIcon: IconButton(icon: Icon(Icons.send, color: const Color(0xFF06B6D4), size: 18),
-                    onPressed: () async { final t = _questionController.text.trim(); if (t.isEmpty) return; await ref.read(hotSeatProvider(widget.familyId).notifier).submitQuestion(t); _questionController.clear(); })),
-            if (!isMe && state.isSubmitting)
-              const Padding(padding: EdgeInsets.only(top: 8), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF06B6D4)))),
+                    onPressed: () async { final t = _questionController.text.trim(); if (t.isEmpty) return; await ref.read(hotSeatProvider(widget.familyId).notifier).submitQuestion(t); _questionController.clear(); }))),
+              if (state.isSubmitting)
+                const Padding(padding: EdgeInsets.only(top: 8), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF06B6D4)))),
+            ],
           ]),
         ),
       )),
