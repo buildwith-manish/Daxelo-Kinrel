@@ -729,22 +729,6 @@ class _StickyHeader extends StatelessWidget {
             ),
           ),
           ),
-          // KIN-20: Notifications bell icon (replaces Alerts bottom-nav tab)
-          Semantics(
-            button: true,
-            label: 'Notifications',
-            hint: 'Double tap to view notifications',
-            child: minimumTapTarget(
-              child: IconButton(
-                icon: Icon(
-                  Icons.notifications_outlined,
-                  color: _cTextSecondary,
-                  size: 24,
-                ),
-                onPressed: () => context.push('/notifications'),
-              ),
-            ),
-          ),
           // User Avatar (36px, orange ring if profile incomplete)
           Semantics(
             button: true,

@@ -40,8 +40,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
+import 'package:go_router/go_router.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
@@ -60,6 +61,7 @@ import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_builder_screen.dart';
 import '../../features/family/presentation/family_graph_screen.dart';
 import '../../features/family/presentation/family_archive_screen.dart';
+import '../../features/chat/presentation/chat_inbox_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
@@ -102,6 +104,7 @@ import '../../features/kinship/presentation/global_kinship_screen.dart';
 import '../../features/kinship/presentation/cross_cultural_comparison_screen.dart';
 import '../../features/kinship/presentation/country_kinship_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
+import '../../features/notifications/providers/notifications_provider.dart';
 import '../../features/events/presentation/events_screen.dart';
 import '../../features/memories/presentation/memories_screen.dart';
 import '../../features/family_map/presentation/family_map_screen.dart';
@@ -579,6 +582,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/home',
             pageBuilder: (context, state) =>
                 _instantPage(key: state.pageKey, child: HomeScreen()),
+          ),
+          // Chat as a standalone top-level tab (unified inbox)
+          GoRoute(
+            path: '/chat',
+            pageBuilder: (context, state) =>
+                _instantPage(key: state.pageKey, child: const ChatInboxScreen()),
           ),
           GoRoute(
             path: '/search',
@@ -1230,25 +1239,25 @@ class _RoutePersistenceShellState extends State<RoutePersistenceShell>
   }
 }
 
-/// Main shell with 5-tab bottom navigation using DKBottomNav
-class MainShell extends StatefulWidget {
+/// Main shell with 5-tab bottom navigation + global notification bell.
+/// The bell is visible on ALL main screens (top-right corner) with a
+/// red unread-count badge.
+class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key, required this.child});
   final Widget child;
   @override
-  State<MainShell> createState() => _MainShellState();
+  ConsumerState<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends ConsumerState<MainShell> {
   DateTime? _lastBackPressTime;
 
   Future<bool> _onWillPop() async {
     final router = GoRouter.of(context);
-    // If router can pop (we're inside a sub-route), let it pop normally
     if (router.canPop()) {
       router.pop();
       return false;
     }
-    // We're at a root tab — double-back to exit
     final now = DateTime.now();
     if (_lastBackPressTime == null ||
         now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
@@ -1267,6 +1276,9 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Watch the unread notification count for the bell badge
+    final unreadCount = ref.watch(unreadCountProvider);
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
@@ -1292,7 +1304,23 @@ class _MainShellState extends State<MainShell> {
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white, fontSize: 12)),
                   ),
-                Expanded(child: widget.child),
+                Expanded(
+                  child: Stack(
+                    children: [
+                      // The actual screen content
+                      widget.child,
+                      // Floating notification bell (top-right, all screens)
+                      Positioned(
+                        top: MediaQuery.of(context).padding.top + 8,
+                        right: 8,
+                        child: _NotificationBell(
+                          unreadCount: unreadCount,
+                          onTap: () => context.push('/notifications'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             );
           },
@@ -1303,15 +1331,96 @@ class _MainShellState extends State<MainShell> {
   }
 }
 
-/// 4-tab bottom navigation (Phase 2 IA restructure per Definitive Audit):
-/// 0. Home      (home icon) — with bell icon for notifications in header
-/// 1. Search    (search icon)
-/// 2. Family    (family_restroom icon) — direct-to-canvas for primary family
-/// 3. Me        (person icon)
+/// Floating notification bell with red unread badge.
+/// Visible on all main screens via the MainShell Stack overlay.
+class _NotificationBell extends StatelessWidget {
+  const _NotificationBell({
+    required this.unreadCount,
+    required this.onTap,
+  });
+
+  final int unreadCount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: const Color(0xFF191B2C).withValues(alpha: 0.9),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.08),
+              width: 1,
+            ),
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Bell icon
+              Center(
+                child: Icon(
+                  unreadCount > 0
+                      ? Icons.notifications_rounded
+                      : Icons.notifications_outlined,
+                  color: const Color(0xFFC9B4A8),
+                  size: 22,
+                ),
+              ),
+              // Red unread badge
+              if (unreadCount > 0)
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Container(
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF4444),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFF191B2C),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        unreadCount > 99 ? '99+' : '$unreadCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 5-tab bottom navigation:
+/// 0. Home      (home icon)
+/// 1. Chat      (chat bubble icon) — unified inbox across all families
+/// 2. Family    (family_restroom icon)
+/// 3. Search    (search icon)
+/// 4. Me        (person icon)
 ///
-/// KIN-10: "Graph" tab renamed to "Family" and routes directly to the
-/// primary family's graph canvas instead of a list.
-/// KIN-20: Alerts removed from bottom nav; moved to bell icon on Home.
+/// Notification bell with red unread badge is in the ShellRoute header,
+/// visible on ALL main screens (not just Home).
 class _BottomNav extends StatelessWidget {
   const _BottomNav();
 
@@ -1322,14 +1431,19 @@ class _BottomNav extends StatelessWidget {
       label: 'Home',
     ),
     DKNavItem(
-      icon: Icons.search_outlined,
-      activeIcon: Icons.search_rounded,
-      label: 'Search',
+      icon: Icons.chat_bubble_outline_rounded,
+      activeIcon: Icons.chat_rounded,
+      label: 'Chat',
     ),
     DKNavItem(
       icon: Icons.family_restroom_outlined,
       activeIcon: Icons.family_restroom_rounded,
       label: 'Family',
+    ),
+    DKNavItem(
+      icon: Icons.search_outlined,
+      activeIcon: Icons.search_rounded,
+      label: 'Search',
     ),
     DKNavItem(
       icon: Icons.person_outline_rounded,
@@ -1352,10 +1466,11 @@ class _BottomNav extends StatelessWidget {
   /// Map current route to bottom nav index.
   int _currentIndex(String location) {
     if (location.startsWith('/home')) return 0;
-    if (location.startsWith('/search')) return 1;
+    if (location.startsWith('/chat')) return 1;
     if (location.startsWith('/families') ||
         location.startsWith('/family/')) return 2;
-    if (location.startsWith('/profile')) return 3;
+    if (location.startsWith('/search')) return 3;
+    if (location.startsWith('/profile')) return 4;
     return 0;
   }
 
@@ -1365,13 +1480,12 @@ class _BottomNav extends StatelessWidget {
       case 0:
         context.go('/home');
       case 1:
-        context.go('/search');
+        context.go('/chat');
       case 2:
-        // KIN-10: Family tab goes to /families (family list).
-        // If the user has exactly one family, the list screen
-        // auto-navigates to that family's graph directly.
         context.go('/families');
       case 3:
+        context.go('/search');
+      case 4:
         context.go('/profile');
     }
   }
