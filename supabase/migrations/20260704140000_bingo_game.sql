@@ -163,7 +163,7 @@ BEGIN
     -- Check if enough time has passed since the last call
     call_interval := COALESCE(game_record."callIntervalSeconds", 5);
     IF game_record."lastCallAt" IS NOT NULL THEN
-        IF NOW() - game_record."lastCallAt" < (call_interval || ' seconds')::INTERVAL THEN
+        IF NOW() - game_record."lastCallAt" < make_interval(secs => call_interval) THEN
             -- Too soon — return the last called number
             IF array_length(game_record."numbersCalled", 1) > 0 THEN
                 RETURN game_record."numbersCalled"[array_length(game_record."numbersCalled", 1)];
