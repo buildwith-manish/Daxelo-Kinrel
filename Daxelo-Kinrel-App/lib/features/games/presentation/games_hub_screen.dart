@@ -30,6 +30,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
       ref.read(gameDownloadStatusProvider('antakshari').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('bingo').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('checkers').notifier).checkStatus();
+      ref.read(gameDownloadStatusProvider('ludo').notifier).checkStatus();
     });
   }
 
@@ -110,6 +111,17 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
           familyId: widget.familyId,
           onPlay: (context, familyId) =>
               context.push('/family/$familyId/checkers/lobby'),
+        ),
+        _GameCatalogCard(
+          gameId: 'ludo',
+          name: 'Ludo',
+          description: 'Roll, race, and capture — 2-4 players, classic board game',
+          icon: Icons.casino_outlined,
+          color: const Color(0xFFE11D48),  // rose
+          sizeEstimate: '~1 MB',
+          familyId: widget.familyId,
+          onPlay: (context, familyId) =>
+              context.push('/family/$familyId/ludo/lobby'),
         ),
       ]),
     );

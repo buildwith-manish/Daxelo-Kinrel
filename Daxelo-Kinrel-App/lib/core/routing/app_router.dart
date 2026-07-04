@@ -87,6 +87,8 @@ import '../../features/games/bingo/bingo_lobby_screen.dart';
 import '../../features/games/bingo/bingo_board_screen.dart';
 import '../../features/games/checkers/checkers_lobby_screen.dart';
 import '../../features/games/checkers/checkers_board_screen.dart';
+import '../../features/games/ludo/ludo_lobby_screen.dart';
+import '../../features/games/ludo/ludo_board_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
@@ -977,6 +979,25 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: CheckersBoardScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Ludo Game ────────────────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/ludo/lobby',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: LudoLobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/ludo/board/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: LudoBoardScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),
