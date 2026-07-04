@@ -147,9 +147,9 @@ class ChessNotifier extends StateNotifier<ChessState> {
       state = state.copyWith(
         game: game,
         isLoading: false,
-        inCheck: _logic!.inCheck,
-        isCheckmate: _logic!.inCheckmate,
-        isStalemate: _logic!.inStalemate,
+        inCheck: _logic!.in_check,
+        isCheckmate: _logic!.in_checkmate,
+        isStalemate: _logic!.in_stalemate,
       );
       _subscribeToRealtime(game.id);
       return game.id;
@@ -191,9 +191,9 @@ class ChessNotifier extends StateNotifier<ChessState> {
         game: game,
         moves: moves,
         isLoading: false,
-        inCheck: _logic!.inCheck,
-        isCheckmate: _logic!.inCheckmate,
-        isStalemate: _logic!.inStalemate,
+        inCheck: _logic!.in_check,
+        isCheckmate: _logic!.in_checkmate,
+        isStalemate: _logic!.in_stalemate,
       );
       _subscribeToRealtime(gameId);
       return true;
@@ -227,7 +227,7 @@ class ChessNotifier extends StateNotifier<ChessState> {
     if (pieceColor != game.currentTurnColor) return;
 
     // Get legal moves FROM this square
-    final legalMoves = logic.generateMoves({
+    final legalMoves = logic.generate_moves({
       'from': square,
     });
     final destinations = legalMoves.map((m) => m.toAlgebraic).toList();
@@ -299,15 +299,15 @@ class ChessNotifier extends StateNotifier<ChessState> {
           ? move.promotion.toString().toUpperCase()
           : null;
 
-      // Determine special move type
+      // Determine special move type (chess.dart uses string flags: 'k','q','e','p')
       String? specialMove;
-      if (move.flag == chess.MoveFlag.KSIDE_CASTLE) {
+      if (move.flag == 'k') {
         specialMove = 'castle_kingside';
-      } else if (move.flag == chess.MoveFlag.QSIDE_CASTLE) {
+      } else if (move.flag == 'q') {
         specialMove = 'castle_queenside';
-      } else if (move.flag == chess.MoveFlag.EP_CAPTURE) {
+      } else if (move.flag == 'e') {
         specialMove = 'en_passant';
-      } else if (move.flag == chess.MoveFlag.PROMOTION) {
+      } else if (move.flag == 'p') {
         specialMove = 'promotion';
       }
 
@@ -323,7 +323,7 @@ class ChessNotifier extends StateNotifier<ChessState> {
       String? winnerName;
       bool gameEnded = false;
 
-      if (logic.inCheckmate) {
+      if (logic.in_checkmate) {
         // Checkmate — current player's opponent wins
         final winnerColor = game.currentTurnColor == ChessColor.white
             ? ChessColor.black
@@ -337,11 +337,11 @@ class ChessNotifier extends StateNotifier<ChessState> {
             : game.playerBlackName;
         gameEnded = true;
         GameMotionTokens.celebrate();
-      } else if (logic.inStalemate) {
+      } else if (logic.in_stalemate) {
         result = 'stalemate';
         gameEnded = true;
         GameMotionTokens.error();
-      } else if (logic.inDraw) {
+      } else if (logic.in_draw) {
         result = 'draw';
         gameEnded = true;
         GameMotionTokens.tap();
@@ -417,9 +417,9 @@ class ChessNotifier extends StateNotifier<ChessState> {
         clearSelection: true,
         legalDestinations: const [],
         lastMove: (fromSquare, toSquare),
-        inCheck: logic.inCheck,
-        isCheckmate: logic.inCheckmate,
-        isStalemate: logic.inStalemate,
+        inCheck: logic.in_check,
+        isCheckmate: logic.in_checkmate,
+        isStalemate: logic.in_stalemate,
       );
 
       return true;
@@ -465,9 +465,9 @@ class ChessNotifier extends StateNotifier<ChessState> {
             }
             state = state.copyWith(
               game: updated,
-              inCheck: _logic!.inCheck,
-              isCheckmate: _logic!.inCheckmate,
-              isStalemate: _logic!.inStalemate,
+              inCheck: _logic!.in_check,
+              isCheckmate: _logic!.in_checkmate,
+              isStalemate: _logic!.in_stalemate,
             );
           },
         )

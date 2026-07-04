@@ -507,7 +507,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
       );
     }
 
-    return null;
+    return const SizedBox.shrink();
   }
 
   bool _isHomeBase(int row, int col) {

@@ -110,7 +110,16 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
 
     // Parse the FEN to get the board
     final logic = chess.Chess.fromFEN(game.boardState);
-    final board = logic.board; // 8x8 List<List<Piece?>>
+    // chess.dart 0.8.1 returns a flat List<Piece?> (64 elements)
+    // Convert to 2D List<List<Piece?>> for easier rendering
+    final flatBoard = logic.board as List;
+    final board = List<List<chess.Piece?>>.generate(
+      8,
+      (row) => List<chess.Piece?>.generate(
+        8,
+        (col) => flatBoard[row * 8 + col] as chess.Piece?,
+      ),
+    );
 
     // Flip the board if I'm playing black
     final flipBoard = myColor == ChessColor.black;

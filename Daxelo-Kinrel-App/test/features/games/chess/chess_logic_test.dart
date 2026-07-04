@@ -30,46 +30,41 @@ void main() {
 
     test('20 legal moves from starting position', () {
       final game = chess.Chess();
-      final moves = game.generateMoves();
-      expect(moves.length, 20); // 16 pawn moves + 4 knight moves
+      final moves = game.generate_moves();
+      expect(moves.length, 20);
     });
   });
 
   group('Check detection', () {
     test('king is in check when attacked', () {
-      // Fool's mate position — white king in check after Qh4
       final game = chess.Chess.fromFEN(
         'rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3',
       );
-      expect(game.inCheck, true);
+      expect(game.in_check, true);
     });
 
     test('cannot make a move that leaves own king in check', () {
-      // White king on e1, black rook on e8, white pawn on e2
-      // Moving the pawn would expose the king to check — should be illegal
       final game = chess.Chess.fromFEN('4r3/8/8/8/8/8/4P3/4K3 w - - 0 1');
-      // Try to move pawn e2-e4 — this should fail because it exposes the king
       final move = game.move({'from': 'e2', 'to': 'e4'});
       expect(move, isNull, reason: 'Should not allow move that exposes king');
     });
 
     test('king not in check in normal position', () {
       final game = chess.Chess();
-      expect(game.inCheck, false);
+      expect(game.in_check, false);
     });
   });
 
   group('Checkmate detection', () {
     test('fool\'s mate is detected as checkmate', () {
       final game = chess.Chess();
-      // 1. f3 e5 2. g4 Qh4#
       game.move({'from': 'f2', 'to': 'f3'});
       game.move({'from': 'e7', 'to': 'e5'});
       game.move({'from': 'g2', 'to': 'g4'});
       game.move({'from': 'd8', 'to': 'h4'});
 
-      expect(game.inCheckmate, true);
-      expect(game.inCheck, true);
+      expect(game.in_checkmate, true);
+      expect(game.in_check, true);
     });
 
     test('checkmate means game is over', () {
@@ -79,54 +74,47 @@ void main() {
       game.move({'from': 'g2', 'to': 'g4'});
       game.move({'from': 'd8', 'to': 'h4'});
 
-      expect(game.gameOver, true);
+      expect(game.game_over, true);
     });
   });
 
   group('Stalemate detection', () {
     test('stalemate is not checkmate', () {
-      // Classic stalemate position:
-      // Black king on a8, white king on c6, white queen on c7
-      // Black to move but has no legal moves and is NOT in check
       final game = chess.Chess.fromFEN('k7/2Q5/1K6/8/8/8/8/8 b - - 0 1');
-      expect(game.inStalemate, true);
-      expect(game.inCheckmate, false);
-      expect(game.inCheck, false);
+      expect(game.in_stalemate, true);
+      expect(game.in_checkmate, false);
+      expect(game.in_check, false);
     });
 
     test('stalemate is a draw', () {
       final game = chess.Chess.fromFEN('k7/2Q5/1K6/8/8/8/8/8 b - - 0 1');
-      expect(game.inDraw, true);
-      expect(game.gameOver, true);
+      expect(game.in_draw, true);
+      expect(game.game_over, true);
     });
   });
 
   group('Castling', () {
     test('kingside castling is legal when conditions are met', () {
-      // White king on e1, rook on h1, nothing between them
       final game = chess.Chess.fromFEN('4k3/8/8/8/8/8/8/4K2R w K - 0 1');
       final move = game.move({'from': 'e1', 'to': 'g1'});
       expect(move, isNotNull, reason: 'Kingside castling should be legal');
-      expect(move!.flag, chess.MoveFlag.KSIDE_CASTLE);
+      expect(move!.flag, 'k'); // chess.dart uses string flag 'k' for kingside castle
     });
 
     test('queenside castling is legal when conditions are met', () {
-      // White king on e1, rook on a1, nothing between them
       final game = chess.Chess.fromFEN('4k3/8/8/8/8/8/8/R3K3 w Q - 0 1');
       final move = game.move({'from': 'e1', 'to': 'c1'});
       expect(move, isNotNull, reason: 'Queenside castling should be legal');
-      expect(move!.flag, chess.MoveFlag.QSIDE_CASTLE);
+      expect(move!.flag, 'q');
     });
 
     test('cannot castle if king has moved', () {
-      // King has moved (no castling rights)
       final game = chess.Chess.fromFEN('4k3/8/8/8/8/8/8/4K2R w - - 0 1');
       final move = game.move({'from': 'e1', 'to': 'g1'});
       expect(move, isNull, reason: 'Should not castle without castling rights');
     });
 
     test('cannot castle through check', () {
-      // Black rook on e8 attacks the e-file — king passes through e1
       final game = chess.Chess.fromFEN('4r3/8/8/8/8/8/8/4K2R w K - 0 1');
       final move = game.move({'from': 'e1', 'to': 'g1'});
       expect(move, isNull, reason: 'Should not castle through check');
@@ -135,24 +123,17 @@ void main() {
 
   group('En passant', () {
     test('en passant capture is legal immediately after qualifying pawn move', () {
-      // White pawn on e5, black just played d7-d5
-      // White can capture en passant: exd6
       final game = chess.Chess.fromFEN(
         '4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1',
       );
       final move = game.move({'from': 'e5', 'to': 'd6'});
       expect(move, isNotNull, reason: 'En passant should be legal');
-      expect(move!.flag, chess.MoveFlag.EP_CAPTURE);
+      expect(move!.flag, 'e'); // 'e' = en passant capture
     });
 
     test('en passant is not available after one turn', () {
-      // If white doesn't capture en passant immediately, the opportunity is gone
-      // Set up: white pawn on e5, black pawn on d5, but it's black's turn
-      // (en passant square was set on the previous move, now it's expired)
       final game = chess.Chess.fromFEN('4k3/8/8/3pP3/8/8/8/4K3 b - - 0 1');
-      // Black moves king somewhere
       game.move({'from': 'e8', 'to': 'd8'});
-      // Now white tries en passant — should fail (no longer available)
       final move = game.move({'from': 'e5', 'to': 'd6'});
       expect(move, isNull, reason: 'En passant should not be available after one turn');
     });
@@ -160,7 +141,6 @@ void main() {
 
   group('Pawn promotion', () {
     test('pawn promotes to queen by default', () {
-      // White pawn on a7, about to promote
       final game = chess.Chess.fromFEN('4k3/P7/8/8/8/8/8/4K3 w - - 0 1');
       final move = game.move({'from': 'a7', 'to': 'a8'});
       expect(move, isNotNull, reason: 'Pawn promotion should work');
@@ -224,13 +204,13 @@ void main() {
   group('Draw detection', () {
     test('insufficient material (king vs king) is a draw', () {
       final game = chess.Chess.fromFEN('4k3/8/8/8/8/8/8/4K3 w - - 0 1');
-      expect(game.insufficientMaterial, true);
-      expect(game.inDraw, true);
+      expect(game.insufficient_material, true);
+      expect(game.in_draw, true);
     });
 
     test('king + queen vs king is not insufficient material', () {
       final game = chess.Chess.fromFEN('4k3/8/8/8/8/8/8/4KQ2 w - - 0 1');
-      expect(game.insufficientMaterial, false);
+      expect(game.insufficient_material, false);
     });
   });
 }
