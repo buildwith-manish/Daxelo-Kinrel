@@ -8,7 +8,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
@@ -53,7 +53,7 @@ class GameAssetManager {
 
   /// Download game assets from Supabase Storage.
   /// For Ghost Painter v1: downloads a prompt word bank JSON.
-  static Future<void> download(String gameId, WidgetRef ref) async {
+  static Future<void> download(String gameId, Ref ref) async {
     await setStatus(gameId, GameDownloadStatus.downloading);
     try {
       final client = ref.read(supabaseProvider);
@@ -101,7 +101,7 @@ final gameDownloadStatusProvider =
 
 class GameDownloadNotifier extends StateNotifier<GameDownloadState> {
   GameDownloadNotifier(this._ref, this.gameId) : super(const GameDownloadState());
-  final WidgetRef _ref;
+  final Ref _ref;
   final String gameId;
 
   Future<void> checkStatus() async {
