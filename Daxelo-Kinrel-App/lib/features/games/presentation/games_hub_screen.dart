@@ -28,6 +28,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
       ref.read(gameDownloadStatusProvider('freeze-dash').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('sos').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('antakshari').notifier).checkStatus();
+      ref.read(gameDownloadStatusProvider('bingo').notifier).checkStatus();
     });
   }
 
@@ -86,6 +87,17 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
           familyId: widget.familyId,
           onPlay: (context, familyId) =>
               context.push('/family/$familyId/antakshari/lobby'),
+        ),
+        _GameCatalogCard(
+          gameId: 'bingo',
+          name: 'Bingo',
+          description: 'Mark your 5×5 card — first to complete a line wins!',
+          icon: Icons.grid_view_rounded,
+          color: const Color(0xFF06B6D4),  // cyan/teal
+          sizeEstimate: '~1 MB',
+          familyId: widget.familyId,
+          onPlay: (context, familyId) =>
+              context.push('/family/$familyId/bingo/lobby'),
         ),
       ]),
     );

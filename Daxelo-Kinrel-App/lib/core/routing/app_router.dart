@@ -83,6 +83,8 @@ import '../../features/games/sos/sos_board_screen.dart';
 import '../../features/games/sos/sos_results_screen.dart';
 import '../../features/games/antakshari/antakshari_lobby_screen.dart';
 import '../../features/games/antakshari/antakshari_game_screen.dart';
+import '../../features/games/bingo/bingo_lobby_screen.dart';
+import '../../features/games/bingo/bingo_board_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
@@ -935,6 +937,25 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: AntakshariGameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Bingo Game ───────────────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/bingo/lobby',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: BingoLobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/bingo/board/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: BingoBoardScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),
