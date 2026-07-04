@@ -35,6 +35,15 @@ class _TodLobbyScreenState extends ConsumerState<TodLobbyScreen> {
     if (mounted) setState(() => _creating = false);
   }
 
+  Future<int> _loadPromptCount() async {
+    final client = ref.read(supabaseProvider);
+    if (client == null) return 0;
+    try {
+      final resp = await client.from('truthordare_prompts').select().eq('familyId', widget.familyId).eq('status', 'approved');
+      return resp.length;
+    } catch (_) { return 0; }
+  }
+
   Future<void> _shareCode(String? gameId) async {
     if (gameId == null) return;
     final code = gameId.replaceAll('-', '').substring(0, 6).toUpperCase();
@@ -102,7 +111,7 @@ class _TodLobbyScreenState extends ConsumerState<TodLobbyScreen> {
         ])),
       const SizedBox(height: KinrelSpacing.lg),
       // Approved prompt count
-      FutureBuilder(future: ref.read(todProvider(widget.familyId).notifier)._refreshApprovedPrompts().then((_) => ref.read(todProvider(widget.familyId)).approvedPromptIds.length),
+      FutureBuilder(future: _loadPromptCount(),
         builder: (context, snapshot) => Text('${snapshot.data ?? 0} approved prompts ready', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim))),
       const SizedBox(height: KinrelSpacing.xl),
       DKButton(label: 'Create Game', variant: DKButtonVariant.gradient, fullWidth: true, isLoading: _creating, onPressed: _createGame),
