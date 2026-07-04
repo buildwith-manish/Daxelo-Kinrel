@@ -96,7 +96,7 @@ RoundScoreResult scoreRound({
 
   // Ensure all players have a score entry (even if 0)
   for (final answer in answers) {
-    playerScores.putIfAbsent(answer.playerId, 0);
+    playerScores.putIfAbsent(answer.playerId, () => 0);
   }
 
   return RoundScoreResult(

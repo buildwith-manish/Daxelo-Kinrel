@@ -111,7 +111,7 @@ class _NameplaceAnswerScreenState extends ConsumerState<NameplaceAnswerScreen> {
             SizedBox(width: 56, height: 56, child: Stack(alignment: Alignment.center, children: [
               CircularProgressIndicator(value: progress, strokeWidth: 4, backgroundColor: KinrelColors.darkElevated, valueColor: AlwaysStoppedAnimation<Color>(timerColor)),
               Text('${secondsRemaining}s', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 14, fontWeight: FontWeight.w700, color: timerColor)),
-            ]),
+            ])),
             Column(children: [
               Text('SUBMITTED', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
               const SizedBox(height: 4),
