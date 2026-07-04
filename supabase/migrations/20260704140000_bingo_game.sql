@@ -172,8 +172,10 @@ BEGIN
         END IF;
     END IF;
 
-    -- Compute available (uncalled) numbers
-    available_numbers := all_numbers EXCEPT SELECT unnest(game_record."numbersCalled");
+    -- Compute available (uncalled) numbers using array difference
+    SELECT array_agg(n) INTO available_numbers
+    FROM unnest(all_numbers) AS n
+    WHERE NOT (n = ANY(game_record."numbersCalled"));
 
     IF array_length(available_numbers, 1) IS NULL OR array_length(available_numbers, 1) = 0 THEN
         -- All numbers called — no more to call
