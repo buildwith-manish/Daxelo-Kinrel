@@ -396,9 +396,9 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
     if (isCenter) {
       bgColor = KinrelColors.orange;
     } else if (isHomeBase) {
-      bgColor = _homeBaseColor(row, col).withValues(alpha: 0.3);
+      bgColor = _colorValue(_homeBaseColor(row, col)).withValues(alpha: 0.3);
     } else if (isHomeColumn) {
-      bgColor = _homeColumnColor(row, col).withValues(alpha: 0.3);
+      bgColor = _colorValue(_homeColumnColor(row, col)).withValues(alpha: 0.3);
     } else if (isTrack) {
       bgColor = Colors.white;
     } else {
@@ -431,12 +431,12 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
   }
 
   bool _isTrackSquare(int row, int col) {
-    return trackCoordinates.any((r, c) => r == row && c == col);
+    return trackCoordinates.any((cell) => cell.$1 == row && cell.$2 == col);
   }
 
   bool _isHomeColumnSquare(int row, int col) {
     for (final entry in homeColumnCoordinates.entries) {
-      if (entry.value.any((r, c) => r == row && c == col)) return true;
+      if (entry.value.any((cell) => cell.$1 == row && cell.$2 == col)) return true;
     }
     return false;
   }
@@ -461,7 +461,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
 
   LudoColor _homeColumnColor(int row, int col) {
     for (final entry in homeColumnCoordinates.entries) {
-      if (entry.value.any((r, c) => r == row && c == col)) return entry.key;
+      if (entry.value.any((cell) => cell.$1 == row && cell.$2 == col)) return entry.key;
     }
     return LudoColor.red;
   }
