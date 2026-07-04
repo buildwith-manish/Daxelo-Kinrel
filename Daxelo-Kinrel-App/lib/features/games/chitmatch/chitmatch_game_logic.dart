@@ -27,7 +27,7 @@ class ChitmatchPlayer {
   final String userName;
   final int turnOrder;
   final String? submittedWord;
-  List<String> hand; // exactly 3 chit values (words)
+  List<String> hand = []; // exactly 3 chit values (words)
   int? selectedChitIndex; // 0/1/2, null = not yet selected
   bool hasWon;
 
