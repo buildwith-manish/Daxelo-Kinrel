@@ -16,11 +16,12 @@ import '../../../core/services/supabase_service.dart';
 enum GameDownloadStatus { notDownloaded, downloading, downloaded, failed }
 
 class GameDownloadState {
-  const GameDownloadState({this.status = GameDownloadStatus.notDownloaded, this.progress = 0.0});
+  const GameDownloadState({this.status = GameDownloadStatus.notDownloaded, this.progress = 0.0, this.errorMessage});
   final GameDownloadStatus status;
   final double progress;
-  GameDownloadState copyWith({GameDownloadStatus? status, double? progress}) =>
-      GameDownloadState(status: status ?? this.status, progress: progress ?? this.progress);
+  final String? errorMessage;
+  GameDownloadState copyWith({GameDownloadStatus? status, double? progress, String? errorMessage}) =>
+      GameDownloadState(status: status ?? this.status, progress: progress ?? this.progress, errorMessage: errorMessage);
 }
 
 class GameAssetManager {
@@ -53,30 +54,42 @@ class GameAssetManager {
 
   /// Download game assets from Supabase Storage.
   /// For Ghost Painter v1: downloads a prompt word bank JSON.
-  static Future<void> download(String gameId, Ref ref) async {
+  static Future<String?> download(String gameId, Ref ref) async {
     await setStatus(gameId, GameDownloadStatus.downloading);
     try {
       final client = ref.read(supabaseProvider);
       if (client == null) {
         await setStatus(gameId, GameDownloadStatus.failed);
-        return;
+        return 'Not signed in';
       }
       final dir = await _gameDir(gameId);
       // Download manifest
+      debugPrint('📦 GameAssetManager: Fetching manifest from game-assets/$gameId/manifest.json');
       final manifestResp = await client.storage.from('game-assets').download('$gameId/manifest.json');
-      final manifest = jsonDecode(String.fromCharCodes(manifestResp)) as Map<String, dynamic>;
+      final manifestStr = String.fromCharCodes(manifestResp);
+      debugPrint('📦 GameAssetManager: Manifest fetched (${manifestStr.length} bytes)');
+      final manifest = jsonDecode(manifestStr) as Map<String, dynamic>;
       final assets = manifest['assets'] as List? ?? [];
+      debugPrint('📦 GameAssetManager: ${assets.length} assets to download');
       for (int i = 0; i < assets.length; i++) {
         final assetPath = assets[i] as String;
+        debugPrint('📦 GameAssetManager: Downloading $assetPath (${i + 1}/${assets.length})');
         final bytes = await client.storage.from('game-assets').download('$gameId/$assetPath');
         final file = File('$dir/$assetPath');
         file.parent.createSync(recursive: true);
         file.writeAsBytesSync(bytes);
       }
       await setStatus(gameId, GameDownloadStatus.downloaded);
-    } catch (e) {
-      debugPrint('⚠️ GameAssetManager download error: $e');
+      debugPrint('✅ GameAssetManager: Download complete for $gameId');
+      return null; // success
+    } on StorageException catch (e) {
+      debugPrint('❌ GameAssetManager: Storage error: ${e.message} (code: ${e.errorCode})');
       await setStatus(gameId, GameDownloadStatus.failed);
+      return 'Storage error: ${e.message}';
+    } catch (e) {
+      debugPrint('❌ GameAssetManager: Download error: $e');
+      await setStatus(gameId, GameDownloadStatus.failed);
+      return '$e';
     }
   }
 
@@ -110,8 +123,12 @@ class GameDownloadNotifier extends StateNotifier<GameDownloadState> {
   }
 
   Future<void> download() async {
-    state = state.copyWith(status: GameDownloadStatus.downloading, progress: 0.1);
-    await GameAssetManager.download(gameId, _ref);
-    await checkStatus();
+    state = state.copyWith(status: GameDownloadStatus.downloading, progress: 0.1, errorMessage: null);
+    final error = await GameAssetManager.download(gameId, _ref);
+    if (error != null) {
+      state = state.copyWith(status: GameDownloadStatus.failed, errorMessage: error);
+    } else {
+      state = state.copyWith(status: GameDownloadStatus.downloaded, progress: 1.0);
+    }
   }
 }

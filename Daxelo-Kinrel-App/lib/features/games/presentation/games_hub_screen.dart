@@ -107,9 +107,16 @@ class _GameCatalogCard extends ConsumerWidget {
         }, style: FilledButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8)),
           child: const Text('Play'));
       case GameDownloadStatus.failed:
-        return FilledButton(onPressed: () => ref.read(gameDownloadStatusProvider(gameId).notifier).download(),
-          style: FilledButton.styleFrom(backgroundColor: KinrelColors.error, foregroundColor: Colors.white),
-          child: const Text('Retry'));
+        return Column(mainAxisSize: MainAxisSize.min, children: [
+          FilledButton(onPressed: () => ref.read(gameDownloadStatusProvider(gameId).notifier).download(),
+            style: FilledButton.styleFrom(backgroundColor: KinrelColors.error, foregroundColor: Colors.white),
+            child: const Text('Retry')),
+          if (dlState.errorMessage != null)
+            Padding(padding: const EdgeInsets.only(top: 4), child: SizedBox(
+              width: 120,
+              child: Text(dlState.errorMessage!, style: TextStyle(fontSize: 9, color: KinrelColors.textDim), maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
+            )),
+        ]);
     }
   }
 }
