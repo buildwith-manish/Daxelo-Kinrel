@@ -353,7 +353,7 @@ class RedlightNotifier extends StateNotifier<RedlightState> {
     final tickMs = 100;
     var remaining = durationMs;
     _phaseCountdownTimer = Timer.periodic(
-      const Duration(milliseconds: tickMs),
+      const Duration(milliseconds: 100),
       (t) {
         remaining -= tickMs;
         if (remaining <= 0) {
@@ -586,7 +586,7 @@ class RedlightNotifier extends StateNotifier<RedlightState> {
     const tickMs = 50; // 20fps
     const baseDelta = 0.8; // per tick
     _localProgressTimer = Timer.periodic(
-      const Duration(milliseconds: tickMs),
+      const Duration(milliseconds: 50),
       (_) {
         final rid = _roundId;
         final myId = _myId;

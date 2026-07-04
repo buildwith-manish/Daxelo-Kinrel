@@ -135,11 +135,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(redlightProvider(widget.familyId));
     final notifier = ref.read(redlightProvider(widget.familyId).notifier);
-    final myId = ref
-        .read(supabaseProvider)?
-        .auth
-        .currentUser
-        ?.id;
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
     final isHost =
         state.round?.hostUserId == myId || state.round == null;
     final canStart = state.round == null

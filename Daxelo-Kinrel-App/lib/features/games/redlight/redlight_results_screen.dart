@@ -209,7 +209,7 @@ class RedlightResultsScreen extends ConsumerWidget {
         Text(
           isMe ? '${winner.userName} (You)' : winner.userName,
           style: TextStyle(
-            fontFamily: KinrelTypography.headlineLarge,
+            fontFamily: KinrelTypography.bodyFont,
             fontSize: 22,
             fontWeight: FontWeight.w600,
             color: KinrelColors.orange,
