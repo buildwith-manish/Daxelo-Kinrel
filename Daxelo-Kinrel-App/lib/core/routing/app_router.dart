@@ -68,6 +68,9 @@ import '../../features/truth_streak/presentation/truth_streak_screen.dart';
 import '../../features/hot_seat/presentation/hot_seat_screen.dart';
 import '../../features/relation_riddles/presentation/relation_riddle_screen.dart';
 import '../../features/occasions/presentation/family_calendar_screen.dart';
+import '../../features/calendar/presentation/family_calendar_screen.dart' as cal;
+import '../../features/calendar/presentation/event_create_screen.dart';
+import '../../features/calendar/presentation/event_detail_screen.dart';
 import '../../features/games/presentation/games_hub_screen.dart';
 import '../../features/games/ghost_painter/ghost_painter_draw_screen.dart';
 import '../../features/games/ghost_painter/ghost_painter_guess_screen.dart';
@@ -786,15 +789,45 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // ── Family Calendar (family-scoped occasions) ────────────────
+      // ── Family Calendar (redesigned) ─────────────────────────────
       GoRoute(
         path: '/family/:id/calendar',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: FamilyCalendarScreen(
+          child: cal.FamilyCalendarScreen(
             familyId: state.pathParameters['id']!,
           ),
         ),
+      ),
+      GoRoute(
+        path: '/family/:id/calendar/new',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: EventCreateScreen(
+            familyId: state.pathParameters['id']!,
+            existingEvent: state.extra != null
+                ? CalendarEvent.fromJson(state.extra as Map<String, dynamic>)
+                : null,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/calendar/event/:eventId',
+        pageBuilder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          final event = extra != null
+              ? CalendarEvent.fromJson(extra['event'] as Map<String, dynamic>)
+              : null;
+          return _fastFadePage(
+            key: state.pageKey,
+            child: event != null
+                ? EventDetailScreen(
+                    familyId: state.pathParameters['id']!,
+                    event: event,
+                  )
+                : const Scaffold(body: Center(child: Text('Event not found'))),
+          );
+        },
       ),
 
       // ── Games Hub ────────────────────────────────────────────────
