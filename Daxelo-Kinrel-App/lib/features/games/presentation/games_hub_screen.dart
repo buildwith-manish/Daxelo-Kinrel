@@ -29,6 +29,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
       ref.read(gameDownloadStatusProvider('sos').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('antakshari').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('bingo').notifier).checkStatus();
+      ref.read(gameDownloadStatusProvider('checkers').notifier).checkStatus();
     });
   }
 
@@ -98,6 +99,17 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
           familyId: widget.familyId,
           onPlay: (context, familyId) =>
               context.push('/family/$familyId/bingo/lobby'),
+        ),
+        _GameCatalogCard(
+          gameId: 'checkers',
+          name: 'Checkers',
+          description: 'Challenge a family member — mandatory captures + kings',
+          icon: Icons.grid_on_outlined,
+          color: const Color(0xFF6366F1),  // indigo
+          sizeEstimate: '~1 MB',
+          familyId: widget.familyId,
+          onPlay: (context, familyId) =>
+              context.push('/family/$familyId/checkers/lobby'),
         ),
       ]),
     );
