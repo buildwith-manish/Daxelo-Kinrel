@@ -2,6 +2,11 @@
 //
 // Manages on-demand download of game assets (JSON word banks, images, audio)
 // from Supabase Storage. NOT code/plugins — only static assets.
+//
+// WEB FIX: path_provider has no web implementation. On Flutter Web, we skip
+// all file-system operations and only track the "downloaded" status flag
+// via SharedPreferences. The manifest fetch is still real (validates that
+// the game exists in Supabase Storage), but no files are written to disk.
 
 import 'dart:convert';
 import 'dart:io';
@@ -27,6 +32,7 @@ class GameDownloadState {
 class GameAssetManager {
   static const _prefsKey = 'game_download_status';
 
+  /// Get the game's local asset directory (native only — never called on web).
   static Future<String> _gameDir(String gameId) async {
     final base = await getApplicationSupportDirectory();
     final dir = Directory('${base.path}/games/$gameId');
@@ -53,7 +59,11 @@ class GameAssetManager {
   }
 
   /// Download game assets from Supabase Storage.
-  /// For Ghost Painter v1: downloads a prompt word bank JSON.
+  ///
+  /// On web: fetches the manifest (validates the game exists), then marks
+  /// as downloaded without writing any files (no filesystem on web).
+  ///
+  /// On native: fetches manifest + all listed assets, saves to app support dir.
   static Future<String?> download(String gameId, Ref ref) async {
     await setStatus(gameId, GameDownloadStatus.downloading);
     try {
@@ -62,8 +72,8 @@ class GameAssetManager {
         await setStatus(gameId, GameDownloadStatus.failed);
         return 'Not signed in';
       }
-      final dir = await _gameDir(gameId);
-      // Download manifest
+
+      // Download manifest (always — validates the game exists in storage)
       debugPrint('📦 GameAssetManager: Fetching manifest from game-assets/$gameId/manifest.json');
       final manifestResp = await client.storage.from('game-assets').download('$gameId/manifest.json');
       final manifestStr = String.fromCharCodes(manifestResp);
@@ -71,14 +81,26 @@ class GameAssetManager {
       final manifest = jsonDecode(manifestStr) as Map<String, dynamic>;
       final assets = manifest['assets'] as List? ?? [];
       debugPrint('📦 GameAssetManager: ${assets.length} assets to download');
-      for (int i = 0; i < assets.length; i++) {
-        final assetPath = assets[i] as String;
-        debugPrint('📦 GameAssetManager: Downloading $assetPath (${i + 1}/${assets.length})');
-        final bytes = await client.storage.from('game-assets').download('$gameId/$assetPath');
-        final file = File('$dir/$assetPath');
-        file.parent.createSync(recursive: true);
-        file.writeAsBytesSync(bytes);
+
+      if (kIsWeb) {
+        // WEB: Skip file-system operations entirely.
+        // SharedPreferences (web-backed by localStorage) already stores the
+        // status flag. No files to write — web games load assets from
+        // Supabase Storage URLs directly at runtime if needed.
+        debugPrint('📦 GameAssetManager: Web platform — skipping file writes');
+      } else {
+        // NATIVE: Write assets to the app support directory
+        final dir = await _gameDir(gameId);
+        for (int i = 0; i < assets.length; i++) {
+          final assetPath = assets[i] as String;
+          debugPrint('📦 GameAssetManager: Downloading $assetPath (${i + 1}/${assets.length})');
+          final bytes = await client.storage.from('game-assets').download('$gameId/$assetPath');
+          final file = File('$dir/$assetPath');
+          file.parent.createSync(recursive: true);
+          file.writeAsBytesSync(bytes);
+        }
       }
+
       await setStatus(gameId, GameDownloadStatus.downloaded);
       debugPrint('✅ GameAssetManager: Download complete for $gameId');
       return null; // success
@@ -93,8 +115,10 @@ class GameAssetManager {
     }
   }
 
-  /// Load a downloaded asset file
+  /// Load a downloaded asset file (native only).
+  /// On web, returns null — web games should fetch from Supabase Storage URLs.
   static Future<String?> loadAsset(String gameId, String assetPath) async {
+    if (kIsWeb) return null; // No filesystem on web
     try {
       final dir = await _gameDir(gameId);
       final file = File('$dir/$assetPath');
