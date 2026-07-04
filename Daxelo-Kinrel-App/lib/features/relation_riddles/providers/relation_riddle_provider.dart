@@ -45,13 +45,13 @@ class RelationRiddleNotifier extends StateNotifier<RelationRiddleState> {
       final today = DateTime.now();
       final todayStr = '${today.year}-${today.month.toString().padLeft(2,'0')}-${today.day.toString().padLeft(2,'0')}';
 
-      var riddleResp = await client.from('relation_riddle_daily').select().eq('"familyId"', familyId).eq('"assignedDate"', todayStr).limit(1);
+      var riddleResp = await client.from('relation_riddle_daily').select().eq('familyId', familyId).eq('assignedDate', todayStr).limit(1);
       Map<String, dynamic>? riddleRow;
       if (riddleResp.isNotEmpty) {
         riddleRow = riddleResp.first as Map<String, dynamic>;
       } else {
         // Need at least 2 members to create a riddle
-        final membersResp = await client.from('Person').select('id, name').eq('"familyId"', familyId).isFilter('"deletedAt"', null);
+        final membersResp = await client.from('Person').select('id, name').eq('familyId', familyId).isFilter('deletedAt', null);
         if (membersResp.length < 2) { state = state.copyWith(isLoading: false); return; }
 
         final random = DateTime.now().millisecondsSinceEpoch;
@@ -63,10 +63,10 @@ class RelationRiddleNotifier extends StateNotifier<RelationRiddleState> {
         const wrongOptions = ['Not related', 'Same generation', 'Married into family'];
         final shuffled = wrongOptions.toList()..shuffle();
         final newRiddle = await client.from('relation_riddle_daily').insert({
-          '"familyId"': familyId, '"personAId"': personA['id'], '"personBId"': personB['id'],
-          '"personAName"': personA['name'], '"personBName"': personB['name'],
-          '"correctAnswer"': correctAnswer, '"option1"': shuffled[0], '"option2"': shuffled[1], '"option3"': shuffled[2],
-          '"assignedDate"': todayStr,
+          'familyId': familyId, 'personAId': personA['id'], 'personBId': personB['id'],
+          'personAName': personA['name'], 'personBName': personB['name'],
+          'correctAnswer': correctAnswer, 'option1': shuffled[0], 'option2': shuffled[1], 'option3': shuffled[2],
+          'assignedDate': todayStr,
         }).select().single();
         riddleRow = newRiddle as Map<String, dynamic>;
       }
@@ -82,7 +82,7 @@ class RelationRiddleNotifier extends StateNotifier<RelationRiddleState> {
       // Check if user already answered
       String? myAnswer; bool? wasCorrect;
       try {
-        final attemptResp = await client.from('relation_riddle_attempts').select().eq('"riddleId"', riddleId).eq('"userId"', myId).maybeSingle();
+        final attemptResp = await client.from('relation_riddle_attempts').select().eq('riddleId', riddleId).eq('userId', myId).maybeSingle();
         if (attemptResp != null) {
           myAnswer = attemptResp['selectedAnswer'] as String?;
           wasCorrect = attemptResp['wasCorrect'] as bool? ?? false;
@@ -101,7 +101,7 @@ class RelationRiddleNotifier extends StateNotifier<RelationRiddleState> {
     if (client == null || myId == null || riddleId == null) return false;
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
-      await client.from('relation_riddle_attempts').insert({'"riddleId"': riddleId, '"userId"': myId, '"selectedAnswer"': selectedAnswer, '"wasCorrect"': isCorrect});
+      await client.from('relation_riddle_attempts').insert({'riddleId': riddleId, 'userId': myId, 'selectedAnswer': selectedAnswer, 'wasCorrect': isCorrect});
       state = state.copyWith(myAnswer: selectedAnswer, wasCorrect: isCorrect, isSubmitting: false);
       return true;
     } catch (e) {

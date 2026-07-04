@@ -2103,7 +2103,7 @@ class _FeedHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${detail.members.length} members · ${detail.relationships.length} links',
+                  '${detail.members.length} ${detail.members.length == 1 ? "member" : "members"} · ${detail.relationships.length} ${detail.relationships.length == 1 ? "relationship" : "relationships"}',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
@@ -2176,7 +2176,7 @@ class _GraphPreviewCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${detail.members.length} members · ${detail.relationships.length} relationships',
+                        '${detail.members.length} ${detail.members.length == 1 ? "member" : "members"} · ${detail.relationships.length} ${detail.relationships.length == 1 ? "relationship" : "relationships"}',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 13,
@@ -2269,8 +2269,8 @@ class _MembersPreviewRow extends StatelessWidget {
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
                                     colors: [
-                                      KinrelColors.orange.withValues(alpha: 0.25),
-                                      KinrelColors.amber.withValues(alpha: 0.1),
+                                      KinrelColors.orange.withValues(alpha: 0.45),
+                                      KinrelColors.amber.withValues(alpha: 0.25),
                                     ],
                                   ),
                                 ),
@@ -2291,16 +2291,29 @@ class _MembersPreviewRow extends StatelessWidget {
                             : null,
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        person.name.split(' ').first,
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 10,
-                          color: KinrelColors.textDim,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      Builder(builder: (context) {
+                        // Disambiguate same-first-name members
+                        final firstName = person.name.split(' ').first;
+                        final sameFirstName = members.where((m) =>
+                            m.name.split(' ').first == firstName).length;
+                        String label = firstName;
+                        if (sameFirstName > 1) {
+                          final parts = person.name.split(' ');
+                          if (parts.length > 1) {
+                            label = '$firstName ${parts[1][0]}.';
+                          }
+                        }
+                        return Text(
+                          label,
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 10,
+                            color: KinrelColors.textDim,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        );
+                      }),
                     ],
                   ),
                 );
@@ -2655,7 +2668,7 @@ class _MoreGamesCard extends StatelessWidget {
           Icon(
             Icons.videogame_asset_outlined,
             size: 32,
-            color: KinrelColors.textDim.withValues(alpha: 0.5),
+            color: KinrelColors.textDim,
           ),
           const SizedBox(height: 12),
           Text(
@@ -2673,7 +2686,7 @@ class _MoreGamesCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
-              color: KinrelColors.textDim.withValues(alpha: 0.6),
+              color: KinrelColors.textDim.withValues(alpha: 0.85),
             ),
           ),
         ],
