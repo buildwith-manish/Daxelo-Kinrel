@@ -65,6 +65,9 @@ dependencies:
 
   # Flame engine (Ghost Painter canvas rendering)
   flame: ^1.18.0
+
+  # Forge2D physics engine (Carrom game — BSD-3-Clause, Box2D port)
+  forge2d: ^0.14.2
   
   # Utilities
   permission_handler: ^11.3.1

@@ -31,6 +31,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
       ref.read(gameDownloadStatusProvider('bingo').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('checkers').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('ludo').notifier).checkStatus();
+      ref.read(gameDownloadStatusProvider('carrom').notifier).checkStatus();
     });
   }
 
@@ -122,6 +123,17 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
           familyId: widget.familyId,
           onPlay: (context, familyId) =>
               context.push('/family/$familyId/ludo/lobby'),
+        ),
+        _GameCatalogCard(
+          gameId: 'carrom',
+          name: 'Carrom',
+          description: 'Flick the striker — pot your coins before your opponent!',
+          icon: Icons.sports_esports_rounded,
+          color: const Color(0xFFF59E0B),  // amber
+          sizeEstimate: '~1 MB',
+          familyId: widget.familyId,
+          onPlay: (context, familyId) =>
+              context.push('/family/$familyId/carrom/lobby'),
         ),
       ]),
     );
