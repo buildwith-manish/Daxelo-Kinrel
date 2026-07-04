@@ -83,7 +83,7 @@ class GameAssetManager {
       debugPrint('✅ GameAssetManager: Download complete for $gameId');
       return null; // success
     } on StorageException catch (e) {
-      debugPrint('❌ GameAssetManager: Storage error: ${e.message} (code: ${e.errorCode})');
+      debugPrint('❌ GameAssetManager: Storage error: ${e.message}');
       await setStatus(gameId, GameDownloadStatus.failed);
       return 'Storage error: ${e.message}';
     } catch (e) {
