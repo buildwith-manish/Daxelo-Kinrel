@@ -29,7 +29,7 @@ class _TttLobbyScreenState extends ConsumerState<TttLobbyScreen> {
     if (client == null || myId == null) { setState(() { _loading = false; _error = 'Not signed in'; }); return; }
     try {
       final resp = await client.from('FamilyMember').select('userId, user:User(name)').eq('familyId', widget.familyId).neq('userId', myId);
-      setState(() { _members = resp.map((r) {'userId': r['userId'], 'name': (r['user']?['name'] ?? 'Member')}).toList(); _loading = false; });
+      setState(() { _members = resp.map((r) => <String, dynamic>{'userId': r['userId'], 'name': (r['user']?['name'] ?? 'Member')}).toList(); _loading = false; });
     } catch (e) { setState(() { _loading = false; _error = '$e'; }); }
   }
 
