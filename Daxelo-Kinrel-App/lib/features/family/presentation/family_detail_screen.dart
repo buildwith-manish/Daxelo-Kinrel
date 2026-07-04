@@ -43,6 +43,7 @@ import '../../games/chess/chess_card.dart';
 import '../../games/chitmatch/chitmatch_card.dart';
 import '../../games/nameplace/nameplace_card.dart';
 import '../../games/tictactoe/tictactoe_card.dart';
+import '../../games/truthordare/truthordare_card.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
@@ -262,6 +263,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                 child: Padding(
                   padding: const EdgeInsets.only(top: 16),
                   child: TttCard(familyId: widget.familyId),
+                ),
+              ),
+
+              // 5m. Truth or Dare game
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: TodCard(familyId: widget.familyId),
                 ),
               ),
 

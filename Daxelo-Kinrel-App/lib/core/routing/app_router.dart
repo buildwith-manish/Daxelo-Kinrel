@@ -101,6 +101,10 @@ import '../../features/games/nameplace/nameplace_answer_screen.dart';
 import '../../features/games/nameplace/nameplace_results_screen.dart';
 import '../../features/games/tictactoe/tictactoe_lobby_screen.dart';
 import '../../features/games/tictactoe/tictactoe_board_screen.dart';
+import '../../features/games/truthordare/truthordare_lobby_screen.dart';
+import '../../features/games/truthordare/truthordare_table_screen.dart';
+import '../../features/games/truthordare/truthordare_submit_screen.dart';
+import '../../features/games/truthordare/truthordare_review_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
@@ -1128,6 +1132,39 @@ final routerProvider = Provider<GoRouter>((ref) {
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),
+        ),
+      ),
+
+      // ── Truth or Dare Game ──────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/truthordare/lobby',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: TodLobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/truthordare/table/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: TodTableScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/truthordare/submit',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: TodSubmitScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/truthordare/review',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: TodReviewScreen(familyId: state.pathParameters['id']!),
         ),
       ),
 

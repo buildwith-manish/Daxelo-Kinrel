@@ -36,6 +36,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
       ref.read(gameDownloadStatusProvider('chitmatch').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('nameplace').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('tictactoe').notifier).checkStatus();
+      ref.read(gameDownloadStatusProvider('truthordare').notifier).checkStatus();
     });
   }
 
@@ -182,6 +183,17 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
           familyId: widget.familyId,
           onPlay: (context, familyId) =>
               context.push('/family/$familyId/tictactoe/lobby'),
+        ),
+        _GameCatalogCard(
+          gameId: 'truthordare',
+          name: 'Truth or Dare',
+          description: 'Spin the bottle — family-submitted prompts!',
+          icon: Icons.local_bar,
+          color: const Color(0xFFEF4444),  // red
+          sizeEstimate: '~1 MB',
+          familyId: widget.familyId,
+          onPlay: (context, familyId) =>
+              context.push('/family/$familyId/truthordare/lobby'),
         ),
       ]),
     );
