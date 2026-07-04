@@ -117,7 +117,8 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
             decoration: BoxDecoration(color: _category == cat ? Color(cat.colorValue).withValues(alpha: 0.2) : KinrelColors.darkCard, borderRadius: BorderRadius.circular(10),
               border: Border.all(color: _category == cat ? Color(cat.colorValue) : Colors.transparent, width: 1.5)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [Text(cat.icon, style: TextStyle(fontSize: 14)), const SizedBox(width: 6), Text(cat.label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _category == cat ? Color(cat.colorValue) : KinrelColors.textDim))]),
-          )).toList())),
+          ),
+        )).toList()),
         const SizedBox(height: 16),
         // Date
         Text('Date', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textDim)),

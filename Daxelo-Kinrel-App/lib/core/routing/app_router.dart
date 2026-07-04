@@ -71,6 +71,7 @@ import '../../features/occasions/presentation/family_calendar_screen.dart';
 import '../../features/calendar/presentation/family_calendar_screen.dart' as cal;
 import '../../features/calendar/presentation/event_create_screen.dart';
 import '../../features/calendar/presentation/event_detail_screen.dart';
+import '../../features/calendar/models/calendar_models.dart';
 import '../../features/games/presentation/games_hub_screen.dart';
 import '../../features/games/ghost_painter/ghost_painter_draw_screen.dart';
 import '../../features/games/ghost_painter/ghost_painter_guess_screen.dart';
