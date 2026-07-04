@@ -439,7 +439,7 @@ class CarromNotifier extends StateNotifier<CarromState> {
     final (x, y) = positions[coinIndex]!;
     final pos = math.Point(x, y);
     for (final pocket in CarromBoard.pocketPositions) {
-      if ((pos - math.Point(pocket.x, pocket.y)).distance <
+      if (pos.distanceTo(math.Point(pocket.x, pocket.y)) <
           CarromBoard.pocketRadius) {
         return true;
       }
