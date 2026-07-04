@@ -63,7 +63,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
           onPlay: (context, familyId) =>
               context.push('/family/$familyId/freeze-dash/lobby'),
         ),
-      ],
+      ]),
     );
   }
 }
