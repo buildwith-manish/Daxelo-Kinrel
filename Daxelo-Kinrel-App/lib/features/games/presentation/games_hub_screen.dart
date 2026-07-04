@@ -25,6 +25,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
     super.initState();
     Future.microtask(() {
       ref.read(gameDownloadStatusProvider('ghost-painter').notifier).checkStatus();
+      ref.read(gameDownloadStatusProvider('freeze-dash').notifier).checkStatus();
     });
   }
 
@@ -51,13 +52,33 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
           sizeEstimate: '~2 MB',
           familyId: widget.familyId,
         ),
-      ]),
+        _GameCatalogCard(
+          gameId: 'freeze-dash',
+          name: 'Freeze & Dash',
+          description: 'Race to the finish — but freeze when the Caller calls RED!',
+          icon: Icons.directions_run_rounded,
+          color: const Color(0xFF10B981),  // emerald green — traffic light association
+          sizeEstimate: '~3 MB',
+          familyId: widget.familyId,
+          onPlay: (context, familyId) =>
+              context.push('/family/$familyId/freeze-dash/lobby'),
+        ),
+      ],
     );
   }
 }
 
 class _GameCatalogCard extends ConsumerWidget {
-  const _GameCatalogCard({required this.gameId, required this.name, required this.description, required this.icon, required this.color, required this.sizeEstimate, this.familyId});
+  const _GameCatalogCard({
+    required this.gameId,
+    required this.name,
+    required this.description,
+    required this.icon,
+    required this.color,
+    required this.sizeEstimate,
+    this.familyId,
+    this.onPlay,
+  });
   final String gameId;
   final String name;
   final String description;
@@ -65,6 +86,10 @@ class _GameCatalogCard extends ConsumerWidget {
   final Color color;
   final String sizeEstimate;
   final String? familyId;
+
+  /// Optional override for the Play action. If null, defaults to the
+  /// Ghost Painter route (legacy behavior). When provided, used as-is.
+  final void Function(BuildContext context, String familyId)? onPlay;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -101,7 +126,11 @@ class _GameCatalogCard extends ConsumerWidget {
         return SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: color));
       case GameDownloadStatus.downloaded:
         return FilledButton(onPressed: () {
-          if (familyId != null) {
+          if (familyId == null) return;
+          if (onPlay != null) {
+            onPlay!(context, familyId!);
+          } else {
+            // Default legacy route — Ghost Painter
             context.push('/family/$familyId/ghost-painter/draw');
           }
         }, style: FilledButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8)),

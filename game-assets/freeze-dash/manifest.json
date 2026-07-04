@@ -1,0 +1,13 @@
+{
+  "version": "1.0.0",
+  "assets": [
+    "callers/grandma.png",
+    "callers/robot.png",
+    "callers/parrot.png",
+    "callers/alien.png",
+    "maps/forest.png",
+    "maps/beach.png",
+    "maps/playground.png",
+    "maps/village.png"
+  ]
+}

@@ -75,6 +75,9 @@ import '../../features/calendar/models/calendar_models.dart';
 import '../../features/games/presentation/games_hub_screen.dart';
 import '../../features/games/ghost_painter/ghost_painter_draw_screen.dart';
 import '../../features/games/ghost_painter/ghost_painter_guess_screen.dart';
+import '../../features/games/redlight/redlight_lobby_screen.dart';
+import '../../features/games/redlight/redlight_game_screen.dart';
+import '../../features/games/redlight/redlight_results_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
@@ -853,6 +856,35 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: GhostPainterGuessScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+
+      // ── Freeze & Dash (Red Light, Green Light) ──────────────────────
+      GoRoute(
+        path: '/family/:id/freeze-dash/lobby',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: RedlightLobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/freeze-dash/game/:roundId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: RedlightGameScreen(
+            familyId: state.pathParameters['id']!,
+            roundId: state.pathParameters['roundId']!,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/freeze-dash/results/:roundId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: RedlightResultsScreen(
+            familyId: state.pathParameters['id']!,
+            roundId: state.pathParameters['roundId']!,
+          ),
         ),
       ),
 
