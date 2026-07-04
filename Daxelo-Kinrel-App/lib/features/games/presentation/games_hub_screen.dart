@@ -13,7 +13,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../services/game_asset_manager.dart';
 
 class GamesHubScreen extends ConsumerStatefulWidget {
-  const GamesHubScreen({super.key});
+  const GamesHubScreen({super.key, this.familyId});
   final String? familyId;
   @override
   ConsumerState<GamesHubScreen> createState() => _GamesHubScreenState();

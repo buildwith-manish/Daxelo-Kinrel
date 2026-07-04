@@ -126,7 +126,11 @@ class _DrawPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     // Faint radial glow background
-    final bgPaint = Paint()..shader = RadialGradient(center: Alignment.center.toOffset(size).toOffset(), colors: [const Color(0xFF1A1A2E), const Color(0xFF0D0D1A)]).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+    final bgPaint = Paint()
+      ..shader = RadialGradient(
+        center: Alignment.center,
+        colors: [const Color(0xFF1A1A2E), const Color(0xFF0D0D1A)],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
 
     final strokePaint = Paint()
@@ -153,8 +157,4 @@ class _DrawPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DrawPainter old) => true;
-}
-
-extension on Alignment {
-  Offset toOffset() => Offset(x, y);
 }
