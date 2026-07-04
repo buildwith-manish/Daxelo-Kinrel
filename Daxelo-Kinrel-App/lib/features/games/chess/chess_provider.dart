@@ -275,9 +275,39 @@ class ChessNotifier extends StateNotifier<ChessState> {
 
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
-      // Try the move
-      final move = logic.move(moveObj);
-      if (move == null) {
+      // In chess.dart 0.8.1, move() returns bool, not a Move object.
+      // Find the matching Move from generate_moves() first to get details.
+      final candidates = logic.generate_moves({
+        'from': from,
+        'to': to,
+      });
+
+      // Find the matching move (handle promotion)
+      chess.Move? matchedMove;
+      for (final m in candidates) {
+        if (m.toAlgebraic == to && m.fromAlgebraic == from) {
+          // If promotion, match the promotion piece; otherwise take first match
+          if (moveObj.containsKey('promotion')) {
+            final promoStr = moveObj['promotion'] as String;
+            final promoPiece = promoStr == 'q'
+                ? chess.PieceType.QUEEN
+                : promoStr == 'r'
+                    ? chess.PieceType.ROOK
+                    : promoStr == 'b'
+                        ? chess.PieceType.BISHOP
+                        : chess.PieceType.KNIGHT;
+            if (m.promotion == promoPiece) {
+              matchedMove = m;
+              break;
+            }
+          } else {
+            matchedMove = m;
+            break;
+          }
+        }
+      }
+
+      if (matchedMove == null) {
         GameMotionTokens.error();
         state = state.copyWith(
           isSubmitting: false,
@@ -288,31 +318,44 @@ class ChessNotifier extends StateNotifier<ChessState> {
         return false;
       }
 
-      // Extract move details
-      final fromSquare = move.fromAlgebraic;
-      final toSquare = move.toAlgebraic;
-      final pieceMoved = move.piece.toString().toUpperCase();
-      final capturedPiece = move.captured != null
-          ? move.captured.toString()
+      // Get SAN BEFORE making the move (san() requires the move to not yet be applied)
+      final notation = logic.san(matchedMove);
+
+      // Extract move details from the Move object
+      final fromSquare = matchedMove.fromAlgebraic;
+      final toSquare = matchedMove.toAlgebraic;
+      final pieceMoved = matchedMove.piece.toString().toUpperCase();
+      final capturedPiece = matchedMove.captured != null
+          ? matchedMove.captured.toString()
           : null;
-      final promotedTo = move.promotion != null
-          ? move.promotion.toString().toUpperCase()
+      final promotedTo = matchedMove.promotion != null
+          ? matchedMove.promotion.toString().toUpperCase()
           : null;
 
       // Determine special move type (chess.dart uses string flags: 'k','q','e','p')
       String? specialMove;
-      if (move.flag == 'k') {
+      if (matchedMove.flag == 'k') {
         specialMove = 'castle_kingside';
-      } else if (move.flag == 'q') {
+      } else if (matchedMove.flag == 'q') {
         specialMove = 'castle_queenside';
-      } else if (move.flag == 'e') {
+      } else if (matchedMove.flag == 'e') {
         specialMove = 'en_passant';
-      } else if (move.flag == 'p') {
+      } else if (matchedMove.flag == 'p') {
         specialMove = 'promotion';
       }
 
-      // Get SAN notation
-      final notation = logic.san(move);
+      // Apply the move (returns bool in chess.dart 0.8.1)
+      final success = logic.move(moveObj);
+      if (!success) {
+        GameMotionTokens.error();
+        state = state.copyWith(
+          isSubmitting: false,
+          error: 'Move failed',
+          clearSelection: true,
+          legalDestinations: const [],
+        );
+        return false;
+      }
 
       // Get the new FEN
       final newFen = logic.fen;
