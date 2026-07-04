@@ -34,6 +34,7 @@ import '../../relation_riddles/presentation/relation_riddle_card.dart';
 import '../../games/ghost_painter/ghost_painter_card.dart';
 import '../../games/redlight/redlight_card.dart';
 import '../../games/sos/sos_card.dart';
+import '../../games/antakshari/antakshari_card.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
@@ -181,6 +182,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                 child: Padding(
                   padding: const EdgeInsets.only(top: 16),
                   child: SosCard(familyId: widget.familyId),
+                ),
+              ),
+
+              // 5d. Antakshari game
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: AntakshariCard(familyId: widget.familyId),
                 ),
               ),
 

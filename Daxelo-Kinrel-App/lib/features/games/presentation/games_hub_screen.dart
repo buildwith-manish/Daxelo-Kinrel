@@ -27,6 +27,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
       ref.read(gameDownloadStatusProvider('ghost-painter').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('freeze-dash').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('sos').notifier).checkStatus();
+      ref.read(gameDownloadStatusProvider('antakshari').notifier).checkStatus();
     });
   }
 
@@ -74,6 +75,17 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
           familyId: widget.familyId,
           onPlay: (context, familyId) =>
               context.push('/family/$familyId/sos/lobby'),
+        ),
+        _GameCatalogCard(
+          gameId: 'antakshari',
+          name: 'Antakshari',
+          description: 'Sing the letter chain — 2-20 players with challenge mechanic',
+          icon: Icons.music_note_rounded,
+          color: const Color(0xFF8B5CF6),  // purple
+          sizeEstimate: '~1 MB',
+          familyId: widget.familyId,
+          onPlay: (context, familyId) =>
+              context.push('/family/$familyId/antakshari/lobby'),
         ),
       ]),
     );
