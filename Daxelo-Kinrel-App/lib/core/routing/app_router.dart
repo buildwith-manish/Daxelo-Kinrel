@@ -95,6 +95,10 @@ import '../../features/games/chess/chess_lobby_screen.dart';
 import '../../features/games/chess/chess_board_screen.dart';
 import '../../features/games/chitmatch/chitmatch_lobby_screen.dart';
 import '../../features/games/chitmatch/chitmatch_game_screen.dart';
+import '../../features/games/nameplace/nameplace_lobby_screen.dart';
+import '../../features/games/nameplace/nameplace_letter_pick_screen.dart';
+import '../../features/games/nameplace/nameplace_answer_screen.dart';
+import '../../features/games/nameplace/nameplace_results_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
@@ -1061,6 +1065,45 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: ChitmatchGameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Name, Place, Animal, Thing Game ─────────────────────────────
+      GoRoute(
+        path: '/family/:id/nameplace/lobby',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: NameplaceLobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/nameplace/letter/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: NameplaceLetterPickScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/nameplace/answer/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: NameplaceAnswerScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/nameplace/results/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: NameplaceResultsScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),

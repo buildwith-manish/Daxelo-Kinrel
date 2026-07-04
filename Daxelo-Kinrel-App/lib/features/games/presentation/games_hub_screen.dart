@@ -34,6 +34,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
       ref.read(gameDownloadStatusProvider('carrom').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('chess').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('chitmatch').notifier).checkStatus();
+      ref.read(gameDownloadStatusProvider('nameplace').notifier).checkStatus();
     });
   }
 
@@ -158,6 +159,17 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
           familyId: widget.familyId,
           onPlay: (context, familyId) =>
               context.push('/family/$familyId/chitmatch/lobby'),
+        ),
+        _GameCatalogCard(
+          gameId: 'nameplace',
+          name: 'Name, Place, Animal, Thing',
+          description: 'Pick a letter, fill categories, score unique answers!',
+          icon: Icons.abc_rounded,
+          color: const Color(0xFF10B981),  // emerald
+          sizeEstimate: '~1 MB',
+          familyId: widget.familyId,
+          onPlay: (context, familyId) =>
+              context.push('/family/$familyId/nameplace/lobby'),
         ),
       ]),
     );

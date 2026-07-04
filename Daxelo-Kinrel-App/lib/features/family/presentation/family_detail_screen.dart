@@ -41,6 +41,7 @@ import '../../games/ludo/ludo_card.dart';
 import '../../games/carrom/carrom_card.dart';
 import '../../games/chess/chess_card.dart';
 import '../../games/chitmatch/chitmatch_card.dart';
+import '../../games/nameplace/nameplace_card.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
@@ -244,6 +245,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                 child: Padding(
                   padding: const EdgeInsets.only(top: 16),
                   child: ChitmatchCard(familyId: widget.familyId),
+                ),
+              ),
+
+              // 5k. Name, Place, Animal, Thing game
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: NameplaceCard(familyId: widget.familyId),
                 ),
               ),
 
