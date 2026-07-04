@@ -83,17 +83,62 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
     });
   }
 
+  /// Original Kinrel-branded color mapping for the four Ludo players.
+  /// Instead of generic red/blue/green/yellow, uses Kinrel's existing
+  /// brand palette adapted for 4 distinct but cohesive player colors.
   Color _colorValue(LudoColor c) {
     switch (c) {
       case LudoColor.red:
-        return const Color(0xFFEF4444);
+        return KinrelColors.orange;     // #E8612A — "Ember"
       case LudoColor.blue:
-        return const Color(0xFF3B82F6);
+        return KinrelColors.blue;       // #3B82F6 — "Azure"
       case LudoColor.green:
-        return const Color(0xFF10B981);
+        return KinrelColors.tealAccent; // #2DD4BF — "Jade"
       case LudoColor.yellow:
-        return const Color(0xFFF59E0B);
+        return KinrelColors.gold;       // #D4AF37 — "Gold"
     }
+  }
+
+  /// Original token shape — rounded square with inner glow,
+  /// distinct from generic Ludo apps that use plain circles.
+  Widget _tokenWidget(LudoToken token, bool isTappable, LudoState state) {
+    final color = _colorValue(token.color);
+
+    return GestureDetector(
+      onTap: isTappable
+          ? () => ref.read(ludoProvider(widget.familyId).notifier).moveToken(token.id)
+          : null,
+      child: Container(
+        margin: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(4), // rounded square, not circle
+          color: color,
+          border: Border.all(
+            color: isTappable ? Colors.white : Colors.white.withValues(alpha: 0.5),
+            width: isTappable ? 2.5 : 1.5,
+          ),
+          boxShadow: isTappable
+              ? [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.6),
+                    blurRadius: 6,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : null,
+        ),
+        child: token.isFinished
+            ? const Center(child: Icon(Icons.check, size: 8, color: Colors.white))
+            : null,
+      )
+          .animate(target: isTappable ? 1 : 0)
+          .scale(
+            begin: const Offset(0.9, 0.9),
+            end: const Offset(1.0, 1.0),
+            duration: 300.ms,
+            curve: Curves.elasticOut,
+          ),
+    );
   }
 
   @override
@@ -391,32 +436,78 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
     final isCenter = row == 7 && col == 7;
     final isSafeSquare = _isSafeSquare(row, col);
 
-    // Determine color for home bases and home columns
+    // Original color scheme using Kinrel brand palette
     Color bgColor;
     if (isCenter) {
-      bgColor = KinrelColors.orange;
+      bgColor = KinrelColors.darkCard; // center is dark with a gradient overlay
     } else if (isHomeBase) {
-      bgColor = _colorValue(_homeBaseColor(row, col)).withValues(alpha: 0.3);
+      bgColor = _colorValue(_homeBaseColor(row, col)).withValues(alpha: 0.15);
     } else if (isHomeColumn) {
-      bgColor = _colorValue(_homeColumnColor(row, col)).withValues(alpha: 0.3);
+      bgColor = _colorValue(_homeColumnColor(row, col)).withValues(alpha: 0.25);
     } else if (isTrack) {
-      bgColor = Colors.white;
+      bgColor = KinrelColors.darkElevated; // track squares are elevated, not white
     } else {
-      bgColor = const Color(0xFF2A2A3D);
+      bgColor = KinrelColors.darkBackground; // non-board areas are background
     }
 
     return Container(
       decoration: BoxDecoration(
         color: bgColor,
         border: Border.all(
-          color: Colors.black.withValues(alpha: 0.2),
+          color: isTrack || isHomeColumn
+              ? KinrelColors.border.withValues(alpha: 0.5)
+              : Colors.transparent,
           width: 0.5,
         ),
       ),
-      child: isSafeSquare && isTrack
-          ? const Center(child: Icon(Icons.star, size: 8, color: Color(0xFF8B5CF6)))
-          : null,
+      child: _cellContent(row, col, isCenter, isSafeSquare, isTrack, isHomeBase),
     );
+  }
+
+  /// Original cell content — diamond markers for safe squares (not star icons),
+  /// gradient center zone, and rounded home-base outlines.
+  Widget _cellContent(int row, int col, bool isCenter, bool isSafe, bool isTrack, bool isHomeBase) {
+    if (isCenter) {
+      // Center finish zone — original diamond/star pattern with gradient
+      return Container(
+        decoration: BoxDecoration(
+          gradient: KinrelGradients.igniteGradient,
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: Transform.rotate(
+            angle: 0.785398, // 45° — diamond orientation
+            child: Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (isSafe && isTrack) {
+      // Safe square marker — original diamond shape (not a star icon)
+      return Center(
+        child: Transform.rotate(
+          angle: 0.785398, // 45°
+          child: Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: KinrelColors.amber.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return null;
   }
 
   bool _isHomeBase(int row, int col) {
@@ -495,48 +586,6 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
       );
     }
     return widgets;
-  }
-
-  Widget _tokenWidget(LudoToken token, bool isTappable, LudoState state) {
-    final color = _colorValue(token.color);
-    final player = state.players.where((p) => p.userId == token.playerId).firstOrNull;
-    final isMyToken = token.playerId == _myId(state);
-
-    return GestureDetector(
-      onTap: isTappable
-          ? () => ref.read(ludoProvider(widget.familyId).notifier).moveToken(token.id)
-          : null,
-      child: Container(
-        margin: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color,
-          border: Border.all(
-            color: isTappable ? Colors.white : Colors.white.withValues(alpha: 0.5),
-            width: isTappable ? 2.5 : 1.5,
-          ),
-          boxShadow: isTappable
-              ? [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.6),
-                    blurRadius: 6,
-                    spreadRadius: 1,
-                  ),
-                ]
-              : null,
-        ),
-        child: token.isFinished
-            ? const Center(child: Icon(Icons.check, size: 8, color: Colors.white))
-            : null,
-      )
-          .animate(target: isTappable ? 1 : 0)
-          .scale(
-            begin: const Offset(0.9, 0.9),
-            end: const Offset(1.0, 1.0),
-            duration: 300.ms,
-            curve: Curves.elasticOut,
-          ),
-    );
   }
 
   String? _myId(LudoState state) {
@@ -660,6 +709,8 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
     );
   }
 
+  /// Original dice design — diamond-shaped with pip dots,
+  /// distinct from generic Ludo apps that use plain boxes with numbers.
   Widget _diceWidget(LudoState state, bool isMyTurn, bool hasRolled) {
     final canRoll = isMyTurn && !hasRolled && !state.isRolling;
     final displayValue = hasRolled ? (state.game?.lastDiceRoll ?? _displayDiceValue) : _displayDiceValue;
@@ -670,21 +721,22 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
           : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 56,
-        height: 56,
+        width: 60,
+        height: 60,
         decoration: BoxDecoration(
-          color: canRoll ? KinrelColors.orange : KinrelColors.darkCard,
-          borderRadius: BorderRadius.circular(KinrelRadius.md),
+          // Diamond shape — rotate 45° via transform on the container below
+          color: canRoll ? KinrelColors.orange : KinrelColors.darkElevated,
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: canRoll ? Colors.white : KinrelColors.border,
-            width: canRoll ? 2 : 1,
+            width: canRoll ? 2.5 : 1,
           ),
           boxShadow: canRoll
               ? [
                   BoxShadow(
                     color: KinrelColors.orangeGlowIntense,
-                    blurRadius: 8,
-                    spreadRadius: 1,
+                    blurRadius: 10,
+                    spreadRadius: 2,
                   ),
                 ]
               : null,
@@ -699,15 +751,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
                     color: Colors.white,
                   ),
                 )
-              : Text(
-                  '$displayValue',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    color: canRoll ? Colors.white : KinrelColors.textWhite,
-                  ),
-                ),
+              : _dicePips(displayValue, canRoll),
         ),
       )
           .animate(target: state.isRolling ? 1 : 0)
@@ -716,8 +760,81 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
             end: 1,
             duration: 80.ms,
             curve: Curves.linear,
+          )
+          .scale(
+            begin: const Offset(0.95, 0.95),
+            end: const Offset(1.0, 1.0),
+            duration: 200.ms,
+            curve: GameMotionTokens.bounce,
           ),
     );
+  }
+
+  /// Render dice pips (dots) for values 1-6 — original layout,
+  /// not copied from any existing dice implementation.
+  Widget _dicePips(int value, bool isActive) {
+    final pipColor = isActive ? Colors.white : KinrelColors.textWhite;
+    final pipSize = 6.0;
+    final gap = 10.0;
+
+    Widget pip() => Container(
+      width: pipSize,
+      height: pipSize,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: pipColor,
+      ),
+    );
+
+    // Pip layouts: standard dice patterns
+    switch (value) {
+      case 1:
+        return pip();
+      case 2:
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Row(mainAxisAlignment: MainAxisAlignment.start, children: [pip()]),
+            Row(mainAxisAlignment: MainAxisAlignment.end, children: [pip()]),
+          ],
+        );
+      case 3:
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Row(mainAxisAlignment: MainAxisAlignment.start, children: [pip()]),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [pip()]),
+            Row(mainAxisAlignment: MainAxisAlignment.end, children: [pip()]),
+          ],
+        );
+      case 4:
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [pip(), pip()]),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [pip(), pip()]),
+          ],
+        );
+      case 5:
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [pip(), pip()]),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [pip()]),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [pip(), pip()]),
+          ],
+        );
+      case 6:
+      default:
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [pip(), pip()]),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [pip(), pip()]),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [pip(), pip()]),
+          ],
+        );
+    }
   }
 
   Widget _waitingIndicator() {

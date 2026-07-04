@@ -377,16 +377,17 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
     );
   }
 
+  /// Original Kinrel-branded color mapping (matches board screen).
   Color _colorValue(LudoColor c) {
     switch (c) {
       case LudoColor.red:
-        return const Color(0xFFEF4444);
+        return KinrelColors.orange;     // "Ember"
       case LudoColor.blue:
-        return const Color(0xFF3B82F6);
+        return KinrelColors.blue;       // "Azure"
       case LudoColor.green:
-        return const Color(0xFF10B981);
+        return KinrelColors.tealAccent; // "Jade"
       case LudoColor.yellow:
-        return const Color(0xFFF59E0B);
+        return KinrelColors.gold;       // "Gold"
     }
   }
 

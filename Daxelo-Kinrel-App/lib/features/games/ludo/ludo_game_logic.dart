@@ -164,6 +164,13 @@ int computeNewPosition(LudoToken token, int diceValue) {
 
 /// Check if moving [token] to [newPosition] would capture an opponent's token.
 /// Returns the captured token, or null if no capture.
+///
+/// Rules:
+///   • Can only capture on the shared track (not in home column)
+///   • Cannot capture on safe squares
+///   • BLOCK RULE: if 2+ tokens of the same opponent color are stacked
+///     on the destination, they form a block — no capture happens.
+///     (This prevents a single token from picking off stacked pairs.)
 LudoToken? checkCapture({
   required LudoToken token,
   required int newPosition,
@@ -178,14 +185,32 @@ LudoToken? checkCapture({
   // Check if destination is a safe square
   if (safeSquares.contains(destAbsolute)) return null;
 
-  // Find any opponent token at the same absolute position
+  // Find all opponent tokens at the same absolute position
+  final opponentsAtDest = <LudoToken>[];
   for (final other in allTokens) {
     if (other.playerId == token.playerId) continue; // same player
     if (!other.isOnTrack) continue; // not on shared track
     final otherAbs = other.absolutePosition;
     if (otherAbs == destAbsolute) {
-      return other; // capture!
+      opponentsAtDest.add(other);
     }
+  }
+
+  // BLOCK RULE: if 2+ opponent tokens of the same color are stacked,
+  // they form a block — no capture happens.
+  if (opponentsAtDest.length >= 2) {
+    // Check if they're all the same color (same player)
+    final firstPlayerId = opponentsAtDest.first.playerId;
+    final allSamePlayer = opponentsAtDest
+        .every((t) => t.playerId == firstPlayerId);
+    if (allSamePlayer) {
+      return null; // blocked — can't capture a stack
+    }
+  }
+
+  // Single opponent token (or mixed colors) — capture the first one
+  if (opponentsAtDest.isNotEmpty) {
+    return opponentsAtDest.first;
   }
 
   return null;
@@ -331,8 +356,19 @@ Map<LudoColor, List<(int, int)>> get homeBaseCoordinates => {
   }
 
   if (token.isFinished) {
-    // At center — use a slot near the center based on color
-    return (7, 7); // center
+    // At center — offset by color so finished tokens don't all stack
+    // on the exact same cell. Each color gets a distinct position near
+    // the center (7,7).
+    switch (token.color) {
+      case LudoColor.red:
+        return (7, 6);   // left of center
+      case LudoColor.blue:
+        return (6, 7);   // above center
+      case LudoColor.green:
+        return (7, 8);   // right of center
+      case LudoColor.yellow:
+        return (8, 7);   // below center
+    }
   }
 
   return null;
