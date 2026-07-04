@@ -32,6 +32,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
       ref.read(gameDownloadStatusProvider('checkers').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('ludo').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('carrom').notifier).checkStatus();
+      ref.read(gameDownloadStatusProvider('chess').notifier).checkStatus();
     });
   }
 
@@ -134,6 +135,17 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
           familyId: widget.familyId,
           onPlay: (context, familyId) =>
               context.push('/family/$familyId/carrom/lobby'),
+        ),
+        _GameCatalogCard(
+          gameId: 'chess',
+          name: 'Chess',
+          description: 'Challenge a family member — checkmate to win!',
+          icon: Icons.castle_outlined,
+          color: const Color(0xFF64748B),  // slate
+          sizeEstimate: '~1 MB',
+          familyId: widget.familyId,
+          onPlay: (context, familyId) =>
+              context.push('/family/$familyId/chess/lobby'),
         ),
       ]),
     );

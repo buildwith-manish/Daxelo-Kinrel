@@ -68,6 +68,9 @@ dependencies:
 
   # Forge2D physics engine (Carrom game — BSD-3-Clause, Box2D port)
   forge2d: ^0.14.2
+
+  # Chess logic engine (MIT+BSD — port of chess.js, pure logic, no UI)
+  chess: ^0.8.1
   
   # Utilities
   permission_handler: ^11.3.1

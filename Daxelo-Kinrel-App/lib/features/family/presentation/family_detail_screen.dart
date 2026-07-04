@@ -39,6 +39,7 @@ import '../../games/bingo/bingo_card.dart';
 import '../../games/checkers/checkers_card.dart';
 import '../../games/ludo/ludo_card.dart';
 import '../../games/carrom/carrom_card.dart';
+import '../../games/chess/chess_card.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
@@ -226,6 +227,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                 child: Padding(
                   padding: const EdgeInsets.only(top: 16),
                   child: CarromCard(familyId: widget.familyId),
+                ),
+              ),
+
+              // 5i. Chess game
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: ChessCard(familyId: widget.familyId),
                 ),
               ),
 

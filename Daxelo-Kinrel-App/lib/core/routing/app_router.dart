@@ -91,6 +91,8 @@ import '../../features/games/ludo/ludo_lobby_screen.dart';
 import '../../features/games/ludo/ludo_board_screen.dart';
 import '../../features/games/carrom/carrom_lobby_screen.dart';
 import '../../features/games/carrom/carrom_board_screen.dart';
+import '../../features/games/chess/chess_lobby_screen.dart';
+import '../../features/games/chess/chess_board_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
@@ -1019,6 +1021,25 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: CarromBoardScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Chess Game ──────────────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/chess/lobby',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: ChessLobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/chess/board/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: ChessBoardScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),
