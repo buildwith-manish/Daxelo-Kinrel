@@ -68,6 +68,9 @@ import '../../features/truth_streak/presentation/truth_streak_screen.dart';
 import '../../features/hot_seat/presentation/hot_seat_screen.dart';
 import '../../features/relation_riddles/presentation/relation_riddle_screen.dart';
 import '../../features/occasions/presentation/family_calendar_screen.dart';
+import '../../features/games/presentation/games_hub_screen.dart';
+import '../../features/games/ghost_painter/ghost_painter_draw_screen.dart';
+import '../../features/games/ghost_painter/ghost_painter_guess_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
@@ -791,6 +794,31 @@ final routerProvider = Provider<GoRouter>((ref) {
           child: FamilyCalendarScreen(
             familyId: state.pathParameters['id']!,
           ),
+        ),
+      ),
+
+      // ── Games Hub ────────────────────────────────────────────────
+      GoRoute(
+        path: '/games',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: GamesHubScreen(familyId: state.uri.queryParameters['familyId']),
+        ),
+      ),
+
+      // ── Ghost Painter (draw + guess) ─────────────────────────────
+      GoRoute(
+        path: '/family/:id/ghost-painter/draw',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: GhostPainterDrawScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/ghost-painter/guess',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: GhostPainterGuessScreen(familyId: state.pathParameters['id']!),
         ),
       ),
 

@@ -62,6 +62,9 @@ dependencies:
 
   # Audio recording (v91: Oral history transcription feature)
   record: ^7.1.1
+
+  # Flame engine (Ghost Painter canvas rendering)
+  flame: ^1.18.0
   
   # Utilities
   permission_handler: ^11.3.1

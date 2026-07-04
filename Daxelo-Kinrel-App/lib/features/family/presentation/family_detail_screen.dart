@@ -31,6 +31,7 @@ import '../../profile/data/profile_provider.dart';
 import '../../truth_streak/presentation/truth_streak_card.dart';
 import '../../hot_seat/presentation/hot_seat_card.dart';
 import '../../relation_riddles/presentation/relation_riddle_card.dart';
+import '../../games/ghost_painter/ghost_painter_card.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
@@ -157,7 +158,15 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                 ),
               ),
 
-              // 5. Graph preview card (quieter supporting card)
+              // 5. Ghost Painter game
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: GhostPainterCard(familyId: widget.familyId),
+                ),
+              ),
+
+              // 6. Graph preview card (quieter supporting card)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 16),
