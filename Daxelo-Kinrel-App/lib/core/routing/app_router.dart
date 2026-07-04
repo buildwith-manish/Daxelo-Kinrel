@@ -99,6 +99,8 @@ import '../../features/games/nameplace/nameplace_lobby_screen.dart';
 import '../../features/games/nameplace/nameplace_letter_pick_screen.dart';
 import '../../features/games/nameplace/nameplace_answer_screen.dart';
 import '../../features/games/nameplace/nameplace_results_screen.dart';
+import '../../features/games/tictactoe/tictactoe_lobby_screen.dart';
+import '../../features/games/tictactoe/tictactoe_board_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
@@ -1104,6 +1106,25 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: NameplaceResultsScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Tic-Tac-Toe Game ───────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/tictactoe/lobby',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: TttLobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/tictactoe/board/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: TttBoardScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),

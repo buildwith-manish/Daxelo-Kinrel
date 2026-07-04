@@ -35,6 +35,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
       ref.read(gameDownloadStatusProvider('chess').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('chitmatch').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('nameplace').notifier).checkStatus();
+      ref.read(gameDownloadStatusProvider('tictactoe').notifier).checkStatus();
     });
   }
 
@@ -170,6 +171,17 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
           familyId: widget.familyId,
           onPlay: (context, familyId) =>
               context.push('/family/$familyId/nameplace/lobby'),
+        ),
+        _GameCatalogCard(
+          gameId: 'tictactoe',
+          name: 'Tic-Tac-Toe',
+          description: 'Classic 3×3 — best of N rounds!',
+          icon: Icons.grid_3x3,
+          color: const Color(0xFF8B5CF6),  // purple
+          sizeEstimate: '~1 MB',
+          familyId: widget.familyId,
+          onPlay: (context, familyId) =>
+              context.push('/family/$familyId/tictactoe/lobby'),
         ),
       ]),
     );

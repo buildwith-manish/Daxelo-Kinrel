@@ -42,6 +42,7 @@ import '../../games/carrom/carrom_card.dart';
 import '../../games/chess/chess_card.dart';
 import '../../games/chitmatch/chitmatch_card.dart';
 import '../../games/nameplace/nameplace_card.dart';
+import '../../games/tictactoe/tictactoe_card.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
@@ -253,6 +254,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                 child: Padding(
                   padding: const EdgeInsets.only(top: 16),
                   child: NameplaceCard(familyId: widget.familyId),
+                ),
+              ),
+
+              // 5l. Tic-Tac-Toe game
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: TttCard(familyId: widget.familyId),
                 ),
               ),
 
