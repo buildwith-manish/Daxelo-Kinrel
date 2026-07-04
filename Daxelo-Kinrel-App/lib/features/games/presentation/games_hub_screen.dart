@@ -26,6 +26,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
     Future.microtask(() {
       ref.read(gameDownloadStatusProvider('ghost-painter').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('freeze-dash').notifier).checkStatus();
+      ref.read(gameDownloadStatusProvider('sos').notifier).checkStatus();
     });
   }
 
@@ -62,6 +63,17 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
           familyId: widget.familyId,
           onPlay: (context, familyId) =>
               context.push('/family/$familyId/freeze-dash/lobby'),
+        ),
+        _GameCatalogCard(
+          gameId: 'sos',
+          name: 'SOS',
+          description: 'Complete S-O-S sequences — 2-player or 4-player team mode',
+          icon: Icons.grid_on_rounded,
+          color: const Color(0xFFF59E0B),  // amber
+          sizeEstimate: '~1 MB',
+          familyId: widget.familyId,
+          onPlay: (context, familyId) =>
+              context.push('/family/$familyId/sos/lobby'),
         ),
       ]),
     );

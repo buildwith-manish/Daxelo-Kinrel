@@ -78,6 +78,9 @@ import '../../features/games/ghost_painter/ghost_painter_guess_screen.dart';
 import '../../features/games/redlight/redlight_lobby_screen.dart';
 import '../../features/games/redlight/redlight_game_screen.dart';
 import '../../features/games/redlight/redlight_results_screen.dart';
+import '../../features/games/sos/sos_lobby_screen.dart';
+import '../../features/games/sos/sos_board_screen.dart';
+import '../../features/games/sos/sos_results_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
@@ -884,6 +887,35 @@ final routerProvider = Provider<GoRouter>((ref) {
           child: RedlightResultsScreen(
             familyId: state.pathParameters['id']!,
             roundId: state.pathParameters['roundId']!,
+          ),
+        ),
+      ),
+
+      // ── SOS Game ───────────────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/sos/lobby',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: SosLobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/sos/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: SosBoardScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/sos/results/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: SosResultsScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
           ),
         ),
       ),
