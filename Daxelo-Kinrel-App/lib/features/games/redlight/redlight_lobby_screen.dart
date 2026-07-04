@@ -45,30 +45,20 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
     });
   }
 
-  Future<void> _createAndStart() async {
+  /// When the host presses "Create Game", create the round and STAY on
+  /// the lobby screen — the host needs to see the share code and wait
+  /// for players to join. Don't push to the game screen yet.
+  Future<void> _createRound() async {
     setState(() => _creating = true);
     final notifier = ref.read(redlightProvider(widget.familyId).notifier);
-    final roundId = await notifier.createRound(
+    await notifier.createRound(
       callerCharacter: _caller,
       mapTheme: _mapTheme,
       weatherModifier: _weather,
       teamMode: _teamMode,
       eliminationMode: _eliminationMode,
     );
-    if (!mounted) {
-      setState(() => _creating = false);
-      return;
-    }
-    if (roundId == null) {
-      setState(() => _creating = false);
-      return;
-    }
-    // Jump straight into the game screen — host can press "Start" from there.
-    if (mounted) {
-      context.pushReplacement(
-        '/family/${widget.familyId}/freeze-dash/game/$roundId',
-      );
-    }
+    if (mounted) setState(() => _creating = false);
   }
 
   Future<void> _shareCode(String? roundId) async {
@@ -138,9 +128,31 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
     final isHost =
         state.round?.hostUserId == myId || state.round == null;
-    final canStart = state.round == null
-        ? true
-        : (isHost && state.players.length >= 3);
+    final canStart =
+        state.round == null ? true : (isHost && state.players.length >= 3);
+
+    // Auto-navigate to the game screen once the countdown or active
+    // phase begins (host pressed Start, or we joined a running game).
+    ref.listen<RedlightState>(redlightProvider(widget.familyId),
+        (previous, next) {
+      final shouldNavigate = next.isCountdown ||
+          next.isActive ||
+          next.phase != RedlightPhase.waiting ||
+          next.countdownSeconds > 0;
+      final wasNavigating = previous != null &&
+          (previous.isCountdown ||
+              previous.isActive ||
+              previous.phase != RedlightPhase.waiting ||
+              previous.countdownSeconds > 0);
+      final roundId = next.round?.id;
+      if (shouldNavigate && !wasNavigating && roundId != null && mounted) {
+        context.pushReplacement(
+          '/family/${widget.familyId}/freeze-dash/game/$roundId',
+        );
+      }
+    });
+
+    final hasRound = state.round != null;
 
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
@@ -166,18 +178,18 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
         actions: [
-          if (state.round != null)
+          if (hasRound)
             IconButton(
               icon: const Icon(Icons.share_outlined),
               onPressed: () => _shareCode(state.round?.id),
             ),
         ],
       ),
-      body: state.isLoading && state.round == null
+      body: state.isLoading
           ? const Center(
               child: CircularProgressIndicator(color: KinrelColors.orange),
             )
-          : state.error != null && state.round == null
+          : state.error != null && !hasRound
           ? DKErrorState(
               message: state.error!,
               onRetry: () {
@@ -190,67 +202,200 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
                 );
               },
             )
-          : ListView(
-              padding: const EdgeInsets.all(KinrelSpacing.base),
+          : hasRound
+              ? _lobbyView(state, notifier, isHost, canStart)
+              : _setupView(state),
+    );
+  }
+
+  /// Pre-game setup form — caller, map, weather, modes + "Create Game".
+  Widget _setupView(RedlightState state) {
+    return ListView(
+      padding: const EdgeInsets.all(KinrelSpacing.base),
+      children: [
+        _sectionLabel('Caller Character'),
+        const SizedBox(height: KinrelSpacing.sm),
+        _callerSelector(),
+        const SizedBox(height: KinrelSpacing.lg),
+
+        _sectionLabel('Map Theme'),
+        const SizedBox(height: KinrelSpacing.sm),
+        _mapSelector(),
+        const SizedBox(height: KinrelSpacing.lg),
+
+        _sectionLabel('Weather Modifier'),
+        const SizedBox(height: KinrelSpacing.sm),
+        _weatherSelector(),
+        const SizedBox(height: KinrelSpacing.lg),
+
+        _sectionLabel('Game Modes'),
+        const SizedBox(height: KinrelSpacing.sm),
+        _modeToggles(),
+        const SizedBox(height: KinrelSpacing.xl),
+
+        DKButton(
+          label: 'Create Game',
+          variant: DKButtonVariant.gradient,
+          fullWidth: true,
+          isLoading: _creating,
+          onPressed: _createRound,
+        ),
+      ],
+    );
+  }
+
+  /// Lobby view — shown after the round is created. Displays the share
+  /// code prominently, the player list, and the Start button.
+  Widget _lobbyView(
+    RedlightState state,
+    RedlightNotifier notifier,
+    bool isHost,
+    bool canStart,
+  ) {
+    final code = state.round?.id != null
+        ? state.round!.id.replaceAll('-', '').substring(0, 6).toUpperCase()
+        : '------';
+
+    return ListView(
+      padding: const EdgeInsets.all(KinrelSpacing.base),
+      children: [
+        // Share code card
+        GestureDetector(
+          onTap: () => _shareCode(state.round?.id),
+          child: Container(
+            padding: const EdgeInsets.all(KinrelSpacing.lg),
+            decoration: BoxDecoration(
+              gradient: KinrelGradients.igniteGradient,
+              borderRadius: BorderRadius.circular(KinrelRadius.lg),
+            ),
+            child: Column(
               children: [
-                _sectionLabel('Caller Character'),
-                const SizedBox(height: KinrelSpacing.sm),
-                _callerSelector(),
-                const SizedBox(height: KinrelSpacing.lg),
-
-                _sectionLabel('Map Theme'),
-                const SizedBox(height: KinrelSpacing.sm),
-                _mapSelector(),
-                const SizedBox(height: KinrelSpacing.lg),
-
-                _sectionLabel('Weather Modifier'),
-                const SizedBox(height: KinrelSpacing.sm),
-                _weatherSelector(),
-                const SizedBox(height: KinrelSpacing.lg),
-
-                _sectionLabel('Game Modes'),
-                const SizedBox(height: KinrelSpacing.sm),
-                _modeToggles(),
-                const SizedBox(height: KinrelSpacing.xl),
-
-                _sectionLabel(
-                  'Players (${state.players.length}/20)',
-                ),
-                const SizedBox(height: KinrelSpacing.sm),
-                _playerList(state),
-                const SizedBox(height: KinrelSpacing.xl),
-
-                if (state.round != null && state.round!.isCountdown)
-                  _countdownBanner(state.countdownSeconds),
-
-                DKButton(
-                  label: state.round == null
-                      ? 'Create Game'
-                      : (isHost ? 'Start Game' : 'Waiting for host…'),
-                  variant: DKButtonVariant.gradient,
-                  fullWidth: true,
-                  isLoading: _creating,
-                  onPressed: state.round == null
-                      ? _createAndStart
-                      : (isHost && canStart
-                            ? () => notifier.startGame()
-                            : null),
-                ),
-                if (state.round != null && !canStart && isHost)
-                  Padding(
-                    padding: const EdgeInsets.only(top: KinrelSpacing.sm),
-                    child: Text(
-                      'Need at least 3 players to start (currently ${state.players.length}).',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 12,
-                        color: KinrelColors.warning,
-                      ),
-                    ),
+                Text(
+                  'Share Code',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withValues(alpha: 0.9),
+                    letterSpacing: 1,
                   ),
+                ),
+                const SizedBox(height: KinrelSpacing.sm),
+                Text(
+                  code,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.monoFont,
+                    fontSize: 36,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 8,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Tap to share with family',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 11,
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
+                ),
               ],
             ),
+          ),
+        ),
+        const SizedBox(height: KinrelSpacing.lg),
+
+        // Game settings summary
+        _settingsSummary(state),
+        const SizedBox(height: KinrelSpacing.lg),
+
+        // Players
+        _sectionLabel('Players (${state.players.length}/20)'),
+        const SizedBox(height: KinrelSpacing.sm),
+        _playerList(state),
+        const SizedBox(height: KinrelSpacing.xl),
+
+        if (state.isCountdown)
+          _countdownBanner(state.countdownSeconds),
+
+        DKButton(
+          label: isHost
+              ? (canStart ? 'Start Game' : 'Waiting for players…')
+              : 'Waiting for host…',
+          variant: DKButtonVariant.gradient,
+          fullWidth: true,
+          onPressed: isHost && canStart
+              ? () => notifier.startGame()
+              : null,
+        ),
+        if (isHost && !canStart)
+          Padding(
+            padding: const EdgeInsets.only(top: KinrelSpacing.sm),
+            child: Text(
+              'Need at least 3 players to start (currently ${state.players.length}).',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                color: KinrelColors.warning,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Compact summary of the game settings (read-only once created).
+  Widget _settingsSummary(RedlightState state) {
+    final round = state.round;
+    if (round == null) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.all(KinrelSpacing.md),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(KinrelRadius.lg),
+        border: Border.all(color: KinrelColors.border),
+      ),
+      child: Row(
+        children: [
+          Text(round.callerCharacter.emoji, style: const TextStyle(fontSize: 24)),
+          const SizedBox(width: KinrelSpacing.sm),
+          Expanded(
+            child: Wrap(
+              spacing: KinrelSpacing.sm,
+              runSpacing: 4,
+              children: [
+                _chip(round.callerCharacter.label),
+                _chip(round.mapTheme.emoji + ' ' + round.mapTheme.label),
+                if (round.weatherModifier != null)
+                  _chip(round.weatherModifier!.emoji + ' ' + round.weatherModifier!.label),
+                if (round.teamMode) _chip('Team Mode'),
+                if (round.eliminationMode) _chip('Elimination'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.sm, vertical: 3),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkElevated,
+        borderRadius: BorderRadius.circular(KinrelRadius.xs),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: KinrelTypography.bodyFont,
+          fontSize: 11,
+          color: KinrelColors.textDim,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
     );
   }
 

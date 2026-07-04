@@ -91,7 +91,7 @@ class RedlightState {
 
 class RedlightNotifier extends StateNotifier<RedlightState> {
   RedlightNotifier(this._ref, this.familyId)
-    : super(const RedlightState(isLoading: true));
+    : super(const RedlightState());
 
   final Ref _ref;
   final String familyId;
