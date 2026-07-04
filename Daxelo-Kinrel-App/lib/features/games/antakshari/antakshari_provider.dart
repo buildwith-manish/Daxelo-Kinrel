@@ -507,7 +507,7 @@ class AntakshariNotifier extends StateNotifier<AntakshariState> {
           );
           if (now.isAfter(deadline)) {
             // Timed out — mark turn as timed_out and eliminate
-            await client!.from('antakshari_turns').update({
+            await _client!.from('antakshari_turns').update({
               'challengeResult': 'timed_out',
             }).eq('id', ct.id);
             await _eliminateCurrentPlayer(reason: 'timed_out');
@@ -570,7 +570,7 @@ class AntakshariNotifier extends StateNotifier<AntakshariState> {
     final active = state.activePlayers;
     if (active.isEmpty) {
       // No active players — shouldn't happen, but finish the game
-      await _finishGame([]);
+      await _finishGame([], []);
       return;
     }
 
@@ -602,7 +602,7 @@ class AntakshariNotifier extends StateNotifier<AntakshariState> {
     }
 
     if (nextPlayer == null) {
-      await _finishGame([]);
+      await _finishGame([], []);
       return;
     }
 
