@@ -318,9 +318,6 @@ class ChessNotifier extends StateNotifier<ChessState> {
         return false;
       }
 
-      // Get SAN BEFORE making the move (san() requires the move to not yet be applied)
-      final notation = logic.san(matchedMove);
-
       // Extract move details from the Move object
       final fromSquare = matchedMove.fromAlgebraic;
       final toSquare = matchedMove.toAlgebraic;
@@ -332,15 +329,31 @@ class ChessNotifier extends StateNotifier<ChessState> {
           ? matchedMove.promotion.toString().toUpperCase()
           : null;
 
-      // Determine special move type (chess.dart uses string flags: 'k','q','e','p')
+      // Determine special move type by examining the move
+      // chess.dart 0.8.1 Move class doesn't expose a 'flag' property,
+      // so we infer the special move type from the move details.
       String? specialMove;
-      if (matchedMove.flag == 'k') {
-        specialMove = 'castle_kingside';
-      } else if (matchedMove.flag == 'q') {
-        specialMove = 'castle_queenside';
-      } else if (matchedMove.flag == 'e') {
-        specialMove = 'en_passant';
-      } else if (matchedMove.flag == 'p') {
+      // Castling: king moves 2 columns
+      if (matchedMove.piece.type == chess.PieceType.KING) {
+        final fromCol = from[0];
+        final toCol = to[0];
+        if ((toCol.codeUnitAt(0) - fromCol.codeUnitAt(0)).abs() == 2) {
+          specialMove = toCol > fromCol ? 'castle_kingside' : 'castle_queenside';
+        }
+      }
+      // En passant: captured exists but destination square was empty before
+      // (we can detect this: pawn capturing diagonally to an empty square)
+      if (specialMove == null &&
+          matchedMove.captured != null &&
+          matchedMove.piece.type == chess.PieceType.PAWN) {
+        // Check if the destination square was empty (en passant)
+        final destPiece = logic.get(to);
+        if (destPiece == null) {
+          specialMove = 'en_passant';
+        }
+      }
+      // Promotion
+      if (specialMove == null && matchedMove.promotion != null) {
         specialMove = 'promotion';
       }
 
@@ -356,6 +369,11 @@ class ChessNotifier extends StateNotifier<ChessState> {
         );
         return false;
       }
+
+      // Get SAN notation from history (chess.dart doesn't have san() method;
+      // use history() which returns List<String> of SAN moves)
+      final history = logic.history();
+      final notation = history.isNotEmpty ? history.last : '$from-$to';
 
       // Get the new FEN
       final newFen = logic.fen;
