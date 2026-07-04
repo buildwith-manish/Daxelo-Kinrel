@@ -98,7 +98,7 @@ void _checkSequence({
   }
 
   // Letters must spell S-O-S
-  final letters = cells.map((r, c) => grid[r][c]).toList();
+  final letters = cells.map((cell) => grid[cell.$1][cell.$2]).toList();
   if (letters[0] != 'S') return;
   if (letters[1] != 'O') return;
   if (letters[2] != 'S') return;
