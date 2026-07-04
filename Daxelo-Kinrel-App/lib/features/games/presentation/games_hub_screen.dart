@@ -33,6 +33,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
       ref.read(gameDownloadStatusProvider('ludo').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('carrom').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('chess').notifier).checkStatus();
+      ref.read(gameDownloadStatusProvider('chitmatch').notifier).checkStatus();
     });
   }
 
@@ -146,6 +147,17 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
           familyId: widget.familyId,
           onPlay: (context, familyId) =>
               context.push('/family/$familyId/chess/lobby'),
+        ),
+        _GameCatalogCard(
+          gameId: 'chitmatch',
+          name: 'TripleMatch',
+          description: 'Pass chits, collect 3-of-a-kind — 4-12 players!',
+          icon: Icons.style_outlined,
+          color: const Color(0xFFEC4899),  // pink
+          sizeEstimate: '~1 MB',
+          familyId: widget.familyId,
+          onPlay: (context, familyId) =>
+              context.push('/family/$familyId/chitmatch/lobby'),
         ),
       ]),
     );

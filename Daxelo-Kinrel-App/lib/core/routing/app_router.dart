@@ -93,6 +93,8 @@ import '../../features/games/carrom/carrom_lobby_screen.dart';
 import '../../features/games/carrom/carrom_board_screen.dart';
 import '../../features/games/chess/chess_lobby_screen.dart';
 import '../../features/games/chess/chess_board_screen.dart';
+import '../../features/games/chitmatch/chitmatch_lobby_screen.dart';
+import '../../features/games/chitmatch/chitmatch_game_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
@@ -1040,6 +1042,25 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: ChessBoardScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── TripleMatch Game ────────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/chitmatch/lobby',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: ChitmatchLobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/chitmatch/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: ChitmatchGameScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),
