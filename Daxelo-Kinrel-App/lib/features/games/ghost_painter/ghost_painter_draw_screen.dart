@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
-import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import 'ghost_painter_models.dart';
@@ -42,6 +41,11 @@ class _GhostPainterDrawScreenState extends ConsumerState<GhostPainterDrawScreen>
     if (success && mounted) setState(() => _roundStarted = true);
   }
 
+  Future<void> _doneDrawing() async {
+    GameMotionTokens.tap();
+    await ref.read(ghostPainterProvider(widget.familyId).notifier).transitionToGuessing();
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(ghostPainterProvider(widget.familyId));
@@ -56,10 +60,19 @@ class _GhostPainterDrawScreenState extends ConsumerState<GhostPainterDrawScreen>
         }),
         title: Text('Ghost Painter', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600)),
         backgroundColor: const Color(0xFF1A1A2E), foregroundColor: Colors.white, elevation: 0,
+        actions: [
+          if (round != null && round.status == 'drawing')
+            TextButton(
+              onPressed: _doneDrawing,
+              child: Text('Done', style: TextStyle(color: const Color(0xFFEC4899), fontWeight: FontWeight.w700, fontSize: 16)),
+            ),
+        ],
       ),
       body: round == null || !round.isActive
         ? _buildStartScreen()
-        : _buildDrawCanvas(state, round),
+        : round.status == 'drawing'
+          ? _buildDrawCanvas(state, round)
+          : _buildWaitingForGuesses(state, round),
     );
   }
 
@@ -77,16 +90,28 @@ class _GhostPainterDrawScreenState extends ConsumerState<GhostPainterDrawScreen>
   }
 
   Widget _buildDrawCanvas(state, round) {
+    final remaining = ref.read(ghostPainterProvider(widget.familyId).notifier).remainingSeconds;
+    final totalDuration = round.endsAt != null
+        ? round.endsAt!.difference(round.startedAt).inSeconds
+        : 90;
+    final progress = totalDuration > 0 ? remaining / totalDuration : 0.0;
+
     return Column(children: [
-      // Prompt word chip (only drawer sees)
-      Container(margin: const EdgeInsets.all(16), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(color: const Color(0xFFEC4899).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFEC4899).withValues(alpha: 0.4))),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.visibility_off_outlined, size: 16, color: const Color(0xFFEC4899)),
-          const SizedBox(width: 8),
-          Text('Draw: ${round.promptWord}', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
-        ])),
+      // Top bar: prompt chip + countdown ring
+      Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), child: Row(children: [
+        // Prompt word chip
+        Expanded(child: Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(color: const Color(0xFFEC4899).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFEC4899).withValues(alpha: 0.4))),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.visibility_off_outlined, size: 16, color: const Color(0xFFEC4899)),
+            const SizedBox(width: 8),
+            Flexible(child: Text('Draw: ${round.promptWord}', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white), overflow: TextOverflow.ellipsis)),
+          ]))),
+        const SizedBox(width: 12),
+        // Countdown ring
+        _CountdownRing(remaining: remaining, progress: progress),
+      ])),
       // Canvas
       Expanded(child: GestureDetector(
         onPanStart: (_) { _currentStroke.clear(); },
@@ -94,7 +119,6 @@ class _GhostPainterDrawScreenState extends ConsumerState<GhostPainterDrawScreen>
         onPanEnd: (_) {
           if (_currentStroke.isNotEmpty) {
             _allStrokes.add(List.from(_currentStroke));
-            // Batch stroke to Supabase
             final points = _currentStroke.map((p) => OffsetPoint(x: p.dx, y: p.dy)).toList();
             ref.read(ghostPainterProvider(widget.familyId).notifier).queueStroke(points, _strokeSequence++);
             GameMotionTokens.tap();
@@ -103,9 +127,17 @@ class _GhostPainterDrawScreenState extends ConsumerState<GhostPainterDrawScreen>
         },
         child: CustomPaint(painter: _DrawPainter(strokes: _allStrokes, currentStroke: _currentStroke), size: Size.infinite),
       )),
+      // "I'm Done Drawing" button
+      Padding(padding: const EdgeInsets.all(16), child: SizedBox(width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: _doneDrawing,
+          icon: Icon(Icons.check_rounded),
+          label: Text('I\'m Done Drawing', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+          style: FilledButton.styleFrom(backgroundColor: const Color(0xFFEC4899), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+        ))),
       // Guesses live feed
       if (state.guesses.isNotEmpty)
-        Container(height: 60, padding: const EdgeInsets.symmetric(horizontal: 16),
+        Container(height: 50, padding: const EdgeInsets.symmetric(horizontal: 16),
           child: ListView(scrollDirection: Axis.horizontal, children: state.guesses.map((g) =>
             Container(margin: const EdgeInsets.only(right: 8), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(color: g.isCorrect ? KinrelColors.success.withValues(alpha: 0.15) : KinrelColors.darkCard, borderRadius: BorderRadius.circular(12)),
@@ -116,6 +148,46 @@ class _GhostPainterDrawScreenState extends ConsumerState<GhostPainterDrawScreen>
               ]))).toList())),
     ]);
   }
+
+  Widget _buildWaitingForGuesses(state, round) {
+    return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      Icon(Icons.hourglass_top_rounded, size: 48, color: const Color(0xFFEC4899).withValues(alpha: 0.5)),
+      const SizedBox(height: 16),
+      Text('Waiting for guesses...', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)),
+      const SizedBox(height: 8),
+      Text('The word was: ${round.promptWord}', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)),
+      const SizedBox(height: 16),
+      if (state.guesses.isEmpty)
+        Text('No guesses yet', style: TextStyle(fontSize: 14, color: KinrelColors.textDim))
+      else ...[
+        Text('${state.guesses.length} ${state.guesses.length == 1 ? "guess" : "guesses"}', style: TextStyle(fontSize: 14, color: const Color(0xFFEC4899), fontWeight: FontWeight.w600)),
+        const SizedBox(height: 12),
+        ...state.guesses.map((g) => Padding(padding: const EdgeInsets.only(bottom: 4),
+          child: Text('${g.userName}: ${g.guessText} ${g.isCorrect ? "✓" : ""}', style: TextStyle(fontSize: 14, color: g.isCorrect ? KinrelColors.success : Colors.white54)))),
+      ],
+    ]));
+  }
+}
+
+/// Animated circular countdown ring with number in center.
+class _CountdownRing extends StatelessWidget {
+  const _CountdownRing({required this.remaining, required this.progress});
+  final int remaining;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = remaining <= 10 ? Colors.red : const Color(0xFFEC4899);
+    return SizedBox(width: 44, height: 44, child: Stack(alignment: Alignment.center, children: [
+      CircularProgressIndicator(
+        value: progress,
+        strokeWidth: 3,
+        backgroundColor: Colors.white.withValues(alpha: 0.1),
+        valueColor: AlwaysStoppedAnimation(color),
+      ),
+      Text('$remaining', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: color)),
+    ]));
+  }
 }
 
 class _DrawPainter extends CustomPainter {
@@ -125,7 +197,6 @@ class _DrawPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Faint radial glow background
     final bgPaint = Paint()
       ..shader = RadialGradient(
         center: Alignment.center,

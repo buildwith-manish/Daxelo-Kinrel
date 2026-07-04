@@ -60,7 +60,9 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
   String get _myName => _client?.auth.currentUser?.userMetadata?['name'] as String? ?? 'Member';
 
   RealtimeChannel? _channel;
+  RealtimeChannel? _roundWatchChannel; // Watches for NEW rounds (when no active round)
   Timer? _strokeBatchTimer;
+  Timer? _countdownTimer;
   final List<Map<String, dynamic>> _pendingStrokes = [];
 
   Future<void> load() async {
@@ -78,6 +80,9 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
           .limit(1);
       if (roundResp.isEmpty) {
         state = GhostPainterState(isLoading: false);
+        // Subscribe to round-watch so the card updates live when someone
+        // else in the family starts a round
+        _subscribeToRoundWatch();
         return;
       }
       final round = GhostPainterRound.fromJson(roundResp.first as Map<String, dynamic>);
@@ -99,10 +104,32 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
       final myGuess = guesses.where((g) => g.userId == myId).firstOrNull;
       state = GhostPainterState(activeRound: round, strokes: strokes, guesses: guesses, myGuess: myGuess, isLoading: false);
       _subscribeToRealtime(round.id);
+      _startCountdownIfNeeded(round);
     } catch (e) {
       debugPrint('⚠️ GhostPainter load error: $e');
       state = state.copyWith(isLoading: false, error: '$e');
     }
+  }
+
+  /// Subscribe to new rounds being created in this family
+  /// (fires when another family member starts a round while we have none)
+  void _subscribeToRoundWatch() {
+    _roundWatchChannel?.unsubscribe();
+    final client = _client;
+    if (client == null) return;
+    _roundWatchChannel = client.channel('ghost_painter_round_watch:$familyId')
+      .onPostgresChanges(
+        event: PostgresChangeEvent.insert,
+        schema: 'public',
+        table: 'ghost_painter_rounds',
+        filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'familyId', value: familyId),
+        callback: (payload) {
+          // A new round was inserted — reload to pick it up
+          debugPrint('🎲 GhostPainter: New round detected via Realtime, reloading...');
+          load();
+        },
+      )
+      .subscribe();
   }
 
   void _subscribeToRealtime(String roundId) {
@@ -228,6 +255,67 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
     }
   }
 
+  /// Transition the round from 'drawing' to 'guessing' (drawer is done).
+  /// Updates the Supabase row — other family members see this via Realtime.
+  Future<void> transitionToGuessing() async {
+    final client = _client;
+    final roundId = state.activeRound?.id;
+    if (client == null || roundId == null) return;
+    _countdownTimer?.cancel();
+    try {
+      await client.from('ghost_painter_rounds').update({
+        'status': 'guessing',
+      }).eq('id', roundId);
+      // Update local state immediately for responsive UI
+      final updatedRound = GhostPainterRound(
+        id: state.activeRound!.id,
+        familyId: state.activeRound!.familyId,
+        drawerPersonId: state.activeRound!.drawerPersonId,
+        drawerPersonName: state.activeRound!.drawerPersonName,
+        promptWord: state.activeRound!.promptWord,
+        status: 'guessing',
+        startedAt: state.activeRound!.startedAt,
+        endsAt: state.activeRound!.endsAt,
+      );
+      state = state.copyWith(activeRound: updatedRound);
+    } catch (e) {
+      debugPrint('⚠️ GhostPainter transitionToGuessing error: $e');
+    }
+  }
+
+  /// Start a countdown timer that auto-transitions to guessing when time runs out
+  void _startCountdownIfNeeded(GhostPainterRound round) {
+    _countdownTimer?.cancel();
+    if (round.status != 'drawing' || round.endsAt == null) return;
+    final now = DateTime.now();
+    final remaining = round.endsAt!.difference(now).inSeconds;
+    if (remaining <= 0) {
+      // Time already expired — transition immediately
+      transitionToGuessing();
+      return;
+    }
+    // Tick every second to update the countdown UI
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      final elapsed = DateTime.now().difference(round.startedAt).inSeconds;
+      final totalDuration = round.endsAt!.difference(round.startedAt).inSeconds;
+      final remainingNow = totalDuration - elapsed;
+      if (remainingNow <= 0) {
+        timer.cancel();
+        transitionToGuessing();
+      }
+      // State update triggers rebuild — the draw screen reads the countdown
+      state = state.copyWith();
+    });
+  }
+
+  /// Get remaining seconds for the current round's countdown
+  int get remainingSeconds {
+    final round = state.activeRound;
+    if (round == null || round.endsAt == null) return 0;
+    final remaining = round.endsAt!.difference(DateTime.now()).inSeconds;
+    return remaining > 0 ? remaining : 0;
+  }
+
   /// End the round early (drawer gives up or time runs out)
   Future<void> endRound() async {
     final client = _client;
@@ -244,7 +332,9 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
   @override
   void dispose() {
     _channel?.unsubscribe();
+    _roundWatchChannel?.unsubscribe();
     _strokeBatchTimer?.cancel();
+    _countdownTimer?.cancel();
     super.dispose();
   }
 }
