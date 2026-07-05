@@ -109,6 +109,8 @@ import '../../features/games/twotruths/twotruths_lobby_screen.dart';
 import '../../features/games/twotruths/twotruths_submit_screen.dart';
 import '../../features/games/twotruths/twotruths_guess_screen.dart';
 import '../../features/games/twotruths/twotruths_results_screen.dart';
+import '../../features/games/dotsboxes/dotsboxes_lobby_screen.dart';
+import '../../features/games/dotsboxes/dotsboxes_board_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
@@ -1205,6 +1207,25 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: TtResultsScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Dots and Boxes Game ───────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/dotsboxes/lobby',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: DotsboxesLobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/dotsboxes/board/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: DotsboxesBoardScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),

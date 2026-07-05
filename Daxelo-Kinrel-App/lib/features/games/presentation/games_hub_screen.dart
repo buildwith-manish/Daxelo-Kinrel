@@ -38,6 +38,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
       ref.read(gameDownloadStatusProvider('tictactoe').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('truthordare').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('twotruths').notifier).checkStatus();
+      ref.read(gameDownloadStatusProvider('dotsboxes').notifier).checkStatus();
     });
   }
 
@@ -206,6 +207,17 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
           familyId: widget.familyId,
           onPlay: (context, familyId) =>
               context.push('/family/$familyId/twotruths/lobby'),
+        ),
+        _GameCatalogCard(
+          gameId: 'dotsboxes',
+          name: 'Dots and Boxes',
+          description: 'Draw lines, capture boxes — most boxes wins!',
+          icon: Icons.grid_on_rounded,
+          color: const Color(0xFF06B6D4),  // cyan
+          sizeEstimate: '~1 MB',
+          familyId: widget.familyId,
+          onPlay: (context, familyId) =>
+              context.push('/family/$familyId/dotsboxes/lobby'),
         ),
       ]),
     );

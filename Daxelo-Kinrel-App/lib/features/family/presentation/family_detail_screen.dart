@@ -2658,6 +2658,7 @@ class _GamesRow extends ConsumerWidget {
     _GameEntry(gameId: 'tictactoe', name: 'Tic-Tac-Toe', icon: Icons.grid_3x3, color: Color(0xFF8B5CF6), route: '/family/\$familyId/tictactoe/lobby'),
     _GameEntry(gameId: 'truthordare', name: 'Truth or Dare', icon: Icons.rotate_right, color: Color(0xFFEF4444), route: '/family/\$familyId/truthordare/lobby'),
     _GameEntry(gameId: 'twotruths', name: 'Two Truths', icon: Icons.psychology, color: Color(0xFFD946EF), route: '/family/\$familyId/twotruths/lobby'),
+    _GameEntry(gameId: 'dotsboxes', name: 'Dots & Boxes', icon: Icons.grid_on_rounded, color: Color(0xFF06B6D4), route: '/family/\$familyId/dotsboxes/lobby'),
   ];
 
   /// Games that require download-gating (have manifests in game-assets bucket).
@@ -2665,7 +2666,7 @@ class _GamesRow extends ConsumerWidget {
   static const Set<String> _downloadGatedGames = {
     'ghost-painter', 'freeze-dash', 'sos', 'antakshari', 'bingo',
     'checkers', 'ludo', 'carrom', 'chess', 'chitmatch', 'nameplace',
-    'tictactoe', 'truthordare', 'twotruths',
+    'tictactoe', 'truthordare', 'twotruths', 'dotsboxes',
   };
 
   @override
