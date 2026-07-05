@@ -1,18 +1,16 @@
 // lib/features/games/shared/icons/game_icons.dart
 //
-// Custom-painted game icons — a cohesive family of flat, geometric,
-// single-color-per-icon symbols. Each is a CustomPainter widget that
-// renders crisply at any size.
+// Game icons — loads glossy 3D PNG assets (generated via z.ai image generation)
+// with fallback to custom-painted line icons if the asset is missing.
 //
-// Design language:
-//   • Rounded geometric forms matching Kinrel's UI
-//   • Single accent color per icon (+ white for contrast)
-//   • Immediately legible game mechanic representation
-//   • No text, no scenes, no overlapping complexity
+// All 18 game icons are 1024×1024 PNGs in assets/icons/games/{game-id}.png
+// Generated with a consistent style: rounded squircle, glossy 3D, solid
+// background matching GameIconTokens.colors, professional app store quality.
 
 import 'package:flutter/material.dart';
 
 /// Base widget for all game icons.
+/// Tries to load the PNG asset first; falls back to CustomPainter if missing.
 class GameIcon extends StatelessWidget {
   const GameIcon({super.key, required this.gameId, this.size = 24, this.color});
   final String gameId;
@@ -21,11 +19,26 @@ class GameIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? _colorFor(gameId);
+    // Try PNG asset first
+    final assetPath = 'assets/icons/games/$gameId.png';
+    // Use Image.asset with errorBuilder fallback to CustomPainter
     return SizedBox(
       width: size,
       height: size,
-      child: CustomPaint(painter: _painterFor(gameId, c)),
+      child: Image.asset(
+        assetPath,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          // Fallback to custom-painted icon
+          final c = color ?? _colorFor(gameId);
+          return CustomPaint(
+            size: Size(size, size),
+            painter: _painterFor(gameId, c),
+          );
+        },
+      ),
     );
   }
 
