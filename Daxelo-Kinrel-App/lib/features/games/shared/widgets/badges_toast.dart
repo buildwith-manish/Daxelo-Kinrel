@@ -27,10 +27,10 @@ class BadgesToast {
   static Future<void> maybeShowAfterGame({
     required BuildContext context,
     required String familyId,
+    WidgetRef? ref,
   }) async {
     final container = ProviderScope.containerOf(context, listen: false);
-    final ref = ProviderContainer(container);
-    final client = ref.read(supabaseProvider);
+    final client = container.read(supabaseProvider);
     if (client == null) return;
     final myId = client.auth.currentUser?.id;
     if (myId == null) return;
@@ -46,15 +46,19 @@ class BadgesToast {
       if (newlyEarned is! List || newlyEarned.isEmpty) return;
 
       if (!context.mounted) return;
-      _showOverlay(
-        context,
-        (newlyEarned as List)
-            .map((b) => {
-                  'slug': (b as Map)['slug'] ?? '',
-                  'name': b['name'] ?? 'Badge',
-                })
-            .toList(),
-      );
+      final badges = <Map<String, String>>[];
+      for (final b in newlyEarned) {
+        if (b is Map) {
+          final slug = b['slug'];
+          final name = b['name'];
+          badges.add({
+            'slug': slug is String ? slug : '',
+            'name': name is String ? name : 'Badge',
+          });
+        }
+      }
+      if (badges.isEmpty) return;
+      _showOverlay(context, badges);
     } catch (_) {
       // silent — badge toasts are best-effort, not critical
     }
