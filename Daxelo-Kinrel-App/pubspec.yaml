@@ -154,11 +154,28 @@ flutter:
   generate: true
   uses-material-design: true
   
-  assets:
+assets:
     - assets/data/kinship_core.json
     - assets/data/kinship_terms.json
     - assets/icons/
-    - assets/icons/games/
+    - assets/icons/games/ghost-painter.png
+    - assets/icons/games/freeze-dash.png
+    - assets/icons/games/sos.png
+    - assets/icons/games/antakshari.png
+    - assets/icons/games/bingo.png
+    - assets/icons/games/checkers.png
+    - assets/icons/games/ludo.png
+    - assets/icons/games/carrom.png
+    - assets/icons/games/chess.png
+    - assets/icons/games/chitmatch.png
+    - assets/icons/games/nameplace.png
+    - assets/icons/games/tictactoe.png
+    - assets/icons/games/truthordare.png
+    - assets/icons/games/twotruths.png
+    - assets/icons/games/dotsboxes.png
+    - assets/icons/games/hot-seat.png
+    - assets/icons/games/relation-riddles.png
+    - assets/icons/games/truth-streak.png
     - assets/images/
     - assets/fonts/
     - assets/privacy_policy.md
