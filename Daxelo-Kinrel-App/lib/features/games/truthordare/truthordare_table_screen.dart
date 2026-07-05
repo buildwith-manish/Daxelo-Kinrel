@@ -107,7 +107,7 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
       }),
       // Bottle in center
       Positioned(left: 110, top: 110, child: Transform.rotate(angle: _bottleAngle, child: Container(width: 60, height: 60, decoration: BoxDecoration(shape: BoxShape.circle, color: KinrelColors.darkCard, border: Border.all(color: KinrelColors.orange, width: 2)),
-        child: Center(child: Icon(Icons.local_bar, size: 28, color: KinrelColors.orange)),
+        child: Center(child: Icon(Icons.rotate_right, size: 28, color: KinrelColors.orange)),
       ))),
     ])));
   }

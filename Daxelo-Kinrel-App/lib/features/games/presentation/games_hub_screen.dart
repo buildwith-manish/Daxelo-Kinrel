@@ -189,7 +189,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
           gameId: 'truthordare',
           name: 'Truth or Dare',
           description: 'Spin the bottle — family-submitted prompts!',
-          icon: Icons.local_bar,
+          icon: Icons.rotate_right,
           color: const Color(0xFFEF4444),  // red
           sizeEstimate: '~1 MB',
           familyId: widget.familyId,

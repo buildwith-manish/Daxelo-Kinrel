@@ -30,7 +30,7 @@ class _TodCardState extends ConsumerState<TodCard> {
         child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Container(width: 36, height: 36, decoration: BoxDecoration(shape: BoxShape.circle, color: accent.withValues(alpha: 0.2)),
-              child: const Icon(Icons.local_bar, color: accent, size: 20)),
+              child: const Icon(Icons.rotate_right, color: accent, size: 20)),
             const SizedBox(width: 12),
             Expanded(child: Text('Truth or Dare', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
           ]),

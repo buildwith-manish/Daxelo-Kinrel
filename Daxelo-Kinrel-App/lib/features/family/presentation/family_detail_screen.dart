@@ -29,22 +29,7 @@ import '../../../core/utils/smart_preloader.dart';
 import '../../../core/utils/share_helper.dart';
 import '../../profile/data/profile_provider.dart';
 import '../../truth_streak/presentation/truth_streak_card.dart';
-import '../../hot_seat/presentation/hot_seat_card.dart';
-import '../../relation_riddles/presentation/relation_riddle_card.dart';
-import '../../games/ghost_painter/ghost_painter_card.dart';
-import '../../games/redlight/redlight_card.dart';
-import '../../games/sos/sos_card.dart';
-import '../../games/antakshari/antakshari_card.dart';
-import '../../games/bingo/bingo_card.dart';
-import '../../games/checkers/checkers_card.dart';
-import '../../games/ludo/ludo_card.dart';
-import '../../games/carrom/carrom_card.dart';
-import '../../games/chess/chess_card.dart';
-import '../../games/chitmatch/chitmatch_card.dart';
-import '../../games/nameplace/nameplace_card.dart';
-import '../../games/tictactoe/tictactoe_card.dart';
-import '../../games/truthordare/truthordare_card.dart';
-import '../../games/twotruths/twotruths_card.dart';
+import '../../games/services/game_asset_manager.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
@@ -141,7 +126,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           }
 
           // ── Scrollable feed (replaces TabBarView) ──────────────
-          // Feed order: Truth Streak (hero) → Games → Graph → Members → Activity
+          // Feed order: Truth Streak (hero) → Games Row → Graph → Members → Activity
           return CustomScrollView(
             slivers: [
               // 1. Header section — family name, avatar, stats
@@ -155,135 +140,12 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                 ),
               ),
 
-              // 3. Hot Seat game
+              // 3. Games — horizontal scrollable row (all games in one compact row)
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: HotSeatCard(familyId: widget.familyId),
-                ),
+                child: _GamesRow(familyId: widget.familyId),
               ),
 
-              // 4. Relation Riddles game
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: RelationRiddleCard(familyId: widget.familyId),
-                ),
-              ),
-
-              // 5. Ghost Painter game
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: GhostPainterCard(familyId: widget.familyId),
-                ),
-              ),
-
-              // 5b. Freeze & Dash (Red Light, Green Light) game
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: RedlightCard(familyId: widget.familyId),
-                ),
-              ),
-
-              // 5c. SOS game
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: SosCard(familyId: widget.familyId),
-                ),
-              ),
-
-              // 5d. Antakshari game
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: AntakshariCard(familyId: widget.familyId),
-                ),
-              ),
-
-              // 5e. Bingo game
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: BingoCard(familyId: widget.familyId),
-                ),
-              ),
-
-              // 5f. Checkers game
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: CheckersCard(familyId: widget.familyId),
-                ),
-              ),
-
-              // 5g. Ludo game
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: LudoCard(familyId: widget.familyId),
-                ),
-              ),
-
-              // 5h. Carrom game
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: CarromCard(familyId: widget.familyId),
-                ),
-              ),
-
-              // 5i. Chess game
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: ChessCard(familyId: widget.familyId),
-                ),
-              ),
-
-              // 5j. TripleMatch game
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: ChitmatchCard(familyId: widget.familyId),
-                ),
-              ),
-
-              // 5k. Name, Place, Animal, Thing game
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: NameplaceCard(familyId: widget.familyId),
-                ),
-              ),
-
-              // 5l. Tic-Tac-Toe game
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: TttCard(familyId: widget.familyId),
-                ),
-              ),
-
-              // 5m. Truth or Dare game
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: TodCard(familyId: widget.familyId),
-                ),
-              ),
-
-              // 5n. Two Truths and a Lie game
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: TtCard(familyId: widget.familyId),
-                ),
-              ),
-
-              // 6. Graph preview card (quieter supporting card)
+              // 4. Graph preview card (quieter supporting card)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 16),
@@ -326,9 +188,6 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                   ),
                 ),
               ),
-
-              // 9. More Games placeholder
-              SliverToBoxAdapter(child: _MoreGamesCard()),
 
               // Bottom padding for FAB
               const SliverToBoxAdapter(
@@ -2776,46 +2635,178 @@ class _FamilyCalendarCard extends ConsumerWidget {
   }
 }
 
-class _MoreGamesCard extends StatelessWidget {
+/// Compact horizontal scrollable row of all games.
+/// Replaces the previous layout where each game was a full-width card.
+class _GamesRow extends ConsumerWidget {
+  const _GamesRow({required this.familyId});
+  final String familyId;
+
+  static const List<_GameEntry> _games = [
+    _GameEntry(gameId: 'hot-seat', name: 'Hot Seat', icon: Icons.local_fire_department_outlined, color: Color(0xFFF59E0B), route: '/family/\$familyId/hot-seat'),
+    _GameEntry(gameId: 'relation-riddles', name: 'Riddles', icon: Icons.extension_outlined, color: Color(0xFF8B5CF6), route: '/family/\$familyId/relation-riddles'),
+    _GameEntry(gameId: 'ghost-painter', name: 'Ghost Painter', icon: Icons.brush_outlined, color: Color(0xFFEC4899), route: '/family/\$familyId/ghost-painter/draw'),
+    _GameEntry(gameId: 'freeze-dash', name: 'Freeze & Dash', icon: Icons.directions_run_rounded, color: Color(0xFF10B981), route: '/family/\$familyId/freeze-dash/lobby'),
+    _GameEntry(gameId: 'sos', name: 'SOS', icon: Icons.grid_on_rounded, color: Color(0xFFF59E0B), route: '/family/\$familyId/sos/lobby'),
+    _GameEntry(gameId: 'antakshari', name: 'Antakshari', icon: Icons.music_note_rounded, color: Color(0xFF8B5CF6), route: '/family/\$familyId/antakshari/lobby'),
+    _GameEntry(gameId: 'bingo', name: 'Bingo', icon: Icons.grid_view_rounded, color: Color(0xFF06B6D4), route: '/family/\$familyId/bingo/lobby'),
+    _GameEntry(gameId: 'checkers', name: 'Checkers', icon: Icons.grid_on_outlined, color: Color(0xFF6366F1), route: '/family/\$familyId/checkers/lobby'),
+    _GameEntry(gameId: 'ludo', name: 'Ludo', icon: Icons.casino_outlined, color: Color(0xFFE11D48), route: '/family/\$familyId/ludo/lobby'),
+    _GameEntry(gameId: 'carrom', name: 'Carrom', icon: Icons.sports_esports_rounded, color: Color(0xFFF59E0B), route: '/family/\$familyId/carrom/lobby'),
+    _GameEntry(gameId: 'chess', name: 'Chess', icon: Icons.castle_outlined, color: Color(0xFF64748B), route: '/family/\$familyId/chess/lobby'),
+    _GameEntry(gameId: 'chitmatch', name: 'TripleMatch', icon: Icons.style_outlined, color: Color(0xFFEC4899), route: '/family/\$familyId/chitmatch/lobby'),
+    _GameEntry(gameId: 'nameplace', name: 'Name Place Animal', icon: Icons.abc_rounded, color: Color(0xFF10B981), route: '/family/\$familyId/nameplace/lobby'),
+    _GameEntry(gameId: 'tictactoe', name: 'Tic-Tac-Toe', icon: Icons.grid_3x3, color: Color(0xFF8B5CF6), route: '/family/\$familyId/tictactoe/lobby'),
+    _GameEntry(gameId: 'truthordare', name: 'Truth or Dare', icon: Icons.rotate_right, color: Color(0xFFEF4444), route: '/family/\$familyId/truthordare/lobby'),
+    _GameEntry(gameId: 'twotruths', name: 'Two Truths', icon: Icons.psychology, color: Color(0xFFD946EF), route: '/family/\$familyId/twotruths/lobby'),
+  ];
+
+  /// Games that require download-gating (have manifests in game-assets bucket).
+  /// Hot Seat and Relation Riddles are native (no download needed).
+  static const Set<String> _downloadGatedGames = {
+    'ghost-painter', 'freeze-dash', 'sos', 'antakshari', 'bingo',
+    'checkers', 'ludo', 'carrom', 'chess', 'chitmatch', 'nameplace',
+    'tictactoe', 'truthordare', 'twotruths',
+  };
+
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(KinrelSpacing.base),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: KinrelColors.textDim.withValues(alpha: 0.15),
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base, vertical: 8),
+          child: Row(
+            children: [
+              Icon(Icons.sports_esports_outlined, size: 18, color: KinrelColors.orange),
+              const SizedBox(width: 6),
+              Text(
+                'Games',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => context.push('/games?familyId=$familyId'),
+                child: Text(
+                  'See All',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    color: KinrelColors.orange,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            Icons.videogame_asset_outlined,
-            size: 32,
-            color: KinrelColors.textDim,
+        SizedBox(
+          height: 100,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.sm),
+            itemCount: _games.length,
+            itemBuilder: (context, index) {
+              final game = _games[index];
+              return _CompactGameCard(
+                game: game,
+                familyId: familyId,
+                isDownloadGated: _downloadGatedGames.contains(game.gameId),
+              );
+            },
           ),
-          const SizedBox(height: 12),
-          Text(
-            'More family games coming soon',
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: KinrelColors.textDim,
+        ),
+      ],
+    );
+  }
+}
+
+class _GameEntry {
+  const _GameEntry({
+    required this.gameId,
+    required this.name,
+    required this.icon,
+    required this.color,
+    required this.route,
+  });
+  final String gameId;
+  final String name;
+  final IconData icon;
+  final Color color;
+  final String route; // Contains $familyId placeholder
+}
+
+class _CompactGameCard extends ConsumerWidget {
+  const _CompactGameCard({
+    required this.game,
+    required this.familyId,
+    required this.isDownloadGated,
+  });
+  final _GameEntry game;
+  final String familyId;
+  final bool isDownloadGated;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dlState = isDownloadGated
+        ? ref.watch(gameDownloadStatusProvider(game.gameId))
+        : null;
+    final isDownloaded = !isDownloadGated || dlState?.status == GameDownloadStatus.downloaded;
+
+    return GestureDetector(
+      onTap: () {
+        final route = game.route.replaceAll('\$familyId', familyId);
+        if (isDownloaded) {
+          context.push(route);
+        } else {
+          context.push('/games?familyId=$familyId');
+        }
+      },
+      child: Container(
+        width: 76,
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: game.color.withValues(alpha: 0.15),
+                border: Border.all(
+                  color: isDownloaded
+                      ? game.color.withValues(alpha: 0.5)
+                      : KinrelColors.border,
+                  width: 1.5,
+                ),
+              ),
+              child: Icon(
+                game.icon,
+                color: isDownloaded ? game.color : KinrelColors.textDim,
+                size: 22,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Hot Seat · Relation Riddles · and more',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 12,
-              color: KinrelColors.textDim.withValues(alpha: 0.85),
+            const SizedBox(height: 6),
+            Text(
+              game.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: isDownloaded ? KinrelColors.textWhite : KinrelColors.textDim,
+              ),
             ),
-          ),
-        ],
+            if (isDownloadGated && !isDownloaded)
+              Icon(Icons.download_outlined, size: 10, color: KinrelColors.textDim),
+          ],
+        ),
       ),
     );
   }
