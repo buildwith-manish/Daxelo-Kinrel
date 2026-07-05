@@ -2774,23 +2774,16 @@ class _CompactGameCard extends ConsumerWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: game.color.withValues(alpha: 0.15),
-                border: Border.all(
-                  color: isDownloaded
-                      ? game.color.withValues(alpha: 0.5)
-                      : KinrelColors.border,
-                  width: 1.5,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                width: 48,
+                height: 48,
+                child: GameIcon(
+                  gameId: game.gameId,
+                  size: 48,
+                  color: isDownloaded ? null : KinrelColors.textDim,
                 ),
-              ),
-              child: GameIcon(
-                gameId: game.gameId,
-                size: 22,
-                color: isDownloaded ? null : KinrelColors.textDim,
               ),
             ),
             const SizedBox(height: 6),

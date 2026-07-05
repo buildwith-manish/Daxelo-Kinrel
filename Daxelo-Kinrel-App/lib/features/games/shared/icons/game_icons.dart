@@ -29,7 +29,7 @@ class GameIcon extends StatelessWidget {
         assetPath,
         width: size,
         height: size,
-        fit: BoxFit.contain,
+        fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
           // Fallback to custom-painted icon
           final c = color ?? _colorFor(gameId);

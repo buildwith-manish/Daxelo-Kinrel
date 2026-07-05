@@ -257,8 +257,10 @@ class _GameCatalogCard extends ConsumerWidget {
       decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withValues(alpha: 0.2))),
       child: Row(children: [
-        Container(width: 48, height: 48, decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.15)),
-          child: Center(child: GameIcon(gameId: gameId, size: 24))),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: SizedBox(width: 52, height: 52, child: GameIcon(gameId: gameId, size: 52)),
+        ),
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(name, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
