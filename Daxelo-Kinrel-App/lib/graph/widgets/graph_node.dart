@@ -268,6 +268,7 @@ class GraphNode extends ConsumerStatefulWidget {
     this.opacity = 1.0,
     this.nodeSize = 72.0,
     this.isPrivate = false,
+    this.isUnclaimed = false,
     required this.onTap,
     required this.onLongPress,
     this.onDoubleTap,
@@ -320,6 +321,10 @@ class GraphNode extends ConsumerStatefulWidget {
 
   /// Whether this relationship is private.
   final bool isPrivate;
+
+  /// Whether this Person node has NOT been claimed by a linked Kinrel user
+  /// (linkedUserId is null). Shows a small "Pending" badge on the node.
+  final bool isUnclaimed;
 
   /// Callback when the node is tapped.
   final VoidCallback onTap;
@@ -829,6 +834,32 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                   Icons.lock_outline,
                   size: diameter * 0.2,
                   color: KinrelColors.amber,
+                ),
+              ),
+            ),
+          // Unclaimed Person: "Pending" badge (bottom-left)
+          if (widget.isUnclaimed)
+            Positioned(
+              left: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: KinrelColors.orange,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: KinrelColors.darkCard,
+                    width: 1.5,
+                  ),
+                ),
+                child: Text(
+                  'Pending',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: diameter * 0.13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),

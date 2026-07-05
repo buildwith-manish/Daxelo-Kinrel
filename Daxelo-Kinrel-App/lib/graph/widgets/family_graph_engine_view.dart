@@ -746,6 +746,9 @@ class _FamilyGraphEngineViewState
       isAnchor: (p['isAnchor'] as bool?) ?? false,
       photoUrl: p['photoUrl'] as String?,
       isDeceased: (p['isDeceased'] as bool?) ?? false,
+      // Show "Pending" badge on manually-added Person nodes that haven't
+      // been claimed by a linked Kinrel user yet (linkedUserId is null).
+      isUnclaimed: (p['linkedUserId'] == null || (p['linkedUserId'] as String?).isEmpty),
       // v69: Pass the AUTHORITATIVE category directly — no lossy string
       // round-trip. GraphNode uses styleForCategory(category) for its
       // border/tint color, which is always correct.

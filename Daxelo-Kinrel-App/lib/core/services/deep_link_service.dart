@@ -56,6 +56,7 @@ const kPathMember = '/member';
 const kPathShare = '/share';
 const kPathInvite = '/invite';
 const kPathJoin = '/join';
+const kPathClaim = '/claim';
 
 /// KIN-XXXXXXXX format validation regex
 final _kinFamilyIdRegex = RegExp(r'^KIN-[A-Z0-9]{8}$');
@@ -255,6 +256,9 @@ class DeepLinkRoute {
       case kPathInvite:
         // Invite codes route to the invitations screen with the code
         return '$kPathInvite/$id';
+      case kPathClaim:
+        // Person-specific claim codes route to the PersonClaimScreen
+        return '$kPathClaim/$id';
       case kPathJoin:
         // Join by KIN-XXXXXXXX Family ID → join family screen pre-filled
         // Validate the KIN ID format before constructing the route

@@ -129,6 +129,7 @@ import '../../presentation/screens/legal/privacy_policy_screen.dart';
 import '../../presentation/screens/legal/terms_of_service_screen.dart';
 import '../../features/profile/presentation/my_families_screen.dart';
 import '../../features/profile/presentation/invitations_screen.dart';
+import '../../features/family/presentation/person_claim_screen.dart';
 import '../../features/profile/presentation/blocked_users_screen.dart';
 import '../../features/profile/presentation/relations_screen.dart';
 import '../../features/social/presentation/screens/sparq_viewer_screen.dart';
@@ -1420,6 +1421,21 @@ final routerProvider = Provider<GoRouter>((ref) {
           return _fastFadePage(
             key: state.pageKey,
             child: InvitationsScreen(inviteCode: inviteCode),
+          );
+        },
+      ),
+
+      // ── Person-Specific Claim route (/claim/:code) ──────────────
+      // Maps https://kinrel.app/claim/:code to the PersonClaimScreen.
+      // Recipients of a person-specific invite (sent from AddPersonSheet)
+      // land here to confirm their spot in the family tree.
+      GoRoute(
+        path: '/claim/:code',
+        pageBuilder: (context, state) {
+          final claimCode = state.pathParameters['code']!;
+          return _fastFadePage(
+            key: state.pageKey,
+            child: PersonClaimScreen(code: claimCode),
           );
         },
       ),

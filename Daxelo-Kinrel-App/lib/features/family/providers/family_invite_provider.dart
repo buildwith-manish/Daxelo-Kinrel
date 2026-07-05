@@ -21,6 +21,7 @@
 
 import 'dart:convert';
 
+import 'package:characters/characters.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
@@ -29,6 +30,7 @@ import 'package:share_plus/share_plus.dart' as share_plus;
 import '../../../core/networking/dio_client.dart';
 import '../../../core/services/deep_link_service.dart';
 import '../../../core/services/analytics_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/database/isar_database.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -139,6 +141,7 @@ class InviteRecord {
     'direct' => 'Direct Copy',
     'whatsapp' => 'WhatsApp',
     'sms' => 'SMS',
+    'person_specific' => 'Person Invite',
     _ => channel,
   };
 
@@ -333,6 +336,131 @@ class FamilyInviteNotifier extends StateNotifier<FamilyInviteState> {
   Future<void> copyFamilyId(String kinFamilyId) async {
     // Track the copy as a direct invite
     state = state.copyWith(lastInviteChannel: 'direct');
+  }
+
+  // ── Person-specific invite ──────────────────────────────────────────
+  // Generates a personalized invite for a specific Person node (already
+  // added to the tree manually), using the existing PersonLinkInvitation
+  // backend (POST /api/families/:familyId/persons/:personId/invite).
+  // The invite message references the inviter's name and the relationship
+  // label, NOT the generic "join Kinrel" text.
+
+  /// Generate a person-specific invite link + personalized message, then
+  /// open the system share sheet.
+  ///
+  /// Parameters:
+  /// - [familyId] — the family the Person belongs to
+  /// - [personId] — the Person node being invited to claim
+  /// - [personName] — the Person's name (for the share text)
+  /// - [relationshipLabel] — e.g. "Aunt", "Cousin" (from _selectedRelationshipLabel)
+  /// - [inviterName] — the name of the user sending the invite
+  /// - [familyName] — the family name (e.g. "Sharma")
+  /// - [recipientPhone] / [recipientEmail] — at least one is required by the backend
+  ///
+  /// Returns the invite code (for tracking) or null on failure.
+  Future<String?> sharePersonInvite({
+    required String familyId,
+    required String personId,
+    required String personName,
+    required String relationshipLabel,
+    required String inviterName,
+    required String familyName,
+    String? recipientPhone,
+    String? recipientEmail,
+  }) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+
+    try {
+      // 1. Create the PersonLinkInvitation via the Supabase RPC (bypasses
+      //    the NestJS backend which currently rejects Supabase JWTs).
+      final client = _ref.read(supabaseProvider);
+      if (client == null) {
+        state = state.copyWith(isLoading: false, error: 'Not signed in');
+        return null;
+      }
+
+      final rpcResult = await client.rpc(
+        'fn_create_person_link_invitation',
+        params: {
+          'p_family_id': familyId,
+          'p_person_id': personId,
+          'p_recipient_name': personName,
+          'p_recipient_email': recipientEmail,
+          'p_recipient_phone': recipientPhone,
+          'p_role': 'member',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      // The RPC returns a list with one row (or throws an error).
+      final rows = (rpcResult as List).cast<Map<String, dynamic>>();
+      if (rows.isEmpty) {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Failed to generate invite code',
+        );
+        return null;
+      }
+
+      final row = rows.first;
+      final inviteCode = row['invitation_code'] as String? ?? '';
+      final actualFamilyName = row['family_name'] as String? ?? familyName;
+      final actualPersonName = row['person_name'] as String? ?? personName;
+
+      if (inviteCode.isEmpty) {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Failed to generate invite code',
+        );
+        return null;
+      }
+
+      // 2. Build the person-specific deep link URL.
+      //    Format: https://kinrel.app/claim/{inviteCode}
+      //    The GoRouter will route this to the new PersonClaimScreen.
+      final url = 'https://kinrel.app/claim/$inviteCode';
+
+      // 3. Build the personalized share text using the relationship label.
+      final possessive = _possessive(inviterName);
+      final text = StringBuffer()
+        ..writeln('$inviterName added you as ${possessive} $relationshipLabel on the $actualFamilyName family tree on Kinrel! 🧡')
+        ..writeln()
+        ..writeln('Tap to confirm your spot:')
+        ..writeln('🔗 $url')
+        ..writeln()
+        ..writeln('— Sent via Kinrel by Daxelo');
+
+      AnalyticsService.instance.logShareProfile('person_invite');
+
+      await share_plus.Share.share(
+        text.toString(),
+        subject: 'You\'re $inviterName\'s $relationshipLabel on Kinrel',
+      );
+
+      // 4. Track as a new invite channel ('person_specific')
+      await trackInviteSent(
+        familyId: familyId,
+        channel: 'person_specific',
+        recipientName: personName,
+        recipientPhone: recipientPhone,
+      );
+
+      state = state.copyWith(isLoading: false, lastInviteChannel: 'person_specific');
+      return inviteCode;
+    } catch (e) {
+      debugPrint('⚠️ sharePersonInvite error: $e');
+      state = state.copyWith(isLoading: false, error: e.toString());
+      return null;
+    }
+  }
+
+  /// Build the possessive form of a name: "Manish" → "Manish's", "Ross" → "Ross's".
+  String _possessive(String name) {
+    if (name.isEmpty) return "their";
+    final last = name.toLowerCase().characters.last;
+    if (last == 's') {
+      return "$name'";
+    }
+    return "$name's";
   }
 
   /// Track invite sent — creates an InviteRecord locally and persists to backend

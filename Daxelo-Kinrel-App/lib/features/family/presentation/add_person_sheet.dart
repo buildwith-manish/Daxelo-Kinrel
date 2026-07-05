@@ -23,6 +23,7 @@ import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
 import 'add_member_source.dart';
 import 'relationship_picker_sheet.dart';
+import '../providers/family_invite_provider.dart';
 
 // ─────────────────────────────────────────────────────────────────────
 // Add Person Sheet — 4-Step Wizard
@@ -757,6 +758,116 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     return '$newName will be the $label of $anchorName';
   }
 
+  // ── Person-Specific Invite Prompt ──────────────────────────────
+  // After saving a manually-added Person with phone/email, show a dialog
+  // offering to send a personalized invite that references their specific
+  // relationship + name (not the generic family-join link).
+
+  Future<void> _showPersonInvitePrompt(Person person) async {
+    final name = person.name;
+    final relationshipLabel = _selectedRelationshipLabel ?? _selectedRelType ?? 'family member';
+    final hasPhone = _phoneController.text.trim().isNotEmpty;
+    final hasEmail = _emailController.text.trim().isNotEmpty;
+
+    final shouldInvite = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF191B2C),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(
+          'Invite $name to Kinrel?',
+          style: const TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFFF5F0EE),
+          ),
+        ),
+        content: Text(
+          'Send $name a personalized invite to confirm their spot as your '
+          '$relationshipLabel in the family tree. '
+          '${hasPhone ? '📱 ' : ''}${hasEmail ? '✉️ ' : ''}'
+          'They\'ll get a link to claim their profile.',
+          style: const TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 13,
+            color: Color(0xFFC9B4A8),
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text(
+              'Not Now',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                color: Color(0xFF8A7A72),
+              ),
+            ),
+          ),
+          Material(
+            color: const Color(0xFFE8612A),
+            borderRadius: BorderRadius.circular(8),
+            child: InkWell(
+              onTap: () => Navigator.of(ctx).pop(true),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: const Text(
+                  'Send Invite',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldInvite == true && mounted) {
+      // Get the inviter's name + family name for the personalized message
+      final client = ref.read(supabaseProvider);
+      final myId = client?.auth.currentUser?.id ?? '';
+      final myName = (client?.auth.currentUser?.userMetadata?['name'] as String?) ??
+          client?.auth.currentUser?.email ??
+          'A family member';
+
+      // Get the family name
+      String familyName = 'Family';
+      if (client != null) {
+        try {
+          final famResp = await client
+              .from('Family')
+              .select('name')
+              .eq('id', widget.familyId)
+              .single()
+              .timeout(const Duration(seconds: 5));
+          familyName = (famResp['name'] as String?) ?? 'Family';
+        } catch (_) {}
+      }
+
+      await ref.read(familyInviteProvider.notifier).sharePersonInvite(
+            familyId: widget.familyId,
+            personId: person.id,
+            personName: name,
+            relationshipLabel: relationshipLabel,
+            inviterName: myName,
+            familyName: familyName,
+            recipientPhone: hasPhone ? _phoneController.text.trim() : null,
+            recipientEmail: hasEmail ? _emailController.text.trim() : null,
+          );
+    }
+  }
+
   // ── Submit ─────────────────────────────────────────────────────
 
   Future<void> _submit() async {
@@ -1073,6 +1184,23 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             ? 'Person updated successfully'
             : 'Welcome to the family, ${result?.name ?? 'New member'}!',
       );
+
+      // ═══════════════════════════════════════════════════════════════
+      // PERSON-SPECIFIC INVITE PROMPT
+      // ═══════════════════════════════════════════════════════════════
+      // After saving a manually-added or contact-imported Person (NOT
+      // findOnKinrel — that path already links to a real account), if
+      // the Person has a phone or email on file, offer to send a
+      // personalized invite so they can claim their spot in the tree.
+      if (!_isEditMode &&
+          widget.source != AddMemberSource.findOnKinrel &&
+          result != null &&
+          (_phoneController.text.trim().isNotEmpty ||
+              _emailController.text.trim().isNotEmpty)) {
+        await _showPersonInvitePrompt(result);
+      }
+
+      if (!mounted) return;
       Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
