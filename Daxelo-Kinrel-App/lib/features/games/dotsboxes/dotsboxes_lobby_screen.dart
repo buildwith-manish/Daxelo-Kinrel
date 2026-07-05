@@ -8,6 +8,8 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/invite_family_sheet.dart';
 import 'dotsboxes_provider.dart';
 
 class DotsboxesLobbyScreen extends ConsumerStatefulWidget {
@@ -59,7 +61,28 @@ class _DotsboxesLobbyScreenState extends ConsumerState<DotsboxesLobbyScreen> {
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () { if (state.game != null) notifier.leaveGame(); Navigator.of(context).pop(); }),
         title: Text('Dots and Boxes', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
-        actions: [if (hasGame) IconButton(icon: const Icon(Icons.share_outlined), onPressed: () => _shareCode(state.game?.id))],
+        actions: [
+          if (hasGame && isHost)
+            IconButton(
+              tooltip: 'Invite family member',
+              icon: const Icon(Icons.person_add_outlined),
+              onPressed: () {
+                final code = state.game!.id.replaceAll('-', '').substring(0, 6).toUpperCase();
+                GameMotionTokens.tap();
+                InviteFamilySheet.show(
+                  context,
+                  familyId: widget.familyId,
+                  gameType: GameType.dotsboxes,
+                  gameId: state.game!.id,
+                  roomCode: code,
+                  currentPlayerIds: state.players.map((p) => p.userId).whereType<String>().toSet(),
+                  maxPlayers: 4,
+                  currentPlayers: state.players.length,
+                );
+              },
+            ),
+          if (hasGame) IconButton(icon: const Icon(Icons.share_outlined), onPressed: () => _shareCode(state.game?.id)),
+        ],
       ),
       body: state.isLoading ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
         : !hasGame ? _setupView() : _lobbyView(state, isHost),

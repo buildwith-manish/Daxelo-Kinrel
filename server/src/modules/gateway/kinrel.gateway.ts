@@ -135,6 +135,85 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.to(roomName).emit('user:left', { userId, familyId: data.familyId });
   }
 
+  // ── Game invites ────────────────────────────────────────────────────
+  // Real-time game-room invites sent from a host's lobby screen to a
+  // linked family member. The Flutter client calls SocketService.sendGameInvite()
+  // which emits 'game:invite:send'; this handler relays it to the recipient
+  // via emitToUser as 'game:invite:received'. The recipient's
+  // GameInviteListener shows an Accept / Decline dialog; their response is
+  // relayed back to the sender via 'game:invite:accept' / 'game:invite:decline'.
+
+  @SubscribeMessage('game:invite:send')
+  handleGameInviteSend(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: {
+      inviteId: string;
+      gameType: string;
+      gameId: string;
+      roomCode: string;
+      familyId: string;
+      fromUserId: string;
+      fromName: string;
+      maxPlayers: number;
+      currentPlayers: number;
+      message?: string;
+      toUserId: string;
+    },
+  ) {
+    const senderId = (client as any).userId;
+    if (!senderId || senderId !== data.fromUserId) {
+      // Sanity check: the sender must be the authenticated user.
+      client.emit('error', { message: 'Sender mismatch' });
+      return;
+    }
+
+    // Relay the invite to the recipient — emitToUser injects a timestamp.
+    this.emitToUser(data.toUserId, 'game:invite:received', {
+      inviteId: data.inviteId,
+      gameType: data.gameType,
+      gameId: data.gameId,
+      roomCode: data.roomCode,
+      familyId: data.familyId,
+      fromUserId: data.fromUserId,
+      fromName: data.fromName,
+      maxPlayers: data.maxPlayers,
+      currentPlayers: data.currentPlayers,
+      message: data.message ?? null,
+    });
+  }
+
+  @SubscribeMessage('game:invite:accept')
+  handleGameInviteAccept(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: {
+      inviteId: string;
+      gameType: string;
+      gameId: string;
+      familyId: string;
+      fromUserId: string;
+    },
+  ) {
+    // Notify the original sender that their invite was accepted.
+    this.emitToUser(data.fromUserId, 'game:invite:accepted', {
+      inviteId: data.inviteId,
+      gameType: data.gameType,
+      gameId: data.gameId,
+      familyId: data.familyId,
+      acceptedByUserId: (client as any).userId,
+    });
+  }
+
+  @SubscribeMessage('game:invite:decline')
+  handleGameInviteDecline(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { inviteId: string; fromUserId: string },
+  ) {
+    this.emitToUser(data.fromUserId, 'game:invite:declined', {
+      inviteId: data.inviteId,
+      declinedByUserId: (client as any).userId,
+    });
+  }
+
   /**
    * Emit a notification event to a specific user.
    * Finds all socket connections for the user and sends the event.

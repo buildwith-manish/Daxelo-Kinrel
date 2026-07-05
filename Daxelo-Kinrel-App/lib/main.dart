@@ -52,6 +52,7 @@ import 'core/services/analytics_service.dart';
 import 'core/services/remote_config_service.dart';
 import 'core/app_startup.dart';
 import 'core/family/family_provider.dart';
+import 'features/games/shared/widgets/game_invite_listener.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -851,7 +852,11 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
           child: Column(
             children: [
               const OfflineBanner(),
-              Expanded(child: child ?? const SizedBox.shrink()),
+              Expanded(
+                child: GameInviteListener(
+                  child: child ?? const SizedBox.shrink(),
+                ),
+              ),
             ],
           ),
         );

@@ -10,9 +10,12 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/network/socket_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/models/game_invite.dart';
+import '../../family/presentation/add_member_source.dart';
 import 'checkers_provider.dart';
 
 class CheckersLobbyScreen extends ConsumerStatefulWidget {
@@ -49,17 +52,22 @@ class _CheckersLobbyScreenState extends ConsumerState<CheckersLobbyScreen> {
       return;
     }
     try {
-      // Fetch family members with their user profiles
-      final resp = await client
-          .from('FamilyMember')
-          .select('userId, user:User(name)')
-          .eq('familyId', widget.familyId)
-          .neq('userId', myId);
-      final members = resp.map((r) {
-        final user = r['user'] as Map<String, dynamic>?;
+      // Use the Find-on-Kinrel-linked members RPC so only real linked
+      // Kinrel accounts are listed (matches the Family-Space invite flow).
+      final resp = await client.rpc(
+        'fn_get_linked_family_members',
+        params: {'p_family_id': widget.familyId},
+      ).timeout(const Duration(seconds: 15));
+
+      final rows = (resp as List).cast<Map<String, dynamic>>();
+      final members = rows.map((r) {
+        final user = KinrelUser.fromJson(r);
         return {
-          'userId': r['userId'] as String,
-          'name': (user?['name'] as String?) ?? 'Family Member',
+          'userId': user.id,
+          'name': user.name,
+          'username': user.username,
+          'avatarUrl': user.avatarUrl,
+          'photoThumb': user.photoThumb,
         };
       }).toList();
       setState(() {
@@ -83,12 +91,42 @@ class _CheckersLobbyScreenState extends ConsumerState<CheckersLobbyScreen> {
       opponentName: _selectedOpponentName,
     );
     if (mounted) {
-      setState(() => _creating = false);
+      // Send a real-time invite so the opponent sees a "Checkers" challenge
+      // dialog and can jump straight into the board.
       if (gameId != null) {
+        final client = ref.read(supabaseProvider);
+        final myId = client?.auth.currentUser?.id ?? '';
+        final myName =
+            (client?.auth.currentUser?.userMetadata?['name'] as String?) ??
+                'A family member';
+        final code = gameId.replaceAll('-', '').substring(0, 6).toUpperCase();
+        final invite = GameInvite(
+          inviteId:
+              'inv_${DateTime.now().millisecondsSinceEpoch}_${_selectedOpponentId!.substring(0, 8)}',
+          gameType: GameType.checkers,
+          gameId: gameId,
+          roomCode: code,
+          familyId: widget.familyId,
+          fromUserId: myId,
+          fromName: myName,
+          maxPlayers: 2,
+          currentPlayers: 1,
+          message: '$myName challenged you to Checkers',
+          timestamp: DateTime.now().toUtc(),
+        );
+        try {
+          await ref.read(socketServiceProvider).sendGameInvite(
+                toUserId: _selectedOpponentId!,
+                invite: invite,
+              );
+        } catch (_) {
+          // best-effort — game was created, opponent will see it via Realtime
+        }
         context.pushReplacement(
           '/family/${widget.familyId}/checkers/board/$gameId',
         );
       }
+      setState(() => _creating = false);
     }
   }
 

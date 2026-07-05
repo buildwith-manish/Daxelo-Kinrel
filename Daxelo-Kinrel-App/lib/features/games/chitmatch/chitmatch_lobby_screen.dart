@@ -13,6 +13,8 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/invite_family_sheet.dart';
 import 'chitmatch_models.dart';
 import 'chitmatch_provider.dart';
 
@@ -127,6 +129,25 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
         title: Text('TripleMatch', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [
+          if (hasGame && isHost)
+            IconButton(
+              tooltip: 'Invite family member',
+              icon: const Icon(Icons.person_add_outlined),
+              onPressed: () {
+                final code = state.game!.id.replaceAll('-', '').substring(0, 6).toUpperCase();
+                GameMotionTokens.tap();
+                InviteFamilySheet.show(
+                  context,
+                  familyId: widget.familyId,
+                  gameType: GameType.chitmatch,
+                  gameId: state.game!.id,
+                  roomCode: code,
+                  currentPlayerIds: state.players.map((p) => p.userId).whereType<String>().toSet(),
+                  maxPlayers: state.game!.playerCount,
+                  currentPlayers: state.players.length,
+                );
+              },
+            ),
           if (hasGame) IconButton(icon: const Icon(Icons.share_outlined), onPressed: () => _shareCode(state.game?.id)),
         ],
       ),

@@ -5,9 +5,12 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/network/socket_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/models/game_invite.dart';
+import '../../family/presentation/add_member_source.dart';
 import 'tictactoe_provider.dart';
 
 class TttLobbyScreen extends ConsumerStatefulWidget {
@@ -28,8 +31,11 @@ class _TttLobbyScreenState extends ConsumerState<TttLobbyScreen> {
     final client = ref.read(supabaseProvider); final myId = client?.auth.currentUser?.id;
     if (client == null || myId == null) { setState(() { _loading = false; _error = 'Not signed in'; }); return; }
     try {
-      final resp = await client.from('FamilyMember').select('userId, user:User(name)').eq('familyId', widget.familyId).neq('userId', myId);
-      setState(() { _members = resp.map((r) => <String, dynamic>{'userId': r['userId'], 'name': (r['user']?['name'] ?? 'Member')}).toList(); _loading = false; });
+      // Use the Find-on-Kinrel-linked members RPC so only real linked
+      // Kinrel accounts are listed (matches the Family-Space invite flow).
+      final resp = await client.rpc('fn_get_linked_family_members', params: {'p_family_id': widget.familyId}).timeout(const Duration(seconds: 15));
+      final rows = (resp as List).cast<Map<String, dynamic>>();
+      setState(() { _members = rows.map((r) { final u = KinrelUser.fromJson(r); return <String, dynamic>{'userId': u.id, 'name': u.name, 'username': u.username, 'avatarUrl': u.avatarUrl, 'photoThumb': u.photoThumb}; }).toList(); _loading = false; });
     } catch (e) { setState(() { _loading = false; _error = '$e'; }); }
   }
 
@@ -37,7 +43,29 @@ class _TttLobbyScreenState extends ConsumerState<TttLobbyScreen> {
     if (_opponentId == null) return;
     setState(() => _creating = true);
     final gameId = await ref.read(tttProvider(widget.familyId).notifier).createGame(opponentId: _opponentId!, opponentName: _opponentName, bestOf: _bestOf);
-    if (mounted) { setState(() => _creating = false); if (gameId != null) context.pushReplacement('/family/${widget.familyId}/tictactoe/board/$gameId'); }
+    if (mounted) {
+      // Send a real-time invite so the opponent sees a "Tic-Tac-Toe" challenge
+      // dialog and can jump straight into the board.
+      if (gameId != null) {
+        final client = ref.read(supabaseProvider);
+        final myId = client?.auth.currentUser?.id ?? '';
+        final myName = (client?.auth.currentUser?.userMetadata?['name'] as String?) ?? 'A family member';
+        final code = gameId.replaceAll('-', '').substring(0, 6).toUpperCase();
+        final invite = GameInvite(
+          inviteId: 'inv_${DateTime.now().millisecondsSinceEpoch}_${_opponentId!.substring(0, 8)}',
+          gameType: GameType.tictactoe, gameId: gameId, roomCode: code,
+          familyId: widget.familyId, fromUserId: myId, fromName: myName,
+          maxPlayers: 2, currentPlayers: 1,
+          message: '$myName challenged you to Tic-Tac-Toe',
+          timestamp: DateTime.now().toUtc(),
+        );
+        try {
+          await ref.read(socketServiceProvider).sendGameInvite(toUserId: _opponentId!, invite: invite);
+        } catch (_) {}
+        context.pushReplacement('/family/${widget.familyId}/tictactoe/board/$gameId');
+      }
+      setState(() => _creating = false);
+    }
   }
 
   @override

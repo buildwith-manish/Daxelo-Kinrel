@@ -8,6 +8,8 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/invite_family_sheet.dart';
 import 'truthordare_provider.dart';
 
 class TodLobbyScreen extends ConsumerStatefulWidget {
@@ -85,6 +87,25 @@ class _TodLobbyScreenState extends ConsumerState<TodLobbyScreen> {
         actions: [
           IconButton(icon: const Icon(Icons.add_circle_outline), onPressed: () => context.push('/family/${widget.familyId}/truthordare/submit')),
           IconButton(icon: const Icon(Icons.rate_review), onPressed: () => context.push('/family/${widget.familyId}/truthordare/review')),
+          if (hasGame && isHost)
+            IconButton(
+              tooltip: 'Invite family member',
+              icon: const Icon(Icons.person_add_outlined),
+              onPressed: () {
+                final code = state.game!.id.replaceAll('-', '').substring(0, 6).toUpperCase();
+                GameMotionTokens.tap();
+                InviteFamilySheet.show(
+                  context,
+                  familyId: widget.familyId,
+                  gameType: GameType.truthordare,
+                  gameId: state.game!.id,
+                  roomCode: code,
+                  currentPlayerIds: state.players.map((p) => p.userId).whereType<String>().toSet(),
+                  maxPlayers: 12,
+                  currentPlayers: state.players.length,
+                );
+              },
+            ),
           if (hasGame) IconButton(icon: const Icon(Icons.share_outlined), onPressed: () => _shareCode(state.game?.id)),
         ],
       ),

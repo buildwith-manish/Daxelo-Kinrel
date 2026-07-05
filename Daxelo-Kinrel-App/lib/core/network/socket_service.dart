@@ -26,6 +26,7 @@ import '../networking/dio_client.dart';
 import '../family/family_provider.dart';
 import '../../features/social/data/providers/follow_provider.dart';
 import '../../features/social/data/providers/sparq_provider.dart';
+import '../../features/games/shared/models/game_invite.dart';
 
 // ── Socket Status Enum ──────────────────────────────────────────────
 
@@ -383,6 +384,83 @@ class SocketService {
       } catch (e) {
         debugPrint('[SocketService] Error handling sparq:new: $e');
       }
+    });
+
+    // ── Game invites ─────────────────────────────────────────────────
+    // Real-time game-room invites sent from another family member's
+    // lobby screen. See lib/features/games/shared/widgets/game_invite_listener.dart
+    // for the consumer-side dialog.
+    socket.on('game:invite:received', (data) {
+      debugPrint('[SocketService] 🎮 Game invite received: $data');
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        final invite = GameInvite.fromJson(json);
+        for (final cb in _gameInviteCallbacks) {
+          cb(invite);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] Error handling game:invite:received: $e');
+      }
+    });
+
+    socket.on('game:invite:accepted', (data) {
+      debugPrint('[SocketService] ✅ Game invite accepted: $data');
+    });
+
+    socket.on('game:invite:declined', (data) {
+      debugPrint('[SocketService] ❌ Game invite declined: $data');
+    });
+  }
+
+  // ── Game invite API ────────────────────────────────────────────────
+
+  /// Subscribers for incoming game invites. See [onGameInviteReceived].
+  final Set<void Function(GameInvite)> _gameInviteCallbacks = {};
+
+  /// Registers a callback for incoming game invites. Returns an unsubscribe
+  /// function — call it when the listener widget disposes.
+  ///
+  /// Multiple listeners can be registered; all are invoked per event.
+  VoidCallback onGameInviteReceived(void Function(GameInvite) callback) {
+    _gameInviteCallbacks.add(callback);
+    return () => _gameInviteCallbacks.remove(callback);
+  }
+
+  /// Sends a real-time game invite to [toUserId] via the NestJS gateway.
+  Future<void> sendGameInvite({
+    required String toUserId,
+    required GameInvite invite,
+  }) async {
+    final socket = _socket;
+    if (socket == null || !socket.connected) {
+      throw StateError('Socket not connected');
+    }
+    socket.emit('game:invite:send', {
+      ...invite.toJson(),
+      'toUserId': toUserId,
+    });
+  }
+
+  /// Acknowledges an incoming invite — the recipient tapped "Accept".
+  Future<void> acceptGameInvite(GameInvite invite) async {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('game:invite:accept', {
+      'inviteId': invite.inviteId,
+      'gameType': invite.gameType.routeSegment,
+      'gameId': invite.gameId,
+      'familyId': invite.familyId,
+      'fromUserId': invite.fromUserId,
+    });
+  }
+
+  /// Declines an incoming invite — the recipient tapped "Decline".
+  Future<void> declineGameInvite(GameInvite invite) async {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('game:invite:decline', {
+      'inviteId': invite.inviteId,
+      'fromUserId': invite.fromUserId,
     });
   }
 

@@ -13,6 +13,8 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/invite_family_sheet.dart';
 import 'redlight_models.dart';
 import 'redlight_provider.dart';
 
@@ -178,6 +180,25 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
         actions: [
+          if (hasRound && isHost)
+            IconButton(
+              tooltip: 'Invite family member',
+              icon: const Icon(Icons.person_add_outlined),
+              onPressed: () {
+                final code = state.round!.id.replaceAll('-', '').substring(0, 6).toUpperCase();
+                GameMotionTokens.tap();
+                InviteFamilySheet.show(
+                  context,
+                  familyId: widget.familyId,
+                  gameType: GameType.redlight,
+                  gameId: state.round!.id,
+                  roomCode: code,
+                  currentPlayerIds: state.players.map((p) => p.userId).whereType<String>().toSet(),
+                  maxPlayers: 20,
+                  currentPlayers: state.players.length,
+                );
+              },
+            ),
           if (hasRound)
             IconButton(
               icon: const Icon(Icons.share_outlined),

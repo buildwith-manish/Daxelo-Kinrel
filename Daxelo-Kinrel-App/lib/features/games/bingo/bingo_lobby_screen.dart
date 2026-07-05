@@ -13,6 +13,8 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/invite_family_sheet.dart';
 import 'bingo_models.dart';
 import 'bingo_provider.dart';
 
@@ -160,6 +162,34 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
         actions: [
+          if (hasGame && isHost)
+            IconButton(
+              tooltip: 'Invite family member',
+              icon: const Icon(Icons.person_add_outlined),
+              onPressed: () {
+                final code = state.game?.id != null
+                    ? state.game!.id
+                        .replaceAll('-', '')
+                        .substring(0, 6)
+                        .toUpperCase()
+                    : '------';
+                final maxP = state.game?.maxPlayers ?? 30;
+                GameMotionTokens.tap();
+                InviteFamilySheet.show(
+                  context,
+                  familyId: widget.familyId,
+                  gameType: GameType.bingo,
+                  gameId: state.game?.id ?? '',
+                  roomCode: code,
+                  currentPlayerIds: state.allCards
+                      .map((c) => c.playerId)
+                      .whereType<String>()
+                      .toSet(),
+                  maxPlayers: maxP,
+                  currentPlayers: state.allCards.length,
+                );
+              },
+            ),
           if (hasGame)
             IconButton(
               icon: const Icon(Icons.share_outlined),

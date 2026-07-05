@@ -13,6 +13,8 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/models/game_invite.dart';
+import '../shared/widgets/invite_family_sheet.dart';
 import 'ludo_game_logic.dart';
 import 'ludo_provider.dart';
 
@@ -152,8 +154,31 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
         actions: [
-          if (hasGame)
+          if (hasGame && isHost)
             IconButton(
+              tooltip: 'Invite family member',
+              icon: const Icon(Icons.person_add_outlined),
+              onPressed: () {
+                final code = state.game?.id != null ? state.game!.id.replaceAll('-', '').substring(0, 6).toUpperCase() : '------';
+                final maxP = state.game?.playerCount ?? 4;
+                GameMotionTokens.tap();
+                InviteFamilySheet.show(
+                  context,
+                  familyId: widget.familyId,
+                  gameType: GameType.ludo,
+                  gameId: state.game?.id ?? '',
+                  roomCode: code,
+                  currentPlayerIds: state.players
+                      .map((p) => p.userId)
+                      .whereType<String>()
+                      .toSet(),
+                  maxPlayers: maxP,
+                  currentPlayers: state.players.length,
+                );
+              },
+            ),
+          if (hasGame)
+          IconButton(
               icon: const Icon(Icons.share_outlined),
               onPressed: () => _shareCode(state.game?.id),
             ),
