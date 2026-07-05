@@ -31,6 +31,34 @@ echo "Node version: $(node --version 2>&1 || echo 'n/a')"
 echo "Disk space:"
 df -h . 2>&1 | head -2
 
+# ── retry helper ────────────────────────────────────────────────────────
+# Flutter's first invocation on a fresh Vercel build sometimes crashes with
+# "Unhandled exception" inside AppContext._generateIfNecessary / featureFlags
+# (intermittent SDK init issue, observed on Flutter 3.44.2 root builds).
+# Retry wrapper absorbs these transient failures.
+retry() {
+  local max=$1
+  shift
+  local n=1
+  local rc=1
+  while [ $n -le $max ]; do
+    echo "  [retry $n/$max] $*"
+    set +e
+    "$@"
+    rc=$?
+    set -e
+    if [ $rc -eq 0 ]; then
+      echo "  [retry $n/$max] OK"
+      return 0
+    fi
+    echo "  [retry $n/$max] failed (exit $rc), sleeping 5s..."
+    sleep 5
+    n=$((n + 1))
+  done
+  echo "  [retry] giving up after $max attempts: $*"
+  return $rc
+}
+
 # ── 0. Fix git "dubious ownership" for the Flutter SDK's bundled .git ─────
 # The Flutter tarball ships with a .git directory. When extracted as root
 # on Vercel, git refuses to operate on it ("fatal: detected dubious
@@ -81,8 +109,12 @@ export PATH="$FLUTTER_BIN:$PATH"
 # doesn't print the version string at all. The "running as root" warning
 # goes to stderr and would cause `set -e` + `pipefail` to fail the build
 # if we weren't careful.
-echo "=== Flutter version ==="
-flutter --version 2>&1 | head -5 || true
+#
+# Intermittent Flutter SDK crashes on Vercel (observed on 3.44.2): the
+# first `flutter` invocation may throw "Unhandled exception" inside
+# AppContext._generateIfNecessary / featureFlags. Retrying 3x resolves it.
+echo "=== Flutter version (retry up to 3x) ==="
+retry 3 flutter --version 2>&1 || true
 
 # Sanity check: ensure flutter is actually on PATH
 if ! command -v flutter >/dev/null 2>&1; then
@@ -91,14 +123,25 @@ if ! command -v flutter >/dev/null 2>&1; then
 fi
 
 # ── 3. Disable analytics + telemetry ────────────────────────────────────
-flutter config --no-analytics 2>&1 | tail -1 || true
-dart --disable-analytics 2>&1 || true
+# These commands sometimes also crash on first invocation; retry.
+retry 3 flutter config --no-analytics 2>&1 || true
+retry 2 dart --disable-analytics 2>&1 || true
 
 # ── 4. Enable web ───────────────────────────────────────────────────────
-flutter config --enable-web 2>&1 | tail -1 || true
+retry 3 flutter config --enable-web 2>&1 || true
 
 # ── 5. Pre-cache pub dependencies ───────────────────────────────────────
-echo "=== Running flutter pub get ==="
-flutter pub get 2>&1 | tail -10
+# CRITICAL: this is the step that was failing on Vercel. Use retry wrapper
+# and DON'T pipe through `tail` (which truncates the actual error).
+echo "=== Running flutter pub get (retry up to 3x) ==="
+set +e
+retry 3 flutter pub get 2>&1
+PUB_EXIT=$?
+set -e
+
+if [ $PUB_EXIT -ne 0 ]; then
+  echo "FATAL: flutter pub get failed after retries (exit $PUB_EXIT)"
+  exit 1
+fi
 
 echo "=== Install script complete ==="

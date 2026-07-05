@@ -153,8 +153,8 @@ dev_dependencies:
 flutter:
   generate: true
   uses-material-design: true
-  
-assets:
+
+  assets:
     - assets/data/kinship_core.json
     - assets/data/kinship_terms.json
     - assets/icons/
