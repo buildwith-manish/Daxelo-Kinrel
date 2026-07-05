@@ -30,6 +30,7 @@ import '../../../core/utils/share_helper.dart';
 import '../../profile/data/profile_provider.dart';
 import '../../truth_streak/presentation/truth_streak_card.dart';
 import '../../games/services/game_asset_manager.dart';
+import '../../games/shared/icons/game_icons.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
@@ -2786,10 +2787,10 @@ class _CompactGameCard extends ConsumerWidget {
                   width: 1.5,
                 ),
               ),
-              child: Icon(
-                game.icon,
-                color: isDownloaded ? game.color : KinrelColors.textDim,
+              child: GameIcon(
+                gameId: game.gameId,
                 size: 22,
+                color: isDownloaded ? null : KinrelColors.textDim,
               ),
             ),
             const SizedBox(height: 6),

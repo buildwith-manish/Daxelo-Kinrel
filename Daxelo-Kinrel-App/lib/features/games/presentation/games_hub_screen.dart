@@ -11,6 +11,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../services/game_asset_manager.dart';
+import '../shared/icons/game_icons.dart';
 
 class GamesHubScreen extends ConsumerStatefulWidget {
   const GamesHubScreen({super.key, this.familyId});
@@ -257,7 +258,7 @@ class _GameCatalogCard extends ConsumerWidget {
         border: Border.all(color: color.withValues(alpha: 0.2))),
       child: Row(children: [
         Container(width: 48, height: 48, decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.15)),
-          child: Icon(icon, color: color, size: 24)),
+          child: Center(child: GameIcon(gameId: gameId, size: 24))),
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(name, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
