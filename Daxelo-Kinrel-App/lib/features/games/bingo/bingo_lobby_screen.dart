@@ -17,6 +17,7 @@ import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
+import '../shared/widgets/spectator_toggle.dart';
 import 'bingo_models.dart';
 import 'bingo_provider.dart';
 
@@ -32,6 +33,7 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
   BingoWinPattern _winPattern = BingoWinPattern.line;
   int _callInterval = 5;
   bool _creating = false;
+  bool _spectatorsEnabled = true;
 
   @override
   void initState() {
@@ -51,6 +53,10 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
       winPattern: _winPattern,
       callIntervalSeconds: _callInterval,
     );
+      if (gameId != null) {
+        await ref.read(supabaseProvider)?.from('bingo_games').update({'spectatorsEnabled': _spectatorsEnabled}).eq('id', gameId);
+      }
+
     if (mounted) setState(() => _creating = false);
     // Stay on lobby to wait for players
     if (gameId == null && mounted) {
@@ -233,6 +239,11 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
         _rulesCard(),
         const SizedBox(height: KinrelSpacing.xl),
 
+                SpectatorToggle(
+          value: _spectatorsEnabled,
+          onChanged: (v) => setState(() => _spectatorsEnabled = v),
+        ),
+        const SizedBox(height: KinrelSpacing.md),
         DKButton(
           label: 'Create Game',
           variant: DKButtonVariant.gradient,

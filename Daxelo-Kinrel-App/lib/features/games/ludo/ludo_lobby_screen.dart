@@ -17,6 +17,7 @@ import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
+import '../shared/widgets/spectator_toggle.dart';
 import 'ludo_game_logic.dart';
 import 'ludo_provider.dart';
 
@@ -31,6 +32,7 @@ class LudoLobbyScreen extends ConsumerStatefulWidget {
 class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
   int _playerCount = 4;
   bool _creating = false;
+  bool _spectatorsEnabled = true;
 
   @override
   void initState() {
@@ -47,6 +49,10 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
     setState(() => _creating = true);
     final notifier = ref.read(ludoProvider(widget.familyId).notifier);
     final gameId = await notifier.createGame(playerCount: _playerCount);
+      if (gameId != null) {
+        await ref.read(supabaseProvider)?.from('ludo_games').update({'spectatorsEnabled': _spectatorsEnabled}).eq('id', gameId);
+      }
+
     if (mounted) setState(() => _creating = false);
     // Stay on lobby to wait for players
   }
@@ -220,6 +226,11 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
         _rulesCard(),
         const SizedBox(height: KinrelSpacing.xl),
 
+                SpectatorToggle(
+          value: _spectatorsEnabled,
+          onChanged: (v) => setState(() => _spectatorsEnabled = v),
+        ),
+        const SizedBox(height: KinrelSpacing.md),
         DKButton(
           label: 'Create Game',
           variant: DKButtonVariant.gradient,

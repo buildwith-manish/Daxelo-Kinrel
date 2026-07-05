@@ -12,6 +12,7 @@ import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
+import '../shared/widgets/spectator_toggle.dart';
 import 'dotsboxes_provider.dart';
 
 class DotsboxesLobbyScreen extends ConsumerStatefulWidget {
@@ -21,6 +22,7 @@ class DotsboxesLobbyScreen extends ConsumerStatefulWidget {
 }
 class _DotsboxesLobbyScreenState extends ConsumerState<DotsboxesLobbyScreen> {
   int _gridSize = 5; bool _creating = false;
+  bool _spectatorsEnabled = true;
 
   @override
   void initState() { super.initState(); WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -111,6 +113,11 @@ class _DotsboxesLobbyScreenState extends ConsumerState<DotsboxesLobbyScreen> {
             style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim, height: 1.5)),
         ])),
       const SizedBox(height: 20),
+            SpectatorToggle(
+        value: _spectatorsEnabled,
+        onChanged: (v) => setState(() => _spectatorsEnabled = v),
+      ),
+      const SizedBox(height: KinrelSpacing.md),
       DKButton(label: 'Create Game', variant: DKButtonVariant.gradient, fullWidth: true, isLoading: _creating, onPressed: _createGame),
     ]);
   }

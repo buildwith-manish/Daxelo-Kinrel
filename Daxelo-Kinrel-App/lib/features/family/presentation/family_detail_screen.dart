@@ -31,6 +31,8 @@ import '../../profile/data/profile_provider.dart';
 import '../../truth_streak/presentation/truth_streak_card.dart';
 import '../../games/services/game_asset_manager.dart';
 import '../../games/shared/icons/game_icons.dart';
+import '../../games/shared/widgets/active_games_list.dart';
+import '../../games/shared/widgets/family_leaderboard_widget.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
@@ -144,6 +146,22 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               // 3. Games — horizontal scrollable row (all games in one compact row)
               SliverToBoxAdapter(
                 child: _GamesRow(familyId: widget.familyId),
+              ),
+
+              // 3a. Active games list (in-progress/waiting games across all 14 tables)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: ActiveGamesList(familyId: widget.familyId),
+                ),
+              ),
+
+              // 3b. Family leaderboard (cross-game win/loss/draw rankings)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: _LeaderboardCard(familyId: widget.familyId),
+                ),
               ),
 
               // 4. Graph preview card (quieter supporting card)
@@ -3530,5 +3548,47 @@ class _ActivityTile extends StatelessWidget {
     if (diff.inDays < 7) return '${diff.inDays}d ago';
     if (diff.inDays < 30) return '${(diff.inDays / 7).round()}w ago';
     return '${(diff.inDays / 30).round()}mo ago';
+  }
+}
+
+// ── Leaderboard card (cross-game win/loss/draw rankings) ──────────────────
+class _LeaderboardCard extends StatelessWidget {
+  const _LeaderboardCard({required this.familyId});
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF2A2A4A), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.emoji_events, color: Color(0xFFFF6B35), size: 18),
+              const SizedBox(width: 8),
+              Text(
+                'FAMILY LEADERBOARD',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFFA0A0B8),
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          FamilyLeaderboardWidget(familyId: familyId, maxRows: 10),
+        ],
+      ),
+    );
   }
 }

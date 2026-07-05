@@ -17,6 +17,7 @@ import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
+import '../shared/widgets/spectator_toggle.dart';
 import 'redlight_models.dart';
 import 'redlight_provider.dart';
 
@@ -36,6 +37,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
   bool _teamMode = false;
   bool _eliminationMode = false;
   bool _creating = false;
+  bool _spectatorsEnabled = true;
 
   @override
   void initState() {
@@ -256,6 +258,11 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
         _modeToggles(),
         const SizedBox(height: KinrelSpacing.xl),
 
+                SpectatorToggle(
+          value: _spectatorsEnabled,
+          onChanged: (v) => setState(() => _spectatorsEnabled = v),
+        ),
+        const SizedBox(height: KinrelSpacing.md),
         DKButton(
           label: 'Create Game',
           variant: DKButtonVariant.gradient,

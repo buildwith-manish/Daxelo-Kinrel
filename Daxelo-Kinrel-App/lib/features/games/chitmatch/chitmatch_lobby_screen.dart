@@ -17,6 +17,7 @@ import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
+import '../shared/widgets/spectator_toggle.dart';
 import 'chitmatch_models.dart';
 import 'chitmatch_provider.dart';
 
@@ -32,6 +33,7 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
   int _playerCount = 6;
   int _roundTimer = 20;
   bool _creating = false;
+  bool _spectatorsEnabled = true;
   final _wordController = TextEditingController();
   bool _wordSubmitted = false;
 
@@ -183,6 +185,11 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
         const SizedBox(height: KinrelSpacing.sm),
         _rulesCard(),
         const SizedBox(height: KinrelSpacing.xl),
+        SpectatorToggle(
+          value: _spectatorsEnabled,
+          onChanged: (v) => setState(() => _spectatorsEnabled = v),
+        ),
+        const SizedBox(height: KinrelSpacing.md),
         DKButton(label: 'Create Game', variant: DKButtonVariant.gradient, fullWidth: true, isLoading: _creating, onPressed: _createGame),
       ],
     );

@@ -22,6 +22,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/widgets/badges_toast.dart';
 import 'bingo_models.dart';
 import 'bingo_provider.dart';
 
@@ -44,6 +45,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
   late final AnimationController _shakeController;
   int? _lastSeenCalledNumber;
   Timer? _shakeTimer;
+  bool _badgesChecked = false;
 
   @override
   void initState() {
@@ -100,6 +102,16 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
 
     // Show results inline when game completes
     if (state.isCompleted) {
+      // Fire-and-forget: check for newly-earned badges after game ends
+      if (!_badgesChecked) {
+        _badgesChecked = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          BadgesToast.maybeShowAfterGame(
+            context: context,
+            familyId: widget.familyId,
+          );
+        });
+      }
       return _resultsView(state, myId);
     }
 

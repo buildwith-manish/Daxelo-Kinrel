@@ -22,6 +22,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../services/crashlytics_service.dart';
 import '../services/local_notification_service.dart';
+import '../services/supabase_service.dart';
 import '../networking/dio_client.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -278,13 +279,12 @@ class PushNotificationService {
     }
   }
 
-  /// Sync the FCM token to the NestJS backend.
+  /// Sync the FCM token to the NestJS backend AND mirror it to the
+  /// Supabase `device_tokens` table so the game-invite Edge Function
+  /// can read it directly without going through NestJS.
   ///
-  /// POST /api/users/me/fcm-token
-  /// Body: { "fcmToken": "..." }
-  ///
-  /// Uses the existing Dio client which automatically injects
-  /// the Supabase JWT via the _AuthInterceptor.
+  /// POST /api/users/me/fcm-token  (NestJS — primary, for legacy push)
+  /// UPSERT to Supabase device_tokens (mirror, for game-invite FCM)
   Future<void> _syncTokenToBackend(String token) async {
     try {
       final dio = _ref.read(dioProvider);
@@ -314,6 +314,38 @@ class PushNotificationService {
     } catch (e, st) {
       logError(e, st, reason: 'Failed to sync FCM token to backend');
       debugPrint('⚠️ FCM token sync failed: $e');
+    }
+
+    // Mirror to Supabase device_tokens table for game-invite FCM pushes
+    await _syncTokenToSupabase(token);
+  }
+
+  /// Mirror the FCM token to the Supabase `device_tokens` table so the
+  /// send-game-invite-push Edge Function can read it directly.
+  Future<void> _syncTokenToSupabase(String token) async {
+    try {
+      final client = _ref.read(supabaseProvider);
+      if (client == null) return;
+      final userId = client.auth.currentUser?.id;
+      if (userId == null) return;
+
+      final platform = defaultTargetPlatform == TargetPlatform.android
+          ? 'android'
+          : defaultTargetPlatform == TargetPlatform.iOS
+              ? 'ios'
+              : kIsWeb
+                  ? 'web'
+                  : 'unknown';
+
+      await client.from('device_tokens').upsert({
+        'userId': userId,
+        'fcmToken': token,
+        'platform': platform,
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
+      }, onConflict: 'fcmToken');
+      debugPrint('📬 FCM token mirrored to Supabase device_tokens');
+    } catch (e) {
+      debugPrint('⚠️ FCM token Supabase mirror failed: $e');
     }
   }
 

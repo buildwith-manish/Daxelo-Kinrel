@@ -17,6 +17,7 @@ import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
+import '../shared/widgets/spectator_toggle.dart';
 import 'sos_models.dart';
 import 'sos_provider.dart';
 
@@ -31,6 +32,7 @@ class SosLobbyScreen extends ConsumerStatefulWidget {
 class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
   SosMode _mode = SosMode.twoPlayer;
   bool _creating = false;
+  bool _spectatorsEnabled = true;
 
   @override
   void initState() {
@@ -247,6 +249,11 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
         _rulesCard(),
         const SizedBox(height: KinrelSpacing.xl),
 
+                SpectatorToggle(
+          value: _spectatorsEnabled,
+          onChanged: (v) => setState(() => _spectatorsEnabled = v),
+        ),
+        const SizedBox(height: KinrelSpacing.md),
         DKButton(
           label: 'Create Game',
           variant: DKButtonVariant.gradient,
