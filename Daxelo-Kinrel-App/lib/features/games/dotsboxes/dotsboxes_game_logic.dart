@@ -18,7 +18,7 @@ class DotsLine {
   final int col;
 
   /// Unique key for set lookups.
-  String get key => '${type.name}_$row_$col';
+  String get key => '${type.name}_${row}_$col';
 
   @override
   String toString() => '${type.name}($row,$col)';
