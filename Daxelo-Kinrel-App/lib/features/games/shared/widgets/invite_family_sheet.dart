@@ -127,6 +127,10 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
   bool _loading = true;
   String? _error;
 
+  /// Search query for filtering the member list (local filter, not RPC).
+  /// Filters by name, username, or email — case-insensitive.
+  String _searchQuery = '';
+
   /// Current invite mode (specific vs entire). Defaults to specific.
   _InviteMode _mode = _InviteMode.specific;
 
@@ -246,8 +250,32 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
     );
 
     try {
+      // 1. Insert into game_invites table — this triggers the FCM push
+      //    via the AFTER INSERT trigger on the table.
+      final client = ref.read(supabaseProvider);
+      if (client != null) {
+        await client.from('game_invites').insert({
+          'gameTable': _gameTableName(widget.gameType),
+          'gameId': widget.gameId,
+          'gameType': widget.gameType.routeSegment,
+          'familyId': widget.familyId,
+          'roomCode': widget.roomCode,
+          'invitedUserId': m.user.id,
+          'invitedByUserId': base.fromUserId,
+          'invitedByName': base.fromName,
+          'maxPlayers': widget.maxPlayers,
+          'currentPlayers': widget.currentPlayers,
+          'message': base.message,
+          'status': 'pending',
+          'sourceGameId': null,
+        });
+      }
+
+      // 2. Send the in-app realtime Socket.IO event (immediate delivery
+      //    if the recipient is online).
       await socket.sendGameInvite(toUserId: m.user.id, invite: invite);
-      // Mark pending in the per-gameId status tracker.
+
+      // 3. Mark pending in the per-gameId status tracker.
       ref.read(gameInviteStatusProvider(widget.gameId).notifier).markPending(
             userId: m.user.id,
             name: m.user.name,
@@ -314,6 +342,26 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
         timestamp: DateTime.now().toUtc(),
       );
       try {
+        // Insert into game_invites (triggers FCM push via AFTER INSERT trigger)
+        final client = ref.read(supabaseProvider);
+        if (client != null) {
+          await client.from('game_invites').insert({
+            'gameTable': _gameTableName(widget.gameType),
+            'gameId': widget.gameId,
+            'gameType': widget.gameType.routeSegment,
+            'familyId': widget.familyId,
+            'roomCode': widget.roomCode,
+            'invitedUserId': m.user.id,
+            'invitedByUserId': base.fromUserId,
+            'invitedByName': base.fromName,
+            'maxPlayers': widget.maxPlayers,
+            'currentPlayers': widget.currentPlayers,
+            'message': base.message,
+            'status': 'pending',
+            'sourceGameId': null,
+          });
+        }
+        // Send realtime Socket.IO event
         await socket.sendGameInvite(toUserId: m.user.id, invite: invite);
         records.add(InviteRecord(
           userId: m.user.id,
@@ -388,6 +436,26 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
         timestamp: DateTime.now().toUtc(),
       );
       try {
+        // Insert into game_invites (triggers FCM push via AFTER INSERT trigger)
+        final client = ref.read(supabaseProvider);
+        if (client != null) {
+          await client.from('game_invites').insert({
+            'gameTable': _gameTableName(widget.gameType),
+            'gameId': widget.gameId,
+            'gameType': widget.gameType.routeSegment,
+            'familyId': widget.familyId,
+            'roomCode': widget.roomCode,
+            'invitedUserId': m.user.id,
+            'invitedByUserId': base.fromUserId,
+            'invitedByName': base.fromName,
+            'maxPlayers': widget.maxPlayers,
+            'currentPlayers': widget.currentPlayers,
+            'message': base.message,
+            'status': 'pending',
+            'sourceGameId': null,
+          });
+        }
+        // Send realtime Socket.IO event
         await socket.sendGameInvite(toUserId: m.user.id, invite: invite);
         records.add(InviteRecord(
           userId: m.user.id,
@@ -536,29 +604,33 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
           )
         : const SizedBox.shrink();
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.7,
-      minChildSize: 0.4,
-      maxChildSize: 0.95,
-      expand: false,
-      builder: (context, scrollController) => Container(
-        decoration: const BoxDecoration(
-          color: KinrelColors.darkCard,
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(KinrelRadius.lg)),
-        ),
-        child: Column(
-          children: [
-            _buildHeader(),
-            _buildModeSelector(),
-            roomFullBanner,
-            Expanded(
-              child: _buildBody(scrollController, inviteStatus),
-            ),
-            if (_mode == _InviteMode.specific && _selectedUserIds.isNotEmpty)
-              _buildMultiSelectBar(),
-          ],
-        ),
+    // Use a plain Container with a percentage-based height instead of
+    // DraggableScrollableSheet. The DSS with expand:false inside a
+    // showModalBottomSheet can fail to size its content area correctly
+    // on some Flutter web builds, causing the loading spinner to be
+    // rendered at 0px height (appears "stuck"). A fixed-height container
+    // is simpler and more reliable.
+    final screenHeight = MediaQuery.of(context).size.height;
+    final sheetHeight = screenHeight * 0.75;
+
+    return Container(
+      height: sheetHeight,
+      decoration: const BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(KinrelRadius.lg)),
+      ),
+      child: Column(
+        children: [
+          _buildHeader(),
+          _buildModeSelector(),
+          roomFullBanner,
+          Expanded(
+            child: _buildBody(ScrollController(), inviteStatus),
+          ),
+          if (_mode == _InviteMode.specific && _selectedUserIds.isNotEmpty)
+            _buildMultiSelectBar(),
+        ],
       ),
     );
   }
@@ -773,10 +845,10 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
             ),
             const SizedBox(height: KinrelSpacing.lg),
             Text(
-              'No linked family members yet',
+              'No linked Kinrel members in this family yet.',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: FontWeight.w700,
                 color: KinrelColors.textWhite,
               ),
@@ -784,8 +856,8 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
             ),
             const SizedBox(height: KinrelSpacing.sm),
             Text(
-              'Invite them to join Kinrel first — only members added via '
-              '"Find on Kinrel" can be invited to a game room.',
+              'Invite them to join Kinrel first, or add them from your '
+              'Family screen.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -809,68 +881,157 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
     final selectionFull =
         _selectedUserIds.length >= _remainingSlots && _remainingSlots > 0;
 
-    return Stack(
+    // Filter members by search query (local filter, case-insensitive).
+    final query = _searchQuery.trim().toLowerCase();
+    final filtered = query.isEmpty
+        ? _members
+        : _members.where((m) {
+            final name = (m.user.name).toLowerCase();
+            final username = (m.user.username ?? '').toLowerCase();
+            final email = (m.user.email ?? '').toLowerCase();
+            return name.contains(query) ||
+                username.contains(query) ||
+                email.contains(query);
+          }).toList();
+
+    return Column(
       children: [
-        ListView(
-          controller: scrollController,
-          padding: const EdgeInsets.fromLTRB(
-              KinrelSpacing.lg, KinrelSpacing.md, KinrelSpacing.lg, 90),
-          children: [
-            // ── Recently Played With ──────────────────────────────────
-            // Auto-hides when there are no recent playmates (first-time users).
-            RecentPlayersSection(
-              familyId: widget.familyId,
-              gameType: widget.gameType,
-              gameId: widget.gameId,
-              roomCode: widget.roomCode,
-              maxPlayers: widget.maxPlayers,
-              currentPlayers: widget.currentPlayers,
-              currentPlayerIds: widget.currentPlayerIds,
-            ),
-            if (_selectedUserIds.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: KinrelSpacing.sm),
-                child: Row(
+        // ── Search bar ────────────────────────────────────────────
+        _buildSearchBar(),
+        // ── Scrollable list ───────────────────────────────────────
+        Expanded(
+          child: filtered.isEmpty && query.isNotEmpty
+              ? _buildNoSearchResults()
+              : ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(
+                      KinrelSpacing.lg, KinrelSpacing.sm, KinrelSpacing.lg, 90),
                   children: [
-                    Text(
-                      'Tap Invite for one, or long-press a row to multi-select.',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 10,
-                        color: KinrelColors.textDim,
-                        fontStyle: FontStyle.italic,
+                    // ── Recently Played With ──────────────────────
+                    // Only show when not searching (avoids clutter).
+                    if (query.isEmpty)
+                      RecentPlayersSection(
+                        familyId: widget.familyId,
+                        gameType: widget.gameType,
+                        gameId: widget.gameId,
+                        roomCode: widget.roomCode,
+                        maxPlayers: widget.maxPlayers,
+                        currentPlayers: widget.currentPlayers,
+                        currentPlayerIds: widget.currentPlayerIds,
                       ),
-                    ),
+                    if (_selectedUserIds.isEmpty && query.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: KinrelSpacing.sm),
+                        child: Row(
+                          children: [
+                            Text(
+                              'Tap Invite for one, or long-press a row to multi-select.',
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 10,
+                                color: KinrelColors.textDim,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (selectionFull)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: KinrelSpacing.sm),
+                        child: Text(
+                          'Only $_remainingSlots spot${_remainingSlots == 1 ? '' : 's'} '
+                          'open — unselect someone to add more.',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 10,
+                            color: KinrelColors.orange,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ...filtered.map((m) {
+                      final isSelected = _selectedUserIds.contains(m.user.id);
+                      final status = inviteStatus[m.user.id]?.status;
+                      return _buildMemberTile(
+                        m,
+                        isSelected: isSelected,
+                        status: status,
+                        selectionFull: selectionFull,
+                      );
+                    }),
                   ],
                 ),
-              )
-            else if (selectionFull)
-              Padding(
-                padding: const EdgeInsets.only(bottom: KinrelSpacing.sm),
-                child: Text(
-                  'Only $_remainingSlots spot${_remainingSlots == 1 ? '' : 's'} '
-                  'open — unselect someone to add more.',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 10,
-                    color: KinrelColors.orange,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ),
-            ..._members.map((m) {
-              final isSelected = _selectedUserIds.contains(m.user.id);
-              final status = inviteStatus[m.user.id]?.status;
-              return _buildMemberTile(
-                m,
-                isSelected: isSelected,
-                status: status,
-                selectionFull: selectionFull,
-              );
-            }),
-          ],
         ),
       ],
+    );
+  }
+
+  /// Search bar matching the Find-on-Kinrel style from kinrel_user_search_screen.
+  Widget _buildSearchBar() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+          KinrelSpacing.lg, KinrelSpacing.sm, KinrelSpacing.lg, 0),
+      child: TextField(
+        onChanged: (v) => setState(() => _searchQuery = v),
+        style: TextStyle(
+          fontFamily: KinrelTypography.bodyFont,
+          fontSize: 14,
+          color: KinrelColors.textWhite,
+        ),
+        decoration: InputDecoration(
+          hintText: 'Search by name, username, or email…',
+          hintStyle: TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 13,
+            color: KinrelColors.textDim,
+          ),
+          prefixIcon:
+              const Icon(Icons.search, color: KinrelColors.textDim, size: 18),
+          filled: true,
+          fillColor: KinrelColors.darkSurface,
+          isDense: true,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(KinrelRadius.md),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(KinrelRadius.md),
+            borderSide: const BorderSide(color: KinrelColors.border, width: 1),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(KinrelRadius.md),
+            borderSide:
+                const BorderSide(color: KinrelColors.orange, width: 1.5),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoSearchResults() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(KinrelSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.search_off,
+                color: KinrelColors.textDim, size: 40),
+            const SizedBox(height: KinrelSpacing.md),
+            Text(
+              'No matching Kinrel users found.',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 13,
+                color: KinrelColors.textDim,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1342,6 +1503,26 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
         ),
       ),
     );
+  }
+
+  /// Map a GameType to its Postgres table name for game_invites insertion.
+  String _gameTableName(GameType t) {
+    switch (t) {
+      case GameType.bingo: return 'bingo_games';
+      case GameType.ludo: return 'ludo_games';
+      case GameType.checkers: return 'checkers_games';
+      case GameType.carrom: return 'carrom_games';
+      case GameType.chess: return 'chess_games';
+      case GameType.chitmatch: return 'chitmatch_games';
+      case GameType.nameplace: return 'nameplace_games';
+      case GameType.tictactoe: return 'tictactoe_games';
+      case GameType.truthordare: return 'truthordare_games';
+      case GameType.twotruths: return 'twotruths_games';
+      case GameType.dotsboxes: return 'dotsboxes_games';
+      case GameType.sos: return 'sos_games';
+      case GameType.antakshari: return 'antakshari_games';
+      case GameType.redlight: return 'redlight_rounds';
+    }
   }
 }
 
