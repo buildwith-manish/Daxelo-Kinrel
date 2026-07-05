@@ -1106,44 +1106,83 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       state = state.copyWith(profile: optimisticProfile, clearError: true);
     }
 
-    // ── Fire API call in background ──
-
-    // Try offline-first repository first if Isar is initialized
-    if (IsarDatabase.isInitialized) {
-      try {
-        final repo = _ref.read(offlineProfileRepositoryProvider);
-        final success = await repo.updateProfile(data);
-        if (success) {
-          // Reload profile to get the updated cached data
-          await loadProfile();
-          return true;
-        }
-      } catch (e) {
-        debugPrint('⚠️ Offline profile update failed, trying API: $e');
-      }
-    }
-
-    // Fallback to direct API call (original behavior)
+    // ── Update directly via Supabase ──────────────────────────────────
+    // The NestJS backend's PATCH /api/users/me endpoint currently rejects
+    // Supabase JWTs because Supabase has migrated to ES256 signing while
+    // the NestJS jwt.strategy.ts still uses HS256 verification. Rather than
+    // requiring a server redeploy, we update the User table directly via
+    // Supabase (which the Flutter client already has full RLS-authenticated
+    // access to). The User table's RLS policy allows each user to UPDATE
+    // their own row.
     try {
-      final response = await _dio.patch('/api/users/me', data: data);
-      final profile = ProfileModel.fromJson(
-        _extractUserData(response.data as Map<String, dynamic>),
-      );
-      state = state.copyWith(profile: profile);
+      final client = _ref.read(supabaseProvider);
+      if (client == null || client.auth.currentSession == null) {
+        throw Exception('No Supabase session');
+      }
+      final userId = client.auth.currentUser!.id;
+
+      // Build the update payload with the same field mappings as the
+      // NestJS backend (users.service.ts updateProfile).
+      final Map<String, dynamic> updateData = {};
+      if (data.containsKey('name')) {
+        updateData['name'] = (data['name'] as String).trim();
+      }
+      if (data.containsKey('phone')) {
+        final phone = (data['phone'] as String).trim();
+        updateData['phone'] = phone.isEmpty ? null : phone;
+      }
+      if (data.containsKey('username')) {
+        final username = (data['username'] as String).trim().toLowerCase();
+        updateData['username'] = username.isEmpty ? null : username;
+      }
+      if (data.containsKey('bio')) {
+        final bio = (data['bio'] as String).trim();
+        updateData['bio'] = bio.isEmpty ? null : bio;
+      }
+      if (data.containsKey('dateOfBirth')) {
+        final dob = data['dateOfBirth'] as String?;
+        updateData['dateOfBirth'] = dob != null ? DateTime.tryParse(dob)?.toUtc() : null;
+      }
+      if (data.containsKey('gender')) {
+        updateData['gender'] = (data['gender'] as String?)?.isNotEmpty == true
+            ? data['gender']
+            : null;
+      }
+      if (data.containsKey('avatarUrl')) {
+        updateData['avatarUrl'] = data['avatarUrl'];
+      }
+      if (data.containsKey('preferredLanguage')) {
+        updateData['preferredLanguage'] = data['preferredLanguage'];
+      }
+      if (data.containsKey('profileVisibility')) {
+        updateData['profileVisibility'] = data['profileVisibility'];
+      }
+      if (data.containsKey('invitePermission')) {
+        updateData['invitePermission'] = data['invitePermission'];
+      }
+      updateData['updatedAt'] = DateTime.now().toUtc().toIso8601String();
+
+      // Check for unique constraint on username BEFORE updating
+      if (updateData.containsKey('username') && updateData['username'] != null) {
+        final existing = await client
+            .from('User')
+            .select('id')
+            .eq('username', updateData['username'])
+            .neq('id', userId)
+            .limit(1);
+        if (existing != null && existing.isNotEmpty) {
+          throw Exception('Username "${updateData['username']}" is already taken');
+        }
+      }
+
+      await client.from('User').update(updateData).eq('id', userId);
+
+      // Reload profile from Supabase to get the persisted state
+      await loadProfile();
       return true;
-    } on DioException catch (e) {
-      // ── Rollback: restore previous profile on failure ──
-      final message =
-          e.response?.data?['message'] ??
-          e.message ??
-          'Failed to update profile';
-      state = state.copyWith(
-        profile: previousProfile,
-        error: message.toString(),
-      );
-      return false;
     } catch (e) {
-      // ── Rollback on any other error ──
+      // ── Rollback: restore previous profile on failure ──
+      debugPrint('⚠️ Supabase profile update failed: $e');
       state = state.copyWith(
         profile: previousProfile,
         error: e.toString(),

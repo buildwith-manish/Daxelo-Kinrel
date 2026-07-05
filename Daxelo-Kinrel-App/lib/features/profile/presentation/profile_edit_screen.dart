@@ -474,6 +474,28 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     return TextFormField(
       controller: _usernameController,
       focusNode: _usernameFocusNode,
+      validator: (value) {
+        // Username is mandatory — reject empty/whitespace-only.
+        if (value == null || value.trim().isEmpty) {
+          return 'Username is required';
+        }
+        // Reuse the existing UsernameValidator for format validation
+        // (3-30 chars, lowercase letters, numbers, underscores only).
+        final formatError = UsernameValidator.validate(value);
+        if (formatError != null) return formatError;
+        // Block save if the availability check says the username is taken.
+        // We read the current availability from the provider at validation
+        // time — this is safe because validator runs on form submit, by
+        // which point the debounce has completed.
+        final avail = ref.read(usernameProvider).availability;
+        if (avail == UsernameAvailability.taken) {
+          return 'This username is already taken';
+        }
+        if (avail == UsernameAvailability.checking) {
+          return 'Checking availability…';
+        }
+        return null;
+      },
       onChanged: (value) {
         _checkForChanges();
         if (value.isNotEmpty) {
@@ -489,7 +511,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
         color: _textPrimary,
       ),
       decoration: InputDecoration(
-        hintText: 'Choose a username',
+        hintText: 'Choose a username *',
         hintStyle: TextStyle(
           fontFamily: KinrelTypography.bodyFont,
           fontSize: 15,
@@ -848,8 +870,12 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
         });
         context.showSnackBar('Profile updated');
       } else {
+        // Surface the actual error from the provider (set by the Supabase
+        // update path's catch block). This includes unique-constraint
+        // violations, RLS denials, and network errors.
         final error =
             ref.read(profileProvider).error ?? 'Failed to update profile';
+        debugPrint('⚠️ Profile save failed: $error');
         // Try to map API errors to field-specific messages
         final fieldErrors = mapApiError(error);
         if (fieldErrors != null && fieldErrors.containsKey('form')) {
