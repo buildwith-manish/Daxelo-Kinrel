@@ -16,6 +16,7 @@ import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/pending_invites_section.dart';
+import '../shared/widgets/lobby_chat_panel.dart';
 import 'sos_models.dart';
 import 'sos_provider.dart';
 
@@ -333,6 +334,11 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
 
                   PendingInvitesSection(gameId: state.game!.id),
         const SizedBox(height: KinrelSpacing.md),
+            LobbyChatPanel(
+              gameTable: 'sos_games',
+              gameId: state.game!.id,
+              familyId: widget.familyId,
+            ),
         DKButton(
           label: isHost
               ? (canStart

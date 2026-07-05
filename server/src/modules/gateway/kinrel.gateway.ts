@@ -219,6 +219,93 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
+  // ── In-lobby chat / reactions ────────────────────────────────────────
+  // Ephemeral (not persisted). Broadcast to everyone in the game's chat room.
+
+  @SubscribeMessage('game:chat:join')
+  handleGameChatJoin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { gameTable: string; gameId: string },
+  ) {
+    const roomName = `game-chat:${data.gameTable}:${data.gameId}`;
+    client.join(roomName);
+    client.emit('game:chat:joined', { gameTable: data.gameTable, gameId: data.gameId });
+  }
+
+  @SubscribeMessage('game:chat:leave')
+  handleGameChatLeave(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { gameTable: string; gameId: string },
+  ) {
+    client.leave(`game-chat:${data.gameTable}:${data.gameId}`);
+  }
+
+  @SubscribeMessage('game:chat:message')
+  handleGameChatMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: {
+      gameTable: string;
+      gameId: string;
+      familyId: string;
+      type: string; // 'text' | 'emoji'
+      content: string;
+      senderName: string;
+      senderId: string;
+      isSpectator: boolean;
+      timestamp: string;
+    },
+  ) {
+    const roomName = `game-chat:${data.gameTable}:${data.gameId}`;
+    // Broadcast to everyone in the chat room (including sender for echo confirmation)
+    this.server.to(roomName).emit('game:chat:message', {
+      ...data,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // ── Spectator count tracking ─────────────────────────────────────────
+  // Players + spectators both join the game's spectator room. The server
+  // maintains a count of connected sockets per room and broadcasts updates.
+
+  @SubscribeMessage('game:spectator:join')
+  handleGameSpectatorJoin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: {
+      gameTable: string;
+      gameId: string;
+      familyId: string;
+      userId: string;
+      userName: string;
+    },
+  ) {
+    const roomName = `game-spectators:${data.gameTable}:${data.gameId}`;
+    client.join(roomName);
+    // Broadcast updated count to everyone in the room
+    const room = this.server.sockets.adapter.rooms.get(roomName);
+    const count = room ? room.size : 0;
+    this.server.to(roomName).emit('game:spectator:count', {
+      gameTable: data.gameTable,
+      gameId: data.gameId,
+      count,
+    });
+  }
+
+  @SubscribeMessage('game:spectator:leave')
+  handleGameSpectatorLeave(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { gameTable: string; gameId: string; userId: string },
+  ) {
+    const roomName = `game-spectators:${data.gameTable}:${data.gameId}`;
+    client.leave(roomName);
+    const room = this.server.sockets.adapter.rooms.get(roomName);
+    const count = room ? room.size : 0;
+    this.server.to(roomName).emit('game:spectator:count', {
+      gameTable: data.gameTable,
+      gameId: data.gameId,
+      count,
+    });
+  }
+
   /**
    * Emit a notification event to a specific user.
    * Finds all socket connections for the user and sends the event.

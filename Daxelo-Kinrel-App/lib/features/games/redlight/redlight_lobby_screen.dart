@@ -16,6 +16,7 @@ import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/pending_invites_section.dart';
+import '../shared/widgets/lobby_chat_panel.dart';
 import 'redlight_models.dart';
 import 'redlight_provider.dart';
 
@@ -343,6 +344,11 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
 
                   PendingInvitesSection(gameId: state.round!.id),
         const SizedBox(height: KinrelSpacing.md),
+            LobbyChatPanel(
+              gameTable: 'redlight_rounds',
+              gameId: state.round!.id,
+              familyId: widget.familyId,
+            ),
         DKButton(
           label: isHost
               ? (canStart ? 'Start Game' : 'Waiting for players…')

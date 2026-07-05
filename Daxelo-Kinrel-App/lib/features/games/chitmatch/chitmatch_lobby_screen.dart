@@ -16,6 +16,7 @@ import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/pending_invites_section.dart';
+import '../shared/widgets/lobby_chat_panel.dart';
 import 'chitmatch_models.dart';
 import 'chitmatch_provider.dart';
 
@@ -217,6 +218,11 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
         if (isHost) ...[
           PendingInvitesSection(gameId: state.game!.id),
           const SizedBox(height: KinrelSpacing.md),
+            LobbyChatPanel(
+              gameTable: 'chitmatch_games',
+              gameId: state.game!.id,
+              familyId: widget.familyId,
+            ),
           DKButton(
             label: canStart ? 'Start Setup (Submit Words)' : 'Need 4+ players',
             variant: DKButtonVariant.gradient, fullWidth: true,

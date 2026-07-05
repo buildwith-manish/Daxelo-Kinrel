@@ -39,6 +39,7 @@ import '../models/game_invite.dart';
 import '../models/game_invite_status.dart';
 import '../providers/game_invite_status_provider.dart';
 import 'invite_status_badge.dart';
+import 'recent_players_section.dart';
 
 /// Invite scope selected by the host at the top of the sheet.
 enum _InviteMode { specific, entire }
@@ -815,6 +816,17 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
           padding: const EdgeInsets.fromLTRB(
               KinrelSpacing.lg, KinrelSpacing.md, KinrelSpacing.lg, 90),
           children: [
+            // ── Recently Played With ──────────────────────────────────
+            // Auto-hides when there are no recent playmates (first-time users).
+            RecentPlayersSection(
+              familyId: widget.familyId,
+              gameType: widget.gameType,
+              gameId: widget.gameId,
+              roomCode: widget.roomCode,
+              maxPlayers: widget.maxPlayers,
+              currentPlayers: widget.currentPlayers,
+              currentPlayerIds: widget.currentPlayerIds,
+            ),
             if (_selectedUserIds.isEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: KinrelSpacing.sm),

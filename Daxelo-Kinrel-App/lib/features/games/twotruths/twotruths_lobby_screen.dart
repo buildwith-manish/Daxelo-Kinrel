@@ -11,6 +11,7 @@ import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/pending_invites_section.dart';
+import '../shared/widgets/lobby_chat_panel.dart';
 import 'twotruths_models.dart';
 import 'twotruths_provider.dart';
 
@@ -141,6 +142,11 @@ class _TtLobbyScreenState extends ConsumerState<TtLobbyScreen> {
       const SizedBox(height: 20),
       PendingInvitesSection(gameId: state.game!.id),
       const SizedBox(height: KinrelSpacing.md),
+            LobbyChatPanel(
+              gameTable: 'twotruths_games',
+              gameId: state.game!.id,
+              familyId: widget.familyId,
+            ),
       if (isHost) DKButton(label: canStart ? 'Start Game' : 'Need 4+ players', variant: DKButtonVariant.gradient, fullWidth: true, onPressed: canStart ? () => ref.read(ttProvider(widget.familyId).notifier).startGame() : null)
       else Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: KinrelColors.border)),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange)), const SizedBox(width: 8), Text('Waiting for host...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim))])),

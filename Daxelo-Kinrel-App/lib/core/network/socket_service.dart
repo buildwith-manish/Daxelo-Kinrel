@@ -438,6 +438,131 @@ class SocketService {
         debugPrint('[SocketService] Error handling game:invite:declined: $e');
       }
     });
+
+    // ── In-lobby chat / reactions ──────────────────────────────────────
+    // Ephemeral (not persisted). Scoped to the lobby's room code.
+    socket.on('game:chat:message', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _gameChatMessageCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] Error handling game:chat:message: $e');
+      }
+    });
+
+    // ── Spectator count updates ────────────────────────────────────────
+    socket.on('game:spectator:count', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _gameSpectatorCountCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] Error handling game:spectator:count: $e');
+      }
+    });
+  }
+
+  // ── In-lobby chat / reactions API ────────────────────────────────────
+
+  final Set<void Function(Map<String, dynamic>)> _gameChatMessageCallbacks = {};
+
+  /// Subscribe to lobby chat messages. Returns an unsubscribe fn.
+  VoidCallback onGameChatMessage(
+      void Function(Map<String, dynamic>) callback) {
+    _gameChatMessageCallbacks.add(callback);
+    return () => _gameChatMessageCallbacks.remove(callback);
+  }
+
+  /// Join a game's lobby chat room (so you receive messages for that room).
+  void joinGameChatRoom({required String gameTable, required String gameId}) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('game:chat:join', {'gameTable': gameTable, 'gameId': gameId});
+  }
+
+  /// Leave a game's lobby chat room.
+  void leaveGameChatRoom({required String gameTable, required String gameId}) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('game:chat:leave', {'gameTable': gameTable, 'gameId': gameId});
+  }
+
+  /// Send a chat message or emoji reaction to a game's lobby.
+  /// [type] is 'text' or 'emoji'. For emoji, [content] is the emoji char.
+  Future<void> sendGameChatMessage({
+    required String gameTable,
+    required String gameId,
+    required String familyId,
+    required String type, // 'text' | 'emoji'
+    required String content,
+    String? senderName,
+    bool isSpectator = false,
+  }) async {
+    final socket = _socket;
+    if (socket == null || !socket.connected) {
+      throw StateError('Socket not connected');
+    }
+    socket.emit('game:chat:message', {
+      'gameTable': gameTable,
+      'gameId': gameId,
+      'familyId': familyId,
+      'type': type,
+      'content': content,
+      'senderName': senderName ?? 'Family member',
+      'senderId': _ref.read(supabaseProvider)?.auth.currentUser?.id ?? '',
+      'isSpectator': isSpectator,
+      'timestamp': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
+  // ── Spectator count API ──────────────────────────────────────────────
+
+  final Set<void Function(Map<String, dynamic>)> _gameSpectatorCountCallbacks =
+      {};
+
+  /// Subscribe to spectator count updates for a game room.
+  VoidCallback onGameSpectatorCount(
+      void Function(Map<String, dynamic>) callback) {
+    _gameSpectatorCountCallbacks.add(callback);
+    return () => _gameSpectatorCountCallbacks.remove(callback);
+  }
+
+  /// Announce that you've joined a game as a spectator (increments the
+  /// visible count for all players/spectators in that room).
+  Future<void> joinGameAsSpectator({
+    required String gameTable,
+    required String gameId,
+    required String familyId,
+    required String userId,
+    required String userName,
+  }) async {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('game:spectator:join', {
+      'gameTable': gameTable,
+      'gameId': gameId,
+      'familyId': familyId,
+      'userId': userId,
+      'userName': userName,
+    });
+  }
+
+  /// Announce that you've left a game as a spectator.
+  Future<void> leaveGameSpectator({
+    required String gameTable,
+    required String gameId,
+    required String userId,
+  }) async {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('game:spectator:leave', {
+      'gameTable': gameTable,
+      'gameId': gameId,
+      'userId': userId,
+    });
   }
 
   // ── Game invite API ────────────────────────────────────────────────
