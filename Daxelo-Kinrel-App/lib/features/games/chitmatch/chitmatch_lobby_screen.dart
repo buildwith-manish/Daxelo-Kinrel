@@ -214,15 +214,15 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
         const SizedBox(height: KinrelSpacing.sm),
         ...state.players.map((p) => _playerTile(p, game.hostUserId)),
         const SizedBox(height: KinrelSpacing.xl),
-        if (isHost)
-                    PendingInvitesSection(gameId: state.game!.id),
-        const SizedBox(height: KinrelSpacing.md),
-        DKButton(
+        if (isHost) ...[
+          PendingInvitesSection(gameId: state.game!.id),
+          const SizedBox(height: KinrelSpacing.md),
+          DKButton(
             label: canStart ? 'Start Setup (Submit Words)' : 'Need 4+ players',
             variant: DKButtonVariant.gradient, fullWidth: true,
             onPressed: canStart ? _startSetup : null,
           )
-        else
+        ] else
           _waitingIndicator(),
       ],
     );

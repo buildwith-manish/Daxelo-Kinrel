@@ -187,11 +187,11 @@ class _NameplaceLobbyScreenState extends ConsumerState<NameplaceLobbyScreen> {
         ]),
       )),
       const SizedBox(height: KinrelSpacing.xl),
-      if (isHost)
-                  PendingInvitesSection(gameId: state.game!.id),
+      if (isHost) ...[
+        PendingInvitesSection(gameId: state.game!.id),
         const SizedBox(height: KinrelSpacing.md),
         DKButton(label: canStart ? 'Start Game' : 'Need 2+ players', variant: DKButtonVariant.gradient, fullWidth: true, onPressed: canStart ? () => ref.read(nameplaceProvider(widget.familyId).notifier).startGame() : null)
-      else
+      ] else
         Container(padding: const EdgeInsets.all(KinrelSpacing.lg), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(KinrelRadius.lg), border: Border.all(color: KinrelColors.border)),
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange)),
