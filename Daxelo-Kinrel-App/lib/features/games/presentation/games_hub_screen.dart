@@ -37,6 +37,7 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
       ref.read(gameDownloadStatusProvider('nameplace').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('tictactoe').notifier).checkStatus();
       ref.read(gameDownloadStatusProvider('truthordare').notifier).checkStatus();
+      ref.read(gameDownloadStatusProvider('twotruths').notifier).checkStatus();
     });
   }
 
@@ -194,6 +195,17 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
           familyId: widget.familyId,
           onPlay: (context, familyId) =>
               context.push('/family/$familyId/truthordare/lobby'),
+        ),
+        _GameCatalogCard(
+          gameId: 'twotruths',
+          name: 'Two Truths and a Lie',
+          description: 'Fool your family — 2 truths, 1 lie!',
+          icon: Icons.psychology,
+          color: const Color(0xFFD946EF),  // fuchsia
+          sizeEstimate: '~1 MB',
+          familyId: widget.familyId,
+          onPlay: (context, familyId) =>
+              context.push('/family/$familyId/twotruths/lobby'),
         ),
       ]),
     );

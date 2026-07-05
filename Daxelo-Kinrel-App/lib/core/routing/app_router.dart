@@ -105,6 +105,10 @@ import '../../features/games/truthordare/truthordare_lobby_screen.dart';
 import '../../features/games/truthordare/truthordare_table_screen.dart';
 import '../../features/games/truthordare/truthordare_submit_screen.dart';
 import '../../features/games/truthordare/truthordare_review_screen.dart';
+import '../../features/games/twotruths/twotruths_lobby_screen.dart';
+import '../../features/games/twotruths/twotruths_submit_screen.dart';
+import '../../features/games/twotruths/twotruths_guess_screen.dart';
+import '../../features/games/twotruths/twotruths_results_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
@@ -1165,6 +1169,45 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: TodReviewScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+
+      // ── Two Truths and a Lie Game ──────────────────────────────────
+      GoRoute(
+        path: '/family/:id/twotruths/lobby',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: TtLobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/twotruths/submit/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: TtSubmitScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/twotruths/guess/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: TtGuessScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/twotruths/results/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: TtResultsScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
         ),
       ),
 
