@@ -439,3 +439,4 @@ class BackgroundRefreshNotifier extends StateNotifier<AsyncValue<void>> {
     _ref.invalidate(familyMembershipsProvider(familyId));
   }
 }
+// Force rebuild for asset bundling
