@@ -133,6 +133,7 @@ class GameInviteState {
   final Map<String, InviteRecord> invites;
 
   bool get isEmpty => invites.isEmpty;
+  bool get isNotEmpty => invites.isNotEmpty;
   int get length => invites.length;
 
   InviteRecord? operator [](String userId) => invites[userId];

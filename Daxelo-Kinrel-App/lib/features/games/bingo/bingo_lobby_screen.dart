@@ -311,8 +311,7 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
         _playerList(state),
         const SizedBox(height: KinrelSpacing.xl),
 
-        if (hasGame)
-          PendingInvitesSection(gameId: state.game!.id),
+                  PendingInvitesSection(gameId: state.game!.id),
         const SizedBox(height: KinrelSpacing.md),
         DKButton(
           label: isHost

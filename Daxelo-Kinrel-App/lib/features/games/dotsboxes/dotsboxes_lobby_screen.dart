@@ -141,8 +141,7 @@ class _DotsboxesLobbyScreenState extends ConsumerState<DotsboxesLobbyScreen> {
           ]));
       }),
       const SizedBox(height: 20),
-      if (hasGame)
-          PendingInvitesSection(gameId: state.game!.id),
+                PendingInvitesSection(gameId: state.game!.id),
         const SizedBox(height: KinrelSpacing.md),
         if (isHost) DKButton(label: canStart ? 'Start Game' : 'Need 2+ players', variant: DKButtonVariant.gradient, fullWidth: true, onPressed: canStart ? () => ref.read(dbProvider(widget.familyId).notifier).startGame() : null)
       else Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: KinrelColors.border)),

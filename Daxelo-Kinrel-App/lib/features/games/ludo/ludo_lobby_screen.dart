@@ -295,8 +295,7 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
         ...state.players.map((p) => _playerTile(p, state.game?.hostUserId)),
         const SizedBox(height: KinrelSpacing.xl),
 
-        if (hasGame)
-          PendingInvitesSection(gameId: state.game!.id),
+                  PendingInvitesSection(gameId: state.game!.id),
         const SizedBox(height: KinrelSpacing.md),
         DKButton(
           label: isHost

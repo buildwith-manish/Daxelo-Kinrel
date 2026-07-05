@@ -139,8 +139,7 @@ class _TtLobbyScreenState extends ConsumerState<TtLobbyScreen> {
           Expanded(child: Text(p.userId == ref.read(supabaseProvider)?.auth.currentUser?.id ? '${p.userName} (You)' : p.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
           if (p.userId == game.hostUserId) Text('👑', style: TextStyle(fontSize: 14))]))),
       const SizedBox(height: 20),
-      if (hasGame)
-          PendingInvitesSection(gameId: state.game!.id),
+                PendingInvitesSection(gameId: state.game!.id),
         const SizedBox(height: KinrelSpacing.md),
         if (isHost) DKButton(label: canStart ? 'Start Game' : 'Need 4+ players', variant: DKButtonVariant.gradient, fullWidth: true, onPressed: canStart ? () => ref.read(ttProvider(widget.familyId).notifier).startGame() : null)
       else Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: KinrelColors.border)),

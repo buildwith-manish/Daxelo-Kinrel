@@ -341,8 +341,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
         if (state.isCountdown)
           _countdownBanner(state.countdownSeconds),
 
-        if (hasRound)
-          PendingInvitesSection(gameId: state.round!.id),
+                  PendingInvitesSection(gameId: state.round!.id),
         const SizedBox(height: KinrelSpacing.md),
         DKButton(
           label: isHost

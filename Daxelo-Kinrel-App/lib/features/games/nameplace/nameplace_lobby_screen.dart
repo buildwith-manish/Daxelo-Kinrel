@@ -188,8 +188,7 @@ class _NameplaceLobbyScreenState extends ConsumerState<NameplaceLobbyScreen> {
       )),
       const SizedBox(height: KinrelSpacing.xl),
       if (isHost)
-        if (hasGame)
-          PendingInvitesSection(gameId: state.game!.id),
+                  PendingInvitesSection(gameId: state.game!.id),
         const SizedBox(height: KinrelSpacing.md),
         DKButton(label: canStart ? 'Start Game' : 'Need 2+ players', variant: DKButtonVariant.gradient, fullWidth: true, onPressed: canStart ? () => ref.read(nameplaceProvider(widget.familyId).notifier).startGame() : null)
       else
