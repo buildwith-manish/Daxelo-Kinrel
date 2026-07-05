@@ -1,16 +1,30 @@
 // lib/features/games/shared/widgets/invite_family_sheet.dart
 //
-// Shared bottom sheet that lists a family's "Find on Kinrel"-linked
-// members (i.e. Person rows with linkedUserId != NULL) and lets the
-// host of a game lobby send them a real-time invite to join the room.
+// Shared bottom sheet for inviting family members to a game room.
+// Supports two invite modes (per spec):
 //
-// Used by all 14 game lobby screens — see usage examples at the bottom.
+//   1. "Invite Specific Members" (default)
+//      - List of Find-on-Kinrel-linked family members.
+//      - Each row has a single-tap "Invite" button (instant send).
+//      - OR multi-select via checkboxes + "Send N invites" button at bottom.
+//      - Per-member status badges (Pending / Accepted / Declined / Expired).
 //
-// Edge cases handled:
+//   2. "Invite Entire Family Space"
+//      - One-click bulk send to ALL linked family members.
+//      - Confirmation dialog: "Invite all N family members to [Game]?"
+//      - Sends invites simultaneously; first-come-first-served for room slots.
+//
+// Edge cases handled (per spec):
 //   • Empty family-linked list → "No linked family members yet" empty state.
-//   • Room full (currentPlayers >= maxPlayers) → Invite buttons disabled.
-//   • User already in the room → "In room" badge instead of Invite button.
+//   • Room full (currentPlayers >= maxPlayers) → Invite buttons disabled,
+//     banner explains why.
+//   • User already in room → "In room" badge instead of Invite button.
 //   • Self excluded automatically by the RPC.
+//   • Bulk invite exceeds remaining slots → all invites still sent, with a
+//     "first-come, first-served" note.
+//   • Status tracking via gameInviteStatusProvider — every invite is marked
+//     'pending' on send, then 'accepted' / 'declined' / 'expired' as
+//     responses arrive.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +36,12 @@ import '../../../../core/network/socket_service.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../family/presentation/add_member_source.dart';
 import '../models/game_invite.dart';
+import '../models/game_invite_status.dart';
+import '../providers/game_invite_status_provider.dart';
+import 'invite_status_badge.dart';
+
+/// Invite scope selected by the host at the top of the sheet.
+enum _InviteMode { specific, entire }
 
 /// A single linked family member returned by `fn_get_linked_family_members`.
 class _LinkedMember {
@@ -105,8 +125,20 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
   List<_LinkedMember> _members = [];
   bool _loading = true;
   String? _error;
-  final Set<String> _sendingTo = {}; // user IDs currently being invited
-  final Set<String> _sentTo = {}; // user IDs already invited this session
+
+  /// Current invite mode (specific vs entire). Defaults to specific.
+  _InviteMode _mode = _InviteMode.specific;
+
+  /// Multi-select state for "Specific Members" mode.
+  /// Empty = single-tap mode (each row has its own Invite button).
+  /// Non-empty = multi-select mode (rows show checkboxes; bottom button sends all).
+  final Set<String> _selectedUserIds = {};
+
+  /// User IDs currently being invited (showing spinner).
+  final Set<String> _sendingTo = {};
+
+  /// Bulk-send in progress (Entire Family Space mode).
+  bool _bulkSending = false;
 
   @override
   void initState() {
@@ -156,8 +188,38 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
     }
   }
 
-  bool get _isRoomFull => widget.currentPlayers >= widget.maxPlayers;
+  bool get _isRoomFull =>
+      widget.currentPlayers >= widget.maxPlayers;
+  int get _remainingSlots =>
+      (widget.maxPlayers - widget.currentPlayers).clamp(0, widget.maxPlayers);
 
+  /// Build a [GameInvite] instance for one recipient.
+  GameInvite _buildInvite() {
+    final client = ref.read(supabaseProvider);
+    final myId = client?.auth.currentUser?.id ?? '';
+    final myName =
+        (client?.auth.currentUser?.userMetadata?['name'] as String?) ??
+            client?.auth.currentUser?.email ??
+            'A family member';
+    return GameInvite(
+      inviteId:
+          'inv_${DateTime.now().millisecondsSinceEpoch}_${myId.substring(0, 8)}',
+      gameType: widget.gameType,
+      gameId: widget.gameId,
+      roomCode: widget.roomCode,
+      familyId: widget.familyId,
+      fromUserId: myId,
+      fromName: myName,
+      maxPlayers: widget.maxPlayers,
+      currentPlayers: widget.currentPlayers,
+      message: widget.message ??
+          '$myName invited you to join ${widget.gameType.displayName}',
+      timestamp: DateTime.now().toUtc(),
+    );
+  }
+
+  /// Send a single invite to one member and mark them as 'pending' in the
+  /// status provider. Single-tap path.
   Future<void> _sendInvite(_LinkedMember m) async {
     if (_sendingTo.contains(m.user.id)) return;
     if (_isRoomFull) return;
@@ -166,39 +228,34 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
     setState(() => _sendingTo.add(m.user.id));
 
     final socket = ref.read(socketServiceProvider);
-    final client = ref.read(supabaseProvider);
-    final myId = client?.auth.currentUser?.id;
-    final myName =
-        (client?.auth.currentUser?.userMetadata?['name'] as String?) ??
-        client?.auth.currentUser?.email ??
-        'A family member';
-
+    final base = _buildInvite();
     final invite = GameInvite(
       inviteId:
           'inv_${DateTime.now().millisecondsSinceEpoch}_${m.user.id.substring(0, 8)}',
-      gameType: widget.gameType,
-      gameId: widget.gameId,
-      roomCode: widget.roomCode,
-      familyId: widget.familyId,
-      fromUserId: myId ?? '',
-      fromName: myName,
-      maxPlayers: widget.maxPlayers,
-      currentPlayers: widget.currentPlayers,
-      message: widget.message ??
-          '$myName invited you to join ${widget.gameType.displayName}',
+      gameType: base.gameType,
+      gameId: base.gameId,
+      roomCode: base.roomCode,
+      familyId: base.familyId,
+      fromUserId: base.fromUserId,
+      fromName: base.fromName,
+      maxPlayers: base.maxPlayers,
+      currentPlayers: base.currentPlayers,
+      message: base.message,
       timestamp: DateTime.now().toUtc(),
     );
 
     try {
-      await socket.sendGameInvite(
-        toUserId: m.user.id,
-        invite: invite,
-      );
+      await socket.sendGameInvite(toUserId: m.user.id, invite: invite);
+      // Mark pending in the per-gameId status tracker.
+      ref.read(gameInviteStatusProvider(widget.gameId).notifier).markPending(
+            userId: m.user.id,
+            name: m.user.name,
+            username: m.user.username,
+            avatarUrl: m.user.avatarUrl,
+            photoThumb: m.user.photoThumb,
+          );
       if (!mounted) return;
-      setState(() {
-        _sendingTo.remove(m.user.id);
-        _sentTo.add(m.user.id);
-      });
+      setState(() => _sendingTo.remove(m.user.id));
       widget.onInviteSent?.call();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -223,8 +280,237 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
     }
   }
 
+  /// Send invites to all selected members (multi-select path).
+  Future<void> _sendSelectedInvites() async {
+    if (_selectedUserIds.isEmpty) return;
+    final selected = _members
+        .where((m) => _selectedUserIds.contains(m.user.id))
+        .toList();
+    setState(() {
+      for (final m in selected) {
+        _sendingTo.add(m.user.id);
+      }
+    });
+
+    final socket = ref.read(socketServiceProvider);
+    final base = _buildInvite();
+    int sent = 0;
+    final records = <InviteRecord>[];
+
+    for (final m in selected) {
+      final invite = GameInvite(
+        inviteId:
+            'inv_${DateTime.now().millisecondsSinceEpoch}_${m.user.id.substring(0, 8)}',
+        gameType: base.gameType,
+        gameId: base.gameId,
+        roomCode: base.roomCode,
+        familyId: base.familyId,
+        fromUserId: base.fromUserId,
+        fromName: base.fromName,
+        maxPlayers: base.maxPlayers,
+        currentPlayers: base.currentPlayers,
+        message: base.message,
+        timestamp: DateTime.now().toUtc(),
+      );
+      try {
+        await socket.sendGameInvite(toUserId: m.user.id, invite: invite);
+        records.add(InviteRecord(
+          userId: m.user.id,
+          name: m.user.name,
+          username: m.user.username,
+          avatarUrl: m.user.avatarUrl,
+          photoThumb: m.user.photoThumb,
+          status: InviteMemberStatus.pending,
+          sentAt: DateTime.now(),
+        ));
+        sent++;
+      } catch (_) {
+        // best-effort — keep going for the rest
+      }
+    }
+
+    if (records.isNotEmpty) {
+      ref
+          .read(gameInviteStatusProvider(widget.gameId).notifier)
+          .markManyPending(records);
+    }
+
+    if (!mounted) return;
+    setState(() {
+      for (final m in selected) {
+        _sendingTo.remove(m.user.id);
+      }
+      _selectedUserIds.clear();
+    });
+    widget.onInviteSent?.call();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$sent invite${sent == 1 ? '' : 's'} sent'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: KinrelColors.darkElevated,
+        ),
+      );
+    }
+  }
+
+  /// Send invites to ALL linked family members at once.
+  /// Caller must already have shown the confirmation dialog.
+  Future<void> _sendBulkInvites() async {
+    final eligible = _members
+        .where((m) =>
+            !widget.currentPlayerIds.contains(m.user.id) &&
+            !_isRoomFull)
+        .toList();
+    if (eligible.isEmpty) return;
+
+    setState(() => _bulkSending = true);
+
+    final socket = ref.read(socketServiceProvider);
+    final base = _buildInvite();
+    int sent = 0;
+    final records = <InviteRecord>[];
+
+    for (final m in eligible) {
+      final invite = GameInvite(
+        inviteId:
+            'inv_${DateTime.now().millisecondsSinceEpoch}_${m.user.id.substring(0, 8)}',
+        gameType: base.gameType,
+        gameId: base.gameId,
+        roomCode: base.roomCode,
+        familyId: base.familyId,
+        fromUserId: base.fromUserId,
+        fromName: base.fromName,
+        maxPlayers: base.maxPlayers,
+        currentPlayers: base.currentPlayers,
+        message: base.message,
+        timestamp: DateTime.now().toUtc(),
+      );
+      try {
+        await socket.sendGameInvite(toUserId: m.user.id, invite: invite);
+        records.add(InviteRecord(
+          userId: m.user.id,
+          name: m.user.name,
+          username: m.user.username,
+          avatarUrl: m.user.avatarUrl,
+          photoThumb: m.user.photoThumb,
+          status: InviteMemberStatus.pending,
+          sentAt: DateTime.now(),
+        ));
+        sent++;
+      } catch (_) {
+        // best-effort — keep going
+      }
+    }
+
+    if (records.isNotEmpty) {
+      ref
+          .read(gameInviteStatusProvider(widget.gameId).notifier)
+          .markManyPending(records);
+    }
+
+    if (!mounted) return;
+    setState(() => _bulkSending = false);
+    widget.onInviteSent?.call();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '$sent invite${sent == 1 ? '' : 's'} sent to ${widget.gameType.displayName}',
+          ),
+          duration: const Duration(seconds: 3),
+          backgroundColor: KinrelColors.darkElevated,
+        ),
+      );
+      Navigator.of(context).pop();
+    }
+  }
+
+  /// Show the "Invite all N members?" confirmation dialog before bulk send.
+  Future<void> _confirmBulkInvite() async {
+    final eligible = _members
+        .where((m) =>
+            !widget.currentPlayerIds.contains(m.user.id) &&
+            !_isRoomFull)
+        .toList();
+    if (eligible.isEmpty) return;
+
+    final spotsNote = eligible.length > _remainingSlots
+        ? '\n\nOnly $_remainingSlots spot${_remainingSlots == 1 ? '' : 's'} '
+            'available — invites are first-come, first-served.'
+        : '';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: KinrelColors.darkCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(KinrelRadius.lg),
+        ),
+        title: Text(
+          'Invite entire family space?',
+          style: TextStyle(
+            fontFamily: KinrelTypography.displayFont,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: KinrelColors.textWhite,
+          ),
+        ),
+        content: Text(
+          'Invite all ${eligible.length} linked family member'
+          '${eligible.length == 1 ? '' : 's'} to ${widget.gameType.displayName}?$spotsNote',
+          style: TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 13,
+            color: KinrelColors.textWhite,
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                color: KinrelColors.textDim,
+              ),
+            ),
+          ),
+          Material(
+            color: KinrelColors.orange,
+            borderRadius: BorderRadius.circular(KinrelRadius.sm),
+            child: InkWell(
+              onTap: () => Navigator.of(ctx).pop(true),
+              borderRadius: BorderRadius.circular(KinrelRadius.sm),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                child: Text(
+                  'Invite all ${eligible.length}',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _sendBulkInvites();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final inviteStatus = ref.watch(gameInviteStatusProvider(widget.gameId));
+
     final roomFullBanner = _isRoomFull
         ? Container(
             width: double.infinity,
@@ -262,61 +548,142 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
         ),
         child: Column(
           children: [
-            // ── Header ──────────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.fromLTRB(
-                  KinrelSpacing.xl, KinrelSpacing.md, KinrelSpacing.xl, KinrelSpacing.md),
-              decoration: const BoxDecoration(
-                border: Border(
-                    bottom: BorderSide(color: KinrelColors.border, width: 1)),
-              ),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Center(
-                  child: Container(
-                    width: 40, height: 4,
-                    margin: const EdgeInsets.only(bottom: KinrelSpacing.md),
-                    decoration: BoxDecoration(
-                      color: KinrelColors.darkElevated,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                Row(children: [
-                  Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(
-                        'Invite Family to ${widget.gameType.displayName}',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.displayFont,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: KinrelColors.textWhite,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Linked Kinrel members only · Room ${widget.roomCode}',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 11,
-                          color: KinrelColors.textDim,
-                        ),
-                      ),
-                    ]),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: KinrelColors.textDim, size: 20),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ]),
-              ]),
-            ),
-            // ── Room-full banner ────────────────────────────────────
+            _buildHeader(),
+            _buildModeSelector(),
             roomFullBanner,
-            // ── Body ────────────────────────────────────────────────
             Expanded(
-              child: _buildBody(scrollController),
+              child: _buildBody(scrollController, inviteStatus),
+            ),
+            if (_mode == _InviteMode.specific && _selectedUserIds.isNotEmpty)
+              _buildMultiSelectBar(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+          KinrelSpacing.xl, KinrelSpacing.md, KinrelSpacing.xl, KinrelSpacing.md),
+      decoration: const BoxDecoration(
+        border: Border(
+            bottom: BorderSide(color: KinrelColors.border, width: 1)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Center(
+          child: Container(
+            width: 40, height: 4,
+            margin: const EdgeInsets.only(bottom: KinrelSpacing.md),
+            decoration: BoxDecoration(
+              color: KinrelColors.darkElevated,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+        Row(children: [
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                'Invite Family to ${widget.gameType.displayName}',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Room ${widget.roomCode} · ${widget.currentPlayers}/${widget.maxPlayers} players',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 11,
+                  color: KinrelColors.textDim,
+                ),
+              ),
+            ]),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, color: KinrelColors.textDim, size: 20),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ]),
+      ]),
+    );
+  }
+
+  /// Segmented control for choosing between the two invite modes.
+  Widget _buildModeSelector() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+          KinrelSpacing.lg, KinrelSpacing.md, KinrelSpacing.lg, 0),
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkSurface,
+        borderRadius: BorderRadius.circular(KinrelRadius.md),
+        border: Border.all(color: KinrelColors.border, width: 1),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _modeSegment(
+              label: 'Specific Members',
+              icon: Icons.person_outline,
+              selected: _mode == _InviteMode.specific,
+              onTap: () => setState(() {
+                _mode = _InviteMode.specific;
+                _selectedUserIds.clear();
+              }),
+            ),
+          ),
+          Expanded(
+            child: _modeSegment(
+              label: 'Entire Family',
+              icon: Icons.groups_outlined,
+              selected: _mode == _InviteMode.entire,
+              onTap: () => setState(() {
+                _mode = _InviteMode.entire;
+                _selectedUserIds.clear();
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _modeSegment({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? KinrelColors.orange : Colors.transparent,
+          borderRadius: BorderRadius.circular(KinrelRadius.sm),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon,
+                size: 14,
+                color: selected ? KinrelColors.textWhite : KinrelColors.textDim),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: selected ? KinrelColors.textWhite : KinrelColors.textDim,
+              ),
             ),
           ],
         ),
@@ -324,7 +691,8 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
     );
   }
 
-  Widget _buildBody(ScrollController scrollController) {
+  Widget _buildBody(
+      ScrollController scrollController, GameInviteState inviteStatus) {
     if (_loading) {
       return const Center(
         child: CircularProgressIndicator(color: KinrelColors.orange),
@@ -378,13 +746,12 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
     if (_members.isEmpty) {
       return _buildEmptyState();
     }
-    return ListView.builder(
-      controller: scrollController,
-      padding: const EdgeInsets.symmetric(
-          horizontal: KinrelSpacing.lg, vertical: KinrelSpacing.md),
-      itemCount: _members.length,
-      itemBuilder: (context, i) => _buildMemberTile(_members[i]),
-    );
+    switch (_mode) {
+      case _InviteMode.specific:
+        return _buildSpecificList(scrollController, inviteStatus);
+      case _InviteMode.entire:
+        return _buildEntireFamilyView(inviteStatus);
+    }
   }
 
   Widget _buildEmptyState() {
@@ -432,12 +799,82 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
     );
   }
 
-  Widget _buildMemberTile(_LinkedMember m) {
-    final isInRoom = widget.currentPlayerIds.contains(m.user.id);
-    final alreadyInvited = _sentTo.contains(m.user.id);
-    final isSending = _sendingTo.contains(m.user.id);
-    final disabled = _isRoomFull || isInRoom;
+  // ── Specific Members mode ────────────────────────────────────────────
 
+  Widget _buildSpecificList(
+      ScrollController scrollController, GameInviteState inviteStatus) {
+    // Compute "selection full" state — can't multi-select more than remaining
+    // slots (existing players in room + selected invites can't exceed max).
+    final selectionFull =
+        _selectedUserIds.length >= _remainingSlots && _remainingSlots > 0;
+
+    return Stack(
+      children: [
+        ListView(
+          controller: scrollController,
+          padding: const EdgeInsets.fromLTRB(
+              KinrelSpacing.lg, KinrelSpacing.md, KinrelSpacing.lg, 90),
+          children: [
+            if (_selectedUserIds.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: KinrelSpacing.sm),
+                child: Row(
+                  children: [
+                    Text(
+                      'Tap Invite for one, or long-press a row to multi-select.',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 10,
+                        color: KinrelColors.textDim,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (selectionFull)
+              Padding(
+                padding: const EdgeInsets.only(bottom: KinrelSpacing.sm),
+                child: Text(
+                  'Only $_remainingSlots spot${_remainingSlots == 1 ? '' : 's'} '
+                  'open — unselect someone to add more.',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 10,
+                    color: KinrelColors.orange,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            ..._members.map((m) {
+              final isSelected = _selectedUserIds.contains(m.user.id);
+              final status = inviteStatus[m.user.id]?.status;
+              return _buildMemberTile(
+                m,
+                isSelected: isSelected,
+                status: status,
+                selectionFull: selectionFull,
+              );
+            }),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMemberTile(
+    _LinkedMember m, {
+    required bool isSelected,
+    required InviteMemberStatus? status,
+    required bool selectionFull,
+  }) {
+    final isInRoom = widget.currentPlayerIds.contains(m.user.id);
+    final isSending = _sendingTo.contains(m.user.id);
+    final multiSelectActive = _selectedUserIds.isNotEmpty;
+    final disabled = _isRoomFull || isInRoom;
+    final canSelect = !disabled && (!selectionFull || isSelected);
+
+    // Single-tap Invite button label & color
     String buttonLabel;
     Color? buttonColor;
     VoidCallback? onPressed;
@@ -445,10 +882,6 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
       buttonLabel = 'In room';
       buttonColor = KinrelColors.darkElevated;
       onPressed = null;
-    } else if (alreadyInvited) {
-      buttonLabel = 'Sent';
-      buttonColor = KinrelColors.darkElevated;
-      onPressed = () => _sendInvite(m); // allow re-invite
     } else if (_isRoomFull) {
       buttonLabel = 'Full';
       buttonColor = KinrelColors.darkElevated;
@@ -463,91 +896,406 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
       onPressed = () => _sendInvite(m);
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: KinrelSpacing.sm),
-      padding: const EdgeInsets.all(KinrelSpacing.md),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkSurface,
-        borderRadius: BorderRadius.circular(KinrelRadius.md),
-        border: Border.all(color: KinrelColors.border, width: 1),
+    return GestureDetector(
+      onLongPress: disabled
+          ? null
+          : () {
+              // Enter multi-select mode
+              if (canSelect) {
+                setState(() {
+                  if (isSelected) {
+                    _selectedUserIds.remove(m.user.id);
+                  } else {
+                    _selectedUserIds.add(m.user.id);
+                  }
+                });
+              }
+            },
+      onTap: multiSelectActive
+          ? () {
+              if (canSelect) {
+                setState(() {
+                  if (isSelected) {
+                    _selectedUserIds.remove(m.user.id);
+                  } else {
+                    _selectedUserIds.add(m.user.id);
+                  }
+                });
+              }
+            }
+          : null,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: KinrelSpacing.sm),
+        padding: const EdgeInsets.all(KinrelSpacing.md),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? KinrelColors.orange.withValues(alpha: 0.08)
+              : KinrelColors.darkSurface,
+          borderRadius: BorderRadius.circular(KinrelRadius.md),
+          border: Border.all(
+            color: isSelected ? KinrelColors.orange : KinrelColors.border,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(children: [
+          // Checkbox or radio indicator (only in multi-select mode)
+          if (multiSelectActive)
+            Padding(
+              padding: const EdgeInsets.only(right: KinrelSpacing.sm),
+              child: Icon(
+                isSelected
+                    ? Icons.check_circle
+                    : (canSelect ? Icons.radio_button_unchecked : Icons.block),
+                size: 18,
+                color: isSelected
+                    ? KinrelColors.orange
+                    : (canSelect ? KinrelColors.textDim : KinrelColors.darkElevated),
+              ),
+            ),
+          _buildAvatar(m.user),
+          const SizedBox(width: KinrelSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Flexible(
+                    child: Text(
+                      m.user.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                  ),
+                  if (status != null) ...[
+                    const SizedBox(width: 6),
+                    InviteStatusBadge(status: status, compact: true),
+                  ],
+                ]),
+                const SizedBox(height: 2),
+                if (m.user.username != null && m.user.username!.isNotEmpty)
+                  Row(children: [
+                    Text(
+                      '@${m.user.username}',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.monoFont,
+                        fontSize: 12,
+                        color: KinrelColors.orange,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      m.user.displayId,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.monoFont,
+                        fontSize: 11,
+                        color: KinrelColors.textDim,
+                      ),
+                    ),
+                  ]),
+                if (m.user.bio != null && m.user.bio!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      m.user.bio!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 11,
+                        color: KinrelColors.textDim,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Action: single-tap Invite button (hidden in multi-select mode)
+          if (!multiSelectActive)
+            SizedBox(
+              width: 76,
+              child: isSending
+                  ? const Center(
+                      child: SizedBox(
+                        width: 18, height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: KinrelColors.orange),
+                      ),
+                    )
+                  : DKMiniButton(
+                      label: buttonLabel,
+                      color: buttonColor,
+                      disabled: disabled,
+                      onPressed: onPressed,
+                    ),
+            ),
+        ]),
       ),
-      child: Row(children: [
-        _buildAvatar(m.user),
-        const SizedBox(width: KinrelSpacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                m.user.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+    );
+  }
+
+  /// Bottom bar with "Send N invites" button for multi-select mode.
+  Widget _buildMultiSelectBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+          KinrelSpacing.lg, KinrelSpacing.sm, KinrelSpacing.lg, KinrelSpacing.md),
+      decoration: const BoxDecoration(
+        color: KinrelColors.darkCard,
+        border: Border(top: BorderSide(color: KinrelColors.border, width: 1)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            TextButton(
+              onPressed: () => setState(() => _selectedUserIds.clear()),
+              child: Text(
+                'Cancel',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.textWhite,
+                  color: KinrelColors.textDim,
                 ),
               ),
-              const SizedBox(height: 2),
-              if (m.user.username != null && m.user.username!.isNotEmpty)
-                Row(children: [
-                  Text(
-                    '@${m.user.username}',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.monoFont,
-                      fontSize: 12,
-                      color: KinrelColors.orange,
-                    ),
+            ),
+            const Spacer(),
+            DKMiniButton(
+              label: 'Send ${_selectedUserIds.length} invite${_selectedUserIds.length == 1 ? '' : 's'}',
+              color: KinrelColors.orange,
+              onPressed: _sendSelectedInvites,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Entire Family Space mode ────────────────────────────────────────
+
+  Widget _buildEntireFamilyView(GameInviteState inviteStatus) {
+    final eligible = _members
+        .where((m) =>
+            !widget.currentPlayerIds.contains(m.user.id) && !_isRoomFull)
+        .toList();
+    final alreadyInRoom = _members
+        .where((m) => widget.currentPlayerIds.contains(m.user.id))
+        .length;
+    final overCapacity =
+        eligible.length > _remainingSlots && _remainingSlots > 0;
+
+    if (_members.isEmpty) return _buildEmptyState();
+
+    return ListView(
+      padding: const EdgeInsets.all(KinrelSpacing.lg),
+      children: [
+        // Hero card
+        Container(
+          padding: const EdgeInsets.all(KinrelSpacing.xl),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkSurface,
+            borderRadius: BorderRadius.circular(KinrelRadius.lg),
+            border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.3), width: 1.5),
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 56, height: 56,
+                decoration: BoxDecoration(
+                  color: KinrelColors.orange.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.groups_outlined,
+                    color: KinrelColors.orange, size: 30),
+              ),
+              const SizedBox(height: KinrelSpacing.md),
+              Text(
+                'Invite all ${eligible.length} linked member${eligible.length == 1 ? '' : 's'}',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Sends a real-time invite to every Find-on-Kinrel-linked '
+                'family member in this space simultaneously.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 12,
+                  color: KinrelColors.textDim,
+                  height: 1.5,
+                ),
+              ),
+              if (overCapacity) ...[
+                const SizedBox(height: KinrelSpacing.md),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: KinrelSpacing.md, vertical: KinrelSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: KinrelColors.orange.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(KinrelRadius.sm),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    m.user.displayId,
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.monoFont,
-                      fontSize: 11,
-                      color: KinrelColors.textDim,
-                    ),
-                  ),
-                ]),
-              if (m.user.bio != null && m.user.bio!.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    m.user.bio!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 11,
-                      color: KinrelColors.textDim,
-                    ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.info_outline,
+                          color: KinrelColors.orange, size: 14),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'Only $_remainingSlots spot${_remainingSlots == 1 ? '' : 's'} '
+                          'available — invites are first-come, first-served.',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 11,
+                            color: KinrelColors.orange,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+              ],
+              const SizedBox(height: KinrelSpacing.lg),
+              SizedBox(
+                width: double.infinity,
+                child: _bulkSending
+                    ? const Center(
+                        child: SizedBox(
+                          width: 22, height: 22,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: KinrelColors.orange),
+                        ),
+                      )
+                    : Material(
+                        color: _isRoomFull || eligible.isEmpty
+                            ? KinrelColors.darkElevated
+                            : KinrelColors.orange,
+                        borderRadius: BorderRadius.circular(KinrelRadius.md),
+                        child: InkWell(
+                          onTap: _isRoomFull || eligible.isEmpty
+                              ? null
+                              : _confirmBulkInvite,
+                          borderRadius: BorderRadius.circular(KinrelRadius.md),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            child: Text(
+                              _isRoomFull
+                                  ? 'Room is full'
+                                  : (eligible.isEmpty
+                                      ? 'All members in room'
+                                      : 'Invite all ${eligible.length}'),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: _isRoomFull || eligible.isEmpty
+                                    ? KinrelColors.textDim
+                                    : KinrelColors.textWhite,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+              ),
             ],
           ),
         ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 76,
-          child: isSending
-              ? const Center(
-                  child: SizedBox(
-                    width: 18, height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: KinrelColors.orange),
-                  ),
-                )
-              : DKMiniButton(
-                  label: buttonLabel,
-                  color: buttonColor,
-                  disabled: disabled && !alreadyInvited,
-                  onPressed: onPressed,
-                ),
+
+        // Breakdown
+        const SizedBox(height: KinrelSpacing.lg),
+        _breakdownRow('Linked family members', _members.length.toString()),
+        if (alreadyInRoom > 0)
+          _breakdownRow('Already in room', alreadyInRoom.toString()),
+        _breakdownRow(
+          'Eligible to invite',
+          eligible.length.toString(),
+          highlight: true,
         ),
-      ]),
+        _breakdownRow(
+          'Open slots',
+          '$_remainingSlots / ${widget.maxPlayers}',
+        ),
+
+        // Per-member status (if any invites already sent)
+        if (inviteStatus.isNotEmpty) ...[
+          const SizedBox(height: KinrelSpacing.lg),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'INVITE STATUS',
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: KinrelColors.textDim,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: KinrelSpacing.sm),
+          ...inviteStatus.invites.values.map((r) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(children: [
+                  Expanded(
+                    child: Text(
+                      r.name,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 12,
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                  ),
+                  InviteStatusBadge(status: r.status, compact: true),
+                ]),
+              )),
+        ],
+      ],
     );
   }
+
+  Widget _breakdownRow(String label, String value, {bool highlight = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                color: KinrelColors.textDim,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontFamily: KinrelTypography.monoFont,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: highlight ? KinrelColors.orange : KinrelColors.textWhite,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Avatars ──────────────────────────────────────────────────────────
 
   Widget _buildAvatar(KinrelUser user) {
     final photo = user.photoThumb ?? user.avatarUrl;
@@ -659,25 +1407,3 @@ class DKTextButton extends StatelessWidget {
     );
   }
 }
-
-// ── Usage examples (for reference, not executed) ────────────────────────────
-//
-// 1) From a "share code" lobby (bingo, ludo, sos, antakshari, truthordare,
-//    twotruths, dotsboxes, nameplace, chitmatch, redlight):
-//
-//   InviteFamilySheet.show(
-//     context,
-//     familyId: widget.familyId,
-//     gameType: GameType.bingo,
-//     gameId: state.game!.id,
-//     roomCode: code,
-//     currentPlayerIds: state.allCards.map((c) => c.playerId).toSet(),
-//     maxPlayers: maxP,
-//     currentPlayers: state.allCards.length,
-//   );
-//
-// 2) From a "select opponent" lobby (tictactoe, checkers, chess, carrom):
-//    These games create the room AFTER opponent selection, so the sheet is
-//    opened with a placeholder gameId and the actual gameId is sent in the
-//    socket invite once the room is created. See the lobby screen edits
-//    for the exact wiring.

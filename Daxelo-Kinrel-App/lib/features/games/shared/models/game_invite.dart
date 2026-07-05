@@ -211,3 +211,37 @@ class GameInvite {
   String get joinRoute =>
       '/family/$familyId/${gameType.routeSegment}/lobby?join=$gameId';
 }
+
+/// Server-relayed event: recipient tapped "Accept" on their invite dialog.
+///
+/// The server emits this back to the original sender via
+/// `game:invite:accepted`. The sender's [GameInviteStatusNotifier] uses
+/// this to flip the recipient's status from 'pending' to 'accepted'.
+class GameInviteAcceptedEvent {
+  const GameInviteAcceptedEvent({
+    required this.inviteId,
+    required this.gameId,
+    required this.gameType,
+    required this.familyId,
+    required this.acceptedByUserId,
+  });
+
+  final String inviteId;
+  final String gameId;
+  final String gameType;
+  final String familyId;
+  final String acceptedByUserId;
+}
+
+/// Server-relayed event: recipient tapped "Decline" on their invite dialog.
+class GameInviteDeclinedEvent {
+  const GameInviteDeclinedEvent({
+    required this.inviteId,
+    required this.gameId,
+    required this.declinedByUserId,
+  });
+
+  final String inviteId;
+  final String gameId;
+  final String declinedByUserId;
+}

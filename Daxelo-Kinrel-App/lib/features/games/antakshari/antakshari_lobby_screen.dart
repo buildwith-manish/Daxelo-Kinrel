@@ -15,6 +15,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
+import '../shared/widgets/pending_invites_section.dart';
 import 'antakshari_models.dart';
 import 'antakshari_provider.dart';
 
@@ -326,6 +327,9 @@ class _AntakshariLobbyScreenState
         _playerList(state),
         const SizedBox(height: KinrelSpacing.xl),
 
+        if (hasGame)
+          PendingInvitesSection(gameId: state.game!.id),
+        const SizedBox(height: KinrelSpacing.md),
         DKButton(
           label: isHost
               ? (canStart

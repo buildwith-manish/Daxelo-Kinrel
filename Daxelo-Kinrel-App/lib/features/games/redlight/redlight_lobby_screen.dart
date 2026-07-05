@@ -15,6 +15,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
+import '../shared/widgets/pending_invites_section.dart';
 import 'redlight_models.dart';
 import 'redlight_provider.dart';
 
@@ -340,6 +341,9 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
         if (state.isCountdown)
           _countdownBanner(state.countdownSeconds),
 
+        if (hasRound)
+          PendingInvitesSection(gameId: state.round!.id),
+        const SizedBox(height: KinrelSpacing.md),
         DKButton(
           label: isHost
               ? (canStart ? 'Start Game' : 'Waiting for players…')

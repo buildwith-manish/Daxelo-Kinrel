@@ -405,10 +405,38 @@ class SocketService {
 
     socket.on('game:invite:accepted', (data) {
       debugPrint('[SocketService] ✅ Game invite accepted: $data');
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        final event = GameInviteAcceptedEvent(
+          inviteId: (json['inviteId'] ?? '') as String,
+          gameId: (json['gameId'] ?? '') as String,
+          gameType: (json['gameType'] ?? '') as String,
+          familyId: (json['familyId'] ?? '') as String,
+          acceptedByUserId: (json['acceptedByUserId'] ?? '') as String,
+        );
+        for (final cb in _gameInviteAcceptedCallbacks) {
+          cb(event);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] Error handling game:invite:accepted: $e');
+      }
     });
 
     socket.on('game:invite:declined', (data) {
       debugPrint('[SocketService] ❌ Game invite declined: $data');
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        final event = GameInviteDeclinedEvent(
+          inviteId: (json['inviteId'] ?? '') as String,
+          gameId: (json['gameId'] ?? '') as String,
+          declinedByUserId: (json['declinedByUserId'] ?? '') as String,
+        );
+        for (final cb in _gameInviteDeclinedCallbacks) {
+          cb(event);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] Error handling game:invite:declined: $e');
+      }
     });
   }
 
@@ -417,6 +445,12 @@ class SocketService {
   /// Subscribers for incoming game invites. See [onGameInviteReceived].
   final Set<void Function(GameInvite)> _gameInviteCallbacks = {};
 
+  /// Subscribers for invite-accepted events (sender side).
+  final Set<void Function(GameInviteAcceptedEvent)> _gameInviteAcceptedCallbacks = {};
+
+  /// Subscribers for invite-declined events (sender side).
+  final Set<void Function(GameInviteDeclinedEvent)> _gameInviteDeclinedCallbacks = {};
+
   /// Registers a callback for incoming game invites. Returns an unsubscribe
   /// function — call it when the listener widget disposes.
   ///
@@ -424,6 +458,22 @@ class SocketService {
   VoidCallback onGameInviteReceived(void Function(GameInvite) callback) {
     _gameInviteCallbacks.add(callback);
     return () => _gameInviteCallbacks.remove(callback);
+  }
+
+  /// Registers a callback for invite-accepted events (fired on the sender's
+  /// side when a recipient taps Accept). Returns an unsubscribe function.
+  VoidCallback onGameInviteAccepted(
+      void Function(GameInviteAcceptedEvent) callback) {
+    _gameInviteAcceptedCallbacks.add(callback);
+    return () => _gameInviteAcceptedCallbacks.remove(callback);
+  }
+
+  /// Registers a callback for invite-declined events (fired on the sender's
+  /// side when a recipient taps Decline). Returns an unsubscribe function.
+  VoidCallback onGameInviteDeclined(
+      void Function(GameInviteDeclinedEvent) callback) {
+    _gameInviteDeclinedCallbacks.add(callback);
+    return () => _gameInviteDeclinedCallbacks.remove(callback);
   }
 
   /// Sends a real-time game invite to [toUserId] via the NestJS gateway.
@@ -460,6 +510,7 @@ class SocketService {
     if (socket == null || !socket.connected) return;
     socket.emit('game:invite:decline', {
       'inviteId': invite.inviteId,
+      'gameId': invite.gameId,
       'fromUserId': invite.fromUserId,
     });
   }

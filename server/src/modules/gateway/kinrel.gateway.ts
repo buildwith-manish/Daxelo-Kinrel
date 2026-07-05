@@ -206,10 +206,15 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('game:invite:decline')
   handleGameInviteDecline(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { inviteId: string; fromUserId: string },
+    @MessageBody() data: {
+      inviteId: string;
+      fromUserId: string;
+      gameId?: string;
+    },
   ) {
     this.emitToUser(data.fromUserId, 'game:invite:declined', {
       inviteId: data.inviteId,
+      gameId: data.gameId ?? '',
       declinedByUserId: (client as any).userId,
     });
   }
