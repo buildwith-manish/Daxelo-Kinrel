@@ -120,8 +120,17 @@ class RelationshipEngine {
       return null;
     }
 
-    // Extract the relationship types from the path steps
-    final pathTypes = pathResult.path.map((step) => step.type).toList();
+    // Extract the relationship types from the path steps.
+    // CRITICAL: BFS path types represent the VIEWER's relationship TO each
+    // step — e.g. if the stored edge is (Geetha → Yakshitha, 'mother'),
+    // BFS from Yakshitha to Geetha produces step type 'child' (inverse of
+    // 'mother'), meaning "viewer (Yakshitha) is a child of target (Geetha)".
+    // To classify the TARGET's relationship to the viewer, we must INVERT
+    // each path type so the classifier sees "Geetha is a parent of Yakshitha"
+    // → returns 'Mother' instead of 'Daughter'.
+    final pathTypes = pathResult.path.map((step) {
+      return inverseType(step.type) ?? step.type;
+    }).toList();
 
     // v66: Try the kinship chain rules first (high accuracy for known
     // compounds), then fall back to the structural classifier which

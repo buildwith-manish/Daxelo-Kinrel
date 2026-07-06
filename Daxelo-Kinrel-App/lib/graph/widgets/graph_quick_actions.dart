@@ -15,6 +15,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/family/family_provider.dart';
+import '../../features/family/presentation/add_person_sheet.dart';
 import 'graph_relationship_labels.dart';
 
 /// Shows a modal bottom sheet with quick actions for a graph node.
@@ -108,10 +109,29 @@ class GraphQuickActions {
                   color: KinrelColors.textWhite,
                 ),
               ),
-              onTap: () => Navigator.pop(context),
+              onTap: () {
+                Navigator.pop(context);
+                if (familyId != null) {
+                  AddPersonSheet.show(
+                    context,
+                    familyId: familyId,
+                    existingPerson: Person(
+                      id: person.id,
+                      familyId: familyId,
+                      name: person.name,
+                      gender: person.gender,
+                      dateOfBirth: person.dateOfBirth,
+                      isDeceased: person.isDeceased,
+                      photoUrl: person.photoUrl,
+                      isAnchor: false,
+                      generationIndex: 0,
+                    ),
+                  );
+                }
+              },
             ),
-            // Remove Member — only shown to family owners, not for self
-            if (isOwner && !isSelf && familyId != null) ...[
+            // Remove Member — shown for all non-self nodes (not just non-anchor)
+            if (!isSelf && familyId != null) ...[
               const Divider(color: Color(0x1AFFFFFF), height: 1.0),
               ListTile(
                 leading: const Icon(Icons.delete_outline, color: Colors.red),

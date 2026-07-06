@@ -63,10 +63,15 @@ class TruthStreakState {
 
 class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
   TruthStreakNotifier(this._ref, this.familyId)
-      : super(const TruthStreakState(isLoading: true));
+      : super(const TruthStreakState(isLoading: true)) {
+    // Subscribe to realtime changes on truth_streak_answers so new answers
+    // from other family members appear automatically without a manual refresh.
+    _subscribeToRealtime();
+  }
 
   final Ref _ref;
   final String familyId;
+  RealtimeChannel? _channel;
 
   SupabaseClient? get _client => _ref.read(supabaseProvider);
   String? get _myUserId => _client?.auth.currentUser?.id;
@@ -76,6 +81,35 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
       'Member';
   String? get _myAvatar =>
       _client?.auth.currentUser?.userMetadata?['avatar_url'] as String?;
+
+  void _subscribeToRealtime() {
+    final client = _client;
+    if (client == null) return;
+
+    _channel = client.channel('truth_streak_answers:$familyId');
+    _channel!.onPostgresChangeEvent(
+      PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'truth_streak_answers',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'familyId',
+        value: familyId,
+      ),
+      callback: (payload) {
+        // A new answer was inserted — reload to get fresh data
+        debugPrint('📨 Truth Streak: new answer received via realtime');
+        load();
+      },
+    );
+    _channel!.subscribe();
+  }
+
+  @override
+  void dispose() {
+    _channel?.unsubscribe();
+    super.dispose();
+  }
 
   /// Load today's assignment, the user's answer, all answers, and stats.
   Future<void> load() async {

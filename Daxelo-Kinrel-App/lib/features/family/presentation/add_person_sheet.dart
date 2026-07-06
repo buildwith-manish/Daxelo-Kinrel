@@ -150,6 +150,12 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   String _customDotType = 'dot'; // dot | heart | none
   bool _isDeceased = false;
   bool _isSubmitting = false;
+
+  /// Stable key for the edit-mode form (NOT recreated on every rebuild).
+  /// The previous code created GlobalKey<FormState>() inline in
+  /// _buildEditModeContent, which caused the Form to lose its state on
+  /// every keystroke (because onChanged → setState → rebuild → new key).
+  final _editFormKey = GlobalKey<FormState>();
   DateTime? _selectedDob;
   DateTime? _selectedAnniversary;
   DateTime? _selectedDeathDate;
@@ -1428,7 +1434,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   Widget _buildEditModeContent() {
     return SingleChildScrollView(
       child: Form(
-        key: GlobalKey<FormState>(),
+        key: _editFormKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
