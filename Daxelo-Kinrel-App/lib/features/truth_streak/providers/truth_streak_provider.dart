@@ -119,6 +119,9 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
     }
 
     state = state.copyWith(isLoading: true, clearError: true);
+    // Note: do NOT clear myAnswer/allAnswers here — keep showing the
+    // existing answers while reloading so the UI doesn't flash back
+    // to the "locked" state during the reload.
 
     try {
       final today = DateTime.now();
@@ -330,9 +333,10 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
 
       // Force a full reload to ensure the screen transitions from the
       // "locked" state to the "answered" state and renders all answers.
-      // This is needed because the screen's build() checks hasAnswered
-      // (myAnswer != null) to decide which view to show, and sometimes
-      // the state update alone doesn't trigger the correct rebuild.
+      // Small delay to ensure the INSERT has fully propagated before
+      // the SELECT in load() runs (avoids a race condition where the
+      // user's own answer isn't found yet).
+      await Future.delayed(const Duration(milliseconds: 300));
       await load();
 
       return true;

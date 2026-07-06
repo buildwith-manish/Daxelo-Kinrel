@@ -124,6 +124,7 @@ class GraphQuickActions {
                       photoUrl: person.photoUrl,
                       isAnchor: false,
                       generationIndex: 0,
+                      dateOfBirth: person.dateOfBirth,
                     ),
                   );
                 }

@@ -770,6 +770,7 @@ class _FamilyGraphEngineViewState
           isAnchor: (p['isAnchor'] as bool?) ?? false,
           photoUrl: p['photoUrl'] as String?,
           isDeceased: (p['isDeceased'] as bool?) ?? false,
+          dateOfBirth: p['dateOfBirth'] as String?,
         );
         // v87: Pass familyId + isOwner + isSelf for Remove Member
         final isAnchor = (p['isAnchor'] as bool?) ?? false;

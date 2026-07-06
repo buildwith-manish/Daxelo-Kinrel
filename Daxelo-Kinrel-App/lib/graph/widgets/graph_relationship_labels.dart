@@ -27,6 +27,7 @@ class GraphPersonData {
   final bool isDeceased;
   final String? relationshipKey;
   final int disclosureLevel;
+  final String? dateOfBirth;
 
   const GraphPersonData({
     required this.id,
@@ -38,6 +39,7 @@ class GraphPersonData {
     this.isDeceased = false,
     this.relationshipKey,
     this.disclosureLevel = 1,
+    this.dateOfBirth,
   });
 
   factory GraphPersonData.empty() => const GraphPersonData(
