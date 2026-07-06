@@ -725,11 +725,11 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
 
     // ── Supabase-first: compute stats directly from Supabase tables ──
     // The NestJS backend rejects Supabase JWTs (ES256/HS256 mismatch).
-    await _loadStatsFromSupabase();
+    try {
+      await _loadStatsFromSupabase();
     } catch (e) {
-      debugPrint('⚠️ loadStats error, trying offline cache then Supabase: $e');
-      final cached = await _tryOfflineStats();
-      if (!cached) await _loadStatsFromSupabase();
+      debugPrint('⚠️ loadStats error, trying offline cache: $e');
+      await _tryOfflineStats();
     }
   }
 
