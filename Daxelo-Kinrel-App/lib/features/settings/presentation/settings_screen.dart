@@ -132,13 +132,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               icon: Icons.link_outlined,
               label: 'Linked accounts',
               subtitle: 'Google',
-              onTap: () {},
+              onTap: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Coming soon"), duration: Duration(seconds: 1))); },
             ),
             _divider(),
             _SettingsRow(
               icon: Icons.language_outlined,
               label: 'Preferred language',
-              onTap: () {},
+              onTap: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Coming soon"), duration: Duration(seconds: 1))); },
             ),
             _divider(),
             _SettingsToggleRow(
@@ -215,7 +215,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             _SettingsRow(
               icon: Icons.bedtime_outlined,
               label: 'Quiet hours',
-              onTap: () {},
+              onTap: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Coming soon"), duration: Duration(seconds: 1))); },
             ),
           ]),
           const SizedBox(height: 24),
@@ -254,13 +254,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             _SettingsRow(
               icon: Icons.devices_outlined,
               label: 'Active sessions',
-              onTap: () {},
+              onTap: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Coming soon"), duration: Duration(seconds: 1))); },
             ),
             _divider(),
             _SettingsRow(
               icon: Icons.download_outlined,
               label: 'Download my data',
-              onTap: () {},
+              onTap: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Coming soon"), duration: Duration(seconds: 1))); },
             ),
             _divider(),
             _SettingsDeleteRow(
@@ -298,7 +298,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             _SettingsRow(
               icon: Icons.upload_file_outlined,
               label: 'Export family tree',
-              onTap: () {},
+              onTap: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Coming soon"), duration: Duration(seconds: 1))); },
             ),
           ]),
           const SizedBox(height: 24),

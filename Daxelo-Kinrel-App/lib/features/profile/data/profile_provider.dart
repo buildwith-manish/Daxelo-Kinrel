@@ -659,109 +659,25 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return;
     }
 
-    // ── API-first approach: always try API when there's a session ──
-    // Previously the code checked Isar cache first and returned immediately
-    // if cached data existed, which meant stale data from a previous session
-    // would be returned and the API was never called. Now we always try
-    // the API first, with offline cache as a fallback only when API fails.
+    // ── Supabase-first approach ──────────────────────────────────────
+    // The NestJS backend currently rejects Supabase JWTs (ES256 vs HS256
+    // signing mismatch). Use Supabase directly as the primary path.
+    // The NestJS API call is kept as a secondary fallback for when the
+    // Supabase User table query fails (e.g. RLS issues on new accounts).
 
-    try {
-      final response = await _dio.get('/api/users/me');
+    await _loadProfileFromSupabase();
 
-      // ── Defensive: Ensure response.data is a proper Map ──
-      // The backend might return an unexpected format (HTML error page,
-      // string, list, etc.). Never assume the structure.
-      final rawData = response.data;
-      if (rawData == null) {
-        debugPrint('⚠️ loadProfile: API returned null data');
-        // Try offline cache as fallback
-        await _tryOfflineProfile();
-        return;
-      }
+    // Also try to load stats
+    loadStats();
 
-      // Safely convert response data to Map<String, dynamic>
-      Map<String, dynamic> userData;
-      try {
-        if (rawData is Map<String, dynamic>) {
-          userData = _extractUserData(rawData);
-        } else if (rawData is Map) {
-          // Convert Map<dynamic, dynamic> to Map<String, dynamic> safely
-          final converted = <String, dynamic>{};
-          for (final entry in rawData.entries) {
-            converted[entry.key.toString()] = entry.value;
-          }
-          userData = _extractUserData(converted);
-        } else {
-          debugPrint('⚠️ loadProfile: Unexpected response type: ${rawData.runtimeType}');
-          // Try offline cache as fallback
-          await _tryOfflineProfile();
-          return;
-        }
-      } catch (e) {
-        debugPrint('⚠️ loadProfile: Failed to parse response data: $e');
-        // Try offline cache as fallback
-        await _tryOfflineProfile();
-        return;
-      }
-
-      final profile = ProfileModel.fromJson(userData);
-      state = state.copyWith(profile: profile, isLoading: false);
-
-      // Load related data in the background
-      loadFamilies();
-      loadStats();
-      loadInvitations();
-    } on DioException catch (e) {
-      // ── API failed: Try offline cache first, then Supabase fallback ──
-      final statusCode = e.response?.statusCode;
-
-      // For auth errors, skip cache (it may be from a different user session)
-      if (statusCode == 401 || statusCode == 404 || statusCode == 403) {
-        debugPrint('⚠️ loadProfile: Auth error ($statusCode), falling back to Supabase user data');
-        await _loadProfileFromSupabase();
-        return;
-      }
-
-      // For network errors, try offline cache before Supabase fallback
-      if (e.type == DioExceptionType.connectionError ||
-          e.type == DioExceptionType.connectionTimeout ||
-          e.type == DioExceptionType.unknown) {
-        debugPrint('⚠️ loadProfile: Network error, trying offline cache then Supabase');
-        final cached = await _tryOfflineProfile();
-        if (!cached) {
-          await _loadProfileFromSupabase();
-        }
-        return;
-      }
-
-      // Safely extract error message without type casting issues
-      String message;
-      try {
-        final errorData = e.response?.data;
-        if (errorData is Map) {
-          message = errorData['message']?.toString() ??
-              e.message ??
-              'Failed to load profile';
-        } else {
-          message = e.message ?? 'Failed to load profile';
-        }
-      } catch (_) {
-        message = e.message ?? 'Failed to load profile';
-      }
-
-      // Try offline cache before setting error state
-      final cached = await _tryOfflineProfile();
-      if (!cached) {
-        state = state.copyWith(isLoading: false, error: message);
-      }
-    } catch (e) {
-      debugPrint('⚠️ loadProfile unexpected error: $e');
-      // Try offline cache, then Supabase fallback
-      final cached = await _tryOfflineProfile();
-      if (!cached) {
-        await _loadProfileFromSupabase();
-      }
+    // Try offline cache as secondary fallback if Supabase returned nothing
+    if (state.profile == null && IsarDatabase.isInitialized) {
+      await _tryOfflineProfile();
     }
+
+    // Load related data in the background
+    loadFamilies();
+    loadInvitations();
     } catch (e) {
       debugPrint('🔴 loadProfile top-level error: $e');
       state = state.copyWith(isLoading: false);
@@ -807,51 +723,9 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       return;
     }
 
-    // ── API-first approach: always try API when there's a session ──
-    // Previously the code checked Isar cache first and returned immediately
-    // if cached data existed. Now we always try the API first, with
-    // offline cache as a fallback only when API fails.
-
-    try {
-      final response = await _dio.get('/api/users/me/stats');
-
-      // ── Defensive: Ensure response.data is a proper Map ──
-      final rawData = response.data;
-      if (rawData == null) {
-        debugPrint('⚠️ loadStats: API returned null data');
-        final cached = await _tryOfflineStats();
-        if (!cached) await _loadStatsFromSupabase();
-        return;
-      }
-
-      Map<String, dynamic> statsData;
-      try {
-        if (rawData is Map<String, dynamic>) {
-          statsData = rawData;
-        } else if (rawData is Map) {
-          statsData = <String, dynamic>{};
-          for (final entry in rawData.entries) {
-            statsData[entry.key.toString()] = entry.value;
-          }
-        } else {
-          debugPrint('⚠️ loadStats: Unexpected response type: ${rawData.runtimeType}');
-          final cached = await _tryOfflineStats();
-          if (!cached) await _loadStatsFromSupabase();
-          return;
-        }
-      } catch (e) {
-        debugPrint('⚠️ loadStats: Failed to parse response data: $e');
-        final cached = await _tryOfflineStats();
-        if (!cached) await _loadStatsFromSupabase();
-        return;
-      }
-
-      final stats = UserStatsModel.fromJson(statsData);
-      state = state.copyWith(stats: stats);
-    } on DioException catch (e) {
-      debugPrint('⚠️ loadStats backend error, trying offline cache then Supabase: ${e.message}');
-      final cached = await _tryOfflineStats();
-      if (!cached) await _loadStatsFromSupabase();
+    // ── Supabase-first: compute stats directly from Supabase tables ──
+    // The NestJS backend rejects Supabase JWTs (ES256/HS256 mismatch).
+    await _loadStatsFromSupabase();
     } catch (e) {
       debugPrint('⚠️ loadStats error, trying offline cache then Supabase: $e');
       final cached = await _tryOfflineStats();
@@ -996,9 +870,50 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
         return;
       }
 
-      // Build a basic profile from Supabase user data
-      // Include as many fields as possible from userMetadata and appMetadata
-      // so the profile is as complete as possible even when the API is down.
+      // Query the User table directly for the full profile
+      try {
+        final response = await client
+            .from('User')
+            .select()
+            .eq('id', user.id)
+            .maybeSingle()
+            .timeout(const Duration(seconds: 10));
+
+        if (response != null) {
+          final profile = ProfileModel(
+            id: response['id'] as String? ?? user.id,
+            email: response['email'] as String? ?? user.email ?? '',
+            name: response['name'] as String? ??
+                user.userMetadata?['name'] as String? ??
+                user.email?.split('@')[0],
+            phone: response['phone'] as String?,
+            avatarUrl: response['avatarUrl'] as String?,
+            bio: response['bio'] as String?,
+            dateOfBirth: response['dateOfBirth'] != null
+                ? (response['dateOfBirth'] is String
+                    ? response['dateOfBirth'] as String
+                    : response['dateOfBirth'].toString())
+                : null,
+            gender: response['gender'] as String?,
+            username: response['username'] as String?,
+            preferredLanguage: response['preferredLanguage'] as String? ?? 'en',
+            profileVisibility: response['profileVisibility'] as String? ?? 'public',
+            invitePermission: response['invitePermission'] as String? ?? 'anyone',
+            twoFactorEnabled: response['twoFactorEnabled'] as bool? ?? false,
+            createdAt: response['createdAt'] != null
+                ? DateTime.tryParse(response['createdAt'].toString()) ?? DateTime.now()
+                : DateTime.tryParse(user.createdAt) ?? DateTime.now(),
+            updatedAt: DateTime.now(),
+          );
+          state = state.copyWith(profile: profile, isLoading: false);
+          debugPrint('✅ loadProfile: Loaded from Supabase User table');
+          return;
+        }
+      } catch (e) {
+        debugPrint('⚠️ loadProfileFromSupabase: User table query failed: $e');
+      }
+
+      // Fallback: build profile from auth user metadata only
       final profile = ProfileModel(
         id: user.id,
         email: user.email ?? '',
@@ -1017,10 +932,9 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       );
 
       state = state.copyWith(profile: profile, isLoading: false);
-      debugPrint('✅ loadProfile: Using Supabase user data as fallback');
+      debugPrint('✅ loadProfile: Using Supabase auth metadata (User table not available)');
     } catch (e) {
       debugPrint('⚠️ loadProfileFromSupabase error: $e');
-      // Don't set error state — just leave isLoading as false
       state = state.copyWith(isLoading: false);
     }
   }

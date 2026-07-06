@@ -1193,36 +1193,33 @@ final familyMembershipsProvider =
     if (client == null) return [];
     if (client.auth.currentSession == null) return [];
 
-    // Try NestJS API first
+    // Supabase-first: query FamilyMember table directly (bypasses NestJS
+    // which rejects Supabase JWTs due to ES256/HS256 mismatch).
     try {
-      final dio = ref.read(dioProvider);
-      final response = await dio.get('/api/families/$familyId/members');
-      if (response.statusCode == 200 && response.data is List) {
-        return (response.data as List)
-            .map((json) =>
-                FamilyMembership.fromJson(json as Map<String, dynamic>))
-            .toList();
-      }
-    } on DioException catch (e) {
-      final status = e.response?.statusCode;
-      if (status != 401 && status != 403) {
-        debugPrint('⚠️ familyMembershipsProvider API error: ${e.message}');
-      }
-      // Fall through to Supabase fallback
+      final response = await client
+          .from(_kFamilyMemberTable)
+          .select()
+          .eq('familyId', familyId);
+
+      return (response as List)
+          .map((json) =>
+              FamilyMembership.fromJson(json as Map<String, dynamic>))
+          .toList();
     } catch (e) {
-      debugPrint('⚠️ familyMembershipsProvider API error: $e');
+      debugPrint('⚠️ familyMembershipsProvider Supabase error: $e');
+      // Last resort: try NestJS API (will likely 401)
+      try {
+        final dio = ref.read(dioProvider);
+        final apiResponse = await dio.get('/api/families/$familyId/members');
+        if (apiResponse.statusCode == 200 && apiResponse.data is List) {
+          return (apiResponse.data as List)
+              .map((json) =>
+                  FamilyMembership.fromJson(json as Map<String, dynamic>))
+              .toList();
+        }
+      } catch (_) {}
+      return [];
     }
-
-    // Fallback: Query Supabase directly
-    final response = await client
-        .from(_kFamilyMemberTable)
-        .select()
-        .eq('familyId', familyId);
-
-    return (response as List)
-        .map((json) =>
-            FamilyMembership.fromJson(json as Map<String, dynamic>))
-        .toList();
   } catch (e) {
     debugPrint('⚠️ familyMembershipsProvider error: $e');
     return [];

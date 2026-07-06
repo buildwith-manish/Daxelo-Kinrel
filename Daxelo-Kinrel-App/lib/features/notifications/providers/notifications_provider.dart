@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 
 import '../../../core/networking/dio_client.dart';
+import '../../../core/services/supabase_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Notification Types
@@ -342,32 +343,50 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
 
   // ── Data Loading ─────────────────────────────────────────────────
 
-  /// Load notifications from the backend API
+  /// Load notifications directly from Supabase (bypasses NestJS which
+  /// rejects Supabase JWTs due to ES256/HS256 signing mismatch).
   Future<void> loadNotifications() async {
     try {
-      final response = await _dio.get(
-        '/api/notifications/v2',
-        queryParameters: {'page': 1, 'limit': 50},
-      );
+      final client = _ref.read(supabaseProvider);
+      if (client == null || client.auth.currentUser == null) return;
 
-      final data = response.data;
-      if (data is Map<String, dynamic>) {
-        final notificationsList =
-            data['notifications'] as List? ?? data['items'] as List? ?? [];
+      final userId = client.auth.currentUser!.id;
+      final response = await client
+          .from('Notification')
+          .select()
+          .eq('userId', userId)
+          .order('createdAt', ascending: false)
+          .limit(50)
+          .timeout(const Duration(seconds: 10));
 
-        final notifications = notificationsList
-            .map((e) => _mapNotification(e as Map<String, dynamic>))
-            .toList();
+      final notifications = response
+          .map((e) => _mapNotification(e as Map<String, dynamic>))
+          .toList();
 
-        state = state.copyWith(notifications: notifications);
-      } else if (data is List) {
-        final notifications = data
-            .map((e) => _mapNotification(e as Map<String, dynamic>))
-            .toList();
-        state = state.copyWith(notifications: notifications);
-      }
+      state = state.copyWith(notifications: notifications);
     } catch (e) {
       debugPrint('⚠️ Failed to load notifications: $e');
+      // Fallback to NestJS API (will likely 401, but try anyway)
+      try {
+        final response = await _dio.get(
+          '/api/notifications/v2',
+          queryParameters: {'page': 1, 'limit': 50},
+        );
+        final data = response.data;
+        if (data is Map<String, dynamic>) {
+          final notificationsList =
+              data['notifications'] as List? ?? data['items'] as List? ?? [];
+          final notifications = notificationsList
+              .map((e) => _mapNotification(e as Map<String, dynamic>))
+              .toList();
+          state = state.copyWith(notifications: notifications);
+        } else if (data is List) {
+          final notifications = data
+              .map((e) => _mapNotification(e as Map<String, dynamic>))
+              .toList();
+          state = state.copyWith(notifications: notifications);
+        }
+      } catch (_) {}
     }
   }
 
@@ -497,15 +516,18 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
     }).toList();
     state = state.copyWith(notifications: updated);
 
-    // API call
+    // Update via Supabase directly (bypasses NestJS)
     try {
-      await _dio.patch('/api/notifications/v2/read', data: {
-        'notificationIds': [id],
-      });
+      final client = _ref.read(supabaseProvider);
+      if (client != null && client.auth.currentUser != null) {
+        await client
+            .from('Notification')
+            .update({'read': true, 'readAt': DateTime.now().toUtc().toIso8601String()})
+            .eq('id', id)
+            .eq('userId', client.auth.currentUser!.id);
+      }
     } catch (e) {
       debugPrint('⚠️ Failed to mark notification as read: $e');
-      // Roll back by reloading
-      await loadNotifications();
     }
   }
 
@@ -517,12 +539,18 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
     }).toList();
     state = state.copyWith(notifications: updated);
 
-    // API call
+    // Update via Supabase directly (bypasses NestJS)
     try {
-      await _dio.patch('/api/notifications/v2/read-all');
+      final client = _ref.read(supabaseProvider);
+      if (client != null && client.auth.currentUser != null) {
+        await client
+            .from('Notification')
+            .update({'read': true, 'readAt': DateTime.now().toUtc().toIso8601String()})
+            .eq('userId', client.auth.currentUser!.id)
+            .eq('read', false);
+      }
     } catch (e) {
       debugPrint('⚠️ Failed to mark all notifications as read: $e');
-      await loadNotifications();
     }
   }
 

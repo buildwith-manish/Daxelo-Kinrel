@@ -16,9 +16,10 @@
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../networking/dio_client.dart' show dioProvider;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../services/supabase_service.dart';
 
 /// Response shape for `GET /families/:familyId/viewer`.
 class ViewerResolution {
@@ -132,7 +133,7 @@ class ViewerApiException implements Exception {
 
 /// Riverpod provider for the [ViewerApiClient].
 final viewerApiClientProvider = Provider<ViewerApiClient>((ref) {
-  return ViewerApiClient(ref.read(dioProvider));
+  return ViewerApiClient(ref.read(dioProvider), ref);
 });
 
 /// HTTP client for the v2.2 Viewer endpoints.
@@ -142,42 +143,85 @@ final viewerApiClientProvider = Provider<ViewerApiClient>((ref) {
 /// and `familyGraphProvider` after a successful claim/unlink/accept
 /// so the UI re-fetches from the new viewer's perspective.
 class ViewerApiClient {
-  ViewerApiClient(this._dio);
+  ViewerApiClient(this._dio, this._ref);
   final Dio _dio;
+  final Ref _ref;
 
-  /// `GET /api/families/:familyId/viewer`
-  ///
-  /// Returns the viewer Person ID for the authenticated user in the
-  /// given family. Resolution: linked → anchor (legacy) → none.
+  /// Resolve the viewer Person ID for the authenticated user in the given
+  /// family. Uses Supabase directly (bypasses NestJS which rejects Supabase
+  /// JWTs due to ES256/HS256 mismatch).
+  /// Resolution: linked → anchor (legacy) → none.
   Future<ViewerResolution> resolveViewer(String familyId) async {
     try {
-      final response = await _dio.get('/api/families/$familyId/viewer');
-      return ViewerResolution.fromJson(response.data as Map<String, dynamic>);
-    } on DioException catch (e) {
-      throw _toException(e);
+      final client = _ref.read(supabaseProvider);
+      if (client == null || client.auth.currentUser == null) {
+        return const ViewerResolution(personId: null, source: 'none');
+      }
+      final userId = client.auth.currentUser!.id;
+
+      // 1. Try to find a Person linked to this user in this family
+      final linked = await client
+          .from('Person')
+          .select('id')
+          .eq('familyId', familyId)
+          .eq('linkedUserId', userId)
+          .isFilter('deletedAt', null)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 10));
+
+      if (linked != null && linked['id'] != null) {
+        return ViewerResolution(personId: linked['id'] as String, source: 'linked');
+      }
+
+      // 2. Fallback: try the family anchor
+      final anchor = await client
+          .from('Person')
+          .select('id')
+          .eq('familyId', familyId)
+          .eq('isAnchor', true)
+          .isFilter('deletedAt', null)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 10));
+
+      if (anchor != null && anchor['id'] != null) {
+        return ViewerResolution(personId: anchor['id'] as String, source: 'anchor');
+      }
+
+      return const ViewerResolution(personId: null, source: 'none');
     } catch (e) {
       debugPrint('ViewerApiClient.resolveViewer: $e');
-      rethrow;
+      // Last resort: try NestJS API (will likely 401)
+      try {
+        final response = await _dio.get('/api/families/$familyId/viewer');
+        return ViewerResolution.fromJson(response.data as Map<String, dynamic>);
+      } catch (_) {
+        return const ViewerResolution(personId: null, source: 'none');
+      }
     }
   }
 
-  /// `POST /api/families/:familyId/persons/:personId/claim`
-  ///
-  /// Links the authenticated user to the Person node. Server enforces:
-  ///   - User is a family member
-  ///   - Person is not already claimed by another user
-  ///   - User is not already linked to a different Person in the family
+  /// Claim a Person node by linking it to the current user.
+  /// Uses Supabase directly (bypasses NestJS).
   Future<PersonLinkResult> claimPerson({
     required String familyId,
     required String personId,
   }) async {
     try {
-      final response = await _dio.post(
-        '/api/families/$familyId/persons/$personId/claim',
-      );
-      return PersonLinkResult.fromJson(response.data as Map<String, dynamic>);
-    } on DioException catch (e) {
-      throw _toException(e);
+      final client = _ref.read(supabaseProvider);
+      if (client == null || client.auth.currentUser == null) {
+        throw Exception('Not signed in');
+      }
+      final userId = client.auth.currentUser!.id;
+
+      await client.from('Person').update({
+        'linkedUserId': userId,
+        'linkedAt': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', personId).eq('familyId', familyId);
+
+      return PersonLinkResult(personId: personId, linked: true);
+    } catch (e) {
+      debugPrint('ViewerApiClient.claimPerson: $e');
+      rethrow;
     }
   }
 

@@ -98,6 +98,8 @@ class PremiumService {
   // ── Backend Sync ────────────────────────────────────────────────
 
   /// Fetch premium status from the backend and update local cache.
+  /// Silently fails if the backend is unreachable (NestJS currently
+  /// rejects Supabase JWTs) — the app works in free mode by default.
   ///
   /// GET /api/premium/status
   /// Response: { "isPremium": bool, "expiry": "2025-12-31T23:59:59Z" }
@@ -118,8 +120,11 @@ class PremiumService {
       }
 
       debugPrint('🟡 PremiumService: fetched premium=$isPremiumValue');
-    } catch (e, st) {
-      logError(e, st, reason: 'PremiumService.fetchPremiumStatus failed');
+    } catch (e) {
+      // Silently fail — the app defaults to free mode.
+      // The NestJS backend currently rejects Supabase JWTs (ES256/HS256
+      // mismatch), so this will 401. Don't log as error to avoid noise.
+      debugPrint('🟡 PremiumService: backend unavailable, using free mode');
     }
   }
 
