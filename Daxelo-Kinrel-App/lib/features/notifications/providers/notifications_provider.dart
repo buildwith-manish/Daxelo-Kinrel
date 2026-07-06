@@ -585,18 +585,24 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
 
   // ── Notification Preferences ─────────────────────────────────────
 
-  /// Get notification preferences from the server.
+  /// Get notification preferences from Supabase (bypasses NestJS which
+  /// rejects Supabase JWTs). Falls back to defaults if the table is
+  /// unavailable.
   Future<Map<NotificationType, NotificationPreference>>
       getNotificationPreferences() async {
+    // Try Supabase first
     try {
-      final response = await _dio.get('/api/notifications/v2/preferences');
-      final data = response.data;
+      final client = _ref.read(supabaseProvider);
+      if (client != null && client.auth.currentUser != null) {
+        final userId = client.auth.currentUser!.id;
+        final response = await client
+            .from('NotificationPreference')
+            .select()
+            .eq('userId', userId)
+            .timeout(const Duration(seconds: 10));
 
-      if (data is Map<String, dynamic> && data['preferences'] is List) {
         final prefs = <NotificationType, NotificationPreference>{};
-        final prefList = data['preferences'] as List;
-
-        for (final pref in prefList) {
+        for (final pref in response as List) {
           if (pref is Map<String, dynamic>) {
             final eventType = pref['eventType'] as String? ?? '';
             final type = _mapEventType(eventType);
@@ -607,17 +613,15 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
             );
           }
         }
-
         // Fill in defaults for missing types
         for (final type in NotificationType.values) {
           prefs.putIfAbsent(type, () => const NotificationPreference());
         }
-
         state = state.copyWith(notificationPreferences: prefs);
         return prefs;
       }
     } catch (e) {
-      debugPrint('⚠️ Failed to load notification preferences: $e');
+      debugPrint('⚠️ Failed to load notification preferences from Supabase: $e');
     }
 
     // Return defaults
@@ -630,6 +634,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
   }
 
   /// Update notification preference for a specific type.
+  /// Persists to Supabase NotificationPreference table (bypasses NestJS).
   Future<bool> updateNotificationPreference(
     NotificationType type, {
     bool push = true,
@@ -649,19 +654,24 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
     updatedPrefs[type] = newPref;
     state = state.copyWith(notificationPreferences: updatedPrefs);
 
+    // Persist via Supabase
     try {
-      // Map back to backend eventType
-      final eventType = _notificationTypeToEventType(type);
-      await _dio.patch('/api/notifications/v2/preferences', data: {
-        'eventType': eventType,
-        'push': push,
-        'inApp': inApp,
-        'email': email,
-      });
+      final client = _ref.read(supabaseProvider);
+      if (client != null && client.auth.currentUser != null) {
+        final userId = client.auth.currentUser!.id;
+        final eventType = _notificationTypeToEventType(type);
+        await client.from('NotificationPreference').upsert({
+          'userId': userId,
+          'eventType': eventType,
+          'push': push,
+          'inApp': inApp,
+          'email': email,
+          'updatedAt': DateTime.now().toUtc().toIso8601String(),
+        }, onConflict: 'userId_eventType_unique');
+      }
       return true;
     } catch (e) {
       debugPrint('⚠️ Failed to update notification preference: $e');
-      await getNotificationPreferences();
       return false;
     }
   }

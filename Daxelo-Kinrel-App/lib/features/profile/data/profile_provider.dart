@@ -542,17 +542,34 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
 
   // ── Extended Profile Fields ─────────────────────────────────────
 
-  /// Load extended profile fields (occupation, education, privacy) from backend.
+  /// Load extended profile fields (occupation, education, privacy).
+  /// Uses Supabase directly (bypasses NestJS which rejects Supabase JWTs).
   Future<Map<String, dynamic>?> loadExtendedProfile() async {
+    // Try Supabase first
+    try {
+      final client = _ref.read(supabaseProvider);
+      if (client != null && client.auth.currentUser != null) {
+        final response = await client
+            .from('User')
+            .select('occupation, bio, gender, dateOfBirth, city, profileVisibility, invitePermission, preferredLanguage')
+            .eq('id', client.auth.currentUser!.id)
+            .maybeSingle()
+            .timeout(const Duration(seconds: 10));
+        if (response != null) {
+          return response;
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ loadExtendedProfile Supabase error: $e');
+    }
+    // Fallback: try NestJS API (will likely 401)
     try {
       final response = await _dio.get('/api/users/me/extended');
       if (response.data is Map<String, dynamic>) {
         return response.data as Map<String, dynamic>;
       }
-    } on DioException catch (e) {
-      debugPrint('⚠️ loadExtendedProfile error: ${e.message}');
     } catch (e) {
-      debugPrint('⚠️ loadExtendedProfile error: $e');
+      debugPrint('⚠️ loadExtendedProfile NestJS error: $e');
     }
     return null;
   }
@@ -1309,8 +1326,10 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       final response = await _dio.post('/api/auth/2fa/setup');
       return TwoFASetupResponse.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
-      final message =
-          e.response?.data?['message'] ?? e.message ?? 'Failed to setup 2FA';
+      final statusCode = e.response?.statusCode;
+      final message = statusCode == 401
+          ? 'Two-factor authentication is not available right now. Please try again later.'
+          : (e.response?.data?['message'] ?? e.message ?? 'Failed to setup 2FA');
       state = state.copyWith(error: message.toString());
       return null;
     } catch (e) {
@@ -1326,8 +1345,10 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       await loadProfile();
       return true;
     } on DioException catch (e) {
-      final message =
-          e.response?.data?['message'] ?? e.message ?? 'Failed to verify 2FA';
+      final statusCode = e.response?.statusCode;
+      final message = statusCode == 401
+          ? 'Two-factor authentication is not available right now.'
+          : (e.response?.data?['message'] ?? e.message ?? 'Failed to verify 2FA');
       state = state.copyWith(error: message.toString());
       return false;
     } catch (e) {
@@ -1431,35 +1452,45 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   // ── Families ───────────────────────────────────────────────────
 
   Future<void> loadFamilies() async {
-    // v2.2: Real auth only — guard against no session.
     final client = _ref.read(supabaseProvider);
     if (client?.auth.currentSession == null) {
       state = state.copyWith(families: []);
       return;
     }
 
+    // Supabase-first: call the get_user_families RPC directly
     try {
-      final response = await _dio.get('/api/users/me/families');
+      final userId = client!.auth.currentUser!.id;
+      final response = await client
+          .rpc('get_user_families', params: {'p_user_id': userId})
+          .timeout(const Duration(seconds: 10));
 
-      // Defensive: handle both array and wrapped object response
-      List<dynamic> listData;
-      if (response.data is List) {
-        listData = response.data as List;
-      } else if (response.data is Map) {
-        final map = response.data as Map;
-        listData = (map['families'] ?? map['data'] ?? map['items'] ?? []) as List;
-      } else {
-        listData = [];
-      }
-
+      final listData = (response as List).cast<Map<String, dynamic>>();
       final list = listData
-          .map((e) => FamilyTreeNode.fromJson(e as Map<String, dynamic>))
+          .map((e) => FamilyTreeNode.fromJson(e))
           .toList();
       state = state.copyWith(families: list);
-    } on DioException catch (e) {
-      debugPrint('⚠️ loadFamilies error: ${e.message}');
     } catch (e) {
-      debugPrint('⚠️ loadFamilies error: $e');
+      debugPrint('⚠️ loadFamilies Supabase error: $e');
+      // Fallback: try NestJS API (will likely 401)
+      try {
+        final response = await _dio.get('/api/users/me/families');
+        List<dynamic> listData;
+        if (response.data is List) {
+          listData = response.data as List;
+        } else if (response.data is Map) {
+          final map = response.data as Map;
+          listData = (map['families'] ?? map['data'] ?? map['items'] ?? []) as List;
+        } else {
+          listData = [];
+        }
+        final list = listData
+            .map((e) => FamilyTreeNode.fromJson(e as Map<String, dynamic>))
+            .toList();
+        state = state.copyWith(families: list);
+      } catch (_) {
+        state = state.copyWith(families: []);
+      }
     }
   }
 

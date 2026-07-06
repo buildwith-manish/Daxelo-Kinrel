@@ -583,32 +583,9 @@ final archivedFamiliesProvider =
     }
   }
 
-  // ── Step 2: Try NestJS API ───────────────────────────────────
-  try {
-    final dio = ref.read(dioProvider);
-    final response = await dio.get('/api/families/archived');
-
-    if (response.statusCode == 200 && response.data is List) {
-      final result = (response.data as List)
-          .map((json) =>
-              ArchivedFamily.fromJson(json as Map<String, dynamic>))
-          .toList();
-      // Cache the result in Drift for future fast loads
-      _cacheArchivedFamilies(result);
-      return result;
-    }
-    // If not 200, try Supabase fallback
-  } on DioException catch (e) {
-    final status = e.response?.statusCode;
-    if (status != 401 && status != 403) {
-      debugPrint('⚠️ archivedFamiliesProvider API error: ${e.message}');
-    }
-    // Auth error or other — fall through to Supabase
-  } catch (e) {
-    debugPrint('⚠️ archivedFamiliesProvider API error: $e');
-  }
-
-  // ── Step 3: Fallback: Query Supabase directly ────────────────
+  // ── Step 2: Query Supabase directly (primary path) ──────────
+  // The NestJS backend rejects Supabase JWTs (ES256/HS256 mismatch).
+  // Supabase is now the primary path, NestJS is the fallback.
   try {
     final client = ref.read(supabaseProvider);
     if (client == null) return [];
@@ -1811,35 +1788,14 @@ Future<void> restoreFamily({
   required ProviderContainer container,
   required String familyId,
 }) async {
-  // Try NestJS API first
+  // Supabase-first: Restore directly (bypasses NestJS which rejects Supabase JWTs)
   bool restored = false;
-  try {
-    final dio = container.read(dioProvider);
-    final response = await dio.post('/api/families/$familyId/restore');
-    if (response.statusCode == 200) {
-      restored = true;
-    }
-  } on DioException catch (e) {
-    // ✅ FIX (BUG-DELETE): Fall back to Supabase for ALL DioException types,
-    // not just 401/403. Timeouts and connection errors should also fall back.
-    final status = e.response?.statusCode;
-    if (status != null && status >= 400 && status < 500 && status != 401 && status != 403) {
-      final message = e.response?.data?['message'] ?? e.message ?? 'Unknown error';
-      throw Exception('Failed to restore family: $message');
-    }
-    debugPrint('⚠️ API call failed (status=$status, type=${e.type}), falling back to Supabase for restore');
-  } catch (e) {
-    debugPrint('⚠️ API call failed, falling back to Supabase for restore: $e');
+  final client = container.read(supabaseProvider);
+  if (client == null) {
+    throw Exception('Database is not connected. Please restart the app and try again.');
   }
-
-  // Fallback: Restore via Supabase RPC (single round trip)
-  if (!restored) {
-    final client = container.read(supabaseProvider);
-    if (client == null) {
-      throw Exception('Database is not connected. Please restart the app and try again.');
-    }
-    try {
-      await withRetry(
+  try {
+    await withRetry(
         () => client.rpc('restore_family', params: {'p_family_id': familyId}),
         operationName: 'Restore family (RPC fallback)',
       );

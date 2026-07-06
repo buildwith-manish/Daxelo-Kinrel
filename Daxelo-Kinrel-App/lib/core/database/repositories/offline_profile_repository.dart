@@ -60,23 +60,39 @@ class OfflineProfileRepository {
   }
 
   Future<ProfileModel?> _fetchProfileFromNetwork() async {
+    // Supabase-first: query User table directly (bypasses NestJS which
+    // rejects Supabase JWTs due to ES256/HS256 mismatch)
+    try {
+      final client = _ref.read(supabaseProvider);
+      if (client != null && client.auth.currentUser != null) {
+        final response = await client
+            .from('User')
+            .select()
+            .eq('id', client.auth.currentUser!.id)
+            .maybeSingle()
+            .timeout(const Duration(seconds: 10));
+        if (response != null) {
+          final profile = ProfileModel.fromJson(response);
+          await _cacheProfile(profile);
+          return profile;
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ fetchProfile Supabase error: $e');
+    }
+
+    // Fallback: try NestJS API (will likely 401)
     try {
       final response = await _dio.get('/api/users/me');
       final data = response.data as Map<String, dynamic>;
-      // Backend returns { "user": { ... } }, unwrap the user object
       final userData = data.containsKey('user') && data['user'] is Map
           ? (data['user'] as Map).cast<String, dynamic>()
           : data;
       final profile = ProfileModel.fromJson(userData);
-
-      // Cache the result
       await _cacheProfile(profile);
-
       return profile;
     } on DioException catch (e) {
-      debugPrint('⚠️ fetchProfile network error: ${e.message}');
-
-      // If offline, try cache as fallback
+      debugPrint('⚠️ fetchProfile NestJS error: ${e.message}');
       if (!_isOnline) {
         return _getCachedProfile();
       }
@@ -107,11 +123,36 @@ class OfflineProfileRepository {
 
   /// Update the user's profile with offline support.
   Future<bool> updateProfile(Map<String, dynamic> data) async {
+    // Supabase-first: update User table directly (bypasses NestJS)
     if (_isOnline) {
+      try {
+        final client = _ref.read(supabaseProvider);
+        if (client != null && client.auth.currentUser != null) {
+          final userId = client.auth.currentUser!.id;
+          final updateData = Map<String, dynamic>.from(data);
+          updateData['updatedAt'] = DateTime.now().toUtc().toIso8601String();
+          await client.from('User').update(updateData).eq('id', userId);
+          // Re-fetch to get the full updated profile
+          final response = await client
+              .from('User')
+              .select()
+              .eq('id', userId)
+              .maybeSingle()
+              .timeout(const Duration(seconds: 10));
+          if (response != null) {
+            final profile = ProfileModel.fromJson(response);
+            await _cacheProfile(profile);
+          }
+          return true;
+        }
+      } catch (e) {
+        debugPrint('⚠️ updateProfile Supabase error: $e');
+      }
+
+      // Fallback: try NestJS API (will likely 401)
       try {
         final response = await _dio.patch('/api/users/me', data: data);
         final respData = response.data as Map<String, dynamic>;
-        // Backend returns { "user": { ... } }, unwrap the user object
         final userData = respData.containsKey('user') && respData['user'] is Map
             ? (respData['user'] as Map).cast<String, dynamic>()
             : respData;
@@ -120,15 +161,13 @@ class OfflineProfileRepository {
         return true;
       } on DioException catch (e) {
         if (_isNetworkError(e.toString())) {
-          // Queue for later sync + update cache optimistically
           await _updateProfileOffline(data);
           return true;
         }
-        debugPrint('⚠️ updateProfile error: ${e.message}');
+        debugPrint('⚠️ updateProfile NestJS error: ${e.message}');
         return false;
       }
     } else {
-      // Offline — update cache optimistically and queue
       return _updateProfileOffline(data);
     }
   }
