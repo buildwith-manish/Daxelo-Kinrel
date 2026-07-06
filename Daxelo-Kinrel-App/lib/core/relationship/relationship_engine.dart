@@ -129,8 +129,8 @@ class RelationshipEngine {
     // each path type so the classifier sees "Geetha is a parent of Yakshitha"
     // → returns 'Mother' instead of 'Daughter'.
     final pathTypes = pathResult.path.map((step) {
-      return inverseType(step.type) ?? step.type;
-    }).toList().cast<String>();
+      return graphService.inverseType(step.type);
+    }).toList();
 
     // v66: Try the kinship chain rules first (high accuracy for known
     // compounds), then fall back to the structural classifier which
