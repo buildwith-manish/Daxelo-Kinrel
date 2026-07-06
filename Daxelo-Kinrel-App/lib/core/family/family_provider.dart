@@ -1824,8 +1824,8 @@ Future<void> restoreFamily({
             .eq('id', familyId),
         operationName: 'Restore family (fallback)',
       );
+      restored = true;
     }
-  }
 
   // Invalidate providers to refresh UI
   container.invalidate(familyListProvider);
