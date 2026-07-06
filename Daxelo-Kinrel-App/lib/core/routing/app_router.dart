@@ -426,6 +426,7 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
   final isAuth =
       currentLocation == '/sign-in' ||
       currentLocation == '/sign-up';
+  final isCreateUsername = currentLocation == '/create-username';
   final is2FAVerify = currentLocation == '/2fa-verify';
   final isPublicLegal =
       currentLocation == '/privacy' ||
@@ -511,6 +512,11 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
     } else {
       redirectTarget = '/home';
     }
+  } else if (isAuthenticated && isCreateUsername) {
+    // Authenticated user on /create-username — let them stay (don't
+    // redirect to /home). This screen is shown after sign-up to collect
+    // the mandatory username before entering the app.
+    redirectTarget = null;
   } else if (isAuthenticated && is2FAVerify) {
     // CRITICAL: Authenticated user on /2fa-verify
     // - If pending 2FA → STAY on /2fa-verify (don't redirect away!)

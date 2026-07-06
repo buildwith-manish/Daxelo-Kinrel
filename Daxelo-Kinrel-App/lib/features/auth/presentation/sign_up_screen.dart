@@ -300,7 +300,16 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         context.go('/sign-in');
       } else {
         // Auto-confirmed — go to Create Username screen (mandatory
-        // before entering the app)
+        // before entering the app).
+        // If no session was created (Supabase auto-confirms email but
+        // doesn't always create a session on sign-up), sign in with the
+        // credentials the user just provided.
+        if (response.session == null) {
+          await authService.signIn(
+            email: _emailController.text.trim(),
+            password: _passwordController.text,
+          );
+        }
         if (mounted) {
           markSignInSuccess();
           await Future.delayed(const Duration(milliseconds: 500));
