@@ -191,6 +191,12 @@ class UsernameNotifier extends StateNotifier<UsernameCheckState> {
     super.dispose();
   }
 
+  /// Reset the state to initial (used when the user clears or changes the input).
+  void reset() {
+    _debounceTimer?.cancel();
+    state = const UsernameCheckState();
+  }
+
   // ── Availability Cache ────────────────────────────────────────
 
   /// Cache key prefix for username availability in ApiCacheEntries.

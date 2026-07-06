@@ -48,6 +48,7 @@ import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/auth/presentation/sign_in_screen.dart';
 import '../../features/auth/presentation/sign_up_screen.dart';
+import '../../features/auth/presentation/create_username_screen.dart';
 import '../../features/auth/presentation/two_factor_login_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 // KIN-25: ExploreScreen import removed — /explore route deleted.
@@ -615,6 +616,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/sign-up',
         pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: SignUpScreen()),
+      ),
+
+      // ── Create Username (post-signup, mandatory) ──────────────────
+      // Shown immediately after successful sign-up. User must choose a
+      // unique username before they can access the app.
+      GoRoute(
+        path: '/create-username',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const CreateUsernameScreen()),
       ),
       GoRoute(
         path: '/2fa-verify',

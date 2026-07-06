@@ -177,9 +177,25 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         ref.invalidate(familyListProvider);
       } catch (_) {}
 
-      // Navigate directly — same fix as _signIn(): no delay,
-      // no _navigateToHome() wrapper.
+      // Check if user has a username — if not, redirect to Create Username
       if (mounted) {
+        final client = ref.read(supabaseProvider);
+        final userId = client?.auth.currentUser?.id;
+        if (userId != null) {
+          try {
+            final userData = await client!
+                .from('User')
+                .select('username')
+                .eq('id', userId)
+                .maybeSingle()
+                .timeout(const Duration(seconds: 5));
+            final username = userData?['username'] as String?;
+            if (username == null || username.isEmpty) {
+              context.go('/create-username');
+              return;
+            }
+          } catch (_) {}
+        }
         try {
           context.go('/home');
         } catch (e) {
@@ -268,18 +284,29 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         ref.invalidate(familyListProvider);
       } catch (_) {}
 
-      // Navigate directly to home. Do NOT use a delay — the old
-      // 800ms delay + _navigateToHome() wrapper caused the
-      // "connecting loop" bug where the user saw the Sign In button
-      // re-appear for almost a second after auth succeeded, prompting
-      // them to click it again.
+      // Check if user has a username — if not, redirect to Create Username
       if (mounted) {
+        final client = ref.read(supabaseProvider);
+        final userId = client?.auth.currentUser?.id;
+        if (userId != null) {
+          try {
+            final userData = await client!
+                .from('User')
+                .select('username')
+                .eq('id', userId)
+                .maybeSingle()
+                .timeout(const Duration(seconds: 5));
+            final username = userData?['username'] as String?;
+            if (username == null || username.isEmpty) {
+              context.go('/create-username');
+              return;
+            }
+          } catch (_) {}
+        }
         try {
           context.go('/home');
         } catch (e) {
           debugPrint('⚠️ Direct navigation to /home failed: $e');
-          // Fallback: the GoRouter redirect triggered by
-          // markSignInSuccess() will handle navigation.
         }
       }
     } on AuthException catch (e) {

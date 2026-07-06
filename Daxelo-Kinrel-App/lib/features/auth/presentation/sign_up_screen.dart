@@ -201,9 +201,29 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         AnalyticsService.instance.logSignUp('google').catchError((_) {}),
       );
 
-      // Navigate to home (with short delay to let auth state propagate)
+      // Check if user already has a username — if not, go to Create Username
       if (mounted) {
         await Future.delayed(const Duration(milliseconds: 500));
+        final client = ref.read(supabaseProvider);
+        final userId = client?.auth.currentUser?.id;
+        if (userId != null) {
+          try {
+            final userData = await client!
+                .from('User')
+                .select('username')
+                .eq('id', userId)
+                .maybeSingle()
+                .timeout(const Duration(seconds: 5));
+            final username = userData?['username'] as String?;
+            if (username == null || username.isEmpty) {
+              // New user without a username — go to Create Username screen
+              context.go('/create-username');
+              return;
+            }
+          } catch (_) {
+            // If the query fails, proceed to home (user can set username later)
+          }
+        }
         _navigateToHome();
       }
     } catch (e) {
@@ -279,11 +299,12 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         );
         context.go('/sign-in');
       } else {
-        // Auto-confirmed or already confirmed — go to home
+        // Auto-confirmed — go to Create Username screen (mandatory
+        // before entering the app)
         if (mounted) {
           markSignInSuccess();
           await Future.delayed(const Duration(milliseconds: 500));
-          _navigateToHome();
+          context.go('/create-username');
         }
       }
     } catch (e) {
@@ -455,34 +476,6 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                       }
                       return emailValidator(v);
                     },
-                    onFieldSubmitted: (_) {
-                      _phoneFocusNode.requestFocus();
-                    },
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  // ── Phone field with country code picker ─────────
-                  TextFormField(
-                    controller: _phoneController,
-                    focusNode: _phoneFocusNode,
-                    keyboardType: TextInputType.phone,
-                    textInputAction: TextInputAction.next,
-                    textCapitalization: TextCapitalization.none,
-                    cursorColor: _focusBorder,
-                    style: TextStyle(
-                      color: _primaryText,
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 14,
-                    ),
-                    decoration: _inputDecoration(
-                      hintText: 'Phone number',
-                      prefix: _CountryCodePicker(
-                        selected: _selectedCountry,
-                        onSelected: (code) =>
-                            setState(() => _selectedCountry = code),
-                      ),
-                    ),
                     onFieldSubmitted: (_) {
                       _passwordFocusNode.requestFocus();
                     },
