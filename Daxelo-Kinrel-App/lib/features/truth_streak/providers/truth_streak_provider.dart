@@ -88,7 +88,7 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
 
     _channel = client.channel('truth_streak_answers:$familyId');
     _channel!.onPostgresChanges(
-      PostgresChangeEvent.insert,
+      event: PostgresChangeEvent.insert,
       schema: 'public',
       table: 'truth_streak_answers',
       filter: PostgresChangeFilter(
