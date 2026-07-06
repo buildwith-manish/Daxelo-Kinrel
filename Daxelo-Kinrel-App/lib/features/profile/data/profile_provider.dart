@@ -890,9 +890,7 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
             avatarUrl: response['avatarUrl'] as String?,
             bio: response['bio'] as String?,
             dateOfBirth: response['dateOfBirth'] != null
-                ? (response['dateOfBirth'] is String
-                    ? response['dateOfBirth'] as String
-                    : response['dateOfBirth'].toString())
+                ? DateTime.tryParse(response['dateOfBirth'].toString())
                 : null,
             gender: response['gender'] as String?,
             username: response['username'] as String?,

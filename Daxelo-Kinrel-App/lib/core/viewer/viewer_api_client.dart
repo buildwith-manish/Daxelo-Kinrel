@@ -155,7 +155,7 @@ class ViewerApiClient {
     try {
       final client = _ref.read(supabaseProvider);
       if (client == null || client.auth.currentUser == null) {
-        return const ViewerResolution(personId: null, source: 'none');
+        return ViewerResolution(familyId: familyId, viewerPersonId: null, resolution: 'none', isLinked: false);
       }
       final userId = client.auth.currentUser!.id;
 
@@ -170,7 +170,7 @@ class ViewerApiClient {
           .timeout(const Duration(seconds: 10));
 
       if (linked != null && linked['id'] != null) {
-        return ViewerResolution(personId: linked['id'] as String, source: 'linked');
+        return ViewerResolution(familyId: familyId, viewerPersonId: linked['id'] as String, resolution: 'linked', isLinked: true);
       }
 
       // 2. Fallback: try the family anchor
@@ -184,10 +184,10 @@ class ViewerApiClient {
           .timeout(const Duration(seconds: 10));
 
       if (anchor != null && anchor['id'] != null) {
-        return ViewerResolution(personId: anchor['id'] as String, source: 'anchor');
+        return ViewerResolution(familyId: familyId, viewerPersonId: anchor['id'] as String, resolution: 'anchor', isLinked: false);
       }
 
-      return const ViewerResolution(personId: null, source: 'none');
+      return ViewerResolution(familyId: familyId, viewerPersonId: null, resolution: 'none', isLinked: false);
     } catch (e) {
       debugPrint('ViewerApiClient.resolveViewer: $e');
       // Last resort: try NestJS API (will likely 401)
@@ -195,7 +195,7 @@ class ViewerApiClient {
         final response = await _dio.get('/api/families/$familyId/viewer');
         return ViewerResolution.fromJson(response.data as Map<String, dynamic>);
       } catch (_) {
-        return const ViewerResolution(personId: null, source: 'none');
+        return ViewerResolution(familyId: familyId, viewerPersonId: null, resolution: 'none', isLinked: false);
       }
     }
   }
@@ -218,7 +218,7 @@ class ViewerApiClient {
         'linkedAt': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', personId).eq('familyId', familyId);
 
-      return PersonLinkResult(personId: personId, linked: true);
+      return PersonLinkResult(personId: personId, linkedUserId: userId, linkedAt: DateTime.now());
     } catch (e) {
       debugPrint('ViewerApiClient.claimPerson: $e');
       rethrow;
