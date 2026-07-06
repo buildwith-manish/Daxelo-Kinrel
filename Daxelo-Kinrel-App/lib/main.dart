@@ -215,11 +215,11 @@ void main() async {
 
   runApp(ProviderScope(child: KinrelApp()));
 
-  // ── Background initialization (non-blocking) ──────────────────────
-  // All heavy init runs AFTER runApp. The splash screen / loading state
-  // is already visible. These complete asynchronously and update the
-  // app state via Riverpod providers.
-  _initializeServices();
+  // ── Background initialization ─────────────────────────────────────
+  // Awaited so the app doesn't accept user interaction before Supabase,
+  // Drift, and socket service are ready. The splash/loading screen is
+  // shown during this time. If init fails, the app shows an error state.
+  await _initializeServices();
 }
 
 /// Background service initialization. Runs after runApp() so the user
@@ -357,6 +357,11 @@ final appInitCompleteProvider = FutureProvider<void>((ref) async {
 /// Handle sign-out operations (fire-and-forget).
 /// Called from the auth state listener — MUST NOT throw.
 Future<void> _handleSignOut(WidgetRef ref) async {
+  // Clear the pending 2FA flag so the next user on this device
+  // isn't incorrectly routed to /2fa-verify.
+  try {
+    ref.read(pending2FAProvider.notifier).state = false;
+  } catch (_) {}
   try {
     final pushService = ref.read(pushNotificationServiceProvider);
     await pushService.deleteToken().timeout(const Duration(seconds: 5));

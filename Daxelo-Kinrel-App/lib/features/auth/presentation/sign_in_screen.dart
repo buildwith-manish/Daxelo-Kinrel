@@ -481,6 +481,117 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     );
   }
 
+  // ── Forgot Password ──────────────────────────────────────────────
+
+  void _showForgotPasswordDialog() {
+    final emailController = TextEditingController(
+      text: _emailController.text.trim(),
+    );
+    bool isSending = false;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          backgroundColor: KinrelColors.darkCard,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            'Reset Password',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: KinrelColors.textWhite,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Enter your email and we\'ll send you a reset link.',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 13,
+                  color: KinrelColors.textDim,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                style: TextStyle(color: KinrelColors.textWhite),
+                decoration: InputDecoration(
+                  hintText: 'Email',
+                  hintStyle: TextStyle(color: KinrelColors.textDim),
+                  filled: true,
+                  fillColor: KinrelColors.darkSurface,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('Cancel',
+                  style: TextStyle(color: KinrelColors.textDim)),
+            ),
+            ElevatedButton(
+              onPressed: isSending
+                  ? null
+                  : () async {
+                      final email = emailController.text.trim();
+                      if (email.isEmpty || !email.contains('@')) return;
+                      setState(() => isSending = true);
+                      try {
+                        final client = ref.read(supabaseProvider);
+                        if (client != null) {
+                          await client.auth.resetPasswordForEmail(email);
+                          if (ctx.mounted) {
+                            Navigator.of(ctx).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                    'Reset link sent! Check your email.'),
+                                backgroundColor: Color(0xFF22C55E),
+                              ),
+                            );
+                          }
+                        }
+                      } catch (e) {
+                        if (ctx.mounted) {
+                          setState(() => isSending = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed: $e'),
+                              backgroundColor: KinrelColors.error,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: KinrelColors.orange,
+                foregroundColor: Colors.white,
+              ),
+              child: isSending
+                  ? const SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Text('Send Link'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── Build ────────────────────────────────────────────────────────
 
   @override
@@ -617,9 +728,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () {
-                          // TODO: Navigate to forgot password
-                        },
+                        onPressed: () => _showForgotPasswordDialog(),
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 4,

@@ -504,9 +504,14 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
   // ── Compute redirect target ────────────────────────────────────────
   String? redirectTarget;
 
-  if (isAuthenticated && isAuth) {
+  // ── 2FA GATE: If 2FA is pending, the user MUST go to /2fa-verify ──
+  // This check runs BEFORE any other redirect logic so it can't be
+  // bypassed by any other condition.
+  if (isAuthenticated && pending2FA && !is2FAVerify) {
+    redirectTarget = '/2fa-verify';
+  } else if (isAuthenticated && isAuth) {
     // Authenticated user on sign-in/sign-up → redirect to home
-    // (but NOT if they have pending 2FA → they should go to /2fa-verify)
+    // (but NOT if they have pending 2FA → already handled above)
     if (pending2FA) {
       redirectTarget = '/2fa-verify';
     } else {
@@ -525,10 +530,6 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
       redirectTarget = '/home';
     }
     // If pending2FA is true, redirectTarget stays null → allow /2fa-verify
-  } else if (isAuthenticated && !isAuth && !is2FAVerify && !isPublicLegal && pending2FA) {
-    // Authenticated user trying to access a protected route without
-    // completing 2FA → redirect to /2fa-verify
-    redirectTarget = '/2fa-verify';
   } else if (!isAuthenticated && (is2FAVerify || (!isAuth && !isPublicLegal))) {
     // Unauthenticated user on /2fa-verify or any protected route
     // → redirect to sign-in

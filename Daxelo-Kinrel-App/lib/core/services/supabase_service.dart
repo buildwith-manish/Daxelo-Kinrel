@@ -31,12 +31,10 @@ import '../config/app_config.dart';
 
 final _log = Logger(printer: PrettyPrinter(methodCount: 0));
 
-// ── Hardcoded fallback credentials ──────────────────────────────────
-// The anon key is safe for client-side use (only service_role is secret).
-const String _hardcodedSupabaseUrl = 'https://promxswvsnvilplmrtsj.supabase.co';
-const String _hardcodedSupabaseAnonKey =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY';
-
+// ── Credentials loaded from AppConfig (which reads .env) ───────────
+// No hardcoded credentials in source code. The .env file is gitignored
+// and must be present in the build environment. If .env is missing,
+// the app shows a config error instead of falling back to hardcoded keys.
 bool _supabaseInitialized = false;
 bool get isSupabaseInitialized => _supabaseInitialized;
 
@@ -45,19 +43,11 @@ bool get isSupabaseInitialized => _supabaseInitialized;
 final supabaseReadyStateProvider = StateProvider<bool>((ref) => false);
 
 String _resolveSupabaseUrl() {
-  final appConfigUrl = AppConfig.supabaseUrl;
-  if (appConfigUrl.isNotEmpty && appConfigUrl.startsWith('https://')) {
-    return appConfigUrl;
-  }
-  return _hardcodedSupabaseUrl;
+  return AppConfig.supabaseUrl;
 }
 
 String _resolveSupabaseAnonKey() {
-  final appConfigKey = AppConfig.supabaseAnonKey;
-  if (appConfigKey.isNotEmpty && appConfigKey.startsWith('eyJ')) {
-    return appConfigKey;
-  }
-  return _hardcodedSupabaseAnonKey;
+  return AppConfig.supabaseAnonKey;
 }
 
 /// Check if the device has internet connectivity.
@@ -69,7 +59,7 @@ Future<bool> _hasConnectivity() async {
     return hasConnection;
   } catch (e) {
     _log.w('Connectivity check failed: $e');
-    return true; // Assume connected if check fails
+    return false; // Assume offline if the check itself throws
   }
 }
 

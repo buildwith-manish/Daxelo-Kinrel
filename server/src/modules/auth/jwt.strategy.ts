@@ -55,15 +55,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
               done(null, supabaseSecret);
               return;
             }
-            // Fallback: try the SUPABASE_ANON_KEY (won't verify but allows decoding)
-            const anonKey = config.get<string>('SUPABASE_ANON_KEY', '');
-            if (anonKey) {
-              done(null, anonKey);
-              return;
-            }
-            // Last resort: use a dummy secret (verification will fail, but
-            // we handle this in validate() by catching the error)
-            done(null, 'supabase-dev-fallback');
+            // No Supabase JWT secret configured — reject the token.
+            // Previously this fell back to a dummy secret 'supabase-dev-fallback'
+            // which was a security hole (any token signed with that string
+            // would pass). Now we reject instead.
+            done(new Error('SUPABASE_JWT_SECRET not configured'), undefined);
             return;
           }
 
