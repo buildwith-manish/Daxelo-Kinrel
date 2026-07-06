@@ -746,14 +746,14 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
                     onPressed: () {
                       AddPersonSheet.show(
                         context,
-                        familyId: widget.familyId,
+                        familyId: detail.familyId,
                         existingPerson: Person(
-                          id: person.id,
-                          familyId: widget.familyId,
-                          name: person.name,
-                          gender: person.gender,
-                          isDeceased: person.isDeceased,
-                          photoUrl: person.photoUrl,
+                          id: detail.memberId,
+                          familyId: detail.familyId,
+                          name: detail.name,
+                          gender: detail.gender,
+                          isDeceased: detail.isDeceased,
+                          photoUrl: detail.photoUrl,
                           isAnchor: false,
                           generationIndex: 0,
                         ),
