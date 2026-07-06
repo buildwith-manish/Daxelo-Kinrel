@@ -87,15 +87,14 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
     if (client == null) return;
 
     _channel = client.channel('truth_streak_answers:$familyId');
+    // Subscribe to ALL inserts on truth_streak_answers (no filter — the
+    // table doesn't have a familyId column; familyId lives on the
+    // assignment table). On any insert, reload to check if it belongs
+    // to our family's assignment.
     _channel!.onPostgresChanges(
       event: PostgresChangeEvent.insert,
       schema: 'public',
       table: 'truth_streak_answers',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'familyId',
-        value: familyId,
-      ),
       callback: (payload) {
         debugPrint('📨 Truth Streak: new answer received via realtime');
         load();
@@ -328,6 +327,13 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
         ),
         isSubmitting: false,
       );
+
+      // Force a full reload to ensure the screen transitions from the
+      // "locked" state to the "answered" state and renders all answers.
+      // This is needed because the screen's build() checks hasAnswered
+      // (myAnswer != null) to decide which view to show, and sometimes
+      // the state update alone doesn't trigger the correct rebuild.
+      await load();
 
       return true;
     } catch (e) {

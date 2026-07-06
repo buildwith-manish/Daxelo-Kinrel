@@ -736,6 +736,41 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
                   label: 'Date of Birth',
                   value: detail.dateOfBirth!,
                 ),
+              // Inline "Add birthday" button when dateOfBirth is missing —
+              // prevents users from accidentally creating a duplicate Person
+              // via "Add Relative" when they just want to add a birthday.
+              if (detail.dateOfBirth == null || detail.dateOfBirth!.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      AddPersonSheet.show(
+                        context,
+                        familyId: widget.familyId,
+                        existingPerson: Person(
+                          id: person.id,
+                          familyId: widget.familyId,
+                          name: person.name,
+                          gender: person.gender,
+                          isDeceased: person.isDeceased,
+                          photoUrl: person.photoUrl,
+                          isAnchor: false,
+                          generationIndex: 0,
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.cake_outlined, size: 16),
+                    label: const Text('Add birthday'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: KinrelColors.orange,
+                      side: BorderSide(color: KinrelColors.orange.withValues(alpha: 0.4)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
               if (detail.age != null)
                 _InfoRow(
                   icon: Icons.cake_outlined,

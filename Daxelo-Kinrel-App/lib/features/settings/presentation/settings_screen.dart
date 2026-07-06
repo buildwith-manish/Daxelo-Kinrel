@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
+import 'package:in_app_review/in_app_review.dart';
 import '../../../core/services/analytics_service.dart';
 import '../../profile/data/profile_provider.dart';
 
@@ -327,7 +328,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             _SettingsRow(
               icon: Icons.star_outline,
               label: 'Rate the app',
-              onTap: () {},
+              onTap: () async {
+                try {
+                  final inAppReview = InAppReview.instance;
+                  if (await inAppReview.isAvailable()) {
+                    inAppReview.requestReview();
+                  } else {
+                    // Fallback: open store listing
+                  }
+                } catch (_) {}
+              },
             ),
             _divider(),
             _SettingsRow(

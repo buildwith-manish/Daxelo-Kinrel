@@ -45,7 +45,7 @@ import '../services/analytics_service.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Base URL for universal links
-const kDeepLinkBaseUrl = 'https://kinrel.app';
+const kDeepLinkBaseUrl = 'https://daxelo-kinrel.vercel.app';
 
 /// Custom URL scheme
 const kDeepLinkScheme = 'kinrel';

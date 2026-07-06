@@ -526,13 +526,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               _SettingsRow(
                 icon: Icons.description_outlined,
                 label: 'Terms of service',
-                onTap: () => context.push('/legal/terms'),
-              ),
+                onTap: () => context.push('/terms'),              ),
               _divider(),
               _SettingsRow(
                 icon: Icons.privacy_tip_outlined,
                 label: 'Privacy policy',
-                onTap: () => context.push('/legal/privacy'),
+                onTap: () => context.push('/privacy'),
               ),
             ]),
             const SizedBox(height: 16),
