@@ -193,19 +193,18 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         return;
       }
 
-      // Mark sign-in success to prevent GoRouter redirect loops
-      markSignInSuccess();
-
       // Track successful Google sign-up (fire-and-forget — don't await)
       unawaited(
         AnalyticsService.instance.logSignUp('google').catchError((_) {}),
       );
 
       // Check if user already has a username — if not, go to Create Username
+      // Navigate BEFORE markSignInSuccess() to prevent the GoRouter redirect
+      // from sending the user to /home.
       if (mounted) {
-        await Future.delayed(const Duration(milliseconds: 500));
         final client = ref.read(supabaseProvider);
         final userId = client?.auth.currentUser?.id;
+        bool needsUsername = false;
         if (userId != null) {
           try {
             final userData = await client!
@@ -215,16 +214,16 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                 .maybeSingle()
                 .timeout(const Duration(seconds: 5));
             final username = userData?['username'] as String?;
-            if (username == null || username.isEmpty) {
-              // New user without a username — go to Create Username screen
-              context.go('/create-username');
-              return;
-            }
-          } catch (_) {
-            // If the query fails, proceed to home (user can set username later)
-          }
+            needsUsername = username == null || username.isEmpty;
+          } catch (_) {}
         }
-        _navigateToHome();
+        if (needsUsername) {
+          context.go('/create-username');
+          markSignInSuccess();
+        } else {
+          markSignInSuccess();
+          _navigateToHome();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -311,9 +310,14 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
           );
         }
         if (mounted) {
-          markSignInSuccess();
-          await Future.delayed(const Duration(milliseconds: 500));
+          // Navigate to /create-username BEFORE calling markSignInSuccess().
+          // markSignInSuccess() triggers GoRouter redirect re-evaluation.
+          // If we call it while still on /sign-up, the redirect sends the
+          // user to /home (bypassing /create-username). By navigating to
+          // /create-username first, the redirect sees the user is already
+          // on /create-username and lets them stay.
           context.go('/create-username');
+          markSignInSuccess();
         }
       }
     } catch (e) {

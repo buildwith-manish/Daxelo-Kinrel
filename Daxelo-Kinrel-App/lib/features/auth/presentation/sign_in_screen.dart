@@ -168,8 +168,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         return;
       }
 
-      // No 2FA required — mark sign-in success and navigate
-      markSignInSuccess();
+      // No 2FA required — check username BEFORE markSignInSuccess()
+      // to prevent GoRouter redirect from sending user to /home.
 
       // Invalidate family providers so they re-fetch for the
       // newly signed-in user (prevents stale [] from pre-login).
@@ -181,6 +181,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       if (mounted) {
         final client = ref.read(supabaseProvider);
         final userId = client?.auth.currentUser?.id;
+        bool needsUsername = false;
         if (userId != null) {
           try {
             final userData = await client!
@@ -190,16 +191,19 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 .maybeSingle()
                 .timeout(const Duration(seconds: 5));
             final username = userData?['username'] as String?;
-            if (username == null || username.isEmpty) {
-              context.go('/create-username');
-              return;
-            }
+            needsUsername = username == null || username.isEmpty;
           } catch (_) {}
         }
-        try {
-          context.go('/home');
-        } catch (e) {
-          debugPrint('⚠️ Google sign-in navigation to /home failed: $e');
+        if (needsUsername) {
+          context.go('/create-username');
+          markSignInSuccess();
+        } else {
+          markSignInSuccess();
+          try {
+            context.go('/home');
+          } catch (e) {
+            debugPrint('⚠️ Google sign-in navigation to /home failed: $e');
+          }
         }
       }
     } catch (e) {
@@ -275,8 +279,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         return;
       }
 
-      // No 2FA required — mark sign-in success and navigate
-      markSignInSuccess();
+      // No 2FA required — check username BEFORE markSignInSuccess()
+      // to prevent GoRouter redirect from sending user to /home.
 
       // Invalidate family providers so they re-fetch for the
       // newly signed-in user (prevents stale [] from pre-login).
@@ -288,6 +292,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       if (mounted) {
         final client = ref.read(supabaseProvider);
         final userId = client?.auth.currentUser?.id;
+        bool needsUsername = false;
         if (userId != null) {
           try {
             final userData = await client!
@@ -297,16 +302,19 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 .maybeSingle()
                 .timeout(const Duration(seconds: 5));
             final username = userData?['username'] as String?;
-            if (username == null || username.isEmpty) {
-              context.go('/create-username');
-              return;
-            }
+            needsUsername = username == null || username.isEmpty;
           } catch (_) {}
         }
-        try {
-          context.go('/home');
-        } catch (e) {
-          debugPrint('⚠️ Direct navigation to /home failed: $e');
+        if (needsUsername) {
+          context.go('/create-username');
+          markSignInSuccess();
+        } else {
+          markSignInSuccess();
+          try {
+            context.go('/home');
+          } catch (e) {
+            debugPrint('⚠️ Direct navigation to /home failed: $e');
+          }
         }
       }
     } on AuthException catch (e) {
