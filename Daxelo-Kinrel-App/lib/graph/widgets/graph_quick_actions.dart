@@ -120,7 +120,6 @@ class GraphQuickActions {
                       familyId: familyId,
                       name: person.name,
                       gender: person.gender,
-                      dateOfBirth: person.dateOfBirth,
                       isDeceased: person.isDeceased,
                       photoUrl: person.photoUrl,
                       isAnchor: false,

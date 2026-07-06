@@ -87,17 +87,15 @@ class TruthStreakNotifier extends StateNotifier<TruthStreakState> {
     if (client == null) return;
 
     _channel = client.channel('truth_streak_answers:$familyId');
-    _channel!.onPostgresChangeEvent(
-      PostgresChangeEvent.insert,
-      schema: 'public',
-      table: 'truth_streak_answers',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'familyId',
-        value: familyId,
-      ),
-      callback: (payload) {
-        // A new answer was inserted — reload to get fresh data
+    _channel!.on(
+      'postgres_changes',
+      payload: {
+        'event': 'INSERT',
+        'schema': 'public',
+        'table': 'truth_streak_answers',
+        'filter': 'familyId=eq.$familyId',
+      },
+      (payload) {
         debugPrint('📨 Truth Streak: new answer received via realtime');
         load();
       },
