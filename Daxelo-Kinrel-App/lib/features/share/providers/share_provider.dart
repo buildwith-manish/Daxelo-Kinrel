@@ -69,7 +69,7 @@ class InviteLink {
   // ── Computed Properties ──────────────────────────────────────────
 
   /// Full deep link URL (e.g., kinrel.app/invite/abc123).
-  String get deepLink => 'kinrel.app/invite/$code';
+  String get deepLink => 'https://daxelo-kinrel.vercel.app/invite/$code';
 
   /// Whether the link has expired.
   bool get isExpired => DateTime.now().isAfter(expiresAt);

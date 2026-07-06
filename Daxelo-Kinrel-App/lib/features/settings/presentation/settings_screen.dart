@@ -279,20 +279,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             _SettingsRow(
               icon: Icons.account_tree_outlined,
               label: 'My family trees',
-              onTap: () {},
+              onTap: () => context.push('/profile/families'),
             ),
             _divider(),
             _SettingsRow(
               icon: Icons.mail_outline,
               label: 'Pending invitations',
               badge: 3,
-              onTap: () {},
+              onTap: () => context.push('/profile/invitations'),
             ),
             _divider(),
             _SettingsRow(
               icon: Icons.block_outlined,
               label: 'Blocked members',
-              onTap: () {},
+              onTap: () => context.push('/profile/blocked-users'),
             ),
             _divider(),
             _SettingsRow(
@@ -310,19 +310,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             _SettingsRow(
               icon: Icons.help_outline,
               label: 'Help center / FAQ',
-              onTap: () {},
+              onTap: () => context.push('/profile/help'),
             ),
             _divider(),
             _SettingsRow(
               icon: Icons.support_agent,
               label: 'Contact support',
-              onTap: () {},
+              onTap: () => context.push('/profile/support'),
             ),
             _divider(),
             _SettingsRow(
               icon: Icons.bug_report_outlined,
               label: 'Report a bug',
-              onTap: () {},
+              onTap: () => context.push('/profile/report-bug'),
             ),
             _divider(),
             _SettingsRow(
@@ -345,7 +345,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               label: 'Share Kinrel with friends',
               iconColor: _orange,
               labelColor: _orange,
-              onTap: () {},
+              onTap: () => context.push('/share'),
             ),
           ]),
           const SizedBox(height: 24),
@@ -370,13 +370,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             _SettingsRow(
               icon: Icons.description_outlined,
               label: 'Terms of service',
-              onTap: () {},
+              onTap: () => context.push('/terms'),
             ),
             _divider(),
             _SettingsRow(
               icon: Icons.privacy_tip_outlined,
               label: 'Privacy policy',
-              onTap: () {},
+              onTap: () => context.push('/privacy'),
             ),
           ]),
           const SizedBox(height: 16),

@@ -1147,7 +1147,7 @@ class _LinkDetailSheet extends StatelessWidget {
               border: Border.all(color: _cBorder),
             ),
             child: Text(
-              link?.deepLink ?? 'kinrel.app/invite/...',
+              link?.deepLink ?? 'https://daxelo-kinrel.vercel.app/invite/...',
               style: TextStyle(
                 fontFamily: KinrelTypography.monoFont,
                 fontSize: 15,
@@ -1331,7 +1331,7 @@ class _QRCodeSheet extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            link?.deepLink ?? 'kinrel.app/invite/...',
+            link?.deepLink ?? 'https://daxelo-kinrel.vercel.app/invite/...',
             style: TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 12,

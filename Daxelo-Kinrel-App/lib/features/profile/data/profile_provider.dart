@@ -1228,11 +1228,21 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
             debugPrint('⚠️ Failed to persist avatar URL to user metadata: $e');
           }
 
-          // Also try to persist to the backend via API
+          // Also persist to the User table via Supabase (bypasses NestJS
+          // which currently rejects Supabase JWTs due to ES256/HS256 mismatch)
           try {
-            await _dio.patch('/api/users/me', data: {'avatarUrl': avatarUrl});
+            final sbClient = _ref.read(supabaseProvider);
+            if (sbClient != null && sbClient.auth.currentSession != null) {
+              await sbClient
+                  .from('User')
+                  .update({
+                    'avatarUrl': avatarUrl,
+                    'updatedAt': DateTime.now().toUtc().toIso8601String(),
+                  })
+                  .eq('id', sbClient.auth.currentUser!.id);
+            }
           } catch (e) {
-            debugPrint('⚠️ Failed to persist avatar URL to backend: $e');
+            debugPrint('⚠️ Failed to persist avatar URL to Supabase: $e');
           }
 
           // Update profile with new avatar URL
