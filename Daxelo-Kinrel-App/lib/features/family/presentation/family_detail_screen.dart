@@ -1142,8 +1142,10 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
         .firstOrNull;
     final isAdmin = isCreator || (currentUserMembership?.isAdmin ?? false);
 
+    // Only show real Kinrel users (linkedUserId is not null) — manually
+    // added placeholder nodes should NOT appear in the Members tab.
     final activeMembers = combinedMembers
-        .where((p) => p.deletedAt == null)
+        .where((p) => p.deletedAt == null && p.isLinkedToKinrelUser)
         .toList();
 
     var filtered = activeMembers;
@@ -1344,9 +1346,9 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
           child: filtered.isEmpty
               ? DKEmptyState(
                   icon: Icons.person_search_outlined,
-                  title: _searchQuery.isEmpty ? 'No Members' : 'No Match',
+                  title: _searchQuery.isEmpty ? 'No Linked Members' : 'No Match',
                   subtitle: _searchQuery.isEmpty
-                      ? 'Add members to your family tree'
+                      ? 'No Kinrel users have joined this family yet. Invite family members to link their accounts, or add them to the family tree first.'
                       : 'No members match "$_searchQuery"',
                 )
               : ListView.builder(
@@ -2212,7 +2214,13 @@ class _MembersPreviewRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final members = detail.members.where((p) => p.deletedAt == null).take(10).toList();
+    // Only show real Kinrel users (linkedUserId is not null) — manually
+    // added placeholder nodes should NOT appear in the Members section.
+    // They belong to the family tree graph, not the members list.
+    final members = detail.members
+        .where((p) => p.deletedAt == null && p.isLinkedToKinrelUser)
+        .take(10)
+        .toList();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),

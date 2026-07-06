@@ -82,8 +82,10 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
           final isAdmin = isCreator ||
               (currentUserMembership?.isAdmin ?? false);
 
+          // Only show real Kinrel users (linkedUserId is not null) —
+          // manually added placeholder nodes are excluded.
           final activeMembers = combinedMembers
-              .where((p) => p.deletedAt == null)
+              .where((p) => p.deletedAt == null && p.isLinkedToKinrelUser)
               .toList();
 
           var filtered = activeMembers;

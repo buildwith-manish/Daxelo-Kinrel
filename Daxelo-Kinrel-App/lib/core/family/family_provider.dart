@@ -198,7 +198,17 @@ class Person {
     this.photoUrl,
     this.username,
     this.anniversaryDate,
+    this.linkedUserId,
   });
+
+  /// The Kinrel user ID linked to this Person, if any.
+  /// Non-null means this Person was added via "Find on Kinrel" or has
+  /// been claimed by a real Kinrel user. Null means this is a manually-
+  /// added placeholder node that only exists in the family tree.
+  final String? linkedUserId;
+
+  /// Whether this Person is linked to a real Kinrel user account.
+  bool get isLinkedToKinrelUser => linkedUserId != null && linkedUserId!.isNotEmpty;
 
   factory Person.fromJson(Map<String, dynamic> json) {
     return Person(
@@ -206,6 +216,7 @@ class Person {
       familyId: json['familyId']?.toString() ?? '',
       name: json['name'] as String? ?? 'Unknown',
       gender: json['gender'] as String?,
+      linkedUserId: json['linkedUserId']?.toString(),
       dateOfBirth: json['dateOfBirth']?.toString(),
       city: json['city'] as String?,
       gotra: json['gotra'] as String?,
@@ -279,6 +290,7 @@ class Person {
         'photoUrl': photoUrl,
         'username': username,
         'anniversaryDate': anniversaryDate,
+        if (linkedUserId != null) 'linkedUserId': linkedUserId,
       };
 
   /// Convert to GraphPerson for graph visualization.
