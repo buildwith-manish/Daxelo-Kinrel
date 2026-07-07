@@ -179,6 +179,17 @@ model User {
 
   // ── v2.2: Person-Link Invitations sent by this user ──
   sentLinkInvitations PersonLinkInvitation[] @relation("PersonLinkInvitationInviter")
+
+  // ── PULSE back-relations ──
+  dailyBriefs        DailyBrief[]
+  briefItems         BriefItem[]
+  briefInteractions  BriefInteraction[]
+  karmaEntries       FamilyKarma[]
+  weatherAsA         RelationshipWeather[] @relation("WeatherUserA")
+  weatherAsB         RelationshipWeather[] @relation("WeatherUserB")
+  streaksAsA         ConnectionStreak[]    @relation("StreakUserA")
+  streaksAsB         ConnectionStreak[]    @relation("StreakUserB")
+  briefItemsAsTarget BriefItem[]           @relation("BriefItemTargetUser")
 }
 
 // ── Blocked Users (replaces JSON blockedUserIds anti-pattern) ────────
@@ -624,6 +635,13 @@ model Family {
   // One-to-many: per-member role glyph classifications within this family's AURA.
   memberAuraRoles MemberAuraRole[]
 
+  // ── PULSE back-relations ──
+  dailyBriefs    DailyBrief[]
+  briefItems     BriefItem[]
+  weatherEntries RelationshipWeather[]
+  streaks        ConnectionStreak[]
+  karmaEntries   FamilyKarma[]
+
   // ── Social System Fields ──
   isPublic Boolean @default(false) // Family visibility: true = non-members can see tree (read-only)
 
@@ -729,6 +747,11 @@ model Person {
   // A Person has at most one MemberAuraRole per family — but Prisma infers
   // one-to-many from the non-unique memberId FK, so it's a list.
   auraRoles            MemberAuraRole[]
+
+  // ── PULSE back-relations ──
+  briefItemsAsTarget BriefItem[]           @relation("BriefItemTargetPerson")
+  weatherAsPersonB   RelationshipWeather[] @relation("WeatherPersonB")
+  streaksAsPersonB   ConnectionStreak[]    @relation("StreakPersonB")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2227,4 +2250,248 @@ model MemberAuraRole {
   @@unique([familyId, memberId])
   @@index([familyId])
   @@index([memberId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PULSE — Daily Family Intelligence Brief
+// ═══════════════════════════════════════════════════════════════════════════
+// Six tables that power the daily 7am personalized family brief:
+//   1. "DailyBrief"           — one row per user per day (the orchestrator output)
+//   2. "BriefItem"            — individual items inside a brief (max 6 per brief)
+//   3. "BriefInteraction"     — analytics: which item the user tapped + karma
+//   4. "RelationshipWeather"  — per-pair emotional climate (sunny/cloudy/stormy)
+//   5. "ConnectionStreak"     — daily-interaction streaks between pairs
+//   6. "FamilyKarma"          — invisible social currency tied to AURA roles
+//
+// Migration: supabase/migrations/20260708020000_create_pulse_tables.sql (applied live)
+// RLS: family members SELECT, service_role ALL on every table.
+// Realtime: "DailyBrief" is in the supabase_realtime publication.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// One brief per user per day. Generated at 7am by PulseCronService.
+/// The `content` JSONB holds the full structured brief for client rendering.
+model DailyBrief {
+  id       String @id @default(cuid())
+  userId   String
+  familyId String
+
+  // ── The day this brief is for (DATE, not TIMESTAMPTZ — one brief per day) ──
+  briefDate DateTime @db.Date
+
+  // ── Header content ──
+  greeting        String // e.g. "Good morning, Manish. Here's your family today."
+  familyArchetype String // e.g. "confluence" (from AURA, or "unknown" if no AURA)
+  languageCode    String @default("en") // ISO-639-1 code used for localization
+
+  // ── Full structured brief payload (JSONB) ──
+  // Schema: { items: BriefItemData[], summary: string, generatedAt: ISO }
+  content Json
+
+  // ── Lifecycle timestamps ──
+  generatedAt  DateTime  @default(now()) @db.Timestamptz
+  deliveredAt  DateTime? @db.Timestamptz // set when FCM push fires (Phase 3)
+  viewedAt     DateTime? @db.Timestamptz // set when user opens the brief
+  interactedAt DateTime? @db.Timestamptz // set when user taps any item
+  createdAt    DateTime  @default(now()) @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @db.Timestamptz
+
+  // ── Engagement analytics (updated as interactions arrive) ──
+  interactionCount Int @default(0)
+  callsInitiated   Int @default(0)
+  messagesSent     Int @default(0)
+  memoriesViewed   Int @default(0)
+  karmaEarned      Int @default(0)
+
+  // ── Relations ──
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  family Family      @relation(fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  items  BriefItem[]
+
+  @@unique([userId, briefDate])
+  @@index([familyId, briefDate])
+  @@index([userId, briefDate])
+  @@index([briefDate])
+}
+
+/// A single item inside a DailyBrief. Max 6 per brief. Ordered by priority DESC.
+/// Each item has an action (call/message/view_post/etc.) that the user can tap.
+model BriefItem {
+  id       String @id @default(cuid())
+  briefId  String
+  userId   String
+  familyId String
+
+  // ── Item type (enum-like, but stored as TEXT for forward compat) ──
+  // need_you | birthday | feed_highlight | weather | memory_orbit | on_this_day
+  itemType String
+
+  // ── Priority (higher = earlier in the brief). Range 0-100. ──
+  priority Int @default(50)
+
+  // ── Localized display content ──
+  title       String
+  body        String
+  actionLabel String // e.g. "Call her", "Send a message", "See photos"
+  actionType  String // call | message | view_post | view_sparq | contribute | listen_memory
+
+  // ── Action payload (JSONB, varies by actionType) ──
+  // e.g. { phone: "+91..." } for call, { deepLink: "/post/abc" } for view_post
+  actionData Json @default("{}")
+
+  // ── Optional targets (nullable, set when item is about a specific entity) ──
+  targetPersonId String?
+  targetUserId   String?
+  targetSparqId  String?
+  targetPostId   String?
+
+  // ── Personalization score (0.000-1.000, computed by Phase 2 graph logic) ──
+  relevanceScore Decimal @default(0.500) @db.Decimal(4, 3)
+
+  // ── Interaction tracking (denormalized for fast dashboard queries) ──
+  interactedAt    DateTime? @db.Timestamptz
+  interactionType String? // call | message | view | dismiss | skip
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  // ── Relations ──
+  brief        DailyBrief         @relation(fields: [briefId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  family       Family             @relation(fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  targetPerson Person?            @relation("BriefItemTargetPerson", fields: [targetPersonId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  targetUser   User?              @relation("BriefItemTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  interactions BriefInteraction[]
+
+  @@index([briefId])
+  @@index([userId, createdAt])
+  @@index([familyId, createdAt])
+  @@index([itemType, priority])
+}
+
+/// Records each tap on a BriefItem. Used for analytics + karma computation.
+model BriefInteraction {
+  id              String   @id @default(cuid())
+  briefItemId     String
+  userId          String
+  interactionType String // call | message | view | dismiss | skip
+  interactionData Json     @default("{}") // e.g. { duration_sec: 120 } for call
+  karmaAwarded    Int      @default(0)
+  interactedAt    DateTime @default(now()) @db.Timestamptz
+
+  // ── Relations ──
+  briefItem BriefItem @relation(fields: [briefItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([briefItemId])
+  @@index([userId, interactedAt])
+}
+
+/// Per-pair emotional climate. Computed nightly at 1am by PulseCronService.
+/// One row per (userA, personB/userB) pair within a family.
+/// `weather` ∈ sunny | partly_cloudy | cloudy | rainy | stormy
+model RelationshipWeather {
+  id       String @id @default(cuid())
+  familyId String
+
+  // ── Pair definition (mixed to support both Person and User targets) ──
+  userAId   String
+  personBId String? // set when the "other side" is a Person not yet linked to a User
+  userBId   String? // set when the "other side" is a registered User
+
+  // ── Computed weather ──
+  weather              String // sunny | partly_cloudy | cloudy | rainy | stormy
+  daysSinceLastContact Int       @default(0)
+  interactionCount30d  Int       @default(0)
+  sentimentScore       Decimal   @default(0.500) @db.Decimal(4, 3) // 0=neg, 1=pos
+  streakDays           Int       @default(0)
+  previousWeather      String?
+  weatherChangedAt     DateTime? @db.Timestamptz
+  computedAt           DateTime  @default(now()) @db.Timestamptz
+  createdAt            DateTime  @default(now()) @db.Timestamptz
+  updatedAt            DateTime  @updatedAt @db.Timestamptz
+
+  // ── Relations ──
+  family  Family  @relation(fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userA   User    @relation("WeatherUserA", fields: [userAId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  personB Person? @relation("WeatherPersonB", fields: [personBId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userB   User?   @relation("WeatherUserB", fields: [userBId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@unique([familyId, userAId, personBId, userBId])
+  @@index([familyId, userAId])
+  @@index([userAId])
+  @@index([userBId])
+  @@index([weather])
+}
+
+/// Per-pair connection streak (days-in-a-row of any interaction).
+/// Hooked into chat/call/sparq events in Phase 5.
+model ConnectionStreak {
+  id       String @id @default(cuid())
+  familyId String
+
+  // ── Pair definition (same mixed pattern as RelationshipWeather) ──
+  userAId   String
+  personBId String?
+  userBId   String?
+
+  // ── Streak counts ──
+  currentStreak     Int       @default(0)
+  longestStreak     Int       @default(0)
+  lastInteractionAt DateTime? @db.Timestamptz
+  streakStartedAt   DateTime? @db.Timestamptz
+  streakBrokenAt    DateTime? @db.Timestamptz
+
+  // ── Streak type ──
+  streakType String @default("any") // any | call | message | sparq_view
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  // ── Relations ──
+  family  Family  @relation(fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userA   User    @relation("StreakUserA", fields: [userAId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  personB Person? @relation("StreakPersonB", fields: [personBId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userB   User?   @relation("StreakUserB", fields: [userBId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@unique([familyId, userAId, personBId, userBId, streakType])
+  @@index([familyId, userAId])
+  @@index([userAId])
+  @@index([currentStreak])
+}
+
+/// Family Karma — invisible social currency per user per family.
+/// Tied to AURA roles: karma awarded differs by role (root/anchor/bridge/weaver/leaf).
+/// Updated whenever a BriefInteraction is recorded.
+model FamilyKarma {
+  id       String @id @default(cuid())
+  userId   String
+  familyId String
+
+  // ── Aggregate counters ──
+  totalKarma     Int    @default(0)
+  karmaThisWeek  Int    @default(0)
+  karmaThisMonth Int    @default(0)
+  karmaTrend     String @default("steady") // up | steady | down
+
+  // ── Karma broken down by AURA role (debugging + future gamification) ──
+  karmaAsRoot   Int @default(0)
+  karmaAsAnchor Int @default(0)
+  karmaAsBridge Int @default(0)
+  karmaAsWeaver Int @default(0)
+  karmaAsLeaf   Int @default(0)
+
+  // ── Recent karma reasons (JSONB array, last 10) ──
+  // Schema: [{ amount, reason, timestamp, roleKey }]
+  recentReasons Json @default("[]")
+
+  lastKarmaAt DateTime? @db.Timestamptz
+  createdAt   DateTime  @default(now()) @db.Timestamptz
+  updatedAt   DateTime  @updatedAt @db.Timestamptz
+
+  // ── Relations ──
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([userId, familyId])
+  @@index([familyId, totalKarma])
+  @@index([userId])
 }

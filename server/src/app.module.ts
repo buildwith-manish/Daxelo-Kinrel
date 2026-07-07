@@ -44,6 +44,7 @@ import { FollowModule } from './modules/follow/follow.module';
 import { SparqModule } from './modules/sparq/sparq.module';
 import { RedlightModule } from './modules/games/redlight.module';
 import { AuraModule } from './aura/aura.module';
+import { PulseModule } from './pulse/pulse.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { CustomThrottlerGuard } from './common/guards/throttler.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -157,6 +158,9 @@ import { TwoFactorVerificationModule } from './common/services/two-factor-verifi
 
     // ── AURA: Ancestral Unified Relationship Archetype ──────────
     AuraModule,
+
+    // ── PULSE: Daily Family Intelligence Brief ────────────────
+    PulseModule,
   ],
   providers: [
     // ── Global guards (executed in order) ────────────────────
