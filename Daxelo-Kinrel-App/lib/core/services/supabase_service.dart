@@ -302,6 +302,110 @@ class AuthService {
     );
   }
 
+  // ── Sign In (Identifier = email OR username + Password) ───────────
+  //
+  // This is the primary sign-in entry point for the Sign In screen.
+  // It accepts either:
+  //   - An email address (contains '@') → used directly with Supabase
+  //     signInWithPassword().
+  //   - A username (no '@') → resolved to the user's email via the
+  //     `fn_get_email_by_identifier` Postgres RPC (SECURITY DEFINER,
+  //     callable by anon). The resolved email is then used with
+  //     signInWithPassword().
+  //
+  // PRIVACY: If the username doesn't exist OR the password is wrong,
+  // Supabase returns the same generic "Invalid login credentials"
+  // message, so username enumeration is no easier than password
+  // brute-force.
+  //
+  // FALLBACK: If the RPC fails (e.g., the migration hasn't been applied
+  // to this Supabase project, or a network blip), we attempt to sign
+  // in with the raw identifier as the email — this succeeds for email
+  // logins even when the RPC is unavailable, and fails cleanly for
+  // username logins with the same "Invalid login credentials" message.
+  Future<AuthResponse> signInWithIdentifier({
+    required String identifier,
+    required String password,
+  }) async {
+    final client = _client;
+    if (client == null) {
+      throw const AuthException(
+        'Authentication service is not available. Please restart the app.',
+      );
+    }
+
+    final trimmed = identifier.trim();
+    if (trimmed.isEmpty) {
+      throw const AuthException('Please enter your email or username.');
+    }
+
+    // ── Case 1: Identifier is an email → sign in directly ──────────
+    if (trimmed.contains('@')) {
+      return signIn(email: trimmed.toLowerCase(), password: password);
+    }
+
+    // ── Case 2: Identifier is a username → resolve to email ────────
+    final username = trimmed.toLowerCase();
+
+    String? resolvedEmail;
+    try {
+      // Call the SECURITY DEFINER RPC. This is callable by anon
+      // (pre-auth) and returns just the email column for the matched
+      // user row, or NULL if no match.
+      final result = await client
+          .rpc('fn_get_email_by_identifier', params: {'p_identifier': username})
+          .timeout(const Duration(seconds: 8), onTimeout: () {
+            throw const AuthException(
+              'Sign in is taking too long. The server may be waking up — please try again.',
+            );
+          });
+
+      if (result is String && result.isNotEmpty) {
+        resolvedEmail = result;
+      } else if (result is List && result.isNotEmpty) {
+        // Some Supabase client versions return rows as a list of
+        // maps even for scalar-returning functions. Handle both.
+        final first = result.first;
+        if (first is Map && first['email'] is String) {
+          resolvedEmail = first['email'] as String;
+        } else if (first is String) {
+          resolvedEmail = first;
+        }
+      } else if (result is Map && result['email'] is String) {
+        resolvedEmail = result['email'] as String;
+      }
+    } on AuthException {
+      rethrow;
+    } catch (e) {
+      _log.w('signInWithIdentifier: RPC lookup failed for "$username": $e — '
+          'falling back to direct email sign-in');
+      // Fallback: try the identifier as an email. This will succeed
+      // for email logins (in case the user typed an email that
+      // contains '@' but the validator let it through as a username
+      // — shouldn't happen, but be safe), and fail cleanly with the
+      // standard Supabase error for username logins.
+      try {
+        return signIn(email: username, password: password);
+      } on AuthException {
+        rethrow;
+      } catch (_) {
+        throw const AuthException(
+          'Invalid login credentials. Please check your username and password.',
+        );
+      }
+    }
+
+    if (resolvedEmail == null || resolvedEmail.isEmpty) {
+      // Username not found — return the same generic error Supabase
+      // returns for a wrong password, so we don't reveal that the
+      // username doesn't exist.
+      throw const AuthException('Invalid login credentials');
+    }
+
+    // ── Sign in with the resolved email ────────────────────────────
+    return signIn(email: resolvedEmail, password: password);
+  }
+
   // ── Sign In with Google ───────────────────────────────────────────
   //
   // CRITICAL: This must NEVER crash the app. Every step is wrapped

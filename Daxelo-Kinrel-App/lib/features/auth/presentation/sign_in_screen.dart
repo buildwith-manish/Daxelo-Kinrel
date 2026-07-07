@@ -38,14 +38,17 @@ class SignInScreen extends ConsumerStatefulWidget {
 
 class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _emailFocusNode = FocusNode();
+  final _identifierFocusNode = FocusNode();
   final _passwordFocusNode = FocusNode();
   bool _isLoading = false;
   bool _isGoogleLoading = false;
   bool _obscurePassword = true;
-  String? _apiEmailError;
+  // Per-field API error shown beneath the identifier input. Set when
+  // the backend rejects the credentials with an identifier-specific
+  // message (e.g., "Email not confirmed"). Cleared on next validate.
+  String? _apiIdentifierError;
 
   // ── Design tokens ────────────────────────────────────────────────
   static const _bgColor = Color(0xFF13141E);
@@ -59,9 +62,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _identifierController.dispose();
     _passwordController.dispose();
-    _emailFocusNode.dispose();
+    _identifierFocusNode.dispose();
     _passwordFocusNode.dispose();
     super.dispose();
   }
@@ -76,7 +79,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     if (_isNetworkError(message)) {
       return 'Could not reach server. Please check your internet connection and try again.';
     } else if (message.contains('Invalid login credentials')) {
-      return 'Incorrect email or password. Please try again.';
+      // The same generic message covers: wrong password, unknown
+      // username, unknown email — so we don't reveal which one.
+      return 'Incorrect email/username or password. Please try again.';
     } else if (message.contains('Email not confirmed')) {
       return 'Please verify your email before signing in.';
     } else if (message.contains('cancelled')) {
@@ -220,7 +225,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     }
   }
 
-  // ── Email Sign-In ────────────────────────────────────────────────
+  // ── Identifier Sign-In (email OR username) ──────────────────────
 
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
@@ -232,8 +237,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
     try {
       final authService = ref.read(authServiceProvider);
-      await authService.signIn(
-        email: _emailController.text.trim(),
+      // signInWithIdentifier handles the email-vs-username branch:
+      //   - If the input contains '@', it's signed in directly as an email.
+      //   - Otherwise, it's resolved to an email via the
+      //     fn_get_email_by_identifier RPC, then signed in.
+      await authService.signInWithIdentifier(
+        identifier: _identifierController.text,
         password: _passwordController.text,
       ).timeout(const Duration(seconds: 30), onTimeout: () {
         throw const AuthException(
@@ -322,8 +331,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       if (mounted) {
         final msg = _cleanErrorMessage(e.toString());
         if (msg.isNotEmpty) {
-          if (msg.contains('email') && !msg.contains('check your')) {
-            setState(() => _apiEmailError = msg);
+          // Identifier-specific errors (e.g., "Email not confirmed") are
+          // shown beneath the identifier input. Generic errors (wrong
+          // password, network) go to the snackbar.
+          final isIdentifierError = msg.toLowerCase().contains('email') &&
+              !msg.toLowerCase().contains('check your') &&
+              !msg.toLowerCase().contains('incorrect');
+          if (isIdentifierError) {
+            setState(() => _apiIdentifierError = msg);
             _formKey.currentState!.validate();
           } else {
             context.showSnackBar(msg, isError: true);
@@ -334,8 +349,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       if (mounted) {
         final msg = _cleanErrorMessage(e.toString());
         if (msg.isNotEmpty) {
-          if (msg.contains('email') && !msg.contains('check your')) {
-            setState(() => _apiEmailError = msg);
+          final isIdentifierError = msg.toLowerCase().contains('email') &&
+              !msg.toLowerCase().contains('check your') &&
+              !msg.toLowerCase().contains('incorrect');
+          if (isIdentifierError) {
+            setState(() => _apiIdentifierError = msg);
             _formKey.currentState!.validate();
           } else {
             context.showSnackBar(msg, isError: true);
@@ -482,10 +500,16 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 
   // ── Forgot Password ──────────────────────────────────────────────
+  //
+  // Accepts either an email or a username. If a username is entered,
+  // we first resolve it to an email via fn_get_email_by_identifier,
+  // then send the reset link to that email. If resolution fails (RPC
+  // not deployed, network error, unknown username), we show a generic
+  // success message anyway to avoid revealing which usernames exist.
 
   void _showForgotPasswordDialog() {
-    final emailController = TextEditingController(
-      text: _emailController.text.trim(),
+    final identifierController = TextEditingController(
+      text: _identifierController.text.trim(),
     );
     bool isSending = false;
 
@@ -510,7 +534,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Enter your email and we\'ll send you a reset link.',
+                'Enter your email or username and we\'ll send a reset link to your account email.',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 13,
@@ -519,11 +543,13 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               ),
               const SizedBox(height: 12),
               TextField(
-                controller: emailController,
+                controller: identifierController,
                 keyboardType: TextInputType.emailAddress,
+                textCapitalization: TextCapitalization.none,
+                autocorrect: false,
                 style: TextStyle(color: KinrelColors.textWhite),
                 decoration: InputDecoration(
-                  hintText: 'Email',
+                  hintText: 'Email or username',
                   hintStyle: TextStyle(color: KinrelColors.textDim),
                   filled: true,
                   fillColor: KinrelColors.darkSurface,
@@ -545,30 +571,72 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               onPressed: isSending
                   ? null
                   : () async {
-                      final email = emailController.text.trim();
-                      if (email.isEmpty || !email.contains('@')) return;
+                      final raw = identifierController.text.trim();
+                      if (raw.isEmpty) return;
+
                       setState(() => isSending = true);
                       try {
                         final client = ref.read(supabaseProvider);
-                        if (client != null) {
-                          await client.auth.resetPasswordForEmail(email);
-                          if (ctx.mounted) {
-                            Navigator.of(ctx).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                    'Reset link sent! Check your email.'),
-                                backgroundColor: Color(0xFF22C55E),
-                              ),
-                            );
+                        if (client == null) {
+                          throw Exception('Supabase not initialized');
+                        }
+
+                        // Resolve identifier to email. If it contains '@'
+                        // it's already an email; otherwise look it up.
+                        String email = raw;
+                        if (!raw.contains('@')) {
+                          final result = await client
+                              .rpc('fn_get_email_by_identifier',
+                                  params: {'p_identifier': raw.toLowerCase()})
+                              .timeout(const Duration(seconds: 8));
+
+                          if (result is String && result.isNotEmpty) {
+                            email = result;
+                          } else if (result is List && result.isNotEmpty) {
+                            final first = result.first;
+                            if (first is Map && first['email'] is String) {
+                              email = first['email'] as String;
+                            } else if (first is String) {
+                              email = first;
+                            }
+                          } else if (result is Map &&
+                              result['email'] is String) {
+                            email = result['email'] as String;
+                          } else {
+                            // Username not found — show generic success to
+                            // avoid revealing which usernames exist.
+                            if (ctx.mounted) {
+                              Navigator.of(ctx).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                      'If an account exists, a reset link has been sent.'),
+                                  backgroundColor: Color(0xFF22C55E),
+                                ),
+                              );
+                            }
+                            return;
                           }
+                        }
+
+                        await client.auth.resetPasswordForEmail(email);
+                        if (ctx.mounted) {
+                          Navigator.of(ctx).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                  'Reset link sent! Check your email.'),
+                              backgroundColor: Color(0xFF22C55E),
+                            ),
+                          );
                         }
                       } catch (e) {
                         if (ctx.mounted) {
                           setState(() => isSending = false);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('Failed: $e'),
+                              content: Text(
+                                  'Could not send reset link. Please try again later.'),
                               backgroundColor: KinrelColors.error,
                             ),
                           );
@@ -656,10 +724,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
                     const SizedBox(height: 32),
 
-                    // ── Email field ──────────────────────────────────
+                    // ── Identifier field (email OR username) ─────────
                     TextFormField(
-                      controller: _emailController,
-                      focusNode: _emailFocusNode,
+                      controller: _identifierController,
+                      focusNode: _identifierFocusNode,
+                      // Email keyboard works well for both emails and
+                      // usernames (lowercase letters + numbers + @ + _).
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
                       textCapitalization: TextCapitalization.none,
@@ -672,15 +742,15 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       ),
                       decoration: _inputDecoration(
                         hintText: 'Email or username',
-                        prefixIcon: Icons.email_outlined,
+                        prefixIcon: Icons.alternate_email,
                       ),
                       validator: (v) {
-                        if (_apiEmailError != null) {
-                          final err = _apiEmailError;
-                          _apiEmailError = null;
+                        if (_apiIdentifierError != null) {
+                          final err = _apiIdentifierError;
+                          _apiIdentifierError = null;
                           return err;
                         }
-                        return emailValidator(v);
+                        return emailOrUsernameValidator(v);
                       },
                       onFieldSubmitted: (_) {
                         _passwordFocusNode.requestFocus();

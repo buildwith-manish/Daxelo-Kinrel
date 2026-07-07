@@ -169,6 +169,49 @@ String? familyNameValidator(String? value) {
   return null;
 }
 
+/// Validates an identifier that can be EITHER an email OR a username.
+///
+/// Used by the Sign In screen so the user can type either:
+///   - `alice@example.com`  (email)
+///   - `alice`              (username)
+///   - `alice_42`           (username)
+///
+/// Rules:
+///   - If the input contains `@`, it's validated as an email.
+///   - Otherwise, it's validated as a username (3-30 chars, starts with
+///     a letter, only lowercase letters / digits / underscores).
+///
+/// Returns null if valid, or a specific error message.
+String? emailOrUsernameValidator(String? value) {
+  if (value == null || value.trim().isEmpty) {
+    return 'Email or username is required';
+  }
+  final identifier = value.trim();
+
+  // If it contains '@', validate as email
+  if (identifier.contains('@')) {
+    return emailValidator(identifier);
+  }
+
+  // Otherwise, validate as username (Kinrel rules — must match
+  // UsernameValidator in username_provider.dart so the same input
+  // that passes client validation here will also pass on the
+  // Create Username screen).
+  if (identifier.length < 3) {
+    return 'Username must be at least 3 characters';
+  }
+  if (identifier.length > 30) {
+    return 'Username must be 30 characters or less';
+  }
+  if (!RegExp(r'^[a-z]').hasMatch(identifier)) {
+    return 'Username must start with a letter';
+  }
+  if (!RegExp(r'^[a-z0-9_]+$').hasMatch(identifier)) {
+    return 'Username can only contain lowercase letters, numbers, and underscores';
+  }
+  return null;
+}
+
 /// Validates a username — alphanumeric + underscore, 3-20 characters.
 ///
 /// Must start with a letter. Used for family @usernames and user handles.
