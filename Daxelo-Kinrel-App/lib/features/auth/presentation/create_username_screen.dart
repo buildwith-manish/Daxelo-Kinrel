@@ -58,7 +58,7 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
   bool get _isValid =>
       UsernameValidator.validate(_controller.text) == null;
 
-  // Note: _isAvailable is evaluated in build() via ref.watch, NOT here
+  // Note: availability == UsernameAvailability.available is evaluated in build() via ref.watch, NOT here
   // via ref.read. Using ref.read here would return a stale value because
   // the getter is evaluated on the State object, not during build.
   // The build() method passes the watched availability to _canSubmitAt().
@@ -214,18 +214,18 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide(
-                      color: _isAvailable
+                      color: availability == UsernameAvailability.available
                           ? const Color(0xFF22C55E)
                           : (availability == UsernameAvailability.taken
                               ? KinrelColors.error
                               : KinrelColors.border),
-                      width: _isAvailable || availability == UsernameAvailability.taken ? 2 : 1,
+                      width: availability == UsernameAvailability.available || availability == UsernameAvailability.taken ? 2 : 1,
                     ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide(
-                      color: _isAvailable
+                      color: availability == UsernameAvailability.available
                           ? const Color(0xFF22C55E)
                           : KinrelColors.orange,
                       width: 2,
