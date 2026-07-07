@@ -17,20 +17,28 @@ import { BriefGeneratorService } from './brief-generator.service';
 import { PulseQueryService } from './pulse-query.service';
 import { PulseCronService } from './pulse-cron.service';
 import { PersonalizationService } from './personalization.service';
+import { PulsePushListener } from './pulse-push.listener';
 import { BirthdayCollector } from './collectors/birthday.collector';
 import { InactivityCollector } from './collectors/inactivity.collector';
 import { FeedHighlightCollector } from './collectors/feed-highlight.collector';
 import { OnThisDayCollector } from './collectors/on-this-day.collector';
 import { WeatherCollector } from './collectors/weather.collector';
 import { MemoryOrbitCollector } from './collectors/memory-orbit.collector';
+import { FcmModule } from '../modules/notifications/fcm.module';
 
 @Module({
+  imports: [
+    // FcmModule provides FcmService, used by PulsePushListener to send
+    // push notifications when a brief is generated.
+    FcmModule,
+  ],
   controllers: [PulseController],
   providers: [
     BriefGeneratorService,
     PulseQueryService,
     PulseCronService,
     PersonalizationService,
+    PulsePushListener,
     // Collectors (each injects PrismaService via PrismaModule @Global)
     BirthdayCollector,
     InactivityCollector,
