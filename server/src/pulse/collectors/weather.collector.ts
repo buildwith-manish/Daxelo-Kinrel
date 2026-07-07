@@ -114,6 +114,18 @@ export class WeatherCollector implements BriefCollector {
             ? `You haven't spoken in ${row.daysSinceLastContact} days. Last contact: ${daysWord}.`
             : `Your relationship is feeling ${WEATHER_LABEL[wt]} right now.`;
 
+        // Phase 2: relevance = blend of weather severity + closeness
+        // (a stormy relationship with your sibling is more urgent than a stormy
+        // relationship with a distant cousin you rarely see anyway)
+        const targetPersonId = row.personB?.id;
+        const closeness = targetPersonId
+          ? ctx.personalization?.computeClosenessForTarget(targetPersonId)
+          : undefined;
+        const weatherSeverity = pri / 100; // stormy=0.85, rainy=0.75, cloudy=0.65
+        const relevanceScore = closeness
+          ? weatherSeverity * 0.6 + closeness.total * 0.4
+          : weatherSeverity;
+
         const actionData: Record<string, unknown> = {
           weatherId: row.id,
           weather: wt,
@@ -123,6 +135,9 @@ export class WeatherCollector implements BriefCollector {
             ? Number(row.sentimentScore)
             : 0.5,
           targetName: personName,
+          closeness: closeness
+            ? { total: closeness.total, hopCount: closeness.hopCount }
+            : undefined,
         };
         if (row.personB?.id) actionData.targetPersonId = row.personB.id;
         if (row.userB?.id) actionData.targetUserId = row.userB.id;
@@ -137,7 +152,7 @@ export class WeatherCollector implements BriefCollector {
           actionData,
           ...(row.personB?.id ? { targetPersonId: row.personB.id } : {}),
           ...(row.userB?.id ? { targetUserId: row.userB.id } : {}),
-          relevanceScore: 0.75,
+          relevanceScore,
         };
       });
     } catch (err) {

@@ -147,6 +147,12 @@ export class InactivityCollector implements BriefCollector {
             : 'A quick hello could brighten their day.'
         }`;
 
+        // Phase 2: closeness score boosts elders who are also close relatives
+        // (Dadi at 0.9 closeness beats random-distant-aunt at 0.2 closeness)
+        const closeness = ctx.personalization?.computeClosenessForTarget(c.person.id);
+        const baseRelevance = isElder ? 0.95 : 0.7;
+        const relevanceScore = closeness ? Math.max(baseRelevance, closeness.total) : baseRelevance;
+
         const actionData: Record<string, unknown> = {
           personId: c.person.id,
           personName: c.person.name,
@@ -154,6 +160,13 @@ export class InactivityCollector implements BriefCollector {
           lastActiveAt: c.lastActive.toISOString(),
           isElder,
           age,
+          closeness: closeness
+            ? {
+                total: closeness.total,
+                hopCount: closeness.hopCount,
+                relationshipSemantic: closeness.relationshipSemantic,
+              }
+            : undefined,
         };
         if (c.person.linkedUserId) {
           actionData.targetUserId = c.person.linkedUserId;
@@ -169,7 +182,7 @@ export class InactivityCollector implements BriefCollector {
           actionData,
           targetPersonId: c.person.id,
           ...(c.person.linkedUserId ? { targetUserId: c.person.linkedUserId } : {}),
-          relevanceScore: isElder ? 0.95 : 0.7,
+          relevanceScore,
         };
       });
     } catch (err) {

@@ -82,8 +82,36 @@ const TEST_POST_AUTHOR_NAME = `PulseTestAuthor_${TEST_MARKER}`;
 //   DailyBrief.karmaEarned = 10
 //   FamilyKarma row created: totalKarma=10, karmaAsLeaf=10 (default bucket)
 //
+// ── Phase 2 (graph-aware personalization) predictions ──────────────────────
+// The test user (Yakshitha) has NO linkedPerson in the live DB. Per
+// computeCloseness() in closeness.ts, when userPersonId is null, ALL
+// closeness scores return neutral 0.5. So:
+//   - PersonalizationService.loadFamilyGraph() should succeed (no error logged)
+//   - computeClosenessForTarget(any) returns { total: 0.5, ... }
+//   - Collectors use these scores in their relevanceScore formulas:
+//     * birthday:           relevanceScore = closeness.total = 0.5
+//     * inactivity:         relevanceScore = max(0.7, 0.5) = 0.7  (non-elder base)
+//     * feed_highlight:     relevanceScore = 0.4 + (5/10)*0.3 = 0.55  (no closeness)
+//                            ← BUT closeness returns 0.5 (not undefined), so formula
+                              // uses closeness.total * 0.7 + popularityScore * 0.3
+                              // = 0.5 * 0.7 + 0.5 * 0.3 = 0.5
+//     * weather:            relevanceScore = 0.65 * 0.6 + 0.5 * 0.4 = 0.59
+//   - All items should have relevanceScore set (not null/undefined)
+//   - The closeness tie-breaker should run without error (even though with
+//     0.5 scores it won't reorder anything)
+//
 const PREDICTIONS = {
-  expectedItemTypes: ['weather', 'need_you', 'need_you', 'feed_highlight', 'birthday'],
+  // Phase 2 ordering: the closeness tie-breaker (window ±5) reorders items
+  // within priority windows by relevanceScore DESC. With these relevance scores:
+  //   - need_you       @60, relevance 0.7   ← highest in the 60-65 window
+  //   - need_you       @60, relevance 0.7
+  //   - weather        @65, relevance 0.59
+  //   - feed_highlight @60, relevance 0.5
+  //   - birthday       @50, relevance 0.5   ← outside the ±5 window of 60, stays last
+  // The tie-breaker puts both need_you items (0.7) above weather (0.59) and
+  // feed_highlight (0.5), even though weather has higher priority (65 vs 60).
+  // This is the INTENDED Phase 2 behavior: relevance breaks priority ties.
+  expectedItemTypes: ['need_you', 'need_you', 'weather', 'feed_highlight', 'birthday'],
   expectedPriorities: {
     weather: 65,
     need_you: 60, // both need_you items at priority 60
@@ -96,6 +124,14 @@ const PREDICTIONS = {
   expectedItemCount: 5,
   expectedKarmaForCall: 10,
   notExpectedItemTypes: ['on_this_day', 'memory_orbit'],
+  // Phase 2: relevance scores for the test user (no linkedPerson → all 0.5 closeness)
+  expectedRelevance: {
+    birthday: 0.5, // = closeness.total
+    need_you: 0.7, // = max(0.7 base, 0.5 closeness) = 0.7
+    weather: 0.59, // = 0.65*0.6 + 0.5*0.4 = 0.39 + 0.2 = 0.59
+    feed_highlight: 0.5, // = 0.5*0.7 + 0.5*0.3 = 0.35 + 0.15 = 0.5
+  },
+  expectedClosenessTotal: 0.5, // neutral, because user has no linkedPerson
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -275,11 +311,16 @@ async function main() {
       const { WeatherCollector } = await import('../server/src/pulse/collectors/weather.collector.ts');
       const { MemoryOrbitCollector } = await import('../server/src/pulse/collectors/memory-orbit.collector.ts');
       const { PulseQueryService } = await import('../server/src/pulse/pulse-query.service.ts');
+      const { PersonalizationService } = await import('../server/src/pulse/personalization.service.ts');
 
       // Wrap PrismaClient to match the PrismaService interface expected by the services
       const prismaService = prisma as any;
 
-      const generator = new (BriefGeneratorService as any)(prismaService, eventEmitter);
+      // Phase 2: instantiate PersonalizationService (loads family graph + caches)
+      const personalization = new (PersonalizationService as any)(prismaService);
+
+      // BriefGeneratorService now takes 3 args: (prisma, eventEmitter, personalization)
+      const generator = new (BriefGeneratorService as any)(prismaService, eventEmitter, personalization);
       const collectors = [
         new (BirthdayCollector as any)(prismaService),
         new (InactivityCollector as any)(prismaService),
@@ -375,6 +416,45 @@ async function main() {
     for (const t of PREDICTIONS.notExpectedItemTypes) {
       const item = briefResult.items.find((it: any) => it.itemType === t);
       check(`Item ${t} NOT present`, !item);
+    }
+
+    // ── Phase 2: relevance score checks ─────────────────────────────────
+    console.log('\n  ── Phase 2: Personalization + Closeness ──');
+    for (const [t, expectedRel] of Object.entries(PREDICTIONS.expectedRelevance)) {
+      const items = briefResult.items.filter((it: any) => it.itemType === t);
+      for (const item of items) {
+        const actual = item.relevanceScore;
+        const actualNum = typeof actual === 'number' ? actual : Number(actual);
+        const matches = Math.abs(actualNum - expectedRel) < 0.02; // ±0.02 tolerance
+        check(
+          `relevanceScore for ${t} ≈ ${expectedRel}`,
+          matches,
+          `actual=${actualNum}`,
+        );
+      }
+    }
+
+    // All items should have a relevanceScore set (not null/undefined)
+    const allHaveRelevance = briefResult.items.every(
+      (it: any) => it.relevanceScore !== null && it.relevanceScore !== undefined,
+    );
+    check('All items have relevanceScore set', allHaveRelevance);
+
+    // Items with closeness data should show total=0.5 (neutral, because user has no linkedPerson)
+    const itemsWithCloseness = briefResult.items.filter(
+      (it: any) => it.actionData?.closeness?.total !== undefined,
+    );
+    if (itemsWithCloseness.length > 0) {
+      const allNeutral = itemsWithCloseness.every(
+        (it: any) => Math.abs(it.actionData.closeness.total - PREDICTIONS.expectedClosenessTotal) < 0.02,
+      );
+      check(
+        `closeness.total = ${PREDICTIONS.expectedClosenessTotal} for all items with closeness data (${itemsWithCloseness.length} items)`,
+        allNeutral,
+        `actual=${itemsWithCloseness.map((i: any) => i.actionData.closeness.total).join(',')}`,
+      );
+    } else {
+      check('At least one item has closeness data', false, 'no items with closeness actionData');
     }
 
     // Verify DB persistence

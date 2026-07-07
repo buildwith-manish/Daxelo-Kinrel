@@ -39,6 +39,7 @@ import {
   localizeGreeting,
   ITEM_TYPE_ICONS,
 } from './brief-types';
+import { PersonalizationService } from './personalization.service';
 
 const MAX_ITEMS_PER_BRIEF = 6;
 
@@ -80,6 +81,7 @@ export class BriefGeneratorService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly personalization: PersonalizationService,
   ) {}
 
   /**
@@ -124,6 +126,18 @@ export class BriefGeneratorService implements OnModuleInit {
       );
     }
 
+    // 1b. Phase 2: Load the family graph + cache it for the duration of this brief.
+    // Collectors will use ctx.personalization to compute per-target closeness scores.
+    try {
+      await this.personalization.loadFamilyGraph(ctx.family.id, userId);
+    } catch (err) {
+      // Non-fatal: personalization is a Phase 2 enhancement. If the graph fails
+      // to load, collectors will fall back to neutral 0.5 relevance scores.
+      this.logger.warn(
+        `BriefGenerator: personalization graph load failed (continuing with neutral scores): ${err instanceof Error ? err.message : err}`,
+      );
+    }
+
     // 2. Build BriefCollectorContext
     const collectorCtx: BriefCollectorContext = {
       userId: ctx.user.id,
@@ -134,6 +148,11 @@ export class BriefGeneratorService implements OnModuleInit {
       familyArchetype: ctx.familyArchetype,
       userPersonId: ctx.userPersonId,
       userRoleKey: ctx.userRoleKey,
+      // Phase 2: expose personalization to collectors (with the cached graph)
+      personalization: {
+        computeClosenessForTarget: (targetPersonId: string) =>
+          this.personalization.computeClosenessForTarget(ctx.family.id, targetPersonId),
+      },
     };
 
     // 3. Run all collectors in parallel (defensive: Promise.allSettled)
@@ -161,8 +180,14 @@ export class BriefGeneratorService implements OnModuleInit {
       return oA - oB;
     });
 
+    // 4b. Phase 2: Apply closeness-based tie-breaker.
+    // Within each priority window of ±5, sort by relevanceScore DESC.
+    // This is what makes "Manish (cousin, closeness 0.8)" rank above
+    // "RandomDistantUncle (closeness 0.3)" even when both are need_you@60.
+    const tieBroken = this.personalization.applyTieBreaker(allItems, 5);
+
     // 5. Cap at MAX_ITEMS_PER_BRIEF
-    const items = allItems.slice(0, MAX_ITEMS_PER_BRIEF);
+    const items = tieBroken.slice(0, MAX_ITEMS_PER_BRIEF);
 
     // 6. Build greeting + summary
     const greeting = localizeGreeting(collectorCtx.userLanguageCode, ctx.user.name);
@@ -183,6 +208,8 @@ export class BriefGeneratorService implements OnModuleInit {
     };
 
     if (opts.skipPersist) {
+      // Free the personalization cache before returning
+      this.personalization.clearCache(ctx.family.id);
       return result;
     }
 
@@ -198,6 +225,9 @@ export class BriefGeneratorService implements OnModuleInit {
       itemCount: items.length,
       itemTypes: items.map((i) => i.itemType),
     });
+
+    // 10. Phase 2: free the personalization cache for this family
+    this.personalization.clearCache(ctx.family.id);
 
     return result;
   }

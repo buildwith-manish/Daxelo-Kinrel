@@ -153,6 +153,9 @@ export class BirthdayCollector implements BriefCollector {
           ? `${c.person.name}'s birthday is today 🎂`
           : `${c.person.name}'s birthday — ${dayWord}`;
         const body = `${ageClause}Consider contributing to a family gift pool or sending a message.`;
+        // Phase 2: use closeness score for relevance (defaults to 0.6 if no personalization)
+        const closeness = ctx.personalization?.computeClosenessForTarget(c.person.id);
+        const relevanceScore = closeness?.total ?? 0.6;
         return {
           itemType: 'birthday' as const,
           priority: pri,
@@ -165,11 +168,18 @@ export class BirthdayCollector implements BriefCollector {
             personName: c.person.name,
             daysUntil: c.daysUntil,
             age: age,
+            closeness: closeness
+              ? {
+                  total: closeness.total,
+                  hopCount: closeness.hopCount,
+                  relationshipSemantic: closeness.relationshipSemantic,
+                }
+              : undefined,
             ...(c.person.dateOfBirth ? { dateOfBirth: c.person.dateOfBirth.toISOString() } : {}),
             ...(c.person.birthYear ? { birthYear: c.person.birthYear } : {}),
           },
           targetPersonId: c.person.id,
-          relevanceScore: 0.6,
+          relevanceScore,
         };
       });
     } catch (err) {

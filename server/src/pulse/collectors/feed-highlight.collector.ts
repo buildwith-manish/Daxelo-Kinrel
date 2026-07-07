@@ -172,6 +172,18 @@ export class FeedHighlightCollector implements BriefCollector {
           content.title ??
           `${hoursAgo}h ago${photoClause}${heartClause}`;
 
+        // Phase 2: relevance = blend of closeness to author + post popularity
+        // (a post by your sibling with 5 hearts beats a post by distant uncle
+        // with 10 hearts, because the sibling post is more relevant TO YOU)
+        const authorId = post.authorId;
+        const closeness = authorId
+          ? ctx.personalization?.computeClosenessForTarget(authorId)
+          : undefined;
+        const popularityScore = Math.min(1.0, heartCount / 10); // 10+ hearts = 1.0
+        const relevanceScore = closeness
+          ? closeness.total * 0.7 + popularityScore * 0.3
+          : 0.4 + popularityScore * 0.3; // no closeness data → use popularity only
+
         return {
           itemType: 'feed_highlight' as const,
           priority: 60,
@@ -186,10 +198,13 @@ export class FeedHighlightCollector implements BriefCollector {
             postType: post.postType,
             createdAt: post.createdAt.toISOString(),
             heartCount,
+            closeness: closeness
+              ? { total: closeness.total, hopCount: closeness.hopCount }
+              : undefined,
           },
           targetPostId: post.id,
           ...(post.authorId ? { targetPersonId: post.authorId } : {}),
-          relevanceScore: 0.55,
+          relevanceScore,
         };
       });
     } catch (err) {

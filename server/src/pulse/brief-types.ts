@@ -162,6 +162,24 @@ export interface BriefCollectorContext {
   userPersonId: string | null;
   /** The user's AURA role in this family, if computed. null if no AURA yet. */
   userRoleKey: string | null;
+  /**
+   * Phase 2: Personalization service (with cached family graph loaded).
+   * Collectors can call ctx.personalization?.computeClosenessForTarget(personId)
+   * to get a 0-1 closeness score for setting BriefItemData.relevanceScore.
+   * Optional — collectors that don't use it can ignore the field.
+   */
+  personalization?: {
+    computeClosenessForTarget: (targetPersonId: string) => {
+      total: number;
+      graphDistance: number;
+      generationDistance: number;
+      relationshipSemantic: number;
+      auraRoleMatch: number;
+      sharedConnections: number;
+      hopCount: number | null;
+      notes: string[];
+    };
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

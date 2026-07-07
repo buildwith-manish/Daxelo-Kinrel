@@ -16,6 +16,7 @@ import { PulseController } from './pulse.controller';
 import { BriefGeneratorService } from './brief-generator.service';
 import { PulseQueryService } from './pulse-query.service';
 import { PulseCronService } from './pulse-cron.service';
+import { PersonalizationService } from './personalization.service';
 import { BirthdayCollector } from './collectors/birthday.collector';
 import { InactivityCollector } from './collectors/inactivity.collector';
 import { FeedHighlightCollector } from './collectors/feed-highlight.collector';
@@ -29,6 +30,7 @@ import { MemoryOrbitCollector } from './collectors/memory-orbit.collector';
     BriefGeneratorService,
     PulseQueryService,
     PulseCronService,
+    PersonalizationService,
     // Collectors (each injects PrismaService via PrismaModule @Global)
     BirthdayCollector,
     InactivityCollector,
@@ -37,7 +39,7 @@ import { MemoryOrbitCollector } from './collectors/memory-orbit.collector';
     WeatherCollector,
     MemoryOrbitCollector,
   ],
-  exports: [BriefGeneratorService, PulseQueryService, PulseCronService],
+  exports: [BriefGeneratorService, PulseQueryService, PulseCronService, PersonalizationService],
 })
 export class PulseModule implements OnModuleInit {
   constructor(

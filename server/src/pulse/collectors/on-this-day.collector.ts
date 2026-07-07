@@ -154,6 +154,25 @@ export class OnThisDayCollector implements BriefCollector {
           actionData = { ...actionData, postId: row.id };
         }
 
+        // Phase 2: relevance = blend of years-ago (older = more poignant) + closeness
+        // (a 10-year-old memory from your grandfather beats a 1-year-old memory
+        // from a distant cousin — but only if you were close to your grandfather)
+        const targetPersonId = row.person_id ?? null;
+        const closeness = targetPersonId
+          ? ctx.personalization?.computeClosenessForTarget(targetPersonId)
+          : undefined;
+        const yearsScore = Math.min(1.0, yearsAgo / 10); // 10+ years ago = 1.0
+        const relevanceScore = closeness
+          ? yearsScore * 0.4 + closeness.total * 0.6
+          : 0.5 + yearsScore * 0.3; // no closeness → use age only
+
+        if (closeness) {
+          actionData.closeness = {
+            total: closeness.total,
+            hopCount: closeness.hopCount,
+          };
+        }
+
         return {
           itemType: 'on_this_day' as const,
           priority: 70,
@@ -168,7 +187,7 @@ export class OnThisDayCollector implements BriefCollector {
           ...(row.author_id && row.source === 'post' ? { targetPersonId: row.author_id } : {}),
           ...(row.source === 'sparq' ? { targetSparqId: row.id } : {}),
           ...(row.source === 'post' ? { targetPostId: row.id } : {}),
-          relevanceScore: 0.65,
+          relevanceScore,
         };
       });
     } catch (err) {
