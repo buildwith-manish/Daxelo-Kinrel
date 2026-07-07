@@ -190,6 +190,11 @@ model User {
   streaksAsA         ConnectionStreak[]    @relation("StreakUserA")
   streaksAsB         ConnectionStreak[]    @relation("StreakUserB")
   briefItemsAsTarget BriefItem[]           @relation("BriefItemTargetUser")
+
+  // ── PITRU back-relations ──
+  recordedMemories    AncestralMemory[] @relation("MemoryRecorder")
+  memoryTagsApplied   MemoryTag[]       @relation("MemoryTaggedBy")
+  memoryConsentsGiven MemoryConsent[]   @relation("ConsentConsentedBy")
 }
 
 // ── Blocked Users (replaces JSON blockedUserIds anti-pattern) ────────
@@ -642,6 +647,11 @@ model Family {
   streaks        ConnectionStreak[]
   karmaEntries   FamilyKarma[]
 
+  // ── PITRU back-relations ──
+  ancestralMemories AncestralMemory[]
+  memoryConsents    MemoryConsent[]
+  memorialProfiles  MemorialProfile[]
+
   // ── Social System Fields ──
   isPublic Boolean @default(false) // Family visibility: true = non-members can see tree (read-only)
 
@@ -752,6 +762,12 @@ model Person {
   briefItemsAsTarget BriefItem[]           @relation("BriefItemTargetPerson")
   weatherAsPersonB   RelationshipWeather[] @relation("WeatherPersonB")
   streaksAsPersonB   ConnectionStreak[]    @relation("StreakPersonB")
+
+  // ── PITRU back-relations ──
+  memoriesAsElder AncestralMemory[] @relation("MemoryElderPerson")
+  memoryTags      MemoryTag[]       @relation("MemoryTagPerson")
+  memoryConsents  MemoryConsent[]   @relation("ConsentElderPerson")
+  memorialProfile MemorialProfile?  @relation("MemorialPerson")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2494,4 +2510,143 @@ model FamilyKarma {
   @@unique([userId, familyId])
   @@index([familyId, totalKarma])
   @@index([userId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PITRU — Ancestral Voice Memory
+// ═══════════════════════════════════════════════════════════════════════════
+// Four tables that power the "forever lock-in" feature:
+//   1. "AncestralMemory"  — voice/video memory + AI transcription/translation/tags
+//   2. "MemoryTag"         — many-to-many between memories and Persons
+//   3. "MemoryConsent"     — consent records for AI persona / voice cloning
+//   4. "MemorialProfile"   — memorial page config for deceased Persons
+//
+// Migration: supabase/migrations/20260708030000_create_pitru_tables.sql (applied live)
+// RLS: family-scoped SELECT, service_role ALL on every table.
+// Realtime: "AncestralMemory" is in the supabase_realtime publication.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// A voice/video memory recorded by a family elder (or on their behalf).
+/// AI processes it asynchronously: Whisper transcription, GPT translation + summary.
+/// When the elder passes away, their memories become part of their MemorialProfile.
+model AncestralMemory {
+  id            String  @id @default(cuid())
+  familyId      String
+  recorderId    String // User who recorded/uploaded
+  elderPersonId String? // Person the memory is about (nullable: elder may not be in graph yet)
+
+  // ── Media storage ──
+  mediaType    String  @default("audio") // audio | video
+  mediaUrl     String
+  thumbnailUrl String?
+  durationSec  Int     @default(0)
+
+  // ── Title + topic (user-provided) ──
+  title       String
+  topic       String?
+  language    String  @default("en")
+  description String?
+
+  // ── AI processing results ──
+  transcript         String?
+  transcriptLanguage String?
+  translation        String?
+  aiSummary          String?
+  aiTags             Json      @default("[]")
+  aiProcessedAt      DateTime? @db.Timestamptz
+  aiProcessingError  String?
+
+  // ── Lifecycle ──
+  status     String    @default("pending") // pending | processing | ready | failed | archived
+  isPublic   Boolean   @default(false)
+  revealAt   DateTime? @db.Timestamptz
+  isRevealed Boolean   @default(true)
+
+  // ── Engagement ──
+  viewCount      Int       @default(0)
+  listenCount    Int       @default(0)
+  lastListenedAt DateTime? @db.Timestamptz
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  // ── Relations ──
+  family      Family      @relation(fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  recorder    User        @relation("MemoryRecorder", fields: [recorderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  elderPerson Person?     @relation("MemoryElderPerson", fields: [elderPersonId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  tags        MemoryTag[]
+
+  @@index([familyId, createdAt(sort: Desc)])
+  @@index([elderPersonId])
+  @@index([status])
+  @@index([topic])
+}
+
+/// Many-to-many between AncestralMemory and Person.
+/// Records who is mentioned/featured in each memory.
+model MemoryTag {
+  id         String   @id @default(cuid())
+  memoryId   String
+  personId   String
+  taggedById String? // User who applied the tag
+  tagType    String   @default("mentions") // mentions | about | recorded_by | featured
+  taggedAt   DateTime @default(now()) @db.Timestamptz
+
+  memory   AncestralMemory @relation(fields: [memoryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  person   Person          @relation("MemoryTagPerson", fields: [personId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  taggedBy User?           @relation("MemoryTaggedBy", fields: [taggedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@unique([memoryId, personId, tagType])
+  @@index([memoryId])
+  @@index([personId])
+}
+
+/// Consent records for AI persona / voice cloning / public memorial.
+/// CRITICAL: Without explicit consent, AI persona features are disabled for that person.
+model MemoryConsent {
+  id               String    @id @default(cuid())
+  familyId         String
+  elderPersonId    String
+  consentType      String // ai_persona | voice_cloning | public_memorial | cross_family_share
+  consentGiven     Boolean   @default(false)
+  consentedById    String?
+  consentedAt      DateTime? @db.Timestamptz
+  consentExpiresAt DateTime? @db.Timestamptz
+  consentNotes     String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  family      Family @relation(fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  elderPerson Person @relation("ConsentElderPerson", fields: [elderPersonId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  consentedBy User?  @relation("ConsentConsentedBy", fields: [consentedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@unique([elderPersonId, consentType])
+  @@index([elderPersonId])
+  @@index([familyId])
+}
+
+/// Memorial page config for deceased Persons.
+/// One row per deceased Person. Created when isDeceased is set to true.
+model MemorialProfile {
+  id               String    @id @default(cuid())
+  familyId         String
+  personId         String
+  memorialTitle    String?
+  memorialBio      String?
+  birthDate        DateTime? @db.Date
+  deathDate        DateTime? @db.Date
+  coverPhotoUrl    String?
+  isPublic         Boolean   @default(false)
+  allowMessages    Boolean   @default(true)
+  aiPersonaEnabled Boolean   @default(false) // requires MemoryConsent ai_persona
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  person Person @relation("MemorialPerson", fields: [personId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([personId])
+  @@index([familyId])
 }
