@@ -359,7 +359,7 @@ class UsernameNotifier extends StateNotifier<UsernameCheckState> {
       username: username,
     );
 
-    _debounceTimer = Timer(const Duration(milliseconds: 500), () async {
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () async {
       await _performCheck(username, isFamily: isFamily);
     });
   }
@@ -413,26 +413,37 @@ class UsernameNotifier extends StateNotifier<UsernameCheckState> {
           history: state.history,
         );
       } else {
-        // For user usernames, use the NestJS backend API
-        final dio = _ref.read(dioProvider);
-        final response = await dio.get(
-          '/api/users/check-username',
-          queryParameters: {'username': username},
-        );
-        final data = response.data as Map<String, dynamic>;
-        final available = data['available'] as bool? ?? false;
+        // For user usernames, query Supabase directly (bypasses NestJS
+        // which rejects Supabase JWTs due to ES256/HS256 mismatch).
+        // This is fast (~100-200ms) compared to the NestJS API which
+        // would 401 and timeout.
+        final client = _ref.read(supabaseProvider);
+        if (client == null) {
+          state = UsernameCheckState(
+            availability: UsernameAvailability.invalid,
+            username: username,
+          );
+          return;
+        }
+        final response = await client
+            .from('User')
+            .select('id')
+            .eq('username', username)
+            .limit(1)
+            .timeout(const Duration(seconds: 3));
+        final isTaken = (response as List).isNotEmpty;
 
         // ── Cache the result ─────────────────────────────────────
-        await _cacheAvailability(username, available);
+        await _cacheAvailability(username, !isTaken);
 
         // ── Typo detection if taken ──────────────────────────────
         String? didYouMean;
-        if (!available && state.suggestions.isNotEmpty) {
+        if (isTaken && state.suggestions.isNotEmpty) {
           didYouMean = _findTypoSuggestion(username, state.suggestions);
         }
 
         state = UsernameCheckState(
-          availability: available
+          availability: !isTaken
               ? UsernameAvailability.available
               : UsernameAvailability.taken,
           username: username,

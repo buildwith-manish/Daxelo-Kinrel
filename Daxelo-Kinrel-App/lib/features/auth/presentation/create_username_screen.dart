@@ -5,8 +5,6 @@
 // This username is their primary public identity on Kinrel and the
 // main identifier used in Search.
 
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -28,7 +26,6 @@ class CreateUsernameScreen extends ConsumerStatefulWidget {
 class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
-  Timer? _debounce;
   bool _isSaving = false;
 
   @override
@@ -40,7 +37,6 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
 
   @override
   void dispose() {
-    _debounce?.cancel();
     _controller.removeListener(_onChanged);
     _controller.dispose();
     _focusNode.dispose();
@@ -52,26 +48,32 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
     // Reset state when typing
     ref.read(usernameProvider.notifier).reset();
 
-    // Debounce availability check
-    _debounce?.cancel();
+    // The provider already has its own 300ms debounce, so we call
+    // checkAvailability directly — no double debounce.
     if (value.isNotEmpty) {
-      _debounce = Timer(const Duration(milliseconds: 500), () {
-        ref.read(usernameProvider.notifier).checkAvailability(value);
-      });
+      ref.read(usernameProvider.notifier).checkAvailability(value);
     }
   }
 
   bool get _isValid =>
       UsernameValidator.validate(_controller.text) == null;
 
-  bool get _isAvailable =>
-      ref.read(usernameProvider).availability ==
-      UsernameAvailability.available;
+  // Note: _isAvailable is evaluated in build() via ref.watch, NOT here
+  // via ref.read. Using ref.read here would return a stale value because
+  // the getter is evaluated on the State object, not during build.
+  // The build() method passes the watched availability to _canSubmitAt().
 
-  bool get _canSubmit => _isValid && _isAvailable && !_isSaving;
+  bool _canSubmitAt(UsernameAvailability availability) =>
+      _isValid &&
+      availability == UsernameAvailability.available &&
+      !_isSaving;
 
   Future<void> _submit() async {
-    if (!_canSubmit) return;
+    // Check availability at call time via ref.read (fresh read)
+    final currentAvailability = ref.read(usernameProvider).availability;
+    if (!_isValid || currentAvailability != UsernameAvailability.available || _isSaving) {
+      return;
+    }
 
     setState(() => _isSaving = true);
 
@@ -231,7 +233,7 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
                   ),
                   suffixIcon: _buildSuffixIcon(availability),
                 ),
-                onFieldSubmitted: (_) => _canSubmit ? _submit() : null,
+                onFieldSubmitted: (_) => _canSubmitAt(availability) ? _submit() : null,
               ),
 
               const SizedBox(height: 10),
@@ -276,7 +278,7 @@ class _CreateUsernameScreenState extends ConsumerState<CreateUsernameScreen> {
               SizedBox(
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: _canSubmit ? _submit : null,
+                  onPressed: _canSubmitAt(availability) ? _submit : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: KinrelColors.orange,
                     disabledBackgroundColor: KinrelColors.darkElevated,
