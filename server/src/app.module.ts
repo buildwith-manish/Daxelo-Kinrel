@@ -43,6 +43,8 @@ import { StoriesModule } from './modules/stories/stories.module';
 import { FollowModule } from './modules/follow/follow.module';
 import { SparqModule } from './modules/sparq/sparq.module';
 import { RedlightModule } from './modules/games/redlight.module';
+import { AuraModule } from './aura/aura.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { CustomThrottlerGuard } from './common/guards/throttler.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { TwoFactorGuard } from './common/guards/two-factor.guard';
@@ -93,6 +95,9 @@ import { TwoFactorVerificationModule } from './common/services/two-factor-verifi
 
     // ── Schedule module (cron jobs) ──────────────────────────
     ScheduleModule.forRoot(),
+
+    // ── Event emitter (for AURA domain events) ──────────────
+    EventEmitterModule.forRoot(),
 
     // ── Health check ────────────────────────────────────────
     HealthModule,
@@ -149,6 +154,9 @@ import { TwoFactorVerificationModule } from './common/services/two-factor-verifi
 
     // ── Game modules ─────────────────────────────────────────────
     RedlightModule,
+
+    // ── AURA: Ancestral Unified Relationship Archetype ──────────
+    AuraModule,
   ],
   providers: [
     // ── Global guards (executed in order) ────────────────────

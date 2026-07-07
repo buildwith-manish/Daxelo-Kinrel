@@ -616,6 +616,14 @@ model Family {
   // ── v2.2: Person-Link Invitations for this family ──
   personLinkInvitations PersonLinkInvitation[]
 
+  // ── AURA: Ancestral Unified Relationship Archetype ──
+  // One-to-one: each family has at most one current AURA snapshot.
+  familyAura      FamilyAura?
+  // One-to-many: historical AURA snapshots for the Timeline widget.
+  auraHistory     FamilyAuraHistory[]
+  // One-to-many: per-member role glyph classifications within this family's AURA.
+  memberAuraRoles MemberAuraRole[]
+
   // ── Social System Fields ──
   isPublic Boolean @default(false) // Family visibility: true = non-members can see tree (read-only)
 
@@ -708,6 +716,19 @@ model Person {
   blocksReceived      Block[]           @relation("BlockBlocked")
   permissionsGranted  Permission[]      @relation("PermissionGrantor")
   permissionsReceived Permission[]      @relation("PermissionGrantee")
+
+  // ── AURA back-relations ──
+  // A Person can be the anchor (max betweenness) of multiple FamilyAura rows
+  // (one per family they belong to — typically one, but Prisma requires a list
+  // because maxBetweennessNode is not @unique on FamilyAura).
+  anchoredFamilyAura   FamilyAura[]        @relation("PersonMaxBetweenness")
+  // A Person can be the root (oldest ancestor) of multiple FamilyAura rows.
+  rootedFamilyAura     FamilyAura[]        @relation("PersonRootNode")
+  // A Person can be the trigger of multiple FamilyAuraHistory snapshots over time.
+  triggeredAuraHistory FamilyAuraHistory[] @relation("PersonTriggerMember")
+  // A Person has at most one MemberAuraRole per family — but Prisma infers
+  // one-to-many from the non-unique memberId FK, so it's a list.
+  auraRoles            MemberAuraRole[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1918,24 +1939,24 @@ model RelationshipPathCache {
 // expire after 7 days. See `server/src/modules/viewer/viewer.service.ts`.
 
 model PersonLinkInvitation {
-  id             String   @id @default(cuid())
-  familyId       String
-  personId       String
-  code           String   @unique
-  inviterUserId  String
-  recipientName  String?
-  recipientEmail String?
-  recipientPhone String?
-  role           String   @default("member") // role in the family
-  status         String   @default("pending") // pending | accepted | expired | revoked
-  expiresAt      DateTime @default(now())
-  acceptedAt     DateTime?
+  id               String    @id @default(cuid())
+  familyId         String
+  personId         String
+  code             String    @unique
+  inviterUserId    String
+  recipientName    String?
+  recipientEmail   String?
+  recipientPhone   String?
+  role             String    @default("member") // role in the family
+  status           String    @default("pending") // pending | accepted | expired | revoked
+  expiresAt        DateTime  @default(now())
+  acceptedAt       DateTime?
   acceptedByUserId String?
-  createdAt      DateTime @default(now())
+  createdAt        DateTime  @default(now())
 
-  family  Family  @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  person  Person  @relation("PersonLinkInvitationPerson", fields: [personId], references: [id], onDelete: Cascade)
-  inviter User    @relation("PersonLinkInvitationInviter", fields: [inviterUserId], references: [id], onDelete: Cascade)
+  family  Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  person  Person @relation("PersonLinkInvitationPerson", fields: [personId], references: [id], onDelete: Cascade)
+  inviter User   @relation("PersonLinkInvitationInviter", fields: [inviterUserId], references: [id], onDelete: Cascade)
 
   @@index([familyId])
   @@index([personId])
@@ -2067,4 +2088,143 @@ model SparqEcho {
   @@unique([sparqId, userId])
   @@index([sparqId])
   @@index([userId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AURA — Ancestral Unified Relationship Archetype
+// ═══════════════════════════════════════════════════════════════════════════
+// Three tables that store the computed AURA parameters for each family.
+// Migration: supabase/migrations/20260708010000_create_aura_tables.sql
+//
+// Computation flow:
+//   Family graph changes (Person / Relationship CRUD)
+//     → AuraEventListener debounces 2s
+//     → AuraOrchestrationService.computeAndSave(familyId)
+//       → GraphAnalysisService.computeMetrics()  (Brandes, BFS, clustering, …)
+//       → ArchetypeClassifierService.classify()  (6 archetypes)
+//       → AuraParameterGeneratorService.generate() (geometry + colors + pulse)
+//       → upsert FamilyAura + push FamilyAuraHistory snapshot
+//       → RoleGlyphService.computeAndSaveRoles() → upsert MemberAuraRole rows
+//     → Supabase Realtime broadcasts the new FamilyAura row to Flutter
+//
+// RLS: family members can SELECT; only service_role can INSERT/UPDATE/DELETE.
+// Realtime: FamilyAura + MemberAuraRole are in the supabase_realtime publication.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Current AURA parameters for a family. One row per family.
+/// Updated every time the family graph changes (debounced 2s).
+model FamilyAura {
+  id       String @id @default(cuid())
+  familyId String @unique
+
+  // ── Graph metrics (raw, for re-classification without recomputing) ──
+  memberCount           Int     @default(0)
+  generationDepth       Int     @default(1)
+  edgeCount             Int     @default(0)
+  clusteringCoefficient Decimal @default(0) @db.Decimal(6, 4)
+  graphDiameter         Int     @default(0)
+  avgDegree             Decimal @default(0) @db.Decimal(6, 3)
+  maxBetweennessNode    String? // FK to Person — anchor member
+  rootNode              String? // FK to Person — oldest ancestor
+  distinctLineages      Int     @default(1)
+
+  // ── Language distribution (JSONB: ISO-639-1 code → ratio, sums to 1.0) ──
+  // Example: {"hi": 0.5, "ta": 0.3, "gu": 0.2}
+  languageDistribution Json @default("{}")
+
+  // ── AURA Symbol Parameters ──
+  ringCount          Int     @default(2) // 1–8
+  spokeCount         Int     @default(4) // 3–12
+  innerPatternType   String  @default("lotus") // lotus|grid|diamond|star|web|spiral
+  outerRingRadiusPct Decimal @default(0.85) @db.Decimal(4, 2) // 0.50–0.95
+  patternComplexity  Int     @default(3) // 1–10
+  primaryColorHex    String  @default("#C8853A") @db.Char(7)
+  secondaryColorHex  String  @default("#6B3FA0") @db.Char(7)
+  accentColorHex     String  @default("#2D8A4E") @db.Char(7)
+  pulseSpeedMs       Int     @default(3000) // animation cycle duration
+
+  // ── Archetype classification ──
+  archetypeKey        String  @default("lotus") // banyan|river_delta|confluence|spine|lotus|forest
+  archetypeConfidence Decimal @default(0.500) @db.Decimal(4, 3) // 0.000–1.000
+
+  // ── Metadata ──
+  computedAt DateTime @default(now()) @db.Timestamptz
+  createdAt  DateTime @default(now()) @db.Timestamptz
+  updatedAt  DateTime @updatedAt @db.Timestamptz
+
+  // ── Relations ──
+  family               Family  @relation(fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  maxBetweennessPerson Person? @relation("PersonMaxBetweenness", fields: [maxBetweennessNode], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  rootPerson           Person? @relation("PersonRootNode", fields: [rootNode], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([familyId])
+}
+
+/// Snapshot history of AURA parameters over time. Used by the AURA Timeline widget.
+/// A new row is inserted every time the AURA is recomputed (debounced).
+model FamilyAuraHistory {
+  id       String @id @default(cuid())
+  familyId String
+
+  // ── Snapshot of the full AURA parameters at this point in time ──
+  memberCount       Int
+  generationDepth   Int
+  archetypeKey      String
+  ringCount         Int
+  spokeCount        Int
+  innerPatternType  String
+  primaryColorHex   String @db.Char(7)
+  secondaryColorHex String @db.Char(7)
+  accentColorHex    String @db.Char(7)
+
+  // ── What triggered this snapshot ──
+  triggerMemberId  String? // FK to Person — who triggered the change (nullable for bulk recompute)
+  triggerEventType String  @default("member_added")
+  // Enum: member_added | member_removed | relationship_added | language_changed | manual_recompute
+
+  // ── Whether this snapshot represents an archetype change ──
+  archetypeChanged  Boolean @default(false)
+  previousArchetype String?
+
+  capturedAt DateTime @default(now()) @db.Timestamptz
+
+  // ── Relations ──
+  family        Family  @relation(fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  triggerMember Person? @relation("PersonTriggerMember", fields: [triggerMemberId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([familyId, capturedAt(sort: Desc)])
+}
+
+/// Each member's computed role within the family AURA. One row per member per family.
+/// Updated when graph changes affect role assignments.
+model MemberAuraRole {
+  id       String @id @default(cuid())
+  familyId String
+  memberId String
+
+  // ── Role classification ──
+  roleKey String @default("leaf")
+  // Enum: root | anchor | bridge | weaver | leaf | twin_node
+
+  // ── Graph metrics that determined this role (for debugging / display) ──
+  betweennessScore Decimal @default(0) @db.Decimal(8, 6)
+  degreeCount      Int     @default(0)
+  generationIndex  Int     @default(0) // 0 = root generation
+
+  // ── Role glyph visual parameters ──
+  glyphShape    String @default("petal")
+  // Enum: anchor | bridge | spiral | mirror | petal | deep_anchor
+  glyphColorHex String @default("#C8853A") @db.Char(7)
+
+  computedAt DateTime @default(now()) @db.Timestamptz
+  createdAt  DateTime @default(now()) @db.Timestamptz
+  updatedAt  DateTime @updatedAt @db.Timestamptz
+
+  // ── Relations ──
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  member Person @relation(fields: [memberId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([familyId, memberId])
+  @@index([familyId])
+  @@index([memberId])
 }

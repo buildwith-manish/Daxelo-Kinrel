@@ -5,6 +5,7 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
 import ws from 'ws';
 
@@ -81,7 +82,10 @@ export class SupabaseRealtimeService implements OnModuleInit, OnModuleDestroy {
   private debounceMap: DebounceMap;
   private isInitialized = false;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {
     this.debounceMap = new DebounceMap(500);
   }
 
@@ -275,6 +279,45 @@ export class SupabaseRealtimeService implements OnModuleInit, OnModuleDestroy {
       }
 
       this.broadcastFamilyUpdate(familyId, event);
+
+      // ── Emit domain events for AURA recompute triggers ────────────
+      // Only Person and Relationship changes affect the AURA graph.
+      // FamilyInvite changes don't change graph topology.
+      if (table === 'Person' || table === 'Relationship') {
+        const memberId =
+          record?.id || // Person.id
+          record?.fromPersonId || // Relationship.fromPersonId
+          record?.toPersonId; // Relationship.toPersonId
+
+        const auraEventName = `family.${resourceName}.${
+          table === 'Person' ? (action === 'created' ? 'added' : action === 'deleted' ? 'removed' : 'updated') : action
+        }`;
+
+        // Map to the canonical AURA event names that AuraEventListener listens to:
+        //   family.member.added | family.member.removed | family.member.updated
+        //   family.relationship.created | family.relationship.deleted | family.relationship.updated
+        let auraEvent: string | null = null;
+        if (table === 'Person') {
+          if (action === 'created') auraEvent = 'family.member.added';
+          else if (action === 'deleted') auraEvent = 'family.member.removed';
+          else if (action === 'updated') auraEvent = 'family.member.updated';
+        } else if (table === 'Relationship') {
+          if (action === 'created') auraEvent = 'family.relationship.created';
+          else if (action === 'deleted') auraEvent = 'family.relationship.deleted';
+          else if (action === 'updated') auraEvent = 'family.relationship.updated';
+        }
+
+        if (auraEvent) {
+          this.eventEmitter.emit(auraEvent, {
+            familyId,
+            memberId,
+            eventType: action,
+          });
+          this.logger.debug(
+            `Emitted AURA event: ${auraEvent} (familyId: ${familyId}, memberId: ${memberId ?? 'none'})`,
+          );
+        }
+      }
     }
 
     // Broadcast to user-specific channel for notifications
