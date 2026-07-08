@@ -221,8 +221,5 @@ process.on('unhandledRejection', (reason) => {
 bootstrap().catch((err) => {
   console.error('💥 BOOTSTRAP FAILED:', err);
   console.error(err?.stack || err);
-  // DON'T exit — keep the process alive so Render's health check can run
-  // and we can see the error in the logs. The app will be in a broken state
-  // but the container won't crash.
-  // process.exit(1);  // <-- commented out for debugging
+  process.exit(1);
 });
