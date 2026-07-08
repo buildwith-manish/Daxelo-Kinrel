@@ -201,6 +201,13 @@ model User {
   blessingsAsRecipient BlessingChain[] @relation("BlessingRecipientUser")
   timeCapsulesCreated  TimeCapsule[]   @relation("TimeCapsuleCreator")
   timeCapsulesForMe    TimeCapsule[]   @relation("TimeCapsuleRecipientUser")
+
+  // ── A-3/A-4 back-relations (Quests + Silent Alarms) ──
+  quests             FamilyQuest[] @relation("QuestUser")
+  questsAsTarget     FamilyQuest[] @relation("QuestTargetUser")
+  alarmsAsInactive   SilentAlarm[] @relation("AlarmInactiveUser")
+  alarmsAsBridge     SilentAlarm[] @relation("AlarmBridgeUser")
+  alarmsAcknowledged SilentAlarm[] @relation("AlarmAcknowledgedBy")
 }
 
 // ── Blocked Users (replaces JSON blockedUserIds anti-pattern) ────────
@@ -662,6 +669,11 @@ model Family {
   blessings    BlessingChain[]
   timeCapsules TimeCapsule[]
 
+  // ── A-3/A-4/A-7 back-relations (Quests + Alarms + Chronicle) ──
+  quests    FamilyQuest[]
+  alarms    SilentAlarm[]
+  chronicle FamilyChronicle?
+
   // ── Social System Fields ──
   isPublic Boolean @default(false) // Family visibility: true = non-members can see tree (read-only)
 
@@ -783,6 +795,10 @@ model Person {
   blessingsAsElder        BlessingChain[] @relation("BlessingElderPerson")
   blessingsAsRecipient    BlessingChain[] @relation("BlessingRecipientPerson")
   timeCapsulesAsRecipient TimeCapsule[]   @relation("TimeCapsuleRecipientPerson")
+
+  // ── A-3/A-4 back-relations (Quests + Silent Alarms) ──
+  questsAsTarget   FamilyQuest[] @relation("QuestTargetPerson")
+  alarmsAsInactive SilentAlarm[] @relation("AlarmInactivePerson")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2806,4 +2822,133 @@ model TimeCapsule {
   @@index([recipientPersonId, recipientUserId])
   @@index([revealAt])
   @@index([status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// A-3 FAMILY QUESTS + A-4 SILENT ALARMS + A-7 FAMILY CHRONICLE
+// ═══════════════════════════════════════════════════════════════════════════
+// Three more addictiveness features:
+//   1. "FamilyQuest"      — A-3: weekly AI-generated quests targeting weak relationships
+//   2. "SilentAlarm"      — A-4: inactivity detection + private nudges to the bridge role
+//   3. "FamilyChronicle"  — A-7: AI-written family history, monthly auto-update
+//
+// Migration: supabase/migrations/20260708050000_create_quests_alarms_chronicle_tables.sql
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Weekly AI-generated quest targeting a weak relationship.
+/// Generated every Monday at 7am IST by AddictivenessCronService.
+model FamilyQuest {
+  id             String  @id @default(cuid())
+  familyId       String
+  userId         String
+  targetPersonId String?
+  targetUserId   String?
+
+  // ── Quest content ──
+  questType   String // call | message | share_photo | wish_birthday | visit | ritual
+  title       String
+  description String
+  actionType  String // call | message | view_post | view_sparq | contribute | listen_memory
+  actionData  Json   @default("{}")
+
+  // ── Scheduling ──
+  weekOf   DateTime @db.Date
+  deadline DateTime @db.Timestamptz
+
+  // ── Reward ──
+  karmaReward  Int @default(10)
+  karmaAwarded Int @default(0)
+
+  // ── Lifecycle ──
+  status      String    @default("active") // active | completed | expired | skipped
+  completedAt DateTime? @db.Timestamptz
+  expiredAt   DateTime? @db.Timestamptz
+  skippedAt   DateTime? @db.Timestamptz
+
+  // ── AI generation metadata ──
+  generatedBy String  @default("graph_weak_point") // graph_weak_point | birthday | festival | weather | manual
+  questScore  Decimal @default(0.500) @db.Decimal(4, 3)
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  // ── Relations ──
+  family       Family  @relation(fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user         User    @relation("QuestUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  targetPerson Person? @relation("QuestTargetPerson", fields: [targetPersonId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  targetUser   User?   @relation("QuestTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([familyId, weekOf])
+  @@index([userId, weekOf])
+  @@index([status])
+}
+
+/// Silent alarm sent privately to the family bridge when someone goes quiet.
+/// ONLY the bridge + family admins can see these (RLS enforced).
+model SilentAlarm {
+  id               String  @id @default(cuid())
+  familyId         String
+  inactivePersonId String
+  inactiveUserId   String?
+  bridgeUserId     String
+
+  // ── Alarm details ──
+  daysInactive Int       @default(0)
+  lastActiveAt DateTime? @db.Timestamptz
+  severity     String    @default("gentle") // gentle | moderate | urgent
+  alarmMessage String
+
+  // ── Lifecycle ──
+  status           String    @default("triggered") // triggered | acknowledged | resolved | escalated
+  acknowledgedAt   DateTime? @db.Timestamptz
+  acknowledgedById String?
+  resolvedAt       DateTime? @db.Timestamptz
+  escalatedAt      DateTime? @db.Timestamptz
+
+  // ── Suggestions for the bridge ──
+  suggestions Json @default("[]")
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  // ── Relations ──
+  family         Family @relation(fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  inactivePerson Person @relation("AlarmInactivePerson", fields: [inactivePersonId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  inactiveUser   User?  @relation("AlarmInactiveUser", fields: [inactiveUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  bridgeUser     User   @relation("AlarmBridgeUser", fields: [bridgeUserId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  acknowledgedBy User?  @relation("AlarmAcknowledgedBy", fields: [acknowledgedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([familyId])
+  @@index([inactivePersonId])
+  @@index([bridgeUserId])
+  @@index([status])
+}
+
+/// AI-written family history book, monthly auto-update.
+/// One row per family. Chapters stored as JSONB array.
+model FamilyChronicle {
+  id       String @id @default(cuid())
+  familyId String @unique
+
+  // ── Chronicle metadata ──
+  title    String
+  subtitle String?
+
+  // ── Chapters (JSONB array) ──
+  chapters Json @default("[]")
+
+  // ── Current generation state ──
+  chapterCount     Int       @default(0)
+  lastGeneratedAt  DateTime? @db.Timestamptz
+  nextGenerationAt DateTime? @db.Timestamptz
+
+  // ── AI processing ──
+  aiModel           String?
+  aiProcessingError String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  // ── Relations ──
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }

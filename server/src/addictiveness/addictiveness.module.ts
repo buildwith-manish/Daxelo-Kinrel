@@ -15,6 +15,9 @@ import { AddictivenessController } from './addictiveness.controller';
 import { FestivalService } from './festival.service';
 import { BlessingChainService } from './blessing-chain.service';
 import { TimeCapsuleService } from './time-capsule.service';
+import { FamilyQuestService } from './family-quest.service';
+import { SilentAlarmService } from './silent-alarm.service';
+import { FamilyChronicleService } from './family-chronicle.service';
 import { AddictivenessCronService } from './addictiveness-cron.service';
 
 @Module({
@@ -23,8 +26,18 @@ import { AddictivenessCronService } from './addictiveness-cron.service';
     FestivalService,
     BlessingChainService,
     TimeCapsuleService,
+    FamilyQuestService,
+    SilentAlarmService,
+    FamilyChronicleService,
     AddictivenessCronService,
   ],
-  exports: [FestivalService, BlessingChainService, TimeCapsuleService],
+  exports: [
+    FestivalService,
+    BlessingChainService,
+    TimeCapsuleService,
+    FamilyQuestService,
+    SilentAlarmService,
+    FamilyChronicleService,
+  ],
 })
 export class AddictivenessModule {}

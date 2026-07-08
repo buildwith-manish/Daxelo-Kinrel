@@ -26,6 +26,9 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { FestivalService } from './festival.service';
 import { BlessingChainService, type CreateBlessingInput } from './blessing-chain.service';
 import { TimeCapsuleService, type CreateTimeCapsuleInput } from './time-capsule.service';
+import { FamilyQuestService } from './family-quest.service';
+import { SilentAlarmService } from './silent-alarm.service';
+import { FamilyChronicleService } from './family-chronicle.service';
 
 @Controller('addictiveness')
 export class AddictivenessController {
@@ -35,6 +38,9 @@ export class AddictivenessController {
     private readonly festivalService: FestivalService,
     private readonly blessingChainService: BlessingChainService,
     private readonly timeCapsuleService: TimeCapsuleService,
+    private readonly familyQuestService: FamilyQuestService,
+    private readonly silentAlarmService: SilentAlarmService,
+    private readonly familyChronicleService: FamilyChronicleService,
   ) {}
 
   // ────────────────────────────────────────────────────────────────────────
@@ -233,5 +239,73 @@ export class AddictivenessController {
   @HttpCode(HttpStatus.OK)
   async cancelCapsule(@Param('id') id: string, @CurrentUser('id') userId: string) {
     return this.timeCapsuleService.cancelCapsule(id, userId);
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // A-3 Family Quests
+  // ────────────────────────────────────────────────────────────────────────
+
+  @Get('quests/active')
+  async getActiveQuests(@CurrentUser('id') userId: string) {
+    return this.familyQuestService.getActiveQuests(userId);
+  }
+
+  @Get('quests/history')
+  async getQuestHistory(
+    @CurrentUser('id') userId: string,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+  ) {
+    return this.familyQuestService.getQuestHistory(userId, limit ?? 20);
+  }
+
+  @Post('quests/:id/complete')
+  @HttpCode(HttpStatus.OK)
+  async completeQuest(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.familyQuestService.completeQuest(id, userId);
+  }
+
+  @Post('quests/:id/skip')
+  @HttpCode(HttpStatus.OK)
+  async skipQuest(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.familyQuestService.skipQuest(id, userId);
+  }
+
+  @Post('quests/generate')
+  @HttpCode(HttpStatus.OK)
+  async generateQuests(@Query('familyId') familyId: string) {
+    if (!familyId) throw new BadRequestException('familyId is required');
+    return this.familyQuestService.generateQuestsForFamily(familyId);
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // A-4 Silent Alarms
+  // ────────────────────────────────────────────────────────────────────────
+
+  @Get('alarms')
+  async getAlarms(@CurrentUser('id') userId: string) {
+    return this.silentAlarmService.getAlarmsForUser(userId);
+  }
+
+  @Post('alarms/:id/acknowledge')
+  @HttpCode(HttpStatus.OK)
+  async acknowledgeAlarm(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.silentAlarmService.acknowledgeAlarm(id, userId);
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // A-7 Family Chronicle
+  // ────────────────────────────────────────────────────────────────────────
+
+  @Get('chronicle')
+  async getChronicle(@Query('familyId') familyId: string, @CurrentUser('id') userId: string) {
+    if (!familyId) throw new BadRequestException('familyId is required');
+    return this.familyChronicleService.getChronicle(familyId, userId);
+  }
+
+  @Post('chronicle/generate')
+  @HttpCode(HttpStatus.OK)
+  async generateChronicle(@Query('familyId') familyId: string) {
+    if (!familyId) throw new BadRequestException('familyId is required');
+    return this.familyChronicleService.generateChronicle(familyId);
   }
 }
