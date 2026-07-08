@@ -11,6 +11,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/feature_flags.dart';
+import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
 import '../../../core/family/optimistic_provider.dart';
@@ -174,61 +175,84 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
             );
           }
 
-          // ── Premium Family Hub: 4 sections ───────────────────────
+          // ════════════════════════════════════════════════════════════
+          // PREMIUM FAMILY SPACE — exactly 5 sections
+          //
           // 1. Hero (AURA symbol + family name + member/link caption)
           // 2. Truth Streak (the one "moment" — terracotta gradient)
-          // 3. Games (Play / Leaderboard toggle, leaderboard nested)
-          // 4. Family Pulse (nudges + activity merged)
+          // 3. Quick-jump navigation row (Members, Games, Calendar,
+          //    Memories, Chat — each a one-tap destination, no inline
+          //    content duplicated below)
+          // 4. Family Pulse (nudges + activity merged, one empty state)
+          // 5. Utility row (Invite, Settings, Leave — muted, secondary)
           //
-          // IA cuts from 7 → 4:
-          //   - Family Graph card killed → folded into hero caption
-          //   - Family Leaderboard killed as separate section → nested
-          //     inside Games as a toggle
-          //   - Recent Activity + Family Calendar merged → Family Pulse
+          // IA cuts: Members, Games, Calendar, Memories, Chat are no
+          // longer stacked inline sections — they're behind chips.
+          // No loose error strings. Every section has empty/loading/
+          // error states. Staggered fade-in on screen load.
+          // ════════════════════════════════════════════════════════════
           return CustomScrollView(
             controller: _hubScrollController,
             slivers: [
               // 1. Hero — parallax collapse driven by _heroScrollOffset.
               SliverToBoxAdapter(
-                child: HeroSection(
-                  familyId: widget.familyId,
-                  familyName: detail.family.name,
-                  memberCount: detail.members.length,
-                  relationshipCount: detail.relationships.length,
-                  scrollOffset: _heroScrollOffset,
+                child: staggerFade(
+                  HeroSection(
+                    familyId: widget.familyId,
+                    familyName: detail.family.name,
+                    memberCount: detail.members.length,
+                    relationshipCount: detail.relationships.length,
+                    scrollOffset: _heroScrollOffset,
+                  ),
+                  0,
                 ),
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
-              // 2. Truth Streak — the "moment".
+              // 2. Truth Streak — the "moment" (only elevated card).
               SliverToBoxAdapter(
-                child: TruthStreakMoment(familyId: widget.familyId),
+                child: staggerFade(
+                  TruthStreakMoment(familyId: widget.familyId),
+                  1,
+                ),
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
-              // 3. Games — Play / Leaderboard toggle.
+              // 3. Quick-jump navigation row (5 chips, flat on Level 0).
               SliverToBoxAdapter(
-                child: GamesSection(familyId: widget.familyId),
+                child: staggerFade(
+                  QuickJumpNavRow(familyId: widget.familyId),
+                  2,
+                ),
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
               // 4. Family Pulse — nudges + activity merged.
               SliverToBoxAdapter(
-                child: FamilyPulseSection(
-                  detail: detail,
-                  familyId: widget.familyId,
+                child: staggerFade(
+                  FamilyPulseSection(
+                    detail: detail,
+                    familyId: widget.familyId,
+                  ),
+                  3,
                 ),
               ),
 
-              // Members preview row — kept as a quiet footer section.
               const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+              // 5. Utility row — Invite, Settings, Leave (muted, flat).
               SliverToBoxAdapter(
-                child: _MembersPreviewRow(
-                  detail: detail,
-                  familyId: widget.familyId,
+                child: staggerFade(
+                  UtilityRow(
+                    familyId: widget.familyId,
+                    onInvite: () => context.push('/family/${widget.familyId}/invite'),
+                    onSettings: () => _showFamilySettings(context),
+                    onLeave: () => _showLeaveFamilyDialog(context),
+                  ),
+                  4,
                 ),
               ),
 
@@ -248,6 +272,79 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
       familyId: widget.familyId,
       familyName: familyName,
     );
+  }
+
+  /// Leave family dialog — confirms with the user before removing their
+  /// membership. Creators are warned that they must transfer ownership
+  /// or delete the family instead.
+  void _showLeaveFamilyDialog(BuildContext context) {
+    final detailAsync = ref.read(familyDetailProvider(widget.familyId));
+    final family = detailAsync.valueOrNull?.family;
+    final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+    final isCreator = family != null &&
+        family.createdBy != null &&
+        family.createdBy == currentUserId;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: DKColors.cardColor(context),
+        title: Text(
+          isCreator ? 'Leave Family?' : 'Leave Family?',
+          style: TextStyle(color: DKColors.textPrimary(context)),
+        ),
+        content: Text(
+          isCreator
+              ? 'You are the creator of this family. To leave, you must '
+                  'transfer ownership to another admin or delete the family '
+                  'from Settings. Would you like to open Settings?'
+              : 'Are you sure you want to leave "${family?.name ?? 'this family'}"? '
+                  'You will lose access to the family graph, members, and chat. '
+                  'You can rejoin if you receive a new invite.',
+          style: TextStyle(color: DKColors.textSecondary(context)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: DKColors.textSecondary(context)),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx, true);
+              if (isCreator) {
+                // Redirect creators to settings instead of leaving.
+                _showFamilySettings(context);
+              } else {
+                // Non-creators can leave directly.
+                _leaveFamily();
+              }
+            },
+            child: Text(
+              isCreator ? 'Open Settings' : 'Leave',
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Calls the leave-family API and navigates back to the family list.
+  Future<void> _leaveFamily() async {
+    try {
+      final dio = ref.read(dioProvider);
+      await dio.delete('/families/${widget.familyId}/leave');
+      if (mounted) {
+        context.go('/families');
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showSnackBar('Failed to leave family: $e', isError: true);
+      }
+    }
   }
 
   void _showFamilySettings(BuildContext context) {

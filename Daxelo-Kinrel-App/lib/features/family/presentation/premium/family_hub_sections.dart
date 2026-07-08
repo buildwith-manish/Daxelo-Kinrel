@@ -32,6 +32,7 @@ import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/family/family_provider.dart';
 import '../../../games/shared/widgets/active_games_list.dart';
 import '../../../games/shared/widgets/family_leaderboard_widget.dart';
+import '../../../notifications/providers/notifications_provider.dart';
 import '../../../occasions/providers/occasion_reminders_provider.dart';
 import '../../../truth_streak/presentation/truth_streak_card.dart';
 import '../family_detail_screen.dart' show FamilyDetail, premiumGamesRowBridge, AddPersonSheetBridge;
@@ -586,4 +587,279 @@ Widget staggerFade(Widget child, int index) {
         delay: (index * 100).ms,
         curve: Curves.easeOut,
       );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SECTION 3 (REDESIGN): QUICK-JUMP NAVIGATION ROW
+//
+// A single horizontal row of 5 icon-and-label chips, scrollable if
+// needed. Each chip is a full destination — tapping it navigates to
+// that feature's own dedicated screen.
+//
+// Five chips: Members, Games, Calendar, Memories, Chat.
+//
+// Visually: chips are muted/neutral by default. Only apply the accent
+// color to a chip if it currently has something the user should notice
+// (e.g. an unread badge, a pending invite, an active game).
+//
+// This row replaces having Members, Games, Calendar, Documents, and
+// Memory Vault each be their own stacked section on the main screen.
+// None of that content is duplicated inline further down the page.
+// ═══════════════════════════════════════════════════════════════════════
+
+class QuickJumpNavRow extends ConsumerWidget {
+  const QuickJumpNavRow({super.key, required this.familyId});
+
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch unread chat count for the badge.
+    final unreadCount = ref.watch(unreadCountProvider);
+
+    return SizedBox(
+      height: 88,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(
+            horizontal: FamilyHubSpace.md),
+        children: [
+          _QuickJumpChip(
+            icon: Icons.people_outline,
+            label: 'Members',
+            onTap: () => context.push('/family/$familyId/members'),
+          ),
+          const SizedBox(width: FamilyHubSpace.sm),
+          _QuickJumpChip(
+            icon: Icons.sports_esports_outlined,
+            label: 'Games',
+            onTap: () => context.push('/games?familyId=$familyId'),
+          ),
+          const SizedBox(width: FamilyHubSpace.sm),
+          _QuickJumpChip(
+            icon: Icons.calendar_today_outlined,
+            label: 'Calendar',
+            onTap: () => context.push('/family/$familyId/calendar'),
+          ),
+          const SizedBox(width: FamilyHubSpace.sm),
+          _QuickJumpChip(
+            icon: Icons.photo_library_outlined,
+            label: 'Memories',
+            onTap: () =>
+                context.push('/memories?familyId=$familyId'),
+          ),
+          const SizedBox(width: FamilyHubSpace.sm),
+          _QuickJumpChip(
+            icon: Icons.chat_bubble_outline,
+            label: 'Chat',
+            badgeCount: unreadCount,
+            isAccent: unreadCount > 0,
+            onTap: () => context.push('/family/$familyId/chat'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickJumpChip extends StatelessWidget {
+  const _QuickJumpChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.badgeCount = 0,
+    this.isAccent = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final int badgeCount;
+  final bool isAccent;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isAccent
+        ? FamilyHubSurface.accent
+        : FamilyHubSurface.iconMuted;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 64,
+        padding: const EdgeInsets.symmetric(vertical: FamilyHubSpace.sm),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Icon with optional badge
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(icon, size: 24, color: color),
+                if (badgeCount > 0)
+                  Positioned(
+                    right: -6,
+                    top: -4,
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 14,
+                        minHeight: 14,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      decoration: BoxDecoration(
+                        color: FamilyHubSurface.accent,
+                        borderRadius: BorderRadius.circular(7),
+                        border: Border.all(
+                          color: Theme.of(context).scaffoldBackgroundColor,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          badgeCount > 9 ? '9+' : '$badgeCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w700,
+                            height: 1.0,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: color,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SECTION 5: UTILITY ROW
+//
+// Small, muted, sits at the very bottom of the scroll. Contains:
+// Invite members, Family settings, Leave family.
+//
+// This should feel clearly secondary — smaller text, no icons competing
+// visually with the sections above, essentially the "housekeeping" row
+// a user only looks at occasionally. Sits flat on Level 0 with
+// hairline dividers between items.
+// ═══════════════════════════════════════════════════════════════════════
+
+class UtilityRow extends StatelessWidget {
+  const UtilityRow({
+    super.key,
+    required this.familyId,
+    required this.onInvite,
+    required this.onSettings,
+    required this.onLeave,
+  });
+
+  final String familyId;
+  final VoidCallback onInvite;
+  final VoidCallback onSettings;
+  final VoidCallback onLeave;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: FamilyHubSpace.md),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(
+              color: FamilyHubSurface.hairline(context),
+              width: 0.5,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: _UtilityItem(
+                label: 'Invite',
+                onTap: onInvite,
+              ),
+            ),
+            Container(
+              width: 0.5,
+              height: 32,
+              color: FamilyHubSurface.hairline(context),
+            ),
+            Expanded(
+              child: _UtilityItem(
+                label: 'Settings',
+                onTap: onSettings,
+              ),
+            ),
+            Container(
+              width: 0.5,
+              height: 32,
+              color: FamilyHubSurface.hairline(context),
+            ),
+            Expanded(
+              child: _UtilityItem(
+                label: 'Leave',
+                onTap: onLeave,
+                isDestructive: true,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UtilityItem extends StatelessWidget {
+  const _UtilityItem({
+    required this.label,
+    required this.onTap,
+    this.isDestructive = false,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final bool isDestructive;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            vertical: FamilyHubSpace.md),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: isDestructive
+                  ? Colors.red.withValues(alpha: 0.7)
+                  : FamilyHubSurface.iconMuted,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
