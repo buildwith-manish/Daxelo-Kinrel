@@ -20,8 +20,11 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../features/aura/providers/aura_provider.dart';
+import '../../../features/aura/widgets/aura_symbol_widget.dart';
 import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../family/presentation/join_family_screen.dart';
@@ -1328,6 +1331,16 @@ class _HeroFamilyCard extends ConsumerWidget {
                   ),
                 ),
 
+                // AURA symbol overlay (Phase 16.1) — replaces the
+                // generic dotted-K-graph background with the family's
+                // actual AURA symbol when AURA has been computed and
+                // the feature flag is on. Falls back to the dotted
+                // pattern above when no AURA is cached yet.
+                if (kEnableAura)
+                  Positioned.fill(
+                    child: _HeroAuraOverlay(familyId: familyId),
+                  ),
+
                 // Content
                 Positioned.fill(
                   child: Padding(
@@ -1869,4 +1882,44 @@ class _FeatureTile {
   final IconData icon;
   final Color color;
   final String route;
+}
+
+/// Phase 16.1: overlays the family's AURA symbol on the hero family
+/// card. Renders nothing (transparent) when AURA hasn't been computed
+/// yet, so the dotted K-graph background remains visible.
+///
+/// Watches [auraProvider] so the symbol appears instantly once the
+/// AURA finishes computing (e.g. after the user taps "Generate AURA"
+/// on the AURA screen and navigates back).
+class _HeroAuraOverlay extends ConsumerWidget {
+  const _HeroAuraOverlay({required this.familyId});
+
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(auraProvider(familyId));
+    final aura = state.aura;
+    if (aura == null) {
+      // No AURA yet — let the dotted K-graph show through.
+      return const SizedBox.shrink();
+    }
+    // Low-opacity so the family name + stats stay readable on top.
+    return IgnorePointer(
+      child: Opacity(
+        opacity: 0.18,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: StaticAuraSymbol(
+              parameters: aura.symbol,
+              archetypeKey: aura.archetype.key,
+              size: 220,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

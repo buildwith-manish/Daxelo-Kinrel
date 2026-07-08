@@ -440,6 +440,108 @@ abstract class S {
   /// In en, this message translates to:
   /// **'English'**
   String get languageName;
+
+  /// Nav/drawer label for the AURA feature
+  ///
+  /// In en, this message translates to:
+  /// **'AURA'**
+  String get auraNavLabel;
+
+  /// AppBar title on the AURA screen
+  ///
+  /// In en, this message translates to:
+  /// **'AURA'**
+  String get auraScreenTitle;
+
+  /// Title shown when AURA is not yet computed
+  ///
+  /// In en, this message translates to:
+  /// **'AURA has not been computed yet'**
+  String get auraEmptyTitle;
+
+  /// Body copy for the AURA empty state
+  ///
+  /// In en, this message translates to:
+  /// **'AURA analyses your family graph to generate a unique symbol and archetype. This usually takes a few seconds.'**
+  String get auraEmptyBody;
+
+  /// Button label to trigger AURA computation
+  ///
+  /// In en, this message translates to:
+  /// **'Generate AURA'**
+  String get auraGenerateButton;
+
+  /// Button label to recompute AURA
+  ///
+  /// In en, this message translates to:
+  /// **'Recompute'**
+  String get auraRecomputeButton;
+
+  /// Loading message shown during AURA computation
+  ///
+  /// In en, this message translates to:
+  /// **'Computing AURA…'**
+  String get auraLoadingTitle;
+
+  /// Banner shown when the displayed AURA is from the offline cache
+  ///
+  /// In en, this message translates to:
+  /// **'Showing cached AURA — offline mode'**
+  String get auraCachedBanner;
+
+  /// Error title when AURA fetch fails
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load AURA'**
+  String get auraErrorTitle;
+
+  /// Tooltip for the AURA share icon
+  ///
+  /// In en, this message translates to:
+  /// **'Share AURA'**
+  String get auraShareTooltip;
+
+  /// Share-sheet text attached to the AURA PNG
+  ///
+  /// In en, this message translates to:
+  /// **'Our family\'s AURA — {familyName}'**
+  String auraShareText(String familyName);
+
+  /// Header for the AURA timeline widget
+  ///
+  /// In en, this message translates to:
+  /// **'AURA Timeline'**
+  String get auraTimelineTitle;
+
+  /// Title for the empty AURA timeline state
+  ///
+  /// In en, this message translates to:
+  /// **'No AURA history yet'**
+  String get auraTimelineEmptyTitle;
+
+  /// Body for the empty AURA timeline state
+  ///
+  /// In en, this message translates to:
+  /// **'As your family grows, snapshots of how the AURA evolved will appear here.'**
+  String get auraTimelineEmptyBody;
+
+  /// Caption showing the family's member count on the AURA card
+  ///
+  /// In en, this message translates to:
+  /// **'{count} members'**
+  String auraMemberCountCaption(int count);
+
+  /// Confidence meter label on the AURA archetype card
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}% match'**
+  String auraConfidenceLabel(int percent);
+
+  /// Message shown when AURA is feature-flagged off
+  ///
+  /// In en, this message translates to:
+  /// **'AURA is not available.'**
+  String get auraFeatureDisabled;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

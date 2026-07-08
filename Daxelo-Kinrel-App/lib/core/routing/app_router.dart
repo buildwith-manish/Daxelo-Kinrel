@@ -177,6 +177,8 @@ import '../../features/pulse/presentation/festival_screen.dart';
 import '../../features/pulse/presentation/silent_alarms_screen.dart';
 import '../../features/pulse/presentation/family_chronicle_screen.dart';
 import '../../features/pulse/presentation/memorials_screen.dart';
+import '../../features/aura/presentation/aura_screen.dart';
+import '../../core/constants/feature_flags.dart';
 import '../../presentation/screens/invite/invite_screen.dart';
 import '../../presentation/screens/family_tree/family_tree_screen.dart';
 import '../../presentation/screens/premium/paywall_screen.dart';
@@ -862,6 +864,35 @@ final routerProvider = Provider<GoRouter>((ref) {
             familyId: state.pathParameters['id']!,
           ),
         ),
+      ),
+
+      // ── Family AURA (Ancestral Unified Relationship Archetype) ──
+      // Gated by kEnableAura so the feature ships dark and can be
+      // flipped on per build. The screen itself also re-checks the
+      // flag in case it's opened via deep link.
+      GoRoute(
+        path: '/family/:id/aura',
+        pageBuilder: (context, state) {
+          if (!kEnableAura) {
+            return _fastFadePage(
+              key: state.pageKey,
+              child: const Scaffold(
+                body: Center(child: Text('AURA is not available.')),
+              ),
+            );
+          }
+          final extra = state.extra;
+          final familyName = (extra is Map<String, dynamic>)
+              ? extra['familyName'] as String?
+              : null;
+          return _fastFadePage(
+            key: state.pageKey,
+            child: AuraScreen(
+              familyId: state.pathParameters['id']!,
+              familyName: familyName,
+            ),
+          );
+        },
       ),
       GoRoute(
         path: '/family/:id/calendar/new',

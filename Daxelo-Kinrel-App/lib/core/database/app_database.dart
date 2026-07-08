@@ -248,6 +248,27 @@ class CachedRelationshipKeys extends Table {
   Set<Column> get primaryKey => {familyId, viewerPersonId, targetPersonId};
 }
 
+// ── v3.0 (schemaVersion 8): AURA offline cache ─────────────────────────
+// Stores the last-computed AURA payload per family so the symbol widget
+// can render even when offline. The `data` column is the full AuraModel
+// JSON; `rolesJson` is the JSON array of RoleGlyph rows. Mirrors the
+// existing CachedProfiles / CachedFamilies pattern (id + familyId +
+// JSON blob + cachedAt) so it integrates with the existing cache
+// invalidation helpers.
+//
+// Naming: plural table name (`CachedAuras`) so Drift generates a
+// singular row class (`CachedAura`) and `CachedAurasCompanion` —
+// matches the existing CachedProfiles / CachedFamilies convention.
+class CachedAuras extends Table {
+  TextColumn get familyId => text()();
+  TextColumn get data => text()(); // full AuraModel JSON
+  TextColumn get rolesJson => text().withDefault(const Constant('[]'))();
+  DateTimeColumn get cachedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {familyId};
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // DATABASE CLASS
 // ═══════════════════════════════════════════════════════════════════════
@@ -273,12 +294,14 @@ class CachedRelationshipKeys extends Table {
   // v2.2: Viewer-Driven Relationship Engine
   CachedViewerEntries,
   CachedRelationshipKeys,
+  // v3.0 (schemaVersion 8): AURA offline cache
+  CachedAuras,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'daxelo_kinrel_db');
@@ -363,6 +386,13 @@ class AppDatabase extends _$AppDatabase {
               cachedFamilies,
               cachedFamilies.userId,
             );
+          }
+          if (from < 8) {
+            // v7 → v8: AURA — Ancestral Unified Relationship Archetype.
+            // One row per family storing the last-computed AURA payload
+            // as JSON so the symbol widget can render offline. See
+            // lib/features/aura/data/aura_model.dart for the schema.
+            await migrator.createTable(cachedAuras);
           }
         },
       );
@@ -757,7 +787,24 @@ class AppDatabase extends _$AppDatabase {
     await delete(cachedUsernames).go();
     await delete(cachedFamilyIds).go();
     await delete(cachedMemories).go();
+    await delete(cachedAuras).go();
   });
+
+  // ── AURA cache (schemaVersion 8) ───────────────────────────────────
+  // Stores the last-computed AURA payload per family so the symbol
+  // widget can render offline. The `data` column holds the full
+  // AuraModel JSON; `rolesJson` holds the JSON array of RoleGlyph rows.
+  // Both are written through on every successful Supabase fetch.
+
+  Future<CachedAura?> getCachedAura(String familyId) =>
+      (select(cachedAuras)..where((t) => t.familyId.equals(familyId)))
+          .getSingleOrNull();
+
+  Future<void> upsertCachedAura(CachedAurasCompanion entry) =>
+      into(cachedAuras).insertOnConflictUpdate(entry);
+
+  Future<void> deleteCachedAura(String familyId) =>
+      (delete(cachedAuras)..where((t) => t.familyId.equals(familyId))).go();
 
   Future<void> clearAll() async {
     await transaction(() async {

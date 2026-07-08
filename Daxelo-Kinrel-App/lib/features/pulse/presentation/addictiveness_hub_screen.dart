@@ -43,15 +43,15 @@ class AddictivenessHubScreen extends ConsumerWidget {
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
-        children: const [
-          _HubCard(
+        children: [
+          const _HubCard(
             emoji: '🌅',
             title: 'Daily Brief',
             subtitle: 'Your family intelligence, every morning',
             route: '/pulse/today',
             color: KinrelColors.orange,
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           _HubCard(
             emoji: '✨',
             title: 'Family Quests',
@@ -60,7 +60,7 @@ class AddictivenessHubScreen extends ConsumerWidget {
             color: KinrelColors.amber,
             badgeProvider: activeQuestsProvider,
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           _HubCard(
             emoji: '🔔',
             title: 'Silent Alarms',
@@ -69,7 +69,7 @@ class AddictivenessHubScreen extends ConsumerWidget {
             color: KinrelColors.coral,
             badgeProvider: silentAlarmsProvider,
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           _HubCard(
             emoji: '🎁',
             title: 'Blessing Chain',
@@ -78,7 +78,7 @@ class AddictivenessHubScreen extends ConsumerWidget {
             color: KinrelColors.gold,
             badgeProvider: blessingsForMeProvider,
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           _HubCard(
             emoji: '⏰',
             title: 'Time Capsule',
@@ -87,31 +87,31 @@ class AddictivenessHubScreen extends ConsumerWidget {
             color: KinrelColors.tealAccent,
             badgeProvider: capsulesForMeProvider,
           ),
-          SizedBox(height: 12),
-          _HubCard(
+          const SizedBox(height: 12),
+          const _HubCard(
             emoji: '🪔',
             title: 'Festivals',
             subtitle: 'Indian festival calendar with 8-language greetings',
             route: '/pulse/festivals',
             color: KinrelColors.brightGold,
           ),
-          SizedBox(height: 12),
-          _HubCard(
+          const SizedBox(height: 12),
+          const _HubCard(
             emoji: '👵',
             title: 'Memorials',
             subtitle: 'Living memorials for ancestors',
             route: '/pulse/memorials',
             color: KinrelColors.extendedPurple,
           ),
-          SizedBox(height: 12),
-          _HubCard(
+          const SizedBox(height: 12),
+          const _HubCard(
             emoji: '📖',
             title: 'Family Chronicle',
             subtitle: 'The story of your family, written by AI',
             route: '/pulse/chronicle',
             color: KinrelColors.blue,
           ),
-          SizedBox(height: 32),
+          const SizedBox(height: 32),
         ],
       ),
     );

@@ -183,4 +183,63 @@ class SGu extends S {
 
   @override
   String get languageName => 'ગુજરાતી';
+
+  @override
+  String get auraNavLabel => 'AURA';
+
+  @override
+  String get auraScreenTitle => 'AURA';
+
+  @override
+  String get auraEmptyTitle => 'AURA has not been computed yet';
+
+  @override
+  String get auraEmptyBody =>
+      'AURA analyses your family graph to generate a unique symbol and archetype. This usually takes a few seconds.';
+
+  @override
+  String get auraGenerateButton => 'Generate AURA';
+
+  @override
+  String get auraRecomputeButton => 'Recompute';
+
+  @override
+  String get auraLoadingTitle => 'Computing AURA…';
+
+  @override
+  String get auraCachedBanner => 'Showing cached AURA — offline mode';
+
+  @override
+  String get auraErrorTitle => 'Could not load AURA';
+
+  @override
+  String get auraShareTooltip => 'Share AURA';
+
+  @override
+  String auraShareText(String familyName) {
+    return 'Our family\'s AURA — $familyName';
+  }
+
+  @override
+  String get auraTimelineTitle => 'AURA Timeline';
+
+  @override
+  String get auraTimelineEmptyTitle => 'No AURA history yet';
+
+  @override
+  String get auraTimelineEmptyBody =>
+      'As your family grows, snapshots of how the AURA evolved will appear here.';
+
+  @override
+  String auraMemberCountCaption(int count) {
+    return '$count members';
+  }
+
+  @override
+  String auraConfidenceLabel(int percent) {
+    return '$percent% match';
+  }
+
+  @override
+  String get auraFeatureDisabled => 'AURA is not available.';
 }

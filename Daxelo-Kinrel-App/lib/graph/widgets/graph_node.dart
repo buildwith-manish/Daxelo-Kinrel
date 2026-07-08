@@ -32,8 +32,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
+import '../../core/constants/feature_flags.dart';
 import '../../core/kinship/kinship_edge_style.dart';
 import '../../core/widgets/cached_avatar.dart';
+import '../../features/aura/providers/aura_provider.dart';
+import '../../features/aura/widgets/role_glyph_badge.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // NODE STATE ENUM
@@ -269,6 +272,7 @@ class GraphNode extends ConsumerStatefulWidget {
     this.nodeSize = 72.0,
     this.isPrivate = false,
     this.isUnclaimed = false,
+    this.familyId,
     required this.onTap,
     required this.onLongPress,
     this.onDoubleTap,
@@ -325,6 +329,12 @@ class GraphNode extends ConsumerStatefulWidget {
   /// Whether this Person node has NOT been claimed by a linked Kinrel user
   /// (linkedUserId is null). Shows a small "Pending" badge on the node.
   final bool isUnclaimed;
+
+  /// Optional family ID — when provided AND kEnableAura is true, the
+  /// node shows an AURA role glyph badge (root/anchor/bridge/weaver/leaf/
+  /// twin_node) on the bottom-right of the avatar. Pass null to skip
+  /// the badge (e.g. on preview nodes outside a family context).
+  final String? familyId;
 
   /// Callback when the node is tapped.
   final VoidCallback onTap;
@@ -863,6 +873,20 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                 ),
               ),
             ),
+          // AURA role glyph badge (top-right) — shows the member's role
+          // within the family AURA (root/anchor/bridge/weaver/leaf/twin_node).
+          // Rendered only when the feature flag is on AND a familyId is
+          // provided AND the provider has a role for this member.
+          if (kEnableAura && widget.familyId != null)
+            Positioned(
+              right: 0,
+              top: 0,
+              child: _NodeRoleGlyphBadge(
+                familyId: widget.familyId!,
+                memberId: widget.personId,
+                diameter: diameter,
+              ),
+            ),
           // Expand indicator
           if (widget.nodeState == NodeState.expanded ||
               widget.nodeState == NodeState.loading)
@@ -993,5 +1017,33 @@ class _ShimmerPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _ShimmerPainter oldDelegate) {
     return oldDelegate.value != value;
+  }
+}
+
+/// AURA role glyph badge for a single [GraphNode]. Watches
+/// [memberRoleGlyphProvider] for the (familyId, memberId) pair and
+/// renders nothing if AURA hasn't been computed or the member has no
+/// role row yet — keeps the existing node visuals untouched.
+class _NodeRoleGlyphBadge extends ConsumerWidget {
+  const _NodeRoleGlyphBadge({
+    required this.familyId,
+    required this.memberId,
+    required this.diameter,
+  });
+
+  final String familyId;
+  final String memberId;
+  final double diameter;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final role = ref.watch(
+      memberRoleGlyphProvider(memberRoleKey(familyId, memberId)),
+    );
+    if (role == null) return const SizedBox.shrink();
+    // Badge size scales with the node: 35% of the diameter, clamped to
+    // 14–22px so it's visible on compact nodes without crowding large ones.
+    final size = (diameter * 0.35).clamp(14.0, 22.0);
+    return RoleGlyphBadge(role: role, size: size);
   }
 }

@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
 import '../../../core/family/optimistic_provider.dart';
@@ -80,6 +81,25 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           ),
         ),
         actions: [
+          // AURA — Ancestral Unified Relationship Archetype. Gated by
+          // kEnableAura so it ships dark and can be flipped on per build.
+          if (kEnableAura)
+            IconButton(
+              icon: const Icon(Icons.auto_awesome_outlined),
+              tooltip: 'AURA',
+              onPressed: () {
+                final detail = ref
+                    .read(familyDetailProvider(widget.familyId))
+                    .valueOrNull;
+                final familyName = detail?.family.name;
+                context.push(
+                  '/family/${widget.familyId}/aura',
+                  extra: familyName != null
+                      ? <String, dynamic>{'familyName': familyName}
+                      : null,
+                );
+              },
+            ),
           // Family chat — opens the real-time group chat for this family.
           IconButton(
             icon: const Icon(Icons.chat_bubble_outline),

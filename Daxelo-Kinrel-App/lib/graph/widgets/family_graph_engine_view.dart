@@ -750,6 +750,10 @@ class _FamilyGraphEngineViewState
       // been claimed by a linked Kinrel user yet (linkedUserId is null).
       isUnclaimed: p['linkedUserId'] == null ||
           (p['linkedUserId'] as String?)?.isEmpty == true,
+      // Pass familyId so GraphNode can render the AURA role glyph badge
+      // (root/anchor/bridge/weaver/leaf/twin_node) on the node when
+      // kEnableAura is true.
+      familyId: widget.familyId,
       // v69: Pass the AUTHORITATIVE category directly — no lossy string
       // round-trip. GraphNode uses styleForCategory(category) for its
       // border/tint color, which is always correct.

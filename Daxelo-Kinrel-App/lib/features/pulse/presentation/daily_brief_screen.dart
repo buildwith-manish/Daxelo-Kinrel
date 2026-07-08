@@ -489,8 +489,9 @@ class _ActionButton extends ConsumerWidget {
           }
           break;
         case 'view_sparq':
-          if (item.targetSparqId != null) {
-            context.push('/sparq/${item.targetSparqId}');
+          final sparqId = item.actionData['sparqId'] ?? item.actionData['targetSparqId'];
+          if (sparqId != null) {
+            context.push('/sparq/$sparqId');
           }
           break;
         case 'listen_memory':
