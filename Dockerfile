@@ -22,6 +22,12 @@ ARG SLIM=false
 FROM node:${NODE_VERSION}-alpine AS builder
 WORKDIR /app
 
+# Install system dependencies required by Prisma on Alpine Linux.
+# Without openssl, the Prisma query engine binary cannot load, causing the
+# container to crash with exit code 1 on startup.
+# See: https://www.prisma.io/docs/guides/working-with-prisma/deployment#docker
+RUN apk add --no-cache openssl libc6-compat
+
 # Install dependencies first (leverage Docker layer caching)
 # NOTE: NODE_ENV is NOT set here — ensures devDependencies are installed
 COPY server/package*.json server/.npmrc* ./
@@ -46,6 +52,12 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Install system dependencies required by Prisma on Alpine Linux.
+# The Prisma query engine needs openssl at runtime to function.
+# libc6-compat provides glibc compatibility for any native modules.
+# ca-certificates is needed for HTTPS connections to Supabase and other services.
+RUN apk add --no-cache openssl libc6-compat ca-certificates wget
+
 # Create non-root user for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
@@ -64,12 +76,11 @@ USER appuser
 # Expose port (default 10000 for Render, override with --build-arg APP_PORT=3000 for Koyeb)
 EXPOSE ${APP_PORT}
 
-# Health check — Render uses its own health check via healthCheckPath in render.yaml.
-# The Docker HEALTHCHECK was causing deploy failures because the start-period (10s)
-# was too short for Render's free tier. Render's own health check has a longer
-# timeout and doesn't kill the container with exit code 1.
-# HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-#   CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-${APP_PORT}}/api/health || exit 1
+# Health check — start-period of 60s gives NestJS enough time to boot on
+# Render's free tier (512MB RAM). Without this, the health check fails before
+# the app is ready and Docker kills the container with exit code 1.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-${APP_PORT}}/api/health || exit 1
 
 # Start the application
 CMD ["node", "dist/main"]
