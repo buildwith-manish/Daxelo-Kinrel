@@ -162,13 +162,16 @@ import { TwoFactorVerificationModule } from './common/services/two-factor-verifi
     AuraModule,
 
     // ── PULSE: Daily Family Intelligence Brief ────────────────
-    PulseModule,
+    // DISABLED for deploy debugging — re-enable one at a time
+    // PulseModule,
 
     // ── PITRU: Ancestral Voice Memory ─────────────────────────
-    PitruModule,
+    // DISABLED for deploy debugging
+    // PitruModule,
 
     // ── ADDICTIVENESS: Festival + Blessing Chain + Time Capsule ─
-    AddictivenessModule,
+    // DISABLED for deploy debugging
+    // AddictivenessModule,
   ],
   providers: [
     // ── Global guards (executed in order) ────────────────────

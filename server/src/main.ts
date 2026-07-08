@@ -201,4 +201,26 @@ async function bootstrap() {
     process.exit(0);
   });
 }
-bootstrap();
+
+// ── Crash diagnostics ──────────────────────────────────────────────────
+// Catch uncaught exceptions and unhandled rejections so the error is logged
+// before the process exits. Without these, Node prints to stderr which may
+// not be visible in all hosting environments (e.g. Render dashboard).
+process.on('uncaughtException', (err) => {
+  console.error('💥 UNCAUGHT EXCEPTION:', err);
+  console.error(err?.stack || err);
+  // Give the log time to flush before exiting
+  setTimeout(() => process.exit(1), 1000);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('💥 UNHANDLED REJECTION:', reason);
+  // Don't exit on unhandled rejection — just log it
+  // (some promises may reject during module init but the app can recover)
+});
+
+bootstrap().catch((err) => {
+  console.error('💥 BOOTSTRAP FAILED:', err);
+  console.error(err?.stack || err);
+  process.exit(1);
+});
