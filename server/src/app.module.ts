@@ -159,7 +159,8 @@ import { TwoFactorVerificationModule } from './common/services/two-factor-verifi
     RedlightModule,
 
     // ── AURA: Ancestral Unified Relationship Archetype ──────────
-    AuraModule,
+    // DISABLED for deploy debugging
+    // AuraModule,
 
     // ── PULSE: Daily Family Intelligence Brief ────────────────
     // DISABLED for deploy debugging — re-enable one at a time
