@@ -203,20 +203,19 @@ async function bootstrap() {
 }
 
 // ── Crash diagnostics ──────────────────────────────────────────────────
-// Catch uncaught exceptions and unhandled rejections so the error is logged
-// before the process exits. Without these, Node prints to stderr which may
-// not be visible in all hosting environments (e.g. Render dashboard).
+// Log uncaught exceptions but DON'T exit — the old behavior was to continue
+// running (Node's default before v15). Exiting on uncaught exceptions was
+// causing the Render deploy to fail because some background services
+// (Supabase Realtime, etc.) throw non-fatal exceptions.
 process.on('uncaughtException', (err) => {
-  console.error('💥 UNCAUGHT EXCEPTION:', err);
+  console.error('⚠️  UNCAUGHT EXCEPTION (non-fatal, continuing):', err?.message || err);
   console.error(err?.stack || err);
-  // Give the log time to flush before exiting
-  setTimeout(() => process.exit(1), 1000);
+  // Do NOT exit — log and continue. The app can usually recover.
 });
 
 process.on('unhandledRejection', (reason) => {
-  console.error('💥 UNHANDLED REJECTION:', reason);
+  console.error('⚠️  UNHANDLED REJECTION (non-fatal, continuing):', reason);
   // Don't exit on unhandled rejection — just log it
-  // (some promises may reject during module init but the app can recover)
 });
 
 bootstrap().catch((err) => {

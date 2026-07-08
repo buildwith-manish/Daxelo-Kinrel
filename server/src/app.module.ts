@@ -159,20 +159,16 @@ import { TwoFactorVerificationModule } from './common/services/two-factor-verifi
     RedlightModule,
 
     // ── AURA: Ancestral Unified Relationship Archetype ──────────
-    // DISABLED for deploy debugging
-    // AuraModule,
+    AuraModule,
 
     // ── PULSE: Daily Family Intelligence Brief ────────────────
-    // DISABLED for deploy debugging — re-enable one at a time
-    // PulseModule,
+    PulseModule,
 
     // ── PITRU: Ancestral Voice Memory ─────────────────────────
-    // DISABLED for deploy debugging
-    // PitruModule,
+    PitruModule,
 
     // ── ADDICTIVENESS: Festival + Blessing Chain + Time Capsule ─
-    // DISABLED for deploy debugging
-    // AddictivenessModule,
+    AddictivenessModule,
   ],
   providers: [
     // ── Global guards (executed in order) ────────────────────
