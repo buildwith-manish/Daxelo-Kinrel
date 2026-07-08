@@ -43,6 +43,7 @@ class OptimisticPerson extends Person {
     super.isAnchor = false,
     super.photoUrl,
     super.username,
+    super.linkedUserId,
     this.isPending = false,
   });
 

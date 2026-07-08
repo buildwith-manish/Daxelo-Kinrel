@@ -553,6 +553,10 @@ Future<Person> createPersonOptimistic({
   bool isDeceased = false,
   int? birthYear,
   bool isAnchor = false,
+  /// Optional: Supabase auth user ID to link this Person to.
+  /// When set, the Person is "claimed" by this user — shows in Members,
+  /// no "Pending" badge, enables viewer-perspective kinship.
+  String? linkedUserId,
 }) async {
   // 1. Generate temp ID
   final tempId = 'pending_person_${DateTime.now().millisecondsSinceEpoch}';
@@ -574,6 +578,7 @@ Future<Person> createPersonOptimistic({
     isPending: true,
     privacyLevel: 'family',
     createdAt: now,
+    linkedUserId: linkedUserId,  // carry through so the real insert sets it
   );
 
   // 2. Add to pending members provider (shows immediately in UI)
@@ -623,6 +628,7 @@ Future<Person> createPersonOptimistic({
       isDeceased: isDeceased,
       birthYear: birthYear,
       isAnchor: isAnchor,
+      linkedUserId: linkedUserId,
     );
 
     // 5. On success: remove pending entry and temp Drift row

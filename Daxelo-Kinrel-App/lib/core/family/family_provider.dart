@@ -1404,6 +1404,12 @@ Future<Person> createPerson({
   bool isDeceased = false,
   int? birthYear,
   bool isAnchor = false,
+  /// Optional: the Supabase auth user ID to link this Person to.
+  /// When set, the Person node is marked as "claimed" by this user —
+  /// it shows in the Members section, doesn't show a "Pending" badge,
+  /// and can be used for viewer-perspective kinship calculations.
+  /// The create family flow passes this for the creator's own Person.
+  String? linkedUserId,
 }) async {
   final client = ref.read(supabaseProvider);
   if (client == null) {
@@ -1462,6 +1468,20 @@ Future<Person> createPerson({
     'isAnchor': isAnchor,
     'privacyLevel': 'family',  // Matches Prisma schema default
   };
+
+  // ── Link the Person to the creator's auth account ────────────────
+  // When the family creator adds themselves, we set linkedUserId to
+  // their Supabase auth user ID. This marks the Person node as
+  // "claimed" (isLinkedToKinrelUser = true) so it:
+  //   - Shows in the Members section (not filtered out as unclaimed)
+  //   - Doesn't show a "Pending" badge on the graph node
+  //   - Can be used for viewer-perspective kinship calculations
+  // We only set this when the caller passes linkedUserId explicitly
+  // (the create family flow does this for the creator's own Person).
+  if (linkedUserId != null && linkedUserId!.isNotEmpty) {
+    insertData['linkedUserId'] = linkedUserId;
+  }
+
   if (dateOfBirth != null && dateOfBirth.isNotEmpty) {
     insertData['dateOfBirth'] = dateOfBirth;
   }

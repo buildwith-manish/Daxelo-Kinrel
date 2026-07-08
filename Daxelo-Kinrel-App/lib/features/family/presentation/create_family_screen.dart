@@ -15,6 +15,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/optimistic_actions.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
 import '../../../shared/widgets/dk_components.dart';
@@ -66,7 +67,32 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
         _codeController.text = 'family-$suffix';
         _usernameController.text = 'family$suffix';
         _lastAutoUsername = 'family$suffix';
-        setState(() {}); // refresh _canProceedStep1
+
+        // ── Pre-fill the creator's name from their profile ──────────
+        // The creator should be added to the family graph by default
+        // with their actual name, not "Your Name". We pull the name
+        // from (in priority order):
+        //   1. Supabase auth userMetadata['name'] (set at sign-up)
+        //   2. Supabase auth userMetadata['full_name'] (Google OAuth)
+        //   3. Email username (part before @)
+        // The user can still edit it before submitting.
+        final user = ref.read(supabaseProvider)?.auth.currentUser;
+        if (user != null && _personNameController.text.isEmpty) {
+          final name = user.userMetadata?['name'] as String? ??
+              user.userMetadata?['full_name'] as String? ??
+              user.userMetadata?['displayName'] as String?;
+          if (name != null && name.trim().isNotEmpty) {
+            _personNameController.text = name.trim();
+          } else if (user.email != null && user.email!.isNotEmpty) {
+            // Fall back to the email username (before @).
+            final emailUser = user.email!.split('@').first;
+            if (emailUser.isNotEmpty) {
+              _personNameController.text = emailUser;
+            }
+          }
+        }
+
+        setState(() {}); // refresh _canProceedStep1 + _canProceedStep3
       }
     });
   }
@@ -264,6 +290,12 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
       ).timeout(const Duration(seconds: 15));
 
       final birthYear = int.tryParse(_birthYearController.text.trim());
+      // ── Link the creator's Person to their auth account ──────────
+      // Pass linkedUserId so the Person node is "claimed" by the
+      // creator — shows in Members, no "Pending" badge, enables
+      // viewer-perspective kinship calculations.
+      final creatorUserId =
+          ref.read(supabaseProvider)?.auth.currentUser?.id;
       await createPersonOptimistic(
         ref: ref,
         familyId: family.id,
@@ -271,6 +303,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
         gender: _selectedGender?.toLowerCase(),
         birthYear: birthYear,
         isAnchor: true,
+        linkedUserId: creatorUserId,
       ).timeout(const Duration(seconds: 15));
 
       if (!mounted) return;
@@ -357,6 +390,9 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
       final personName = _personNameController.text.trim();
       if (personName.isNotEmpty) {
         final birthYear = int.tryParse(_birthYearController.text.trim());
+        // Link the creator's Person to their auth account (same as _submit).
+        final creatorUserId =
+            ref.read(supabaseProvider)?.auth.currentUser?.id;
         await createPersonOptimistic(
           ref: ref,
           familyId: family.id,
@@ -364,6 +400,7 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
           gender: _selectedGender?.toLowerCase(),
           birthYear: birthYear,
           isAnchor: true,
+          linkedUserId: creatorUserId,
         ).timeout(const Duration(seconds: 15));
       }
 
