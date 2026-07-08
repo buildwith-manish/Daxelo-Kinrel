@@ -10,6 +10,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import * as jwt from 'jsonwebtoken';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import ws from 'ws';
 
 /**
  * Freeze & Dash (Red Light, Green Light) — server-authoritative gateway.
@@ -100,6 +101,17 @@ export class RedlightGateway
     }
     this.supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
+      // Node.js < 22 does not have native WebSocket support.
+      // Provide the `ws` package as the transport so Supabase Realtime
+      // works on Node 20 (the Dockerfile's default). Without this, the
+      // gateway throws "Node.js 20 detected without native WebSocket
+      // support" at construction time and NestJS fails to bootstrap.
+      realtime: {
+        transport: ws as any,
+        params: {
+          eventsPerSecond: 10,
+        },
+      },
     });
     console.log('[RedlightGateway] Supabase service-role client initialized');
   }
