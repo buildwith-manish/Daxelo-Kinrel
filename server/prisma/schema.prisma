@@ -195,6 +195,12 @@ model User {
   recordedMemories    AncestralMemory[] @relation("MemoryRecorder")
   memoryTagsApplied   MemoryTag[]       @relation("MemoryTaggedBy")
   memoryConsentsGiven MemoryConsent[]   @relation("ConsentConsentedBy")
+
+  // ── A-1/A-2 back-relations (Blessing Chain + Time Capsule) ──
+  blessingsAsElder     BlessingChain[] @relation("BlessingElderUser")
+  blessingsAsRecipient BlessingChain[] @relation("BlessingRecipientUser")
+  timeCapsulesCreated  TimeCapsule[]   @relation("TimeCapsuleCreator")
+  timeCapsulesForMe    TimeCapsule[]   @relation("TimeCapsuleRecipientUser")
 }
 
 // ── Blocked Users (replaces JSON blockedUserIds anti-pattern) ────────
@@ -652,6 +658,10 @@ model Family {
   memoryConsents    MemoryConsent[]
   memorialProfiles  MemorialProfile[]
 
+  // ── A-1/A-2 back-relations (Blessing Chain + Time Capsule) ──
+  blessings    BlessingChain[]
+  timeCapsules TimeCapsule[]
+
   // ── Social System Fields ──
   isPublic Boolean @default(false) // Family visibility: true = non-members can see tree (read-only)
 
@@ -768,6 +778,11 @@ model Person {
   memoryTags      MemoryTag[]       @relation("MemoryTagPerson")
   memoryConsents  MemoryConsent[]   @relation("ConsentElderPerson")
   memorialProfile MemorialProfile?  @relation("MemorialPerson")
+
+  // ── A-1/A-2 back-relations (Blessing Chain + Time Capsule) ──
+  blessingsAsElder        BlessingChain[] @relation("BlessingElderPerson")
+  blessingsAsRecipient    BlessingChain[] @relation("BlessingRecipientPerson")
+  timeCapsulesAsRecipient TimeCapsule[]   @relation("TimeCapsuleRecipientPerson")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2649,4 +2664,146 @@ model MemorialProfile {
 
   @@unique([personId])
   @@index([familyId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// A-6 FESTIVAL INTELLIGENCE + A-1 BLESSING CHAIN + A-2 TIME CAPSULE
+// ═══════════════════════════════════════════════════════════════════════════
+// Three addictiveness features that share cultural timing logic:
+//   1. "Festival"      — Indian festival calendar (8 languages, fixed + lunar)
+//   2. "BlessingChain"  — elder blessings scheduled for birthdays/festivals
+//   3. "TimeCapsule"    — messages locked until a future reveal date
+//
+// Migration: supabase/migrations/20260708040000_create_festival_blessing_timecapsule_tables.sql
+// RLS: Festival is public SELECT; BlessingChain + TimeCapsule are family-scoped.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Indian festival with 8-language names + greetings.
+/// Pre-computed dates for the next 3 years (lunar festivals are pre-computed
+/// because runtime Hindu calendar math is complex).
+model Festival {
+  id           String   @id @default(cuid())
+  festivalKey  String   @unique
+  dateType     String   @default("lunar") // fixed | lunar
+  festivalDate DateTime @db.Date
+  region       String   @default("all") // north | south | east | west | all
+
+  // ── Names + greetings in 8 languages (JSONB) ──
+  // Schema: { "en": {name, greeting}, "hi": {name, greeting}, ... }
+  names     Json @default("{}")
+  greetings Json @default("{}")
+
+  // ── Cultural context ──
+  description String?
+  themes      Json    @default("[]") // ["lights","victory","harvest"]
+  rituals     Json    @default("[]") // ["rangoli","puja","sweets"]
+
+  // ── Scheduling metadata ──
+  daysUntil Int     @default(0)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([festivalDate])
+  @@index([daysUntil])
+  @@index([region])
+}
+
+/// Elder blessing scheduled for delivery on a birthday/festival/anniversary.
+/// Recurring blessings re-deliver every year on the trigger date.
+model BlessingChain {
+  id                String  @id @default(cuid())
+  familyId          String
+  elderPersonId     String
+  elderUserId       String?
+  recipientPersonId String?
+  recipientUserId   String?
+
+  // ── Content ──
+  mediaType   String  @default("text") // text | audio
+  textContent String?
+  mediaUrl    String?
+  durationSec Int     @default(0)
+
+  // ── Scheduling ──
+  triggerType String // birthday | festival | anniversary | custom
+  triggerDate DateTime @db.Date
+  festivalKey String?
+
+  // ── Localization ──
+  language String @default("en")
+
+  // ── Lifecycle ──
+  status          String    @default("pending") // pending | delivered | viewed | cancelled
+  deliveredAt     DateTime? @db.Timestamptz
+  viewedAt        DateTime? @db.Timestamptz
+  cancelledAt     DateTime? @db.Timestamptz
+  cancelledReason String?
+
+  // ── Recurrence ──
+  isRecurring     Boolean   @default(false)
+  lastDeliveredAt DateTime? @db.Timestamptz
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  // ── Relations ──
+  family          Family  @relation(fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  elderPerson     Person  @relation("BlessingElderPerson", fields: [elderPersonId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  elderUser       User?   @relation("BlessingElderUser", fields: [elderUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  recipientPerson Person? @relation("BlessingRecipientPerson", fields: [recipientPersonId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  recipientUser   User?   @relation("BlessingRecipientUser", fields: [recipientUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([familyId])
+  @@index([elderPersonId])
+  @@index([recipientPersonId, recipientUserId])
+  @@index([triggerDate, status])
+  @@index([status])
+}
+
+/// Message locked until a future reveal date.
+/// For 18th birthdays, weddings, after passing, etc.
+model TimeCapsule {
+  id                String  @id @default(cuid())
+  familyId          String
+  creatorId         String
+  recipientPersonId String?
+  recipientUserId   String?
+
+  // ── Content ──
+  mediaType    String  @default("text") // text | photo | video
+  textContent  String?
+  mediaUrl     String?
+  thumbnailUrl String?
+
+  // ── The reveal ──
+  title        String
+  revealAt     DateTime @db.Timestamptz
+  revealReason String?
+
+  // ── Lifecycle ──
+  status      String    @default("locked") // locked | revealed | viewed | cancelled
+  revealedAt  DateTime? @db.Timestamptz
+  viewedAt    DateTime? @db.Timestamptz
+  cancelledAt DateTime? @db.Timestamptz
+
+  // ── Notification ──
+  notifyOnReveal Boolean   @default(true)
+  notifiedAt     DateTime? @db.Timestamptz
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  // ── Relations ──
+  family          Family  @relation(fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  creator         User    @relation("TimeCapsuleCreator", fields: [creatorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  recipientPerson Person? @relation("TimeCapsuleRecipientPerson", fields: [recipientPersonId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  recipientUser   User?   @relation("TimeCapsuleRecipientUser", fields: [recipientUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([familyId])
+  @@index([creatorId])
+  @@index([recipientPersonId, recipientUserId])
+  @@index([revealAt])
+  @@index([status])
 }

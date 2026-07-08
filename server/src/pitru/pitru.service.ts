@@ -489,6 +489,148 @@ export class PitruService {
     };
   }
 
+  /**
+   * Get a memorial profile for a deceased Person.
+   * Returns the profile + the Person's basic info + memory count.
+   * If isPublic=true, any authenticated user can view; otherwise family members only.
+   */
+  async getMemorialProfile(personId: string, userId: string) {
+    const profile = await this.prisma.memorialProfile.findUnique({
+      where: { personId },
+      include: {
+        person: {
+          select: {
+            id: true,
+            name: true,
+            photoThumb: true,
+            photoFull: true,
+            dateOfBirth: true,
+            biography: true,
+            familyId: true,
+          },
+        },
+      },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('No memorial profile for this Person');
+    }
+
+    // Access check: if not public, verify family membership
+    if (!profile.isPublic) {
+      await this.assertFamilyMember(userId, profile.familyId);
+    }
+
+    // Count the deceased Person's memories
+    const memoryCount = await this.prisma.ancestralMemory.count({
+      where: {
+        elderPersonId: personId,
+        status: 'ready',
+        isRevealed: true,
+      },
+    });
+
+    // Count family members who left messages (BriefInteraction with itemType memory_orbit
+    // targeting this Person — a proxy for "how many people listened")
+    const listenerCount = await this.prisma.ancestralMemory.aggregate({
+      where: { elderPersonId: personId },
+      _sum: { listenCount: true },
+    });
+
+    return {
+      id: profile.id,
+      personId: profile.personId,
+      familyId: profile.familyId,
+      memorialTitle: profile.memorialTitle,
+      memorialBio: profile.memorialBio ?? profile.person.biography,
+      birthDate: profile.birthDate?.toISOString().slice(0, 10) ?? null,
+      deathDate: profile.deathDate?.toISOString().slice(0, 10) ?? null,
+      coverPhotoUrl: profile.coverPhotoUrl,
+      isPublic: profile.isPublic,
+      allowMessages: profile.allowMessages,
+      aiPersonaEnabled: profile.aiPersonaEnabled,
+      person: {
+        id: profile.person.id,
+        name: profile.person.name,
+        photoThumb: profile.person.photoThumb,
+        photoFull: profile.person.photoFull,
+      },
+      memoryCount,
+      totalListens: listenerCount._sum.listenCount ?? 0,
+    };
+  }
+
+  /**
+   * Get the memorial feed — all memories for a deceased Person, plus the
+   * memorial profile info. This is the data for the memorial page in Flutter.
+   */
+  async getMemorialFeed(personId: string, userId: string) {
+    const profile = await this.getMemorialProfile(personId, userId);
+
+    const memories = await this.prisma.ancestralMemory.findMany({
+      where: {
+        elderPersonId: personId,
+        status: 'ready',
+        isRevealed: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        tags: { include: { person: { select: { id: true, name: true, photoThumb: true } } } },
+      },
+    });
+
+    return {
+      memorial: profile,
+      memories: memories.map((m) => this.serializeMemory(m)),
+    };
+  }
+
+  /**
+   * List all memorial profiles in a family. Used by the Flutter "In Memoriam" section.
+   */
+  async listMemorials(familyId: string, userId: string) {
+    await this.assertFamilyMember(userId, familyId);
+
+    const profiles = await this.prisma.memorialProfile.findMany({
+      where: { familyId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        person: {
+          select: {
+            id: true,
+            name: true,
+            photoThumb: true,
+            dateOfBirth: true,
+          },
+        },
+      },
+    });
+
+    return Promise.all(
+      profiles.map(async (p) => {
+        const memoryCount = await this.prisma.ancestralMemory.count({
+          where: {
+            elderPersonId: p.personId,
+            status: 'ready',
+            isRevealed: true,
+          },
+        });
+        return {
+          id: p.id,
+          personId: p.personId,
+          personName: p.person.name,
+          personPhoto: p.person.photoThumb,
+          memorialTitle: p.memorialTitle ?? `In loving memory of ${p.person.name}`,
+          birthDate: p.birthDate?.toISOString().slice(0, 10) ?? null,
+          deathDate: p.deathDate?.toISOString().slice(0, 10) ?? null,
+          isPublic: p.isPublic,
+          aiPersonaEnabled: p.aiPersonaEnabled,
+          memoryCount,
+        };
+      }),
+    );
+  }
+
   // ────────────────────────────────────────────────────────────────────────
   // Engagement
   // ────────────────────────────────────────────────────────────────────────

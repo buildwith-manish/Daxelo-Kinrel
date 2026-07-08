@@ -46,6 +46,7 @@ import { RedlightModule } from './modules/games/redlight.module';
 import { AuraModule } from './aura/aura.module';
 import { PulseModule } from './pulse/pulse.module';
 import { PitruModule } from './pitru/pitru.module';
+import { AddictivenessModule } from './addictiveness/addictiveness.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { CustomThrottlerGuard } from './common/guards/throttler.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -165,6 +166,9 @@ import { TwoFactorVerificationModule } from './common/services/two-factor-verifi
 
     // ── PITRU: Ancestral Voice Memory ─────────────────────────
     PitruModule,
+
+    // ── ADDICTIVENESS: Festival + Blessing Chain + Time Capsule ─
+    AddictivenessModule,
   ],
   providers: [
     // ── Global guards (executed in order) ────────────────────

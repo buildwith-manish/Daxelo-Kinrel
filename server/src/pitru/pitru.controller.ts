@@ -259,8 +259,17 @@ export class PitruController {
 
   @Get('memorial/:personId')
   async getMemorial(@Param('personId') personId: string, @CurrentUser('id') userId: string) {
-    // We don't have a getMemorial method in the service — for now, return 404
-    // if not found. Phase 4 will add proper read queries.
-    throw new NotFoundException('Use GET /pitru/memories?elderPersonId=... to list memories for an elder');
+    return this.pitru.getMemorialProfile(personId, userId);
+  }
+
+  @Get('memorial/:personId/feed')
+  async getMemorialFeed(@Param('personId') personId: string, @CurrentUser('id') userId: string) {
+    return this.pitru.getMemorialFeed(personId, userId);
+  }
+
+  @Get('memorials')
+  async listMemorials(@Query('familyId') familyId: string, @CurrentUser('id') userId: string) {
+    if (!familyId) throw new BadRequestException('familyId is required');
+    return this.pitru.listMemorials(familyId, userId);
   }
 }
