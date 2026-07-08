@@ -20,16 +20,16 @@
 //      new AURA appears.
 
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/config/app_config.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/isar_database.dart';
+import '../../../core/networking/dio_client.dart';
 import '../../../core/services/supabase_service.dart';
 import '../data/aura_model.dart';
 
@@ -106,6 +106,12 @@ class AuraNotifier extends StateNotifier<AuraState> {
   final String familyId;
 
   SupabaseClient? get _client => _ref.read(supabaseProvider);
+
+  /// Dio HTTP client — works on all platforms (web + native) without
+  /// the dart:io HttpClient crash. The dioProvider already injects the
+  /// Supabase JWT via _AuthInterceptor and uses EnvConfig.apiBaseUrl
+  /// as the base, so we pass relative paths only.
+  Dio get _dio => _ref.read(dioProvider);
 
   /// Returns the Drift database if initialized, or null on web/first-run.
   /// All Drift calls are guarded so the provider still works in
@@ -185,10 +191,22 @@ class AuraNotifier extends StateNotifier<AuraState> {
     }
 
     try {
-      final auraJson = await _fetchViaNestJs(
-        path: '/aura/$familyId',
-        accessToken: session.accessToken,
-      );
+      Map<String, dynamic>? auraJson;
+      try {
+        auraJson = await _fetchViaNestJs(
+          path: '/aura/$familyId',
+          accessToken: session.accessToken,
+        );
+      } on DioException catch (e) {
+        // 404 = AURA not yet computed for this family. Not an error —
+        // surface as notComputed=true so the UI shows the "Generate
+        // AURA" button.
+        if (e.response?.statusCode == 404) {
+          auraJson = null;
+        } else {
+          rethrow;
+        }
+      }
 
       if (auraJson == null) {
         // 404 — AURA not yet computed for this family.
@@ -238,40 +256,44 @@ class AuraNotifier extends StateNotifier<AuraState> {
   /// Returns `null` on 404 (AURA not yet computed). Throws on other
   /// non-2xx statuses or network errors so the caller can fall back
   /// to the Drift cache.
+  ///
+  /// Uses Dio (not dart:io HttpClient) so it works on Flutter Web —
+  /// dart:io's HttpClient throws "Unsupported operation: Platform._version"
+  /// on web builds.
   Future<Map<String, dynamic>?> _fetchViaNestJs({
     required String path,
     required String accessToken,
   }) async {
-    final url = Uri.parse('${AppConfig.apiBaseUrl}/api$path');
-    final httpClient = HttpClient();
-    try {
-      final request = await httpClient.getUrl(url);
-      request.headers.set('Authorization', 'Bearer $accessToken');
-      request.headers.contentType = ContentType.json;
-      final response = await request.close();
-      final body = await response.transform(const Utf8Decoder()).join();
+    // The dioProvider's _AuthInterceptor already injects the JWT, but
+    // we pass it explicitly too so this works even if the interceptor
+    // is bypassed (defensive).
+    final response = await _dio.get(
+      path,
+      options: Options(
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+        },
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
+    );
 
-      if (response.statusCode == 404) return null;
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception(
-          'AURA API $path returned ${response.statusCode}: $body',
-        );
-      }
-      final decoded = jsonDecode(body);
-      // The NestJS ResponseEnvelopeInterceptor wraps responses in
-      // { success, data, timestamp }. Unwrap if present.
-      if (decoded is Map<String, dynamic> &&
-          decoded.containsKey('success') &&
-          decoded.containsKey('data')) {
-        final data = decoded['data'];
-        if (data is Map<String, dynamic>) return data;
-        if (data == null) return null;
-      }
-      if (decoded is Map<String, dynamic>) return decoded;
-      throw FormatException('Unexpected AURA API response shape: $decoded');
-    } finally {
-      httpClient.close();
+    // Dio's validateStatus above only accepts 2xx, so a 404 throws
+    // a DioException. Catch it here and return null — 404 is the
+    // expected "AURA not yet computed" signal.
+    // (This catch is in the caller — see load().)
+    final decoded = response.data;
+    // The NestJS ResponseEnvelopeInterceptor wraps responses in
+    // { success, data, timestamp }. Unwrap if present.
+    if (decoded is Map<String, dynamic> &&
+        decoded.containsKey('success') &&
+        decoded.containsKey('data')) {
+      final data = decoded['data'];
+      if (data is Map<String, dynamic>) return data;
+      if (data == null) return null;
     }
+    if (decoded is Map<String, dynamic>) return decoded;
+    throw FormatException('Unexpected AURA API response shape: $decoded');
   }
 
   /// Load only the historical snapshots (for the timeline widget).
@@ -289,9 +311,10 @@ class AuraNotifier extends StateNotifier<AuraState> {
   /// Trigger a backend AURA recompute. Returns 202 immediately; the
   /// caller should poll [load] until the new AURA appears.
   ///
-  /// Uses the NestJS REST API at AppConfig.apiBaseUrl (the Render service).
-  /// We use dart:io HttpClient so we don't need to add http/dio packages
-  /// just for this one POST.
+  /// Uses Dio (not dart:io HttpClient) so it works on Flutter Web —
+  /// dart:io's HttpClient throws "Unsupported operation: Platform._version"
+  /// on web builds. The dioProvider's _AuthInterceptor already injects
+  /// the JWT, but we pass it explicitly too (defensive).
   Future<bool> recompute() async {
     final client = _client;
     if (client == null) {
@@ -307,31 +330,36 @@ class AuraNotifier extends StateNotifier<AuraState> {
 
     state = state.copyWith(isRecomputing: true, clearError: true);
     try {
-      final url = Uri.parse(
-        '${AppConfig.apiBaseUrl}/aura/$familyId/recompute',
+      final response = await _dio.post(
+        '/aura/$familyId/recompute',
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer ${session.accessToken}',
+          },
+          // 202 is the success code — accept it as valid.
+          validateStatus: (status) =>
+              status != null && status >= 200 && status < 300,
+        ),
       );
-      final httpClient = HttpClient();
-      try {
-        final request = await httpClient.postUrl(url);
-        request.headers.set('Authorization', 'Bearer ${session.accessToken}');
-        request.headers.contentType = ContentType.json;
-        final response = await request.close();
-        // 202 Accepted = recompute started successfully.
-        // 401 / 403 = auth issue → surface to user.
-        // 404 = family not found or user not a member.
-        if (response.statusCode == 202) {
-          state = state.copyWith(isRecomputing: false);
-          return true;
-        }
-        final body = await response.transform(const Utf8Decoder()).join();
-        state = state.copyWith(
-          isRecomputing: false,
-          error: 'Recompute failed (${response.statusCode}): $body',
-        );
-        return false;
-      } finally {
-        httpClient.close();
+
+      // 202 Accepted = recompute started successfully.
+      if (response.statusCode == 202) {
+        state = state.copyWith(isRecomputing: false);
+        return true;
       }
+
+      // Any other 2xx is unexpected but not an error per se.
+      state = state.copyWith(isRecomputing: false);
+      return true;
+    } on DioException catch (e) {
+      final statusCode = e.response?.statusCode;
+      final body = e.response?.data?.toString() ?? e.message ?? '';
+      debugPrint('⚠️ AURA recompute failed: $statusCode $body');
+      state = state.copyWith(
+        isRecomputing: false,
+        error: 'Recompute failed ($statusCode): $body',
+      );
+      return false;
     } catch (e) {
       debugPrint('⚠️ AURA recompute failed: $e');
       state = state.copyWith(

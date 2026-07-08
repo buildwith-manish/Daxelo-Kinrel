@@ -70,86 +70,88 @@ class HeroSection extends ConsumerWidget {
     // Name opacity: 1 expanded → 0 collapsed (in the hero position).
     final nameOpacity = 1.0 - collapse;
 
-    return GestureDetector(
-      onTap: () => context.push(
-        '/family/$familyId/graph?name=${Uri.encodeComponent(familyName)}',
-      ),
-      child: Container(
-        height: heroHeight,
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              KinrelColors.darkCard,
-              KinrelColors.darkBackground,
-            ],
-            stops: [0.0, 1.0],
-          ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => context.push(
+          '/family/$familyId/graph?name=${Uri.encodeComponent(familyName)}',
         ),
-        child: Stack(
-          children: [
-            // ── Layer 1: Animated mandala background ────────────────
-            // Faint (6% opacity), breathing slowly behind the avatar.
-            // Derived from the family's AURA symbol parameters so every
-            // family's hero is uniquely theirs.
-            if (aura != null)
-              Positioned.fill(
-                child: _BreathingMandala(
-                  parameters: aura.symbol,
+        borderRadius: BorderRadius.circular(0),
+        splashColor: KinrelColors.orange.withValues(alpha: 0.08),
+        highlightColor: KinrelColors.orange.withValues(alpha: 0.04),
+        child: Container(
+          height: heroHeight,
+          width: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                KinrelColors.darkCard,
+                KinrelColors.darkBackground,
+              ],
+              stops: [0.0, 1.0],
+            ),
+          ),
+          child: Stack(
+            children: [
+              // ── Layer 1: Animated mandala background ────────────────
+              // Faint (6% opacity), breathing slowly behind the avatar.
+              // Derived from the family's AURA symbol parameters so every
+              // family's hero is uniquely theirs.
+              if (aura != null)
+                Positioned.fill(
+                  child: _BreathingMandala(
+                    parameters: aura.symbol,
+                  ),
+                )
+              else
+                // Fallback: static concentric rings when AURA not computed.
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _StaticHeroBackground(),
+                  ),
                 ),
-              )
-            else
-              // Fallback: static concentric rings when AURA not computed.
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _StaticHeroBackground(),
-                ),
-              ),
 
-            // ── Layer 2: Centered symbol + name ─────────────────────
-            Positioned.fill(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // AURA symbol (or family initial fallback)
-                  if (symbolSize > 10)
-                    Opacity(
-                      opacity: nameOpacity,
-                      child: aura != null
-                          ? StaticAuraSymbol(
-                              parameters: aura.symbol,
-                              archetypeKey: aura.archetype.key,
-                              size: symbolSize,
-                            )
-                          : _FamilyInitialAvatar(
-                              familyName: familyName,
-                              size: symbolSize,
-                            ),
-                    )
-                  else
-                    // Collapsed: show a tiny initial circle pinned left.
-                    Padding(
-                      padding: const EdgeInsets.only(left: FamilyHubSpace.md),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: _FamilyInitialAvatar(
+              // ── Layer 2: Centered symbol + name ─────────────────────
+              Positioned.fill(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // AURA symbol (or family initial fallback) with a
+                    // persistent graph-icon badge on the ring so the
+                    // tap target is obvious without reading caption text.
+                    if (symbolSize > 10)
+                      Opacity(
+                        opacity: nameOpacity,
+                        child: _HeroSymbolWithGraphBadge(
+                          aura: aura,
                           familyName: familyName,
-                          size: 40,
+                          size: symbolSize,
+                        ),
+                      )
+                    else
+                      // Collapsed: show a tiny initial circle pinned left.
+                      Padding(
+                        padding: const EdgeInsets.only(left: FamilyHubSpace.md),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: _FamilyInitialAvatar(
+                            familyName: familyName,
+                            size: 40,
+                          ),
                         ),
                       ),
-                    ),
 
-                  if (symbolSize > 10) ...[
-                    const SizedBox(height: FamilyHubSpace.md),
-                    // Family name — Display type
-                    Opacity(
-                      opacity: nameOpacity,
-                      child: Text(
-                        familyName,
-                        style: FamilyHubType.display,
-                        textAlign: TextAlign.center,
+                    if (symbolSize > 10) ...[
+                      const SizedBox(height: FamilyHubSpace.md),
+                      // Family name — Display type
+                      Opacity(
+                        opacity: nameOpacity,
+                        child: Text(
+                          familyName,
+                          style: FamilyHubType.display,
+                          textAlign: TextAlign.center,
                       ),
                     ),
                     const SizedBox(height: FamilyHubSpace.xs),
@@ -200,29 +202,33 @@ class HeroSection extends ConsumerWidget {
               ),
             ),
 
-            // ── Layer 3: "View graph" hint (expanded only) ──────────
+            // ── Layer 3: "Explore graph" hint with chevron (expanded only) ─
+            // Bug 2 fix: paired with the persistent graph-icon badge on
+            // the avatar ring, this caption confirms the tap target.
+            // The chevron reinforces "this opens something".
             if (collapse < 0.3)
               Positioned(
                 bottom: FamilyHubSpace.md,
                 right: FamilyHubSpace.md,
                 child: Opacity(
-                  opacity: (1 - collapse / 0.3) * 0.6,
+                  opacity: (1 - collapse / 0.3) * 0.7,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Tap to explore graph',
+                        'Explore graph',
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 11,
-                          color: FamilyHubSurface.iconMuted,
+                          fontWeight: FontWeight.w600,
+                          color: KinrelColors.orange.withValues(alpha: 0.7),
                         ),
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 2),
                       Icon(
-                        Icons.account_tree_outlined,
-                        size: 13,
-                        color: FamilyHubSurface.iconMuted,
+                        Icons.chevron_right,
+                        size: 16,
+                        color: KinrelColors.orange.withValues(alpha: 0.7),
                       ),
                     ],
                   ),
@@ -230,6 +236,7 @@ class HeroSection extends ConsumerWidget {
               ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -370,6 +377,88 @@ class _FamilyInitialAvatar extends StatelessWidget {
             color: KinrelColors.orange,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The AURA symbol (or family-initial fallback) wrapped in a Stack with
+/// a persistent graph-icon badge on the bottom-right of the ring.
+///
+/// Bug 2 fix: "Tap to explore graph" as small caption text doesn't read
+/// as tappable. This badge sits on the avatar ring itself — the same
+/// graph icon used elsewhere in the app — so the tap target is obvious
+/// without reading any caption text. The whole hero is already wrapped
+/// in a Material+InkWell (ripple feedback), so tapping anywhere on the
+/// hero opens the graph.
+class _HeroSymbolWithGraphBadge extends StatelessWidget {
+  const _HeroSymbolWithGraphBadge({
+    required this.aura,
+    required this.familyName,
+    required this.size,
+  });
+
+  final AuraModel? aura;
+  final String familyName;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    // Badge size scales with the symbol: 22% of symbol diameter,
+    // clamped to 28–44px so it's visible but not overwhelming.
+    final badgeSize = (size * 0.28).clamp(28.0, 44.0);
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // The AURA symbol or family-initial avatar.
+          if (aura != null)
+            StaticAuraSymbol(
+              parameters: aura!.symbol,
+              archetypeKey: aura!.archetype.key,
+              size: size,
+            )
+          else
+            _FamilyInitialAvatar(
+              familyName: familyName,
+              size: size,
+            ),
+
+          // Persistent graph-icon badge on the bottom-right of the ring.
+          // This is the visual affordance that says "tap me to see the
+          // graph" — it doesn't rely on users reading caption text.
+          Positioned(
+            right: -badgeSize * 0.15,
+            bottom: -badgeSize * 0.15,
+            child: Container(
+              width: badgeSize,
+              height: badgeSize,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: KinrelColors.darkBackground,
+                border: Border.all(
+                  color: KinrelColors.orange.withValues(alpha: 0.4),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 4,
+                    spreadRadius: 0,
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.account_tree_outlined,
+                size: badgeSize * 0.55,
+                color: KinrelColors.orange,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
