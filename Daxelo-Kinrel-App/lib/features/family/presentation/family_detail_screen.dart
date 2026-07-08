@@ -35,6 +35,8 @@ import '../../games/shared/icons/game_icons.dart';
 import '../../games/shared/widgets/active_games_list.dart';
 import '../../games/shared/widgets/family_leaderboard_widget.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
+import 'premium/family_hub_sections.dart';
+import 'premium/hero_section.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
   FamilyDetailScreen({super.key, required this.familyId});
@@ -46,6 +48,30 @@ class FamilyDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
+  // Premium redesign: scroll controller for the parallax hero collapse.
+  final _hubScrollController = ScrollController();
+  double _heroScrollOffset = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _hubScrollController.addListener(_onHubScroll);
+  }
+
+  @override
+  void dispose() {
+    _hubScrollController.removeListener(_onHubScroll);
+    _hubScrollController.dispose();
+    super.dispose();
+  }
+
+  void _onHubScroll() {
+    final offset = _hubScrollController.offset.clamp(0.0, 200.0);
+    if ((offset - _heroScrollOffset).abs() > 1) {
+      setState(() => _heroScrollOffset = offset);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final detailAsync = ref.watch(familyDetailProvider(widget.familyId));
@@ -148,90 +174,66 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
             );
           }
 
-          // ── Scrollable feed (replaces TabBarView) ──────────────
-          // Feed order: Truth Streak (hero) → Games Row → Graph → Members → Activity
+          // ── Premium Family Hub: 4 sections ───────────────────────
+          // 1. Hero (AURA symbol + family name + member/link caption)
+          // 2. Truth Streak (the one "moment" — terracotta gradient)
+          // 3. Games (Play / Leaderboard toggle, leaderboard nested)
+          // 4. Family Pulse (nudges + activity merged)
+          //
+          // IA cuts from 7 → 4:
+          //   - Family Graph card killed → folded into hero caption
+          //   - Family Leaderboard killed as separate section → nested
+          //     inside Games as a toggle
+          //   - Recent Activity + Family Calendar merged → Family Pulse
           return CustomScrollView(
+            controller: _hubScrollController,
             slivers: [
-              // 1. Header section — family name, avatar, stats
-              SliverToBoxAdapter(child: _FeedHeader(detail: detail)),
-
-              // 2. Truth Streak — the visual HERO (largest, most prominent)
+              // 1. Hero — parallax collapse driven by _heroScrollOffset.
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: TruthStreakCard(familyId: widget.familyId),
+                child: HeroSection(
+                  familyId: widget.familyId,
+                  familyName: detail.family.name,
+                  memberCount: detail.members.length,
+                  relationshipCount: detail.relationships.length,
+                  scrollOffset: _heroScrollOffset,
                 ),
               ),
 
-              // 3. Games — horizontal scrollable row (all games in one compact row)
+              const SliverToBoxAdapter(child: SizedBox(height: 8)),
+
+              // 2. Truth Streak — the "moment".
               SliverToBoxAdapter(
-                child: _GamesRow(familyId: widget.familyId),
+                child: TruthStreakMoment(familyId: widget.familyId),
               ),
 
-              // 3a. Active games list (in-progress/waiting games across all 14 tables)
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+              // 3. Games — Play / Leaderboard toggle.
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: ActiveGamesList(familyId: widget.familyId),
+                child: GamesSection(familyId: widget.familyId),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+              // 4. Family Pulse — nudges + activity merged.
+              SliverToBoxAdapter(
+                child: FamilyPulseSection(
+                  detail: detail,
+                  familyId: widget.familyId,
                 ),
               ),
 
-              // 3b. Family leaderboard (cross-game win/loss/draw rankings)
+              // Members preview row — kept as a quiet footer section.
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: _LeaderboardCard(familyId: widget.familyId),
+                child: _MembersPreviewRow(
+                  detail: detail,
+                  familyId: widget.familyId,
                 ),
               ),
 
-              // 4. Graph preview card (quieter supporting card)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: _GraphPreviewCard(
-                    detail: detail,
-                    familyId: widget.familyId,
-                  ),
-                ),
-              ),
-
-              // 6. Members preview row
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: _MembersPreviewRow(
-                    detail: detail,
-                    familyId: widget.familyId,
-                  ),
-                ),
-              ),
-
-              // 7. Activity preview
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: _ActivityPreviewCard(
-                    detail: detail,
-                    familyId: widget.familyId,
-                  ),
-                ),
-              ),
-
-              // 8. Family Calendar card
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: _FamilyCalendarCard(
-                    detail: detail,
-                    familyId: widget.familyId,
-                  ),
-                ),
-              ),
-
-              // Bottom padding for FAB
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 100),
-              ),
+              // Bottom padding for FAB.
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           );
         },
@@ -3617,6 +3619,38 @@ class _LeaderboardCard extends StatelessWidget {
           FamilyLeaderboardWidget(familyId: familyId, maxRows: 10),
         ],
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PREMIUM FAMILY HUB — PUBLIC BRIDGES
+//
+// The premium redesign (lib/features/family/presentation/premium/)
+// needs to access the private _GamesRow and AddPersonSheet.show from
+// this file. Rather than making those public (and polluting the
+// widget API), we expose two bridge functions at the file level.
+// The premium sections import these bridges via a `show` clause.
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Bridge to the private _GamesRow for the premium GamesSection.
+Widget premiumGamesRowBridge(String familyId) {
+  return _GamesRow(familyId: familyId);
+}
+
+/// Bridge to AddPersonSheet.show for the premium FamilyPulseSection.
+class AddPersonSheetBridge {
+  AddPersonSheetBridge._();
+
+  static Future<void> show(
+    BuildContext context, {
+    required String familyId,
+    Person? person,
+  }) {
+    return AddPersonSheet.show(
+      context,
+      familyId: familyId,
+      existingPerson: person,
     );
   }
 }
