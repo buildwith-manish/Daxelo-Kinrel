@@ -64,9 +64,12 @@ USER appuser
 # Expose port (default 10000 for Render, override with --build-arg APP_PORT=3000 for Koyeb)
 EXPOSE ${APP_PORT}
 
-# Health check — configurable start-period for constrained environments
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-${APP_PORT}}/api/health || exit 1
+# Health check — Render uses its own health check via healthCheckPath in render.yaml.
+# The Docker HEALTHCHECK was causing deploy failures because the start-period (10s)
+# was too short for Render's free tier. Render's own health check has a longer
+# timeout and doesn't kill the container with exit code 1.
+# HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+#   CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-${APP_PORT}}/api/health || exit 1
 
 # Start the application
 CMD ["node", "dist/main"]
