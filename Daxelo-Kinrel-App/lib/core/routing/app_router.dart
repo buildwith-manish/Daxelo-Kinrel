@@ -168,6 +168,15 @@ import '../../features/share/presentation/share_screen.dart';
 import '../../features/oral_history/presentation/oral_history_screen.dart';
 import '../../features/gamification/presentation/achievements_screen.dart';
 import '../../features/documents/presentation/documents_screen.dart';
+import '../../features/pulse/presentation/daily_brief_screen.dart';
+import '../../features/pulse/presentation/addictiveness_hub_screen.dart';
+import '../../features/pulse/presentation/family_quests_screen.dart';
+import '../../features/pulse/presentation/blessing_chain_screen.dart';
+import '../../features/pulse/presentation/time_capsule_screen.dart';
+import '../../features/pulse/presentation/festival_screen.dart';
+import '../../features/pulse/presentation/silent_alarms_screen.dart';
+import '../../features/pulse/presentation/family_chronicle_screen.dart';
+import '../../features/pulse/presentation/memorials_screen.dart';
 import '../../presentation/screens/invite/invite_screen.dart';
 import '../../presentation/screens/family_tree/family_tree_screen.dart';
 import '../../presentation/screens/premium/paywall_screen.dart';
@@ -1675,6 +1684,79 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/privacy-settings',
         pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: const PrivacySettingsScreen()),
+      ),
+
+      // ── Pulse + Pitru + Addictiveness routes ─────────────────────────
+      GoRoute(
+        path: '/pulse',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const AddictivenessHubScreen()),
+      ),
+      GoRoute(
+        path: '/pulse/today',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const DailyBriefScreen()),
+      ),
+      GoRoute(
+        path: '/pulse/history',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const DailyBriefScreen()),
+      ),
+      GoRoute(
+        path: '/pulse/quests',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const FamilyQuestsScreen()),
+      ),
+      GoRoute(
+        path: '/pulse/blessings',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const BlessingChainScreen()),
+      ),
+      GoRoute(
+        path: '/pulse/time-capsules',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const TimeCapsuleScreen()),
+      ),
+      GoRoute(
+        path: '/pulse/festivals',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const FestivalScreen()),
+      ),
+      GoRoute(
+        path: '/pulse/alarms',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const SilentAlarmsScreen()),
+      ),
+      GoRoute(
+        path: '/pulse/chronicle',
+        pageBuilder: (context, state) {
+          final familyId = state.uri.queryParameters['familyId'] ?? '';
+          return _fastFadePage(
+            key: state.pageKey,
+            child: FamilyChronicleScreen(familyId: familyId),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/pulse/memorials',
+        pageBuilder: (context, state) {
+          final familyId = state.uri.queryParameters['familyId'] ?? '';
+          return _fastFadePage(
+            key: state.pageKey,
+            child: MemorialsScreen(familyId: familyId),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/pulse/memorial/:personId',
+        pageBuilder: (context, state) {
+          // For MVP, redirect to memorials list — a dedicated memorial detail
+          // screen would be built in the next iteration
+          return _fastFadePage(
+            key: state.pageKey,
+            child: const MemorialsScreen(familyId: ''),
+          );
+        },
       ),
     ],
   );
