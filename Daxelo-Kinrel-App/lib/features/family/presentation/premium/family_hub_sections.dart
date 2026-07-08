@@ -617,46 +617,77 @@ class QuickJumpNavRow extends ConsumerWidget {
     // Watch unread chat count for the badge.
     final unreadCount = ref.watch(unreadCountProvider);
 
-    return SizedBox(
-      height: 88,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(
-            horizontal: FamilyHubSpace.md),
-        children: [
-          _QuickJumpChip(
-            icon: Icons.people_outline,
-            label: 'Members',
-            onTap: () => context.push('/family/$familyId/members'),
+    // ── One unified rounded container holding all 5 items ──────────
+    // Matches the Truth Streak card's border radius (20px) so the
+    // whole screen feels like one design system. The container is a
+    // subtly raised surface (KinrelColors.darkCard) with a thin
+    // low-opacity border, sitting flat on Level 0 with no shadow.
+    // No dividers between items — spacing alone separates them.
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: FamilyHubSpace.md),
+      child: Container(
+        // Match Truth Streak card's corner radius (20px).
+        decoration: BoxDecoration(
+          color: KinrelColors.darkCard,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: KinrelColors.textWhite.withValues(alpha: 0.06),
+            width: 1,
           ),
-          const SizedBox(width: FamilyHubSpace.sm),
-          _QuickJumpChip(
-            icon: Icons.sports_esports_outlined,
-            label: 'Games',
-            onTap: () => context.push('/games?familyId=$familyId'),
+        ),
+        // Internal padding: equal on all sides.
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: FamilyHubSpace.sm,
+            vertical: FamilyHubSpace.sm + 2,
           ),
-          const SizedBox(width: FamilyHubSpace.sm),
-          _QuickJumpChip(
-            icon: Icons.calendar_today_outlined,
-            label: 'Calendar',
-            onTap: () => context.push('/family/$familyId/calendar'),
+          // Evenly distribute the 5 items across the full width
+          // using a Row with Expanded children — no dividers, no
+          // scrollable ListView (the container is fixed-width).
+          child: Row(
+            children: [
+              Expanded(
+                child: _QuickJumpChip(
+                  icon: Icons.people_outline,
+                  label: 'Members',
+                  onTap: () => context.push('/family/$familyId/members'),
+                ),
+              ),
+              Expanded(
+                child: _QuickJumpChip(
+                  icon: Icons.sports_esports_outlined,
+                  label: 'Games',
+                  onTap: () => context.push('/games?familyId=$familyId'),
+                ),
+              ),
+              Expanded(
+                child: _QuickJumpChip(
+                  icon: Icons.calendar_today_outlined,
+                  label: 'Calendar',
+                  onTap: () => context.push('/family/$familyId/calendar'),
+                ),
+              ),
+              Expanded(
+                child: _QuickJumpChip(
+                  icon: Icons.photo_library_outlined,
+                  label: 'Memories',
+                  onTap: () =>
+                      context.push('/memories?familyId=$familyId'),
+                ),
+              ),
+              Expanded(
+                child: _QuickJumpChip(
+                  icon: Icons.chat_bubble_outline,
+                  label: 'Chat',
+                  badgeCount: unreadCount,
+                  isAccent: unreadCount > 0,
+                  onTap: () => context.push('/family/$familyId/chat'),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: FamilyHubSpace.sm),
-          _QuickJumpChip(
-            icon: Icons.photo_library_outlined,
-            label: 'Memories',
-            onTap: () =>
-                context.push('/memories?familyId=$familyId'),
-          ),
-          const SizedBox(width: FamilyHubSpace.sm),
-          _QuickJumpChip(
-            icon: Icons.chat_bubble_outline,
-            label: 'Chat',
-            badgeCount: unreadCount,
-            isAccent: unreadCount > 0,
-            onTap: () => context.push('/family/$familyId/chat'),
-          ),
-        ],
+        ),
       ),
     );
   }
