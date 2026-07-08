@@ -27,6 +27,35 @@ const CORS_WHITELIST = [
   'com.daxelo.kinrel',                                 // Android app scheme
 ];
 
+/// Check if an origin should be allowed, including wildcard patterns.
+/// Vercel preview URLs follow the pattern:
+///   https://<project-name>-<hash>-<user>.projects.vercel.app
+///   https://<project-name>.vercel.app
+/// We allow any *.vercel.app origin so preview deployments work.
+function isAllowedOrigin(origin: string): boolean {
+  // Exact match against the whitelist.
+  if (CORS_WHITELIST.includes(origin)) return true;
+
+  // Allow any localhost port (development).
+  if (
+    origin.startsWith('http://localhost:') ||
+    origin.startsWith('http://127.0.0.1:')
+  ) {
+    return true;
+  }
+
+  // Allow any Vercel preview/deployment URL.
+  // Matches: https://anything.vercel.app, https://anything.projects.vercel.app
+  if (
+    origin.endsWith('.vercel.app') ||
+    origin.endsWith('.projects.vercel.app')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
@@ -94,9 +123,6 @@ async function bootstrap() {
 
   // ── CORS — whitelist with env override ──────────────────────────
   const corsOriginsEnv = configService.get<string>('CORS_ORIGINS', '');
-  const allowedOrigins = corsOriginsEnv
-    ? corsOriginsEnv.split(',').map((s) => s.trim())
-    : CORS_WHITELIST;
 
   app.enableCors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
@@ -104,18 +130,14 @@ async function bootstrap() {
       if (!origin) {
         return callback(null, true);
       }
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
+      // If CORS_ORIGINS env var is set, use ONLY that (strict mode).
+      if (corsOriginsEnv) {
+        const envOrigins = corsOriginsEnv.split(',').map((s) => s.trim());
+        return callback(null, envOrigins.includes(origin));
       }
-      // In development, allow localhost on any port
-      if (
-        !corsOriginsEnv &&
-        (origin.startsWith('http://localhost:') ||
-         origin.startsWith('http://127.0.0.1:'))
-      ) {
-        return callback(null, true);
-      }
-      return callback(null, false);
+      // Otherwise use the isAllowedOrigin helper which checks the
+      // hardcoded whitelist + localhost + *.vercel.app patterns.
+      return callback(null, isAllowedOrigin(origin));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

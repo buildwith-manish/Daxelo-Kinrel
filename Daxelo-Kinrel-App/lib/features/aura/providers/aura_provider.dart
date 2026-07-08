@@ -243,11 +243,53 @@ class AuraNotifier extends StateNotifier<AuraState> {
         clearNotComputed: true,
       );
     } catch (e) {
-      debugPrint('⚠️ AURA NestJS fetch failed: $e');
-      state = state.copyWith(
-        isLoading: false,
-        error: state.aura == null ? '$e' : null,
-      );
+      debugPrint('⚠️ AURA NestJS fetch failed: $e — falling back to direct Supabase read');
+      // ── Fallback: direct Supabase read ───────────────────────────
+      // If the NestJS API is unreachable (CORS on web, network error,
+      // server down), fall back to reading FamilyAura directly from
+      // Supabase. RLS policies on FamilyAura already restrict reads
+      // to family members, so this is safe.
+      try {
+        final auraRow = await client
+            .from('FamilyAura')
+            .select()
+            .eq('familyId', familyId)
+            .maybeSingle();
+
+        if (auraRow == null) {
+          state = state.copyWith(
+            isLoading: false,
+            notComputed: true,
+            isFromCache: false,
+          );
+          return;
+        }
+
+        final model = _modelFromSupabaseRow(auraRow);
+        final roles = await _fetchRoles(client);
+
+        await _writeCache(model, roles);
+
+        var history = const <AuraHistorySnapshot>[];
+        if (includeHistory) {
+          history = await _fetchHistory(client);
+        }
+
+        state = state.copyWith(
+          aura: model,
+          roles: roles,
+          history: history,
+          isLoading: false,
+          isFromCache: false,
+          clearNotComputed: true,
+        );
+      } catch (e2) {
+        debugPrint('⚠️ AURA Supabase fallback also failed: $e2');
+        state = state.copyWith(
+          isLoading: false,
+          error: state.aura == null ? 'Could not load AURA' : null,
+        );
+      }
     }
   }
 
@@ -383,6 +425,44 @@ class AuraNotifier extends StateNotifier<AuraState> {
   }
 
   // ── Internal helpers ────────────────────────────────────────────────
+
+  /// Build an [AuraModel] from a raw Supabase FamilyAura row.
+  /// Used by the fallback path when the NestJS API is unreachable.
+  AuraModel _modelFromSupabaseRow(Map<String, dynamic> row) {
+    final json = <String, dynamic>{
+      'familyId': row['familyId'],
+      'symbol': {
+        'ringCount': row['ringCount'],
+        'spokeCount': row['spokeCount'],
+        'innerPatternType': row['innerPatternType'],
+        'outerRingRadiusPct': row['outerRingRadiusPct'],
+        'patternComplexity': row['patternComplexity'],
+        'primaryColorHex': row['primaryColorHex'],
+        'secondaryColorHex': row['secondaryColorHex'],
+        'accentColorHex': row['accentColorHex'],
+        'pulseSpeedMs': row['pulseSpeedMs'],
+      },
+      'archetype': {
+        'key': row['archetypeKey'],
+        'confidence': row['archetypeConfidence'],
+      },
+      'metrics': {
+        'memberCount': row['memberCount'],
+        'generationDepth': row['generationDepth'],
+        'edgeCount': row['edgeCount'],
+        'clusteringCoefficient': row['clusteringCoefficient'],
+        'graphDiameter': row['graphDiameter'],
+        'avgDegree': row['avgDegree'],
+        'distinctLineages': row['distinctLineages'],
+        'languageDistribution': row['languageDistribution'],
+        'maxBetweennessNode': row['maxBetweennessNode'],
+        'rootNode': row['rootNode'],
+      },
+      'computedAt': row['computedAt'],
+      'updatedAt': row['updatedAt'],
+    };
+    return AuraModel.fromJson(json);
+  }
 
   Future<List<RoleGlyph>> _fetchRoles(SupabaseClient client) async {
     try {
