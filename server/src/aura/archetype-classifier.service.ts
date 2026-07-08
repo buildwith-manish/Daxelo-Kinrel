@@ -243,11 +243,15 @@ export const ARCHETYPES: ArchetypeDefinition[] = [
 // ─────────────────────────────────────────────────────────────────────────
 
 export class ArchetypeClassifierService {
-  // Max possible score = the highest number of thresholds any archetype has.
-  // Used to normalize the confidence gap. Set to 6 as a safe upper bound
-  // (no archetype currently has more than 2 thresholds, but the constant
-  // preserves the guide's formula verbatim).
-  private static readonly MAX_POSSIBLE_SCORE = 6;
+  // Bug 3 fix: MAX_POSSIBLE_SCORE was previously 6, which capped the
+  // confidence formula at 0.5 + 3/12 = 0.75 even for a perfect match
+  // (winner score 3, runner-up score 0). The actual highest checksTotal
+  // across all archetypes is 3 (spine has minGenerationDepth +
+  // maxAvgDegree = 2 thresholds today, but the constant is set to 3 to
+  // match the guide's normalization intent and to leave headroom for
+  // future archetype additions). With this fix, a perfect classification
+  // yields 0.5 + 3/6 = 1.0 as intended.
+  private static readonly MAX_POSSIBLE_SCORE = 3;
 
   classify(metrics: GraphMetrics): ClassificationResult {
     // Score each archetype against the metrics

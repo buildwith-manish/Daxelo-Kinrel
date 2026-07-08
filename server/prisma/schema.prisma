@@ -1229,6 +1229,12 @@ model Relationship {
   validFrom        DateTime? @map("valid_from")
   validTo          DateTime? @map("valid_to")
   verifiedAt       DateTime?
+  // AURA: ISO-639-1 language tag the user chose for this relationship
+  // when adding it in the app UI (e.g. "hi" for Hindi, "ta" for Tamil).
+  // Used by computeLanguageDistribution() to derive the family's
+  // linguistic fingerprint for the AURA colour palette. When null,
+  // the type→language lookup table is used as a fallback.
+  languageTag      String? // e.g. "hi", "ta", "te", "en"
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -2246,6 +2252,11 @@ model FamilyAuraHistory {
   primaryColorHex   String @db.Char(7)
   secondaryColorHex String @db.Char(7)
   accentColorHex    String @db.Char(7)
+
+  // ── Language distribution at this point in time (Bug 9 fix) ──
+  // JSONB map: ISO-639-1 code → ratio (sums to 1.0). Stored so the
+  // timeline can answer "which language dominated our family in 2025?".
+  languageDistribution Json @default("{}")
 
   // ── What triggered this snapshot ──
   triggerMemberId  String? // FK to Person — who triggered the change (nullable for bulk recompute)

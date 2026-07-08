@@ -67,6 +67,10 @@ export class GraphAnalysisService {
         toPersonId: true,
         relationshipType: true,
         direction: true,
+        // AURA Bug 1 fix: select the languageTag so computeLanguageDistribution()
+        // can use the user's explicit language choice instead of inferring
+        // from the (mostly English) relationshipType string.
+        languageTag: true,
       },
     });
 
@@ -75,6 +79,7 @@ export class GraphAnalysisService {
       toId: r.toPersonId,
       relationshipType: r.relationshipType,
       direction: r.direction,
+      languageTag: r.languageTag ?? null,
     }));
   }
 

@@ -52,16 +52,24 @@ export class RoleGlyphService {
   /**
    * Compute role classifications for every member and upsert MemberAuraRole rows.
    *
-   * Strategy:
+   * Strategy (with Bug 2 + Bug 4 fixes):
    *   1. Sort all nodes by betweenness desc.
-   *   2. anchor = top betweenness node (if score > 0.05).
-   *   3. bridges = 2nd–4th highest betweenness (if score > 0.02).
-   *   4. root = metrics.rootNodeId.
-   *   5. twin_nodes = members sharing (generation, degree) signature with another member.
+   *   2. root = metrics.rootNodeId (oldest ancestor).
+   *   3. anchor = highest-betweenness node EXCLUDING the root (Bug 2 fix).
+   *      Previously the root won the anchor check too, so nobody ever got
+   *      the anchor badge in typical families where the patriarch is both
+   *      root AND highest-betweenness.
+   *   4. bridges = next 3 highest-betweenness nodes excluding root+anchor.
+   *   5. twin_nodes = members sharing (generation, degree) signature with
+   *      another member.
    *   6. leaves = degree ≤ 1 OR youngest generation.
    *   7. everyone else with degree ≥ 4 = weaver; otherwise leaf.
    *
-   * Priority order (first match wins): root → anchor → bridge → twin_node → leaf → weaver.
+   * Priority order (first match wins) — Bug 4 fix: twin_node moved AFTER
+   * leaf so that genuine leaves (children, terminal nodes) get the leaf
+   * badge instead of being swallowed by twin_node just because they share
+   * a (generation, degree) signature with a sibling:
+   *   root → anchor → bridge → leaf → twin_node → weaver
    */
   async computeAndSaveRoles(
     familyId: string,
@@ -81,8 +89,20 @@ export class RoleGlyphService {
       (a, b) => (metrics.betweennessMap[b] ?? 0) - (metrics.betweennessMap[a] ?? 0),
     );
 
-    const anchorId = sortedByBetweenness[0]; // top betweenness
-    const bridgeIds = new Set(sortedByBetweenness.slice(1, 4)); // 2nd–4th = bridges
+    // Bug 2 fix: exclude the root node when finding the anchor. In typical
+    // Indian families the patriarch is BOTH root AND highest-betweenness,
+    // so the previous code (which checked root first in the per-member
+    // loop) never assigned the anchor role to anyone.
+    const anchorId = sortedByBetweenness.find(
+      (id) => id !== metrics.rootNodeId,
+    ) ?? null;
+
+    // Bug 2 fix: bridges also exclude root + anchor so we don't double-count.
+    const bridgeIds = new Set(
+      sortedByBetweenness
+        .filter((id) => id !== metrics.rootNodeId && id !== anchorId)
+        .slice(0, 3),
+    );
 
     // Find leaf nodes: degree === 1 or youngest generation
     const maxGeneration = Math.max(...Object.values(metrics.generationMap));
@@ -110,10 +130,13 @@ export class RoleGlyphService {
         roleKey = 'anchor';
       } else if (bridgeIds.has(memberId) && betweenness > 0.02) {
         roleKey = 'bridge';
+      } else if (leafNodes.has(memberId)) {
+        // Bug 4 fix: leaf checked BEFORE twin_node so genuine terminal
+        // nodes (children, youngest generation) get the leaf badge even
+        // if they share a (generation, degree) signature with a sibling.
+        roleKey = 'leaf';
       } else if (twinNodes.has(memberId)) {
         roleKey = 'twin_node';
-      } else if (leafNodes.has(memberId)) {
-        roleKey = 'leaf';
       } else {
         // Weaver: high degree, connects many — but not root/anchor/bridge
         roleKey = degree >= 4 ? 'weaver' : 'leaf';

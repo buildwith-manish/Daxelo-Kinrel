@@ -56,7 +56,13 @@ class AuraSymbolPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
 
     // Breathing factor: 0.92 → 1.0 → 0.92 (subtle pulse, never invisible).
-    final breathe = 0.92 + 0.08 * (0.5 + 0.5 * progress);
+    // Bug 10 fix: the previous formula `0.92 + 0.08 * (0.5 + 0.5 * progress)`
+    // produced a range of 0.96–1.00 (4% variation) instead of the intended
+    // 0.92–1.00 (8% variation), making the pulse half as visible as designed.
+    // The new formula `0.92 + 0.08 * progress` correctly maps progress 0→1
+    // to breathe 0.92→1.0, and the AnimatedBuilder's reverse:true makes it
+    // oscillate back to 0.92, giving the full 8% breathing amplitude.
+    final breathe = 0.92 + 0.08 * progress;
 
     final primary = _parseColor(parameters.primaryColorHex);
     final secondary = _parseColor(parameters.secondaryColorHex);

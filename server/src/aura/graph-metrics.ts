@@ -23,6 +23,12 @@ export interface GraphEdge {
   toId: string;
   relationshipType: string; // e.g. 'father', 'mother', 'spouse', 'amma', 'pita'
   direction: string;        // 'from' = fromPerson IS the relationshipType of toPerson
+  // AURA Bug 1 fix: ISO-639-1 language tag the user chose for this
+  // relationship in the app UI (e.g. 'hi' for Hindi). When present,
+  // computeLanguageDistribution() uses this directly instead of inferring
+  // language from the relationshipType string (which is almost always
+  // English for families that use the app's default term storage).
+  languageTag?: string | null;
 }
 
 export interface AdjacencyMap {
@@ -404,9 +410,22 @@ function detectLineages(nodes: GraphNode[], edges: GraphEdge[]): number {
 // HELPER: language distribution
 // ─────────────────────────────────────────────────────────────────────────
 //
-// Derives a language code from each edge's relationshipType via the
-// RELATIONSHIP_TYPE_TO_LANGUAGE lookup. Unknown types fall back to
-// familyPrimaryLanguage. Returns a map of language code → ratio (sums to 1.0).
+// Derives the family's linguistic fingerprint from each edge.
+//
+// AURA Bug 1 fix: We now prefer edge.languageTag (the ISO-639-1 code the
+// user explicitly chose when adding the relationship in the app UI) over
+// inferring the language from the relationshipType string. The old
+// inference path mapped every English term ('father', 'mother', etc.)
+// to 'en', which collapsed ~80% of edges to English for typical
+// families and forced the AURA colour palette to Steel Blue for everyone.
+//
+// Fallback chain for each edge:
+//   1. edge.languageTag (if set and non-empty) — explicit user choice
+//   2. RELATIONSHIP_TYPE_TO_LANGUAGE[type] — heuristic for Indian terms
+//      (e.g. 'pita' → 'hi', 'appa' → 'ta')
+//   3. familyPrimaryLanguage — final fallback
+//
+// Returns a map of language code → ratio (sums to 1.0).
 
 function computeLanguageDistribution(
   edges: GraphEdge[],
@@ -416,8 +435,15 @@ function computeLanguageDistribution(
   const fallback = familyPrimaryLanguage || 'hi';
 
   for (const edge of edges) {
-    const type = edge.relationshipType?.toLowerCase()?.trim() ?? '';
-    const code = RELATIONSHIP_TYPE_TO_LANGUAGE[type] ?? fallback;
+    // Bug 1 fix: prefer the explicit languageTag on the edge.
+    const tag = edge.languageTag?.trim().toLowerCase();
+    let code: string;
+    if (tag && tag.length > 0) {
+      code = tag;
+    } else {
+      const type = edge.relationshipType?.toLowerCase()?.trim() ?? '';
+      code = RELATIONSHIP_TYPE_TO_LANGUAGE[type] ?? fallback;
+    }
     counts[code] = (counts[code] ?? 0) + 1;
   }
 

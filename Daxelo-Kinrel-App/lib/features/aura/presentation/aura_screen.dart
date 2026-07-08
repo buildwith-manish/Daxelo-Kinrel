@@ -275,15 +275,54 @@ class _AuraScreenState extends ConsumerState<AuraScreen> {
       }
       return;
     }
-    // Poll for the new AURA after a short delay (the backend runs the
-    // graph algorithms async — typically 2–5 seconds for a 50-member
-    // family). We try once after 3 seconds; if still not computed,
-    // the user can tap Recompute again.
-    await Future.delayed(const Duration(seconds: 3));
-    if (mounted) {
-      await ref.read(auraProvider(widget.familyId).notifier).load(
-            includeHistory: true,
+    // Bug 5 fix: poll with exponential backoff until the new AURA appears.
+    // The backend runs graph algorithms asynchronously after returning 202.
+    // For a family with 40+ members, Brandes + clustering can take longer
+    // than the previous hardcoded 3-second delay on a cold Render instance.
+    // The single poll after 3s returned the stale AURA, so users thought
+    // the recompute failed.
+    //
+    // Strategy: poll 5 times with delays of [2, 3, 5, 8, 13] seconds
+    // (Fibonacci-ish backoff). Stop early when the fetched AURA's
+    // computedAt is newer than the moment we triggered the recompute.
+    final triggerTime = DateTime.now();
+    final delays = [
+      const Duration(seconds: 2),
+      const Duration(seconds: 3),
+      const Duration(seconds: 5),
+      const Duration(seconds: 8),
+      const Duration(seconds: 13),
+    ];
+    for (final delay in delays) {
+      await Future.delayed(delay);
+      if (!mounted) return;
+      await ref
+          .read(auraProvider(widget.familyId).notifier)
+          .load(includeHistory: true);
+      if (!mounted) return;
+      final newAura = ref.read(auraProvider(widget.familyId)).aura;
+      if (newAura != null && newAura.computedAt.isAfter(triggerTime)) {
+        // Fresh AURA has landed — stop polling.
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('AURA updated'),
+              duration: Duration(seconds: 2),
+            ),
           );
+        }
+        return;
+      }
+    }
+    // Polled 5 times without seeing a new computedAt. The recompute may
+    // still be running server-side; the user can pull-to-refresh later.
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('AURA is still computing — check back in a moment'),
+          duration: Duration(seconds: 3),
+        ),
+      );
     }
   }
 }

@@ -121,12 +121,14 @@ class AuraNotifier extends StateNotifier<AuraState> {
 
   /// Load the AURA payload for [familyId].
   ///
-  /// Strategy:
+  /// Strategy (Bug 7 fix: route reads through NestJS /aura/:familyId
+  /// so the backend's requireFamilyMembership() check runs on every
+  /// read — defense-in-depth on top of RLS):
   ///   1. Read Drift cache first → render instantly (isFromCache=true).
-  ///   2. Fetch from Supabase → render fresh (isFromCache=false) and
-  ///      write through to Drift.
-  ///   3. If Supabase returns no row → set notComputed=true.
-  ///   4. On Supabase error → keep the cached value (if any) and set error.
+  ///   2. Fetch from NestJS GET /aura/:familyId → render fresh
+  ///      (isFromCache=false) and write through to Drift.
+  ///   3. If NestJS returns 404 → set notComputed=true.
+  ///   4. On NestJS error → keep the cached value (if any) and set error.
   Future<void> load({bool includeHistory = false}) async {
     state = state.copyWith(
       isLoading: true,
@@ -154,7 +156,16 @@ class AuraNotifier extends StateNotifier<AuraState> {
       }
     }
 
-    // ── Step 2: Supabase fetch ────────────────────────────────────────
+    // ── Step 2: NestJS fetch (Bug 7 fix) ──────────────────────────────
+    // Route through the NestJS /aura/:familyId endpoint so the backend's
+    // requireFamilyMembership() check runs on every read. This is
+    // defense-in-depth on top of the Supabase RLS policies — if a future
+    // RLS change or bug accidentally exposes FamilyAura rows, the NestJS
+    // membership check still blocks the read.
+    //
+    // Falls back to direct Supabase read only if the NestJS endpoint is
+    // unreachable (network error / 5xx) AND we have no cached value, so
+    // the user still sees something rather than a blank screen.
     final client = _client;
     if (client == null) {
       state = state.copyWith(
@@ -164,14 +175,23 @@ class AuraNotifier extends StateNotifier<AuraState> {
       return;
     }
 
-    try {
-      final auraRow = await client
-          .from('FamilyAura')
-          .select()
-          .eq('familyId', familyId)
-          .maybeSingle();
+    final session = client.auth.currentSession;
+    if (session == null) {
+      state = state.copyWith(
+        isLoading: false,
+        error: state.aura == null ? 'Not signed in' : null,
+      );
+      return;
+    }
 
-      if (auraRow == null) {
+    try {
+      final auraJson = await _fetchViaNestJs(
+        path: '/aura/$familyId',
+        accessToken: session.accessToken,
+      );
+
+      if (auraJson == null) {
+        // 404 — AURA not yet computed for this family.
         state = state.copyWith(
           isLoading: false,
           notComputed: true,
@@ -180,10 +200,15 @@ class AuraNotifier extends StateNotifier<AuraState> {
         return;
       }
 
-      final model = _modelFromRow(auraRow);
+      final model = AuraModel.fromJson(auraJson);
+
+      // Roles + history still come from Supabase directly — the NestJS
+      // /aura/:familyId endpoint returns only the current AURA, not the
+      // roles or history. The RLS policies on MemberAuraRole +
+      // FamilyAuraHistory are the only guard for those reads (they're
+      // already family-scoped SELECT policies).
       final roles = await _fetchRoles(client);
 
-      // Write through to Drift cache.
       await _writeCache(model, roles);
 
       var history = const <AuraHistorySnapshot>[];
@@ -200,11 +225,52 @@ class AuraNotifier extends StateNotifier<AuraState> {
         clearNotComputed: true,
       );
     } catch (e) {
-      debugPrint('⚠️ AURA Supabase fetch failed: $e');
+      debugPrint('⚠️ AURA NestJS fetch failed: $e');
       state = state.copyWith(
         isLoading: false,
-        error: '$e',
+        error: state.aura == null ? '$e' : null,
       );
+    }
+  }
+
+  /// Fetch a JSON object from the NestJS AURA API.
+  ///
+  /// Returns `null` on 404 (AURA not yet computed). Throws on other
+  /// non-2xx statuses or network errors so the caller can fall back
+  /// to the Drift cache.
+  Future<Map<String, dynamic>?> _fetchViaNestJs({
+    required String path,
+    required String accessToken,
+  }) async {
+    final url = Uri.parse('${AppConfig.apiBaseUrl}/api$path');
+    final httpClient = HttpClient();
+    try {
+      final request = await httpClient.getUrl(url);
+      request.headers.set('Authorization', 'Bearer $accessToken');
+      request.headers.contentType = ContentType.json;
+      final response = await request.close();
+      final body = await response.transform(const Utf8Decoder()).join();
+
+      if (response.statusCode == 404) return null;
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception(
+          'AURA API $path returned ${response.statusCode}: $body',
+        );
+      }
+      final decoded = jsonDecode(body);
+      // The NestJS ResponseEnvelopeInterceptor wraps responses in
+      // { success, data, timestamp }. Unwrap if present.
+      if (decoded is Map<String, dynamic> &&
+          decoded.containsKey('success') &&
+          decoded.containsKey('data')) {
+        final data = decoded['data'];
+        if (data is Map<String, dynamic>) return data;
+        if (data == null) return null;
+      }
+      if (decoded is Map<String, dynamic>) return decoded;
+      throw FormatException('Unexpected AURA API response shape: $decoded');
+    } finally {
+      httpClient.close();
     }
   }
 
@@ -289,48 +355,6 @@ class AuraNotifier extends StateNotifier<AuraState> {
   }
 
   // ── Internal helpers ────────────────────────────────────────────────
-
-  /// Build an [AuraModel] from a Supabase FamilyAura row.
-  /// The row's column names match the migration in
-  /// supabase/migrations/20260708010000_create_aura_tables.sql.
-  AuraModel _modelFromRow(Map<String, dynamic> row) {
-    // Re-shape the flat Supabase row into the nested JSON shape that
-    // AuraModel.fromJson expects (matches the NestJS /aura/:familyId
-    // response envelope).
-    final json = <String, dynamic>{
-      'familyId': row['familyId'],
-      'symbol': {
-        'ringCount': row['ringCount'],
-        'spokeCount': row['spokeCount'],
-        'innerPatternType': row['innerPatternType'],
-        'outerRingRadiusPct': row['outerRingRadiusPct'],
-        'patternComplexity': row['patternComplexity'],
-        'primaryColorHex': row['primaryColorHex'],
-        'secondaryColorHex': row['secondaryColorHex'],
-        'accentColorHex': row['accentColorHex'],
-        'pulseSpeedMs': row['pulseSpeedMs'],
-      },
-      'archetype': {
-        'key': row['archetypeKey'],
-        'confidence': row['archetypeConfidence'],
-      },
-      'metrics': {
-        'memberCount': row['memberCount'],
-        'generationDepth': row['generationDepth'],
-        'edgeCount': row['edgeCount'],
-        'clusteringCoefficient': row['clusteringCoefficient'],
-        'graphDiameter': row['graphDiameter'],
-        'avgDegree': row['avgDegree'],
-        'distinctLineages': row['distinctLineages'],
-        'languageDistribution': row['languageDistribution'],
-        'maxBetweennessNode': row['maxBetweennessNode'],
-        'rootNode': row['rootNode'],
-      },
-      'computedAt': row['computedAt'],
-      'updatedAt': row['updatedAt'],
-    };
-    return AuraModel.fromJson(json);
-  }
 
   Future<List<RoleGlyph>> _fetchRoles(SupabaseClient client) async {
     try {

@@ -40,7 +40,14 @@ class AuraArchetypeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final strings = archetypeStrings(archetype.key);
+    // Bug 8 fix: pass the backend's localized definition + the current
+    // locale so the card renders the user's language when available.
+    final locale = Localizations.localeOf(context).languageCode;
+    final strings = archetypeStrings(
+      archetype.key,
+      definition: archetype.definition,
+      locale: locale,
+    );
     final theme = Theme.of(context);
 
     return Container(

@@ -115,6 +115,11 @@ class _TimelineDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Bug 8 fix: history snapshots don't carry the localized definition
+    // (it's only on the current-AURA endpoint), so we fall back to the
+    // hardcoded English bundle for timeline dots. The name shown is
+    // short (e.g. "Banyan" without "The ") so the locale difference is
+    // minimal in this compact view.
     final strings = archetypeStrings(snapshot.archetypeKey);
     final color = _parseColor(snapshot.primaryColorHex);
 

@@ -249,22 +249,85 @@ class AuraArchetype {
   const AuraArchetype({
     required this.key,
     required this.confidence,
+    this.definition,
   });
 
   final ArchetypeType key;
   final double confidence; // 0.0–1.0
 
+  /// Bug 8 fix: optional locale-string bundle sent by the backend.
+  /// When present, contains `names` and `descriptions` maps keyed by
+  /// locale code (e.g. {'en': 'The Banyan', 'hi': 'बरगद', ...}).
+  /// The Flutter client uses this to render the user's locale instead
+  /// of the hardcoded English strings in archetype_strings.dart.
+  final AuraArchetypeDefinition? definition;
+
   factory AuraArchetype.fromJson(Map<String, dynamic> json) {
+    final defJson = json['definition'] as Map<String, dynamic>?;
     return AuraArchetype(
       key: ArchetypeType.fromString(json['key'] as String?),
       confidence: _readDouble(json, 'confidence', 0.5),
+      definition:
+          defJson == null ? null : AuraArchetypeDefinition.fromJson(defJson),
     );
   }
 
   Map<String, dynamic> toJson() => {
         'key': key.wireKey,
         'confidence': confidence,
+        if (definition != null) 'definition': definition!.toJson(),
       };
+}
+
+/// Localized archetype strings — mirrors the backend's
+/// ArchetypeDefinition.names / .descriptions maps (8 languages each).
+class AuraArchetypeDefinition {
+  const AuraArchetypeDefinition({
+    required this.names,
+    required this.descriptions,
+  });
+
+  /// Locale code → display name (e.g. {'en': 'The Banyan', 'hi': 'बरगद'}).
+  final Map<String, String> names;
+
+  /// Locale code → 2-line poetic description.
+  final Map<String, String> descriptions;
+
+  factory AuraArchetypeDefinition.fromJson(Map<String, dynamic> json) {
+    Map<String, String> _readStringMap(Map<String, dynamic>? m) {
+      if (m == null) return const {};
+      return m.map(
+        (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
+      );
+    }
+
+    return AuraArchetypeDefinition(
+      names: _readStringMap(json['names'] as Map<String, dynamic>?),
+      descriptions:
+          _readStringMap(json['descriptions'] as Map<String, dynamic>?),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'names': names,
+        'descriptions': descriptions,
+      };
+
+  /// Look up the name for the given locale, falling back to 'en'.
+  String nameFor(String locale) {
+    if (names.containsKey(locale)) return names[locale]!;
+    if (names.containsKey('en')) return names['en']!;
+    if (names.isNotEmpty) return names.values.first;
+    return '';
+  }
+
+  /// Look up the description for the given locale, falling back to 'en'.
+  String descriptionFor(String locale) {
+    if (descriptions.containsKey(locale)) return descriptions[locale]!;
+    if (descriptions.containsKey('en')) return descriptions['en']!;
+    if (descriptions.isNotEmpty) return descriptions.values.first;
+    return '';
+  }
 }
 
 /// Full AURA payload returned by `GET /aura/:familyId`.
@@ -391,6 +454,7 @@ class AuraHistorySnapshot {
     required this.capturedAt,
     required this.triggerMemberId,
     required this.triggerEventType,
+    this.languageDistribution = const {},
   });
 
   final String id;
@@ -409,7 +473,23 @@ class AuraHistorySnapshot {
   final String? triggerMemberId;
   final String triggerEventType;
 
+  /// Bug 9 fix: language distribution at this point in time.
+  /// ISO-639-1 code → ratio (sums to 1.0). Empty for snapshots written
+  /// before the migration that added this column.
+  final Map<String, double> languageDistribution;
+
   factory AuraHistorySnapshot.fromJson(Map<String, dynamic> json) {
+    final rawDist = json['languageDistribution'];
+    final Map<String, double> dist = {};
+    if (rawDist is Map) {
+      rawDist.forEach((key, value) {
+        if (value is num) {
+          dist[key.toString()] = value.toDouble();
+        } else {
+          dist[key.toString()] = double.tryParse(value.toString()) ?? 0.0;
+        }
+      });
+    }
     return AuraHistorySnapshot(
       id: (json['id'] as String?) ?? '',
       memberCount: _readInt(json, 'memberCount', 0),
@@ -432,6 +512,7 @@ class AuraHistorySnapshot {
       triggerMemberId: json['triggerMemberId'] as String?,
       triggerEventType:
           (json['triggerEventType'] as String?) ?? 'member_added',
+      languageDistribution: dist,
     );
   }
 }

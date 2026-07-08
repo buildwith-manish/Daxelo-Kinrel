@@ -180,6 +180,12 @@ export class AuraOrchestrationService {
         primaryColorHex: params.primaryColorHex,
         secondaryColorHex: params.secondaryColorHex,
         accentColorHex: params.accentColorHex,
+        // Bug 9 fix: persist the raw languageDistribution in the history
+        // snapshot so the AURA Timeline can answer "which language
+        // dominated our family at this point in time?". Previously the
+        // snapshot stored colours but not the language map, making the
+        // historical linguistic fingerprint unrecoverable.
+        languageDistribution: metrics.languageDistribution as any,
         triggerMemberId: safeTriggerMemberId,
         triggerEventType: options.triggerEventType ?? 'manual_recompute',
         archetypeChanged,

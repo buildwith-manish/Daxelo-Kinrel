@@ -75,13 +75,29 @@ export class AuraController {
     @Param('familyId') familyId: string,
     @CurrentUser('id') userId: string,
   ) {
-    // Fire-and-forget: returns 202 immediately, computes asynchronously.
-    // Errors are logged but not surfaced to the client (the client can
-    // poll GET /aura/:familyId to see when the new AURA appears).
+    // Bug 6 fix: pass null for triggerMemberId. The field has an FK
+    // constraint against Person.id (the graph node ID), but `userId`
+    // is a Supabase auth User ID — a completely different entity.
+    // Passing it as-is caused the orchestration service to look up
+    // the Person row, fail to find it, and silently null out the
+    // field anyway. Passing null explicitly is the honest behaviour
+    // — we don't have the Person ID at the controller level, and
+    // the history snapshot's triggerMemberId column is nullable by
+    // design for exactly this case (bulk / manual recomputes).
+    //
+    // If we later want to attribute the recompute to a specific
+    // Person, the controller can do a Prisma lookup:
+    //   const member = await this.prisma.familyMember.findUnique({
+    //     where: { familyId_userId: { familyId, userId } },
+    //     select: { personId: true },
+    //   });
+    //   triggerMemberId: member?.personId ?? null,
+    // For now, null is correct and matches the existing orchestration
+    // service's null-coalescing behaviour.
     this.orchestration
       .computeAndSave(familyId, {
         triggerEventType: 'manual_recompute',
-        triggerMemberId: userId,
+        triggerMemberId: null,
       })
       .catch((err) => {
         this.logger.error(

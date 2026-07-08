@@ -274,7 +274,22 @@ class CameraController extends ChangeNotifier {
   void fitToView(Map<String, Offset> positions, Size viewportSize) {
     if (positions.isEmpty || viewportSize == Size.zero) return;
 
-    // Compute bounding box of all nodes.
+    // Screenshot Bug B fix: compute the bounding box of all node RECTANGLES
+    // (position + node dimensions), not just the position points. The
+    // previous code used only the top-left positions, so the rightmost
+    // node's circle + name label extended beyond the bounding box and
+    // got clipped by the viewport's ClipRect when the camera framed the
+    // graph. We also add 20% padding (up from 10%) to leave room for
+    // node labels, badges, and glow effects that extend beyond the
+    // node circle.
+    //
+    // Node dimensions mirror GraphLayoutService._nodeWidth/_nodeHeight
+    // (compact: 80×100, normal: 100×120). We use the normal (larger)
+    // size here as a safe upper bound — the extra padding just means
+    // the graph is framed slightly smaller, which is fine.
+    const nodeWidth = 100.0;
+    const nodeHeight = 120.0;
+
     double minX = double.infinity;
     double minY = double.infinity;
     double maxX = double.negativeInfinity;
@@ -283,8 +298,8 @@ class CameraController extends ChangeNotifier {
     for (final pos in positions.values) {
       if (pos.dx < minX) minX = pos.dx;
       if (pos.dy < minY) minY = pos.dy;
-      if (pos.dx > maxX) maxX = pos.dx;
-      if (pos.dy > maxY) maxY = pos.dy;
+      if (pos.dx + nodeWidth > maxX) maxX = pos.dx + nodeWidth;
+      if (pos.dy + nodeHeight > maxY) maxY = pos.dy + nodeHeight;
     }
 
     // v62.5: For single-node graphs (min == max), add a minimum
@@ -294,8 +309,10 @@ class CameraController extends ChangeNotifier {
     final rawWidth = maxX - minX;
     final rawHeight = maxY - minY;
     const minBoxSize = 200.0; // Minimum 200x200 bounding box
-    final width = (rawWidth < minBoxSize ? minBoxSize : rawWidth) * 1.1;
-    final height = (rawHeight < minBoxSize ? minBoxSize : rawHeight) * 1.1;
+    // Bug B fix: 20% padding (was 10%) to leave room for node labels
+    // and badges that extend beyond the node circle.
+    final width = (rawWidth < minBoxSize ? minBoxSize : rawWidth) * 1.2;
+    final height = (rawHeight < minBoxSize ? minBoxSize : rawHeight) * 1.2;
     final centerX = (minX + maxX) / 2;
     final centerY = (minY + maxY) / 2;
 

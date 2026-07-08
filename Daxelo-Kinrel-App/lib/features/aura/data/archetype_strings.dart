@@ -37,9 +37,26 @@ class ArchetypeStrings {
 
 /// Lookup the display strings for an archetype.
 ///
-/// Always returns a non-null value — falls back to [ArchetypeType.lotus]
-/// for any unknown key (matches the backend's getDefinition fallback).
-ArchetypeStrings archetypeStrings(ArchetypeType type) {
+/// Bug 8 fix: when [definition] is non-null (sent by the backend), use
+/// the locale-specific name + description from the backend's 8-language
+/// bundle. Fall back to the hardcoded English strings in this file when
+/// the backend response didn't include a definition (e.g. older server
+/// builds, or cached AuraModel rows written before this fix shipped).
+ArchetypeStrings archetypeStrings(
+  ArchetypeType type, {
+  AuraArchetypeDefinition? definition,
+  String locale = 'en',
+}) {
+  // Bug 8: prefer the backend's localized bundle when available.
+  if (definition != null) {
+    final name = definition.nameFor(locale);
+    final desc = definition.descriptionFor(locale);
+    if (name.isNotEmpty || desc.isNotEmpty) {
+      return ArchetypeStrings(name: name, description: desc);
+    }
+  }
+
+  // Fallback: hardcoded English strings (same as before).
   switch (type) {
     case ArchetypeType.banyan:
       return const ArchetypeStrings(

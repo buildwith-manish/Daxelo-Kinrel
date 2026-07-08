@@ -12,10 +12,17 @@
 
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  ArchetypeClassifierService,
+  ArchetypeDefinition,
+} from './archetype-classifier.service';
 
 @Injectable()
 export class AuraQueryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly classifier: ArchetypeClassifierService,
+  ) {}
 
   /**
    * Verify the user is a member of the family. Throws ForbiddenException if not.
@@ -69,6 +76,17 @@ export class AuraQueryService {
       archetype: {
         key: aura.archetypeKey,
         confidence: Number(aura.archetypeConfidence),
+        // Bug 8 fix: include the full archetype definition (names +
+        // descriptions in all 8 supported languages) so the Flutter
+        // client can render the user's locale instead of hardcoding
+        // English. The backend already has these strings in
+        // ARCHETYPES[].names / .descriptions — they were just never
+        // sent to the client.
+        definition: this._definitionToPlainObject(
+          this.classifier.getDefinition(
+            aura.archetypeKey as any,
+          ),
+        ),
       },
       // Raw metrics for debugging / advanced display
       metrics: {
@@ -85,6 +103,20 @@ export class AuraQueryService {
       },
       computedAt: aura.computedAt,
       updatedAt: aura.updatedAt,
+    };
+  }
+
+  /**
+   * Convert an ArchetypeDefinition to a plain object for the JSON response.
+   * Strips the methods + thresholds (which are classifier internals) and
+   * keeps only the locale-string maps the Flutter client needs.
+   */
+  private _definitionToPlainObject(def: ArchetypeDefinition) {
+    return {
+      key: def.key,
+      glyphStyle: def.glyphStyle,
+      names: def.names,
+      descriptions: def.descriptions,
     };
   }
 
@@ -132,6 +164,11 @@ export class AuraQueryService {
         primaryColorHex: true,
         secondaryColorHex: true,
         accentColorHex: true,
+        // Bug 9 fix: include languageDistribution in the history response
+        // so the AURA Timeline can answer "which language dominated our
+        // family at this point in time?". Previously the column was
+        // never selected, so the timeline lost that data point.
+        languageDistribution: true,
         archetypeChanged: true,
         previousArchetype: true,
         capturedAt: true,

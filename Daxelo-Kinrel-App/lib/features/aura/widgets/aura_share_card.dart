@@ -49,7 +49,14 @@ class AuraShareCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final strings = archetypeStrings(aura.archetype.key);
+    // Bug 8 fix: use the backend's localized archetype name + description
+    // when available, falling back to the hardcoded English bundle.
+    final locale = Localizations.localeOf(context).languageCode;
+    final strings = archetypeStrings(
+      aura.archetype.key,
+      definition: aura.archetype.definition,
+      locale: locale,
+    );
     final primary = _parseColor(aura.symbol.primaryColorHex);
     final secondary = _parseColor(aura.symbol.secondaryColorHex);
     final accent = _parseColor(aura.symbol.accentColorHex);
