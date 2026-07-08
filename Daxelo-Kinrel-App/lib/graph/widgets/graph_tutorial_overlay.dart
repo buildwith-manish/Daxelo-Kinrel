@@ -14,10 +14,10 @@
 // family — existing or future.
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
+import '../../core/storage/web_storage.dart';
 
 /// One-time tutorial overlay shown on the first graph view.
 ///
@@ -50,8 +50,7 @@ class _GraphTutorialOverlayState extends State<GraphTutorialOverlay> {
 
   Future<void> _checkFirstLaunch() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final shown = prefs.getBool(_prefKey) ?? false;
+      final shown = await WebStorage.getBool(_prefKey, fallback: false);
       if (mounted && !shown) {
         setState(() {
           _visible = true;
@@ -61,15 +60,14 @@ class _GraphTutorialOverlayState extends State<GraphTutorialOverlay> {
         if (mounted) _loaded = true;
       }
     } catch (_) {
-      // If SharedPreferences fails, don't show the tutorial.
+      // If storage fails, don't show the tutorial.
       if (mounted) _loaded = true;
     }
   }
 
   Future<void> _dismiss() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_prefKey, true);
+      await WebStorage.setBool(_prefKey, true);
     } catch (_) {
       // Best-effort — even if persisting fails, dismiss the UI.
     }

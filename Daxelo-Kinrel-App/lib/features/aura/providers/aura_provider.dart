@@ -194,7 +194,7 @@ class AuraNotifier extends StateNotifier<AuraState> {
       Map<String, dynamic>? auraJson;
       try {
         auraJson = await _fetchViaNestJs(
-          path: '/aura/$familyId',
+          path: '/api/aura/$familyId',
           accessToken: session.accessToken,
         );
       } on DioException catch (e) {
@@ -331,7 +331,7 @@ class AuraNotifier extends StateNotifier<AuraState> {
     state = state.copyWith(isRecomputing: true, clearError: true);
     try {
       final response = await _dio.post(
-        '/aura/$familyId/recompute',
+        '/api/aura/$familyId/recompute',
         options: Options(
           headers: {
             'Authorization': 'Bearer ${session.accessToken}',
