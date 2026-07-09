@@ -617,44 +617,58 @@ class QuickJumpNavRow extends ConsumerWidget {
     // Watch unread chat count for the badge.
     final unreadCount = ref.watch(unreadCountProvider);
 
-    // ── One unified rounded container holding all 5 items ──────────
-    // Matches the Truth Streak card's border radius (20px) so the
-    // whole screen feels like one design system. The container is a
-    // subtly raised surface (KinrelColors.darkCard) with a thin
-    // low-opacity border, sitting flat on Level 0 with no shadow.
-    // No dividers between items — spacing alone separates them.
+    // ── Compact floating pill dock ──────────────────────────────────
+    // Inspired by Instagram's bottom nav: a compact, fully-rounded
+    // pill that floats above the content with visible margin on all
+    // sides. NOT a full-width bar that touches the screen edges.
+    //
+    // Key dimensions:
+    //   - Horizontal margin: 24px each side (visible gutter)
+    //   - Border radius: 28px (pill/capsule, not rounded-rectangle)
+    //   - Internal padding: 4px (tight, so icons fill the compact space)
+    //   - Icon size: 20px (down from 24 — proportional shrink)
+    //   - Label size: 10px (down from 11 — proportional shrink)
+    //   - Shadow: stronger, multi-layer for floating elevation
     return Padding(
       padding: const EdgeInsets.symmetric(
-          horizontal: FamilyHubSpace.md),
+          horizontal: FamilyHubSpace.lg),
       child: Container(
-        // Match Truth Streak card's corner radius (20px).
+        // Pill/capsule shape — significantly more rounded than the
+        // 20px used on the Truth Streak card. At 28px the corners
+        // read as a soft pill, not a rounded rectangle.
         decoration: BoxDecoration(
           color: KinrelColors.darkCard,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(28),
           border: Border.all(
             color: KinrelColors.textWhite.withValues(alpha: 0.06),
             width: 1,
           ),
-          // Subtle shadow so the dock reads clearly separated from
-          // the scrolling content beneath it when floating.
+          // Multi-layer shadow for a clear floating elevation effect.
+          // Layer 1: tight ambient shadow (close to the element)
+          // Layer 2: wider diffuse shadow (spreads the float feel)
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.3),
-              blurRadius: 12,
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 8,
               spreadRadius: 0,
-              offset: const Offset(0, -2),
+              offset: const Offset(0, 2),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 20,
+              spreadRadius: 0,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
-        // Internal padding: equal on all sides.
+        // Tight internal padding so the dock stays compact.
         child: Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: FamilyHubSpace.sm,
-            vertical: FamilyHubSpace.sm + 2,
+            horizontal: FamilyHubSpace.xs,
+            vertical: FamilyHubSpace.xs + 2,
           ),
           // Evenly distribute the 5 items across the full width
-          // using a Row with Expanded children — no dividers, no
-          // scrollable ListView (the container is fixed-width).
+          // using a Row with Expanded children — no dividers.
           child: Row(
             children: [
               Expanded(
@@ -727,33 +741,34 @@ class _QuickJumpChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: 64,
-        padding: const EdgeInsets.symmetric(vertical: FamilyHubSpace.sm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            vertical: FamilyHubSpace.xs + 1),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Icon with optional badge
+            // Icon with optional badge — shrunk from 24 to 20px to
+            // fit the compact dock proportionally.
             Stack(
               clipBehavior: Clip.none,
               children: [
-                Icon(icon, size: 24, color: color),
+                Icon(icon, size: 20, color: color),
                 if (badgeCount > 0)
                   Positioned(
-                    right: -6,
-                    top: -4,
+                    right: -5,
+                    top: -3,
                     child: Container(
                       constraints: const BoxConstraints(
-                        minWidth: 14,
-                        minHeight: 14,
+                        minWidth: 12,
+                        minHeight: 12,
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
                       decoration: BoxDecoration(
                         color: FamilyHubSurface.accent,
-                        borderRadius: BorderRadius.circular(7),
+                        borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                           color: Theme.of(context).scaffoldBackgroundColor,
-                          width: 1.5,
+                          width: 1.2,
                         ),
                       ),
                       child: Center(
@@ -761,7 +776,7 @@ class _QuickJumpChip extends StatelessWidget {
                           badgeCount > 9 ? '9+' : '$badgeCount',
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 8,
+                            fontSize: 7,
                             fontWeight: FontWeight.w700,
                             height: 1.0,
                           ),
@@ -771,12 +786,12 @@ class _QuickJumpChip extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
               label,
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: FontWeight.w500,
                 color: color,
               ),

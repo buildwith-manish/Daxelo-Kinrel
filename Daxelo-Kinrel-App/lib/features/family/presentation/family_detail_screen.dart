@@ -270,7 +270,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: MediaQuery.of(context).padding.bottom + 8,
+                bottom: MediaQuery.of(context).padding.bottom + 16,
                 child: staggerFade(
                   QuickJumpNavRow(familyId: widget.familyId),
                   4,
