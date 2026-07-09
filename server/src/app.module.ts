@@ -44,6 +44,7 @@ import { FollowModule } from './modules/follow/follow.module';
 import { SparqModule } from './modules/sparq/sparq.module';
 import { RedlightModule } from './modules/games/redlight.module';
 import { AuraModule } from './aura/aura.module';
+import { ThinkingModule } from './modules/thinking/thinking.module';
 import { PulseModule } from './pulse/pulse.module';
 import { PitruModule } from './pitru/pitru.module';
 import { AddictivenessModule } from './addictiveness/addictiveness.module';
@@ -160,6 +161,7 @@ import { TwoFactorVerificationModule } from './common/services/two-factor-verifi
 
     // ── AURA: Ancestral Unified Relationship Archetype ──────────
     AuraModule,
+    ThinkingModule,
 
     // ── PULSE: Daily Family Intelligence Brief ────────────────
     PulseModule,

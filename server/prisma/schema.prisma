@@ -208,6 +208,10 @@ model User {
   alarmsAsInactive   SilentAlarm[] @relation("AlarmInactiveUser")
   alarmsAsBridge     SilentAlarm[] @relation("AlarmBridgeUser")
   alarmsAcknowledged SilentAlarm[] @relation("AlarmAcknowledgedBy")
+
+  // ── Thinking of You back-relations ──
+  tapsSent     ThinkingOfYouTap[] @relation("TapsSent")
+  tapsReceived ThinkingOfYouTap[] @relation("TapsReceived")
 }
 
 // ── Blocked Users (replaces JSON blockedUserIds anti-pattern) ────────
@@ -652,6 +656,9 @@ model Family {
   auraHistory     FamilyAuraHistory[]
   // One-to-many: per-member role glyph classifications within this family's AURA.
   memberAuraRoles MemberAuraRole[]
+
+  // ── Thinking of You ──
+  thinkingOfYouTaps ThinkingOfYouTap[]
 
   // ── PULSE back-relations ──
   dailyBriefs    DailyBrief[]
@@ -2962,4 +2969,25 @@ model FamilyChronicle {
 
   // ── Relations ──
   family Family @relation(fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// THINKING OF YOU — one-tap silent presence signal
+// ═══════════════════════════════════════════════════════════════════════
+
+model ThinkingOfYouTap {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  familyId   String
+  tappedAt   DateTime @default(now()) @db.Timestamptz
+
+  sender   User   @relation("TapsSent",     fields: [senderId],   references: [id], onDelete: Cascade)
+  receiver User   @relation("TapsReceived", fields: [receiverId], references: [id], onDelete: Cascade)
+  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  @@index([receiverId, tappedAt(sort: Desc)])
+  @@index([senderId, receiverId])
+  @@index([familyId, tappedAt(sort: Desc)])
+  @@map("thinking_of_you_taps")
 }

@@ -31,6 +31,7 @@ import '../../../core/utils/smart_preloader.dart';
 import '../../../core/utils/share_helper.dart';
 import '../../profile/data/profile_provider.dart';
 import '../../truth_streak/presentation/truth_streak_card.dart';
+import '../../thinking/presentation/family_ring_widget.dart';
 import '../../games/services/game_asset_manager.dart';
 import '../../games/shared/icons/game_icons.dart';
 import '../../games/shared/widgets/active_games_list.dart';
@@ -218,6 +219,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                       TruthStreakMoment(familyId: widget.familyId),
                       1,
                     ),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+                  // 2b. "Thinking of You" ring — additional engagement layer.
+                  // Does NOT replace Truth Streak. Sits below it.
+                  SliverToBoxAdapter(
+                    child: FamilyRingWidget(familyId: widget.familyId),
                   ),
 
                   const SliverToBoxAdapter(child: SizedBox(height: 24)),
