@@ -217,7 +217,7 @@ class TrackcDatabase extends _$TrackcDatabase {
 
   // ── Outbox ────────────────────────────────────────────────────────────────
 
-  Future<List<TrackcOutbox>> getPendingOutbox() {
+  Future<List<TrackcOutboxData>> getPendingOutbox() {
     return (select(trackcOutbox)
           ..where((t) => t.status.equals('pending'))
           ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
@@ -246,10 +246,13 @@ class TrackcDatabase extends _$TrackcDatabase {
     );
   }
 
-  Future<void> incrementOutboxRetry(String clientOpId) {
-    final q = update(trackcOutbox)..where((t) => t.clientOpId.equals(clientOpId));
-    return q.write(TrackcOutboxCompanion(
-      retryCount: const CustomExpression('retry_count + 1'),
-    ));
+  Future<void> incrementOutboxRetry(String clientOpId) async {
+    final current = await (select(trackcOutbox)..where((t) => t.clientOpId.equals(clientOpId))).getSingleOrNull();
+    if (current == null) return;
+    await (update(trackcOutbox)..where((t) => t.clientOpId.equals(clientOpId))).write(
+      TrackcOutboxCompanion(
+        retryCount: Value(current.retryCount + 1),
+      ),
+    );
   }
 }

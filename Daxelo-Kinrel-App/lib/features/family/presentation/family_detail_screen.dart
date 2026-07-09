@@ -128,6 +128,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                 );
               },
             ),
+          // Track C v2.0 — AURA Governance Engine (Constitution, Decisions, Timeline)
+          IconButton(
+            icon: const Icon(Icons.gavel),
+            tooltip: 'Family Governance',
+            onPressed: () {
+              context.push('/family/${widget.familyId}/governance');
+            },
+          ),
           // Family chat — opens the real-time group chat for this family.
           IconButton(
             icon: const Icon(Icons.chat_bubble_outline),

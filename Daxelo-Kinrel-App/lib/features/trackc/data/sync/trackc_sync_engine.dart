@@ -86,8 +86,8 @@ class TrackcSyncEngine {
           userId: userId,
           familyId: familyId,
           deviceId: deviceId,
-          watermark: Value(newWatermark),
-          updatedAt: Value(DateTime.now()),
+          watermark: newWatermark,
+          updatedAt: DateTime.now(),
         ));
       }
 

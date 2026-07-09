@@ -75,7 +75,7 @@ class TrackcConstitutionClauses extends Table {
   TextColumn get versionId => text()();
   TextColumn get familyId => text()();
   IntColumn get orderIndex => integer()();
-  TextColumn get text => text()();
+  TextColumn get clauseText => text()();
   TextColumn get intent => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();

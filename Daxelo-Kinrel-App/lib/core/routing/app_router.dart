@@ -192,6 +192,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../shared/widgets/dk_components.dart';
 import '../../core/family/family_provider.dart';
 import '../../features/profile/data/profile_provider.dart';
+import '../../features/trackc/presentation/screens/trackc_hub_screen.dart';
 
 /// Key for accessing the router's navigator state
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -724,6 +725,17 @@ final routerProvider = Provider<GoRouter>((ref) {
             kinFamilyId: state.uri.queryParameters['kinFamilyId'],
           ),
         ),
+      ),
+      // ── Track C v2.0 — AURA Governance Engine ──────────────────────────
+      GoRoute(
+        path: '/family/:id/governance',
+        pageBuilder: (context, state) {
+          final familyId = state.pathParameters['id']!;
+          return _fastFadePage(
+            key: state.pageKey,
+            child: TrackcHubScreen(familyId: familyId),
+          );
+        },
       ),
       GoRoute(
         path: '/family/:id',

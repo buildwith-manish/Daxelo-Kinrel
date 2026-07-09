@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/trackc_providers.dart';
-import '../../../core/widgets/offline_banner.dart';
+import '../../../../core/widgets/offline_banner.dart';
 
 class TrackcSearchScreen extends ConsumerStatefulWidget {
   const TrackcSearchScreen({super.key});
