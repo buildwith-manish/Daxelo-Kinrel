@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,9 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/config/env_config.dart';
+import '../../../../core/services/supabase_service.dart';
+import '../../../../data/repositories/search_repository.dart';
+import '../../../family/presentation/add_member_source.dart';
 import '../../data/models/family_invite_model.dart';
 import '../../data/repositories/family_invite_repository.dart';
 
@@ -25,8 +30,13 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
   final _expiryController = TextEditingController();
   final _maxUsesController = TextEditingController();
 
-  // Direct invite by phone/email
-  final _contactController = TextEditingController();
+  // Direct invite by username search
+  final _searchController = TextEditingController();
+  Timer? _searchDebounce;
+  List<KinrelUser> _searchResults = [];
+  bool _isSearching = false;
+  bool _hasSearched = false;
+  KinrelUser? _selectedUser;
   bool _isSendingDirect = false;
 
   @override
@@ -39,48 +49,106 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
   void dispose() {
     _expiryController.dispose();
     _maxUsesController.dispose();
-    _contactController.dispose();
+    _searchDebounce?.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
-  /// Send a direct invite by phone or email.
-  /// Generates an invite link via the RPC, builds a pre-filled message
-  /// using InviteMessageBuilder, then opens the native share sheet so
-  /// the user can send it via SMS, email, WhatsApp, etc.
+  /// Debounced username search — reuses the existing
+  /// SearchRepository.searchKinrelUsers RPC (fn_search_kinrel_users),
+  /// the same API used by the "Find on Kinrel" add-member flow.
+  void _onSearchChanged() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
+      _performSearch(_searchController.text);
+    });
+  }
+
+  Future<void> _performSearch(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _hasSearched = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+      _hasSearched = true;
+    });
+
+    try {
+      final repo = ref.read(searchRepositoryProvider);
+      final results = await repo.searchKinrelUsers(trimmed, limit: 20);
+      if (mounted) {
+        setState(() {
+          _searchResults = results;
+          _isSearching = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSearching = false;
+        });
+      }
+    }
+  }
+
+  /// Send a direct invite to the selected Kinrel user.
+  /// Generates an invite link via the RPC, then inserts a Notification
+  /// row for the target user so they see a family invite in-app.
   Future<void> _sendDirectInvite() async {
-    final contact = _contactController.text.trim();
-    if (contact.isEmpty) return;
+    if (_selectedUser == null) return;
 
     setState(() => _isSendingDirect = true);
     try {
       final repo = ref.read(familyInviteRepositoryProvider);
-      final result = await repo.generateInviteForDirectShare(
-        familyId: widget.familyId,
-        familyName: widget.familyName,
-      );
+      // Generate the invite link.
+      final invite = await repo.generateInvite(familyId: widget.familyId);
+      final inviteUrl =
+          '${EnvConfig.appDeepLinkScheme}://join/${invite.token}';
 
-      // Open the native share sheet with the pre-filled invite message.
-      // The user picks SMS, email, WhatsApp, etc. to actually send it.
-      // On web, share_plus opens the Web Share API or copies to clipboard.
-      await Share.share(
-        result.message,
-        subject: 'Join ${widget.familyName} on Daxelo Kinrel',
-      );
+      // Insert a notification for the target user so they see the
+      // family invite in their notifications feed.
+      final client = ref.read(supabaseProvider);
+      if (client != null) {
+        await client.from('Notification').insert({
+          'id': 'notif_${DateTime.now().millisecondsSinceEpoch}_${_selectedUser!.id}',
+          'userId': _selectedUser!.id,
+          'eventType': 'family_invite',
+          'title': '${widget.familyName} invited you',
+          'body':
+              'You have been invited to join ${widget.familyName} on Daxelo Kinrel.',
+          'familyId': widget.familyId,
+          'actionUrl': inviteUrl,
+          'priority': 'high',
+          'read': false,
+        });
+      }
 
       setState(() => _isSendingDirect = false);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Invite ready to share with $contact'),
+            content: Text('Invite sent to ${_selectedUser!.name}'),
             backgroundColor: KinrelColors.success,
           ),
         );
+        // Reset selection + search.
+        _searchController.clear();
+        setState(() {
+          _selectedUser = null;
+          _searchResults = [];
+          _hasSearched = false;
+        });
       }
     } catch (e) {
       setState(() => _isSendingDirect = false);
       if (mounted) {
-        // Surface the specific error from the repository (not generic).
         final errorMsg = e.toString().replaceFirst('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -270,11 +338,9 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                     SizedBox(height: 24),
                   ],
 
-                  // ── Direct invite by phone/email ──────────────────────
-                  // A second invite path: enter a contact's phone number
-                  // or email, generate a link, and open the share sheet
-                  // pre-filled with a localized invite message. The user
-                  // picks SMS, email, WhatsApp, etc. to actually send it.
+                  // ── Direct invite by Kinrel username search ──────────
+                  // Search for existing Kinrel users by username, select
+                  // one, then send them an in-app invite notification.
                   Container(
                     padding: EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -304,35 +370,248 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                         ),
                         SizedBox(height: 4),
                         Text(
-                          'Enter a phone number or email to send an invite',
+                          'Search for a Kinrel user by username',
                           style: TextStyle(
                             color: KinrelColors.textDim,
                             fontSize: 12,
                           ),
                         ),
                         SizedBox(height: 12),
-                        TextField(
-                          controller: _contactController,
-                          keyboardType: TextInputType.emailAddress,
-                          decoration: InputDecoration(
-                            hintText: 'phone or email',
-                            hintStyle: TextStyle(color: KinrelColors.textDim),
-                            filled: true,
-                            fillColor: KinrelColors.darkBackground,
-                            border: OutlineInputBorder(
+
+                        // ── Selected user chip (shown after selection) ──
+                        if (_selectedUser != null) ...[
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: KinrelColors.orange
+                                  .withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide.none,
+                              border: Border.all(
+                                color: KinrelColors.orange
+                                    .withValues(alpha: 0.3),
+                              ),
                             ),
-                            contentPadding: EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 14),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: KinrelColors.orange
+                                      .withValues(alpha: 0.2),
+                                  backgroundImage: _selectedUser!
+                                          .avatarUrl !=
+                                      null
+                                      ? NetworkImage(
+                                          _selectedUser!.avatarUrl!)
+                                      : null,
+                                  child: _selectedUser!.avatarUrl == null
+                                      ? Text(
+                                          _selectedUser!.name.isNotEmpty
+                                              ? _selectedUser!.name[0]
+                                                  .toUpperCase()
+                                              : '?',
+                                          style: TextStyle(
+                                              color: KinrelColors.orange,
+                                              fontSize: 14),
+                                        )
+                                      : null,
+                                ),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _selectedUser!.name,
+                                        style: TextStyle(
+                                          color: KinrelColors.textWhite,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      if (_selectedUser!.username != null)
+                                        Text(
+                                          '@${_selectedUser!.username}',
+                                          style: TextStyle(
+                                            color: KinrelColors.textDim,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onTap: () => setState(() {
+                                    _selectedUser = null;
+                                  }),
+                                  child: Icon(Icons.close,
+                                      size: 18,
+                                      color: KinrelColors.textDim),
+                                ),
+                              ],
+                            ),
                           ),
-                          style: TextStyle(color: KinrelColors.textWhite),
-                        ),
-                        SizedBox(height: 10),
+                          SizedBox(height: 12),
+                        ] else ...[
+                          // ── Search field ──────────────────────────────
+                          TextField(
+                            controller: _searchController,
+                            onChanged: (_) => _onSearchChanged(),
+                            decoration: InputDecoration(
+                              hintText: '@username or name',
+                              hintStyle: TextStyle(
+                                  color: KinrelColors.textDim),
+                              prefixIcon: Icon(Icons.search,
+                                  size: 18,
+                                  color: KinrelColors.textDim),
+                              filled: true,
+                              fillColor: KinrelColors.darkBackground,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 10),
+                            ),
+                            style: TextStyle(
+                                color: KinrelColors.textWhite,
+                                fontSize: 14),
+                          ),
+
+                          // ── Search results list ──────────────────────
+                          if (_isSearching)
+                            Padding(
+                              padding: EdgeInsets.only(top: 8),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: KinrelColors.orange,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else if (_hasSearched &&
+                              _searchResults.isEmpty)
+                            Padding(
+                              padding: EdgeInsets.only(top: 12),
+                              child: Center(
+                                child: Text(
+                                  'No user found with that username',
+                                  style: TextStyle(
+                                    color: KinrelColors.textDim,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else if (_searchResults.isNotEmpty)
+                            Container(
+                              margin: EdgeInsets.only(top: 8),
+                              constraints: BoxConstraints(maxHeight: 200),
+                              decoration: BoxDecoration(
+                                color: KinrelColors.darkBackground,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: KinrelColors.textWhite
+                                      .withValues(alpha: 0.06),
+                                ),
+                              ),
+                              child: ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: _searchResults.length,
+                                itemBuilder: (context, index) {
+                                  final user = _searchResults[index];
+                                  return InkWell(
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedUser = user;
+                                        _searchController.clear();
+                                        _searchResults = [];
+                                        _hasSearched = false;
+                                      });
+                                    },
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Padding(
+                                      padding: EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 8),
+                                      child: Row(
+                                        children: [
+                                          CircleAvatar(
+                                            radius: 16,
+                                            backgroundColor: KinrelColors
+                                                .orange
+                                                .withValues(alpha: 0.2),
+                                            backgroundImage: user
+                                                        .avatarUrl !=
+                                                    null
+                                                ? NetworkImage(
+                                                    user.avatarUrl!)
+                                                : null,
+                                            child: user.avatarUrl == null
+                                                ? Text(
+                                                    user.name.isNotEmpty
+                                                        ? user.name[0]
+                                                            .toUpperCase()
+                                                        : '?',
+                                                    style: TextStyle(
+                                                        color: KinrelColors
+                                                            .orange,
+                                                        fontSize: 14),
+                                                  )
+                                                : null,
+                                          ),
+                                          SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment
+                                                      .start,
+                                              children: [
+                                                Text(
+                                                  user.name,
+                                                  style: TextStyle(
+                                                    color: KinrelColors
+                                                        .textWhite,
+                                                    fontSize: 13,
+                                                    fontWeight:
+                                                        FontWeight.w600,
+                                                  ),
+                                                ),
+                                                if (user.username !=
+                                                    null)
+                                                  Text(
+                                                    '@${user.username}',
+                                                    style: TextStyle(
+                                                      color: KinrelColors
+                                                          .textDim,
+                                                      fontSize: 11,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          SizedBox(height: 12),
+                        ],
+
+                        // ── Send Invite button ──────────────────────────
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
-                            onPressed: _isSendingDirect ? null : _sendDirectInvite,
+                            onPressed: (_isSendingDirect ||
+                                    _selectedUser == null)
+                                ? null
+                                : _sendDirectInvite,
                             icon: _isSendingDirect
                                 ? SizedBox(
                                     width: 16,
