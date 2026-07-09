@@ -617,35 +617,29 @@ class QuickJumpNavRow extends ConsumerWidget {
     // Watch unread chat count for the badge.
     final unreadCount = ref.watch(unreadCountProvider);
 
-    // ── Compact floating pill dock ──────────────────────────────────
-    // Inspired by Instagram's bottom nav: a compact, fully-rounded
-    // pill that floats above the content with visible margin on all
-    // sides. NOT a full-width bar that touches the screen edges.
+    // ── Ultra-compact floating pill dock ────────────────────────────
+    // Reads as a small secondary icon toolbar / segmented control,
+    // NOT a primary navigation bar. Roughly half the height of the
+    // previous version.
     //
     // Key dimensions:
-    //   - Horizontal margin: 24px each side (visible gutter)
-    //   - Border radius: 28px (pill/capsule, not rounded-rectangle)
-    //   - Internal padding: 4px (tight, so icons fill the compact space)
-    //   - Icon size: 20px (down from 24 — proportional shrink)
-    //   - Label size: 10px (down from 11 — proportional shrink)
-    //   - Shadow: stronger, multi-layer for floating elevation
+    //   - Horizontal margin: 20px each side (clear gutter from edges)
+    //   - Border radius: 24px (pill on the smaller container)
+    //   - Internal padding: 2px (minimal)
+    //   - Icon size: 16px (small supporting icons, not primary nav)
+    //   - Label size: 9px (compact caption text)
+    //   - Gap icon→label: 2px (tight)
+    //   - Shadow: multi-layer for floating elevation
     return Padding(
-      padding: const EdgeInsets.symmetric(
-          horizontal: FamilyHubSpace.lg),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
-        // Pill/capsule shape — significantly more rounded than the
-        // 20px used on the Truth Streak card. At 28px the corners
-        // read as a soft pill, not a rounded rectangle.
         decoration: BoxDecoration(
           color: KinrelColors.darkCard,
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: KinrelColors.textWhite.withValues(alpha: 0.06),
             width: 1,
           ),
-          // Multi-layer shadow for a clear floating elevation effect.
-          // Layer 1: tight ambient shadow (close to the element)
-          // Layer 2: wider diffuse shadow (spreads the float feel)
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.4),
@@ -661,14 +655,11 @@ class QuickJumpNavRow extends ConsumerWidget {
             ),
           ],
         ),
-        // Tight internal padding so the dock stays compact.
         child: Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: FamilyHubSpace.xs,
-            vertical: FamilyHubSpace.xs + 2,
+            horizontal: 2,
+            vertical: 3,
           ),
-          // Evenly distribute the 5 items across the full width
-          // using a Row with Expanded children — no dividers.
           child: Row(
             children: [
               Expanded(
@@ -742,33 +733,32 @@ class _QuickJumpChip extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-            vertical: FamilyHubSpace.xs + 1),
+        padding: const EdgeInsets.symmetric(vertical: 2),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Icon with optional badge — shrunk from 24 to 20px to
-            // fit the compact dock proportionally.
+            // Small supporting icon — 16px reads as secondary toolbar,
+            // not primary navigation.
             Stack(
               clipBehavior: Clip.none,
               children: [
-                Icon(icon, size: 20, color: color),
+                Icon(icon, size: 16, color: color),
                 if (badgeCount > 0)
                   Positioned(
-                    right: -5,
-                    top: -3,
+                    right: -4,
+                    top: -2,
                     child: Container(
                       constraints: const BoxConstraints(
-                        minWidth: 12,
-                        minHeight: 12,
+                        minWidth: 10,
+                        minHeight: 10,
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 1.5),
                       decoration: BoxDecoration(
                         color: FamilyHubSurface.accent,
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(5),
                         border: Border.all(
                           color: Theme.of(context).scaffoldBackgroundColor,
-                          width: 1.2,
+                          width: 1,
                         ),
                       ),
                       child: Center(
@@ -776,7 +766,7 @@ class _QuickJumpChip extends StatelessWidget {
                           badgeCount > 9 ? '9+' : '$badgeCount',
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 7,
+                            fontSize: 6,
                             fontWeight: FontWeight.w700,
                             height: 1.0,
                           ),
@@ -786,12 +776,12 @@ class _QuickJumpChip extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
-                fontSize: 10,
+                fontSize: 9,
                 fontWeight: FontWeight.w500,
                 color: color,
               ),
