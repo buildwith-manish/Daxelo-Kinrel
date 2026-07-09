@@ -9,6 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import * as jwt from 'jsonwebtoken';
+import { PrismaService } from '../../prisma/prisma.service';
 
 interface AuthPayload {
   sub: string;
@@ -37,6 +38,8 @@ export interface MinimalPayload {
 export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
+
+  constructor(private readonly prisma: PrismaService) {}
 
   private connectedUsers = new Map<string, string>();
   private graphDebounceTimers = new Map<string, NodeJS.Timeout>();
@@ -144,7 +147,7 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // relayed back to the sender via 'game:invite:accept' / 'game:invite:decline'.
 
   @SubscribeMessage('game:invite:send')
-  handleGameInviteSend(
+  async handleGameInviteSend(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: {
       inviteId: string;
@@ -180,6 +183,33 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
       currentPlayers: data.currentPlayers,
       message: data.message ?? null,
     });
+
+    // Also persist a Notification row so the recipient sees the invite
+    // even if they were offline when it was sent (the socket event only
+    // reaches currently-connected users). This closes the gap where
+    // game invites were silently lost for offline users.
+    try {
+      await this.prisma.notification.create({
+        data: {
+          id: 'game_notif_' + Date.now() + '_' + data.toUserId,
+          userId: data.toUserId,
+          eventType: 'game_invite',
+          title: `${data.fromName} invited you to play`,
+          body: data.message ?? `Join ${data.fromName} in a game on Daxelo Kinrel!`,
+          familyId: data.familyId,
+          actionUrl: `kinrel://game/${data.gameType}?roomCode=${data.roomCode}&gameId=${data.gameId}`,
+          priority: 'high',
+          read: false,
+          channels: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+    } catch (e) {
+      // Don't fail the invite if the notification insert fails —
+      // the realtime event may still reach an online user.
+      console.error('[KinrelGateway] Failed to persist game invite notification:', e);
+    }
   }
 
   @SubscribeMessage('game:invite:accept')

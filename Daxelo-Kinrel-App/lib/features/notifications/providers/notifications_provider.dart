@@ -453,7 +453,9 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
     }
   }
 
-  /// Format ISO timestamp to relative time
+  /// Format ISO timestamp to relative time — shows precise relative
+  /// time like "10s ago", "1m ago", "5h ago", "2d ago" so the user
+  /// can see exactly when the invite was sent.
   String _formatTime(String isoTimestamp) {
     if (isoTimestamp.isEmpty) return '';
     try {
@@ -462,11 +464,12 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
       final now = DateTime.now();
       final diff = now.difference(dt);
 
-      if (diff.inSeconds < 60) return 'Just now';
-      if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
-      if (diff.inHours < 24) return '${diff.inHours} hr ago';
+      if (diff.inSeconds < 5) return 'Just now';
+      if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+      if (diff.inHours < 24) return '${diff.inHours}h ago';
       if (diff.inDays == 1) return 'Yesterday';
-      if (diff.inDays < 7) return '${diff.inDays} days ago';
+      if (diff.inDays < 7) return '${diff.inDays}d ago';
       return '${dt.day}/${dt.month}/${dt.year}';
     } catch (_) {
       return '';
