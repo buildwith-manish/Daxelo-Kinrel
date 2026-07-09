@@ -108,7 +108,7 @@ export class MockLLMProvider implements LLMProvider {
         draftMinutes: `# Meeting Minutes\n\n## Held On\n${new Date().toISOString()}\n\n## Agenda\n- Item 1\n- Item 2\n\n## Discussion\nThe family discussed the items on the agenda.\n\n## Decisions\n- Decision 1\n\n## Action Items\n- [ ] Action 1\n`,
       });
     }
-    return JSON.stringify({ message: 'Mock response', echo: userContent.slice(0, 200) });
+    return JSON.stringify({ message: 'Mock response', echo: (user || '').slice(0, 200) });
   }
 
   private generateTextResponse(system: string, user: string): string {

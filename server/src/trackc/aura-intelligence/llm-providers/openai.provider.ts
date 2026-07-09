@@ -84,7 +84,7 @@ export class OpenAIProvider implements LLMProvider {
     const data: any = await res.json();
     const content = data.choices?.[0]?.message?.content ?? '';
     const tokensIn = data.usage?.prompt_tokens ?? this.estimateTokens(req.messages);
-    const tokensOut = data.usage?.completion_tokens ?? this.estimateTokens([{ role: 'assistant', content }]);
+    const tokensOut = data.usage?.completion_tokens ?? this.estimateTokens([{ role: 'assistant', content }] as any);
     const costUsd = this.computeCost(modelId, tokensIn, tokensOut);
     const latencyMs = Date.now() - start;
 
@@ -107,6 +107,6 @@ export class OpenAIProvider implements LLMProvider {
 
   private estimateTokens(messages: { content: string }[]): number {
     // Rough estimate: 1 token ≈ 4 chars
-    return Math.ceil(messages.reduce((acc, m) => acc + m.content.length, 0) / 4);
+    return Math.ceil(messages.reduce((acc, m) => acc + (m?.content?.length ?? 0), 0) / 4);
   }
 }

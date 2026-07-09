@@ -53,6 +53,7 @@ import { CustomThrottlerGuard } from './common/guards/throttler.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { TwoFactorGuard } from './common/guards/two-factor.guard';
 import { TwoFactorVerificationModule } from './common/services/two-factor-verification.module';
+import { TrackcModule } from './trackc/trackc.module';
 
 @Module({
   imports: [
@@ -171,6 +172,12 @@ import { TwoFactorVerificationModule } from './common/services/two-factor-verifi
 
     // ── ADDICTIVENESS: Festival + Blessing Chain + Time Capsule + Quests + Alarms + Chronicle ─
     AddictivenessModule,
+
+    // ── TRACK C v2.0: AURA Governance Engine ─────────────────────
+    // Constitution + Decisions + Timeline + AURA Intelligence + Learning +
+    // Secretary + Search + Analytics + Offline Sync
+    // See /docs/trackc/ for spec + ADRs.
+    TrackcModule,
   ],
   providers: [
     // ── Global guards (executed in order) ────────────────────

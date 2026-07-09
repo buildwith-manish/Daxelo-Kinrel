@@ -18,7 +18,7 @@
 
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { RealtimeService } from '../governance-sync/realtime.proxy';
+import { RealtimeService } from '../common/realtime.proxy';
 import {
   TimelineKind,
   TimelineEventPayloadSchemas,

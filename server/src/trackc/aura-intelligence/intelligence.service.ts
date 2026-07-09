@@ -224,7 +224,11 @@ export class IntelligenceService {
         request = this.duplicateDetectionKind.buildRequest({
           newDecisionTitle: params.decision.title,
           newDecisionDescription: params.decision.description ?? undefined,
-          priorDecisions,
+          priorDecisions: priorDecisions.map((d) => ({
+            id: d.id,
+            title: d.title,
+            description: d.description ?? undefined,
+          })),
         });
         parseResponse = (c) => this.duplicateDetectionKind.parseResponse(c);
         break;

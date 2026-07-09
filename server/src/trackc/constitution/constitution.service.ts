@@ -120,16 +120,16 @@ export class ConstitutionService {
               familyId,
               orderIndex: article.orderIndex ?? ai,
               title: article.title,
-              intent: article.intent,
+              intent: article.intent ?? null,
               clauses: {
                 create: article.clauses.map((clause, ci) => ({
                   familyId,
                   orderIndex: clause.orderIndex ?? ci,
                   text: clause.text,
-                  intent: clause.intent,
-                })),
+                  intent: clause.intent ?? null,
+                })) as any,
               },
-            })),
+            })) as any,
           },
         },
         include: {

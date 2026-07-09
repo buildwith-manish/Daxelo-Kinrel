@@ -7,7 +7,7 @@
 // If the realtime infrastructure is unavailable, all calls are no-ops.
 // =============================================================================
 
-import { Injectable, Logger, Optional, ForwardRef, Inject } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { RealtimeService as AppRealtimeService } from '../../modules/realtime/realtime.service';
 
 @Injectable()
