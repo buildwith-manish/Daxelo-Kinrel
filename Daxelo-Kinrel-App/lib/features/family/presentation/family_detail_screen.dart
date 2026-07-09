@@ -237,11 +237,12 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                     ),
                   ),
 
-                  // Bottom padding: dock height (~88px) + gap (16px) +
-                  // safe area + FAB clearance.
+                  // Bottom padding: just enough clearance so the last
+                  // content row isn't hidden behind the fixed dock.
+                  // Dock is ~40px tall + 16px gap = ~56px needed.
                   SliverToBoxAdapter(
                     child: SizedBox(
-                      height: MediaQuery.of(context).padding.bottom + 120,
+                      height: MediaQuery.of(context).padding.bottom + 60,
                     ),
                   ),
                 ],

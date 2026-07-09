@@ -98,8 +98,11 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
   }
 
   /// Send a direct invite to the selected Kinrel user.
-  /// Generates an invite link via the RPC, then inserts a Notification
-  /// row for the target user so they see a family invite in-app.
+  /// Generates an invite link via the RPC, then calls
+  /// fn_send_family_invite_notification to create a Notification row
+  /// for the target user via a SECURITY DEFINER function (bypasses
+  /// the PostgREST column ambiguity error that occurs on direct
+  /// Notification table inserts).
   Future<void> _sendDirectInvite() async {
     if (_selectedUser == null) return;
 
@@ -111,22 +114,28 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
       final inviteUrl =
           '${EnvConfig.appDeepLinkScheme}://join/${invite.token}';
 
-      // Insert a notification for the target user so they see the
-      // family invite in their notifications feed.
+      // Get the current user's display name for the notification.
+      final currentUser = ref.read(supabaseProvider)?.auth.currentUser;
+      final inviterName = currentUser?.userMetadata?['name'] as String? ??
+          currentUser?.email?.split('@').first ??
+          'Someone';
+
+      // Insert a notification for the target user via the RPC.
+      // This uses fn_send_family_invite_notification (SECURITY DEFINER)
+      // to avoid the "column reference 'id' is ambiguous" error that
+      // occurs when inserting into Notification via PostgREST.
       final client = ref.read(supabaseProvider);
       if (client != null) {
-        await client.from('Notification').insert({
-          'id': 'notif_${DateTime.now().millisecondsSinceEpoch}_${_selectedUser!.id}',
-          'userId': _selectedUser!.id,
-          'eventType': 'family_invite',
-          'title': '${widget.familyName} invited you',
-          'body':
-              'You have been invited to join ${widget.familyName} on Daxelo Kinrel.',
-          'familyId': widget.familyId,
-          'actionUrl': inviteUrl,
-          'priority': 'high',
-          'read': false,
-        });
+        await client.rpc(
+          'fn_send_family_invite_notification',
+          params: {
+            'p_target_user_id': _selectedUser!.id,
+            'p_family_id': widget.familyId,
+            'p_family_name': widget.familyName,
+            'p_invite_url': inviteUrl,
+            'p_inviter_name': inviterName,
+          },
+        );
       }
 
       setState(() => _isSendingDirect = false);
