@@ -635,6 +635,16 @@ class QuickJumpNavRow extends ConsumerWidget {
             color: KinrelColors.textWhite.withValues(alpha: 0.06),
             width: 1,
           ),
+          // Subtle shadow so the dock reads clearly separated from
+          // the scrolling content beneath it when floating.
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 12,
+              spreadRadius: 0,
+              offset: const Offset(0, -2),
+            ),
+          ],
         ),
         // Internal padding: equal on all sides.
         child: Padding(

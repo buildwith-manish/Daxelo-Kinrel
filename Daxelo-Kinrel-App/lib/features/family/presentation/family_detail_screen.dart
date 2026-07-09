@@ -176,88 +176,106 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           }
 
           // ════════════════════════════════════════════════════════════
-          // PREMIUM FAMILY SPACE — exactly 5 sections
+          // PREMIUM FAMILY SPACE — exactly 5 sections (4 scroll + 1 dock)
           //
           // 1. Hero (AURA symbol + family name + member/link caption)
           // 2. Truth Streak (the one "moment" — terracotta gradient)
-          // 3. Quick-jump navigation row (Members, Games, Calendar,
-          //    Memories, Chat — each a one-tap destination, no inline
-          //    content duplicated below)
+          // 3. [FIXED DOCK] Quick-jump navigation row (Members, Games,
+          //    Calendar, Memories, Chat — pinned to bottom, always visible)
           // 4. Family Pulse (nudges + activity merged, one empty state)
           // 5. Utility row (Invite, Settings, Leave — muted, secondary)
           //
-          // IA cuts: Members, Games, Calendar, Memories, Chat are no
-          // longer stacked inline sections — they're behind chips.
-          // No loose error strings. Every section has empty/loading/
-          // error states. Staggered fade-in on screen load.
+          // The quick-jump row is a FIXED bottom dock — it doesn't
+          // scroll with the content. It stays pinned above the safe
+          // area at all times. The scroll content has extra bottom
+          // padding so nothing is hidden behind the dock.
           // ════════════════════════════════════════════════════════════
-          return CustomScrollView(
-            controller: _hubScrollController,
-            slivers: [
-              // 1. Hero — parallax collapse driven by _heroScrollOffset.
-              SliverToBoxAdapter(
-                child: staggerFade(
-                  HeroSection(
-                    familyId: widget.familyId,
-                    familyName: detail.family.name,
-                    memberCount: detail.members.length,
-                    relationshipCount: detail.relationships.length,
-                    scrollOffset: _heroScrollOffset,
+          return Stack(
+            children: [
+              // ── Scrollable content (4 sections + utility) ──────────
+              CustomScrollView(
+                controller: _hubScrollController,
+                slivers: [
+                  // 1. Hero — parallax collapse driven by _heroScrollOffset.
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      HeroSection(
+                        familyId: widget.familyId,
+                        familyName: detail.family.name,
+                        memberCount: detail.members.length,
+                        relationshipCount: detail.relationships.length,
+                        scrollOffset: _heroScrollOffset,
+                      ),
+                      0,
+                    ),
                   ),
-                  0,
-                ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 8)),
+
+                  // 2. Truth Streak — the "moment" (only elevated card).
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      TruthStreakMoment(familyId: widget.familyId),
+                      1,
+                    ),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+                  // 3. [REMOVED FROM SCROLL — now a fixed bottom dock]
+                  // The QuickJumpNavRow is positioned in the Stack below,
+                  // not in the scroll content.
+
+                  // 4. Family Pulse — nudges + activity merged.
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      FamilyPulseSection(
+                        detail: detail,
+                        familyId: widget.familyId,
+                      ),
+                      2,
+                    ),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+                  // 5. Utility row — Invite, Settings, Leave (muted, flat).
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      UtilityRow(
+                        familyId: widget.familyId,
+                        onInvite: () => context.push('/family/${widget.familyId}/invite'),
+                        onSettings: () => _showFamilySettings(context),
+                        onLeave: () => _showLeaveFamilyDialog(context),
+                      ),
+                      3,
+                    ),
+                  ),
+
+                  // Bottom padding: dock height (~88px) + gap (16px) +
+                  // safe area + FAB clearance.
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: MediaQuery.of(context).padding.bottom + 120,
+                    ),
+                  ),
+                ],
               ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 8)),
-
-              // 2. Truth Streak — the "moment" (only elevated card).
-              SliverToBoxAdapter(
-                child: staggerFade(
-                  TruthStreakMoment(familyId: widget.familyId),
-                  1,
-                ),
-              ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-              // 3. Quick-jump navigation row (5 chips, flat on Level 0).
-              SliverToBoxAdapter(
+              // ── Fixed bottom dock: Quick-jump navigation row ────────
+              // Pinned to the bottom of the viewport, above the safe
+              // area. Always visible regardless of scroll position.
+              // The rounded pill container styling is unchanged — only
+              // the position changed from in-flow to fixed.
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: MediaQuery.of(context).padding.bottom + 8,
                 child: staggerFade(
                   QuickJumpNavRow(familyId: widget.familyId),
-                  2,
-                ),
-              ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-              // 4. Family Pulse — nudges + activity merged.
-              SliverToBoxAdapter(
-                child: staggerFade(
-                  FamilyPulseSection(
-                    detail: detail,
-                    familyId: widget.familyId,
-                  ),
-                  3,
-                ),
-              ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-              // 5. Utility row — Invite, Settings, Leave (muted, flat).
-              SliverToBoxAdapter(
-                child: staggerFade(
-                  UtilityRow(
-                    familyId: widget.familyId,
-                    onInvite: () => context.push('/family/${widget.familyId}/invite'),
-                    onSettings: () => _showFamilySettings(context),
-                    onLeave: () => _showLeaveFamilyDialog(context),
-                  ),
                   4,
                 ),
               ),
-
-              // Bottom padding for FAB.
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           );
         },
