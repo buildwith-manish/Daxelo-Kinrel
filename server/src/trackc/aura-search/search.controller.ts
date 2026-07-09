@@ -16,7 +16,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SearchService } from './search.service';
 
-@Controller('api/v1/families/:familyId/search')
+@Controller('v1/families/:familyId/search')
 @UseGuards(JwtAuthGuard)
 export class SearchController {
   constructor(private readonly service: SearchService) {}

@@ -18,7 +18,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SyncDeltaService } from './sync.delta.service';
 import { SyncPushService, PushOperation } from './sync.push.service';
 
-@Controller('api/v1/sync')
+@Controller('v1/sync')
 @UseGuards(JwtAuthGuard)
 export class GovernanceSyncController {
   constructor(

@@ -25,7 +25,7 @@ import { TimelineService } from './timeline.service';
 import { TimelineExporter } from './timeline.exporter';
 import { TimelineKind, TIMELINE_KINDS } from './timeline.types';
 
-@Controller('api/v1/families/:familyId/timeline')
+@Controller('v1/families/:familyId/timeline')
 @UseGuards(JwtAuthGuard)
 export class TimelineController {
   constructor(

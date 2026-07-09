@@ -18,7 +18,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SecretaryService, CreateArtifactInput } from './secretary.service';
 
-@Controller('api/v1/families/:familyId/secretary/artifacts')
+@Controller('v1/families/:familyId/secretary/artifacts')
 @UseGuards(JwtAuthGuard)
 export class SecretaryController {
   constructor(private readonly service: SecretaryService) {}

@@ -16,7 +16,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ConstitutionService, DraftConstitutionInput } from './constitution.service';
 
-@Controller('api/v1/families/:familyId/constitution')
+@Controller('v1/families/:familyId/constitution')
 @UseGuards(JwtAuthGuard)
 export class ConstitutionController {
   constructor(private readonly service: ConstitutionService) {}

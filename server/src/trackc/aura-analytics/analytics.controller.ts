@@ -17,7 +17,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AnalyticsService } from './analytics.service';
 import { Granularity } from './analytics.snapshot-worker';
 
-@Controller('api/v1/families/:familyId/analytics')
+@Controller('v1/families/:familyId/analytics')
 @UseGuards(JwtAuthGuard)
 export class AnalyticsController {
   constructor(private readonly service: AnalyticsService) {}

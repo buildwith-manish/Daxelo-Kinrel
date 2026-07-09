@@ -18,7 +18,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { DecisionsService, CreateDecisionInput } from './decisions.service';
 
-@Controller('api/v1/families/:familyId/decisions')
+@Controller('v1/families/:familyId/decisions')
 @UseGuards(JwtAuthGuard)
 export class DecisionsController {
   constructor(private readonly service: DecisionsService) {}

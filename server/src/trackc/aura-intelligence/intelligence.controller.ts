@@ -16,7 +16,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { IntelligenceService, InsightKind } from './intelligence.service';
 
-@Controller('api/v1')
+@Controller('v1')
 @UseGuards(JwtAuthGuard)
 export class IntelligenceController {
   constructor(private readonly service: IntelligenceService) {}

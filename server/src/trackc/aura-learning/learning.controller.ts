@@ -16,7 +16,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { LearningService } from './learning.service';
 
-@Controller('api/v1/families/:familyId/learning')
+@Controller('v1/families/:familyId/learning')
 @UseGuards(JwtAuthGuard)
 export class LearningController {
   constructor(private readonly service: LearningService) {}
