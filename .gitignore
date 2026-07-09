@@ -79,3 +79,4 @@ download/
 
 # Supabase CLI local state (contains link state, not for version control)
 supabase/.temp/
+scripts_node_modules/
