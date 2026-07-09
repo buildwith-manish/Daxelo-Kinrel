@@ -158,11 +158,22 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
     } catch (e) {
       setState(() => _isSendingDirect = false);
       if (mounted) {
-        final errorMsg = e.toString().replaceFirst('Exception: ', '');
+        // Surface a user-friendly error, not the raw PostgresException dump
+        // which can be very long and cause layout issues (white screen).
+        String errorMsg = e.toString();
+        if (errorMsg.contains('PostgresException')) {
+          // Extract just the message field from PostgresException
+          final match = RegExp(r'message:\s*([^,]+)').firstMatch(errorMsg);
+          errorMsg = match?.group(1) ?? 'Could not send invite. Please try again.';
+        } else {
+          errorMsg = errorMsg.replaceFirst('Exception: ', '');
+        }
+        if (errorMsg.length > 100) errorMsg = '${errorMsg.substring(0, 100)}...';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMsg),
             backgroundColor: KinrelColors.error,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
