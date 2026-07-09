@@ -64,10 +64,19 @@ BEGIN
       ADD CONSTRAINT "AIInsight_decisionId_fkey"
       FOREIGN KEY ("decisionId", "familyId") REFERENCES public."FamilyDecision"("id", "familyId") ON DELETE CASCADE ON UPDATE CASCADE;
 
-    -- Recreate SmartReminder FK (still single-column; SmartReminder has familyId, but FK uses just insightId)
+    -- Drop old SmartReminder FK (single-column, references non-unique "id")
+    -- and recreate as composite (insightId, familyId) → AIInsight(id, familyId)
+    -- Note: ON DELETE NO ACTION because SmartReminder.familyId is NOT NULL
+    -- (SET NULL would violate the NOT NULL constraint on familyId).
+    -- In practice, insights are rarely deleted (365-day purge job), and
+    -- reminders reference insights loosely (insightId is nullable), so this
+    -- is acceptable.
+    ALTER TABLE public."SmartReminder"
+      DROP CONSTRAINT IF EXISTS "SmartReminder_insightId_fkey";
+
     ALTER TABLE public."SmartReminder"
       ADD CONSTRAINT "SmartReminder_insightId_fkey"
-      FOREIGN KEY ("insightId") REFERENCES public."AIInsight"("id") ON DELETE SET NULL;
+      FOREIGN KEY ("insightId", "familyId") REFERENCES public."AIInsight"("id", "familyId") ON DELETE NO ACTION;
 
     DROP TRIGGER IF EXISTS trg_trackc_ai_insight_updated_at ON public."AIInsight";
     CREATE TRIGGER trg_trackc_ai_insight_updated_at
