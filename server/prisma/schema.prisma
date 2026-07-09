@@ -684,6 +684,24 @@ model Family {
   // ── Social System Fields ──
   isPublic Boolean @default(false) // Family visibility: true = non-members can see tree (read-only)
 
+  // ── Track C v2.0 — AURA Governance Engine back-relations ──
+  constitution                 FamilyConstitution?           @relation("FamilyConstitution")
+  constitutionVersions         ConstitutionVersion[]         @relation("ConstitutionVersionFamily")
+  constitutionArticles         ConstitutionArticle[]         @relation("ConstitutionArticleFamily")
+  constitutionClauses          ConstitutionClause[]          @relation("ConstitutionClauseFamily")
+  decisions                    FamilyDecision[]              @relation("FamilyDecisions")
+  timelineEvents               AURATimelineEvent[]           @relation("FamilyTimelineEvents")
+  aiInsights                   AIInsight[]                   @relation("FamilyAIInsights")
+  learningSignals              LearningSignal[]              @relation("FamilyLearningSignals")
+  behaviorProfile              FamilyBehaviorProfile?        @relation("FamilyBehaviorProfile")
+  smartReminders               SmartReminder[]               @relation("FamilySmartReminders")
+  decisionMemory               DecisionMemory[]              @relation("FamilyDecisionMemory")
+  decisionImpacts              DecisionImpact[]              @relation("FamilyDecisionImpact")
+  meetingArtifacts             MeetingArtifact[]             @relation("FamilyMeetingArtifacts")
+  searchIndex                  SearchIndex[]                 @relation("FamilySearchIndex")
+  analyticsSnapshots           FamilyAnalyticsSnapshot[]     @relation("FamilyAnalyticsSnapshots")
+  aiCostBudgets                AICostBudget[]                @relation("FamilyAICostBudget")
+
   @@index([name])
   @@index([familyCode])
   @@index([username])
@@ -2990,4 +3008,479 @@ model ThinkingOfYouTap {
   @@index([senderId, receiverId])
   @@index([familyId, tappedAt(sort: Desc)])
   @@map("thinking_of_you_taps")
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// TRACK C v2.0 — AURA GOVERNANCE ENGINE
+// ═════════════════════════════════════════════════════════════════════════
+// Implements the FINAL v2.0 specification.
+// All tables created by migrations 20260711000001_trackc_* through
+// 20260711000020_trackc_seed_global_defaults.sql.
+//
+// Naming convention: camelCase field names match the SQL column names
+// (every identifier is double-quoted in the migrations).
+// Hash-partitioned tables use composite primary keys (id, familyId) per
+// ADR-004 to support composite foreign keys.
+// ═════════════════════════════════════════════════════════════════════════
+
+// ── Constitution (Section 5.2) ───────────────────────────────────────────
+
+model FamilyConstitution {
+  id                String   @id @default(cuid()) @db.Text
+  familyId          String   @unique @db.Text
+  title             String   @default("Family Constitution") @db.Text
+  preamble          String?  @db.Text
+  currentVersionId  String?  @unique @db.Text
+  draftVersionId    String?  @unique @db.Text
+  status            String   @default("draft") @db.Text // draft|in_review|published|archived
+  createdAt         DateTime @default(now()) @db.Timestamptz
+  updatedAt         DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  family            Family                @relation("FamilyConstitution", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  versions          ConstitutionVersion[] @relation("ConstitutionVersions")
+  currentVersion    ConstitutionVersion?  @relation("ConstitutionCurrentVersion", fields: [currentVersionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  draftVersion      ConstitutionVersion?  @relation("ConstitutionDraftVersion",   fields: [draftVersionId],   references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("FamilyConstitution")
+}
+
+model ConstitutionVersion {
+  id                  String    @id @default(cuid()) @db.Text
+  constitutionId      String    @db.Text
+  familyId            String    @db.Text
+  versionNumber       Int       @default(1)
+  status              String    @default("draft") @db.Text // draft|in_review|published|superseded
+  publishedAt         DateTime? @db.Timestamptz
+  publishedById       String?   @db.Text
+  amendmentDecisionId String?   @db.Text
+  changeSummary       String?   @db.Text
+  articleCount        Int       @default(0)
+  clauseCount         Int       @default(0)
+  createdAt           DateTime  @default(now()) @db.Timestamptz
+  updatedAt           DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  constitution        FamilyConstitution    @relation("ConstitutionVersions", fields: [constitutionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  family              Family                @relation("ConstitutionVersionFamily", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  articles            ConstitutionArticle[]
+  clauses             ConstitutionClause[]
+  currentForConstitution  FamilyConstitution? @relation("ConstitutionCurrentVersion")
+  draftForConstitution    FamilyConstitution? @relation("ConstitutionDraftVersion")
+
+  @@unique([constitutionId, versionNumber])
+  @@index([familyId])
+  @@index([status])
+  @@map("ConstitutionVersion")
+}
+
+model ConstitutionArticle {
+  id         String   @id @default(cuid()) @db.Text
+  versionId  String   @db.Text
+  familyId   String   @db.Text
+  orderIndex Int      @default(0)
+  title      String   @db.Text
+  intent     String?  @db.Text
+  createdAt  DateTime @default(now()) @db.Timestamptz
+  updatedAt  DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  version    ConstitutionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  family     Family              @relation("ConstitutionArticleFamily", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  clauses    ConstitutionClause[]
+
+  @@index([versionId])
+  @@index([familyId])
+  @@map("ConstitutionArticle")
+}
+
+model ConstitutionClause {
+  id         String   @id @default(cuid()) @db.Text
+  articleId  String   @db.Text
+  versionId  String   @db.Text
+  familyId   String   @db.Text
+  orderIndex Int      @default(0)
+  text       String   @db.Text
+  intent     String?  @db.Text
+  createdAt  DateTime @default(now()) @db.Timestamptz
+  updatedAt  DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  article    ConstitutionArticle @relation(fields: [articleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  version    ConstitutionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  family     Family              @relation("ConstitutionClauseFamily", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([articleId])
+  @@index([versionId])
+  @@index([familyId])
+  @@map("ConstitutionClause")
+}
+
+// ── Decisions (Section 5.3) ──────────────────────────────────────────────
+// Hash-partitioned on familyId. Composite PK (id, familyId) per ADR-004.
+
+model FamilyDecision {
+  id                    String     @default(cuid()) @db.Text
+  familyId              String    @db.Text
+  createdById           String    @db.Text
+  title                 String    @db.Text
+  description           String?   @db.Text
+  type                  String    @db.Text // simple_vote|consensus|elder_council|constitution_amend
+  status                String    @default("open") @db.Text // open|resolved|expired|cancelled
+  outcome               String?   @db.Text
+  options               String[]  @default([])
+  eligibleUserIds       String[]  @default([])
+  quorumPct             Int       @default(50)
+  showVotesLive         Boolean   @default(false)
+  deadlineAt            DateTime  @db.Timestamptz
+  resolvedAt            DateTime? @db.Timestamptz
+  resolutionNote        String?   @db.Text
+  lifecycleState        String?   @db.Text // planned|started|in_progress|completed|cancelled|expired|archived
+  lifecycleUpdatedAt    DateTime? @db.Timestamptz
+  aiSummaryCached       Json?
+  aiProsConsCached      Json?
+  constitutionVersionId String?   @db.Text
+  createdAt             DateTime  @default(now()) @db.Timestamptz
+  updatedAt             DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  family                Family              @relation("FamilyDecisions", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  votes                 DecisionVote[]
+  memory                DecisionMemory?
+  impacts               DecisionImpact[]
+  insights              AIInsight[]
+  reminders             SmartReminder[]
+  meetingArtifacts      MeetingArtifact[]
+  timelineEvents        AURATimelineEvent[] @relation("DecisionTimelineEvents")
+
+  @@id([id, familyId])
+  @@index([familyId, status])
+  @@index([status, deadlineAt])
+  @@index([familyId, updatedAt])
+  @@index([lifecycleState])
+  @@map("FamilyDecision")
+}
+
+model DecisionVote {
+  id         String   @id @default(cuid()) @db.Text
+  decisionId String   @db.Text
+  familyId   String   @db.Text
+  userId     String   @db.Text
+  option     String   @db.Text
+  votedAt    DateTime @default(now()) @db.Timestamptz
+  createdAt  DateTime @default(now()) @db.Timestamptz
+
+  decision   FamilyDecision @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([decisionId, userId])
+  @@index([decisionId])
+  @@index([familyId])
+  @@index([userId])
+  @@map("DecisionVote")
+}
+
+// ── AURA Timeline (Section 5.4) ──────────────────────────────────────────
+// Append-only — DB trigger rejects UPDATE/DELETE. Composite PK (id, familyId).
+
+model AURATimelineEvent {
+  id                String    @default(cuid()) @db.Text
+  familyId          String   @db.Text
+  kind              String   @db.Text
+  actorId           String?  @db.Text
+  targetEntityType  String?  @db.Text
+  targetEntityId    String?  @db.Text
+  title             String   @db.Text
+  description       String?  @db.Text
+  payload           Json     @default("{}")
+  parentEventId     String?  @db.Text
+  occurredAt        DateTime @default(now()) @db.Timestamptz
+  createdAt         DateTime @default(now()) @db.Timestamptz
+
+  family            Family              @relation("FamilyTimelineEvents", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  parentEvent       AURATimelineEvent?  @relation("TimelineCorrection", fields: [parentEventId, familyId], references: [id, familyId], onDelete: NoAction, onUpdate: NoAction)
+  corrections       AURATimelineEvent[] @relation("TimelineCorrection")
+  decision          FamilyDecision?     @relation("DecisionTimelineEvents", fields: [targetEntityId, familyId], references: [id, familyId], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([id, familyId])
+  @@index([familyId, occurredAt])
+  @@index([familyId, kind, occurredAt])
+  @@index([targetEntityType, targetEntityId])
+  @@index([parentEventId])
+  @@map("AURATimelineEvent")
+}
+
+// ── AIInsight (Section 5.5) ──────────────────────────────────────────────
+// Consolidated table with kind discriminator (ADR-003).
+// Hash-partitioned on familyId. Composite PK (id, familyId).
+
+model AIInsight {
+  id              String     @default(cuid()) @db.Text
+  familyId        String    @db.Text
+  decisionId      String?   @db.Text
+  kind            String    @db.Text
+  status          String    @default("pending") @db.Text // pending|presented|accepted|dismissed|stale
+  payload         Json      @default("{}")
+  modelId         String    @db.Text
+  tokensIn        Int       @default(0)
+  tokensOut       Int       @default(0)
+  costUsd         Decimal?  @db.Decimal(10, 6)
+  presentedAt     DateTime? @db.Timestamptz
+  acceptedAt      DateTime? @db.Timestamptz
+  dismissedAt     DateTime? @db.Timestamptz
+  dismissedReason String?   @db.Text // not_relevant|already_known|too_prescriptive|other
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  family          Family          @relation("FamilyAIInsights", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  decision        FamilyDecision? @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: Cascade, onUpdate: Cascade)
+  reminder        SmartReminder?
+
+  @@id([id, familyId])
+  @@index([familyId, kind, status])
+  @@index([decisionId, kind])
+  @@index([status, createdAt])
+  @@index([familyId, createdAt])
+  @@map("AIInsight")
+}
+
+// ── AURA Learning Engine (Section 5.6) ───────────────────────────────────
+// LearningSignal is hash-partitioned. Composite PK (id, familyId).
+
+model LearningSignal {
+  id          String    @default(cuid()) @db.Text
+  familyId    String   @db.Text
+  signalType  String   @db.Text
+  targetType  String?  @db.Text
+  targetId    String?  @db.Text
+  payload     Json     @default("{}")
+  occurredAt  DateTime @default(now()) @db.Timestamptz
+  createdAt   DateTime @default(now()) @db.Timestamptz
+
+  family      Family   @relation("FamilyLearningSignals", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([id, familyId])
+  @@index([familyId, signalType, occurredAt])
+  @@index([familyId, occurredAt])
+  @@map("LearningSignal")
+}
+
+model FamilyBehaviorProfile {
+  id                           String    @id @default(cuid()) @db.Text
+  familyId                     String    @unique @db.Text
+  version                      Int       @default(1)
+  computedAt                   DateTime  @default(now()) @db.Timestamptz
+  preferredReminderLeadHours   Json      @default("{\"decision\":24,\"meeting\":48,\"event\":72}")
+  reminderActionRate           Json      @default("{\"6h\":0.0,\"12h\":0.0,\"24h\":0.0}")
+  preferredWeekdayDistribution Json      @default("{\"mon\":0.14,\"tue\":0.14,\"wed\":0.14,\"thu\":0.14,\"fri\":0.14,\"sat\":0.15,\"sun\":0.15}")
+  preferredTimeOfDayBuckets    Json      @default("{\"morning\":0.25,\"afternoon\":0.25,\"evening\":0.25,\"night\":0.25}")
+  elderAutoIncludeThreshold    Float     @default(0.6)
+  insightAcceptRateByKind      Json      @default("{}")
+  averageDecisionDurationHours Decimal?  @db.Decimal(10, 2)
+  typicalQuorumMet             Boolean?
+  sampleSize                   Int       @default(0)
+  confidenceScore              Float     @default(0.0)
+  createdAt                    DateTime  @default(now()) @db.Timestamptz
+  updatedAt                    DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  family                       Family   @relation("FamilyBehaviorProfile", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@map("FamilyBehaviorProfile")
+}
+
+model FamilyBehaviorProfileHistory {
+  id            String   @id @default(cuid()) @db.Text
+  familyId      String   @db.Text
+  version       Int
+  snapshot      Json
+  computedAt    DateTime @db.Timestamptz
+  archivedAt    DateTime @default(now()) @db.Timestamptz
+
+  @@index([familyId, version])
+  @@map("FamilyBehaviorProfileHistory")
+}
+
+// ── Smart Reminder (Section 5.7) ─────────────────────────────────────────
+
+model SmartReminder {
+  id                     String    @id @default(cuid()) @db.Text
+  familyId               String    @db.Text
+  decisionId             String?   @db.Text
+  targetUserId           String    @db.Text
+  type                   String    @db.Text // decision_deadline|vote_pending|meeting_upcoming|action_item_due|governance_dormant
+  scheduledFor           DateTime  @db.Timestamptz
+  status                 String    @default("scheduled") @db.Text // scheduled|sent|snoozed|dismissed|acted
+  snoozeCount            Int       @default(0)
+  snoozedUntil           DateTime? @db.Timestamptz
+  leadHoursSnapshot      Decimal   @default(24.0) @db.Decimal(10, 2)
+  profileVersionSnapshot Int       @default(0)
+  insightId              String?   @db.Text
+  sentAt                 DateTime? @db.Timestamptz
+  actedAt                DateTime? @db.Timestamptz
+  dismissedAt            DateTime? @db.Timestamptz
+  createdAt              DateTime  @default(now()) @db.Timestamptz
+  updatedAt              DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  family                 Family          @relation("FamilySmartReminders", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  decision               FamilyDecision? @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: Cascade, onUpdate: Cascade)
+  insight                AIInsight?      @relation(fields: [insightId, familyId], references: [id, familyId], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([insightId, familyId])
+  @@index([familyId, status, scheduledFor])
+  @@index([targetUserId, status, scheduledFor])
+  @@index([decisionId])
+  @@map("SmartReminder")
+}
+
+// ── Decision Memory + Impact (Section 5.8) ───────────────────────────────
+
+model DecisionMemory {
+  id                            String   @id @default(cuid()) @db.Text
+  familyId                      String   @db.Text
+  decisionId                    String   @unique @db.Text
+  summaryText                   String   @db.Text
+  keyTakeaways                  String[] @default([])
+  searchKeywords                String[] @default([])
+  relatedConstitutionArticleIds String[] @default([])
+  relatedMemoryIds              String[] @default([])
+  meetingArtifactId             String?  @db.Text
+  createdAt                     DateTime @default(now()) @db.Timestamptz
+  updatedAt                     DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  family                        Family          @relation("FamilyDecisionMemory", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  decision                      FamilyDecision  @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([decisionId, familyId])
+  @@index([familyId, createdAt])
+  @@map("DecisionMemory")
+}
+
+model DecisionImpact {
+  id            String   @id @default(cuid()) @db.Text
+  familyId      String   @db.Text
+  decisionId    String   @db.Text
+  milestoneText String   @db.Text
+  dueDate       DateTime? @db.Timestamptz
+  completedAt   DateTime? @db.Timestamptz
+  evidenceUrls  String[] @default([])
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  updatedAt     DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  family        Family          @relation("FamilyDecisionImpact", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  decision      FamilyDecision  @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([familyId, decisionId])
+  @@map("DecisionImpact")
+}
+
+model MeetingArtifact {
+  id               String    @id @default(cuid()) @db.Text
+  familyId         String    @db.Text
+  decisionId       String?   @db.Text
+  title            String    @db.Text
+  heldAt           DateTime  @db.Timestamptz
+  participants     String[]  @default([])
+  agenda           String[]  @default([])
+  discussionPoints Json      @default("[]")
+  decisions        Json      @default("[]")
+  actionItems      Json      @default("[]")
+  draftMinutesMd   String    @default("") @db.Text
+  finalMinutesMd   String?   @db.Text
+  status           String    @default("draft") @db.Text // draft|reviewed|published
+  createdAt        DateTime  @default(now()) @db.Timestamptz
+  updatedAt        DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  family           Family          @relation("FamilyMeetingArtifacts", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  decision         FamilyDecision? @relation(fields: [decisionId, familyId], references: [id, familyId], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([familyId, heldAt])
+  @@index([decisionId])
+  @@index([familyId, status])
+  @@map("MeetingArtifact")
+}
+
+// ── Search Index (Section 5.9) ───────────────────────────────────────────
+
+model SearchIndex {
+  id            String   @id @default(cuid()) @db.Text
+  familyId      String   @db.Text
+  entityType    String   @db.Text
+  entityId      String   @db.Text
+  title         String   @default("") @db.Text
+  body          String   @default("") @db.Text
+  keywords      String[] @default([])
+  boostedScore  Decimal  @default(1.0) @db.Decimal(8, 4)
+  updatedAt     DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  family        Family   @relation("FamilySearchIndex", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([familyId, entityType, entityId])
+  @@index([familyId, entityType])
+  @@index([familyId, entityId])
+  @@index([familyId, boostedScore])
+  @@map("SearchIndex")
+}
+
+// ── Analytics Snapshot (Section 5.9) ─────────────────────────────────────
+
+model FamilyAnalyticsSnapshot {
+  id           String   @id @default(cuid()) @db.Text
+  familyId     String   @db.Text
+  periodStart  DateTime @db.Timestamptz
+  periodEnd    DateTime @db.Timestamptz
+  granularity  String   @db.Text // weekly|monthly|quarterly
+  metrics      Json     @default("{}")
+  anomalies    Json?
+  createdAt    DateTime @default(now()) @db.Timestamptz
+
+  family       Family   @relation("FamilyAnalyticsSnapshots", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([familyId, granularity, periodStart])
+  @@index([familyId, periodEnd])
+  @@index([familyId, granularity, periodStart])
+  @@map("FamilyAnalyticsSnapshot")
+}
+
+// ── Track C infrastructure tables (Section 7.2, 8.3, 9.4) ────────────────
+
+model GlobalLearningDefaults {
+  id                            String  @id @default("global") @db.Text
+  preferredReminderLeadHours    Json    @default("{\"decision\":24,\"meeting\":48,\"event\":72}")
+  reminderActionRate            Json    @default("{\"6h\":0.42,\"12h\":0.55,\"24h\":0.71}")
+  preferredWeekdayDistribution  Json    @default("{\"mon\":0.14,\"tue\":0.14,\"wed\":0.14,\"thu\":0.14,\"fri\":0.14,\"sat\":0.15,\"sun\":0.15}")
+  preferredTimeOfDayBuckets     Json    @default("{\"morning\":0.20,\"afternoon\":0.25,\"evening\":0.40,\"night\":0.15}")
+  elderAutoIncludeThreshold     Float   @default(0.6)
+  insightAcceptRateByKind       Json    @default("{}")
+  averageDecisionDurationHours  Decimal  @default(72.0) @db.Decimal(10, 2)
+  minSignalsForPersonalization  Int     @default(30)
+  lowConfidenceThreshold        Float   @default(0.4)
+  highConfidenceThreshold       Float   @default(0.7)
+  updatedAt                     DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@map("GlobalLearningDefaults")
+}
+
+model AICostBudget {
+  id              String    @id @default(cuid()) @db.Text
+  familyId        String    @db.Text
+  dateUtc         DateTime  @db.Date
+  tokensUsed      Int       @default(0)
+  costUsd         Decimal   @default(0.0) @db.Decimal(10, 4)
+  budgetTokens    Int       @default(50000)
+  circuitOpen     Boolean   @default(false)
+  circuitOpenedAt DateTime? @db.Timestamptz
+
+  family          Family    @relation("FamilyAICostBudget", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([familyId, dateUtc])
+  @@index([familyId, dateUtc])
+  @@map("AICostBudget")
+}
+
+model SyncWatermark {
+  id         String   @id @default(cuid()) @db.Text
+  userId     String   @db.Text
+  familyId   String   @db.Text
+  deviceId   String   @db.Text
+  watermark  DateTime @default("1970-01-01T00:00:00Z") @db.Timestamptz
+  updatedAt  DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@unique([userId, familyId, deviceId])
+  @@index([userId, familyId])
+  @@map("SyncWatermark")
 }
