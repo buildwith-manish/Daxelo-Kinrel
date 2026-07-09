@@ -11,6 +11,8 @@ enum EventCategory {
   pregnancy,
   graduation,
   school,
+  sports,
+  familyDinner,
   reunion,
   vacation,
   festival,
@@ -27,12 +29,14 @@ enum EventCategory {
     pregnancy => 'Pregnancy Due',
     graduation => 'Graduation',
     school => 'School Event',
+    sports => 'Sports',
+    familyDinner => 'Family Dinner',
     reunion => 'Family Reunion',
-    vacation => 'Vacation',
+    vacation => 'Trip',
     festival => 'Festival',
-    medical => 'Medical',
+    medical => 'Doctor Appointment',
     memorial => 'Memorial',
-    custom => 'Custom',
+    custom => 'Custom Event',
   };
 
   String get icon => switch (this) {
@@ -44,12 +48,14 @@ enum EventCategory {
     pregnancy => '🤰',
     graduation => '🎓',
     school => '🏫',
+    sports => '🏆',
+    familyDinner => '🍽',
     reunion => '🤝',
     vacation => '✈️',
     festival => '🎉',
     medical => '🏥',
     memorial => '🕯️',
-    custom => '📌',
+    custom => '❤️',
   };
 
   int get colorValue => switch (this) {
@@ -61,12 +67,14 @@ enum EventCategory {
     pregnancy => 0xFF34D399,
     graduation => 0xFF8B5CF6,
     school => 0xFF06B6D4,
+    sports => 0xFF10B981,
+    familyDinner => 0xFFF59E0B,
     reunion => 0xFF10B981,
     vacation => 0xFFF59E0B,
     festival => 0xFFEF4444,
     medical => 0xFF3B82F6,
     memorial => 0xFF64748B,
-    custom => 0xFF8A7A72,
+    custom => 0xFFEC4899,
   };
 }
 
