@@ -238,11 +238,11 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                   ),
 
                   // Bottom padding: just enough clearance so the last
-                  // content row isn't hidden behind the fixed dock.
-                  // Dock is ~40px tall + 16px gap = ~56px needed.
+                  // content row sits close to the dock when scrolled
+                  // to the bottom. Dock is ~36px + 4px gap = ~40px.
                   SliverToBoxAdapter(
                     child: SizedBox(
-                      height: MediaQuery.of(context).padding.bottom + 60,
+                      height: MediaQuery.of(context).padding.bottom + 44,
                     ),
                   ),
                 ],
@@ -256,7 +256,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: MediaQuery.of(context).padding.bottom + 16,
+                // Tight gap above the global bottom nav — matching the
+                // reference image's closely-stacked positioning.
+                bottom: MediaQuery.of(context).padding.bottom + 4,
                 child: staggerFade(
                   QuickJumpNavRow(familyId: widget.familyId),
                   4,
