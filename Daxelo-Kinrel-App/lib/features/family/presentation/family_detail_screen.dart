@@ -245,12 +245,13 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                   //   3px container padding (top) + 16px icon + 2px gap
                   //   + 9px label + 3px container padding (bottom)
                   //   + 2px border = ~35px. Round up to 36px for safety.
-                  // Dock bottom offset: safe_area + 4px
+                  // Dock bottom offset: safe_area + 12px
+                  // Dock height: ~36px
                   // Gap between content and dock: 12px
-                  // Total: 4 + 36 + 12 = 52px above safe_area.
+                  // Total: 12 + 36 + 12 = 60px above safe_area.
                   SliverToBoxAdapter(
                     child: SizedBox(
-                      height: MediaQuery.of(context).padding.bottom + 52,
+                      height: MediaQuery.of(context).padding.bottom + 60,
                     ),
                   ),
                 ],
@@ -264,9 +265,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               Positioned(
                 left: 0,
                 right: 0,
-                // Tight gap above the global bottom nav — matching the
-                // reference image's closely-stacked positioning.
-                bottom: MediaQuery.of(context).padding.bottom + 4,
+                // Slightly more gap above the global bottom nav for
+                // breathing room — not crowding the nav bar.
+                bottom: MediaQuery.of(context).padding.bottom + 12,
                 child: staggerFade(
                   QuickJumpNavRow(familyId: widget.familyId),
                   4,
