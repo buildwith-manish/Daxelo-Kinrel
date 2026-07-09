@@ -237,12 +237,20 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                     ),
                   ),
 
-                  // Bottom padding: just enough clearance so the last
-                  // content row sits close to the dock when scrolled
-                  // to the bottom. Dock is ~36px + 4px gap = ~40px.
+                  // Bottom padding: must be >= dock height + dock's
+                  // bottom offset + a small visible gap so the last
+                  // content row is never hidden behind the dock.
+                  //
+                  // Dock height breakdown:
+                  //   3px container padding (top) + 16px icon + 2px gap
+                  //   + 9px label + 3px container padding (bottom)
+                  //   + 2px border = ~35px. Round up to 36px for safety.
+                  // Dock bottom offset: safe_area + 4px
+                  // Gap between content and dock: 12px
+                  // Total: 4 + 36 + 12 = 52px above safe_area.
                   SliverToBoxAdapter(
                     child: SizedBox(
-                      height: MediaQuery.of(context).padding.bottom + 44,
+                      height: MediaQuery.of(context).padding.bottom + 52,
                     ),
                   ),
                 ],

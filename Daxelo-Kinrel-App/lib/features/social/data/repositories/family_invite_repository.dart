@@ -58,7 +58,10 @@ class FamilyInviteRepository {
 
       final row = rows.first;
       return FamilyInviteModel(
-        id: row['id'] as String? ?? '',
+        // The RPC returns "invite_id" (not "id") to avoid PostgREST's
+        // "column reference 'id' is ambiguous" error. Fall back to
+        // "id" for backward compatibility with older function versions.
+        id: (row['invite_id'] ?? row['id']) as String? ?? '',
         familyId: row['family_id'] as String? ?? familyId,
         token: row['token'] as String? ?? '',
         creatorId:
