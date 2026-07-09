@@ -437,6 +437,15 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                                             color: KinrelColors.textDim,
                                             fontSize: 11,
                                           ),
+                                        )
+                                      else
+                                        Text(
+                                          _selectedUser!.displayId,
+                                          style: TextStyle(
+                                            color: KinrelColors.textDim,
+                                            fontSize: 11,
+                                            fontFamily: 'DMMono',
+                                          ),
                                         ),
                                     ],
                                   ),
@@ -589,6 +598,21 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                                                       color: KinrelColors
                                                           .textDim,
                                                       fontSize: 11,
+                                                    ),
+                                                  )
+                                                else
+                                                  // No username — show the
+                                                  // display ID so multiple
+                                                  // users with the same name
+                                                  // are distinguishable.
+                                                  Text(
+                                                    user.displayId,
+                                                    style: TextStyle(
+                                                      color: KinrelColors
+                                                          .textDim,
+                                                      fontSize: 11,
+                                                      fontFamily:
+                                                          'DMMono',
                                                     ),
                                                   ),
                                               ],

@@ -237,21 +237,6 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                     ),
                   ),
 
-                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-                  // 5. Utility row — Invite, Settings, Leave (muted, flat).
-                  SliverToBoxAdapter(
-                    child: staggerFade(
-                      UtilityRow(
-                        familyId: widget.familyId,
-                        onInvite: () => context.push('/family/${widget.familyId}/invite'),
-                        onSettings: () => _showFamilySettings(context),
-                        onLeave: () => _showLeaveFamilyDialog(context),
-                      ),
-                      3,
-                    ),
-                  ),
-
                   // Bottom padding: dock height (~88px) + gap (16px) +
                   // safe area + FAB clearance.
                   SliverToBoxAdapter(
