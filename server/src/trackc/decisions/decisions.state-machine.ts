@@ -145,6 +145,49 @@ export function computeQuorum(params: {
 }): QuorumResult {
   const { type, eligibleCount, voteCount, quorumPct, voteTallies } = params;
 
+  // ── Elder council: short-circuit to use elder-specific counts ──────────
+  if (type === 'elder_council') {
+    const elderEligible = params.elderEligibleCount ?? eligibleCount;
+    if (elderEligible === 0) {
+      return {
+        eligibleCount: 0,
+        voteCount: 0,
+        quorumPct,
+        quorumMet: false,
+        passCriterionMet: false,
+        outcome: 'no_quorum',
+      };
+    }
+    const elderTallies = params.elderVoteTallies ?? voteTallies;
+    const elderVotes = Object.values(elderTallies).reduce((a, b) => a + b, 0);
+    const required = Math.ceil((elderEligible * quorumPct) / 100);
+    const quorumMet = elderVotes >= required;
+
+    if (!quorumMet) {
+      return {
+        eligibleCount: elderEligible,
+        voteCount: elderVotes,
+        quorumPct,
+        quorumMet: false,
+        passCriterionMet: false,
+        outcome: 'no_quorum',
+      };
+    }
+
+    const elderSorted = Object.entries(elderTallies).sort((a, b) => b[1] - a[1]);
+    const [elderTop, elderTopCount] = elderSorted[0] ?? ['', 0];
+    const passCriterionMet = elderVotes > 0 && elderTopCount > elderVotes / 2;
+    return {
+      eligibleCount: elderEligible,
+      voteCount: elderVotes,
+      quorumPct,
+      quorumMet,
+      passCriterionMet,
+      outcome: passCriterionMet ? 'approved' : 'rejected',
+      winningOption: passCriterionMet ? elderTop : undefined,
+    };
+  }
+
   if (eligibleCount === 0) {
     return {
       eligibleCount: 0,
@@ -191,26 +234,6 @@ export function computeQuorum(params: {
       passCriterionMet = voteCount === eligibleCount && sorted.length === 1 && topCount === eligibleCount;
       outcome = passCriterionMet ? 'approved' : 'rejected';
       break;
-
-    case 'elder_council': {
-      // majority of elders
-      const elderEligible = params.elderEligibleCount ?? eligibleCount;
-      const elderTallies = params.elderVoteTallies ?? voteTallies;
-      const elderVotes = Object.values(elderTallies).reduce((a, b) => a + b, 0);
-      const elderSorted = Object.entries(elderTallies).sort((a, b) => b[1] - a[1]);
-      const [elderTop, elderTopCount] = elderSorted[0] ?? ['', 0];
-      passCriterionMet = elderVotes > 0 && elderTopCount > elderVotes / 2;
-      outcome = passCriterionMet ? 'approved' : 'rejected';
-      return {
-        eligibleCount: elderEligible,
-        voteCount: elderVotes,
-        quorumPct,
-        quorumMet: elderVotes >= Math.ceil((elderEligible * quorumPct) / 100),
-        passCriterionMet,
-        outcome,
-        winningOption: passCriterionMet ? elderTop : undefined,
-      };
-    }
 
     case 'constitution_amend':
       // supermajority (>=67% of eligible)

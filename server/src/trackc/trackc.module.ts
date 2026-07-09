@@ -28,6 +28,7 @@ import { AuraSecretaryModule } from './aura-secretary/secretary.module';
 import { AuraSearchModule } from './aura-search/search.module';
 import { AuraAnalyticsModule } from './aura-analytics/analytics.module';
 import { GovernanceSyncModule } from './governance-sync/sync.module';
+import { TrackcWorkers } from './trackc.workers';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { GovernanceSyncModule } from './governance-sync/sync.module';
     AuraAnalyticsModule,
     GovernanceSyncModule,
   ],
+  providers: [TrackcWorkers],
   exports: [
     TrackcCommonModule,
     ConstitutionModule,

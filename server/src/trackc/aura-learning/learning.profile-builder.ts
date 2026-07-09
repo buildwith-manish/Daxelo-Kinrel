@@ -292,12 +292,15 @@ export class ProfileBuilder {
   /**
    * Compute the confidenceScore from sample size. Section 9.4.
    *   - <30 signals → 0 (use defaults)
-   *   - 30..100 signals → linear 0..0.7
-   *   - >100 signals → 1.0 (capped)
+   *   - 30..100 signals → linear lowThreshold..highThreshold
+   *   - >100 signals → highThreshold (capped)
+   *
+   * The cap is highThreshold (not 1.0) because anything >= highThreshold
+   * means "use learned values" per Section 9.4.
    */
   computeConfidence(sampleSize: number, minSamples: number, lowThreshold: number, highThreshold: number): number {
     if (sampleSize < minSamples) return 0;
-    if (sampleSize >= 100) return 1.0;
+    if (sampleSize >= 100) return highThreshold;
     // Linear interpolation from lowThreshold to highThreshold
     const t = (sampleSize - minSamples) / (100 - minSamples);
     return lowThreshold + t * (highThreshold - lowThreshold);
