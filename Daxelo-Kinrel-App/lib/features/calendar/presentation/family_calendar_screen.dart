@@ -180,6 +180,10 @@ class _MonthView extends StatelessWidget {
             onTap: () {
               if (dayEvents.isNotEmpty) {
                 context.push('/family/$familyId/calendar/event/${dayEvents.first.id}', extra: {'familyId': familyId, 'event': dayEvents.first.toJson()});
+              } else {
+                // Tap-to-add from empty day cell — lower friction for
+                // quick entry, not just the top "+" icon.
+                context.push('/family/$familyId/calendar/new');
               }
             },
             child: Container(
@@ -191,8 +195,37 @@ class _MonthView extends StatelessWidget {
               ),
               child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Text('$day', style: TextStyle(fontSize: 13, fontWeight: isToday ? FontWeight.w800 : FontWeight.w500, color: isToday ? KinrelColors.orange : KinrelColors.textWhite)),
+                // Event dots — larger (7px) and more visible than the
+                // previous 5px. Up to 3 dots shown, color-coded by type.
                 if (dayEvents.isNotEmpty)
-                  Padding(padding: const EdgeInsets.only(top: 2), child: Wrap(spacing: 2, runSpacing: 2, children: dayEvents.take(3).map((e) => Container(width: 5, height: 5, decoration: BoxDecoration(shape: BoxShape.circle, color: Color(e.category.colorValue)))).toList())),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Wrap(
+                      spacing: 3,
+                      runSpacing: 2,
+                      children: dayEvents.take(3).map((e) {
+                        // Use a brighter version of the category color
+                        // for visibility on the dark background.
+                        final baseColor = Color(e.category.colorValue);
+                        return Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: baseColor,
+                            // Add a subtle glow for better visibility.
+                            boxShadow: [
+                              BoxShadow(
+                                color: baseColor.withValues(alpha: 0.4),
+                                blurRadius: 2,
+                                spreadRadius: 0,
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
               ]),
             ),
           );
@@ -242,7 +275,27 @@ class _WeekView extends StatelessWidget {
             ])),
             const SizedBox(width: 12),
             Expanded(child: dayEvents.isEmpty
-              ? const SizedBox()
+              ? GestureDetector(
+                  onTap: () => context.push('/family/$familyId/calendar/new'),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        Icon(Icons.add_circle_outline,
+                            size: 16,
+                            color: KinrelColors.textDim
+                                .withValues(alpha: 0.4)),
+                        const SizedBox(width: 6),
+                        Text('Add event',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: KinrelColors.textDim
+                                  .withValues(alpha: 0.4),
+                            )),
+                      ],
+                    ),
+                  ),
+                )
               : Column(children: dayEvents.map((e) => _EventMiniCard(event: e, familyId: familyId)).toList())),
           ]));
         },
