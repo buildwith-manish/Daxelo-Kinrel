@@ -59,6 +59,6 @@ import { PrismaModule } from '../../prisma/prisma.module';
       },
     },
   ],
-  exports: [IntelligenceService, IntelligenceCache, CircuitBreaker, CostGuard, RedactionService],
+  exports: [IntelligenceService, IntelligenceCache, CircuitBreaker, CostGuard, RedactionService, DecisionAnalysisKind, ProsConsKind, SummaryKind, DuplicateDetectionKind, ActionItemsKind, LLM_PROVIDER],
 })
 export class AuraIntelligenceModule {}
