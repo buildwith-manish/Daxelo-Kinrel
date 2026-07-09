@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
@@ -24,10 +25,71 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
   final _expiryController = TextEditingController();
   final _maxUsesController = TextEditingController();
 
+  // Direct invite by phone/email
+  final _contactController = TextEditingController();
+  bool _isSendingDirect = false;
+
   @override
   void initState() {
     super.initState();
     _generateInvite();
+  }
+
+  @override
+  void dispose() {
+    _expiryController.dispose();
+    _maxUsesController.dispose();
+    _contactController.dispose();
+    super.dispose();
+  }
+
+  /// Send a direct invite by phone or email.
+  /// Generates an invite link via the RPC, builds a pre-filled message
+  /// using InviteMessageBuilder, then opens the native share sheet so
+  /// the user can send it via SMS, email, WhatsApp, etc.
+  Future<void> _sendDirectInvite() async {
+    final contact = _contactController.text.trim();
+    if (contact.isEmpty) return;
+
+    setState(() => _isSendingDirect = true);
+    try {
+      final repo = ref.read(familyInviteRepositoryProvider);
+      final result = await repo.generateInviteForDirectShare(
+        familyId: widget.familyId,
+        familyName: widget.familyName,
+      );
+
+      // Open the native share sheet with the pre-filled invite message.
+      // The user picks SMS, email, WhatsApp, etc. to actually send it.
+      // On web, share_plus opens the Web Share API or copies to clipboard.
+      await Share.share(
+        result.message,
+        subject: 'Join ${widget.familyName} on Daxelo Kinrel',
+      );
+
+      setState(() => _isSendingDirect = false);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Invite ready to share with $contact'),
+            backgroundColor: KinrelColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _isSendingDirect = false);
+      if (mounted) {
+        // Surface the specific error from the repository (not generic).
+        final errorMsg = e.toString().replaceFirst('Exception: ', '');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMsg),
+            backgroundColor: KinrelColors.error,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _generateInvite() async {
@@ -46,8 +108,15 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
+        // Surface the specific error from the repository instead of
+        // the generic "Failed to generate invite" — the repository
+        // now catches PostgrestException and returns a friendly message.
+        final errorMsg = e.toString().replaceFirst('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to generate invite'), backgroundColor: KinrelColors.error),
+          SnackBar(
+            content: Text(errorMsg),
+            backgroundColor: KinrelColors.error,
+          ),
         );
       }
     }
@@ -200,6 +269,97 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
                     ),
                     SizedBox(height: 24),
                   ],
+
+                  // ── Direct invite by phone/email ──────────────────────
+                  // A second invite path: enter a contact's phone number
+                  // or email, generate a link, and open the share sheet
+                  // pre-filled with a localized invite message. The user
+                  // picks SMS, email, WhatsApp, etc. to actually send it.
+                  Container(
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: KinrelColors.elevation1,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: KinrelColors.orange.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.person_add_outlined,
+                                size: 18, color: KinrelColors.orange),
+                            SizedBox(width: 8),
+                            Text(
+                              'Invite directly',
+                              style: TextStyle(
+                                color: KinrelColors.textWhite,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Enter a phone number or email to send an invite',
+                          style: TextStyle(
+                            color: KinrelColors.textDim,
+                            fontSize: 12,
+                          ),
+                        ),
+                        SizedBox(height: 12),
+                        TextField(
+                          controller: _contactController,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: InputDecoration(
+                            hintText: 'phone or email',
+                            hintStyle: TextStyle(color: KinrelColors.textDim),
+                            filled: true,
+                            fillColor: KinrelColors.darkBackground,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 14),
+                          ),
+                          style: TextStyle(color: KinrelColors.textWhite),
+                        ),
+                        SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _isSendingDirect ? null : _sendDirectInvite,
+                            icon: _isSendingDirect
+                                ? SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Icon(Icons.send, size: 16),
+                            label: Text(_isSendingDirect
+                                ? 'Sending...'
+                                : 'Send Invite'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: KinrelColors.orange,
+                              foregroundColor: Colors.white,
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 24),
 
                   // Generate new link with options
                   Text('New Link Options', style: TextStyle(color: KinrelColors.textSilver, fontSize: 13)),
