@@ -1,14 +1,26 @@
 // =============================================================================
 // Track C v2.0 — Kinrel Governance Hub Screen
 // =============================================================================
-// Main entry screen for Track C features. Provides navigation to:
-//   - Constitution
-//   - Decisions
-//   - Timeline
-//   - Kinrel Learning profile
-//   - Kinrel Analytics
-//   - Kinrel Search
-//   - Kinrel Secretary
+// Main entry screen for Kinrel Governance features.
+//
+// CONSOLIDATED from 6 tiles → 3 based on how users think about governance:
+//   1. Constitution — the family's rules (read occasionally, link to Decisions)
+//   2. Decisions — the primary "act" screen (voting + meeting minutes +
+//      analytics trends live here as tabs)
+//   3. Timeline — passive browsing/audit of governance history
+//
+// What moved:
+//   - Kinrel Learning → Settings → Privacy & Data (it's invisible infra,
+//     needs a transparency/reset screen but doesn't compete for governance nav)
+//   - Kinrel Analytics → folded into Decisions as a "Trends" tab (it's trend
+//     data ABOUT decisions — quorum decline, dormancy)
+//   - Kinrel Secretary → folded into Decisions as an "Add Minutes" action
+//     (a meeting's minutes are the artifact OF a decision session)
+//   - Kinrel Search → stays as an AppBar icon (already correct)
+//   - Kinrel Intelligence → backend-only (no UI tile, correct as-is)
+//
+// Backend modules are NOT touched — every NestJS module stays separate.
+// This is purely a UI navigation consolidation.
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -16,10 +28,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/trackc_providers.dart';
-import 'learning_profile_screen.dart';
-import 'analytics_screen.dart';
 import 'search_screen.dart';
-import 'secretary_screen.dart';
 
 class TrackcHubScreen extends ConsumerStatefulWidget {
   const TrackcHubScreen({super.key, required this.familyId});
@@ -47,15 +56,12 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Kinrel Governance'),
+        title: const Text('Governance'),
         actions: [
+          // Search stays as an icon — already correctly placed
           IconButton(
             icon: const Icon(Icons.search),
-            tooltip: 'Search',
-            // Search has no deep-link route of its own yet — it's still a
-            // push-on-stack detail screen. We use Navigator.push here so the
-            // behavior matches what existed before; if/when a route is added,
-            // switch to context.pushNamed('trackc-search').
+            tooltip: 'Search governance records',
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const TrackcSearchScreen()),
@@ -85,40 +91,35 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
             elevation: 2,
             child: Padding(
               padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFC8853A), Color(0xFF6B3FA0)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(Icons.auto_awesome, color: Colors.white, size: 32),
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFC8853A), Color(0xFF6B3FA0)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Kinrel Governance Engine',
-                                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Constitution · Decisions · Timeline · AI',
-                              style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-                            ),
-                          ],
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(Icons.auto_awesome, color: Colors.white, size: 32),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Family Governance',
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Rules · Decisions · History',
+                          style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -127,13 +128,7 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
 
           const SizedBox(height: 24),
 
-          // Feature grid — Governance section uses GoRouter sub-routes so the
-          // system back button and deep links work correctly. Intelligence
-          // sub-screens (Learning, Analytics, Secretary) keep Navigator.push
-          // for now — they're leaf screens that don't need deep-link support
-          // and don't yet have their own routes.
-          Text('Governance', style: theme.textTheme.titleSmall?.copyWith(color: Colors.grey[700])),
-          const SizedBox(height: 8),
+          // ── 3 governance tiles ─────────────────────────────────────
           _FeatureCard(
             icon: Icons.gavel,
             title: 'Constitution',
@@ -147,7 +142,7 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
           _FeatureCard(
             icon: Icons.how_to_vote,
             title: 'Decisions',
-            subtitle: 'Active + past decisions',
+            subtitle: 'Vote, meet, track trends',
             color: const Color(0xFF1E88E5),
             onTap: () => context.pushNamed(
               'trackc-decisions',
@@ -156,7 +151,7 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
           ),
           _FeatureCard(
             icon: Icons.history_edu,
-            title: 'Kinrel Timeline',
+            title: 'Timeline',
             subtitle: 'Append-only family history',
             color: const Color(0xFF8E24AA),
             onTap: () => context.pushNamed(
@@ -165,32 +160,42 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
             ),
           ),
 
-          const SizedBox(height: 24),
-          Text('Intelligence', style: theme.textTheme.titleSmall?.copyWith(color: Colors.grey[700])),
-          const SizedBox(height: 8),
-          _FeatureCard(
-            icon: Icons.insights,
-            title: 'Kinrel Learning',
-            subtitle: 'Adaptive profile + reset',
-            color: const Color(0xFFD81B60),
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const TrackcLearningProfileScreen())),
-          ),
-          _FeatureCard(
-            icon: Icons.bar_chart,
-            title: 'Kinrel Analytics',
-            subtitle: 'Private family insights',
-            color: const Color(0xFFF4511E),
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const TrackcAnalyticsScreen())),
-          ),
-          _FeatureCard(
-            icon: Icons.description,
-            title: 'Kinrel Secretary',
-            subtitle: 'Meeting minutes + action items',
-            color: const Color(0xFF00897B),
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const TrackcSecretaryScreen())),
+          const SizedBox(height: 32),
+
+          // ── Helper text for where things moved ────────────────────
+          Card(
+            color: theme.colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 16, color: theme.colorScheme.outline),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Where did everything go?',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.outline,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '• Meeting minutes live inside Decisions\n'
+                    '• Analytics trends live inside Decisions\n'
+                    '• Learning profile lives in Settings → Privacy',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),

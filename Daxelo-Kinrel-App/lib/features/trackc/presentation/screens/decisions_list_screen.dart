@@ -1,7 +1,13 @@
 // =============================================================================
-// Track C v2.0 — Decisions List Screen
+// Track C v2.0 — Decisions List Screen (CONSOLIDATED)
 // =============================================================================
-// Lists active and past decisions. Tap to view detail + vote.
+// Lists active and past decisions, meeting minutes, and analytics trends.
+//
+// CONSOLIDATION: This screen now absorbs two former standalone tiles:
+//   - Kinrel Secretary → "Minutes" tab (meeting artifacts are the output of
+//     a decision session, so they belong here as a sub-action)
+//   - Kinrel Analytics → "Trends" tab (analytics is trend data ABOUT
+//     decisions — quorum decline, dormancy — doesn't need its own destination)
 //
 // VISIBILITY MATRIX: The "New decision" FAB is HIDDEN (not just disabled)
 // for viewers and minors — they can see the decision list but cannot
@@ -16,6 +22,8 @@ import 'package:go_router/go_router.dart';
 import '../providers/trackc_providers.dart';
 import '../providers/trackc_visibility.dart';
 import 'decision_create_screen.dart';
+import 'secretary_screen.dart';
+import 'analytics_screen.dart';
 
 class TrackcDecisionsListScreen extends ConsumerStatefulWidget {
   const TrackcDecisionsListScreen({super.key});
@@ -31,7 +39,8 @@ class _TrackcDecisionsListScreenState extends ConsumerState<TrackcDecisionsListS
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    // 5 tabs: Open, Resolved, All, Minutes (Secretary), Trends (Analytics)
+    _tabController = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -43,7 +52,6 @@ class _TrackcDecisionsListScreenState extends ConsumerState<TrackcDecisionsListS
   @override
   Widget build(BuildContext context) {
     // VISIBILITY MATRIX: hide the "New decision" FAB for viewers + minors.
-    // The selectedFamilyIdProvider must be set before navigating here.
     final familyId = ref.watch(selectedFamilyIdProvider) ?? '';
     final caps = ref.watch(trackcCapabilitiesProvider(familyId));
 
@@ -52,10 +60,13 @@ class _TrackcDecisionsListScreenState extends ConsumerState<TrackcDecisionsListS
         title: const Text('Decisions'),
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true,
           tabs: const [
             Tab(text: 'Open', icon: Icon(Icons.how_to_vote)),
             Tab(text: 'Resolved', icon: Icon(Icons.task_alt)),
             Tab(text: 'All', icon: Icon(Icons.list)),
+            Tab(text: 'Minutes', icon: Icon(Icons.description)),
+            Tab(text: 'Trends', icon: Icon(Icons.trending_up)),
           ],
         ),
       ),
@@ -65,10 +76,15 @@ class _TrackcDecisionsListScreenState extends ConsumerState<TrackcDecisionsListS
           _DecisionList(status: 'open'),
           _DecisionList(status: 'resolved'),
           _DecisionList(status: null),
+          // Secretary is now a tab inside Decisions
+          const TrackcSecretaryScreen(embedded: true),
+          // Analytics is now a tab inside Decisions
+          const TrackcAnalyticsScreen(embedded: true),
         ],
       ),
       // Hide FAB entirely for viewers + minors (they can't create decisions)
-      floatingActionButton: caps.canAct
+      // Also hide when on Minutes or Trends tab (those have their own actions)
+      floatingActionButton: caps.canAct && _tabController.index < 3
           ? FloatingActionButton.extended(
               onPressed: () async {
                 final created = await Navigator.of(context).push<bool>(

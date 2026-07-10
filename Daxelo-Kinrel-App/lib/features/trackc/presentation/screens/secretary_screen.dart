@@ -2,6 +2,11 @@
 // Track C v2.0 — Kinrel Secretary Screen
 // =============================================================================
 // Browse meeting artifacts. Draft → Reviewed → Published lifecycle.
+//
+// CONSOLIDATION: This screen now supports an `embedded` mode for use as a
+// tab inside the Decisions screen. When embedded=true, it renders without
+// its own Scaffold/AppBar (the parent Decisions screen provides the chrome).
+// When embedded=false (standalone), it renders a full Scaffold.
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -10,7 +15,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/trackc_providers.dart';
 
 class TrackcSecretaryScreen extends ConsumerWidget {
-  const TrackcSecretaryScreen({super.key});
+  const TrackcSecretaryScreen({super.key, this.embedded = false});
+
+  /// When true, renders as a tab content (no Scaffold/AppBar).
+  /// When false, renders as a standalone screen with its own Scaffold.
+  final bool embedded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -18,45 +27,54 @@ class TrackcSecretaryScreen extends ConsumerWidget {
     final api = ref.watch(trackcApiClientProvider);
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Kinrel Secretary')),
-      body: FutureBuilder<List<dynamic>>(
-        future: familyId == null ? null : api.listArtifacts(familyId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Failed: ${snapshot.error}'));
-          }
-          final artifacts = snapshot.data ?? [];
-          if (artifacts.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.description, size: 64, color: Colors.grey[400]),
-                  const SizedBox(height: 16),
-                  const Text('No meeting artifacts yet'),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Create one to auto-generate draft minutes with AI.',
-                    style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-                  ),
-                ],
-              ),
-            );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: artifacts.length,
-            itemBuilder: (context, i) {
-              final a = artifacts[i] as Map<String, dynamic>;
-              return _ArtifactCard(artifact: a, api: api, familyId: familyId!);
-            },
+    final body = FutureBuilder<List<dynamic>>(
+      future: familyId == null ? null : api.listArtifacts(familyId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Failed: ${snapshot.error}'));
+        }
+        final artifacts = snapshot.data ?? [];
+        if (artifacts.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.description, size: 64, color: Colors.grey[400]),
+                const SizedBox(height: 16),
+                const Text('No meeting minutes yet'),
+                const SizedBox(height: 8),
+                Text(
+                  'Tap "New meeting" to auto-generate draft minutes with AI.',
+                  style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                ),
+              ],
+            ),
           );
-        },
-      ),
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: artifacts.length,
+          itemBuilder: (context, i) {
+            final a = artifacts[i] as Map<String, dynamic>;
+            return _ArtifactCard(artifact: a, api: api, familyId: familyId!);
+          },
+        );
+      },
+    );
+
+    // In embedded mode, render as a plain widget (no Scaffold).
+    // The parent Decisions screen provides the FAB and AppBar.
+    if (embedded) {
+      return body;
+    }
+
+    // Standalone mode: full Scaffold with AppBar + FAB
+    return Scaffold(
+      appBar: AppBar(title: const Text('Meeting Minutes')),
+      body: body,
       floatingActionButton: familyId == null
           ? null
           : FloatingActionButton.extended(
@@ -95,9 +113,18 @@ class _ArtifactCard extends StatelessWidget {
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Row(
           children: [
-            Text(_formatDate(heldAt), style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-            const SizedBox(width: 8),
-            _StatusChip(status: status),
+            Icon(Icons.circle, size: 8, color: _statusColor(status)),
+            const SizedBox(width: 6),
+            Text(_statusLabel(status), style: TextStyle(fontSize: 12, color: _statusColor(status))),
+            if (heldAt != null) ...[
+              const SizedBox(width: 12),
+              Icon(Icons.calendar_today, size: 12, color: Colors.grey[500]),
+              const SizedBox(width: 4),
+              Text(
+                _formatDate(heldAt),
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+            ],
           ],
         ),
         children: [
@@ -107,34 +134,40 @@ class _ArtifactCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (actionItems.isNotEmpty) ...[
-                  const Text('Action Items', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                  const SizedBox(height: 4),
-                  for (final ai in actionItems.cast<Map<String, dynamic>>())
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8, bottom: 4),
+                  Text('Action Items', style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  ...actionItems.map((item) {
+                    final map = item as Map<String, dynamic>;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('☐ '),
-                          Expanded(
-                            child: Text(
-                              '${ai['text'] ?? ''} (${ai['assigneeRole'] ?? 'all'}, due in ${ai['dueOffsetDays'] ?? 7}d)',
-                              style: const TextStyle(fontSize: 13),
-                            ),
-                          ),
+                          Icon(Icons.check_circle_outline, size: 16, color: Colors.grey[500]),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(map['text'] as String? ?? '')),
                         ],
                       ),
-                    ),
-                  const SizedBox(height: 8),
+                    );
+                  }),
                 ],
-                if (status == 'draft' || status == 'reviewed')
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.tonal(
-                      onPressed: () => _publish(context),
-                      child: const Text('Publish'),
+                if (artifact['draftMinutesMd'] != null &&
+                    (artifact['draftMinutesMd'] as String).isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text('Draft Minutes', style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      artifact['draftMinutesMd'] as String,
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
+                ],
               ],
             ),
           ),
@@ -143,54 +176,33 @@ class _ArtifactCard extends StatelessWidget {
     );
   }
 
-  String _formatDate(String? iso) {
-    if (iso == null) return '';
+  String _formatDate(String iso) {
     final d = DateTime.tryParse(iso);
     if (d == null) return iso;
     return '${d.day}/${d.month}/${d.year}';
   }
 
-  Future<void> _publish(BuildContext context) async {
-    try {
-      await api.publishArtifact(familyId, artifact['id'] as String);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Artifact published')),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Publish failed: $e')),
-        );
-      }
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'published':
+        return Colors.green;
+      case 'reviewed':
+        return Colors.blue;
+      case 'draft':
+      default:
+        return Colors.orange;
     }
   }
-}
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-
-  final String status;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = {
-      'draft': Colors.grey,
-      'reviewed': Colors.orange,
-      'published': Colors.green,
-    };
-    final color = colors[status] ?? Colors.grey;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        status.toUpperCase(),
-        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600),
-      ),
-    );
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'published':
+        return 'Published';
+      case 'reviewed':
+        return 'Reviewed';
+      case 'draft':
+      default:
+        return 'Draft';
+    }
   }
 }

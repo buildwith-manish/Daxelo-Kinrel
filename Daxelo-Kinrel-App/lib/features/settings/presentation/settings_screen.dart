@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart';
 import 'package:in_app_review/in_app_review.dart';
 import '../../../core/services/analytics_service.dart';
 import '../../profile/data/profile_provider.dart';
+import '../../trackc/presentation/screens/learning_profile_screen.dart';
+import '../../trackc/presentation/providers/trackc_providers.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -261,6 +263,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               icon: Icons.download_outlined,
               label: 'Download my data',
               onTap: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Coming soon"), duration: Duration(seconds: 1))); },
+            ),
+            _divider(),
+            // Kinrel Learning profile — moved here from the Governance hub.
+            // It's invisible infra that powers suggestions elsewhere; users
+            // need a transparency/reset screen but it doesn't belong in
+            // the governance nav competing with Constitution/Decisions/Timeline.
+            _SettingsRow(
+              icon: Icons.lightbulb_outline,
+              label: 'Kinrel Learning profile',
+              subtitle: 'View what Kinrel has learned + reset',
+              onTap: () {
+                final familyId = ref.read(selectedFamilyIdProvider);
+                if (familyId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Select a family first to view its learning profile.')),
+                  );
+                  return;
+                }
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const TrackcLearningProfileScreen(),
+                  ),
+                );
+              },
             ),
             _divider(),
             _SettingsDeleteRow(

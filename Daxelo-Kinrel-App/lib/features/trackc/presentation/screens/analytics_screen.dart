@@ -2,6 +2,10 @@
 // Track C v2.0 — Kinrel Analytics Screen
 // =============================================================================
 // Private family insights. NO leaderboards, NO cross-family comparisons.
+//
+// CONSOLIDATION: This screen now supports an `embedded` mode for use as a
+// tab inside the Decisions screen. When embedded=true, it renders without
+// its own Scaffold/AppBar (the parent Decisions screen provides the chrome).
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -10,54 +14,56 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/trackc_providers.dart';
 
 class TrackcAnalyticsScreen extends ConsumerWidget {
-  const TrackcAnalyticsScreen({super.key});
+  const TrackcAnalyticsScreen({super.key, this.embedded = false});
+
+  /// When true, renders as a tab content (no Scaffold/AppBar).
+  /// When false, renders as a standalone screen with its own Scaffold.
+  final bool embedded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summaryAsync = ref.watch(analyticsSummaryProvider);
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Kinrel Analytics')),
-      body: summaryAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Failed to load: $e')),
-        data: (summary) {
-          if (summary == null) {
-            return const Center(child: Text('No analytics available'));
-          }
+    final body = summaryAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Failed to load: $e')),
+      data: (summary) {
+        if (summary == null) {
+          return const Center(child: Text('No analytics available'));
+        }
 
-          final current = (summary['current'] as Map?)?.cast<String, dynamic>() ?? {};
-          final metrics = (current['metrics'] as Map?)?.cast<String, dynamic>() ?? {};
-          final anomalies = (current['anomalies'] as List? ?? []).cast<Map<String, dynamic>>();
-          final trend = (summary['trend'] as Map?)?.cast<String, dynamic>();
+        final current = (summary['current'] as Map?)?.cast<String, dynamic>() ?? {};
+        final metrics = (current['metrics'] as Map?)?.cast<String, dynamic>() ?? {};
+        final anomalies = (current['anomalies'] as List? ?? []).cast<Map<String, dynamic>>();
+        final trend = (summary['trend'] as Map?)?.cast<String, dynamic>();
 
-          final decisionsCreated = metrics['decisionsCreated'] as int? ?? 0;
-          final decisionsResolved = metrics['decisionsResolved'] as int? ?? 0;
-          final decisionsExpired = metrics['decisionsExpired'] as int? ?? 0;
-          final participationRate = (metrics['participationRate'] as num?)?.toDouble() ?? 0;
-          final quorumMetRate = (metrics['quorumMetRate'] as num?)?.toDouble() ?? 0;
-          final avgDurationHours = (metrics['avgDurationHours'] as num?)?.toDouble() ?? 0;
-          final timelineEventCount = metrics['timelineEventCount'] as int? ?? 0;
-          final meetingArtifactCount = metrics['meetingArtifactCount'] as int? ?? 0;
-          final periodStart = current['periodStart'] as String?;
-          final periodEnd = current['periodEnd'] as String?;
+        final decisionsCreated = metrics['decisionsCreated'] as int? ?? 0;
+        final decisionsResolved = metrics['decisionsResolved'] as int? ?? 0;
+        final decisionsExpired = metrics['decisionsExpired'] as int? ?? 0;
+        final participationRate = (metrics['participationRate'] as num?)?.toDouble() ?? 0;
+        final quorumMetRate = (metrics['quorumMetRate'] as num?)?.toDouble() ?? 0;
+        final avgDurationHours = (metrics['avgDurationHours'] as num?)?.toDouble() ?? 0;
+        final timelineEventCount = metrics['timelineEventCount'] as int? ?? 0;
+        final meetingArtifactCount = metrics['meetingArtifactCount'] as int? ?? 0;
+        final periodStart = current['periodStart'] as String?;
+        final periodEnd = current['periodEnd'] as String?;
 
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              // Period
-              Card(
-                elevation: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Icon(Icons.date_range, color: theme.colorScheme.primary),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          '${_formatDate(periodStart)} – ${_formatDate(periodEnd)}',
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Period
+            Card(
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Icon(Icons.date_range, color: theme.colorScheme.primary),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        '${_formatDate(periodStart)} – ${_formatDate(periodEnd)}',
                           style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
                         ),
                       ),
@@ -174,6 +180,18 @@ class TrackcAnalyticsScreen extends ConsumerWidget {
           );
         },
       ),
+    );
+
+    // In embedded mode, return the body directly (no Scaffold/AppBar).
+    // The parent Decisions screen provides the chrome.
+    if (embedded) {
+      return body;
+    }
+
+    // Standalone mode: wrap in a Scaffold
+    return Scaffold(
+      appBar: AppBar(title: const Text('Trends')),
+      body: body,
     );
   }
 
