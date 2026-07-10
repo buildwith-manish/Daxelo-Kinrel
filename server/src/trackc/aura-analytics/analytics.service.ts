@@ -3,9 +3,10 @@
 // analytics.service.ts
 // =============================================================================
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FamilyMembershipService } from '../common/family-membership.service';
+import { VisibilityService, isMinorUser } from '../common/visibility.service';
 import { AnalyticsSnapshotWorker, Granularity } from './analytics.snapshot-worker';
 
 @Injectable()
@@ -13,9 +14,18 @@ export class AnalyticsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly membership: FamilyMembershipService,
+    private readonly visibility: VisibilityService,
     private readonly worker: AnalyticsSnapshotWorker,
   ) {}
 
+  /**
+   * List analytics snapshots for a family.
+   *
+   * VISIBILITY MATRIX: aggregate/family-level snapshots are visible to ALL
+   * roles including minors. However, any per-name fields in the snapshot
+   * metrics (e.g. "topContributor") are stripped from the response if the
+   * requesting user is a minor — at the service layer, not just the UI.
+   */
   async listSnapshots(params: {
     familyId: string;
     userId: string;
@@ -23,8 +33,9 @@ export class AnalyticsService {
     from?: string;
     to?: string;
   }) {
-    await this.membership.requireMember(params.userId, params.familyId);
-    return this.prisma.familyAnalyticsSnapshot.findMany({
+    const ctx = await this.visibility.requireMemberWithAge(params.userId, params.familyId);
+
+    const snapshots = await this.prisma.familyAnalyticsSnapshot.findMany({
       where: {
         familyId: params.familyId,
         granularity: params.granularity,
@@ -40,13 +51,25 @@ export class AnalyticsService {
       orderBy: { periodStart: 'desc' },
       take: 52, // up to 1 year of weekly snapshots
     });
+
+    // Strip per-name fields from metrics if the viewer is a minor
+    if (ctx.isMinor) {
+      return snapshots.map((s) => ({
+        ...s,
+        metrics: this.stripPerNameFields(s.metrics as any),
+      }));
+    }
+    return snapshots;
   }
 
   /**
    * Latest snapshot + trend vs prior period.
+   *
+   * VISIBILITY MATRIX: visible to ALL roles including minors. Per-name
+   * fields in the metrics are stripped for minors.
    */
   async getSummary(familyId: string, userId: string, granularity: Granularity = 'weekly') {
-    await this.membership.requireMember(userId, familyId);
+    const ctx = await this.visibility.requireMemberWithAge(userId, familyId);
 
     const snapshots = await this.prisma.familyAnalyticsSnapshot.findMany({
       where: { familyId, granularity },
@@ -66,7 +89,7 @@ export class AnalyticsService {
         granularity,
       });
       return {
-        current: fresh,
+        current: ctx.isMinor ? this.stripPerNameFieldsFromSnapshot(fresh) : fresh,
         previous: null,
         trend: null,
       };
@@ -78,7 +101,15 @@ export class AnalyticsService {
     // Compute trend (delta vs previous period)
     const trend = previous ? this.computeTrend(current.metrics as any, previous.metrics as any) : null;
 
-    return { current, previous, trend };
+    // Strip per-name fields if the viewer is a minor
+    const sanitizedCurrent = ctx.isMinor
+      ? { ...current, metrics: this.stripPerNameFields(current.metrics as any) }
+      : current;
+    const sanitizedPrevious = ctx.isMinor && previous
+      ? { ...previous, metrics: this.stripPerNameFields(previous.metrics as any) }
+      : previous;
+
+    return { current: sanitizedCurrent, previous: sanitizedPrevious, trend };
   }
 
   /**
@@ -90,6 +121,95 @@ export class AnalyticsService {
     const periodStart = this.startOfPeriod(now, granularity);
     const periodEnd = this.endOfPeriod(periodStart, granularity);
     return this.worker.snapshot({ familyId, periodStart, periodEnd, granularity });
+  }
+
+  // ===========================================================================
+  // VISIBILITY MATRIX: Per-member analytics breakdown (FUTURE-PROOF GUARD)
+  // ===========================================================================
+  //
+  // The current AnalyticsService doesn't expose per-member data yet, but the
+  // matrix requires that ANY future per-member endpoint be admin-only. This
+  // guard method is the single entry point for all future per-member queries.
+  // When you add a new method that returns per-user analytics (e.g. "voting
+  // participation by member"), call this guard first:
+  //
+  //   async getPerMemberBreakdown(familyId, userId) {
+  //     await this.requireAdminForPerMemberData(userId, familyId);
+  //     ...
+  //   }
+  //
+  // This ensures the restriction is enforced even if a future developer
+  // forgets to add it at the controller level.
+  // ===========================================================================
+
+  /**
+   * Require admin access for any per-member analytics breakdown.
+   * This is a future-proof guard — call it at the top of any new method
+   * that returns per-user analytics data.
+   */
+  async requireAdminForPerMemberData(userId: string, familyId: string) {
+    await this.visibility.requireAdminDataAccess(userId, familyId);
+  }
+
+  // ===========================================================================
+  // Per-name field stripping (for minors)
+  // ===========================================================================
+
+  /**
+   * Strip any per-name fields from analytics metrics before returning to
+   * a minor. Per the matrix: "Minors should never see even aggregate
+   * analytics that could indirectly expose another member's individual
+   * behavior (e.g. a 'top contributor' field)".
+   *
+   * This is a defensive strip — it removes any key that looks like it
+   * contains a user name or ID. The current snapshot metrics don't
+   * include per-name fields, but this guard protects against future
+   * additions.
+   */
+  private stripPerNameFields(metrics: any): any {
+    if (!metrics || typeof metrics !== 'object') return metrics;
+
+    const PER_NAME_KEY_PATTERNS = [
+      'topContributor',
+      'topVoter',
+      'mostActiveMember',
+      'leastActiveMember',
+      'topPerformer',
+      'memberName',
+      'userName',
+      'displayName',
+      'participantName',
+      'contributorName',
+      'voterName',
+    ];
+
+    const result: any = Array.isArray(metrics) ? [...metrics] : { ...metrics };
+
+    for (const key of Object.keys(result)) {
+      // Remove exact matches
+      if (PER_NAME_KEY_PATTERNS.some((p) => key === p || key.endsWith(p))) {
+        delete result[key];
+        continue;
+      }
+      // Recursively strip nested objects/arrays
+      if (result[key] && typeof result[key] === 'object') {
+        result[key] = this.stripPerNameFields(result[key]);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Strip per-name fields from a full snapshot object (for the on-the-fly
+   * computed snapshot in getSummary).
+   */
+  private stripPerNameFieldsFromSnapshot(snapshot: any): any {
+    if (!snapshot) return snapshot;
+    return {
+      ...snapshot,
+      metrics: this.stripPerNameFields(snapshot.metrics),
+    };
   }
 
   private computeTrend(current: any, previous: any) {

@@ -3382,6 +3382,10 @@ model MeetingArtifact {
   draftMinutesMd   String    @default("") @db.Text
   finalMinutesMd   String?   @db.Text
   status           String    @default("draft") @db.Text // draft|reviewed|published
+  /// Visibility control for AURA Secretary artifacts.
+  /// 'family' = visible to all family members once published (default).
+  /// 'participants_only' = visible only to participants + admins, even after publish.
+  visibility       String    @default("family") @db.Text
   createdAt        DateTime  @default(now()) @db.Timestamptz
   updatedAt        DateTime  @default(now()) @updatedAt @db.Timestamptz
 

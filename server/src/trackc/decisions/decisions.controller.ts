@@ -26,12 +26,13 @@ export class DecisionsController {
   @Get()
   list(
     @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
     @Query('status') status?: string,
     @Query('lifecycleState') lifecycleState?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.service.list(familyId, {
+    return this.service.list(familyId, userId, {
       status,
       lifecycleState,
       cursor,
@@ -52,9 +53,10 @@ export class DecisionsController {
   @Get(':decisionId')
   getOne(
     @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
     @Param('decisionId') decisionId: string,
   ) {
-    return this.service.getOne(familyId, decisionId);
+    return this.service.getOne(familyId, decisionId, userId);
   }
 
   @Patch(':decisionId')
@@ -113,9 +115,10 @@ export class DecisionsController {
   @Get(':decisionId/memory')
   getMemory(
     @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
     @Param('decisionId') decisionId: string,
   ) {
-    return this.service.getMemory(familyId, decisionId);
+    return this.service.getMemory(familyId, decisionId, userId);
   }
 
   @Post(':decisionId/memory')

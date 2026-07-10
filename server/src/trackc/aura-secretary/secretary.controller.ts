@@ -36,10 +36,11 @@ export class SecretaryController {
   @Get()
   list(
     @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
     @Query('status') status?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.service.list(familyId, {
+    return this.service.list(familyId, userId, {
       status,
       limit: limit ? parseInt(limit, 10) : undefined,
     });
@@ -48,9 +49,10 @@ export class SecretaryController {
   @Get(':artifactId')
   getOne(
     @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
     @Param('artifactId') artifactId: string,
   ) {
-    return this.service.getOne(familyId, artifactId);
+    return this.service.getOne(familyId, artifactId, userId);
   }
 
   @Patch(':artifactId/draft')

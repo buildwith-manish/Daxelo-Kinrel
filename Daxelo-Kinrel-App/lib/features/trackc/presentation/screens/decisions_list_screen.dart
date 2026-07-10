@@ -2,6 +2,11 @@
 // Track C v2.0 — Decisions List Screen
 // =============================================================================
 // Lists active and past decisions. Tap to view detail + vote.
+//
+// VISIBILITY MATRIX: The "New decision" FAB is HIDDEN (not just disabled)
+// for viewers and minors — they can see the decision list but cannot
+// create new decisions. The server enforces the same rule (403), so
+// hiding the FAB is for UX clarity, not security.
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -9,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/trackc_providers.dart';
+import '../providers/trackc_visibility.dart';
 import 'decision_create_screen.dart';
 
 class TrackcDecisionsListScreen extends ConsumerStatefulWidget {
@@ -36,6 +42,11 @@ class _TrackcDecisionsListScreenState extends ConsumerState<TrackcDecisionsListS
 
   @override
   Widget build(BuildContext context) {
+    // VISIBILITY MATRIX: hide the "New decision" FAB for viewers + minors.
+    // The selectedFamilyIdProvider must be set before navigating here.
+    final familyId = ref.watch(selectedFamilyIdProvider) ?? '';
+    final caps = ref.watch(trackcCapabilitiesProvider(familyId));
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Decisions'),
@@ -56,26 +67,26 @@ class _TrackcDecisionsListScreenState extends ConsumerState<TrackcDecisionsListS
           _DecisionList(status: null),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          // Launch the multi-step create wizard. Returns true if a decision
-          // was created, in which case we invalidate the providers so the
-          // list refreshes.
-          final created = await Navigator.of(context).push<bool>(
-            MaterialPageRoute(
-              builder: (_) => const TrackcDecisionCreateScreen(),
-              fullscreenDialog: true,
-            ),
-          );
-          if (created == true) {
-            ref.invalidate(decisionsProvider(null));
-            ref.invalidate(decisionsProvider('open'));
-            ref.invalidate(decisionsProvider('resolved'));
-          }
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('New decision'),
-      ),
+      // Hide FAB entirely for viewers + minors (they can't create decisions)
+      floatingActionButton: caps.canAct
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                final created = await Navigator.of(context).push<bool>(
+                  MaterialPageRoute(
+                    builder: (_) => const TrackcDecisionCreateScreen(),
+                    fullscreenDialog: true,
+                  ),
+                );
+                if (created == true) {
+                  ref.invalidate(decisionsProvider(null));
+                  ref.invalidate(decisionsProvider('open'));
+                  ref.invalidate(decisionsProvider('resolved'));
+                }
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('New decision'),
+            )
+          : null,
     );
   }
 }

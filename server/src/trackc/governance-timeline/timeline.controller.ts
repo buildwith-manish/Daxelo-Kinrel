@@ -42,9 +42,8 @@ export class TimelineController {
     @Query('kind') kind?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
+    @Query('raw') raw?: string,
   ) {
-    await this.membership.requireMember(userId, familyId);
-
     let parsedKind: TimelineKind | TimelineKind[] | undefined;
     if (kind) {
       const kinds = kind.split(',').map((k) => k.trim()) as TimelineKind[];
@@ -56,10 +55,16 @@ export class TimelineController {
       parsedKind = kinds.length === 1 ? kinds[0] : kinds;
     }
 
+    // raw=true → admin-only full unfiltered log
+    // raw absent or raw=false → summary whitelist (all members)
+    const isRaw = raw === 'true' || raw === '1';
+
     return this.service.list(familyId, {
       kind: parsedKind,
       cursor,
       limit: limit ? parseInt(limit, 10) : undefined,
+      raw: isRaw,
+      userId,
     });
   }
 
@@ -100,8 +105,7 @@ export class TimelineController {
     @CurrentUser('id') userId: string,
     @Param('eventId') eventId: string,
   ) {
-    await this.membership.requireMember(userId, familyId);
-    return this.service.getOne(familyId, eventId);
+    return this.service.getOne(familyId, eventId, userId);
   }
 
   @Get(':eventId/corrections')

@@ -25,6 +25,49 @@ export const TIMELINE_KINDS = [
 
 export type TimelineKind = (typeof TIMELINE_KINDS)[number];
 
+// =============================================================================
+// VISIBILITY MATRIX — Summary whitelist for the default timeline feed
+// =============================================================================
+//
+// The default timeline feed (returned to ALL roles including minors) shows
+// ONLY a human-readable summary of meaningful governance actions. Granular /
+// low-level events (votes, lifecycle changes, corrections, member joins/
+// leaves) are excluded from the summary feed and are only visible via the
+// `?raw=true` endpoint (admin/owner only).
+//
+// This is a WHITELIST (not a blacklist) so that newly added event types are
+// private-by-default until explicitly added here. When you add a new kind to
+// TIMELINE_KINDS, decide whether it belongs in the public summary feed:
+//   - YES → add it to TIMELINE_SUMMARY_EVENT_TYPES
+//   - NO  → leave it out (it will only appear in the raw admin log)
+//
+// Current summary event types (the "headline" governance actions):
+//   - decision_created         — a new decision was opened
+//   - decision_resolved        — a decision was finalized
+//   - constitution_amended     — the constitution was changed
+//   - constitution_published   — a new constitution version was published
+//                                 (covers both constitution_created and
+//                                  constitution_version_published)
+//   - meeting_minutes_published — meeting minutes were finalized
+//
+// Excluded from summary (admin-only via ?raw=true):
+//   - decision_voted           — granular per-vote event
+//   - decision_expired         — system-generated, not a user action
+//   - decision_lifecycle_changed — lifecycle transition, not a headline
+//   - member_joined / member_left — membership changes, not governance
+//   - role_changed             — admin action, not governance
+//   - learning_profile_reset   — system maintenance, not governance
+//   - correction               — meta-event (correction of another event)
+// =============================================================================
+export const TIMELINE_SUMMARY_EVENT_TYPES: ReadonlySet<TimelineKind> = new Set<TimelineKind>([
+  'decision_created',
+  'decision_resolved',
+  'constitution_amended',
+  'constitution_version_published',
+  'constitution_created',
+  'meeting_artifact_published',
+]);
+
 export interface TimelineEvent {
   id: string;
   familyId: string;

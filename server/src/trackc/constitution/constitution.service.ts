@@ -19,6 +19,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { TimelineEmitter } from '../governance-timeline/timeline.emitter';
 import { FamilyMembershipService } from '../common/family-membership.service';
+import { VisibilityService } from '../common/visibility.service';
 import { Prisma } from '@prisma/client';
 
 export interface DraftArticleInput {
@@ -42,6 +43,7 @@ export class ConstitutionService {
     private readonly prisma: PrismaService,
     private readonly emitter: TimelineEmitter,
     private readonly membership: FamilyMembershipService,
+    private readonly visibility: VisibilityService,
   ) {}
 
   /**
@@ -80,14 +82,19 @@ export class ConstitutionService {
 
   /**
    * Create or update the draft version of the constitution.
-   * Admin-only.
+   *
+   * VISIBILITY MATRIX: edit/propose amendment is restricted to
+   * 'owner' | 'admin' | 'elder' | 'member' (non-viewer) AND non-minor.
+   * Previously this was admin-only; the matrix expands it to any
+   * active non-viewer role (so elders and members can draft too),
+   * while still blocking viewers and minors.
    */
   async saveDraft(
     familyId: string,
     actorId: string,
     input: DraftConstitutionInput,
   ) {
-    await this.membership.requireAdmin(actorId, familyId);
+    await this.visibility.requireCanAct(actorId, familyId);
 
     if (!input.articles?.length) {
       throw new BadRequestException('Constitution must have at least one article');
@@ -177,10 +184,15 @@ export class ConstitutionService {
 
   /**
    * Publish the current draft. Makes the version immutable.
-   * Admin-only.
+   *
+   * VISIBILITY MATRIX: publish is restricted to 'owner' | 'admin' | 'elder' |
+   * 'member' (non-viewer) AND non-minor. The matrix treats publish the same
+   * as saveDraft — any active member can publish their draft. (The
+   * immutability of published versions + the timeline audit log provide
+   * the safety net.)
    */
   async publish(familyId: string, actorId: string, changeSummary?: string) {
-    await this.membership.requireAdmin(actorId, familyId);
+    await this.visibility.requireCanAct(actorId, familyId);
 
     const constitution = await this.getConstitution(familyId, actorId);
     if (!constitution.draftVersionId) {
@@ -304,6 +316,11 @@ export class ConstitutionService {
   /**
    * Open an amendment decision. Creates a FamilyDecision with type='constitution_amend'.
    * The amendment is applied only if the decision resolves with supermajority.
+   *
+   * VISIBILITY MATRIX: proposing an amendment is restricted to
+   * 'owner' | 'admin' | 'elder' | 'member' (non-viewer) AND non-minor.
+   * Voting on the amendment goes through DecisionsService.vote which
+   * applies the same requireCanAct check.
    */
   async openAmendment(
     familyId: string,
@@ -316,7 +333,7 @@ export class ConstitutionService {
       quorumPct?: number; // default 67 (supermajority per Section 10.2)
     },
   ) {
-    await this.membership.requireAdmin(actorId, familyId);
+    await this.visibility.requireCanAct(actorId, familyId);
 
     const constitution = await this.getConstitution(familyId, actorId);
     if (!constitution.currentVersionId) {

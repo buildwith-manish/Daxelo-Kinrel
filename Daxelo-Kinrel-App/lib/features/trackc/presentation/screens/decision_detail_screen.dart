@@ -3,12 +3,18 @@
 // =============================================================================
 // Shows full decision with voting interface, AI insights, and lifecycle
 // management. Supports offline voting via outbox enqueue.
+//
+// VISIBILITY MATRIX: The voting interface (radio buttons + "Submit Vote"
+// button) is HIDDEN for viewers and minors — they can see the decision
+// details and outcome but cannot vote. The server enforces the same
+// rule (403), so hiding the UI is for UX clarity.
 // =============================================================================
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/trackc_providers.dart';
+import '../providers/trackc_visibility.dart';
 import '../widgets/insight_card.dart';
 
 class TrackcDecisionDetailScreen extends ConsumerStatefulWidget {
@@ -29,6 +35,10 @@ class _TrackcDecisionDetailScreenState extends ConsumerState<TrackcDecisionDetai
     final decisionAsync = ref.watch(decisionDetailProvider(widget.decisionId));
     final insightsAsync = ref.watch(insightsProvider(widget.decisionId));
     final theme = Theme.of(context);
+
+    // VISIBILITY MATRIX: hide the voting interface for viewers + minors.
+    final familyId = ref.watch(selectedFamilyIdProvider) ?? '';
+    final caps = ref.watch(trackcCapabilitiesProvider(familyId));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Decision')),
@@ -100,8 +110,8 @@ class _TrackcDecisionDetailScreenState extends ConsumerState<TrackcDecisionDetai
 
               const SizedBox(height: 16),
 
-              // Voting interface
-              if (status == 'open') ...[
+              // Voting interface — HIDDEN for viewers + minors (can't vote)
+              if (status == 'open' && caps.canAct) ...[
                 Text('Cast your vote', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 Card(
@@ -134,6 +144,28 @@ class _TrackcDecisionDetailScreenState extends ConsumerState<TrackcDecisionDetai
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                         : const Icon(Icons.how_to_vote),
                     label: Text(_isVoting ? 'Voting...' : 'Submit Vote'),
+                  ),
+                ),
+              ] else if (status == 'open' && !caps.canAct) ...[
+                // Show a notice that voting is restricted
+                Card(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Icon(Icons.lock_outline, color: theme.colorScheme.outline),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            caps.isViewer
+                                ? 'Viewers can see this decision but cannot vote.'
+                                : 'Family members under 18 can see this decision but cannot vote.',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ] else if (status == 'resolved') ...[

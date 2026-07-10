@@ -19,7 +19,9 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TimelineEmitter } from './timeline.emitter';
-import { TimelineKind, TIMELINE_KINDS } from './timeline.types';
+import { TimelineKind, TIMELINE_KINDS, TIMELINE_SUMMARY_EVENT_TYPES } from './timeline.types';
+import { FamilyMembershipService } from '../common/family-membership.service';
+import { VisibilityService } from '../common/visibility.service';
 
 @Injectable()
 export class TimelineService {
@@ -28,22 +30,54 @@ export class TimelineService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emitter: TimelineEmitter,
+    private readonly membership: FamilyMembershipService,
+    private readonly visibility: VisibilityService,
   ) {}
 
   /**
    * List timeline events for a family. Cursor-based pagination.
    *
+   * VISIBILITY MATRIX:
+   *   - Default (raw=false): returns ONLY events whose kind is in
+   *     TIMELINE_SUMMARY_EVENT_TYPES (the "headline" governance actions).
+   *     This is the human-readable summary feed visible to ALL roles
+   *     including minors.
+   *   - raw=true: returns the FULL unfiltered append-only log (all 14
+   *     event kinds). Restricted to 'owner' | 'admin' only via
+   *     requireAdminDataAccess.
+   *
    * @param familyId scoped by RLS — caller is responsible for verifying membership
    * @param opts.kind optional kind filter (single or array)
    * @param opts.cursor occurredAt of the last item in the previous page (ISO string)
    * @param opts.limit max items per page (default 50, max 100)
+   * @param opts.raw if true, return the full unfiltered log (admin-only)
+   * @param opts.userId the requesting user's id (for raw=true admin check)
    */
   async list(
     familyId: string,
-    opts: { kind?: TimelineKind | TimelineKind[]; cursor?: string; limit?: number } = {},
+    opts: {
+      kind?: TimelineKind | TimelineKind[];
+      cursor?: string;
+      limit?: number;
+      raw?: boolean;
+      userId?: string;
+    } = {},
   ) {
+    // ── Raw mode: admin-only ──────────────────────────────────────────
+    if (opts.raw) {
+      if (!opts.userId) {
+        throw new ForbiddenException('Authentication required for raw timeline access');
+      }
+      await this.visibility.requireAdminDataAccess(opts.userId, familyId);
+    } else {
+      // ── Summary mode: verify membership ────────────────────────────
+      if (opts.userId) {
+        await this.membership.requireMember(opts.userId, familyId);
+      }
+    }
+
     const limit = Math.min(Math.max(opts.limit ?? 50, 1), 100);
-    const kinds = opts.kind
+    let kinds = opts.kind
       ? Array.isArray(opts.kind)
         ? opts.kind
         : [opts.kind]
@@ -58,10 +92,23 @@ export class TimelineService {
       }
     }
 
+    // ── Summary mode: intersect requested kinds with the summary whitelist ──
+    // If the caller didn't specify any kind, default to the summary whitelist.
+    // If the caller DID specify kinds, filter to only those that are in the
+    // whitelist (so a non-admin can't bypass the filter by requesting a
+    // non-summary kind explicitly).
+    if (!opts.raw) {
+      if (kinds) {
+        kinds = kinds.filter((k) => TIMELINE_SUMMARY_EVENT_TYPES.has(k));
+      } else {
+        kinds = Array.from(TIMELINE_SUMMARY_EVENT_TYPES);
+      }
+    }
+
     const items = await this.prisma.aURATimelineEvent.findMany({
       where: {
         familyId,
-        ...(kinds ? { kind: { in: kinds } } : {}),
+        ...(kinds && kinds.length > 0 ? { kind: { in: kinds } } : {}),
         ...(opts.cursor ? { occurredAt: { lt: new Date(opts.cursor) } } : {}),
       },
       orderBy: { occurredAt: 'desc' },
@@ -89,14 +136,33 @@ export class TimelineService {
       })),
       nextCursor,
       hasNext,
+      // Tell the client whether this is the filtered summary or the raw log
+      mode: opts.raw ? 'raw' : 'summary',
     };
   }
 
-  async getOne(familyId: string, eventId: string) {
+  /**
+   * Get a single timeline event.
+   *
+   * VISIBILITY MATRIX:
+   *   - Summary event types: visible to all members.
+   *   - Non-summary event types: visible to admins only.
+   */
+  async getOne(familyId: string, eventId: string, userId?: string) {
+    if (userId) {
+      await this.membership.requireMember(userId, familyId);
+    }
+
     const event = await this.prisma.aURATimelineEvent.findUnique({
       where: { id_familyId: { id: eventId, familyId } },
     });
     if (!event) throw new NotFoundException('Timeline event not found');
+
+    // If this is a non-summary event, require admin access
+    if (userId && !TIMELINE_SUMMARY_EVENT_TYPES.has(event.kind as TimelineKind)) {
+      await this.visibility.requireAdminDataAccess(userId, familyId);
+    }
+
     return event;
   }
 

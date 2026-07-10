@@ -17,6 +17,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { TimelineEmitter } from '../governance-timeline/timeline.emitter';
 import { FamilyMembershipService } from '../common/family-membership.service';
+import { VisibilityService } from '../common/visibility.service';
 import { ConstitutionService } from '../constitution/constitution.service';
 import {
   DecisionType,
@@ -49,13 +50,25 @@ export class DecisionsService {
     private readonly prisma: PrismaService,
     private readonly emitter: TimelineEmitter,
     private readonly membership: FamilyMembershipService,
+    private readonly visibility: VisibilityService,
     private readonly constitutionService: ConstitutionService,
   ) {}
 
+  /**
+   * List decisions for a family.
+   *
+   * VISIBILITY MATRIX: view is open to ALL roles (including viewers and
+   * minors) — they can see the decision list + status + outcome. The
+   * create/vote actions are blocked separately by requireCanAct.
+   */
   async list(
     familyId: string,
+    userId: string,
     opts: { status?: string; cursor?: string; limit?: number; lifecycleState?: string } = {},
   ) {
+    // Verify membership (throws NotFoundException if not a member)
+    await this.membership.requireMember(userId, familyId);
+
     const limit = Math.min(Math.max(opts.limit ?? 50, 1), 100);
     const items = await this.prisma.familyDecision.findMany({
       where: {
@@ -76,7 +89,18 @@ export class DecisionsService {
     };
   }
 
-  async getOne(familyId: string, decisionId: string) {
+  /**
+   * Get a single decision.
+   *
+   * VISIBILITY MATRIX: view is open to ALL roles (including viewers and
+   * minors). Membership is verified to prevent cross-family access.
+   */
+  async getOne(familyId: string, decisionId: string, userId?: string) {
+    // Verify membership if userId is provided (controller always passes it)
+    if (userId) {
+      await this.membership.requireMember(userId, familyId);
+    }
+
     const decision = await this.prisma.familyDecision.findUnique({
       where: { id_familyId: { id: decisionId, familyId } },
       include: {
@@ -89,8 +113,15 @@ export class DecisionsService {
     return decision;
   }
 
+  /**
+   * Create a decision.
+   *
+   * VISIBILITY MATRIX: create is restricted to 'owner' | 'admin' | 'elder' |
+   * 'member' (non-viewer) AND non-minor. Viewers and minors can see the
+   * decision list but cannot create new decisions.
+   */
   async create(familyId: string, actorId: string, input: CreateDecisionInput) {
-    await this.membership.requireMember(actorId, familyId);
+    await this.visibility.requireCanAct(actorId, familyId);
 
     if (!input.title?.trim()) throw new BadRequestException('title is required');
     if (!input.options?.length) throw new BadRequestException('options must be non-empty');
@@ -147,13 +178,19 @@ export class DecisionsService {
     return decision;
   }
 
+  /**
+   * Patch (edit) an open decision.
+   *
+   * VISIBILITY MATRIX: editing is restricted to non-viewer, non-minor
+   * members (same as create/vote).
+   */
   async patch(
     familyId: string,
     decisionId: string,
     actorId: string,
     patch: { title?: string; description?: string; deadlineAt?: string },
   ) {
-    await this.membership.requireMember(actorId, familyId);
+    await this.visibility.requireCanAct(actorId, familyId);
     const decision = await this.getOne(familyId, decisionId);
 
     if (decision.status !== 'open') {
@@ -180,12 +217,21 @@ export class DecisionsService {
     });
   }
 
+  /**
+   * Vote on a decision.
+   *
+   * VISIBILITY MATRIX: voting is restricted to 'owner' | 'admin' | 'elder' |
+   * 'member' (non-viewer) AND non-minor. The eligible-voter check still
+   * applies on top of this — being a non-viewer non-minor doesn't grant
+   * a vote if you're not in the decision's eligibleUserIds list.
+   */
   async vote(
     familyId: string,
     decisionId: string,
     actorId: string,
     option: string,
   ) {
+    await this.visibility.requireCanAct(actorId, familyId);
     const decision = await this.getOne(familyId, decisionId);
 
     // Verify voter is eligible
@@ -245,8 +291,14 @@ export class DecisionsService {
    * Resolve a decision. Computes quorum + pass criterion and sets status='resolved'.
    * Idempotent — if already resolved, returns the existing result.
    */
+  /**
+   * Resolve a decision.
+   *
+   * VISIBILITY MATRIX: resolving is restricted to non-viewer, non-minor
+   * members.
+   */
   async resolve(familyId: string, decisionId: string, actorId: string, resolutionNote?: string) {
-    await this.membership.requireMember(actorId, familyId);
+    await this.visibility.requireCanAct(actorId, familyId);
     const decision = await this.getOne(familyId, decisionId);
 
     if (decision.status === 'resolved') {
@@ -429,8 +481,13 @@ export class DecisionsService {
     return updated;
   }
 
+  /**
+   * Cancel a decision.
+   *
+   * VISIBILITY MATRIX: cancelling is restricted to non-viewer, non-minor.
+   */
   async cancel(familyId: string, decisionId: string, actorId: string) {
-    await this.membership.requireMember(actorId, familyId);
+    await this.visibility.requireCanAct(actorId, familyId);
     const decision = await this.getOne(familyId, decisionId);
     assertCanTransitionStatus(decision.status as any, 'cancelled');
 
@@ -442,13 +499,18 @@ export class DecisionsService {
     return updated;
   }
 
+  /**
+   * Transition lifecycle state of a resolved decision.
+   *
+   * VISIBILITY MATRIX: restricted to non-viewer, non-minor.
+   */
   async transitionLifecycle(
     familyId: string,
     decisionId: string,
     actorId: string,
     to: string,
   ) {
-    await this.membership.requireMember(actorId, familyId);
+    await this.visibility.requireCanAct(actorId, familyId);
     const decision = await this.getOne(familyId, decisionId);
 
     if (decision.status !== 'resolved') {
@@ -489,13 +551,28 @@ export class DecisionsService {
 
   // ── Decision Memory + Impact ────────────────────────────────────────────
 
-  async getMemory(familyId: string, decisionId: string) {
+  /**
+   * Get decision memory.
+   *
+   * VISIBILITY MATRIX: view is open to ALL roles (the memory is a
+   * family-level learning artifact, not per-user). Membership is
+   * verified by the controller.
+   */
+  async getMemory(familyId: string, decisionId: string, userId?: string) {
+    if (userId) {
+      await this.membership.requireMember(userId, familyId);
+    }
     const memory = await this.prisma.decisionMemory.findUnique({
       where: { decisionId_familyId: { decisionId, familyId } },
     });
     return memory;
   }
 
+  /**
+   * Upsert decision memory.
+   *
+   * VISIBILITY MATRIX: restricted to non-viewer, non-minor.
+   */
   async upsertMemory(
     familyId: string,
     decisionId: string,
@@ -508,7 +585,7 @@ export class DecisionsService {
       relatedMemoryIds?: string[];
     },
   ) {
-    await this.membership.requireMember(actorId, familyId);
+    await this.visibility.requireCanAct(actorId, familyId);
     await this.getOne(familyId, decisionId);
 
     return this.prisma.decisionMemory.upsert({
@@ -532,13 +609,18 @@ export class DecisionsService {
     });
   }
 
+  /**
+   * Add impact assessment to a decision.
+   *
+   * VISIBILITY MATRIX: restricted to non-viewer, non-minor.
+   */
   async addImpact(
     familyId: string,
     decisionId: string,
     actorId: string,
     data: { milestoneText: string; dueDate?: string; notes?: string },
   ) {
-    await this.membership.requireMember(actorId, familyId);
+    await this.visibility.requireCanAct(actorId, familyId);
     await this.getOne(familyId, decisionId);
 
     return this.prisma.decisionImpact.create({
@@ -552,6 +634,11 @@ export class DecisionsService {
     });
   }
 
+  /**
+   * Patch an impact assessment.
+   *
+   * VISIBILITY MATRIX: restricted to non-viewer, non-minor.
+   */
   async patchImpact(
     familyId: string,
     decisionId: string,
@@ -559,7 +646,7 @@ export class DecisionsService {
     actorId: string,
     patch: { milestoneText?: string; dueDate?: string; completedAt?: string; notes?: string; evidenceUrls?: string[] },
   ) {
-    await this.membership.requireMember(actorId, familyId);
+    await this.visibility.requireCanAct(actorId, familyId);
     const impact = await this.prisma.decisionImpact.findUnique({
       where: { id: impactId },
     });

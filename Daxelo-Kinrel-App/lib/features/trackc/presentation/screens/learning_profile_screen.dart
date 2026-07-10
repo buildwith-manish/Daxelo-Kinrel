@@ -3,15 +3,47 @@
 // =============================================================================
 // Shows what the Learning Engine has learned about the family, with a reset
 // button (admin-only). Section 9.5 transparency commitment.
+//
+// VISIBILITY MATRIX:
+//   - Admins (owner/admin): see the full raw behavior profile + reset button.
+//   - Non-admins (member/elder/viewer, including minors): see a plain-language
+//     summary sentence only (via the /learning/profile/summary endpoint).
+//     The raw profile fields (reminder action rates, weekday distribution,
+//     elder auto-include threshold, insight accept rates) are NOT shown.
+//     The reset button is HIDDEN (admin-only).
 // =============================================================================
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/trackc_providers.dart';
+import '../providers/trackc_visibility.dart';
 
 class TrackcLearningProfileScreen extends ConsumerWidget {
   const TrackcLearningProfileScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // VISIBILITY MATRIX: admin sees raw profile + reset button; non-admin sees summary
+    final familyId = ref.watch(selectedFamilyIdProvider) ?? '';
+    final caps = ref.watch(trackcCapabilitiesProvider(familyId));
+
+    if (caps.isAdmin) {
+      return _AdminLearningProfileScreen(
+        familyId: familyId,
+        caps: caps,
+      );
+    }
+    return _MemberLearningSummaryScreen(familyId: familyId);
+  }
+}
+
+/// Admin view: full raw behavior profile + reset button.
+class _AdminLearningProfileScreen extends ConsumerWidget {
+  const _AdminLearningProfileScreen({required this.familyId, required this.caps});
+
+  final String familyId;
+  final TrackcCapabilities caps;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -276,6 +308,183 @@ class TrackcLearningProfileScreen extends ConsumerWidget {
             child: const Text('Reset'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Member view: plain-language summary (no raw profile fields, no reset button)
+// =============================================================================
+
+/// Fetches the profile summary from the /learning/profile/summary endpoint.
+final _profileSummaryProvider =
+    FutureProvider.family<Map<String, dynamic>?, String>((ref, familyId) async {
+  try {
+    final api = ref.watch(trackcApiClientProvider);
+    final result = await api.get('/families/$familyId/learning/profile/summary');
+    return result as Map<String, dynamic>?;
+  } catch (_) {
+    return null;
+  }
+});
+
+class _MemberLearningSummaryScreen extends ConsumerWidget {
+  const _MemberLearningSummaryScreen({required this.familyId});
+
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final summaryAsync = ref.watch(_profileSummaryProvider(familyId));
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('AURA Learning'),
+        // No reset button for non-admins
+      ),
+      body: summaryAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Could not load learning summary.\n$e',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+        data: (data) {
+          if (data == null) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Kinrel is still gathering data about your family\'s governance patterns.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          }
+
+          final summary = data['summary'] as String? ??
+              'Kinrel is still learning your family\'s rhythms.';
+          final confidence = (data['confidenceScore'] as num?)?.toDouble() ?? 0;
+          final sampleSize = data['sampleSize'] as int? ?? 0;
+          final usingDefaults = data['usingDefaults'] as bool? ?? true;
+
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // Summary card — the plain-language sentence
+              Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.lightbulb_outline,
+                              size: 28, color: theme.colorScheme.primary),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'What Kinrel has learned',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        summary,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          height: 1.6,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Transparency card — safe aggregate metrics only
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.info_outline,
+                              size: 18, color: theme.colorScheme.outline),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Transparency',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Kinrel has observed $sampleSize governance interactions from your family.',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      if (usingDefaults)
+                        Text(
+                          'Your family is still in the learning phase — patterns shown above use global defaults.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        )
+                      else
+                        Text(
+                          'Confidence: ${(confidence * 100).round()}%',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Privacy note
+              Card(
+                color: theme.colorScheme.surfaceContainerHighest,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Icon(Icons.shield_outlined,
+                          size: 18, color: theme.colorScheme.outline),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Detailed behavioral data is only visible to family admins. '
+                          'This summary uses plain language to protect everyone\'s privacy.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

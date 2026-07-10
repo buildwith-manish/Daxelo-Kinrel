@@ -2,6 +2,14 @@
 // Track C v2.0 — AURA Timeline Screen
 // =============================================================================
 // Append-only family history. Filter by kind. Tap for detail + corrections.
+//
+// VISIBILITY MATRIX:
+//   - Default (all roles): shows the summary whitelist feed only
+//     (decision_created, decision_resolved, constitution_amended, etc.).
+//     The kind filter chips are limited to summary kinds.
+//   - Admins (owner/admin): see a "Show raw log" toggle that switches to
+//     the full unfiltered append-only log (?raw=true). Non-admins never
+//     see this toggle.
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -9,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/trackc_providers.dart';
+import '../providers/trackc_visibility.dart';
 
 class TrackcTimelineScreen extends ConsumerStatefulWidget {
   const TrackcTimelineScreen({super.key});
@@ -19,11 +28,25 @@ class TrackcTimelineScreen extends ConsumerStatefulWidget {
 
 class _TrackcTimelineScreenState extends ConsumerState<TrackcTimelineScreen> {
   String? _filterKind;
+  bool _showRaw = false; // admin-only toggle for the full unfiltered log
 
-  static const _kinds = <String?>[
+  // Summary event types — these are the only kinds visible to non-admins.
+  // Must match TIMELINE_SUMMARY_EVENT_TYPES on the server.
+  static const _summaryKinds = <String>[
+    'decision_created',
+    'decision_resolved',
+    'constitution_amended',
+    'constitution_version_published',
+    'constitution_created',
+    'meeting_artifact_published',
+  ];
+
+  // All event types — only shown in the filter when raw mode is on (admin).
+  static const _allKinds = <String?>[
     null,
     'constitution_created',
     'constitution_amended',
+    'constitution_version_published',
     'decision_created',
     'decision_voted',
     'decision_resolved',
@@ -38,6 +61,12 @@ class _TrackcTimelineScreenState extends ConsumerState<TrackcTimelineScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final familyId = ref.watch(selectedFamilyIdProvider) ?? '';
+    final caps = ref.watch(trackcCapabilitiesProvider(familyId));
+
+    // Non-admins always use summary mode (raw is server-blocked anyway)
+    final effectiveRaw = _showRaw && caps.isAdmin;
+
     final timelineAsync = ref.watch(timelineProvider(_filterKind));
     final theme = Theme.of(context);
 
@@ -45,6 +74,13 @@ class _TrackcTimelineScreenState extends ConsumerState<TrackcTimelineScreen> {
       appBar: AppBar(
         title: const Text('AURA Timeline'),
         actions: [
+          // "Show raw log" toggle — admin-only
+          if (caps.isAdmin)
+            IconButton(
+              icon: Icon(effectiveRaw ? Icons.visibility : Icons.visibility_off),
+              tooltip: effectiveRaw ? 'Showing raw log (all events)' : 'Show raw log (admin)',
+              onPressed: () => setState(() => _showRaw = !effectiveRaw),
+            ),
           IconButton(
             icon: const Icon(Icons.download),
             tooltip: 'Export',
@@ -54,13 +90,54 @@ class _TrackcTimelineScreenState extends ConsumerState<TrackcTimelineScreen> {
       ),
       body: Column(
         children: [
-          // Filter chips
+          // Mode banner
+          if (effectiveRaw)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: theme.colorScheme.errorContainer,
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber, size: 16, color: theme.colorScheme.onErrorContainer),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Raw log mode — showing all events including granular details',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onErrorContainer,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: theme.colorScheme.surfaceContainerHighest,
+              child: Row(
+                children: [
+                  Icon(Icons.summarize, size: 16, color: theme.colorScheme.outline),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Summary feed — key governance actions only',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          // Filter chips — only summary kinds for non-admins, all kinds for admins in raw mode
           SizedBox(
             height: 48,
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              children: _kinds.map((kind) {
+              children: (effectiveRaw ? _allKinds : _summaryKinds.cast<String?>()).map((kind) {
                 final selected = _filterKind == kind;
                 final label = kind == null ? 'All' : _kindLabel(kind);
                 return Padding(

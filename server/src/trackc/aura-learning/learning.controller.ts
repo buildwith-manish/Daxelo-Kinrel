@@ -21,12 +21,29 @@ import { LearningService } from './learning.service';
 export class LearningController {
   constructor(private readonly service: LearningService) {}
 
+  /**
+   * GET /profile — raw behavior profile.
+   * VISIBILITY MATRIX: admin-only (owner | admin). Non-admins get 403.
+   */
   @Get('profile')
   getProfile(
     @Param('familyId') familyId: string,
     @CurrentUser('id') userId: string,
   ) {
     return this.service.getProfile(familyId, userId);
+  }
+
+  /**
+   * GET /profile/summary — plain-language summary of the behavior profile.
+   * VISIBILITY MATRIX: available to ALL members (including minors).
+   * Returns a pre-templated sentence, never raw signal fields.
+   */
+  @Get('profile/summary')
+  getProfileSummary(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.service.getProfileSummary(familyId, userId);
   }
 
   @Post('signals')
