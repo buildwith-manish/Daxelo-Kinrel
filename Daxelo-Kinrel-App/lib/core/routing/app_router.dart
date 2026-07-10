@@ -1718,10 +1718,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             _fastFadePage(key: state.pageKey, child: const RelationsScreen()),
       ),
 
-      // ── P5: Premium Paywall (alternative path) ────────────────────
-            _fastFadePage(key: state.pageKey, child: const PaywallScreen()),
-      ),
-
       // ── Social System Routes ─────────────────────────────────────────
 
       // ── Phase B: Family Map ────────────────────────────────────────
@@ -1806,8 +1802,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/pulse/today',
         pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const DailyBriefScreen()),
-      ),
             _fastFadePage(key: state.pageKey, child: const DailyBriefScreen()),
       ),
       GoRoute(
