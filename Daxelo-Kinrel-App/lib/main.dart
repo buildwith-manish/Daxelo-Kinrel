@@ -27,6 +27,7 @@ import 'core/config/app_environment.dart';
 import 'core/kinship/kinship_edge_style.dart' show kinshipEdgeStyleRegistryCheck;
 import 'core/routing/app_router.dart';
 import 'core/services/crashlytics_service.dart';
+import 'core/services/multi_account_service.dart';
 import 'core/services/deep_link_service.dart';
 import 'core/services/push_notification_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -458,6 +459,10 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
             if (event == AuthChangeEvent.signedIn && session != null) {
               try {
                 setUserIdentifier(session.user.id);
+              } catch (_) {}
+              // Save session for multi-account support
+              try {
+                await MultiAccountService.instance.saveCurrentSession();
               } catch (_) {}
               try {
                 captureRiverpodState('auth', {

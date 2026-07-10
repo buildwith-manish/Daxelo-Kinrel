@@ -45,6 +45,7 @@ import '../../social/data/providers/follow_provider.dart';
 import '../../social/presentation/widgets/sparq_ring_avatar.dart';
 import '../../../core/services/image_cache_manager.dart';
 import '../../trackc/presentation/screens/learning_profile_screen.dart';
+import 'account_switcher_sheet.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
 const Color _orange = Color(0xFFE8612A);
@@ -209,6 +210,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             _buildSectionHeader('Account'),
             const SizedBox(height: 8),
             _buildSectionCard([
+              // Multi-account switcher — prominent entry at the top
+              _SettingsRow(
+                icon: Icons.swap_horiz,
+                label: 'Switch Account',
+                subtitle: 'Add or switch between accounts',
+                iconColor: _orange,
+                labelColor: _orange,
+                onTap: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => const AccountSwitcherSheet(),
+                  );
+                },
+              ),
+              _divider(),
               if (kEnableProfileEditing) ...[
                 _SettingsRow(
                   icon: Icons.person_outline,

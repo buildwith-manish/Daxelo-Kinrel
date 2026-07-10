@@ -28,6 +28,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import '../config/app_config.dart';
+import 'multi_account_service.dart';
 
 final _log = Logger(printer: PrettyPrinter(methodCount: 0));
 
@@ -531,6 +532,8 @@ class AuthService {
     if (client == null) return;
     try {
       await client.auth.signOut();
+      // Clear all stored multi-account sessions on full sign-out
+      await MultiAccountService.instance.clearAll();
     } catch (e) {
       _log.w('Sign out error: $e');
     }
