@@ -134,12 +134,42 @@ export class AnalyticsSnapshotWorker {
     };
 
     // ── Anomaly detection ──────────────────────────────────────────────────
+    // Fetch the family's prior weekly snapshots to compute a per-family
+    // adaptive baseline (rolling mean + stddev). We pass them oldest-first
+    // so the anomaly detector can slice the most recent BASELINE_WINDOW
+    // entries. We only fetch weekly snapshots because the adaptive baseline
+    // is computed on weekly granularity — monthly/quarterly snapshots are
+    // too coarse for z-score anomaly detection.
+    const priorSnapshots = await this.prisma.familyAnalyticsSnapshot.findMany({
+      where: {
+        familyId,
+        granularity: 'weekly',
+        // Exclude the current period — we're computing the baseline from
+        // PRIOR weeks only, then comparing the current week against it.
+        periodStart: { lt: periodStart },
+      },
+      orderBy: { periodStart: 'asc' },
+      take: 12, // cap to keep memory bounded; detector only uses last 8
+      select: { metrics: true },
+    });
+    const history = priorSnapshots
+      .map((s) => s.metrics as any)
+      .filter((m): m is Record<string, number> => m != null && typeof m === 'object')
+      .map((m) => ({
+        quorumMetRate: typeof m.quorumMetRate === 'number' ? m.quorumMetRate : undefined,
+        participationRate: typeof m.participationRate === 'number' ? m.participationRate : undefined,
+        avgDurationHours: typeof m.avgDurationHours === 'number' ? m.avgDurationHours : undefined,
+        decisionsCreated: typeof m.decisionsCreated === 'number' ? m.decisionsCreated : undefined,
+        decisionsResolved: typeof m.decisionsResolved === 'number' ? m.decisionsResolved : undefined,
+      }));
+
     const anomalies = this.anomalyDetector.detect({
       familyId,
       periodStart,
       periodEnd,
       granularity,
       metrics,
+      history,
     });
 
     // ── Persist the snapshot ──────────────────────────────────────────────

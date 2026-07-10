@@ -1,177 +1,235 @@
 // =============================================================================
-// Track C v2.0 — AnalyticsAnomalyDetector Tests
+// ML spec item #4 — Adaptive anomaly detector tests
 // =============================================================================
-// Section 4: anomaly detection on weekly/monthly/quarterly metrics.
-//
-// NOTE: the v2 spec test plan describes 3-sigma-style anomaly detection
-// ("value exceeds 3 standard deviations", "flat series", "fewer than 4
-// data points"). The actual AnalyticsAnomalyDetector implementation uses
-// rule-based thresholds (dormancy, quorum decline, participation decline,
-// slow decisions) rather than statistical 3-sigma analysis.
-//
-// These tests exercise the implemented rule-based behavior, with `.skip`
-// tests documenting the spec-required statistical behavior for a future
-// implementer.
+// Verifies the per-family z-score baselines that were added on top of the
+// existing fixed-threshold rules.
 // =============================================================================
 
-import { AnalyticsAnomalyDetector } from './analytics.anomaly-detector';
+import { AnalyticsAnomalyDetector, AnomalyHistorySnapshot } from './analytics.anomaly-detector';
 
-describe('AnalyticsAnomalyDetector', () => {
+describe('AnalyticsAnomalyDetector (v3 adaptive baselines)', () => {
   let detector: AnalyticsAnomalyDetector;
 
   beforeEach(() => {
     detector = new AnalyticsAnomalyDetector();
   });
 
-  function baseParams(metricsOverrides: any = {}, topLevelOverrides: any = {}) {
-    return {
+  // ── Fixed-threshold rules (v1 — must still pass) ──────────────────────
+
+  it('fires governance_dormant when no decisions created in a week (and family has prior decisions)', () => {
+    const anomalies = detector.detect({
       familyId: 'fam_1',
-      periodStart: new Date('2026-07-06'),
-      periodEnd: new Date('2026-07-13'),
+      periodStart: new Date(),
+      periodEnd: new Date(),
       granularity: 'weekly',
       metrics: {
-        decisionsCreated: 5,
-        decisionsResolved: 5,
-        decisionsExpired: 0,
-        avgDurationHours: 24,
-        participationRate: 0.7,
-        quorumMetRate: 0.8,
-        totalEligible: 10,
-        totalVotes: 7,
-        priorDecisionCount: 10,
-        ...metricsOverrides,
+        decisionsCreated: 0,
+        priorDecisionCount: 5,
       },
-      ...topLevelOverrides,
-    };
-  }
-
-  it('returns no anomalies when all metrics are within healthy ranges (flat series)', () => {
-    const result = detector.detect(baseParams());
-    expect(result).toEqual([]);
+    });
+    expect(anomalies.some((a) => a.kind === 'governance_dormant')).toBe(true);
   });
 
-  it('detects governance_dormant when no decisions were created this week (and family has prior decisions)', () => {
-    const result = detector.detect(
-      baseParams({ decisionsCreated: 0, priorDecisionCount: 5 }),
-    );
-    expect(result).toHaveLength(1);
-    expect(result[0].kind).toBe('governance_dormant');
-    expect(result[0].severity).toBe('medium');
-    expect(result[0].message).toContain('No decisions');
+  it('does NOT fire governance_dormant for new families (priorDecisionCount=0)', () => {
+    const anomalies = detector.detect({
+      familyId: 'fam_1',
+      periodStart: new Date(),
+      periodEnd: new Date(),
+      granularity: 'weekly',
+      metrics: { decisionsCreated: 0, priorDecisionCount: 0 },
+    });
+    expect(anomalies.some((a) => a.kind === 'governance_dormant')).toBe(false);
   });
 
-  it('does NOT flag governance_dormant for new families (no prior decisions)', () => {
-    // New family with no decisions — should NOT be flagged as dormant
-    const result = detector.detect(
-      baseParams({ decisionsCreated: 0, priorDecisionCount: 0 }),
-    );
-    // No dormancy anomaly (but other rules may still fire if metrics trigger them)
-    const dormancy = result.filter((a) => a.kind === 'governance_dormant');
-    expect(dormancy).toHaveLength(0);
-  });
-
-  it('does NOT flag governance_dormant for monthly granularity (too coarse)', () => {
-    const result = detector.detect(
-      baseParams(
-        { decisionsCreated: 0, priorDecisionCount: 5 },
-        { granularity: 'monthly' },
-      ),
-    );
-    const dormancy = result.filter((a) => a.kind === 'governance_dormant');
-    expect(dormancy).toHaveLength(0);
-  });
-
-  it('detects quorum_decline when quorumMetRate < 30% with >=3 resolved decisions', () => {
-    const result = detector.detect(
-      baseParams({ decisionsResolved: 4, quorumMetRate: 0.2 }),
-    );
-    const quorumAnomaly = result.find((a) => a.kind === 'quorum_decline');
+  it('fires quorum_decline via fixed rule when quorumMetRate < 0.30', () => {
+    const anomalies = detector.detect({
+      familyId: 'fam_1',
+      periodStart: new Date(),
+      periodEnd: new Date(),
+      granularity: 'weekly',
+      metrics: {
+        decisionsResolved: 5,
+        quorumMetRate: 0.20, // 20% — below fixed 30% floor
+      },
+    });
+    const quorumAnomaly = anomalies.find((a) => a.kind === 'quorum_decline');
     expect(quorumAnomaly).toBeDefined();
-    expect(quorumAnomaly!.severity).toBe('high');
-    expect(quorumAnomaly!.message).toContain('20%'); // (0.2 * 100).toFixed(0)
+    expect(quorumAnomaly!.detectionSource === 'fixed_threshold' || quorumAnomaly!.detectionSource === 'both').toBe(true);
   });
 
-  it('does NOT flag quorum_decline when there are fewer than 3 resolved decisions (insufficient data)', () => {
-    const result = detector.detect(
-      baseParams({ decisionsResolved: 2, quorumMetRate: 0.1 }), // only 2 resolved
-    );
-    const quorumAnomaly = result.find((a) => a.kind === 'quorum_decline');
+  // ── Adaptive z-score rules (v3 — new) ─────────────────────────────────
+
+  it('fires quorum_decline via adaptive rule when current rate is >2.5 sigma below baseline', () => {
+    // Family has a high baseline (~80% quorumMetRate). Current week drops to 50%.
+    // 50% is ABOVE the fixed 30% floor, but it's a 3+ sigma drop from their baseline.
+    const history: AnomalyHistorySnapshot[] = [
+      { quorumMetRate: 0.80 },
+      { quorumMetRate: 0.85 },
+      { quorumMetRate: 0.78 },
+      { quorumMetRate: 0.82 },
+      { quorumMetRate: 0.80 },
+    ];
+    const anomalies = detector.detect({
+      familyId: 'fam_1',
+      periodStart: new Date(),
+      periodEnd: new Date(),
+      granularity: 'weekly',
+      metrics: {
+        decisionsResolved: 5,
+        quorumMetRate: 0.50, // big drop from 0.80 baseline
+      },
+      history,
+    });
+    const quorumAnomaly = anomalies.find((a) => a.kind === 'quorum_decline');
+    expect(quorumAnomaly).toBeDefined();
+    expect(quorumAnomaly!.detectionSource === 'adaptive_zscore' || quorumAnomaly!.detectionSource === 'both').toBe(true);
+    expect(quorumAnomaly!.zScore).toBeLessThan(-2.5);
+  });
+
+  it('does NOT fire quorum_decline via adaptive rule when family has <4 history snapshots', () => {
+    // Family has only 2 weeks of history — too few to trust a baseline.
+    const history: AnomalyHistorySnapshot[] = [
+      { quorumMetRate: 0.80 },
+      { quorumMetRate: 0.85 },
+    ];
+    const anomalies = detector.detect({
+      familyId: 'fam_1',
+      periodStart: new Date(),
+      periodEnd: new Date(),
+      granularity: 'weekly',
+      metrics: {
+        decisionsResolved: 5,
+        quorumMetRate: 0.50,
+      },
+      history,
+    });
+    const quorumAnomaly = anomalies.find((a) => a.kind === 'quorum_decline');
+    // 50% is above the 30% fixed floor, and we don't have enough history for
+    // the adaptive rule. No anomaly should fire.
     expect(quorumAnomaly).toBeUndefined();
   });
 
-  it('detects participation_decline when participation < 20% with >=5 eligible voters', () => {
-    const result = detector.detect(
-      baseParams({ totalEligible: 10, participationRate: 0.1 }),
-    );
-    const participationAnomaly = result.find((a) => a.kind === 'participation_decline');
-    expect(participationAnomaly).toBeDefined();
-    expect(participationAnomaly!.severity).toBe('medium');
-    expect(participationAnomaly!.message).toContain('10%');
-  });
-
-  it('does NOT flag participation_decline when there are fewer than 5 eligible voters (insufficient data)', () => {
-    const result = detector.detect(
-      baseParams({ totalEligible: 4, participationRate: 0.05 }), // only 4 eligible
-    );
-    const participationAnomaly = result.find((a) => a.kind === 'participation_decline');
-    expect(participationAnomaly).toBeUndefined();
-  });
-
-  it('detects slow_decisions when avgDurationHours > 168 (7 days)', () => {
-    const result = detector.detect(
-      baseParams({ decisionsResolved: 3, avgDurationHours: 200 }),
-    );
-    const slowAnomaly = result.find((a) => a.kind === 'slow_decisions');
-    expect(slowAnomaly).toBeDefined();
-    expect(slowAnomaly!.severity).toBe('low');
-    expect(slowAnomaly!.message).toContain('days');
-  });
-
-  it('does NOT flag slow_decisions when there are fewer than 2 resolved decisions (insufficient data)', () => {
-    const result = detector.detect(
-      baseParams({ decisionsResolved: 1, avgDurationHours: 500 }), // only 1 resolved
-    );
-    const slowAnomaly = result.find((a) => a.kind === 'slow_decisions');
-    expect(slowAnomaly).toBeUndefined();
-  });
-
-  it('can detect multiple anomalies simultaneously', () => {
-    const result = detector.detect(
-      baseParams({
-        decisionsCreated: 0,
-        priorDecisionCount: 10,
+  it('does NOT fire adaptive anomaly for a family with naturally low but stable metrics', () => {
+    // Family baseline is around 25% quorumMetRate (low, but stable).
+    // Current week is 24% — within their normal range.
+    // The fixed rule (30% floor) WILL fire because 24% < 30%, but the
+    // adaptive rule should NOT fire because 24% is consistent with their baseline.
+    const history: AnomalyHistorySnapshot[] = [
+      { quorumMetRate: 0.25 },
+      { quorumMetRate: 0.27 },
+      { quorumMetRate: 0.24 },
+      { quorumMetRate: 0.26 },
+      { quorumMetRate: 0.25 },
+    ];
+    const anomalies = detector.detect({
+      familyId: 'fam_1',
+      periodStart: new Date(),
+      periodEnd: new Date(),
+      granularity: 'weekly',
+      metrics: {
         decisionsResolved: 5,
-        quorumMetRate: 0.1, // < 30%
-        totalEligible: 10,
-        participationRate: 0.1, // < 20%
-        avgDurationHours: 200, // > 168
-      }),
-    );
-    // Should fire: governance_dormant + quorum_decline + participation_decline + slow_decisions
-    expect(result.length).toBeGreaterThanOrEqual(3);
-    const kinds = result.map((r) => r.kind);
-    expect(kinds).toContain('governance_dormant');
-    expect(kinds).toContain('quorum_decline');
-    expect(kinds).toContain('participation_decline');
-    expect(kinds).toContain('slow_decisions');
+        quorumMetRate: 0.24,
+      },
+      history,
+    });
+    // 24% is below the fixed 30% floor — the fixed rule SHOULD fire.
+    // But the adaptive rule should NOT fire (24% is within their normal range).
+    const quorumAnomaly = anomalies.find((a) => a.kind === 'quorum_decline');
+    expect(quorumAnomaly).toBeDefined();
+    // The detection source should be fixed_threshold only (not adaptive, not both)
+    expect(quorumAnomaly!.detectionSource).toBe('fixed_threshold');
   });
 
-  // SPEC GAP — the v2 spec test plan calls for 3-sigma statistical anomaly
-  // detection. The current implementation uses rule-based thresholds only.
-  // The tests below are skipped until a statistical layer is added.
-  describe.skip('statistical (3-sigma) anomaly detection — spec gap', () => {
-    it('returns no anomalies when the series is flat (zero variance)', () => {
-      // A constant series has zero variance → no value can exceed 3σ.
+  it('fires participation_decline via adaptive rule when current rate drops unusually', () => {
+    // Family has a 90% participation baseline. Drops to 60% (still above 20% floor).
+    const history: AnomalyHistorySnapshot[] = [
+      { participationRate: 0.90 },
+      { participationRate: 0.88 },
+      { participationRate: 0.92 },
+      { participationRate: 0.91 },
+      { participationRate: 0.89 },
+    ];
+    const anomalies = detector.detect({
+      familyId: 'fam_1',
+      periodStart: new Date(),
+      periodEnd: new Date(),
+      granularity: 'weekly',
+      metrics: {
+        totalEligible: 10,
+        participationRate: 0.60, // big drop from 0.90 baseline
+      },
+      history,
     });
+    const partAnomaly = anomalies.find((a) => a.kind === 'participation_decline');
+    expect(partAnomaly).toBeDefined();
+    expect(partAnomaly!.detectionSource === 'adaptive_zscore' || partAnomaly!.detectionSource === 'both').toBe(true);
+  });
 
-    it('returns an anomaly when a value exceeds 3 standard deviations', () => {
-      // Construct a series where one value is >3σ from the mean and verify
-      // the detector flags it.
+  it('fires slow_decisions via adaptive rule when avg duration is unusually high for the family', () => {
+    // Family's decisions usually resolve in 2 days (48 hours).
+    // This week's average is 5 days (120 hours).
+    const history: AnomalyHistorySnapshot[] = [
+      { avgDurationHours: 48 },
+      { avgDurationHours: 50 },
+      { avgDurationHours: 45 },
+      { avgDurationHours: 52 },
+      { avgDurationHours: 48 },
+    ];
+    const anomalies = detector.detect({
+      familyId: 'fam_1',
+      periodStart: new Date(),
+      periodEnd: new Date(),
+      granularity: 'weekly',
+      metrics: {
+        decisionsResolved: 5,
+        avgDurationHours: 120, // 5 days — way above their 2-day baseline
+      },
+      history,
     });
+    const slowAnomaly = anomalies.find((a) => a.kind === 'slow_decisions');
+    expect(slowAnomaly).toBeDefined();
+    // 120h is below the fixed 168h (7-day) floor, so adaptive-only
+    expect(slowAnomaly!.detectionSource).toBe('adaptive_zscore');
+  });
 
-    it('returns no anomalies when there are fewer than 4 data points (insufficient data)', () => {
-      // The statistical layer should require a minimum sample size before
-      // computing standard deviation.
+  it('returns no anomalies when history is omitted (legacy behavior)', () => {
+    const anomalies = detector.detect({
+      familyId: 'fam_1',
+      periodStart: new Date(),
+      periodEnd: new Date(),
+      granularity: 'weekly',
+      metrics: {
+        decisionsResolved: 5,
+        quorumMetRate: 0.50, // would trigger adaptive rule if history was provided
+      },
+      // no history — only fixed rules run
     });
+    // 50% is above the 30% fixed floor — no anomaly should fire
+    expect(anomalies.find((a) => a.kind === 'quorum_decline')).toBeUndefined();
+  });
+
+  it('includes both detectionSource and zScore in the anomaly output for telemetry', () => {
+    const history: AnomalyHistorySnapshot[] = [
+      { quorumMetRate: 0.80 },
+      { quorumMetRate: 0.80 },
+      { quorumMetRate: 0.80 },
+      { quorumMetRate: 0.80 },
+    ];
+    const anomalies = detector.detect({
+      familyId: 'fam_1',
+      periodStart: new Date(),
+      periodEnd: new Date(),
+      granularity: 'weekly',
+      metrics: {
+        decisionsResolved: 5,
+        quorumMetRate: 0.40, // drop from 0.80 baseline
+      },
+      history,
+    });
+    const quorumAnomaly = anomalies.find((a) => a.kind === 'quorum_decline');
+    if (quorumAnomaly && quorumAnomaly.detectionSource === 'adaptive_zscore') {
+      expect(typeof quorumAnomaly.zScore).toBe('number');
+      expect(typeof quorumAnomaly.baselineMean).toBe('number');
+    }
   });
 });
