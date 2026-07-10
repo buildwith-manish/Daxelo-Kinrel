@@ -3484,3 +3484,98 @@ model SyncWatermark {
   @@index([userId, familyId])
   @@map("SyncWatermark")
 }
+
+// ── Search Embeddings (ML spec item #3 — semantic search rerank) ────────────
+// Stores dense vector embeddings (384-dim all-MiniLM-L6-v2) for SearchIndex
+// rows. Embeddings are stored as JSON-serialized arrays in a TEXT column to
+// avoid the pgvector extension dependency — the cosine similarity is
+// computed in the NestJS service after fetching.
+//
+// If pgvector becomes available in a future deployment, this can be migrated
+// to a `vector(384)` column + GIN index without changing the service
+// interface (just swap storage format and push cosine into SQL).
+
+model SearchEmbedding {
+  id          String   @id @default(cuid()) @db.Text
+  familyId    String   @db.Text
+  entityType  String   @db.Text
+  entityId    String   @db.Text
+  embedding   String   @db.Text
+  modelId     String   @default("all-MiniLM-L6-v2") @db.Text
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@unique([familyId, entityType, entityId])
+  @@index([familyId])
+  @@index([familyId, entityType, entityId])
+  @@map("SearchEmbedding")
+}
+
+// ── ML spec item #7 — Per-user engagement timing profile ────────────────────
+// Tracks which hours-of-day and days-of-week a user actually opens/acts on
+// notifications. Used by notifications.scheduler.ts to send reminders at the
+// user's typical engagement hour instead of a fixed time for everyone.
+//
+// The underlying data-collection pattern already exists in Track C
+// (aura-learning records `reminder_action` signals per family). This table
+// is the per-user generalization — the scheduler reads it directly without
+// going through the family-scoped FamilyBehaviorProfile.
+
+model UserEngagementProfile {
+  userId            String    @id @db.Text
+  hourHistogram     String    @default("[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]") @db.Text
+  weekdayHistogram  String    @default("[0,0,0,0,0,0,0]") @db.Text
+  totalSamples      Int       @default(0)
+  lastEngagedAt     DateTime? @db.Timestamptz
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([updatedAt])
+  @@map("UserEngagementProfile")
+}
+
+// ── ML spec item #5 — Brief engagement tracking ─────────────────────────────
+// Records open/tap/dismiss events on brief items, with snapshotted closeness
+// signal scores. Used to train learned logistic-regression weights that
+// replace the hardcoded weights in pulse/closeness.ts.
+
+model BriefEngagement {
+  id              String   @id @default(cuid()) @db.Text
+  userId          String   @db.Text
+  familyId        String   @db.Text
+  briefDate       DateTime @db.Date
+  itemKey         String   @db.Text
+  itemType        String   @db.Text
+  targetPersonId  String?  @db.Text
+  signalScores    String   @db.Text
+  engagementType  String   @db.Text
+  engaged         Boolean  @default(false)
+  dismissed       Boolean  @default(false)
+  engagedAt       DateTime @default(now()) @db.Timestamptz
+  createdAt       DateTime @default(now()) @db.Timestamptz
+
+  @@index([userId, briefDate])
+  @@index([familyId, briefDate])
+  @@index([engaged, dismissed])
+  @@map("BriefEngagement")
+}
+
+// ── ML spec item #5 — Learned closeness weights storage ─────────────────────
+// Stores the trained logistic regression weights + metadata so the live
+// PersonalizationService can read them without re-running training.
+
+model LearnedClosenessWeights {
+  id                    String   @id @default("current") @db.Text
+  weights               Json     @default("{\"graphDistance\":0.30,\"generationDistance\":0.15,\"relationshipSemantic\":0.35,\"auraRoleMatch\":0.10,\"sharedConnections\":0.10}")
+  bias                  Float    @default(0)
+  trainSamples          Int      @default(0)
+  validationSamples     Int      @default(0)
+  trainAccuracy         Float    @default(0)
+  validationAccuracy    Float    @default(0)
+  fixedBaselineAccuracy Float    @default(0)
+  beatsFixed            Boolean  @default(false)
+  trainedAt             DateTime @default(now()) @db.Timestamptz
+  updatedAt             DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@map("LearnedClosenessWeights")
+}

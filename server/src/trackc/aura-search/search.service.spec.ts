@@ -8,11 +8,13 @@
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { SearchService } from './search.service';
+import { EmbeddingService } from './embedding.service';
 import { BadRequestException } from '@nestjs/common';
 
 describe('SearchService', () => {
   let prisma: any;
   let membership: any;
+  let embeddingService: any;
   let service: SearchService;
 
   beforeEach(() => {
@@ -25,7 +27,7 @@ describe('SearchService', () => {
         (m as any).update.mockResolvedValue({});
         (m as any).upsert.mockResolvedValue({});
         (m as any).count.mockResolvedValue(0);
-        (m as any).deleteMany.mockResolvedValue({ count: 0 });
+        (m as any).deleteMany.mockResolvedValue({ count: 1 });
       }
     }
     prisma.$queryRawUnsafe = jest.fn().mockResolvedValue([]);
@@ -36,7 +38,16 @@ describe('SearchService', () => {
       requireAdmin: jest.fn().mockResolvedValue({ id: 'm_1', role: 'admin' }),
     };
 
-    service = new SearchService(prisma as any, membership as any);
+    // EmbeddingService stub — by default returns null (model unavailable),
+    // which makes the search service fall back to keyword-only ranking.
+    // Individual tests can override this to test the semantic-rerank path.
+    embeddingService = {
+      embed: jest.fn().mockResolvedValue(null),
+      embedBatch: jest.fn().mockResolvedValue([]),
+      dispose: jest.fn().mockResolvedValue(undefined),
+    };
+
+    service = new SearchService(prisma as any, membership as any, embeddingService);
   });
 
   // ── search() ─────────────────────────────────────────────────────────
@@ -64,14 +75,21 @@ describe('SearchService', () => {
       });
 
       expect(result.count).toBe(2);
-      expect(result.items).toEqual(mockResults);
+      // v3: when the embedding model is unavailable (default in tests),
+      // search returns keyword-only results with null semanticScore + finalScore
+      // appended so callers can detect the rerank status.
+      expect(result.items).toEqual([
+        { id: 's_1', entityType: 'decision', entityId: 'd_1', title: 'Vacation', rank_score: 0.9, semanticScore: null, finalScore: null },
+        { id: 's_2', entityType: 'memory', entityId: 'mem_1', title: 'Vacation memory', rank_score: 0.7, semanticScore: null, finalScore: null },
+      ]);
+      expect(result.reranked).toBe(false);
       expect(result.query).toBe('vacation');
       // The raw query must include the familyId parameter (family scoping)
       expect(prisma.$queryRawUnsafe).toHaveBeenCalledWith(
         expect.any(String),
         'vacation',         // sanitized query
         'fam_1',            // familyId
-        expect.any(Number), // limit
+        expect.any(Number), // poolSize (>= limit)
       );
     });
 
@@ -186,13 +204,18 @@ describe('SearchService', () => {
 
   // ── removeIndex() ────────────────────────────────────────────────────
   describe('removeIndex()', () => {
-    it('deletes by (familyId, entityType, entityId) tuple', async () => {
+    it('deletes both SearchIndex and SearchEmbedding by (familyId, entityType, entityId) tuple', async () => {
       prisma.searchIndex.deleteMany.mockResolvedValueOnce({ count: 1 });
+      prisma.searchEmbedding.deleteMany.mockResolvedValueOnce({ count: 1 });
 
-      const result = await service.removeIndex('fam_1', 'decision', 'd_1');
+      await service.removeIndex('fam_1', 'decision', 'd_1');
 
-      expect(result.count).toBe(1);
+      // v3: removeIndex now deletes from BOTH tables — the keyword index
+      // AND the semantic embedding — to keep them in sync.
       expect(prisma.searchIndex.deleteMany).toHaveBeenCalledWith({
+        where: { familyId: 'fam_1', entityType: 'decision', entityId: 'd_1' },
+      });
+      expect(prisma.searchEmbedding.deleteMany).toHaveBeenCalledWith({
         where: { familyId: 'fam_1', entityType: 'decision', entityId: 'd_1' },
       });
     });

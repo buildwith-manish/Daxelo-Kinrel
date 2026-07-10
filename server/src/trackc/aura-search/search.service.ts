@@ -1,5 +1,5 @@
 // =============================================================================
-// Track C v2.0 — AURA Search
+// Track C v2.0 - AURA Search
 // search.service.ts
 // =============================================================================
 // Universal cross-entity search across constitution, decisions, memory,
@@ -7,11 +7,27 @@
 //
 // Uses Postgres tsvector (generated column on SearchIndex) + GIN index.
 // Mirrored to Drift on the client for offline search.
+//
+// v3 (ML spec item #3 - Semantic search rerank):
+//   After the existing tsvector query returns the top-N keyword matches,
+//   we rerank them by cosine similarity between the query's all-MiniLM-L6-v2
+//   embedding and each result's precomputed embedding. This surfaces
+//   semantically related but keyword-mismatched results above exact-keyword
+//   but semantically-unrelated ones.
+//
+//   We do NOT replace keyword search - we rerank its results. This is
+//   lower-risk than a pure semantic search (no recall regression on exact
+//   queries) and uses the existing SearchIndex infrastructure.
+//
+//   If the embedding model is unavailable (load failure, memory pressure),
+//   we silently fall back to keyword-only ranking - the search still works,
+//   just without the semantic boost.
 // =============================================================================
 
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, OnModuleDestroy } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FamilyMembershipService } from '../common/family-membership.service';
+import { EmbeddingService } from './embedding.service';
 
 export type SearchEntityType =
   | 'constitution_article'
@@ -21,20 +37,41 @@ export type SearchEntityType =
   | 'timeline_event'
   | 'meeting_artifact';
 
+// How many keyword results to fetch before reranking. The semantic rerank
+// only looks at the top-N keyword matches - too few and we miss semantic
+// hits that didn't rank highly on keywords alone; too many and the embedding
+// fetch becomes expensive. 50 is a reasonable middle ground.
+const KEYWORD_POOL_SIZE = 50;
+// How many final results to return after reranking.
+const FINAL_LIMIT_DEFAULT = 20;
+
 @Injectable()
-export class SearchService {
+export class SearchService implements OnModuleDestroy {
   private readonly logger = new Logger(SearchService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly membership: FamilyMembershipService,
+    private readonly embeddingService: EmbeddingService,
   ) {}
+
+  async onModuleDestroy() {
+    await this.embeddingService.dispose();
+  }
 
   /**
    * Universal search. Uses Postgres full-text search via raw SQL (Prisma
    * doesn't support tsvector queries directly).
    *
-   * Ranking: ts_rank_cd on tsvector + boostedScore (recency + family weight).
+   * Ranking (v3):
+   *   1. Fetch top KEYWORD_POOL_SIZE keyword matches via ts_rank_cd * boostedScore.
+   *   2. Embed the query and fetch the precomputed embedding for each result.
+   *   3. Compute cosine similarity (query_embed, result_embed) for each.
+   *   4. Final score = 0.5 * keyword_rank_normalized + 0.5 * semantic_sim.
+   *   5. Sort by final score DESC, take the top `limit`.
+   *
+   * If the embedding model is unavailable, skip step 2-4 and return the
+   * keyword-ranked results directly (legacy behavior).
    */
   async search(params: {
     familyId: string;
@@ -48,12 +85,13 @@ export class SearchService {
     }
     await this.membership.requireMember(params.userId, params.familyId);
 
-    const limit = Math.min(Math.max(params.limit ?? 20, 1), 100);
+    const finalLimit = Math.min(Math.max(params.limit ?? FINAL_LIMIT_DEFAULT, 1), 100);
+    const poolSize = Math.max(finalLimit, KEYWORD_POOL_SIZE);
     const sanitizedQuery = this.sanitizeTsQuery(params.query);
 
-    // Use Prisma.$queryRaw for the tsvector query
+    // ?? Step 1: keyword pass (existing behavior) ??????????????????????
     const entityTypeFilter = params.entityType ? `AND "entityType" = '${params.entityType.replace(/'/g, "''")}'` : '';
-    const results: any[] = await this.prisma.$queryRawUnsafe(
+    const keywordResults: any[] = await this.prisma.$queryRawUnsafe(
       `
       WITH search_results AS (
         SELECT
@@ -77,13 +115,94 @@ export class SearchService {
       `,
       sanitizedQuery,
       params.familyId,
-      limit,
+      poolSize,
     );
+
+    if (keywordResults.length === 0) {
+      return {
+        query: params.query,
+        count: 0,
+        items: [],
+        reranked: false,
+      };
+    }
+
+    // ?? Step 2: semantic rerank ???????????????????????????????????????
+    // Try to embed the query. If the model is unavailable, return the
+    // keyword results as-is.
+    const queryEmbedding = await this.embeddingService.embed(params.query);
+    if (!queryEmbedding) {
+      // Fall back to keyword-only ranking
+      this.logger.debug?.('Semantic rerank skipped - embedding model unavailable');
+      return {
+        query: params.query,
+        count: Math.min(keywordResults.length, finalLimit),
+        items: keywordResults.slice(0, finalLimit).map((r) => ({
+          ...r,
+          semanticScore: null,
+          finalScore: null,
+        })),
+        reranked: false,
+      };
+    }
+
+    // Fetch embeddings for all keyword results in one query. We fetch by
+    // (entityType, entityId) tuples - Prisma doesn't support composite IN
+    // queries, so we fetch by familyId + entityType IN (...) and filter
+    // client-side. For typical search (one family, <=50 results) this is fine.
+    const entityTypes = Array.from(new Set(keywordResults.map((r) => r.entityType)));
+    const entityIds = keywordResults.map((r) => r.entityId);
+
+    const embeddings = await this.prisma.searchEmbedding.findMany({
+      where: {
+        familyId: params.familyId,
+        entityType: { in: entityTypes },
+        entityId: { in: entityIds },
+      },
+      select: { entityType: true, entityId: true, embedding: true },
+    });
+
+    // Build a lookup map: `${entityType}|${entityId}` -> number[]
+    const embeddingMap = new Map<string, number[]>();
+    for (const e of embeddings) {
+      try {
+        const vec = JSON.parse(e.embedding);
+        if (Array.isArray(vec) && vec.length === queryEmbedding.length) {
+          embeddingMap.set(`${e.entityType}|${e.entityId}`, vec);
+        }
+      } catch {
+        // malformed embedding row - skip
+      }
+    }
+
+    // ?? Step 3: rerank by semantic similarity ?????????????????????????
+    // Normalize the keyword rank scores to [0, 1] so they can be combined
+    // with the [0, 1] cosine similarity without one dominating the other.
+    const maxRank = Math.max(...keywordResults.map((r) => Number(r.rank_score) || 0), 1e-9);
+    const reranked = keywordResults.map((r) => {
+      const keywordNorm = (Number(r.rank_score) || 0) / maxRank;
+      const vec = embeddingMap.get(`${r.entityType}|${r.entityId}`);
+      const semanticScore = vec
+        ? EmbeddingService.cosineSimilarity(queryEmbedding, vec)
+        : 0; // no embedding available - neutral semantic score
+      // Blend: 50% keyword, 50% semantic. The blend weights are intentionally
+      // equal so neither signal dominates - the keyword pass already filtered
+      // to relevant items, the semantic pass just reorders them.
+      const finalScore = 0.5 * keywordNorm + 0.5 * semanticScore;
+      return {
+        ...r,
+        semanticScore,
+        finalScore,
+      };
+    });
+
+    reranked.sort((a, b) => (b.finalScore ?? 0) - (a.finalScore ?? 0));
 
     return {
       query: params.query,
-      count: results.length,
-      items: results,
+      count: Math.min(reranked.length, finalLimit),
+      items: reranked.slice(0, finalLimit),
+      reranked: true,
     };
   }
 
@@ -113,7 +232,10 @@ export class SearchService {
 
   /**
    * Upsert a search index entry for an entity. Called by entity services
-   * when an entity is created or updated.
+   * when an entity is created or updated. Also computes and stores a
+   * semantic embedding of the entity's title+body for the v3 semantic
+   * rerank pass. If the embedding model is unavailable, the SearchIndex
+   * row is still upserted (keyword-only search continues to work).
    */
   async upsertIndex(params: {
     familyId: string;
@@ -125,7 +247,7 @@ export class SearchService {
     boostedScore?: number;
   }) {
     const score = params.boostedScore ?? this.computeBoostedScore(params.entityType);
-    return this.prisma.searchIndex.upsert({
+    const result = await this.prisma.searchIndex.upsert({
       where: {
         familyId_entityType_entityId: {
           familyId: params.familyId,
@@ -149,15 +271,62 @@ export class SearchService {
         boostedScore: score,
       },
     });
+
+    // Best-effort semantic embedding - don't block the upsert on model load
+    // failures. We compute the embedding from title + body so it captures
+    // both the headline and the substantive content.
+    this.upsertEmbedding(params.familyId, params.entityType, params.entityId, `${params.title}\n${params.body}`)
+      .catch((err) => {
+        this.logger.debug?.(
+          `Embedding upsert failed for ${params.entityType}/${params.entityId}: ${(err as Error).message}`,
+        );
+      });
+
+    return result;
   }
 
   /**
-   * Remove a search index entry. Called when an entity is deleted.
+   * Compute and store a semantic embedding for a search entity. Idempotent
+   * (upsert by familyId+entityType+entityId). Skipped silently if the
+   * embedding model is unavailable.
+   */
+  async upsertEmbedding(
+    familyId: string,
+    entityType: SearchEntityType,
+    entityId: string,
+    text: string,
+  ): Promise<void> {
+    const vec = await this.embeddingService.embed(text);
+    if (!vec) return; // model unavailable - skip
+    await this.prisma.searchEmbedding.upsert({
+      where: {
+        familyId_entityType_entityId: { familyId, entityType, entityId },
+      },
+      create: {
+        familyId,
+        entityType,
+        entityId,
+        embedding: JSON.stringify(vec),
+      },
+      update: {
+        embedding: JSON.stringify(vec),
+      },
+    });
+  }
+
+  /**
+   * Remove a search index entry + its embedding. Called when an entity is deleted.
    */
   async removeIndex(familyId: string, entityType: SearchEntityType, entityId: string) {
-    return this.prisma.searchIndex.deleteMany({
-      where: { familyId, entityType, entityId },
-    });
+    await Promise.all([
+      this.prisma.searchIndex.deleteMany({
+        where: { familyId, entityType, entityId },
+      }),
+      this.prisma.searchEmbedding.deleteMany({
+        where: { familyId, entityType, entityId },
+      }),
+    ]);
+    return;
   }
 
   /**
